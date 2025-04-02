@@ -1,0 +1,118 @@
+[default]
+key_request.mnemonic = "spice split denial symbol resemble knock hunt trial make buzz attitude mom slice define clinic kid crawl guilt frozen there cage light secret work"
+key_request.child_path = "m/44'/60'/0'/0/0"
+
+key_request2.mnemonic = "wink shell monkey fiscal exit great friend motor arrange file coffee leg catch drip amateur simple plastic win seat circle couch differ stomach law"
+key_request2.child_path = "m/44'/60'/0'/0/0"
+
+erc20_deposit_0.value = "0x01"
+erc20_deposit_0.fee = "0x00"
+erc20_deposit_0.token_id = "0x00"
+
+erc20_deposit_1.value = "0x03"
+erc20_deposit_1.fee = "0x02"
+erc20_deposit_1.token_id = "0x00"
+
+erc20_deposit_2.value = "0x04"
+erc20_deposit_2.fee = "0x05"
+erc20_deposit_2.token_id = "0x00"
+
+erc20_deposit_3.value = "0x06"
+erc20_deposit_3.fee = "0x01"
+erc20_deposit_3.token_id = "0x00"
+
+erc20_deposit_4.value = "0x01"
+erc20_deposit_4.fee = "0x03"
+erc20_deposit_4.token_id = "0x00"
+
+erc20_deposit_large_block.value = "0x04"
+erc20_deposit_large_block.fee = "0x05"
+erc20_deposit_large_block.token_id = "0x00"
+
+erc20_transfer_0.value = "0x01"
+erc20_transfer_0.fee = "0x00"
+erc20_transfer_0.token_id = "0x00"
+
+erc20_transfer_1.value = "0x02"
+erc20_transfer_1.fee = "0x01"
+erc20_transfer_1.token_id = "0x00"
+
+erc20_transfer_2.value = "0x0A" #"0x03"
+erc20_transfer_2.fee = "0x02"
+erc20_transfer_2.token_id = "0x00"
+
+erc20_transfer_large_block.value = "0x02"
+erc20_transfer_large_block.fee = "0x01"
+erc20_transfer_large_block.token_id = "0x00"
+
+erc20_withdraw_0.value = "0x01"
+erc20_withdraw_0.fee = "0x00"
+erc20_withdraw_0.token_id = "0x00"
+
+erc20_withdraw_1.value = "0x01"
+erc20_withdraw_1.fee = "0x01"
+erc20_withdraw_1.token_id = "0x00"
+
+erc20_withdraw_2.value = "0x01"
+erc20_withdraw_2.fee = "0x02"
+erc20_withdraw_2.token_id = "0x00"
+
+erc721_deposit.value = "0x00"
+erc721_deposit.fee = "0x07"
+erc721_deposit.token_id = "0x01"
+
+erc721_transfer.value = "0x00"
+erc721_transfer.fee = "0x08"
+erc721_transfer.token_id = "0x01"
+
+erc721_withdraw.value = "0x00"
+erc721_withdraw.fee = "0x03"
+erc721_withdraw.token_id = "0x01"
+
+erc3525_deposit_1.value = "0x09"
+erc3525_deposit_1.fee = "0x0a"
+erc3525_deposit_1.token_id = "0x07"
+
+erc3525_deposit_2.value = "0x0c"
+erc3525_deposit_2.fee = "0x0d"
+erc3525_deposit_2.token_id = "0x08"
+
+erc3525_transfer_1.value = "0x03"
+erc3525_transfer_1.fee = "0x0c"
+erc3525_transfer_1.token_id = "0x07"
+
+erc3525_transfer_2.value = "0x04"
+erc3525_transfer_2.fee = "0x01"
+erc3525_transfer_2.token_id = "0x08"
+
+erc3525_withdraw.value = "0x03"
+erc3525_withdraw.fee = "0x04"
+erc3525_withdraw.token_id = "0x07"
+
+erc1155_deposit_1.value = "0x0f"
+erc1155_deposit_1.fee = "0x10"
+erc1155_deposit_1.token_id = "0x02"
+
+erc1155_deposit_2.value = "0x12"
+erc1155_deposit_2.fee = "0x13"
+erc1155_deposit_2.token_id = "0x02"
+
+erc1155_deposit_3_nft.value = "0x00"
+erc1155_deposit_3_nft.fee = "0x15"
+erc1155_deposit_3_nft.token_id = "0x49"
+
+erc1155_transfer_1.value = "0x20"
+erc1155_transfer_1.fee = "0x11"
+erc1155_transfer_1.token_id = "0x02"
+
+erc1155_transfer_2_nft.value = "0x00"
+erc1155_transfer_2_nft.fee = "0x01"
+erc1155_transfer_2_nft.token_id = "0x49"
+
+erc1155_withdraw_1.value = "0x1F"
+erc1155_withdraw_1.fee = "0x05"
+erc1155_withdraw_1.token_id = "0x02"
+
+erc1155_withdraw_2_nft.value = "0x00"
+erc1155_withdraw_2_nft.fee = "0x06"
+erc1155_withdraw_2_nft.token_id = "0x49"

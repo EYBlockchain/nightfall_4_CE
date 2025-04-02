@@ -1,0 +1,16 @@
+#!/bin/sh
+
+set -eu
+
+if ! cargo +nightly fmt
+then
+    echo "There are some cargo fmt issues."
+    exit 1
+fi
+
+if ! cargo clippy --all-targets -- -D warnings
+then
+    echo "There are some clippy issues."
+    exit 1
+fi
+exit 0
