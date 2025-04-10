@@ -1,0 +1,11 @@
+target
+.github
+.vscode
+.githooks
+**/Dockerfile
+docker-compose*
+LICENSE
+**/tests
+.env.example
+remappings.txt
+**/*.ptau

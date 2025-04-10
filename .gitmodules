@@ -1,0 +1,9 @@
+[submodule "blockchain_assets/solidity_lib/openzeppelin-contracts"]
+	path = blockchain_assets/solidity_lib/openzeppelin-contracts
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+[submodule "blockchain_assets/solidity_lib/erc-3525"]
+	path = blockchain_assets/solidity_lib/erc-3525
+	url = https://github.com/solv-finance/erc-3525
+[submodule "blockchain_assets/solidity_lib/forge-std"]
+	path = blockchain_assets/solidity_lib/forge-std
+	url = https://github.com/foundry-rs/forge-std

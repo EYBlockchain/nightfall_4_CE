@@ -1,0 +1,17 @@
+[profile.default]
+src = "blockchain_assets/contracts"
+out = "blockchain_assets/artifacts"
+script = "blockchain_assets/script"
+libs = ["blockchain_assets/solidity_lib"]
+test = "blockchain_assets/test_contracts"
+cache_path = "blockchain_assets/cache"
+broadcast = "blockchain_assets/logs"
+gas_reports = ["Nightfall"]
+fs_permissions = [{ access = "read-write", path = "./" }]
+evm_version = "cancun"
+remappings = [
+    "@openzeppelin/contracts/=blockchain_assets/solidity_lib/openzeppelin-contracts/contracts/",
+    "@forge-std/=blockchain_assets/solidity_lib/forge-std/src/",
+    "@erc-3525/=blockchain_assets/solidity_lib/erc-3525/",
+]
+# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

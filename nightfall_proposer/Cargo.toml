@@ -1,0 +1,61 @@
+[package]
+name = "nightfall_proposer"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bson = "2.14.0"
+ark-bn254 = "0.4.0"
+ark-poly = { version = "0.4.0", features = ["parallel"] }
+ark-ff = { version = "0.4.0", features = ["parallel"] }
+ark-ed-on-bn254 = "0.4.0"
+ark-ec = { version = "0.4.0", features = ["parallel"] }
+nightfall_client = { path = "../nightfall_client" }
+ethers = { version = "2.0.0", features = ["ws"] }
+ark-serialize = "0.4.0"
+serde = { version = "1.0.152", features = ["derive"] }
+serde_json = "1.0.93"
+serde_repr = "0.1.6"
+serde_bytes = "0.11"
+serde_with = "2.3.1"
+num-bigint = "0.4.3"
+sha3 = "0.10.6"
+futures = "0.3.26"
+configuration = { path = "../configuration" }
+lib = { path = "../lib" }
+tokio = { version = "1.33.0", features = ["full"] }
+log = "0.4.20"
+warp = "0.3.3"
+async-trait = "0.1.64"
+mongodb = "3.0.1"
+rayon = "1.8"
+ark-std = { version = "0.4.0", default-features = false, features = [
+    "parallel",
+] }
+hex = "0.4.2"
+either = "1.9.0"
+lazy_static = "1.4.0"
+jf-primitives = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git" }
+testcontainers = { version = "0.19.0", features = ["blocking"] }
+url = "2.5.2"
+jf-relation = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git" }
+jf-plonk = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", features = [
+    "test-srs",
+] }
+jf-utils = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", features = [
+    "parallel",
+] }
+nf-curves = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git" }
+itertools = { version = "0.10.1", default-features = false }
+sha2 = { version = "0.10.1", default-features = false }
+nightfall-bindings = { path = "../nightfall_bindings" }
+
+[dev-dependencies]
+criterion = { version = "0.4", features = ["html_reports"] }
+
+[[bench]]
+name = "bench_deposit"
+harness = false
+
+[features]
+parallel = ["ark-std/parallel", "ark-ff/parallel", "ark-poly/parallel", "ark-ec/parallel"]
