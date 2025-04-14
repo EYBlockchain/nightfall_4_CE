@@ -1,0 +1,129 @@
+#
+# The development section of this file is used by the integration tests. Take care editing it or you may break the tests
+# Select a configuration by setting the environment variable NF4_RUN_MODE to the desired section name, e.g. NF4_RUN_MODE="production"
+#
+
+[development]
+signing_key = "Key not set" #key (0)
+azure_vault_url = "vault url is not set"
+azure_key_name = "key name not set"
+log_app_only = true
+test_x509_certificates = true
+mock_prover = true
+genesis_block = 0
+ethereum_client_url = "ws://anvil:8545"
+configuration_url = "http://configuration:80"  
+                                     # The name of the proposer config to use can be overridden by env var NF4_PROPOSER_CONFIG
+
+[development.network]
+chain_id = 31337 # Anvil chain id = 31337
+
+[development.nightfall_client]
+url = "http://client:3000"
+log_level = "info"
+wallet_type = "local"
+db_url = "mongodb://nf4_db_client:27017"
+
+[development.nightfall_proposer]
+url = "http://proposer:3000"
+log_level = "info"
+wallet_type = "local"
+db_url = "mongodb://nf4_db_proposer:27017"
+
+[development.nightfall_deployer]
+log_level = "info"
+default_proposer_address = "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720"
+default_proposer_url = "http://proposer:3000"
+proposer_stake = 0
+proposer_ding = 0                                                       # how much to fine a proposer for not making a block
+proposer_rotation_blocks = 1                                            # how many blocks before we rotate proposers
+
+[development.nightfall_test]
+log_level = "info"
+
+[development.contracts]
+assets = "./blockchain_assets/artifacts"
+rust_bindings = "./nightfall_bindings"
+addresses_file = "configuration/toml/addresses.toml"
+deployment_file = "./blockchain_assets/logs/deployer.s.sol"
+deploy_contracts = true
+
+[development.contracts.contract_addresses] # Contract addresses for the development network. These are used if deploy_contracts is false and they are not empty
+nightfall = ""
+round_robin = ""
+x509 = ""
+
+[development.certificates]
+authority_key_identifier = "0xCA916116F4F9D80A03D32ED516CF6496408F0A4A"
+modulus = "0x00BD1824FB96B4764E6115508B73632F8F65884A5BFC391A55C56469D9DB57FF5FCAF15E6DCBECCE2C02E32F7092EEB35727354C46707417CE566796295B1B57604211962C7F96459AA046385972F5A8EF46269B82C987FAF89DF76FDC985031BEE4D110753F028CD91A48D5AC4E4DA76B9AE48A6875AA791E96B3ECE3BF1DC2390866D8B0665FDCD647A2F37FBD3087AEA620F9E69E38EE42EC57530FCF42F64E8E6AD20279E9D74062D0B3B4B997A92471B72BC922AE3CAE6A366C9ACD7BBC93AC8E6DD3FFEA77F03E0941439C2A717C7C45E681EB2ABC30DF7E1EC06B84BA1C5CCB9E40D7E0F96EE6198D1349A085598C7FA3D190434102FD668FAB6B8DDFDA9B15CAD00C7F54BED718FB344323CEB91E91EAF1643FD647803772B80BE4A0EF58350AE128E1E36069F561D1578EBCD867EB6E61252843D860BD5DA195C8ED4D946C1C06AD43DDA1B78F4A4CD73AAA24CB9CE55C0CB968E4475D9E04DBE9A7DB2A7215CF930EA390218E6CDFE719B724F0C1EBC78895223BDB4A2AB595F604D2ABEC4F8180E66512259BDC989DEE4CE3E9F595304BCA6169DC6BE38903071D5D8F56ED78EE8904B881623F884F6FA2CBF262983AABEDDA03255D7CF4CA9C28946FEF77EEF7ACBFF326AD6452EB7B3758DFDBF1B57DD800BDA651F0EB84F1D3C9DB2A693BC7B467E9111D4CC645F2009B26A47F1D803651DC56AF7123C61A5337"
+exponent = 65537
+extended_key_usages = [
+    "0x06082b0601050507030400000000000000000000000000000000000000000000",
+    "0x06082b0601050507030800000000000000000000000000000000000000000000",
+]
+certificate_policies = [
+    "0x06032d0607000000000000000000000000000000000000000000000000000000",
+]
+
+[base_sepolia]
+# This is the base_sepolia environment - add an appropriate configuration here, using development as a template
+signing_key = "Key not set" #key (0)
+log_app_only = true
+test_x509_certificates = true
+mock_prover = false
+genesis_block = 7303940
+ethereum_client_url = "override this with an environment variable NF4_ETHEREUM_CLIENT_URL"
+configuration_url = "http://configuration:80" # The name of the proposer config to use can be overridden by env var NF4_PROPOSER_CONFIG
+
+[base_sepolia.network]
+chain_id = 84532 # Base Sepolia chain id = 84532
+
+[base_sepolia.nightfall_client]
+url = "http://client:3000"
+log_level = "info"
+wallet_type = "local"
+db_url = "mongodb://nf4_db_client:27017"
+
+[base_sepolia.nightfall_proposer]
+url = "http://proposer:3000"
+log_level = "info"
+wallet_type = "local"
+db_url = "mongodb://nf4_db_proposer:27017"
+
+[base_sepolia.nightfall_deployer]
+log_level = "info"
+default_proposer_address = "0xB4482738243946ffAb384Fa5409bcad8F304a757"
+default_proposer_url = "http://proposer:3000"
+proposer_stake = 0
+proposer_ding = 0                                                       # how much to fine a proposer for not making a block
+proposer_rotation_blocks = 1                                            # how many blocks before we rotate proposers
+
+[base_sepolia.nightfall_test]
+log_level = "info"
+
+[base_sepolia.contracts]
+assets = "./blockchain_assets/artifacts"
+rust_bindings = "./nightfall_bindings"
+addresses_file = "configuration/toml/addresses.toml"
+deployment_file = "./blockchain_assets/logs/deployer.s.sol"
+deploy_contracts = false
+
+[base_sepolia.contracts.contract_addresses] # Contract addresses for the base_sepolia network. These are used if deploy_contracts is false and they are not empty
+nightfall = "0xd84418eb9894daaa04843118d4f481edf6f6e74f"
+round_robin = "0x402148defe11b59741bdaee822e783f28ffa7d19"
+x509 = "0x6c816f8b0d297b6f105ab74bf3af7fb467e50966"
+
+[base_sepolia.certificates]
+authority_key_identifier = "0xCA916116F4F9D80A03D32ED516CF6496408F0A4A"
+modulus = "0x00BD1824FB96B4764E6115508B73632F8F65884A5BFC391A55C56469D9DB57FF5FCAF15E6DCBECCE2C02E32F7092EEB35727354C46707417CE566796295B1B57604211962C7F96459AA046385972F5A8EF46269B82C987FAF89DF76FDC985031BEE4D110753F028CD91A48D5AC4E4DA76B9AE48A6875AA791E96B3ECE3BF1DC2390866D8B0665FDCD647A2F37FBD3087AEA620F9E69E38EE42EC57530FCF42F64E8E6AD20279E9D74062D0B3B4B997A92471B72BC922AE3CAE6A366C9ACD7BBC93AC8E6DD3FFEA77F03E0941439C2A717C7C45E681EB2ABC30DF7E1EC06B84BA1C5CCB9E40D7E0F96EE6198D1349A085598C7FA3D190434102FD668FAB6B8DDFDA9B15CAD00C7F54BED718FB344323CEB91E91EAF1643FD647803772B80BE4A0EF58350AE128E1E36069F561D1578EBCD867EB6E61252843D860BD5DA195C8ED4D946C1C06AD43DDA1B78F4A4CD73AAA24CB9CE55C0CB968E4475D9E04DBE9A7DB2A7215CF930EA390218E6CDFE719B724F0C1EBC78895223BDB4A2AB595F604D2ABEC4F8180E66512259BDC989DEE4CE3E9F595304BCA6169DC6BE38903071D5D8F56ED78EE8904B881623F884F6FA2CBF262983AABEDDA03255D7CF4CA9C28946FEF77EEF7ACBFF326AD6452EB7B3758DFDBF1B57DD800BDA651F0EB84F1D3C9DB2A693BC7B467E9111D4CC645F2009B26A47F1D803651DC56AF7123C61A5337"
+exponent = 65537
+extended_key_usages = [
+    "0x06082b0601050507030400000000000000000000000000000000000000000000",
+    "0x06082b0601050507030800000000000000000000000000000000000000000000",
+]
+certificate_policies = [
+    "0x06032d0607000000000000000000000000000000000000000000000000000000",
+]
+
+[production]
+# This is the production environment - add an appropriate configuration here, using development as a template

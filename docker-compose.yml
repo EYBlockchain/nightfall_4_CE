@@ -1,0 +1,546 @@
+services:
+  client:
+    container_name: nf4_client
+    stop_grace_period: 3s
+    profiles:
+      - client
+      - development
+      - sync_test
+      - testnet
+    build:
+      dockerfile: nightfall_client/Dockerfile
+      context: .
+    stdin_open: true # keep stdin open, so we can print things in docker compose up
+    platform: linux/amd64 # Required for building on M1 Macs
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD", "wget" ,"--no-verbose", "--tries=1", "--spider", "http://localhost:3000/v1/health"]
+      interval: 5s
+      timeout: 90s
+      retries: 10
+      start_period: 0s
+    networks:
+      - nightfall_network
+    volumes:
+      - type: volume
+        source: address_data
+        target: /app/configuration/toml
+        
+        read_only: true
+    depends_on:
+      db_client:
+        condition: service_healthy
+      anvil:
+        condition: service_healthy
+      deployer:
+        condition: service_completed_successfully
+      proposer:
+        condition: service_healthy
+    tty: true # required for logs to print in colour
+    environment:
+      - NF4_RUN_MODE=${NF4_RUN_MODE:-development}
+      - RUST_BACKTRACE=${RUST_BACKTRACE:-0}
+      - NF4_SIGNING_KEY=${CLIENT_SIGNING_KEY}
+      - NF4_NIGHTFALL_CLIENT__DB_URL=mongodb://nf4_db_client:27017
+      - AZURE_VAULT_URL=${AZURE_VAULT_URL}
+      - AZURE_KEY_NAME=${CLIENT_SIGNING_KEY_NAME}
+      - AZURE_CLIENT_ID=${AZURE_CLIENT_ID}
+      - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
+      - AZURE_TENANT_ID=${AZURE_TENANT_ID}
+      - WEBHOOK_URL=${WEBHOOK_URL}
+
+  indie-client:
+    container_name: nf4_indie_client
+    stop_grace_period: 3s
+    profiles:
+      - indie-client
+    build:
+      dockerfile: nightfall_client/Dockerfile
+      context: .
+    stdin_open: true # keep stdin open, so we can print things in docker compose up
+    platform: linux/amd64 # Required for building on M1 Macs
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD", "wget" ,"--no-verbose", "--tries=1", "--spider", "http://localhost:3000/v1/health"]
+      interval: 5s
+      timeout: 90s
+      retries: 10
+      start_period: 0s
+    networks:
+      - nightfall_network
+    depends_on:
+      db_client:
+        condition: service_healthy
+    tty: true # required for logs to print in colour
+    environment:
+      - NF4_RUN_MODE=${NF4_RUN_MODE:-base_sepolia}
+      - RUST_BACKTRACE=${RUST_BACKTRACE:-0}
+      - NF4_SIGNING_KEY=${CLIENT_SIGNING_KEY}
+      - NF4_NIGHTFALL_CLIENT__DB_URL=mongodb://nf4_db_client:27017
+      - NF4_ETHEREUM_CLIENT_URL
+      - NF4_MOCK_PROVER=${NF4_MOCK_PROVER:-false}
+      - NF4_NIGHTFALL_PROPOSER__URL= ${NF4_NIGHTFALL_PROPOSER__URL:-localhost:3001}
+
+  client2:
+    container_name: nf4_client2
+    stop_grace_period: 3s
+    profiles:
+      - client
+      - sync_test
+      - development
+    build:
+      dockerfile: nightfall_client/Dockerfile
+      context: .
+    # command: ["tail", "-f","/dev/null"] # For debugging if required
+    stdin_open: true # keep stdin open, so we can print things in docker compose up
+    platform: linux/amd64 # Required for building on M1 Macs
+    ports:
+      - "3002:3000"
+    healthcheck:
+      test: ["CMD", "wget" ,"--no-verbose", "--tries=1", "--spider", "http://localhost:3000/v1/health"]
+      interval: 5s
+      timeout: 90s
+      retries: 10
+      start_period: 0s
+    networks:
+      - nightfall_network
+    volumes:
+      - type: volume
+        source: address_data
+        target: /app/configuration/toml
+        read_only: true
+    depends_on:
+      db_client2:
+        condition: service_healthy
+      anvil:
+        condition: service_healthy
+      deployer:
+        condition: service_completed_successfully
+      proposer:
+        condition: service_healthy
+    tty: true # required for logs to print in colour
+    environment:
+      - NF4_RUN_MODE=${NF4_RUN_MODE:-development}
+      - RUST_BACKTRACE=${RUST_BACKTRACE:-0}
+      - NF4_SIGNING_KEY=${CLIENT2_SIGNING_KEY}      
+      - NF4_NIGHTFALL_CLIENT__DB_URL=mongodb://nf4_db_client2:27017      
+      - NF4_NIGHTFALL_CLIENT__LOG_LEVEL=info # Mostly the client2 logs are a repeat of client1 logs, so we can reduce the log level to error
+      - AZURE_VAULT_URL=${AZURE_VAULT_URL}
+      - AZURE_KEY_NAME=${CLIENT2_SIGNING_KEY_NAME}
+      - AZURE_CLIENT_ID=${AZURE_CLIENT_ID}
+      - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
+      - AZURE_TENANT_ID=${AZURE_TENANT_ID}
+  proposer:
+    container_name: nf4_proposer
+    stop_grace_period: 3s
+    profiles:
+      - proposer
+      - development
+      - sync_test
+      - testnet
+    build:
+      dockerfile: nightfall_proposer/Dockerfile
+      context: .
+    platform: linux/amd64 # Required for building on M1 Macs
+    ports:
+      - "3001:3000"
+    healthcheck:
+      test: ["CMD", "wget" ,"--no-verbose", "--tries=1", "--spider", "http://localhost:3000/v1/health"]
+      interval: 5s
+      timeout: 90s
+      retries: 10
+      start_period: 0s
+    networks:
+      - nightfall_network
+    volumes:
+      - type: volume
+        source: address_data
+        target: /app/configuration/toml
+        read_only: true
+    depends_on:
+      db_proposer:
+        condition: service_healthy
+      anvil:
+        condition: service_healthy
+      deployer:
+        condition: service_completed_successfully
+    stdin_open: true # keep stdin open, so we can print things in docker compose up
+    tty: true # required for logs to print in colour
+    environment:
+      - NF4_RUN_MODE=${NF4_RUN_MODE:-development}
+      - RUST_BACKTRACE=${RUST_BACKTRACE:-0}
+      - NF4_SIGNING_KEY=${PROPOSER_SIGNING_KEY}
+      - NF4_MOCK_PROVER=${NF4_MOCK_PROVER:-true}
+      - AZURE_VAULT_URL=${AZURE_VAULT_URL}
+      - AZURE_KEY_NAME=${PROPOSER_SIGNING_KEY_NAME}
+      - AZURE_CLIENT_ID=${AZURE_CLIENT_ID}
+      - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
+      - AZURE_TENANT_ID=${AZURE_TENANT_ID}
+
+  indie-proposer:
+    container_name: nf4_indie_proposer
+    stop_grace_period: 3s
+    profiles:
+      - indie-proposer
+    build:
+      dockerfile: nightfall_proposer/Dockerfile
+      context: .
+    platform: linux/amd64 # Required for building on M1 Macs
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    healthcheck:
+      test: ["CMD", "wget" ,"--no-verbose", "--tries=1", "--spider", "http://localhost:3000/v1/health"]
+      interval: 5s
+      timeout: 90s
+      retries: 10
+      start_period: 0s
+    networks:
+      - nightfall_network
+    depends_on:
+      db_proposer:
+        condition: service_healthy
+    stdin_open: true # keep stdin open, so we can print things in docker compose up
+    tty: true # required for logs to print in colour
+    environment:
+      - NF4_RUN_MODE=${NF4_RUN_MODE:-base_sepolia}
+      - RUST_BACKTRACE=${RUST_BACKTRACE:-0}
+      - NF4_SIGNING_KEY=${PROPOSER_SIGNING_KEY}
+      - NF4_MOCK_PROVER=${NF4_MOCK_PROVER:-false}
+      - NF4_ETHEREUM_CLIENT_URL
+      - NF4_CONTRACTS__DEPLOY_CONTRACTS=${NF4_CONTRACTS__DEPLOY_CONTRACTS:-false}
+
+
+  proposer2:
+    container_name: nf4_proposer2
+    stop_grace_period: 3s
+    profiles:
+      - sync_test
+    build:
+      dockerfile: nightfall_proposer/Dockerfile
+      context: .
+    platform: linux/amd64 # Required for building on M1 Macs
+    healthcheck:
+      test: ["CMD", "wget" ,"--no-verbose", "--tries=1", "--spider", "http://localhost:3000/v1/health"]
+      interval: 5s
+      timeout: 90s
+      retries: 10
+      start_period: 0s
+    networks:
+      - nightfall_network
+    volumes:
+      - type: volume
+        source: address_data
+        target: /app/configuration/toml
+        read_only: true
+    depends_on:
+      db_proposer2:
+        condition: service_healthy
+      test:
+        condition: service_completed_successfully
+    stdin_open: true # keep stdin open, so we can print things in docker compose up
+    tty: true # required for logs to print in colour
+    environment:
+      - NF4_RUN_MODE=${NF4_RUN_MODE:-development}
+      - RUST_BACKTRACE=${RUST_BACKTRACE:-0}
+      - NF4_SIGNING_KEY=${PROPOSER_2_SIGNING_KEY}
+      - NF4_PROPOSER_CONFIG=nightfall_proposer2
+      - NF4_MOCK_PROVER=${NF4_MOCK_PROVER:-true}
+      - AZURE_VAULT_URL=${AZURE_VAULT_URL}
+      - AZURE_KEY_NAME=${PROPOSER_2_SIGNING_KEY_NAME}
+      - AZURE_CLIENT_ID=${AZURE_CLIENT_ID}
+      - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
+      - AZURE_TENANT_ID=${AZURE_TENANT_ID}
+      - NF4_NIGHTFALL_PROPOSER__URL=http://proposer2:3000
+      - NF4_NIGHTFALL_PROPOSER__DB_URL=mongodb://nf4_db_proposer2:27017
+
+  db_client:
+    container_name: nf4_db_client
+    stop_grace_period: 3s
+    profiles:
+      - client
+      - indie-client
+      - development
+      - sync_test
+      - testnet
+    image: mongo:4.4.1-bionic # Replace with mongo:6.0 when image is available
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongo localhost:27017 --quiet || exit 1
+      interval: 10s
+      timeout: 90s
+      retries: 10
+      start_period: 0s
+    command: mongod --quiet --logpath /dev/null 
+    ports:
+      - "27017:27017"    
+    networks:
+      - nightfall_network
+  #  volumes:
+  #    - mongodb_client_data:/data/db
+    environment:
+      - NF4_RUN_MODE=${NF4_RUN_MODE:-development}
+
+  db_client2:
+    container_name: nf4_db_client2
+    stop_grace_period: 3s
+    profiles:
+      - client
+      - sync_test
+      - development
+    image: mongo:4.4.1-bionic # Replace with mongo:6.0 when image is available
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongo localhost:27017 --quiet || exit 1
+      interval: 10s
+      timeout: 90s
+      retries: 10
+      start_period: 0s
+    command: mongod --quiet --logpath /dev/null 
+    ports:
+      - "27020:27017"    
+    networks:
+      - nightfall_network
+  #  volumes:
+  #    - mongodb_client2_data:/data/db
+    environment:
+      - NF4_RUN_MODE=${NF4_RUN_MODE:-development}
+
+  db_proposer:
+    container_name: nf4_db_proposer
+    stop_grace_period: 3s
+    profiles:
+      - proposer
+      - indie-proposer # We'll reuse the db_proposer for the indie-proposer as this will never run at the same time as the proposer
+      - development
+      - sync_test
+      - testnet
+    image: mongo:4.4.1-bionic # Replace with mongo:6.0 when image is available
+    restart: unless-stopped
+    ports:
+      - "27018:27017"    
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongo localhost:27017 --quiet || exit 1
+      interval: 10s
+      timeout: 90s
+      retries: 10
+      start_period: 0s
+    command: mongod --quiet --logpath /dev/null 
+    networks:
+      - nightfall_network
+  #  volumes:
+  #    - mongodb_proposer_data:/data/db
+    environment:
+      - NF4_RUN_MODE=${NF4_RUN_MODE:-development}
+
+  db_proposer2:
+    container_name: nf4_db_proposer2
+    stop_grace_period: 3s
+    profiles:
+      - sync_test
+    image: mongo:4.4.1-bionic # Replace with mongo:6.0 when image is available
+    ports:
+      - "27019:27017"    
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongo localhost:27017 --quiet || exit 1
+      interval: 10s
+      timeout: 90s
+      retries: 10
+      start_period: 0s
+    command: mongod --quiet --logpath /dev/null 
+    networks:
+      - nightfall_network
+    environment:
+      - NF4_RUN_MODE=${NF4_RUN_MODE:-development}
+
+  deployer:
+    container_name: nf4_deployer
+    stop_grace_period: 3s
+    profiles:
+      - deployer
+      - development
+      - sync_test
+      - testnet
+    build:
+      dockerfile: nightfall_deployer/Dockerfile
+      context: .
+    platform: linux/amd64 # Required for building on M1 Macs
+    # command: ["tail", "-f","/dev/null"] # For debugging if required
+    networks:
+      - nightfall_network
+    volumes:
+      - ./blockchain_assets/test_contracts:/test_contracts
+      - ./blockchain_assets/logs:/app/blockchain_assets/logs # to be able to see deployed contract addresses locally
+      - type: volume
+        source: address_data
+        target: /app/configuration/toml
+        read_only: false
+      - ./configuration/toml/addresses.toml:/app/configuration/toml/toml/addresses.toml # save contract addresses to the local file system in case we need to know where the contracts were deployed
+    depends_on:
+      anvil:
+        condition: service_healthy
+    stdin_open: true # keep stdin open, so we can print things in docker compose up
+    tty: true # required for logs to print in colour
+    environment:
+      - NF4_RUN_MODE=${NF4_RUN_MODE:-development}
+      - NF4_CONTRACTS__DEPLOY_CONTRACTS=${NF4_CONTRACTS__DEPLOY_CONTRACTS:-true}
+      - RUST_BACKTRACE=${RUST_BACKTRACE:-0}
+      - NF4_SIGNING_KEY=${DEPLOYER_SIGNING_KEY}
+      - CLIENT_ADDRESS=${CLIENT_ADDRESS}
+      - NF4_MOCK_PROVER=${NF4_MOCK_PROVER:-true}
+      - AZURE_VAULT_URL=${AZURE_VAULT_URL}
+      - AZURE_KEY_NAME=${DEPLOYER_SIGNING_KEY_NAME}
+      - AZURE_CLIENT_ID=${AZURE_CLIENT_ID}
+      - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
+      - AZURE_TENANT_ID=${AZURE_TENANT_ID}
+
+  indie-deployer:
+    container_name: nf4_indie_deployer
+    stop_grace_period: 3s
+    profiles:
+      - indie-deployer
+    build:
+      dockerfile: nightfall_deployer/Dockerfile
+      context: .
+    platform: linux/amd64 # Required for building on M1 Macs
+    # command: ["tail", "-f","/dev/null"] # For debugging if required
+    networks:
+      - nightfall_network
+    volumes:
+      - ./blockchain_assets/test_contracts:/test_contracts
+      - ./blockchain_assets/logs:/app/blockchain_assets/logs # to be able to see deployed contract addresses locally
+      - ./configuration/toml/addresses.toml:/app/configuration/toml/toml/addresses.toml # save contract addresses to the local file system in case we need to know where the contracts were deployed
+    stdin_open: true # keep stdin open, so we can print things in docker compose up
+    tty: true # required for logs to print in colour
+    environment:
+      - NF4_RUN_MODE=${NF4_RUN_MODE:-base_sepolia}
+      - NF4_CONTRACTS__DEPLOY_CONTRACTS=${NF4_CONTRACTS__DEPLOY_CONTRACTS:-true}
+      - RUST_BACKTRACE=${RUST_BACKTRACE:-0}
+      - NF4_SIGNING_KEY=${DEPLOYER_SIGNING_KEY}
+      - CLIENT_ADDRESS=${CLIENT_ADDRESS}
+      - NF4_MOCK_PROVER=${NF4_MOCK_PROVER:-false}
+      - NF4_ETHEREUM_CLIENT_URL
+
+  configuration:
+    container_name: nf4_configuration
+    stop_grace_period: 3s
+    profiles:
+      - configuration
+      - development
+      - sync_test
+      - testnet
+    build:
+      dockerfile: configuration/Dockerfile
+      context: .
+    platform: linux/amd64 # Required for building on M1 Macs
+    volumes:
+      - type: bind
+        source: ./configuration/toml
+        target: /var/www/html/configuration/toml
+        read_only: false
+    networks:
+      - nightfall_network
+    stdin_open: true # keep stdin open, so we can print things in docker compose up
+    tty: true # required for logs to print in colour
+    environment:
+      - NF4_RUN_MODE=${NF4_RUN_MODE:-development}
+      - RUST_BACKTRACE=${RUST_BACKTRACE:-0}
+      - NGINX_ENTRYPOINT_QUIET_LOGS=1
+
+  anvil:
+    container_name: anvil
+    stop_grace_period: 3s
+    profiles:
+      - development
+      - sync_test
+      - anvil
+      - testnet # Required for deployer to start up correctly
+    build:
+      dockerfile: anvil/Dockerfile
+      context: .
+    platform: linux/amd64 # Required for building on M1 Macs
+    healthcheck:
+      test: ["CMD", "curl", "-H", "Content-Type:", "application/json", "-X", "POST", "--data", '{"jsonrpc":"2.0","method":"web3_clientVersion","params":[],"id":67}', "0.0.0.0:8545"]
+      interval: 10s
+      timeout: 90s
+      retries: 10
+      start_period: 0s
+    networks:
+      - nightfall_network
+    
+  test:
+    container_name: nf4_test
+    stop_grace_period: 3s
+    profiles:
+      - development
+      - sync_test
+      - no_deployment
+      - testnet
+    build:
+      dockerfile: nightfall_test/Dockerfile
+      context: .
+    platform: linux/amd64 # Required for building on M1 Macs
+    # command: ["tail", "-f","/dev/null"] # For debugging if required
+    volumes:
+      - ./blockchain_assets/logs:/app/blockchain_assets/logs # to be able to see deployed contract addresses locally
+      - type: volume
+        source: address_data
+        target: /app/configuration/toml
+        read_only: true
+    networks:
+      - nightfall_network
+    stdin_open: true # keep stdin open, so we can print things in docker compose up
+    tty: true # required for logs to print in colour
+    environment:
+      - NF4_RUN_MODE=${NF4_RUN_MODE:-development}
+      - RUST_BACKTRACE=${RUST_BACKTRACE:-0}
+      - NF4_SIGNING_KEY=${DEPLOYER_SIGNING_KEY}
+      - NF4_CONTRACTS__DEPLOY_CONTRACTS=${NF4_CONTRACTS__DEPLOY_CONTRACTS:-true}
+      - CLIENT_ADDRESS=${CLIENT_ADDRESS}
+      - NF4_LARGE_BLOCK_TEST=${NF4_LARGE_BLOCK_TEST:-false} # Set to true to run large block tests
+  
+    depends_on:
+      client:
+        condition: service_healthy
+      client2:
+        condition: service_healthy
+      proposer:
+        condition: service_healthy
+
+  sync_test:
+    container_name: nf4_sync_test
+    stop_grace_period: 3s
+    profiles:
+      - sync_test
+    build:
+      dockerfile: nightfall_sync_test/Dockerfile
+      context: .
+    volumes:
+      - type: volume
+        source: address_data
+        target: /app/configuration/toml
+        read_only: true
+
+    platform: linux/amd64 # Required for building on M1 Macs
+    networks:
+      - nightfall_network
+    stdin_open: true # keep stdin open, so we can print things in docker compose up
+    tty: true # required for logs to print in colour
+    environment:
+      - NF4_RUN_MODE=${NF4_RUN_MODE:-development}
+      - RUST_BACKTRACE=${RUST_BACKTRACE:-0}
+      - NF4_SIGNING_KEY=${DEPLOYER_SIGNING_KEY}
+    depends_on:
+      proposer:
+        condition: service_healthy
+      proposer2:
+        condition: service_healthy
+    
+volumes:
+  # mongodb_client_data:
+  # mongodb_client2_data:
+  # mongodb_proposer_data:
+  address_data:
+
+networks:
+   nightfall_network:

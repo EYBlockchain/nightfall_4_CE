@@ -1,0 +1,15 @@
+[workspace]
+members = [
+    "nightfall_client",
+    "nightfall_deployer",
+    "configuration",
+    "nightfall_test",
+    "nightfall_proposer", 
+    "nightfall_sync_test",
+    "lib",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"

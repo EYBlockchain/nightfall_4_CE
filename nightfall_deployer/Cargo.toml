@@ -1,0 +1,56 @@
+[package]
+name = "nightfall_deployer"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[[bin]]
+name = "key_generation"
+path = "bin/key_generation.rs"
+
+
+[dependencies]
+jf-utils = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", features = [
+    "parallel",
+] }
+itertools = "0.10.1"
+dotenv = "0.15.0"
+ethers = { version = "2.0.10", features = ["ws"] }
+tokio = { version = "1.25.0", features = ["full"] }
+ethers-solc = "2.0.8"
+configuration = { path = "../configuration" }
+nightfall_test = { path = "../nightfall_test" }
+toml = "0.8.8"
+serde = "1.0.173"
+log = "0.4.20"
+warp = "0.3.3"
+sha2 = "0.10"
+nightfall_client = { path = "../nightfall_client" }
+nightfall_proposer = { path = "../nightfall_proposer" }
+ark-serialize = "0.4.0"
+ark-std = { version = "0.4.0", default-features = false }
+ark-bn254 = "0.4.0"
+jf-plonk = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", features = [
+    "test-srs",
+] }
+jf-relation = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git" }
+jf-primitives = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git" }
+nf-curves = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git" }
+ark-ec = { version = "0.4.0", features = ["parallel"] }
+ark-ff = { version = "0.4.0", features = ["parallel"] }
+ark-poly = { version = "0.4.0", features = ["parallel"] }
+num-bigint = "0.4.3"
+nightfall-bindings = { path = "../nightfall_bindings" }
+reqwest = { version = "0.11.6", features = ["json", "blocking"] }
+url = "2.5.2"
+
+[build-dependencies]
+configuration = { path = "../configuration" }
+log = "0.4.20"
+
+[dev-dependencies]
+url = "2.4.0"
+jf-utils = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git" }
+
+[features]
+test-srs = ["jf-plonk/test-srs"]

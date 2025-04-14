@@ -1,0 +1,13 @@
+[package]
+name = "nightfall_sync_test"
+version.workspace = true
+edition.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+reqwest = { version = "0.12.4", features = ["json"] }
+tokio = { version = "1.25.0", features = ["full"] }
+configuration = { path = "../configuration" }
+log = "0.4.20"
+nightfall_client = { path = "../nightfall_client" }

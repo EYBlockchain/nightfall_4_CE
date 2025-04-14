@@ -1,0 +1,9 @@
+pub mod block_assembler;
+pub mod db;
+pub mod deposit_circuit;
+pub mod in_memory_db;
+pub mod mock_prover;
+pub mod nightfall_client_transaction;
+pub mod nightfall_contract;
+pub mod nightfall_event;
+pub mod rollup_prover;
