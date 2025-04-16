@@ -64,6 +64,18 @@ pub async fn get_erc20_balance(http_client: &reqwest::Client, url: Url) -> i64 {
     )
     .unwrap_or(0)
 }
+pub async fn get_erc721_balance(http_client: &reqwest::Client, url: Url, token_id: String) -> Option<i64> {
+    let url = url.join("v1/balance/").unwrap();
+    let balance = get_balance(http_client, url, TokenType::ERC721, token_id)
+    .await
+    .ok()?;
+    i64::from_str_radix(
+        balance
+            .trim_start_matches("0x"),
+        16,
+    )
+    .ok()
+}
 
 pub async fn get_fee_balance(http_client: &reqwest::Client, url: Url) -> i64 {
     let url = url.join("v1/fee_balance/").unwrap();

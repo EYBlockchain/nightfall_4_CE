@@ -13,7 +13,8 @@ COPY --exclude=configuration/bin/*  . .
 COPY configuration/bin/*_vk configuration/bin/
 ENV PATH=/app:$PATH
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/home/root/app/target \
+    --mount=type=cache,target=/app/target \
+    --mount=type=cache,target=/usr/local/cargo/git \
     cargo build --package nightfall_deployer --release && \
     mv /app/target/release/nightfall_deployer /app/bin/deployer
 

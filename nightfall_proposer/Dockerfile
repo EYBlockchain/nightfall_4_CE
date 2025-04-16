@@ -6,7 +6,8 @@ WORKDIR /app
 RUN mkdir bin
 COPY . .
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/home/root/app/target \
+    --mount=type=cache,target=/app/target \
+    --mount=type=cache,target=/usr/local/cargo/git \
     cargo build --package nightfall_proposer --release && \
     mv /app/target/release/nightfall_proposer /app/bin/proposer
 FROM debian:bookworm-slim

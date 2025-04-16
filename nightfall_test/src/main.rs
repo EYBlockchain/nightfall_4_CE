@@ -7,7 +7,7 @@ use lib::models::CertificateReq;
 use log::{debug, info, warn};
 use nightfall_client::domain::entities::HexConvertible;
 use std::fs;
-use test::{count_spent_commitments, get_erc20_balance, get_fee_balance};
+use test::{count_spent_commitments, get_erc20_balance, get_fee_balance, get_erc721_balance};
 
 use lib::{
     blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
@@ -322,11 +322,21 @@ async fn main() {
     .unwrap();
     debug!("transaction_erc20_deposit_3 has been created");
 
+    // check that we have no 'balance' of the ERC721 token
+    // get the balance of the ERC721 token we just deposited
+    let balance = get_erc721_balance(
+        &http_client,
+        Url::parse(&settings.nightfall_client.url).unwrap(),
+        test_settings.erc721_deposit.token_id.clone(),
+    ).await;
+    assert_eq!(None, balance);
+
+
     let transaction_erc721_deposit = create_nf3_deposit_transaction(
         &http_client,
         url.clone(),
         TokenType::ERC721,
-        test_settings.erc721_deposit,
+        test_settings.erc721_deposit.clone(),
         "0x08".to_string(), //deposit_fee
     )
     .await
@@ -423,6 +433,14 @@ async fn main() {
     .await
     .unwrap();
     info!("Deposit commitments for client 1 are now on-chain");
+
+    // get the balance of the ERC721 token we just deposited
+    let balance = get_erc721_balance(
+        &http_client,
+        Url::parse(&settings.nightfall_client.url).unwrap(),
+        test_settings.erc721_deposit.token_id,
+    ).await;
+    assert!(balance.is_some_and(|balance| balance.is_zero()));
 
     // get the fee balance
     let fee_balance = get_fee_balance(
