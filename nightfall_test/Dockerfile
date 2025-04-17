@@ -12,7 +12,8 @@ COPY --exclude=configuration/bin/* . .
 ENV PATH=/app:$PATH
 WORKDIR /app/nightfall_test
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/home/root/app/target \
+    --mount=type=cache,target=/app/target \
+    --mount=type=cache,target=/usr/local/cargo/git \
     cargo build --package nightfall_test --release && \
     mv /app/target/release/nightfall_test /app/bin/test
 CMD ["/app/bin/test"]

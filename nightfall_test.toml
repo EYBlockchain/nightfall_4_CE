@@ -59,15 +59,15 @@ erc20_withdraw_2.token_id = "0x00"
 
 erc721_deposit.value = "0x00"
 erc721_deposit.fee = "0x07"
-erc721_deposit.token_id = "0x01"
+erc721_deposit.token_id = "0x01aa"
 
 erc721_transfer.value = "0x00"
 erc721_transfer.fee = "0x08"
-erc721_transfer.token_id = "0x01"
+erc721_transfer.token_id = "0x01aa"
 
 erc721_withdraw.value = "0x00"
 erc721_withdraw.fee = "0x03"
-erc721_withdraw.token_id = "0x01"
+erc721_withdraw.token_id = "0x01aa"
 
 erc3525_deposit_1.value = "0x09"
 erc3525_deposit_1.fee = "0x0a"

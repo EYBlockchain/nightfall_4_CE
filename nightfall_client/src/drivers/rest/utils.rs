@@ -10,6 +10,13 @@ use ethers::{
 use log::debug;
 use num::BigUint;
 use sha2::{Digest, Sha256};
+
+pub fn reverse_hex_string(hex_string: &str) -> String {
+    let mut bytes = Vec::<u8>::from_hex_string(hex_string).unwrap();
+    bytes.reverse();
+    hex::encode(bytes)
+}
+
 #[allow(dead_code)]
 pub fn to_nf_token_id_from_str(
     erc_address: &str,
@@ -136,6 +143,12 @@ mod tests {
     use jf_primitives::circuit::sha256::Sha256HashGadget;
     use jf_relation::{Circuit, PlonkCircuit, Variable};
     use rand::Rng;
+    #[test]
+    fn test_reverse_hex_string() {
+        let hex_string = "0x01234567890abcde0f";
+        let reversed = reverse_hex_string(hex_string);
+        assert_eq!(reversed, "0fdebc0a8967452301");
+    }
     #[test]
     fn test_nf_token_id_consistency() {
         for _ in 0..10 {

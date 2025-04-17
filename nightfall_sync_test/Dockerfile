@@ -9,7 +9,8 @@ RUN mkdir bin
 COPY --exclude=configuration/bin/* . .
 
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/home/root/app/target \       
+    --mount=type=cache,target=/app/target \     
+    --mount=type=cache,target=/usr/local/cargo/git \ 
     cargo build --package nightfall_sync_test --release && \
     mv /app/target/release/nightfall_sync_test /app/bin/sync_test
 CMD ["/app/bin/sync_test"]
