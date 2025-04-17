@@ -18,7 +18,6 @@ use jf_relation::{Arithmetization, Circuit};
 use nf_curves::ed_on_bn254::{BabyJubjub, Fq as Fr254, Fr as BJJScalar};
 use nightfall_client::{
     domain::entities::HexConvertible,
-    driven::contract_functions::contract_type_conversions::FrBn254,
     drivers::rest::utils::to_nf_token_id_from_str,
 };
 use nightfall_client::{
@@ -162,11 +161,6 @@ fn build_valid_transfer_inputs() -> CircuitTestInfo {
 
     let nf_token_id = to_nf_token_id_from_str(&erc_address_string, &token_id_string).unwrap();
     let nf_slot_id = nf_token_id;
-
-    // convert the erc_address_string to Fr254
-    let solidity_erc_address =
-        H160::from_slice(&Vec::<u8>::from_hex_string(&erc_address_string).unwrap());
-    let erc_address = Fr254::from(FrBn254::from(solidity_erc_address));
 
     let token_id = Fr254::from_hex_string(&token_id_string).unwrap();
 
@@ -351,7 +345,7 @@ fn build_valid_transfer_inputs() -> CircuitTestInfo {
     let expected_compressed_secrets: [Fr254; 5] = kemdem_encrypt::<true>(
         ephemeral_key,
         recipient_public_key,
-        &[token_id, erc_address, withdraw_address, value],
+        &[token_id, nf_slot_id, value],
         Affine::<BabyJubjub>::generator(),
     )
     .unwrap()

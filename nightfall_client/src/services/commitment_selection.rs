@@ -32,19 +32,18 @@ const MAX_POSSIBLE_COMMITMENTS: usize = 2;
 // If minC is 0, it means that the user doesn't have enough commitments to pay the value.
 // If minC >2, it means that the user has too many dust commitments and we require client to deposit bigger commitment to fullfill this tx.
 pub async fn find_usable_commitments(
-    nf_token_id: Fr254,
+    target_token_id: Fr254,
     target_value: Fr254,
-    fee_token_id: Fr254,
-    target_fee: Fr254,
     db: &mut RwLockWriteGuard<'_, Client>,
-) -> Result<[Preimage; MAX_POSSIBLE_COMMITMENTS * 2], &'static str> {
-    let [(avaliable_sorted_fee_commitments, min_num_fc), (avaliable_sorted_commitments, min_num_c)] =
-        verify_enough_commitments(nf_token_id, target_value, fee_token_id, target_fee, db).await?;
-    let mut max_num_fc = MAX_POSSIBLE_COMMITMENTS;
+) -> Result<[Preimage; MAX_POSSIBLE_COMMITMENTS], &'static str> {
+    let (avaliable_sorted_commitments, min_num_c) =
+        verify_enough_commitments(target_token_id, target_value, db).await?;
+    ark_std::println!(
+        "avaliable_sorted_commitments: {:?}",
+        avaliable_sorted_commitments
+    );
+
     let mut max_num_c = MAX_POSSIBLE_COMMITMENTS;
-    if avaliable_sorted_fee_commitments.len() < MAX_POSSIBLE_COMMITMENTS {
-        max_num_fc = avaliable_sorted_fee_commitments.len();
-    }
     if avaliable_sorted_commitments.len() < MAX_POSSIBLE_COMMITMENTS {
         max_num_c = avaliable_sorted_commitments.len();
     }
@@ -59,20 +58,10 @@ pub async fn find_usable_commitments(
         min_num_c,
         max_num_c,
     )?;
-    let old_fee_commitments = if target_fee.is_zero() {
-        [Preimage::default(); MAX_POSSIBLE_COMMITMENTS] // No fee commitments required
-    } else {
-        select_commitment(
-            &avaliable_sorted_fee_commitments,
-            target_fee,
-            min_num_fc,
-            max_num_fc,
-        )?
-    };
+
     // mark the selected dusts as pending
     let pending_keys = old_commitments
         .iter()
-        .chain(old_fee_commitments.iter())
         .map(|c| c.hash())
         .collect::<Result<Vec<Fr254>, _>>()
         .map_err(|_| "Preimage hashing failed during commitment selection")?;
@@ -84,12 +73,7 @@ pub async fn find_usable_commitments(
     }
     db.mark_commitments_pending_spend(pending_keys).await;
 
-    Ok([
-        old_commitments[0],
-        old_commitments[1],
-        old_fee_commitments[0],
-        old_fee_commitments[1],
-    ])
+    Ok([old_commitments[0], old_commitments[1]])
 }
 
 fn select_commitment(
@@ -245,14 +229,13 @@ async fn fetch_on_chain_commitments(
 }
 
 async fn verify_enough_commitments(
-    nf_token_id: Fr254,
+    target_token_id: Fr254,
     target_value: Fr254,
-    fee_token_id: Fr254,
-    target_fee: Fr254,
     db: &mut RwLockWriteGuard<'_, Client>,
-) -> Result<[(std::vec::Vec<Preimage>, usize); 2], &'static str> {
+) -> Result<(std::vec::Vec<Preimage>, usize), &'static str> {
     // Fetch on-chain commitments for the non-fee component
-    let mut on_chain_old_value_commitments = fetch_on_chain_commitments(db, nf_token_id).await?;
+    let mut on_chain_old_value_commitments =
+        fetch_on_chain_commitments(db, target_token_id).await?;
     on_chain_old_value_commitments.sort_by_key(|a| a.get_value());
     trace!(
         "On-chain commitments for value: {:?}",
@@ -271,35 +254,7 @@ async fn verify_enough_commitments(
         return Err("Too many dust commitments found; only up to two commitments can be used to cover the value");
     }
 
-    // If fee is zero, skip fee-related commitment checks
-    if target_fee.is_zero() {
-        return Ok([
-            (Vec::new(), 0), // No fee commitments
-            (on_chain_old_value_commitments.clone(), min_c),
-        ]);
-    }
-
-    // Prepare for fee-related commitments
-
-    // Fetch on-chain commitments for the fee
-    let mut on_chain_old_fee_commitments = fetch_on_chain_commitments(db, fee_token_id).await?;
-    on_chain_old_fee_commitments.sort_by_key(|a| a.get_value());
-    trace!(
-        "On-chain commitments for fee: {:?}",
-        on_chain_old_fee_commitments
-    );
-
-    // Calculate the minimum number of commitments required for the fee
-    let min_fc =
-        calculate_minimum_commitments(&mut on_chain_old_fee_commitments.clone(), target_fee)
-            .inspect_err(|&e| {
-                println!("Error calculating minimum commitments for fee: {}", e);
-            })?;
-    trace!("Minimum commitments required for fee: {}", min_fc);
-    Ok([
-        (on_chain_old_fee_commitments.clone(), min_fc),
-        (on_chain_old_value_commitments.clone(), min_c),
-    ])
+    Ok((on_chain_old_value_commitments.clone(), min_c))
 }
 #[cfg(test)]
 mod test {
@@ -354,7 +309,7 @@ mod test {
                 CommitmentEntry {
                     preimage: Preimage {
                         value: Fr254::from(1u64),
-                        nf_token_id: Fr254::from(1u64),
+                        nf_token_id: Fr254::from(1u64), // Value commitment
                         ..Default::default()
                     },
                     ..Default::default()
@@ -386,7 +341,7 @@ mod test {
                 CommitmentEntry {
                     preimage: Preimage {
                         value: Fr254::from(1u64),
-                        nf_token_id: Fr254::from(2u64),
+                        nf_token_id: Fr254::from(2u64), // fee commitment
                         ..Default::default()
                     },
                     ..Default::default()
@@ -394,7 +349,7 @@ mod test {
                 CommitmentEntry {
                     preimage: Preimage {
                         value: Fr254::from(2u64),
-                        nf_token_id: Fr254::from(2u64),
+                        nf_token_id: Fr254::from(2u64), // fee commitment
                         ..Default::default()
                     },
                     ..Default::default()
@@ -402,7 +357,7 @@ mod test {
                 CommitmentEntry {
                     preimage: Preimage {
                         value: Fr254::from(5u64),
-                        nf_token_id: Fr254::from(2u64),
+                        nf_token_id: Fr254::from(2u64), // fee commitment
                         ..Default::default()
                     },
                     ..Default::default()
@@ -448,56 +403,52 @@ mod test {
 
         {
             let mut db_write = db_lock.write().await;
-            let result = find_usable_commitments(
-                nf_token_id,
-                target_value,
-                fee_token_id,
-                target_fee,
-                &mut db_write,
-            )
-            .await;
+            let value_result =
+                find_usable_commitments(nf_token_id, target_value, &mut db_write).await;
+            let fee_result = find_usable_commitments(fee_token_id, target_fee, &mut db_write).await;
 
             // Validate results
-            assert!(result.is_ok(), "Commitment selection failed");
-            let selected_commitments = result.unwrap();
+            assert!(value_result.is_ok(), "Value Commitment selection failed");
+            let selected_value_commitments = value_result.unwrap();
+            assert!(fee_result.is_ok(), "Fee Commitment selection failed");
+            let selected_fee_commitments = fee_result.unwrap();
 
             // Expected commitments: [1, 2] for value, [1, 3] for fee
             // old_commitments[0], old_commitments[1], old_fee_commitments[0], old_fee_commitments[1],
             assert_eq!(
                 (
-                    selected_commitments[0].value,
-                    selected_commitments[0].nf_token_id
+                    selected_value_commitments[0].value,
+                    selected_value_commitments[0].nf_token_id
                 ),
                 (Fr254::from(1u64), Fr254::from(1u64))
             );
             assert_eq!(
                 (
-                    selected_commitments[1].value,
-                    selected_commitments[1].nf_token_id
+                    selected_value_commitments[1].value,
+                    selected_value_commitments[1].nf_token_id
                 ),
                 (Fr254::from(2u64), Fr254::from(1u64))
             );
             assert_eq!(
                 (
-                    selected_commitments[2].value,
-                    selected_commitments[2].nf_token_id
+                    selected_fee_commitments[0].value,
+                    selected_fee_commitments[0].nf_token_id
                 ),
                 (Fr254::from(1u64), Fr254::from(2u64))
             );
             assert_eq!(
                 (
-                    selected_commitments[3].value,
-                    selected_commitments[3].nf_token_id
+                    selected_fee_commitments[1].value,
+                    selected_fee_commitments[1].nf_token_id
                 ),
                 (Fr254::from(3u64), Fr254::from(2u64))
             );
         }
     }
     #[tokio::test]
-    async fn test_commitment_selection_case_3_4() {
+    async fn test_commitment_selection_case_3() {
         // Case 3: all commitments values are bigger than target
-        // Case 4: no fee commitments selection needed
-        // value: 5,6,7,token_id: 1, target_value: 3, output: 5,0
+        // value: 5,6,7,token_id: 1, target_value: 3, output: 5
         // Set up MongoDB test container
         let container = get_mongo().await;
         let client = get_db_connection(&container).await;
@@ -544,60 +495,38 @@ mod test {
 
         // Call the function under test
         let target_value = Fr254::from(3u64);
-        let target_fee = Fr254::from(0u64);
         let nf_token_id = Fr254::from(1u64);
-        let fee_token_id = Fr254::from(2u64);
 
         {
             let mut db_write = db_lock.write().await;
-            let result = find_usable_commitments(
-                nf_token_id,
-                target_value,
-                fee_token_id,
-                target_fee,
-                &mut db_write,
-            )
-            .await;
+            let value_result =
+                find_usable_commitments(nf_token_id, target_value, &mut db_write).await;
             // Validate results
-            assert!(result.is_ok(), "Commitment selection failed");
-            let selected_commitments = result.unwrap();
+            assert!(value_result.is_ok(), "Commitment selection failed");
+            let selected_value_commitments = value_result.unwrap();
 
-            // Expected commitments: [5, 0] for value
-            // old_commitments[0], old_commitments[1], old_fee_commitments[0], old_fee_commitments[1],
+            // // Expected commitments: [5, 0] for value
+            // // old_commitments[0], old_commitments[1], old_fee_commitments[0], old_fee_commitments[1],
             assert_eq!(
                 (
-                    selected_commitments[0].value,
-                    selected_commitments[0].nf_token_id
+                    selected_value_commitments[0].value,
+                    selected_value_commitments[0].nf_token_id
                 ),
                 (Fr254::from(5u64), Fr254::from(1u64))
             );
             assert_eq!(
                 (
-                    selected_commitments[1].value,
-                    selected_commitments[1].nf_token_id
-                ),
-                (Fr254::from(0u64), Fr254::from(0u64))
-            );
-            assert_eq!(
-                (
-                    selected_commitments[2].value,
-                    selected_commitments[2].nf_token_id
-                ),
-                (Fr254::from(0u64), Fr254::from(0u64))
-            );
-            assert_eq!(
-                (
-                    selected_commitments[3].value,
-                    selected_commitments[3].nf_token_id
+                    selected_value_commitments[1].value,
+                    selected_value_commitments[1].nf_token_id
                 ),
                 (Fr254::from(0u64), Fr254::from(0u64))
             );
         }
     }
     #[tokio::test]
-    async fn test_commitment_selection_case_5_6() {
-        // Case 5: all commitments values are smaller than target, and they are enough to cover the target
-        // Case 6: all commitments values are smaller than target, and they are not enough to cover the target (only two commitments can be used)
+    async fn test_commitment_selection_case_4_5() {
+        // Case 4: all commitments values are smaller than target, and they are enough to cover the target
+        // Case 5: all commitments values are smaller than target, and they are not enough to cover the target (only two commitments can be used)
         // value: 5,6,7,token_id: 1, target_value: 10, output: 5,6
         // fee: 2,5,6,12,13,token_id: 2, target_fee: 12, output: 12
         // Set up MongoDB test container
@@ -692,54 +621,54 @@ mod test {
 
         {
             let mut db_write = db_lock.write().await;
-            let result = find_usable_commitments(
-                nf_token_id,
-                target_value,
-                fee_token_id,
-                target_fee,
-                &mut db_write,
-            )
-            .await;
+            let value_result =
+                find_usable_commitments(nf_token_id, target_value, &mut db_write).await;
 
             // Validate results
-            assert!(result.is_ok(), "Commitment selection failed");
-            let selected_commitments = result.unwrap();
+            assert!(value_result.is_ok(), "Commitment selection failed");
+            let selected_value_commitments = value_result.unwrap();
+
+            let fee_result = find_usable_commitments(fee_token_id, target_fee, &mut db_write).await;
+
+            // Validate results
+            assert!(fee_result.is_ok(), "Commitment selection failed");
+            let selected_fee_commitments = fee_result.unwrap();
 
             // Expected commitments: [5, 0] for value, [5, 6] for fee
             // old_commitments[0], old_commitments[1], old_fee_commitments[0], old_fee_commitments[1],
             assert_eq!(
                 (
-                    selected_commitments[0].value,
-                    selected_commitments[0].nf_token_id
+                    selected_value_commitments[0].value,
+                    selected_value_commitments[0].nf_token_id
                 ),
                 (Fr254::from(5u64), Fr254::from(1u64))
             );
             assert_eq!(
                 (
-                    selected_commitments[1].value,
-                    selected_commitments[1].nf_token_id
+                    selected_value_commitments[1].value,
+                    selected_value_commitments[1].nf_token_id
                 ),
                 (Fr254::from(6u64), Fr254::from(1u64))
             );
             assert_eq!(
                 (
-                    selected_commitments[2].value,
-                    selected_commitments[2].nf_token_id
+                    selected_fee_commitments[0].value,
+                    selected_fee_commitments[0].nf_token_id
                 ),
                 (Fr254::from(12u64), Fr254::from(2u64))
             );
             assert_eq!(
                 (
-                    selected_commitments[3].value,
-                    selected_commitments[3].nf_token_id
+                    selected_fee_commitments[1].value,
+                    selected_fee_commitments[1].nf_token_id
                 ),
                 (Fr254::from(0u64), Fr254::from(0u64))
             );
         }
     }
     #[tokio::test]
-    async fn test_commitment_selection_case_7() {
-        // Case 7: too many dust commitments, the sum of all commitments is enough to cover the target
+    async fn test_commitment_selection_case_6() {
+        // Case 6: too many dust commitments, the sum of all commitments is enough to cover the target
         // value: 5,6,7,token_id: 1, target_value: 14, catch error
         // Set up MongoDB test container
         let container = get_mongo().await;
@@ -787,20 +716,11 @@ mod test {
 
         // Call the function under test
         let target_value = Fr254::from(14u64);
-        let target_fee = Fr254::from(0u64);
         let nf_token_id = Fr254::from(1u64);
-        let fee_token_id = Fr254::from(2u64);
 
         {
             let mut db_write = db_lock.write().await;
-            let result = find_usable_commitments(
-                nf_token_id,
-                target_value,
-                fee_token_id,
-                target_fee,
-                &mut db_write,
-            )
-            .await;
+            let result = find_usable_commitments(nf_token_id, target_value, &mut db_write).await;
             // catch error
             match result {
                 Ok(_) => panic!("Expected an error, but got Ok."),
@@ -816,7 +736,7 @@ mod test {
         }
     }
     #[tokio::test]
-    async fn test_commitment_selection_case_8() {
+    async fn test_commitment_selection_case_7() {
         // Case 8: not enough commitments, the sum of all commitments is not enough to cover the target
         // value: 5,6,7,token_id: 1, target_value: 100, catch error
         // Set up MongoDB test container
@@ -865,20 +785,10 @@ mod test {
 
         // Call the function under test
         let target_value = Fr254::from(100u64);
-        let target_fee = Fr254::from(0u64);
         let nf_token_id = Fr254::from(1u64);
-        let fee_token_id = Fr254::from(2u64);
-
         {
             let mut db_write = db_lock.write().await;
-            let result = find_usable_commitments(
-                nf_token_id,
-                target_value,
-                fee_token_id,
-                target_fee,
-                &mut db_write,
-            )
-            .await;
+            let result = find_usable_commitments(nf_token_id, target_value, &mut db_write).await;
             // catch error
             match result {
                 Ok(_) => panic!("Expected an error, but got Ok."),
