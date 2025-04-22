@@ -375,7 +375,7 @@ services:
         source: address_data
         target: /app/configuration/toml
         read_only: false
-      - ./configuration/toml/addresses.toml:/app/configuration/toml/toml/addresses.toml # save contract addresses to the local file system in case we need to know where the contracts were deployed
+    #  - ./configuration/toml/addresses.toml:/app/configuration/toml/toml/addresses.toml # save contract addresses to the local file system in case we need to know where the contracts were deployed
     depends_on:
       anvil:
         condition: service_healthy

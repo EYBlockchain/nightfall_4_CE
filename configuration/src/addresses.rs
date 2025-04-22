@@ -27,7 +27,7 @@ pub fn get_addresses() -> &'static Addresses {
     ADDRESSES.get_or_init(|| {
         let settings = Settings::new().unwrap();
         // if we've specificed the contract addresses in the nightfall.toml file and we aren't trying to deploy new contracts, 
-        // we'll use the addresses from the configuration file rather than try read them from the server or the addresses.toml file.
+        // we'll use the addresses from the configuration file (nightfall.toml) rather than try read them from the server or the addresses.toml file.
         // This makes things simpler when we already have deployed contracts and we're just connecting to them: we can treat them like static
         // configuration values.
         if settings.contracts.contract_addresses != ContractAddresses::default() && !settings.contracts.deploy_contracts {
