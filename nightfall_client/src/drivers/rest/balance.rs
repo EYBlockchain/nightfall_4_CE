@@ -66,10 +66,10 @@ pub async fn handle_get_fee_balance() -> Result<impl Reply, warp::Rejection> {
             StatusCode::OK,
         ))
     } else {
-            // if we don't find a balance, return an 404 error
-            Ok(warp::reply::with_status(
-                "No such token".to_string(),
-                StatusCode::NOT_FOUND,
-            ))
+        // if we don't find a balance, return an 404 error
+        Ok(warp::reply::with_status(
+            "No such token".to_string(),
+            StatusCode::NOT_FOUND,
+        ))
     }
 }

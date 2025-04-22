@@ -114,9 +114,9 @@ pub async fn handle_client_deposit_request<N: NightfallContract>(
         .map_err(reject::custom)?
         .is_synchronised();
     if !sync_state {
-        warn!("Rejecting request - Proposer is not synchronised with the blockchain");
+        warn!("Rejecting request - Client is not synchronised with the blockchain");
         return Ok(reply::with_status(
-            reply::json(&"Proposer is not synchronised with the blockchain"),
+            reply::json(&"Client is not synchronised with the blockchain"),
             StatusCode::SERVICE_UNAVAILABLE,
         ));
     }
@@ -266,6 +266,7 @@ pub async fn handle_client_deposit_request<N: NightfallContract>(
     })?;
 
     // Insert the preimage into the commitments DB as pending creation
+    // TODO remove the blocknumber
     let db = get_db_connection().await.write().await;
     let ZKPKeys { nullifier_key, .. } = *get_zkp_keys().lock().expect("Poisoned Mutex lock");
     let nullifier = preimage_value
@@ -388,18 +389,38 @@ where
     })?;
 
     let ephemeral_private_key = {
-        let mut rng = ark_std::rand::thread_rng();
+        let mut rng = ark_std::rand::thread_rng(); // TODO initialise in main and pass around as a rwlock
         BJJScalar::rand(&mut rng)
     };
     let shared_secret: Affine<BabyJubjub> = (recipient_public_key * ephemeral_private_key).into();
 
+    // TODO: update APIs so that we allow passing in specific commitments.
     // For now we just use the commitment selection algorithm to minimise change.
     let spend_commitments;
     {
         let db = &mut get_db_connection().await.write().await;
         let fee_token_id = get_fee_token_id();
-        spend_commitments = find_usable_commitments(nf_token_id, value, fee_token_id, fee, db)
-        .await.map_err(|e|{error!("Could not find enough usable commitments to complete this transfer, suggest depositing more tokens: {}", e); reject::custom(NF3RequestError::NoUsableCommitments)})?;
+        let spend_value_commitments = find_usable_commitments(nf_token_id, value,db)
+        .await.map_err(|e|{error!("Could not find enough usable value commitments to complete this transfer, suggest depositing more tokens: {}", e); reject::custom(NF3RequestError::NoUsableCommitments)})?;
+        let spend_fee_commitments = if fee.is_zero() {
+            [Preimage::default(), Preimage::default()]
+        } else {
+            find_usable_commitments(fee_token_id, fee, db)
+            .await
+            .map_err(|e| {
+                error!(
+                    "Could not find enough usable fee commitments to complete this transfer, suggest depositing more fee: {}",
+                    e
+                );
+                reject::custom(NF3RequestError::NoUsableCommitments)
+            })?
+        };
+        spend_commitments = [
+            spend_value_commitments[0],
+            spend_value_commitments[1],
+            spend_fee_commitments[0],
+            spend_fee_commitments[1],
+        ];
     }
 
     // Work out how much change is needed.
@@ -537,13 +558,34 @@ where
             error!("Error when reading recipeint address: {}", e);
             reject::custom(NF3RequestError::ConversionError)
         })?;
+    // TODO: update APIs so that we allow passing in specific commitments.
     // For now we just use the commitment selection algorithm to minimise change.
     let spend_commitments;
 
     {
         let db = &mut get_db_connection().await.write().await;
         let fee_token_id = get_fee_token_id();
-        spend_commitments = find_usable_commitments(nf_token_id, value, fee_token_id, fee, db).await.map_err(|e|{error!("Could not find enough usable commitments to complete this withdraw, suggest depositing more tokens: {}", e); reject::custom(NF3RequestError::NoUsableCommitments)})?;
+        let spend_value_commitments = find_usable_commitments(nf_token_id, value,db)
+        .await.map_err(|e|{error!("Could not find enough usable value commitments to complete this withdraw, suggest depositing more tokens: {}", e); reject::custom(NF3RequestError::NoUsableCommitments)})?;
+        let spend_fee_commitments = if fee.is_zero() {
+            [Preimage::default(), Preimage::default()]
+        } else {
+            find_usable_commitments(fee_token_id, fee, db)
+            .await
+            .map_err(|e| {
+                error!(
+                    "Could not find enough usable fee commitments to complete this withdraw, suggest depositing more fee: {}",
+                    e
+                );
+                reject::custom(NF3RequestError::NoUsableCommitments)
+            })?
+        };
+        spend_commitments = [
+            spend_value_commitments[0],
+            spend_value_commitments[1],
+            spend_fee_commitments[0],
+            spend_fee_commitments[1],
+        ];
     }
     // Work out how much change is needed.
     let total_token_value = spend_commitments[..2]
