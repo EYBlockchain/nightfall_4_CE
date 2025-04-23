@@ -79,6 +79,7 @@ pub enum AddressesError {
     CouldNotGetUrl,
     BadResponse,
     CouldNotWriteFile(String),
+    CouldNotWriteDirectory(String),
     CouldNotReadFile,
     CouldNotPostUrl,
 }
@@ -93,6 +94,7 @@ impl fmt::Display for AddressesError {
             Self::CouldNotGetUrl => write!(f, "CouldNotGetUrl"),
             Self::BadResponse => write!(f, "BadResponse"),
             Self::CouldNotWriteFile(s) => write!(f, "CouldNotWriteFile: {}", s),
+            Self::CouldNotWriteDirectory(s) => write!(f, "CouldNotWriteDirectory: {}", s),
             Self::CouldNotReadFile => write!(f, "CouldNotReadFile"),
             Self::CouldNotPostUrl => write!(f, "CouldNotPostUrl"),
         }
@@ -228,6 +230,11 @@ impl Addresses {
             Sources::File(p) => {
                 let data =
                     toml::to_string(&self).map_err(|e| AddressesError::Toml(format!("{}", e)))?;
+                // create a path if it doesn't exist
+                if let Some(path) = p.parent() { 
+                    fs::create_dir_all(path)
+                    .map_err(|e| AddressesError::CouldNotWriteDirectory(format!("{}", e)))?;
+                }
                 fs::write(p, data)
                     .map_err(|e| AddressesError::CouldNotWriteFile(format!("{}", e)))?;
                 Ok(StatusCode::OK)

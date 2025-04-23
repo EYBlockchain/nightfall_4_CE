@@ -79,7 +79,6 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn Error>>
     if addresses.save(Sources::Http(url)).await.is_err() {
         warn!("Failed to save the contract addresses to the configuration server. Saving to local file system instead.");
     }
-    dbg!(&file_path);
     addresses
         .save(Sources::File(file_path))
         .await
@@ -120,6 +119,8 @@ pub fn forge_command(command: &[&str]) {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+
     use super::*;
     use configuration::addresses::get_addresses;
     use ethers::{
@@ -148,6 +149,9 @@ mod tests {
                     .expect("Could not get Anvil instance. Have you installed it?"),
             )
             .spawn();
+        // set the current working directory to be the project root
+        let root = "../";
+        std::env::set_current_dir(root).unwrap();
         // run the deploy function and get the contract addresses
         deploy_contracts(&settings).await.unwrap();
         // get a blockchain provider so we can interrogate the deployed code
@@ -161,5 +165,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(code, NIGHTFALL_DEPLOYED_BYTECODE);
+        // clean up by remvoing the addresses file and directory that this test created
+        fs::remove_dir_all(Path::new("configuration/toml")).unwrap();
     }
 }
