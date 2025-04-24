@@ -166,6 +166,7 @@ async fn process_transaction_offchain<P: Serialize>(
     l2_transaction: &ClientTransaction<P>,
 ) -> Result<Option<TransactionReceipt>, Box<dyn Error>> {
     let (proposer_http_connection, url) = get_proposer_http_connection();
+    ark_std::println!("Sending transaction to proposer at: {}", url);
     proposer_http_connection
         .post(url.clone())
         .json(l2_transaction)

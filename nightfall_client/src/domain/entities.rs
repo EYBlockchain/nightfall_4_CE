@@ -125,8 +125,6 @@ pub enum OperationType {
     Deposit,
     Withdraw,
     Transfer,
-    Tokenise,
-    Burn,
 }
 
 impl Display for OperationType {
@@ -135,8 +133,6 @@ impl Display for OperationType {
             OperationType::Deposit => write!(f, "Deposit"),
             OperationType::Withdraw => write!(f, "Withdraw"),
             OperationType::Transfer => write!(f, "Transfer"),
-            OperationType::Tokenise => write!(f, "Tokenise"),
-            OperationType::Burn => write!(f, "Burn"),
         }
     }
 }
@@ -147,8 +143,6 @@ impl From<OperationType> for u8 {
             OperationType::Deposit => 0,
             OperationType::Withdraw => 1,
             OperationType::Transfer => 2,
-            OperationType::Tokenise => 3,
-            OperationType::Burn => 4,
         }
     }
 }
@@ -159,8 +153,6 @@ impl From<u8> for OperationType {
             0 => OperationType::Deposit,
             1 => OperationType::Withdraw,
             2 => OperationType::Transfer,
-            3 => OperationType::Tokenise,
-            4 => OperationType::Burn,
             _ => OperationType::Deposit,
         }
     }
@@ -201,22 +193,6 @@ impl FromStr for Operation {
             "transfer-offchain" => Ok(Operation {
                 transport: Transport::OffChain,
                 operation_type: OperationType::Transfer,
-            }),
-            "tokenise-onchain" => Ok(Operation {
-                transport: Transport::OnChain,
-                operation_type: OperationType::Tokenise,
-            }),
-            "tokenise-offchain" => Ok(Operation {
-                transport: Transport::OffChain,
-                operation_type: OperationType::Tokenise,
-            }),
-            "burn-onchain" => Ok(Operation {
-                transport: Transport::OnChain,
-                operation_type: OperationType::Burn,
-            }),
-            "burn-offchain" => Ok(Operation {
-                transport: Transport::OffChain,
-                operation_type: OperationType::Burn,
             }),
             _ => Err(ParseOperationError),
         }

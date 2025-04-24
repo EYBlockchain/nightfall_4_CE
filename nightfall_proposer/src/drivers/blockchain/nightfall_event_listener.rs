@@ -56,6 +56,7 @@ where
     E: ProvingEngine<P>,
     N: NightfallContract,
 {
+    ark_std::println!("Listening for events at start_block: {}", start_block);
     let nightfall_instance = Nightfall::new(
         get_addresses().nightfall,
         get_blockchain_client_connection()

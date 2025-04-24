@@ -174,10 +174,13 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
             &membership_proofs,
             &secret_preimages,
         )?;
+        ark_std::println!("size 1: {:?}", self.num_gates());
 
         // no duplications in nullifiers and commitments unless they are zero
 
         self.verify_duplicates(&nullifiers, &commitments)?;
+        ark_std::println!("size 2: {:?}", self.num_gates());
+
 
         // Perform the encryption of the recipient's commitment preimage was performed appropriately
         let public_data = self.verify_encryption(

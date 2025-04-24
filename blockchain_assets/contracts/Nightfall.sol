@@ -12,14 +12,14 @@ import {IERC3525Receiver} from "@erc-3525/contracts/IERC3525Receiver.sol";
 import "./ProposerManager.sol";
 import "./X509/Certified.sol";
 import "./X509/X509.sol";
+import "forge-std/console.sol";
+
 pragma solidity ^0.8.20;
 
 enum OperationType {
     DEPOSIT,
     WITHDRAW,
-    TRANSFER,
-    TOKENISE,
-    BURN
+    TRANSFER
 }
 // in entities.rs, we have defined
 // TokenType::ERC20 => 0,
@@ -242,6 +242,10 @@ contract Nightfall is
                     DepositFeeState memory depositFeeState = feeBinding[
                             publicData
                         ];
+                    console.log("publicData: ", publicData);
+                    console.log("depositFeeState.escrowed: ", depositFeeState.escrowed);
+                    console.log("depositFeeState.redeemed: ", depositFeeState.redeemed);
+                    
                     localTotalFee += depositFeeState.fee;
                     require(
                             depositFeeState.escrowed == 1 && depositFeeState.redeemed == 0,

@@ -444,6 +444,10 @@ where
         recipient_public_key,
         Salt::Transfer(Fr254::new((shared_secret.y).into())),
     );
+    ark_std::println!(
+        "new_commitment_one: {:?}",
+        new_commitment_one
+    );
 
     let new_commitment_two = if !token_change.is_zero() {
         Preimage::new(
@@ -456,6 +460,10 @@ where
     } else {
         Preimage::default()
     };
+    ark_std::println!(
+        "new_commitment_two: {:?}",
+        new_commitment_two
+    );
 
     let nightfall_address = FrBn254::from(get_addresses().nightfall()).0;
     let contract_nf_address = Affine::<BabyJubjub>::new_unchecked(Fr254::zero(), nightfall_address);
@@ -473,6 +481,10 @@ where
     } else {
         Preimage::default()
     };
+    ark_std::println!(
+        "new_commitment_three: {:?}",
+        new_commitment_three
+    );
 
     let new_commitment_four = if !fee_change.is_zero() {
         Preimage::new(
@@ -485,6 +497,10 @@ where
     } else {
         Preimage::default()
     };
+    ark_std::println!(
+        "new_commitment_four: {:?}",
+        new_commitment_four
+    );
 
     let new_commitments = [
         new_commitment_one,

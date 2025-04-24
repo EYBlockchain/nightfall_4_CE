@@ -207,6 +207,10 @@ async fn process_propose_block_event<N: NightfallContract>(
     let current_block_number = N::get_current_layer2_blocknumber().await.map_err(|_| {
         EventHandlerError::IOError("Could not retrieve current block number".to_string())
     })?;
+    ark_std::println!("process_propose_block_event: expected_onchain_block_number in proposer: {}", current_block_number);
+
+    ark_std::println!("process_propose_block_event: Current L2 block number in proposer: {}", current_block_number);
+
     // if the current block number is exactly one, then we're automatically synchronised because we've seen one
     // blockproposed event (or we wouldn't be here) and that must also be the only one
     if current_block_number == I256::one() {

@@ -59,6 +59,8 @@ where
         (included_depositinfos_group, selected_client_transactions) =
             prepare_block_data::<P>(db).await?;
     }
+    ark_std::println!("Proposer picked these tx in block, included_depositinfos_group: {:?}", included_depositinfos_group);
+    ark_std::println!("Proposer picked these tx in block, selected_client_transactions: {:?}", selected_client_transactions);
     // Convert DepositInfo into DepositData while maintaining nested structure
     // included_depositinfos_group has extra fee than DepositData, so we need to remove the fee
     let included_deposits: Vec<Vec<DepositData>> = included_depositinfos_group
