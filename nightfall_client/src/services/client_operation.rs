@@ -24,7 +24,7 @@ use ark_ff::BigInteger256;
 use ark_std::Zero;
 use configuration::addresses::get_addresses;
 use jf_primitives::{poseidon::Poseidon, trees::MembershipProof};
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use nf_curves::ed_on_bn254::{BabyJubjub as BabyJubJub, Fr as BJJScalar};
 
 #[allow(clippy::too_many_arguments)]
@@ -36,6 +36,7 @@ pub async fn client_operation<P, E>(
     ephemeral_key: BJJScalar,
     withdraw_address: Fr254,
     secret_preimages: &[impl SecretHash; 4],
+    id: &str
 ) -> Result<ClientTransaction<P>, &'static str>
 where
     P: Proof,
@@ -64,8 +65,8 @@ where
     let fee_conserved = out_fee == in_fee;
 
     if !(value_conserved && fee_conserved) {
-        info!("Value or fee not conserved in this transaction rejecting");
-        return Err("Value or fee not conserved in this transaction rejecting");
+        warn!("{id} Value or fee not conserved in this transaction: rejecting");
+        return Err("Value or fee not conserved in this transaction: rejecting");
     }
 
     // Collect the public keys from the nullified commitments
@@ -87,7 +88,7 @@ where
     // commitment Merkle tree. This Merkle proof is available in the commitment DB because we will
     // have computed and stored it when the commitment was added to the tree (and hopefully updated
     //it since as the Merkle tree root is updated so that we obfuscate which block it was deposited in).
-    info!("Finding membership proofs for spend commitments");
+    info!("{id} Finding membership proofs for spend commitments");
     let (membership_proofs, roots) = {
         let mut proofs = vec![];
         let mut roots = vec![];
@@ -103,7 +104,7 @@ where
             }
             let commitment_hash = commitment.hash().map_err(|_| "Could not hash preimage")?;
             debug!(
-                "Looking for commitment with hash {}",
+                "{id} Looking for commitment with hash {}",
                 Fr254::to_hex_string(&commitment_hash)
             );
             let stored = db.get_commitment(&commitment_hash).await;
@@ -176,9 +177,9 @@ where
             ])
             .build(),
     );
-    debug!("Generating proof");
+    info!("{id} Generating proof");
     let wrapped_proof: Result<P, E::Error> = E::prove(&mut private_inputs, &mut public_inputs);
-    debug!("Creating client transaction");
+    debug!("{id} Creating client transaction");
     match wrapped_proof {
         Ok(proof) => Ok(ClientTransaction {
             fee: public_inputs.fee,
@@ -191,7 +192,7 @@ where
             proof,
         }),
         Err(e) => {
-            error!("Proving error {:?}", e);
+            error!("{id} Proving error {:?}", e);
             Err("Transaction could not be completed due to a proving error.")
         }
     }
@@ -209,13 +210,14 @@ pub async fn deposit_operation<T: TokenContract, N: NightfallContract>(
     token_id: BigInteger256,
     secret_preimage: DepositSecret,
     token_type: TokenType,
+    id: &str,
 ) -> Result<(Preimage, Option<Preimage>), DepositError> {
     // First we set approval for the nightfall instance.
-    info!("Setting transfer approval");
+    info!("{id} Setting transfer approval");
     T::set_approval(erc_address, value, token_id).await?;
 
     // Next we escrow the funds
-    info!("Escrowing funds");
+    info!("{id} Escrowing funds");
     let [nf_token_id, nf_slot_id] = N::escrow_funds(
         erc_address,
         value,
