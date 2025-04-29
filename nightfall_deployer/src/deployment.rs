@@ -35,6 +35,7 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn Error>>
         "--force",
     ]);
 
+    // read the deployment log file to extract the contract addresses
     let join_path = Path::new(&settings.contracts.deployment_file)
         .join(settings.network.chain_id.to_string())
         .join("run-latest.json");
@@ -50,21 +51,26 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn Error>>
 
         cwd = cwd.parent().ok_or("No parent in path")?;
     }
-
     let addresses = Addresses::load(Sources::parse(
         path_out.to_str().ok_or("Couldn't convert path to str")?,
     )?)?;
-    let path_out: PathBuf;
+
+    // next, try to find the addresses.toml file. If we can't find it, output the location
+    // in the config file `nightfall.toml`
     let cwd = std::env::current_dir()?;
     let mut cwd = cwd.as_path();
-    loop {
-        let file_path = cwd.join(&settings.contracts.addresses_file);
-        if file_path.is_file() {
-            path_out = file_path;
+    let mut file_path = cwd.join(&settings.contracts.addresses_file);
+    let original_file_path = file_path.clone();
+    // if we can't find the file, we'll look in the parent directories until we find it
+    while !file_path.is_file() {
+        cwd = if let Some(p) = cwd.parent() {
+            p
+        } else {
+            // if we can't find the file, we'll use the path in the config file and create it later
+            file_path = original_file_path;
             break;
-        }
-
-        cwd = cwd.parent().ok_or("No parent in path")?;
+        };
+        file_path = cwd.join(&settings.contracts.addresses_file);
     }
 
     // now we have the addresses we'll save them to the configuration server, if available
@@ -74,9 +80,7 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn Error>>
         warn!("Failed to save the contract addresses to the configuration server. Saving to local file system instead.");
     }
     addresses
-        .save(Sources::parse(
-            path_out.to_str().ok_or("Couldn't convert path to str")?,
-        )?)
+        .save(Sources::File(file_path))
         .await
         .expect("Failed to save the contract addresses to local file system");
     Ok(())
@@ -115,6 +119,8 @@ pub fn forge_command(command: &[&str]) {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+
     use super::*;
     use configuration::addresses::get_addresses;
     use ethers::{
@@ -143,6 +149,9 @@ mod tests {
                     .expect("Could not get Anvil instance. Have you installed it?"),
             )
             .spawn();
+        // set the current working directory to be the project root
+        let root = "../";
+        std::env::set_current_dir(root).unwrap();
         // run the deploy function and get the contract addresses
         deploy_contracts(&settings).await.unwrap();
         // get a blockchain provider so we can interrogate the deployed code
@@ -156,5 +165,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(code, NIGHTFALL_DEPLOYED_BYTECODE);
+        // clean up by remvoing the addresses file and directory that this test created
+        fs::remove_dir_all(Path::new("configuration/toml")).unwrap();
     }
 }

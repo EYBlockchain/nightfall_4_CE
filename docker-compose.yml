@@ -375,7 +375,6 @@ services:
         source: address_data
         target: /app/configuration/toml
         read_only: false
-      - ./configuration/toml/addresses.toml:/app/configuration/toml/toml/addresses.toml # save contract addresses to the local file system in case we need to know where the contracts were deployed
     depends_on:
       anvil:
         condition: service_healthy
@@ -409,7 +408,6 @@ services:
     volumes:
       - ./blockchain_assets/test_contracts:/test_contracts
       - ./blockchain_assets/logs:/app/blockchain_assets/logs # to be able to see deployed contract addresses locally
-      - ./configuration/toml/addresses.toml:/app/configuration/toml/toml/addresses.toml # save contract addresses to the local file system in case we need to know where the contracts were deployed
     stdin_open: true # keep stdin open, so we can print things in docker compose up
     tty: true # required for logs to print in colour
     environment:

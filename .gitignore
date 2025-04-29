@@ -16,5 +16,6 @@ soljson*
 **/blockchain_assets/artifacts
 **/blockchain_assets/cache
 **/blockchain_assets/logs
+configuration/toml
 remappings.txt
 local.env
