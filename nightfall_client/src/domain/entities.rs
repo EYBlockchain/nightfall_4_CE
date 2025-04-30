@@ -29,6 +29,30 @@ use std::{
     str::{self, FromStr},
 };
 
+/// A struct representing the status of an HTTP request
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Request {
+    pub status: RequestStatus,
+    pub uuid: String,
+}
+/// An enum representing the possible statuses of an HTTP request
+#[derive(Serialize, Deserialize, Debug)]
+pub enum RequestStatus {
+    Queued,
+    SentToProposer,
+    Failed,
+}
+
+impl Display for RequestStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RequestStatus::Queued => write!(f, "Queued"),
+            RequestStatus::SentToProposer => write!(f, "SentToProposer"),
+            RequestStatus::Failed => write!(f, "Failed"),
+        }
+    }
+}
+
 /// A struct representing the synchronisation status of a container
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct SynchronisationStatus(bool);

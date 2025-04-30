@@ -202,6 +202,7 @@ where
 /// we only need to deal with escrowing funds.
 /// The function returns a tuple of Preimages. The first Preimage is for the value being deposited and the second
 /// Preimage is for the deposit fee. If the deposit fee is zero, the second Preimage is None.
+#[allow(clippy::too_many_arguments)]
 pub async fn deposit_operation<T: TokenContract, N: NightfallContract>(
     erc_address: Fr254,
     value: Fr254,

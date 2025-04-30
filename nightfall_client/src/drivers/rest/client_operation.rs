@@ -1,8 +1,10 @@
 use configuration::addresses::get_addresses;
 use ethers::types::TransactionReceipt;
 use nightfall_bindings::nightfall::{ClientTransaction as NightfallTransactionStruct, Nightfall};
+use warp::reply::Json;
+use warp::reply::WithStatus;
 use std::{error::Error, fmt::Debug};
-use warp::{hyper::StatusCode, reject, reply, Reply};
+use warp::{hyper::StatusCode, reject, reply};
 
 use crate::domain::entities::CommitmentStatus;
 use crate::domain::entities::HexConvertible;
@@ -42,7 +44,7 @@ pub async fn handle_client_operation<P, E, N>(
     recipient_address: Fr254,
     secret_preimages: [impl SecretHash; 4],
     id: &str,
-) -> Result<impl Reply, warp::Rejection>
+) -> Result<warp::reply::WithHeader<WithStatus<Json>>, warp::Rejection>
 where
     P: Proof + Debug + serde::Serialize + Clone + Send + Sync,
     E: ProvingEngine<P> + Send + Sync,

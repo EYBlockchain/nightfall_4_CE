@@ -15,6 +15,7 @@ use self::{
     keys::derive_key_mnemonic,
     synchronisation::synchronisation,
     withdraw::de_escrow,
+    request_status::get_request_status,
 };
 
 mod balance;
@@ -28,6 +29,7 @@ pub mod proposers;
 mod synchronisation;
 pub mod utils;
 mod withdraw;
+mod request_status;
 
 pub fn routes<P, E, N>(
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone
@@ -49,4 +51,5 @@ where
         .or(get_balance())
         .or(get_fee_balance())
         .or(synchronisation::<N>())
+        .or(get_request_status())
 }

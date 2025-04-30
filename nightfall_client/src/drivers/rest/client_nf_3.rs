@@ -1,13 +1,14 @@
+
 use super::{
     client_operation::handle_client_operation,
     models::{NF3DepositRequest, NF3TransferRequest, NF3WithdrawRequest, NullifierKey},
     utils::{reverse_hex_string, to_nf_token_id_from_str},
 };
 use crate::{
-    domain::entities::CommitmentStatus,
+    domain::entities::{CommitmentStatus, RequestStatus},
     driven::db::mongo::CommitmentEntry,
     get_zkp_keys,
-    ports::{commitments::Nullifiable, contracts::NightfallContract},
+    ports::{commitments::Nullifiable, contracts::NightfallContract, db::RequestDB},
 };
 use crate::{
     domain::{
@@ -49,7 +50,8 @@ use nightfall_bindings::{
     ierc1155::IERC1155, ierc20::IERC20, ierc3525::IERC3525, ierc721::IERC721, nightfall::Nightfall,
 };
 use serde::Serialize;
-use warp::{hyper::StatusCode, path, reject, reply, reply::json, Filter, Reply};
+use uuid::Uuid;
+use warp::{hyper::StatusCode, path, reject, reply::{self, json, Json, WithStatus}, Filter};
 
 #[derive(Serialize)]
 struct WithdrawResponse {
@@ -106,14 +108,29 @@ async fn handle_deposit<N: NightfallContract>(
     // of an NF_4 deposit. We'll just assume an off-chain deposit as that will be the most sensible
     // route most of the time.
     let id = request_id.unwrap_or_default();
+    // check if the id is a valid uuid
+    if Uuid::parse_str(&id).is_err() {
+        return Ok(reply::with_header(reply::with_status(
+                json(&"Invalid request id".to_string()),
+                StatusCode::BAD_REQUEST,
+            ), "X-Request-ID", id));
+    };
+    // add the id to the request database
+    let db = get_db_connection().await.write().await;
+    db.store_request(&id, RequestStatus::Queued).await.ok_or_else(|| {
+        error!("{id} Error while storing request ID");
+        reject::custom(FailedClientOperation)
+    })?;
+    drop(db); // drop the lock so other processes can access the DB
     debug!("{id} Handling deposit request");
     handle_client_deposit_request::<N>(deposit_req, id).await
 }
+
 /// handle_client_deposit_request is the entry point for deposit requests from the client.
 pub async fn handle_client_deposit_request<N: NightfallContract>(
     req: NF3DepositRequest,
     id: String,
-) -> Result<impl Reply, warp::Rejection> {
+) -> Result<warp::reply::WithHeader<WithStatus<Json>>, warp::Rejection> {
     let sync_state = get_synchronisation_status::<N>()
         .await
         .map_err(reject::custom)?
@@ -273,10 +290,10 @@ pub async fn handle_client_deposit_request<N: NightfallContract>(
         error!("{id} Error with deposit operation function: {}", e);
         reject::custom(FailedClientOperation)
     })?;
-
+    debug!("{id} Deposit operation completed successfully");
     // Insert the preimage into the commitments DB as pending creation
     // TODO remove the blocknumber
-    let db = get_db_connection().await.write().await;
+    let db: tokio::sync::RwLockWriteGuard<'_, mongodb::Client> = get_db_connection().await.write().await;
     let ZKPKeys { nullifier_key, .. } = *get_zkp_keys().lock().expect("Poisoned Mutex lock");
     let nullifier = preimage_value
         .nullifier_hash(&nullifier_key)
@@ -293,6 +310,7 @@ pub async fn handle_client_deposit_request<N: NightfallContract>(
         error!("{id} Error while storing pending deposit commitment");
         reject::custom(FailedClientOperation)
     })?;
+    debug!("{id} Deposit commitment stored successfully");
 
     // Check if preimage_fee_option is Some, and store it in the DB if it exists
     if let Some(preimage_fee) = preimage_fee_option {
@@ -314,6 +332,8 @@ pub async fn handle_client_deposit_request<N: NightfallContract>(
         })?;
     }
 
+    debug!("{id} Deposit fee commitment stored successfully");
+
     let response_data = match preimage_fee_option {
         Some(preimage_fee) => vec![
             preimage_value
@@ -330,7 +350,7 @@ pub async fn handle_client_deposit_request<N: NightfallContract>(
             .expect("Preimage must be hashable - this should not happen")
             .to_hex_string()],
     };
-
+    debug!("{id} Deposit request completed successfully - returning reply to caller");
     Ok(reply::with_header(reply::with_status(
         reply::json(&response_data), // Send the appropriate number of Preimages
         StatusCode::ACCEPTED,
@@ -356,6 +376,24 @@ where
 
     //extract the request ID
     let id = request_id.unwrap_or_default();
+    // check if the id is a valid uuid
+    if Uuid::parse_str(&id).is_err() {
+            return Ok(reply::with_header(reply::with_status(
+                json(&"Invalid request id".to_string()),
+                StatusCode::BAD_REQUEST,
+            ), "X-Request-ID", id));
+    };
+    // add the id to the request database
+    let db = get_db_connection().await.write().await;
+    match db.store_request(&id, RequestStatus::Queued).await {
+        Some(_) => {},
+        None => return Ok(reply::with_header(
+            reply::with_status(
+                json(&"Database error".to_string()),
+            StatusCode::INTERNAL_SERVER_ERROR),
+         "X-Request-ID", id))
+    }  
+    drop(db); // drop the lock so other processes can access the DB
 
     // Convert the request into the relevant types.
     let nf_token_id =
@@ -546,8 +584,28 @@ where
         ..
     } = withdraw_req;
 
-    //extract the request ID
+    //extract the request ID and express it as a UUID object
     let id = request_id.unwrap_or_default();
+    // check if the id is a valid uuid
+    if Uuid::parse_str(&id).is_err() {
+            return Ok(reply::with_header(
+                reply::with_status(
+                json(&"Invalid request id".to_string()),
+                StatusCode::BAD_REQUEST),
+             "X-Request-ID", id))
+    };
+
+    // add the id to the request database
+    let db = get_db_connection().await.write().await;
+    match db.store_request(&id, RequestStatus::Queued).await {
+        Some(_) => {},
+        None => return Ok(reply::with_header(
+            reply::with_status(
+                json(&"Database error".to_string()),
+            StatusCode::INTERNAL_SERVER_ERROR),
+         "X-Request-ID", id))
+    }
+    drop(db); // drop the lock so other processes can access the DB
 
     // Convert the request into the relevant types.
     let nf_token_id =
@@ -712,7 +770,11 @@ where
         withdraw_fund_salt: withdraw_fund_salt.to_hex_string(),
     };
     // Return the response as JSON
-    Ok(reply::with_header(json(&response), 
+    Ok(reply::with_header(
+        reply::with_status(
+            json(&response), 
+            StatusCode::ACCEPTED,
+        ),
         "X-Request-ID",
         id,
     ))
