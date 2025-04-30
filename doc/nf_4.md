@@ -22,6 +22,8 @@ Once validation is complete, the user can intitiate three types of transaction v
 
 3. Withdraw: This is a special case of a Transfer but, rather than output commitments being created, suffienct funds are de-escrowed for the recipient to withdraw the amount they are being paid from the Nightfall contract.
 
+*Note that all of these transactions expect a `X-Request-ID` header to be provided in UUID v4 format, and will fail with a bad request if this is not provided. The value of this header will be reported in log messages and returned with the response.*
+
 The API for these requests is described in detail later on.
 
 `proposer`s also require a certificate. Once validated, they have to register with the RoundRobin smart contract, via the ProposerManager interface. The `proposer`s take turns in a round-robin (other patterns are possible by replacing the contract that implements ProposerManager) to make Layer 2 blocks. The proposers receive transactions, either via their `transaction` endpoint directly from a `client` or, in the case of deposit transactions, from the Nightfall contract. Once a `proposer` has sufficient `client` transations to create a Layer 2 block (64 transactions, currently, but any power of 4 is acceptable) and it is the active `proposer` in the round-robin, it will compute a rollup-proof which, when validated on-chain simultaneously proves all of the client transaction proofs. When incorporating a deposit transaction, the proposer also computes the deposit proof. This is because the Layer 2 block containing the deposit needs to be known to compute the proof, preventing the `client` from computing it in advance.
@@ -340,7 +342,7 @@ This request will ask the X509 smart contract to validate the passed-in X509 cer
 POST /v1/deposit
 
 ```sh
-curl -i --request POST 'http://localhost:3000/v1/deposit' \
+curl -i -H "X-Request-ID: 16cf74ad-e28c-421e-a125-78bed5e1c435" --request POST 'http://localhost:3000/v1/deposit' \
     --json '{ "ercAddress": "0x6fcb6af7f7947f8480c36e8ffca0c66f6f2be32b", "tokenId": "0x00", "tokenType": "0", "value": "0x04", "fee": "0x02",  "deposit_fee": "0x05" }' 
 ```
 
@@ -364,7 +366,7 @@ Note: In this case, unlike NF_3, the client does not generate the proof. Instead
 POST /v1/transfer
 
 ```sh
-curl -i --request POST 'http://localhost:3000/v1/transfer' \
+curl -i  -H "X-Request-ID: 16cf74ad-e28c-421e-a125-78bed5e1c435" --request POST 'http://localhost:3000/v1/transfer' \
     --json '{ "ercAddress": "95bd8d42f30351685e96c62eddc0d0613bf9a87a", "tokenId": "0x00", "recipientData": { "values": ["0x06"], "recipientCompressedZkpPublicKeys": ["2a2fec73694898850dccccaf188853d3d69b251c8aa2538fcb2be6f470aa7205"] }, "fee": "0x02" }'
 ```
 
@@ -386,7 +388,7 @@ The components of the JSON object have the following meaning:
 POST /v1/withdraw
 
 ```sh
-curl -i --request POST 'http://localhost:3000/v1/withdraw' \
+curl -i  -H "X-Request-ID: 16cf74ad-e28c-421e-a125-78bed5e1c435" --request POST 'http://localhost:3000/v1/withdraw' \
     --json '{"ercAddress": "98eddadcfde04dc22a0e62119617e74a6bc77313", "tokenId": "0x01", "tokenType": "1", "value": "0x00", "recipientAddress": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266", "fee": "0x09"}'
 ```
 
@@ -519,6 +521,20 @@ curl -i 'http://localhost:3000/v1/fee_balance
 
 Returns: on success, the balance of the fee tokens in the user's layer 2 wallet. Note that, for consistency with other endpoints, the fee balance will be encoded as a big-endian hex string.
 ***
+
+GET /v1/requests/:uuid
+
+```sh
+curl -i 'http://localhost:3000/v1/requests/16cf74ad-e28c-421e-a125-78bed5e1c435
+```
+
+Returns the status of a deposit/transfer or withdraw request when provided with the `X-Request-ID` header value that was submitted with the request. The status can be one of:
+
+- Queued: The transaction is waiting to be processed by the client.
+- Submitted: The Client has succesfully processed the transaction and handed off the result, either to the blockchain, in the case of a deposit escrow, or to a Proposer, in the case of a transfer or withdraw transaction.
+- Failed: The hand off to the next stage did not succeed.
+
+Note that internal failures of the client will cause the request state to be unreliable so the request status is not an alternative to error logs.
 
 ### Proposer APIs
 
