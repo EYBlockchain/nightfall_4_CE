@@ -4,12 +4,12 @@ use ark_ec::twisted_edwards::Affine as TEAffine;
 use ark_ff::{BigInteger, PrimeField};
 use ark_std::{rand::Rng, test_rng, UniformRand};
 use configuration::{
-    addresses::{get_addresses, Addresses, AddressesError, Sources},
+    addresses::{Addresses, AddressesError, Sources},
     settings::Settings,
 };
 use ethers::{
     signers::{LocalWallet, Signer},
-    types::TransactionReceipt,
+    types::{TransactionReceipt, H160}, utils::keccak256,
 };
 use hex::ToHex;
 use jf_primitives::{
@@ -32,7 +32,6 @@ use nightfall_client::{
             NF3WithdrawRequest, WithdrawDataReq,
         },
     },
-    get_fee_token_id,
     ports::{
         commitments::Commitment,
         proof::{PrivateInputs, ProvingEngine, PublicInputs},
@@ -592,8 +591,9 @@ pub fn build_valid_transfer_inputs(rng: &mut impl Rng) -> (PublicInputs, Private
     let nf_token_id = Fr254::from(nf_token_id);
 
     // Retrieve the fee token ID and nightfall address
-    let nf_address = get_addresses().nightfall();
-    let fee_token_id = get_fee_token_id();
+    let nf_address = H160::rand(rng);   
+    // generate a 'random' fee token ID (we just use the keccak hash of 1)
+    let fee_token_id = Fr254::from(BigUint::from_bytes_be(&keccak256([1])) >> 4);
 
     // Random values for fee and value
     let mut nullified_fee_one = rand_96_bit(rng);
