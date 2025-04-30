@@ -1,10 +1,13 @@
 use crate::{
     domain::entities::{Block, OnChainTransaction},
-    initialisation::get_block_assembly_status,
     ports::block_assembly_trigger::BlockAssemblyTrigger,
 };
-
+use nightfall_client::ports::proof::Proof;
+use crate::services::assemble_block::get_block_size;
+use crate::ports::db::TransactionsDB;
 use async_trait::async_trait;
+use tokio::sync::RwLock;
+use tokio::time;
 use ethers::types::Bytes;
 use nightfall_bindings::nightfall::{
     Block as NightfallBlockStruct, CompressedSecrets as NightfallCompressedSecrets,
@@ -14,22 +17,97 @@ use nightfall_client::{
     domain::{entities::ClientTransaction, error::ConversionError},
     driven::contract_functions::contract_type_conversions::{FrBn254, Uint256},
 };
-use tokio::time::{sleep, Duration};
+use tokio::time::{Instant, Duration};
+use std::marker::PhantomData;
+use log::info as tracing_info;
 
-pub struct IntervalTrigger(pub u64);
 
-// We'll want to replace it with something more sophisticated.
-#[async_trait]
-impl BlockAssemblyTrigger for IntervalTrigger {
-    async fn await_trigger(&self) {
-        let mut count = self.0;
-        while count > 0 {
-            let is_running = get_block_assembly_status().await.read().await.is_running();
-            if is_running {
-                count -= 1;
-            }
-            sleep(Duration::from_secs(1)).await;
+pub struct SmartTrigger<P: Proof> {
+    pub interval_secs: u64,
+    pub max_wait_secs: u64,
+    pub status: &'static RwLock<BlockAssemblyStatus>,
+    pub db: &'static RwLock<mongodb::Client>,
+    pub target_block_fill_ratio: f32,
+    pub phantom: PhantomData<P>,
+}
+
+impl<P: Proof> SmartTrigger<P> {
+    pub fn new(
+        interval_secs: u64,
+        max_wait_secs: u64,
+        status: &'static RwLock<BlockAssemblyStatus>,
+        db: &'static RwLock<mongodb::Client>, 
+        target_block_fill_ratio: f32,
+    ) -> Self {
+        Self {
+            interval_secs,
+            max_wait_secs,
+            status,
+            db,
+            target_block_fill_ratio,
+            phantom: PhantomData,
         }
+    }
+}
+
+#[async_trait]
+impl<P: Proof + Send + Sync> BlockAssemblyTrigger for SmartTrigger<P> {
+    async fn await_trigger(&self) {
+        let interval_duration = Duration::from_secs(self.interval_secs);
+        let mut interval = time::interval(interval_duration);
+        let short_wait = Duration::from_secs(5); 
+
+        let start = Instant::now();
+
+        loop {
+            if self.status.read().await.is_running() && self.should_assemble().await {
+                tracing_info!("Trigger activated by mempool check.");
+                break;
+            }
+
+            if start.elapsed().as_secs() >= self.max_wait_secs {
+                tracing_info!(
+                    "Max wait time elapsed ({}s). Triggering block assembly.",
+                    self.max_wait_secs
+                );
+                break;
+            }
+
+            tokio::select! {
+                _ = interval.tick() => {
+                    tracing_info!("Interval elapsed, checking threshold.");
+                    if self.status.read().await.is_running() && self.should_assemble().await {
+                        tracing_info!("Trigger activated after interval with fill threshold reached.");
+                        break;
+                    }
+                }
+                _ = time::sleep(short_wait) => {
+                   
+                }
+            }
+        }
+    }
+}
+
+impl<P: Proof + Send + Sync> SmartTrigger<P> {
+    async fn should_assemble(&self) -> bool {
+        let mut db = self.db.write().await;
+
+        let deposits = <mongodb::Client as TransactionsDB<P>>::get_mempool_deposits(&mut db).await;
+        tracing_info!("Deposits: {:?}", deposits);
+        let client_txs = <mongodb::Client as TransactionsDB<P>>::get_all_mempool_transactions(&mut db).await;
+        tracing_info!("Client transactions: {:?}", client_txs);
+        let block_size = get_block_size().unwrap_or(64) as f32;
+        let num_deposit_groups = deposits.as_ref().map_or(0, |d| (d.len() + 3) / 4) as f32;
+        let num_client_txs = client_txs.as_ref().map_or(0, |txs| txs.len()) as f32;
+        let fill_ratio = (num_deposit_groups + num_client_txs) / block_size;
+        
+
+        tracing_info!("Calculated fill ratio: {:.2}", fill_ratio);
+
+        fill_ratio >= self.target_block_fill_ratio
+        
+
     }
 }
 
