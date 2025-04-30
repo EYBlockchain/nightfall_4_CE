@@ -36,7 +36,7 @@ pub async fn client_operation<P, E>(
     ephemeral_key: BJJScalar,
     withdraw_address: Fr254,
     secret_preimages: &[impl SecretHash; 4],
-    id: &str
+    id: &str,
 ) -> Result<ClientTransaction<P>, &'static str>
 where
     P: Proof,

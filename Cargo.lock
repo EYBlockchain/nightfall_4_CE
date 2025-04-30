@@ -4307,6 +4307,7 @@ dependencies = [
  "tokio",
  "uint",
  "url",
+ "uuid 1.16.0",
  "warp",
 ]
 

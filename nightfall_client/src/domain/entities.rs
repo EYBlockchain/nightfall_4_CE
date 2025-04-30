@@ -39,7 +39,7 @@ pub struct Request {
 #[derive(Serialize, Deserialize, Debug)]
 pub enum RequestStatus {
     Queued,
-    SentToProposer,
+    Submitted,
     Failed,
 }
 
@@ -47,7 +47,7 @@ impl Display for RequestStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             RequestStatus::Queued => write!(f, "Queued"),
-            RequestStatus::SentToProposer => write!(f, "SentToProposer"),
+            RequestStatus::Submitted => write!(f, "Submitted"),
             RequestStatus::Failed => write!(f, "Failed"),
         }
     }

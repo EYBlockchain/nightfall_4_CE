@@ -1,4 +1,3 @@
-
 use super::{
     client_operation::handle_client_operation,
     models::{NF3DepositRequest, NF3TransferRequest, NF3WithdrawRequest, NullifierKey},
@@ -51,7 +50,12 @@ use nightfall_bindings::{
 };
 use serde::Serialize;
 use uuid::Uuid;
-use warp::{hyper::StatusCode, path, reject, reply::{self, json, Json, WithStatus}, Filter};
+use warp::{
+    hyper::StatusCode,
+    path, reject,
+    reply::{self, json, Json, WithStatus},
+    Filter,
+};
 
 #[derive(Serialize)]
 struct WithdrawResponse {
@@ -110,17 +114,23 @@ async fn handle_deposit<N: NightfallContract>(
     let id = request_id.unwrap_or_default();
     // check if the id is a valid uuid
     if Uuid::parse_str(&id).is_err() {
-        return Ok(reply::with_header(reply::with_status(
+        return Ok(reply::with_header(
+            reply::with_status(
                 json(&"Invalid request id".to_string()),
                 StatusCode::BAD_REQUEST,
-            ), "X-Request-ID", id));
+            ),
+            "X-Request-ID",
+            id,
+        ));
     };
     // add the id to the request database
     let db = get_db_connection().await.write().await;
-    db.store_request(&id, RequestStatus::Queued).await.ok_or_else(|| {
-        error!("{id} Error while storing request ID");
-        reject::custom(FailedClientOperation)
-    })?;
+    db.store_request(&id, RequestStatus::Queued)
+        .await
+        .ok_or_else(|| {
+            error!("{id} Error while storing request ID");
+            reject::custom(FailedClientOperation)
+        })?;
     drop(db); // drop the lock so other processes can access the DB
     debug!("{id} Handling deposit request");
     handle_client_deposit_request::<N>(deposit_req, id).await
@@ -137,10 +147,14 @@ pub async fn handle_client_deposit_request<N: NightfallContract>(
         .is_synchronised();
     if !sync_state {
         warn!("{id} Rejecting request - Client is not synchronised with the blockchain");
-        return Ok(reply::with_header(reply::with_status(
-            reply::json(&"Client is not synchronised with the blockchain"),
-            StatusCode::SERVICE_UNAVAILABLE,
-        ), "X-Request-ID", id));
+        return Ok(reply::with_header(
+            reply::with_status(
+                reply::json(&"Client is not synchronised with the blockchain"),
+                StatusCode::SERVICE_UNAVAILABLE,
+            ),
+            "X-Request-ID",
+            id,
+        ));
     }
 
     // We convert the request into values
@@ -231,8 +245,10 @@ pub async fn handle_client_deposit_request<N: NightfallContract>(
         secret_preimage_two,
         secret_preimage_three,
     );
+    let db: tokio::sync::RwLockWriteGuard<'_, mongodb::Client> =
+        get_db_connection().await.write().await;
     // Then match on the token type and call the correct function
-    let (preimage_value, preimage_fee_option) = match token_type {
+    let deposit_result = match token_type {
         TokenType::ERC20 => {
             deposit_operation::<IERC20<LocalWsClient>, Nightfall<LocalWsClient>>(
                 erc_address,
@@ -285,15 +301,23 @@ pub async fn handle_client_deposit_request<N: NightfallContract>(
             )
             .await
         }
-    }
-    .map_err(|e| {
-        error!("{id} Error with deposit operation function: {}", e);
-        reject::custom(FailedClientOperation)
-    })?;
-    debug!("{id} Deposit operation completed successfully");
+    };
+
+    let (preimage_value, preimage_fee_option) = match deposit_result {
+        Ok(dr) => {
+            debug!("{id} Deposit operation completed successfully");
+            db.update_request(&id, RequestStatus::Submitted).await;
+            dr
+        }
+        Err(e) => {
+            error!("{id} Error with deposit operation: {}", e);
+            db.update_request(&id, RequestStatus::Failed).await;
+            return Err(reject::custom(FailedClientOperation));
+        }
+    };
+
     // Insert the preimage into the commitments DB as pending creation
     // TODO remove the blocknumber
-    let db: tokio::sync::RwLockWriteGuard<'_, mongodb::Client> = get_db_connection().await.write().await;
     let ZKPKeys { nullifier_key, .. } = *get_zkp_keys().lock().expect("Poisoned Mutex lock");
     let nullifier = preimage_value
         .nullifier_hash(&nullifier_key)
@@ -351,10 +375,14 @@ pub async fn handle_client_deposit_request<N: NightfallContract>(
             .to_hex_string()],
     };
     debug!("{id} Deposit request completed successfully - returning reply to caller");
-    Ok(reply::with_header(reply::with_status(
-        reply::json(&response_data), // Send the appropriate number of Preimages
-        StatusCode::ACCEPTED,
-    ), "X-Request-ID", id))
+    Ok(reply::with_header(
+        reply::with_status(
+            reply::json(&response_data), // Send the appropriate number of Preimages
+            StatusCode::ACCEPTED,
+        ),
+        "X-Request-ID",
+        id,
+    ))
 }
 
 async fn handle_transfer<P, E, N>(
@@ -378,21 +406,30 @@ where
     let id = request_id.unwrap_or_default();
     // check if the id is a valid uuid
     if Uuid::parse_str(&id).is_err() {
-            return Ok(reply::with_header(reply::with_status(
+        return Ok(reply::with_header(
+            reply::with_status(
                 json(&"Invalid request id".to_string()),
                 StatusCode::BAD_REQUEST,
-            ), "X-Request-ID", id));
+            ),
+            "X-Request-ID",
+            id,
+        ));
     };
     // add the id to the request database
     let db = get_db_connection().await.write().await;
     match db.store_request(&id, RequestStatus::Queued).await {
-        Some(_) => {},
-        None => return Ok(reply::with_header(
-            reply::with_status(
-                json(&"Database error".to_string()),
-            StatusCode::INTERNAL_SERVER_ERROR),
-         "X-Request-ID", id))
-    }  
+        Some(_) => {}
+        None => {
+            return Ok(reply::with_header(
+                reply::with_status(
+                    json(&"Database error".to_string()),
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                ),
+                "X-Request-ID",
+                id,
+            ))
+        }
+    }
     drop(db); // drop the lock so other processes can access the DB
 
     // Convert the request into the relevant types.
@@ -588,22 +625,30 @@ where
     let id = request_id.unwrap_or_default();
     // check if the id is a valid uuid
     if Uuid::parse_str(&id).is_err() {
-            return Ok(reply::with_header(
-                reply::with_status(
+        return Ok(reply::with_header(
+            reply::with_status(
                 json(&"Invalid request id".to_string()),
-                StatusCode::BAD_REQUEST),
-             "X-Request-ID", id))
+                StatusCode::BAD_REQUEST,
+            ),
+            "X-Request-ID",
+            id,
+        ));
     };
 
     // add the id to the request database
     let db = get_db_connection().await.write().await;
     match db.store_request(&id, RequestStatus::Queued).await {
-        Some(_) => {},
-        None => return Ok(reply::with_header(
-            reply::with_status(
-                json(&"Database error".to_string()),
-            StatusCode::INTERNAL_SERVER_ERROR),
-         "X-Request-ID", id))
+        Some(_) => {}
+        None => {
+            return Ok(reply::with_header(
+                reply::with_status(
+                    json(&"Database error".to_string()),
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                ),
+                "X-Request-ID",
+                id,
+            ))
+        }
     }
     drop(db); // drop the lock so other processes can access the DB
 
@@ -771,10 +816,7 @@ where
     };
     // Return the response as JSON
     Ok(reply::with_header(
-        reply::with_status(
-            json(&response), 
-            StatusCode::ACCEPTED,
-        ),
+        reply::with_status(json(&response), StatusCode::ACCEPTED),
         "X-Request-ID",
         id,
     ))

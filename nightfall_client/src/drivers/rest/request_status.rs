@@ -1,12 +1,11 @@
-use log::debug;
-use warp::Filter;
-use warp::http::StatusCode;
-use warp::reply::Reply;
-use warp::path;
-use uuid::Uuid;
 use crate::initialisation::get_db_connection;
 use crate::ports::db::RequestDB;
-
+use log::debug;
+use uuid::Uuid;
+use warp::http::StatusCode;
+use warp::path;
+use warp::reply::Reply;
+use warp::Filter;
 
 /// This module provides an end point for querying the status of a request
 pub fn get_request_status(
@@ -16,12 +15,10 @@ pub fn get_request_status(
         .and_then(handle_get_request_status)
 }
 
-pub async fn handle_get_request_status(
-    id: String,
-) -> Result<impl Reply, warp::Rejection> {
+pub async fn handle_get_request_status(id: String) -> Result<impl Reply, warp::Rejection> {
     // check if the id is a valid uuid
-    match Uuid::parse_str(&id){
-        Ok(_) => {},
+    match Uuid::parse_str(&id) {
+        Ok(_) => {}
         Err(_) => {
             return Ok(warp::reply::with_status(
                 "Invalid request id".to_string(),
@@ -31,9 +28,9 @@ pub async fn handle_get_request_status(
     };
     let db = get_db_connection().await.read().await;
     // get the request
-    debug!{"Getting request status for {id}"};
+    debug! {"Getting request status for {id}"};
     let request = db.get_request(&id).await;
-    debug!{"Request status: {request:?}"};
+    debug! {"Request status: {request:?}"};
     if let Some(request) = request {
         Ok(warp::reply::with_status(
             serde_json::to_string(&request).unwrap(),

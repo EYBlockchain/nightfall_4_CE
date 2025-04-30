@@ -61,7 +61,7 @@ pub fn to_fr254_proof(proof: MembershipProof<FrBn254>) -> MembershipProof<Fr254>
 
 #[async_trait]
 impl RequestDB for Client {
-    async fn store_request(&self, request_id: &str, status: RequestStatus,) -> Option<()> {
+    async fn store_request(&self, request_id: &str, status: RequestStatus) -> Option<()> {
         let request = Request {
             uuid: request_id.to_string(),
             status,
@@ -89,11 +89,7 @@ impl RequestDB for Client {
             .ok()?
     }
 
-    async fn update_request(
-        &self,
-        request_id: &str,
-        status: RequestStatus,
-    ) -> Option<()> {
+    async fn update_request(&self, request_id: &str, status: RequestStatus) -> Option<()> {
         let filter = doc! { "uuid": request_id };
         let update = doc! {"$set": { "status": status.to_string() }};
         self.database(DB)

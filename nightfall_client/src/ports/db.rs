@@ -11,13 +11,9 @@ use futures::Future;
 
 #[async_trait]
 pub trait RequestDB {
-    async fn store_request(&self, id: &str, status: RequestStatus,) -> Option<()>;
+    async fn store_request(&self, id: &str, status: RequestStatus) -> Option<()>;
     async fn get_request(&self, id: &str) -> Option<Request>;
-    async fn update_request(
-        &self,
-        id: &str,
-        status: RequestStatus,
-    ) -> Option<()>;
+    async fn update_request(&self, id: &str, status: RequestStatus) -> Option<()>;
 }
 
 #[async_trait]

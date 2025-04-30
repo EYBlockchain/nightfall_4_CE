@@ -28,8 +28,8 @@ async fn main() -> Result<(), JoinError> {
         "nightfall",
         "commitment_tree_metadata",
     )
-        .await
-        .expect("Failed to drop Metadata collection");
+    .await
+    .expect("Failed to drop Metadata collection");
     utils::drop_collection::<Node<Fr254>>(url.as_str(), "nightfall", "commitment_tree_nodes")
         .await
         .expect("Failed to drop Node collection");

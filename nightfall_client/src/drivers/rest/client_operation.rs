@@ -1,18 +1,20 @@
 use configuration::addresses::get_addresses;
 use ethers::types::TransactionReceipt;
 use nightfall_bindings::nightfall::{ClientTransaction as NightfallTransactionStruct, Nightfall};
+use std::{error::Error, fmt::Debug};
 use warp::reply::Json;
 use warp::reply::WithStatus;
-use std::{error::Error, fmt::Debug};
 use warp::{hyper::StatusCode, reject, reply};
 
 use crate::domain::entities::CommitmentStatus;
 use crate::domain::entities::HexConvertible;
+use crate::domain::entities::RequestStatus;
 use crate::driven::db::mongo::CommitmentEntry;
 use crate::drivers::blockchain::nightfall_event_listener::get_synchronisation_status;
 use crate::drivers::derive_key::ZKPKeys;
 use crate::drivers::rest::models::NullifierKey;
 use crate::get_zkp_keys;
+use crate::ports::db::RequestDB;
 use crate::{
     domain::{
         entities::{ClientTransaction, Operation, Transport},
@@ -58,10 +60,14 @@ where
         .is_synchronised();
     if !sync_state {
         warn!("{id} Rejecting request - Proposer is not synchronised with the blockchain");
-        return Ok(reply::with_header(reply::with_status(
-            reply::json(&"Proposer is not synchronised with the blockchain"),
-            StatusCode::SERVICE_UNAVAILABLE,
-        ), "X-Request-ID", id));
+        return Ok(reply::with_header(
+            reply::with_status(
+                reply::json(&"Proposer is not synchronised with the blockchain"),
+                StatusCode::SERVICE_UNAVAILABLE,
+            ),
+            "X-Request-ID",
+            id,
+        ));
     }
 
     // get the zkp keys from the global state. They will have been created when the keys were requested using a mnemonic
@@ -161,10 +167,14 @@ where
             *ciphertext = serde_json::json!(value_array);
         }
     }
-    Ok(reply::with_header(reply::with_status(
-        reply::json(&(operation_result_json, tx_receipt)),
-        StatusCode::ACCEPTED,
-    ), "X-Request-ID", id))
+    Ok(reply::with_header(
+        reply::with_status(
+            reply::json(&(operation_result_json, tx_receipt)),
+            StatusCode::ACCEPTED,
+        ),
+        "X-Request-ID",
+        id,
+    ))
 }
 async fn process_transaction_offchain<P: Serialize>(
     l2_transaction: &ClientTransaction<P>,
@@ -172,11 +182,26 @@ async fn process_transaction_offchain<P: Serialize>(
 ) -> Result<Option<TransactionReceipt>, Box<dyn Error>> {
     info!("{id} Sending client transaction to proposer");
     let (proposer_http_connection, url) = get_proposer_http_connection();
-    proposer_http_connection
+    let db = get_db_connection().await.write().await;
+    let proposer_response = proposer_http_connection
         .post(url.clone())
         .json(l2_transaction)
         .send()
-        .await?;
+        .await;
+    match proposer_response {
+        Ok(_) => {
+            db.update_request(id, RequestStatus::Submitted).await;
+            debug!("{id} Client transaction sent to proposer");
+        }
+        Err(err) => {
+            error!(
+                "{id} Failed to send client transaction to proposer: {}",
+                err
+            );
+            db.update_request(id, RequestStatus::Failed).await;
+            return Err(Box::new(err));
+        }
+    }
     // obvs we won't have a transaction receipt to return if we've sent our transaction to a proposer but we need to return an Option<TransactionReceipt>
     // for type compatibility with the onchain case
     Ok(None)
