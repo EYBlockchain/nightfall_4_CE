@@ -161,29 +161,31 @@ pub mod initialisation {
     }
 
     /// This function is used to provide a singleton trigger for block assembly across the entire application.
-   // Trigger: assembly starts when buffer reaches 60% capacity.
+  
 
-
-pub async fn get_block_assembly_trigger<P: Proof>() -> &'static Arc<RwLock<dyn BlockAssemblyTrigger + Send + Sync>> {
-    static BLOCK_ASSEMBLY_TRIGGER: OnceCell<Arc<RwLock<dyn BlockAssemblyTrigger + Send + Sync>>> = OnceCell::const_new();
-    BLOCK_ASSEMBLY_TRIGGER
-        .get_or_init(|| async {
+    pub async fn get_block_assembly_trigger<P: Proof>() -> &'static Arc<RwLock<dyn BlockAssemblyTrigger + Send + Sync>> {
+        static BLOCK_ASSEMBLY_TRIGGER: OnceCell<Arc<RwLock<dyn BlockAssemblyTrigger + Send + Sync>>> = OnceCell::const_new();
+        BLOCK_ASSEMBLY_TRIGGER
+            .get_or_init(|| async {
             let status = get_block_assembly_status().await;
             let db_client = get_db_connection().await;
-            let max_wait_secs = 120;
-            let target_fill_ratio = 0.05; 
+            
+            let settings = get_settings();
+            let initial_interval_secs = settings.nightfall_proposer.block_assembly_initial_interval_secs;
+            let max_wait_secs = settings.nightfall_proposer.block_assembly_max_wait_secs;
+            let target_fill_ratio = settings.nightfall_proposer.block_assembly_target_fill_ratio as f32;
+
 
             let smart_trigger = SmartTrigger::<P>::new(
-                30, 
+               initial_interval_secs,
                 max_wait_secs,
                 status,
                 db_client,
                 target_fill_ratio,
             );
-            Arc::new(RwLock::new(smart_trigger)) as Arc<RwLock<dyn BlockAssemblyTrigger + Send + Sync>>
-        })
-        .await
-}
+            Arc::new(RwLock::new(smart_trigger)) as Arc<RwLock<dyn BlockAssemblyTrigger + Send + Sync>>})
+           .await
+   }
 
     /// This function is used to provide a singleton status for the BlockAssemblyTrigger across the entire application.
     pub async fn get_block_assembly_status() -> &'static RwLock<BlockAssemblyStatus> {

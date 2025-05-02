@@ -1,23 +1,27 @@
 use crate::{
     domain::entities::{Block, OnChainTransaction},
     ports::block_assembly_trigger::BlockAssemblyTrigger,
+    services::assemble_block::get_block_size,
+    ports::db::TransactionsDB,
 };
-use nightfall_client::ports::proof::Proof;
-use crate::services::assemble_block::get_block_size;
-use crate::ports::db::TransactionsDB;
 use async_trait::async_trait;
-use tokio::sync::RwLock;
-use tokio::time;
+
 use ethers::types::Bytes;
 use nightfall_bindings::nightfall::{
-    Block as NightfallBlockStruct, CompressedSecrets as NightfallCompressedSecrets,
+    Block as NightfallBlockStruct,
+    CompressedSecrets as NightfallCompressedSecrets,
     OnChainTransaction as NightfallOnChainTransaction,
 };
 use nightfall_client::{
     domain::{entities::ClientTransaction, error::ConversionError},
     driven::contract_functions::contract_type_conversions::{FrBn254, Uint256},
+    ports::proof::Proof,
 };
-use tokio::time::{Instant, Duration};
+use tokio::{
+    sync::RwLock,
+    time::{self, Duration, Instant},
+};
+
 use std::marker::PhantomData;
 use log::info as tracing_info;
 use log::error;
@@ -134,8 +138,6 @@ impl<P: Proof + Send + Sync> SmartTrigger<P> {
         };
 
         let block_size = get_block_size().unwrap_or(64) as f32;
-        // let num_deposit_groups = deposits.as_ref().map_or(0, |d| (d.len() + 3) / 4) as f32;
-        // let num_client_txs = client_txs.as_ref().map_or(0, |txs| txs.len()) as f32;
         let fill_ratio = (num_deposit_groups + num_client_txs) / block_size;
         
 
