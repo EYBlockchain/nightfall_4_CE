@@ -25,7 +25,7 @@ use self::{
 };
 
 mod balance;
-mod client_nf_3;
+pub mod client_nf_3;
 pub mod client_operation;
 mod commitment;
 pub mod health_check;
@@ -44,7 +44,7 @@ where
     N: NightfallContract,
 {
     health_route()
-        .or(deposit_request::<N>())
+        .or(deposit_request::<P, E, N>())
         .or(transfer_request::<P, E, N>())
         .or(withdraw_request::<P, E, N>())
         .or(get_commitment())

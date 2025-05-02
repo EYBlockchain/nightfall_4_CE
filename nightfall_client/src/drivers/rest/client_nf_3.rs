@@ -5,7 +5,10 @@ use super::{
 };
 use crate::{
     domain::entities::{CommitmentStatus, RequestStatus},
-    driven::db::mongo::CommitmentEntry,
+    driven::{
+        db::mongo::CommitmentEntry,
+        queue::{get_queue, QueuedRequest, TransactionRequest},
+    },
     get_zkp_keys,
     ports::{commitments::Nullifiable, contracts::NightfallContract, db::RequestDB},
 };
@@ -53,7 +56,7 @@ use uuid::Uuid;
 use warp::{
     hyper::StatusCode,
     path, reject,
-    reply::{self, json, Json, WithStatus},
+    reply::{self, json, Json, Reply, WithStatus},
     Filter,
 };
 
@@ -69,12 +72,17 @@ struct WithdrawResponse {
 // It matches the API of NF_3 so it can be used with the NF_3 client, under the hood, it calls
 // the client_operation handler
 
-pub fn deposit_request<N: NightfallContract>(
-) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
+pub fn deposit_request<P, E, N>(
+) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone
+where
+    P: Proof,
+    E: ProvingEngine<P>,
+    N: NightfallContract,
+{
     path!("v1" / "deposit")
         .and(warp::body::json())
         .and(warp::header::optional::<String>("X-Request-ID"))
-        .and_then(handle_deposit::<N>)
+        .and_then(queue_deposit_request::<P, E, N>)
 }
 
 pub fn transfer_request<P, E, N>(
@@ -87,7 +95,7 @@ where
     path!("v1" / "transfer")
         .and(warp::body::json())
         .and(warp::header::optional::<String>("X-Request-ID"))
-        .and_then(handle_transfer::<P, E, N>)
+        .and_then(queue_transfer_request::<P, E, N>)
 }
 
 pub fn withdraw_request<P, E, N>(
@@ -100,17 +108,62 @@ where
     path!("v1" / "withdraw")
         .and(warp::body::json())
         .and(warp::header::optional::<String>("X-Request-ID"))
-        .and_then(handle_withdraw::<P, E, N>)
+        .and_then(queue_withdraw_request::<P, E, N>)
 }
 
-async fn handle_deposit<N: NightfallContract>(
+/// function to queue the deposit requests
+async fn queue_deposit_request<P, E, N>(
     deposit_req: NF3DepositRequest,
     request_id: Option<String>,
-) -> Result<impl warp::Reply, warp::Rejection> {
-    // we need to convert the NF_3 deposit request to the client_operation deposit request. One
-    // slight difficulty is that an NF_3 deposit must be done on-chain, whereas that's not true
-    // of an NF_4 deposit. We'll just assume an off-chain deposit as that will be the most sensible
-    // route most of the time.
+) -> Result<impl Reply, warp::Rejection>
+where
+    P: Proof,
+    E: ProvingEngine<P>,
+    N: NightfallContract,
+{
+    let transaction_request = TransactionRequest::Deposit(deposit_req);
+    queue_request::<P, E, N>(transaction_request, request_id).await
+}
+
+/// function to queue the transfer requests
+async fn queue_transfer_request<P, E, N>(
+    transfer_req: NF3TransferRequest,
+    request_id: Option<String>,
+) -> Result<impl Reply, warp::Rejection>
+where
+    P: Proof,
+    E: ProvingEngine<P>,
+    N: NightfallContract,
+{
+    let transaction_request = TransactionRequest::Transfer(transfer_req);
+    queue_request::<P, E, N>(transaction_request, request_id).await
+}
+
+/// function to queue the withdraw requests
+async fn queue_withdraw_request<P, E, N>(
+    withdraw_req: NF3WithdrawRequest,
+    request_id: Option<String>,
+) -> Result<impl Reply, warp::Rejection>
+where
+    P: Proof,
+    E: ProvingEngine<P>,
+    N: NightfallContract,
+{
+    let transaction_request = TransactionRequest::Withdraw(withdraw_req);
+    queue_request::<P, E, N>(transaction_request, request_id).await
+}
+
+/// function to queue the transfer requests. This function queues all types of transaction request
+async fn queue_request<P, E, N>(
+    transaction_request: TransactionRequest,
+    request_id: Option<String>,
+) -> Result<impl Reply, warp::Rejection>
+where
+    P: Proof,
+    E: ProvingEngine<P>,
+    N: NightfallContract,
+{
+    // extract the request ID
     let id = request_id.unwrap_or_default();
     // check if the id is a valid uuid
     if Uuid::parse_str(&id).is_err() {
@@ -123,23 +176,68 @@ async fn handle_deposit<N: NightfallContract>(
             id,
         ));
     };
-    // add the id to the request database
+
+    // add the request to the queue
+    let mut q = get_queue().await.write().await;
+    q.push_back(QueuedRequest {
+        transaction_request,
+        uuid: id.clone(),
+    });
+    drop(q); // drop the lock so other processes can access the queue
+
+    // record the request as queued
     let db = get_db_connection().await.write().await;
-    db.store_request(&id, RequestStatus::Queued)
-        .await
-        .ok_or_else(|| {
-            error!("{id} Error while storing request ID");
-            reject::custom(FailedClientOperation)
-        })?;
+    if let None = db.store_request(&id, RequestStatus::Queued).await {
+        return Ok(reply::with_header(
+            reply::with_status(
+                json(&"Database error or duplicate transaction".to_string()),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ),
+            "X-Request-ID",
+            id,
+        ));
+    }
     drop(db); // drop the lock so other processes can access the DB
-    debug!("{id} Handling deposit request");
-    handle_client_deposit_request::<N>(deposit_req, id).await
+
+    // return a 202 Accepted response with the request ID
+    Ok(reply::with_header(
+        reply::with_status(
+            json(&"Deposit request queued".to_string()),
+            StatusCode::ACCEPTED,
+        ),
+        "X-Request-ID",
+        id,
+    ))
+}
+
+/// This function wraps the various transaction handlers, so that the queue can call the correct handler
+/// based on the request type.
+pub async fn handle_request<P, E, N>(
+    request: TransactionRequest,
+    request_id: &str,
+) -> Result<warp::reply::WithHeader<WithStatus<Json>>, warp::Rejection>
+where
+    P: Proof,
+    E: ProvingEngine<P>,
+    N: NightfallContract,
+{
+    match request {
+        TransactionRequest::Deposit(deposit_req) => {
+            handle_deposit::<N>(deposit_req, request_id).await
+        }
+        TransactionRequest::Transfer(transfer_req) => {
+            handle_transfer::<P, E, N>(transfer_req, request_id).await
+        }
+        TransactionRequest::Withdraw(withdraw_req) => {
+            handle_withdraw::<P, E, N>(withdraw_req, request_id).await
+        }
+    }
 }
 
 /// handle_client_deposit_request is the entry point for deposit requests from the client.
-pub async fn handle_client_deposit_request<N: NightfallContract>(
+pub async fn handle_deposit<N: NightfallContract>(
     req: NF3DepositRequest,
-    id: String,
+    id: &str,
 ) -> Result<warp::reply::WithHeader<WithStatus<Json>>, warp::Rejection> {
     let sync_state = get_synchronisation_status::<N>()
         .await
@@ -387,8 +485,8 @@ pub async fn handle_client_deposit_request<N: NightfallContract>(
 
 async fn handle_transfer<P, E, N>(
     transfer_req: NF3TransferRequest,
-    request_id: Option<String>,
-) -> Result<impl warp::Reply, warp::Rejection>
+    id: &str,
+) -> Result<warp::reply::WithHeader<WithStatus<Json>>, warp::Rejection>
 where
     P: Proof,
     E: ProvingEngine<P>,
@@ -402,19 +500,6 @@ where
         ..
     } = transfer_req;
 
-    //extract the request ID
-    let id = request_id.unwrap_or_default();
-    // check if the id is a valid uuid
-    if Uuid::parse_str(&id).is_err() {
-        return Ok(reply::with_header(
-            reply::with_status(
-                json(&"Invalid request id".to_string()),
-                StatusCode::BAD_REQUEST,
-            ),
-            "X-Request-ID",
-            id,
-        ));
-    };
     // add the id to the request database
     let db = get_db_connection().await.write().await;
     match db.store_request(&id, RequestStatus::Queued).await {
@@ -605,8 +690,8 @@ where
 
 async fn handle_withdraw<P, E, N>(
     withdraw_req: NF3WithdrawRequest,
-    request_id: Option<String>,
-) -> Result<impl warp::Reply, warp::Rejection>
+    id: &str,
+) -> Result<warp::reply::WithHeader<WithStatus<Json>>, warp::Rejection>
 where
     P: Proof,
     E: ProvingEngine<P>,
@@ -620,20 +705,6 @@ where
         fee,
         ..
     } = withdraw_req;
-
-    //extract the request ID and express it as a UUID object
-    let id = request_id.unwrap_or_default();
-    // check if the id is a valid uuid
-    if Uuid::parse_str(&id).is_err() {
-        return Ok(reply::with_header(
-            reply::with_status(
-                json(&"Invalid request id".to_string()),
-                StatusCode::BAD_REQUEST,
-            ),
-            "X-Request-ID",
-            id,
-        ));
-    };
 
     // add the id to the request database
     let db = get_db_connection().await.write().await;
