@@ -20,7 +20,7 @@ use lib::models::CertificateReq;
 use log::{debug, info};
 use nf_curves::ed_on_bn254::{BabyJubjub as BabyJubJub, Fr as BJJScalar};
 use nightfall_client::{
-    domain::entities::{CommitmentStatus, DepositSecret, HexConvertible, Preimage, Salt},
+    domain::entities::{CommitmentStatus, DepositSecret, HexConvertible, Preimage, Request, Salt},
     driven::{
         db::mongo::CommitmentEntry,
         plonk_prover::plonk_proof::{PlonkProof, PlonkProvingEngine},
@@ -46,11 +46,18 @@ use reqwest::{
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::{
-    collections::HashSet, error::Error, fmt, fmt::Display, os::unix::process::ExitStatusExt,
-    path::PathBuf, process::Command,
+    collections::HashSet,
+    error::Error,
+    fmt::{self, Display},
+    os::unix::process::ExitStatusExt,
+    path::PathBuf,
+    process::Command,
 };
 use tokio::time;
 use url::Url;
+use uuid::Uuid;
+
+const REQUEST_ID: &str = "X-Request-ID";
 
 pub async fn get_erc20_balance(http_client: &reqwest::Client, url: Url) -> i64 {
     let url = url.join("v1/balance/").unwrap();
@@ -63,17 +70,16 @@ pub async fn get_erc20_balance(http_client: &reqwest::Client, url: Url) -> i64 {
     )
     .unwrap_or(0)
 }
-pub async fn get_erc721_balance(http_client: &reqwest::Client, url: Url, token_id: String) -> Option<i64> {
+pub async fn get_erc721_balance(
+    http_client: &reqwest::Client,
+    url: Url,
+    token_id: String,
+) -> Option<i64> {
     let url = url.join("v1/balance/").unwrap();
     let balance = get_balance(http_client, url, TokenType::ERC721, token_id)
-    .await
-    .ok()?;
-    i64::from_str_radix(
-        balance
-            .trim_start_matches("0x"),
-        16,
-    )
-    .ok()
+        .await
+        .ok()?;
+    i64::from_str_radix(balance.trim_start_matches("0x"), 16).ok()
 }
 
 pub async fn get_fee_balance(http_client: &reqwest::Client, url: Url) -> i64 {
@@ -118,7 +124,12 @@ pub async fn validate_certificate_with_server(
     let form = Form::new()
         .part("certificate", part_cert)
         .part("certificate_private_key", part_priv_key);
-    let response = client.post(url).multipart(form).send().await?;
+    let response = client
+        .post(url)
+        .multipart(form)
+        .header(REQUEST_ID, Uuid::new_v4().to_string())
+        .send()
+        .await?;
     if response.status() != StatusCode::ACCEPTED {
         return Err(Box::new(CertificateValidationError {
             status: response.status(),
@@ -185,7 +196,12 @@ impl TokenType {
 pub async fn get_key(url: Url, key_request: &KeyRequest) -> Result<ZKPKeys, Box<dyn Error>> {
     // getting a key is easy; we just pass in a mnemonic and a key object is returned from the nightfall client
     let client = reqwest::Client::new();
-    let res = client.post(url).json(key_request).send().await?;
+    let res = client
+        .post(url)
+        .json(key_request)
+        .header(REQUEST_ID, Uuid::new_v4().to_string())
+        .send()
+        .await?;
     let key = res.json::<ZKPKeys>().await?;
     Ok(key)
 }
@@ -254,7 +270,11 @@ pub async fn wait_on_chain(
         for hash in commitment_hashes.iter() {
             let url = Url::parse(recipient_url)?
                 .join(&format!("v1/commitment/{}", hash.to_hex_string()))?;
-            let res = client.get(url).send().await?;
+            let res = client
+                .get(url)
+                .header(REQUEST_ID, Uuid::new_v4().to_string())
+                .send()
+                .await?;
             match res.error_for_status() {
                 Ok(res) => {
                     let commit = res.json::<CommitmentEntry>().await?;
@@ -293,6 +313,7 @@ pub async fn de_escrow_request(
     let res = client
         .post(url)
         .json(&serde_json::json!(req))
+        .header(REQUEST_ID, Uuid::new_v4().to_string())
         .send()
         .await?;
     res.json::<u8>().await.map_err(|e| e.into())
@@ -317,7 +338,8 @@ pub async fn create_nf3_deposit_transaction(
     tx_details: TransactionDetails,
     deposit_fee: String,
 ) -> Result<(String, Option<String>), Box<dyn Error>> {
-    info!("Creating deposit transaction onchain");
+    let id = Uuid::new_v4().to_string();
+    info!("Creating deposit transaction onchain {}", &id);
     let deposit_request = create_nf3_deposit_request(
         tx_details.value,
         tx_details.fee,
@@ -326,12 +348,35 @@ pub async fn create_nf3_deposit_transaction(
         tx_details.token_id,
     );
     let res = client
-        .post(url)
+        .post(url.clone())
         .json(&serde_json::json!(deposit_request))
+        .header(REQUEST_ID, &id)
         .send()
         .await?;
+
     res.error_for_status_ref()?;
     assert_eq!(res.status(), StatusCode::ACCEPTED);
+
+    let returned_id = res.headers().get(REQUEST_ID).unwrap().to_str()?;
+    info!(
+        "Deposit transaction {} has been processed by the client",
+        returned_id
+    );
+
+    // query the request status - it should be 'Submitted'
+    let url = url.join(&format!("request/{}", returned_id))?;
+    let request = client
+        .get(url)
+        .header(REQUEST_ID, &id)
+        .send()
+        .await?
+        .json::<Request>()
+        .await?;
+    assert_eq!(request.status.to_string(), "Submitted");
+    info!(
+        "Deposit transaction {} status is {}",
+        request.uuid, request.status
+    );
 
     let res_body = res.text().await?;
 
@@ -354,7 +399,8 @@ pub async fn create_nf3_transfer_transaction(
     token_type: TokenType,
     tx_details: TransactionDetails,
 ) -> Result<Value, Box<dyn Error>> {
-    info!("Creating transfer transaction offchain");
+    let id = Uuid::new_v4().to_string();
+    info!("Creating transfer transaction offchain {}", &id);
     let transfer_request = create_nf3_transfer_request(
         recipient_zkp_key,
         tx_details.value,
@@ -363,12 +409,34 @@ pub async fn create_nf3_transfer_transaction(
         tx_details.token_id,
     )?;
     let res = client
-        .post(url)
+        .post(url.clone())
         .json(&serde_json::json!(transfer_request))
+        .header(REQUEST_ID, &id)
         .send()
         .await?;
     res.error_for_status_ref()?;
     assert_eq!(res.status(), StatusCode::ACCEPTED);
+    let returned_id = res.headers().get(REQUEST_ID).unwrap().to_str()?;
+    info!(
+        "Transfer transaction {} has been processed by the client",
+        returned_id
+    );
+
+    // query the request status - it should be 'Submitted'
+    let url = url.join(&format!("request/{}", returned_id))?;
+    let request = client
+        .get(url)
+        .header(REQUEST_ID, &id)
+        .send()
+        .await?
+        .json::<Request>()
+        .await?;
+    assert_eq!(request.status.to_string(), "Submitted");
+    info!(
+        "Transfer transaction {} status is {}",
+        request.uuid, request.status
+    );
+
     // extract the transaction from the response and serialize it to a ClientTransaction
     let (transaction, _) = res.json::<(Value, Option<TransactionReceipt>)>().await?;
 
@@ -382,7 +450,8 @@ pub async fn create_nf3_withdraw_transaction(
     tx_details: TransactionDetails,
     recipient_address: String,
 ) -> Result<WithdrawDataReq, Box<dyn Error>> {
-    info!("Creating withdraw transaction offchain");
+    let id = Uuid::new_v4().to_string();
+    info!("Creating withdraw transaction offchain {}", &id);
     let withdraw_request = create_nf3_withdraw_request(
         recipient_address.clone(),
         tx_details.value.clone(),
@@ -392,8 +461,9 @@ pub async fn create_nf3_withdraw_transaction(
     );
     // Send the POST request to the API
     let res = client
-        .post(url)
+        .post(url.clone())
         .json(&serde_json::json!(withdraw_request))
+        .header(REQUEST_ID, &id)
         .send()
         .await?;
 
@@ -404,6 +474,26 @@ pub async fn create_nf3_withdraw_transaction(
         status == StatusCode::OK || status == StatusCode::ACCEPTED,
         "Unexpected status code: {}",
         status
+    );
+    let returned_id = res.headers().get(REQUEST_ID).unwrap().to_str()?;
+    info!(
+        "Withdraw transaction {} has been processed by the client",
+        returned_id
+    );
+
+    // Query the request status - it should be 'Submitted'
+    let url = url.join(&format!("request/{}", returned_id))?;
+    let request = client
+        .get(url)
+        .header(REQUEST_ID, &id)
+        .send()
+        .await?
+        .json::<Request>()
+        .await?;
+    assert_eq!(request.status.to_string(), "Submitted");
+    info!(
+        "Withdraw transaction {} status is {}",
+        request.uuid, request.status
     );
 
     // Deserialize the response to get withdraw_fund_salt
@@ -435,7 +525,11 @@ pub async fn get_balance(
 ) -> Result<String, Box<dyn Error>> {
     let erc_address = token_type.address();
     let url = url.join(&format!("{}/{}", erc_address, token_id))?;
-    let res = client.get(url).send().await?;
+    let res = client
+        .get(url)
+        .header(REQUEST_ID, Uuid::new_v4().to_string())
+        .send()
+        .await?;
     res.error_for_status_ref()?;
     let balance = res.text().await?;
     Ok(balance)
@@ -445,7 +539,11 @@ pub async fn handle_fee_balance(
     client: &reqwest::Client,
     url: Url,
 ) -> Result<String, Box<dyn Error>> {
-    let res = client.get(url).send().await?;
+    let res = client
+        .get(url)
+        .header(REQUEST_ID, Uuid::new_v4().to_string())
+        .send()
+        .await?;
     res.error_for_status_ref()?;
     let balance = res.text().await?;
     Ok(balance)
@@ -457,7 +555,11 @@ pub async fn count_spent_commitments(
 ) -> Result<usize, Box<dyn Error>> {
     let url = url.join("commitments")?;
 
-    let res = client.get(url).send().await?;
+    let res = client
+        .get(url)
+        .header(REQUEST_ID, Uuid::new_v4().to_string())
+        .send()
+        .await?;
     res.error_for_status_ref()?;
     let count = res
         .json::<Vec<CommitmentEntry>>()
