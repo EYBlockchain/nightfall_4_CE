@@ -86,6 +86,14 @@ where
         Some(result)
     }
 
+    async fn count_mempool_transactions(&mut self) -> Result<u64, mongodb::error::Error> {
+        let filter = doc! { "in_mempool": true };
+        self.database(DB)
+            .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
+            .count_documents(filter)
+            .await
+    }
+
     async fn is_transaction_in_mempool(&mut self, k: &'a [u32]) -> bool {
         let filter = doc! {"hash": k};
         let result = self
@@ -200,6 +208,13 @@ where
         } else {
             Some(result)
         }
+    }
+
+    async fn count_mempool_deposits(&mut self) -> Result<u64, mongodb::error::Error> {
+        self.database(DB)
+            .collection::<DepositDatawithFee>("mempool_deposits")
+            .count_documents(doc! {})
+            .await
     }
 
     // Remove used deposits from the mempool

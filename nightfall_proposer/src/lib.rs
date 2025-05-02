@@ -171,7 +171,7 @@ pub async fn get_block_assembly_trigger<P: Proof>() -> &'static Arc<RwLock<dyn B
             let status = get_block_assembly_status().await;
             let db_client = get_db_connection().await;
             let max_wait_secs = 120;
-            let target_fill_ratio = 0.60; 
+            let target_fill_ratio = 0.05; 
 
             let smart_trigger = SmartTrigger::<P>::new(
                 30, 

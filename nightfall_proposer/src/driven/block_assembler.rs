@@ -20,6 +20,7 @@ use nightfall_client::{
 use tokio::time::{Instant, Duration};
 use std::marker::PhantomData;
 use log::info as tracing_info;
+use log::error;
 
 
 pub struct SmartTrigger<P: Proof> {
@@ -93,13 +94,48 @@ impl<P: Proof + Send + Sync> SmartTrigger<P> {
     async fn should_assemble(&self) -> bool {
         let mut db = self.db.write().await;
 
-        let deposits = <mongodb::Client as TransactionsDB<P>>::get_mempool_deposits(&mut db).await;
-        tracing_info!("Deposits: {:?}", deposits);
-        let client_txs = <mongodb::Client as TransactionsDB<P>>::get_all_mempool_transactions(&mut db).await;
-        tracing_info!("Client transactions: {:?}", client_txs);
+       
+        // let num_deposit_groups = match <mongodb::Client as TransactionsDB<P>>::count_mempool_deposits(&mut db).await {
+        //     Ok(count) => (count + 3) / 4,
+        //     Err(e) => {
+        //         error!("Error counting deposits: {:?}", e);
+        //         0 
+        //     }
+        // } as f32;
+
+        // let num_client_txs = match <mongodb::Client as TransactionsDB<P>>::count_mempool_transactions(&mut db).await {
+        //     Ok(count) => count as f32,
+        //     Err(e) => {
+        //         error!("Error counting client transactions: {:?}", e);
+        //         0.0
+        //     }
+        // };
+        let num_deposit_groups = match <mongodb::Client as TransactionsDB<P>>::count_mempool_deposits(&mut db).await {
+            Ok(count) => {
+                let groups = (count + 3) / 4;
+                tracing_info!("Mempool deposits: {}, grouped into: {}", count, groups);
+                groups
+            }
+            Err(e) => {
+                error!("Error counting deposits: {:?}", e);
+                0
+            }
+        } as f32;
+
+        let num_client_txs = match <mongodb::Client as TransactionsDB<P>>::count_mempool_transactions(&mut db).await {
+            Ok(count) => {
+                tracing_info!("Mempool client transactions: {}", count);
+                count as f32
+            }
+            Err(e) => {
+                error!("Error counting client transactions: {:?}", e);
+                0.0
+            }
+        };
+
         let block_size = get_block_size().unwrap_or(64) as f32;
-        let num_deposit_groups = deposits.as_ref().map_or(0, |d| (d.len() + 3) / 4) as f32;
-        let num_client_txs = client_txs.as_ref().map_or(0, |txs| txs.len()) as f32;
+        // let num_deposit_groups = deposits.as_ref().map_or(0, |d| (d.len() + 3) / 4) as f32;
+        // let num_client_txs = client_txs.as_ref().map_or(0, |txs| txs.len()) as f32;
         let fill_ratio = (num_deposit_groups + num_client_txs) / block_size;
         
 
