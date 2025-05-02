@@ -4,26 +4,13 @@ use super::{
     utils::{reverse_hex_string, to_nf_token_id_from_str},
 };
 use crate::{
-    domain::entities::{CommitmentStatus, RequestStatus},
-    driven::{
-        db::mongo::CommitmentEntry,
-        queue::{get_queue, QueuedRequest, TransactionRequest},
-    },
-    get_zkp_keys,
-    ports::{commitments::Nullifiable, contracts::NightfallContract, db::RequestDB},
-};
-use crate::{
-    domain::{
-        entities::{
-            DepositSecret, ERCAddress, HexConvertible, Operation, OperationType, Preimage, Salt,
-            TokenType, Transport,
-        },
-        error::FailedClientOperation,
+    domain::entities::{
+        DepositSecret, ERCAddress, HexConvertible, Operation, OperationType, Preimage, Salt,
+        TokenType, Transport,
     },
     driven::contract_functions::contract_type_conversions::FrBn254,
     drivers::{
         blockchain::nightfall_event_listener::get_synchronisation_status, derive_key::ZKPKeys,
-        rest::models::NF3RequestError,
     },
     get_fee_token_id,
     initialisation::get_db_connection,
@@ -37,6 +24,18 @@ use crate::{
     services::{
         client_operation::deposit_operation, commitment_selection::find_usable_commitments,
     },
+};
+use crate::{
+    domain::{
+        entities::{CommitmentStatus, RequestStatus},
+        error::TransactionHandlerError,
+    },
+    driven::{
+        db::mongo::CommitmentEntry,
+        queue::{get_queue, QueuedRequest, TransactionRequest},
+    },
+    get_zkp_keys,
+    ports::{commitments::Nullifiable, contracts::NightfallContract, db::RequestDB},
 };
 use ark_bn254::Fr as Fr254;
 use ark_ec::twisted_edwards::Affine;
@@ -55,8 +54,8 @@ use serde::Serialize;
 use uuid::Uuid;
 use warp::{
     hyper::StatusCode,
-    path, reject,
-    reply::{self, json, Json, Reply, WithStatus},
+    path,
+    reply::{self, json, Reply},
     Filter,
 };
 
@@ -215,7 +214,7 @@ where
 pub async fn handle_request<P, E, N>(
     request: TransactionRequest,
     request_id: &str,
-) -> Result<warp::reply::WithHeader<WithStatus<Json>>, warp::Rejection>
+) -> Result<String, TransactionHandlerError>
 where
     P: Proof,
     E: ProvingEngine<P>,
@@ -238,21 +237,14 @@ where
 pub async fn handle_deposit<N: NightfallContract>(
     req: NF3DepositRequest,
     id: &str,
-) -> Result<warp::reply::WithHeader<WithStatus<Json>>, warp::Rejection> {
+) -> Result<String, TransactionHandlerError> {
     let sync_state = get_synchronisation_status::<N>()
         .await
-        .map_err(reject::custom)?
+        .map_err(|e| TransactionHandlerError::CustomError(e.to_string()))?
         .is_synchronised();
     if !sync_state {
         warn!("{id} Rejecting request - Client is not synchronised with the blockchain");
-        return Ok(reply::with_header(
-            reply::with_status(
-                reply::json(&"Client is not synchronised with the blockchain"),
-                StatusCode::SERVICE_UNAVAILABLE,
-            ),
-            "X-Request-ID",
-            id,
-        ));
+        return Err(TransactionHandlerError::ClientNotSynchronized);
     }
 
     // We convert the request into values
@@ -271,72 +263,69 @@ pub async fn handle_deposit<N: NightfallContract>(
 
     let erc_address = ERCAddress::try_from_hex_string(&erc_address).map_err(|err| {
         error!("{id} Could not convert ERC address {}", err);
-        reject::custom(FailedClientOperation)
+        TransactionHandlerError::CustomError(err.to_string())
     })?;
 
     let token_id: BigInteger256 =
-        BigInteger256::from_hex_string(token_id.as_str()).map_err(|_| {
+        BigInteger256::from_hex_string(token_id.as_str()).map_err(|err| {
             error!("{id} Could not convert hex string to BigInteger256");
-            reject::custom(FailedClientOperation)
+            TransactionHandlerError::CustomError(err.to_string())
         })?;
 
     let token_type: TokenType = u8::from_str_radix(&token_type, 16)
-        .map_err(|_| {
+        .map_err(|err| {
             error!("{id} Could not convert token type");
-            reject::custom(FailedClientOperation)
+            TransactionHandlerError::CustomError(err.to_string())
         })?
         .into();
 
-    let fee: Fr254 = Fr254::from_hex_string(fee.as_str()).map_err(|_| {
+    let fee: Fr254 = Fr254::from_hex_string(fee.as_str()).map_err(|err| {
         error!("{id} Could not convert fee");
-        reject::custom(FailedClientOperation)
+        TransactionHandlerError::CustomError(err.to_string())
     })?;
 
-    let deposit_fee: Fr254 = Fr254::from_hex_string(deposit_fee.as_str()).map_err(|_| {
+    let deposit_fee: Fr254 = Fr254::from_hex_string(deposit_fee.as_str()).map_err(|err| {
         error!("{id} Could not convert deposit fee");
-        reject::custom(FailedClientOperation)
+        TransactionHandlerError::CustomError(err.to_string())
     })?;
 
     let value: Fr254 = Fr254::from_hex_string(value.as_str()).map_err(|err| {
         error!("{id} Could not wrangle value {}", err);
-        reject::custom(FailedClientOperation)
+        TransactionHandlerError::CustomError(err.to_string())
     })?;
-    let (secret_preimage_one, secret_preimage_two, secret_preimage_three) = if let (
-        Some(p1),
-        Some(p2),
-        Some(p3),
-    ) = (
-        secret_preimage_one,
-        secret_preimage_two,
-        secret_preimage_three,
-    ) {
-        let secret_preimage_one: Fr254 = Fr254::from_hex_string(p1.as_str()).map_err(|err| {
-            error!("{id} Could not wrangle secret preimage one {}", err);
-            reject::custom(FailedClientOperation)
-        })?;
-        let secret_preimage_two: Fr254 = Fr254::from_hex_string(p2.as_str()).map_err(|err| {
-            error!("{id} Could not wrangle secret preimage two {}", err);
-            reject::custom(FailedClientOperation)
-        })?;
-        let secret_preimage_three: Fr254 = Fr254::from_hex_string(p3.as_str()).map_err(|err| {
-            error!("{id} Could not wrangle secret preimage three {}", err);
-            reject::custom(FailedClientOperation)
-        })?;
-        (
+    let (secret_preimage_one, secret_preimage_two, secret_preimage_three) =
+        if let (Some(p1), Some(p2), Some(p3)) = (
             secret_preimage_one,
             secret_preimage_two,
             secret_preimage_three,
-        )
-    } else {
-        info!("{id} No secret preimage found for deposit request, generating");
-        let mut rng = thread_rng();
+        ) {
+            let secret_preimage_one: Fr254 =
+                Fr254::from_hex_string(p1.as_str()).map_err(|err| {
+                    error!("{id} Could not wrangle secret preimage one {}", err);
+                    TransactionHandlerError::CustomError(err.to_string())
+                })?;
+            let secret_preimage_two: Fr254 = Fr254::from_hex_string(p2.as_str())
+                .map_err(|err| TransactionHandlerError::CustomError(err.to_string()))?;
+            let secret_preimage_three: Fr254 =
+                Fr254::from_hex_string(p3.as_str()).map_err(|err| {
+                    error!("{id} Could not wrangle secret preimage three {}", err);
+                    TransactionHandlerError::CustomError(err.to_string())
+                })?;
+            (
+                secret_preimage_one,
+                secret_preimage_two,
+                secret_preimage_three,
+            )
+        } else {
+            info!("{id} No secret preimage found for deposit request, generating");
+            let mut rng = thread_rng();
 
-        (
-            Fr254::rand(&mut rng),
-            Fr254::rand(&mut rng),
-            Fr254::rand(&mut rng),
-        )
-    };
+            (
+                Fr254::rand(&mut rng),
+                Fr254::rand(&mut rng),
+                Fr254::rand(&mut rng),
+            )
+        };
 
     let secret_preimage = DepositSecret::new(
         secret_preimage_one,
@@ -346,7 +335,7 @@ pub async fn handle_deposit<N: NightfallContract>(
     let db: tokio::sync::RwLockWriteGuard<'_, mongodb::Client> =
         get_db_connection().await.write().await;
     // Then match on the token type and call the correct function
-    let deposit_result = match token_type {
+    let (preimage_value, preimage_fee_option) = match token_type {
         TokenType::ERC20 => {
             deposit_operation::<IERC20<LocalWsClient>, Nightfall<LocalWsClient>>(
                 erc_address,
@@ -399,20 +388,7 @@ pub async fn handle_deposit<N: NightfallContract>(
             )
             .await
         }
-    };
-
-    let (preimage_value, preimage_fee_option) = match deposit_result {
-        Ok(dr) => {
-            debug!("{id} Deposit operation completed successfully");
-            db.update_request(&id, RequestStatus::Submitted).await;
-            dr
-        }
-        Err(e) => {
-            error!("{id} Error with deposit operation: {}", e);
-            db.update_request(&id, RequestStatus::Failed).await;
-            return Err(reject::custom(FailedClientOperation));
-        }
-    };
+    }.map_err(|e| TransactionHandlerError::DepositError(e))?;
 
     // Insert the preimage into the commitments DB as pending creation
     // TODO remove the blocknumber
@@ -428,10 +404,11 @@ pub async fn handle_deposit<N: NightfallContract>(
         CommitmentStatus::PendingCreation,
     );
 
-    db.store_commitment(commitment_entry).await.ok_or_else(|| {
+    db.store_commitment(commitment_entry).await.ok_or({
         error!("{id} Error while storing pending deposit commitment");
-        reject::custom(FailedClientOperation)
+        TransactionHandlerError::DatabaseError
     })?;
+
     debug!("{id} Deposit commitment stored successfully");
 
     // Check if preimage_fee_option is Some, and store it in the DB if it exists
@@ -448,9 +425,10 @@ pub async fn handle_deposit<N: NightfallContract>(
             CommitmentStatus::PendingCreation,
         );
 
-        db.store_commitment(commitment_entry).await.ok_or_else(|| {
+        // Store the fee commitment in the database, error if storage fails
+        db.store_commitment(commitment_entry).await.ok_or({
             error!("{id} Error while storing pending deposit_fee commitment");
-            reject::custom(FailedClientOperation)
+            TransactionHandlerError::DatabaseError
         })?;
     }
 
@@ -473,20 +451,17 @@ pub async fn handle_deposit<N: NightfallContract>(
             .to_hex_string()],
     };
     debug!("{id} Deposit request completed successfully - returning reply to caller");
-    Ok(reply::with_header(
-        reply::with_status(
-            reply::json(&response_data), // Send the appropriate number of Preimages
-            StatusCode::ACCEPTED,
-        ),
-        "X-Request-ID",
-        id,
-    ))
+
+    serde_json::to_string(&(response_data, id)).map_err(|e| {
+        error!("{id} Error when serialising response: {}", e);
+        TransactionHandlerError::JsonConversionError(e)
+    })
 }
 
 async fn handle_transfer<P, E, N>(
     transfer_req: NF3TransferRequest,
     id: &str,
-) -> Result<warp::reply::WithHeader<WithStatus<Json>>, warp::Rejection>
+) -> Result<String, TransactionHandlerError>
 where
     P: Proof,
     E: ProvingEngine<P>,
@@ -502,19 +477,9 @@ where
 
     // add the id to the request database
     let db = get_db_connection().await.write().await;
-    match db.store_request(&id, RequestStatus::Queued).await {
-        Some(_) => {}
-        None => {
-            return Ok(reply::with_header(
-                reply::with_status(
-                    json(&"Database error".to_string()),
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                ),
-                "X-Request-ID",
-                id,
-            ))
-        }
-    }
+    db.store_request(&id, RequestStatus::Queued)
+        .await
+        .ok_or(TransactionHandlerError::DatabaseError)?;
     drop(db); // drop the lock so other processes can access the DB
 
     // Convert the request into the relevant types.
@@ -524,19 +489,19 @@ where
                 "{id} Error when retrieving the Nightfall token id from the erc address and token ID {}",
                 e
             );
-            reject::custom(e)
+            TransactionHandlerError::CustomError(e.to_string())
         })?;
     let keys = *get_zkp_keys().lock().expect("Poisoned Mutex lock");
 
     let value =
         Fr254::from_hex_string(recipient_data.values.first().unwrap().as_str()).map_err(|e| {
             error!("{id} Error when reading value: {}", e);
-            reject::custom(NF3RequestError::ConversionError)
+            TransactionHandlerError::CustomError(e.to_string())
         })?;
 
     let fee: Fr254 = Fr254::from_hex_string(fee.as_str()).map_err(|e| {
         error!("{id} Error when reading fee: {}", e);
-        reject::custom(NF3RequestError::ConversionError)
+        TransactionHandlerError::CustomError(e.to_string())
     })?;
 
     let decoded_recipient_key = hex::decode(
@@ -550,7 +515,7 @@ where
             "{id} Could not parse compressed recipient public key from String: {}",
             e
         );
-        reject::custom(NF3RequestError::ConversionError)
+        TransactionHandlerError::CustomError(e.to_string())
     })?;
 
     let recipient_public_key = Affine::<BabyJubjub>::deserialize_compressed(
@@ -558,7 +523,7 @@ where
     )
     .map_err(|e| {
         error!("{id} Could not deserialize recipient public key: {}", e);
-        reject::custom(NF3RequestError::CouldNotSerialisePublicKey)
+        TransactionHandlerError::CustomError(e.to_string())
     })?;
 
     let ephemeral_private_key = {
@@ -567,14 +532,15 @@ where
     };
     let shared_secret: Affine<BabyJubjub> = (recipient_public_key * ephemeral_private_key).into();
 
-    // TODO: update APIs so that we allow passing in specific commitments.
-    // For now we just use the commitment selection algorithm to minimise change.
+    // Select the commitments to be spent.
     let spend_commitments;
     {
         let db = &mut get_db_connection().await.write().await;
         let fee_token_id = get_fee_token_id();
         let spend_value_commitments = find_usable_commitments(nf_token_id, value,db)
-        .await.map_err(|e|{error!("{id} Could not find enough usable value commitments to complete this transfer, suggest depositing more tokens: {}", e); reject::custom(NF3RequestError::NoUsableCommitments)})?;
+        .await.map_err(|e|{
+            error!("{id} Could not find enough usable value commitments to complete this transfer, suggest depositing more tokens: {}", e); 
+            TransactionHandlerError::CustomError(e.to_string())})?;
         let spend_fee_commitments = if fee.is_zero() {
             [Preimage::default(), Preimage::default()]
         } else {
@@ -582,10 +548,8 @@ where
             .await
             .map_err(|e| {
                 error!(
-                    "Could not find enough usable fee commitments to complete this transfer, suggest depositing more fee: {} {}",
-                    e, id
-                );
-                reject::custom(NF3RequestError::NoUsableCommitments)
+                    "{id} Could not find enough usable fee commitments to complete this transfer, suggest depositing more fee: {}", e);
+                TransactionHandlerError::CustomError(e.to_string())
             })?
         };
         spend_commitments = [
@@ -691,7 +655,7 @@ where
 async fn handle_withdraw<P, E, N>(
     withdraw_req: NF3WithdrawRequest,
     id: &str,
-) -> Result<warp::reply::WithHeader<WithStatus<Json>>, warp::Rejection>
+) -> Result<String, TransactionHandlerError>
 where
     P: Proof,
     E: ProvingEngine<P>,
@@ -708,47 +672,33 @@ where
 
     // add the id to the request database
     let db = get_db_connection().await.write().await;
-    match db.store_request(&id, RequestStatus::Queued).await {
-        Some(_) => {}
-        None => {
-            return Ok(reply::with_header(
-                reply::with_status(
-                    json(&"Database error".to_string()),
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                ),
-                "X-Request-ID",
-                id,
-            ))
-        }
-    }
+    db.store_request(&id, RequestStatus::Queued).await.ok_or(TransactionHandlerError::DatabaseError)?;
     drop(db); // drop the lock so other processes can access the DB
 
     // Convert the request into the relevant types.
     let nf_token_id =
         to_nf_token_id_from_str(erc_address.as_str(), reverse_hex_string(token_id.as_str()).as_str()).map_err(|e| {
             error!(
-                "{id} Error when retrieving the Nightfall token id from the erc address and token ID {}",
-                e
-            );
-            reject::custom(e)
+                "{id} Error when retrieving the Nightfall token id from the erc address and token ID {}",e);
+            TransactionHandlerError::CustomError(e.to_string())
         })?;
 
     let keys = *get_zkp_keys().lock().expect("Poisoned Mutex lock");
 
     let value = Fr254::from_hex_string(value.as_str()).map_err(|e| {
         error!("{id} Error when reading value: {}", e);
-        reject::custom(NF3RequestError::ConversionError)
+        TransactionHandlerError::CustomError(e.to_string())
     })?;
 
     let fee: Fr254 = Fr254::from_hex_string(fee.as_str()).map_err(|e| {
         error!("{id} Error when reading fee: {}", e);
-        reject::custom(NF3RequestError::ConversionError)
+        TransactionHandlerError::CustomError(e.to_string())
     })?;
 
     let recipient_address: Fr254 =
         Fr254::from_hex_string(recipient_address.as_str()).map_err(|e| {
             error!("{id} Error when reading recipeint address: {}", e);
-            reject::custom(NF3RequestError::ConversionError)
+            TransactionHandlerError::CustomError(e.to_string())
         })?;
     // TODO: update APIs so that we allow passing in specific commitments.
     // For now we just use the commitment selection algorithm to minimise change.
@@ -758,7 +708,9 @@ where
         let db = &mut get_db_connection().await.write().await;
         let fee_token_id = get_fee_token_id();
         let spend_value_commitments = find_usable_commitments(nf_token_id, value,db)
-        .await.map_err(|e|{error!("{id} Could not find enough usable value commitments to complete this withdraw, suggest depositing more tokens: {}", e); reject::custom(NF3RequestError::NoUsableCommitments)})?;
+        .await.map_err(|e|{
+            error!("{id} Could not find enough usable value commitments to complete this withdraw, suggest depositing more tokens: {}", e); 
+            TransactionHandlerError::CustomError(e.to_string())})?;
         let spend_fee_commitments = if fee.is_zero() {
             [Preimage::default(), Preimage::default()]
         } else {
@@ -769,7 +721,7 @@ where
                     "{id} Could not find enough usable fee commitments to complete this withdraw, suggest depositing more fee: {}",
                     e
                 );
-                reject::custom(NF3RequestError::NoUsableCommitments)
+                TransactionHandlerError::CustomError(e.to_string())
             })?
         };
         spend_commitments = [
@@ -886,9 +838,8 @@ where
         withdraw_fund_salt: withdraw_fund_salt.to_hex_string(),
     };
     // Return the response as JSON
-    Ok(reply::with_header(
-        reply::with_status(json(&response), StatusCode::ACCEPTED),
-        "X-Request-ID",
-        id,
-    ))
+    serde_json::to_string(&(response, id)).map_err(|e| {
+        error!("{id} Error when serialising response: {}", e);
+        TransactionHandlerError::JsonConversionError(e)
+    })
 }

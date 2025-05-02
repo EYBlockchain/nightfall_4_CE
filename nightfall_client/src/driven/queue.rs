@@ -1,13 +1,20 @@
+use std::env;
 use std::time::Duration;
 
 use std::collections::VecDeque;
-use log::info;
+use log::{info, warn};
 use tokio::sync::{OnceCell, RwLock};
 use tokio::time::sleep;
+use crate::domain::entities::RequestStatus;
+use crate::domain::notifications::NotificationPayload;
+use crate::driven::notifier::webhook_notifier::WebhookNotifier;
 use crate::drivers::rest::client_nf_3::handle_request;
 use crate::drivers::rest::models::{NF3DepositRequest, NF3TransferRequest, NF3WithdrawRequest};
+use crate::initialisation::get_db_connection;
 use crate::ports::contracts::NightfallContract;
+use crate::ports::db::RequestDB;
 use crate::ports::proof::{Proof, ProvingEngine};
+use crate::services::data_publisher::DataPublisher;
 
 /// This module implements a queue of received requests. Requests can be added to the queue
 /// asynchronously but are executed with a concurrency of 1.
@@ -41,16 +48,43 @@ where
 {
     let queue = get_queue();
     let mut queue = queue.await.write().await;
+    // register a notifier to publish to the webhook URL
+    let mut publisher = DataPublisher::new();
+    let webhook_url = env::var("WEBHOOK_URL").unwrap_or_default();
+    if !webhook_url.is_empty() {
+            info!("Using webhook URL: {}", webhook_url);
+            let notifier = WebhookNotifier::new(&webhook_url);
+            publisher.register_notifier(Box::new(notifier));
+    }
     loop {
         while let Some(request) = queue.pop_front() {
             // Process the request here with a concurrency of 1
+            // mark is as processing
+            info!("{} Processing request: ", request.uuid);
+            let db = get_db_connection().await.write().await;
+            let _ = db.update_request(&request.uuid, RequestStatus::Processing).await; // we'll carry on even if this fails
+            drop(db); // drop the DB here so the mutex isn't locked while we process the request
+            // it would be better to queue a closure and run that, but it would be async and Rust doesn't handle those well yet.
             match handle_request::<P, E, N>(request.transaction_request, &request.uuid).await {
                 Ok(response) => {
+                    let db = get_db_connection().await.write().await;
+                    let _ = db.update_request(&request.uuid, RequestStatus::Submitted).await;
+                    // Handle the response here
                     info!("{} Request processed successfully: ", request.uuid);
-                }
+                    if webhook_url.is_empty() {
+                        warn!("No webhook URL provided, skipping notification of successful transaction");
+                    } else {
+                        // Create a notification payload
+                        let notification = NotificationPayload::TransactionEvent(response);
+                        // Publish the notification
+                        publisher.publish(notification).await;
+                    } 
+                },
                 Err(e) => {
                     // Handle the error here
-                    eprintln!("Error processing request: {:?}", e);
+                    let db = get_db_connection().await.write().await;
+                    let _ = db.update_request(&request.uuid, RequestStatus::Failed).await;
+                    warn!("{} Error processing request: {:?}",request.uuid, e);
                 }
             }
         }

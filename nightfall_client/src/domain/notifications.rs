@@ -9,4 +9,5 @@ pub enum NotificationPayload {
         l2_block_number: I256,
         commitments: Vec<String>,
     },
+    TransactionEvent(String)
 }

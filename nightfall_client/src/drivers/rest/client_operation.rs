@@ -2,24 +2,16 @@ use configuration::addresses::get_addresses;
 use ethers::types::TransactionReceipt;
 use nightfall_bindings::nightfall::{ClientTransaction as NightfallTransactionStruct, Nightfall};
 use std::{error::Error, fmt::Debug};
-use warp::reply::Json;
-use warp::reply::WithStatus;
-use warp::{hyper::StatusCode, reject, reply};
-
 use crate::domain::entities::CommitmentStatus;
 use crate::domain::entities::HexConvertible;
-use crate::domain::entities::RequestStatus;
+use crate::domain::error::TransactionHandlerError;
 use crate::driven::db::mongo::CommitmentEntry;
 use crate::drivers::blockchain::nightfall_event_listener::get_synchronisation_status;
 use crate::drivers::derive_key::ZKPKeys;
 use crate::drivers::rest::models::NullifierKey;
 use crate::get_zkp_keys;
-use crate::ports::db::RequestDB;
 use crate::{
-    domain::{
-        entities::{ClientTransaction, Operation, Transport},
-        error::FailedClientOperation,
-    },
+    domain::entities::{ClientTransaction, Operation, Transport},
     initialisation::{get_db_connection, get_proposer_http_connection},
     ports::{
         commitments::Nullifiable,
@@ -46,7 +38,7 @@ pub async fn handle_client_operation<P, E, N>(
     recipient_address: Fr254,
     secret_preimages: [impl SecretHash; 4],
     id: &str,
-) -> Result<warp::reply::WithHeader<WithStatus<Json>>, warp::Rejection>
+) -> Result<String, TransactionHandlerError>
 where
     P: Proof + Debug + serde::Serialize + Clone + Send + Sync,
     E: ProvingEngine<P> + Send + Sync,
@@ -56,18 +48,11 @@ where
 
     let sync_state = get_synchronisation_status::<N>()
         .await
-        .map_err(reject::custom)?
+        .map_err(|e| TransactionHandlerError::CustomError(e.to_string()))?
         .is_synchronised();
     if !sync_state {
         warn!("{id} Rejecting request - Proposer is not synchronised with the blockchain");
-        return Ok(reply::with_header(
-            reply::with_status(
-                reply::json(&"Proposer is not synchronised with the blockchain"),
-                StatusCode::SERVICE_UNAVAILABLE,
-            ),
-            "X-Request-ID",
-            id,
-        ));
+        return Err(TransactionHandlerError::ClientNotSynchronized);
     }
 
     // get the zkp keys from the global state. They will have been created when the keys were requested using a mnemonic
@@ -99,10 +84,10 @@ where
                 commitment_entries.push(commitment_entry);
             }
         }
-        if (db.store_commitments(&commitment_entries, true).await).is_none() {
+        db.store_commitments(&commitment_entries, true).await.ok_or( {
             error!("{id} Failed to store commitments");
-            return Err(reject::custom(FailedClientOperation));
-        }
+            TransactionHandlerError::DatabaseError
+        })?
     }
     // we should now have a situation where:
     // new_commitments[0] is the token commitment
@@ -126,9 +111,9 @@ where
         id,
     )
     .await
-    .map_err(|err| {
-        error!("{} {}", err, id);
-        reject::custom(FailedClientOperation)
+    .map_err(|e| {
+        error!("{id} {}", e);
+        TransactionHandlerError::CustomError(e.to_string())
     })?;
     // having done that, we can submit the nighfall transaction, either on or off chain, normally the latter
 
@@ -136,7 +121,7 @@ where
         Transport::OnChain => process_transaction_onchain(&operation_result).await,
         Transport::OffChain => process_transaction_offchain(&operation_result, id).await,
     }
-    .map_err(|_| reject::custom(FailedClientOperation))?;
+    .map_err(|e| TransactionHandlerError::CustomError(e.to_string()))?;
     info!("{id} {} transaction submitted", operation.operation_type);
     let mut operation_result_json = serde_json::to_value(&operation_result)
         .expect("Failed to serialize operation_result to JSON");
@@ -167,41 +152,22 @@ where
             *ciphertext = serde_json::json!(value_array);
         }
     }
-    Ok(reply::with_header(
-        reply::with_status(
-            reply::json(&(operation_result_json, tx_receipt)),
-            StatusCode::ACCEPTED,
-        ),
-        "X-Request-ID",
-        id,
-    ))
+
+    serde_json::to_string(&(operation_result_json, tx_receipt, id))
+        .map_err(|e| TransactionHandlerError::JsonConversionError(e))
 }
+
 async fn process_transaction_offchain<P: Serialize>(
     l2_transaction: &ClientTransaction<P>,
     id: &str,
 ) -> Result<Option<TransactionReceipt>, Box<dyn Error>> {
     info!("{id} Sending client transaction to proposer");
     let (proposer_http_connection, url) = get_proposer_http_connection();
-    let db = get_db_connection().await.write().await;
-    let proposer_response = proposer_http_connection
+    proposer_http_connection
         .post(url.clone())
         .json(l2_transaction)
         .send()
-        .await;
-    match proposer_response {
-        Ok(_) => {
-            db.update_request(id, RequestStatus::Submitted).await;
-            debug!("{id} Client transaction sent to proposer");
-        }
-        Err(err) => {
-            error!(
-                "{id} Failed to send client transaction to proposer: {}",
-                err
-            );
-            db.update_request(id, RequestStatus::Failed).await;
-            return Err(Box::new(err));
-        }
-    }
+        .await?;
     // obvs we won't have a transaction receipt to return if we've sent our transaction to a proposer but we need to return an Option<TransactionReceipt>
     // for type compatibility with the onchain case
     Ok(None)
