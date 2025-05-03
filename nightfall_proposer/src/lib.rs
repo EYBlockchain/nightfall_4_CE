@@ -94,11 +94,9 @@ pub fn get_deposit_proving_key() -> &'static Arc<ProvingKey<UnivariateKzgPCS<Bn2
 pub mod initialisation {
 
     use crate::{
-        driven::block_assembler::BlockAssemblyStatus,
+        driven::block_assembler::{BlockAssemblyStatus, SmartTrigger},
         ports::trees::{CommitmentTree, HistoricRootTree, NullifierTree},
     };
-
-    use super::driven::block_assembler::SmartTrigger;
     use nightfall_client::ports::proof::Proof;
     use ark_std::sync::Arc;
     use crate::ports::block_assembly_trigger::BlockAssemblyTrigger;
@@ -161,20 +159,16 @@ pub mod initialisation {
     }
 
     /// This function is used to provide a singleton trigger for block assembly across the entire application.
-  
-
     pub async fn get_block_assembly_trigger<P: Proof>() -> &'static Arc<RwLock<dyn BlockAssemblyTrigger + Send + Sync>> {
         static BLOCK_ASSEMBLY_TRIGGER: OnceCell<Arc<RwLock<dyn BlockAssemblyTrigger + Send + Sync>>> = OnceCell::const_new();
         BLOCK_ASSEMBLY_TRIGGER
             .get_or_init(|| async {
             let status = get_block_assembly_status().await;
             let db_client = get_db_connection().await;
-            
             let settings = get_settings();
             let initial_interval_secs = settings.nightfall_proposer.block_assembly_initial_interval_secs;
             let max_wait_secs = settings.nightfall_proposer.block_assembly_max_wait_secs;
             let target_fill_ratio = settings.nightfall_proposer.block_assembly_target_fill_ratio as f32;
-
 
             let smart_trigger = SmartTrigger::<P>::new(
                initial_interval_secs,
@@ -185,7 +179,7 @@ pub mod initialisation {
             );
             Arc::new(RwLock::new(smart_trigger)) as Arc<RwLock<dyn BlockAssemblyTrigger + Send + Sync>>})
            .await
-   }
+    }
 
     /// This function is used to provide a singleton status for the BlockAssemblyTrigger across the entire application.
     pub async fn get_block_assembly_status() -> &'static RwLock<BlockAssemblyStatus> {

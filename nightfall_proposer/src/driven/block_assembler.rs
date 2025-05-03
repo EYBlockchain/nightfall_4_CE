@@ -21,12 +21,23 @@ use tokio::{
     sync::RwLock,
     time::{self, Duration, Instant},
 };
-
 use std::marker::PhantomData;
-use log::info as tracing_info;
-use log::error;
+use log::{error,debug, info};
 
-
+/// SmartTrigger is responsible for deciding when to trigger block assembly,
+/// based on time constraints and mempool state.
+///
+/// Fields:
+/// - `interval_secs`: time between periodic checks of the mempool
+/// - `max_wait_secs`: maximum time to wait before forcing block assembly
+/// - `status`: shared state indicating if the block assembly is currently active
+/// - `db`: handle to the database containing the mempool
+/// - `target_block_fill_ratio`: threshold (e.g. 0.75) used to trigger block creation
+///
+/// Behavior:
+/// - A block is triggered if either:
+///     1. The current fill ratio of the block (deposits + txs) reaches `target_block_fill_ratio`
+///     2. The `max_wait_secs` duration has passed without meeting the threshold
 pub struct SmartTrigger<P: Proof> {
     pub interval_secs: u64,
     pub max_wait_secs: u64,
@@ -61,33 +72,25 @@ impl<P: Proof + Send + Sync> BlockAssemblyTrigger for SmartTrigger<P> {
         let interval_duration = Duration::from_secs(self.interval_secs);
         let mut interval = time::interval(interval_duration);
         let short_wait = Duration::from_secs(5); 
-
         let start = Instant::now();
-
         loop {
             if self.status.read().await.is_running() && self.should_assemble().await {
-                tracing_info!("Trigger activated by mempool check.");
+                debug!("Trigger activated by mempool check.");
                 break;
             }
-
             if start.elapsed().as_secs() >= self.max_wait_secs {
-                tracing_info!(
-                    "Max wait time elapsed ({}s). Triggering block assembly.",
-                    self.max_wait_secs
-                );
+                debug!("Max wait time elapsed ({}s). Triggering block assembly.", self.max_wait_secs);
                 break;
             }
 
             tokio::select! {
                 _ = interval.tick() => {
-                    tracing_info!("Interval elapsed, checking threshold.");
                     if self.status.read().await.is_running() && self.should_assemble().await {
-                        tracing_info!("Trigger activated after interval with fill threshold reached.");
+                        debug!("Trigger activated after interval with fill threshold reached.");
                         break;
                     }
                 }
-                _ = time::sleep(short_wait) => {
-                   
+                _ = time::sleep(short_wait) => {    
                 }
             }
         }
@@ -98,26 +101,10 @@ impl<P: Proof + Send + Sync> SmartTrigger<P> {
     async fn should_assemble(&self) -> bool {
         let mut db = self.db.write().await;
 
-       
-        // let num_deposit_groups = match <mongodb::Client as TransactionsDB<P>>::count_mempool_deposits(&mut db).await {
-        //     Ok(count) => (count + 3) / 4,
-        //     Err(e) => {
-        //         error!("Error counting deposits: {:?}", e);
-        //         0 
-        //     }
-        // } as f32;
-
-        // let num_client_txs = match <mongodb::Client as TransactionsDB<P>>::count_mempool_transactions(&mut db).await {
-        //     Ok(count) => count as f32,
-        //     Err(e) => {
-        //         error!("Error counting client transactions: {:?}", e);
-        //         0.0
-        //     }
-        // };
         let num_deposit_groups = match <mongodb::Client as TransactionsDB<P>>::count_mempool_deposits(&mut db).await {
             Ok(count) => {
                 let groups = (count + 3) / 4;
-                tracing_info!("Mempool deposits: {}, grouped into: {}", count, groups);
+                info!("Mempool deposits: {}, grouped into: {}", count, groups);
                 groups
             }
             Err(e) => {
@@ -128,23 +115,19 @@ impl<P: Proof + Send + Sync> SmartTrigger<P> {
 
         let num_client_txs = match <mongodb::Client as TransactionsDB<P>>::count_mempool_transactions(&mut db).await {
             Ok(count) => {
-                tracing_info!("Mempool client transactions: {}", count);
-                count as f32
+                info!("Mempool client transactions: {}", count);
+                count 
             }
             Err(e) => {
                 error!("Error counting client transactions: {:?}", e);
-                0.0
+                0
             }
-        };
+        }as f32;
 
         let block_size = get_block_size().unwrap_or(64) as f32;
         let fill_ratio = (num_deposit_groups + num_client_txs) / block_size;
-        
-
-        tracing_info!("Calculated fill ratio: {:.2}", fill_ratio);
-
+    
         fill_ratio >= self.target_block_fill_ratio
-        
 
     }
 }
