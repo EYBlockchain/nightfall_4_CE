@@ -94,9 +94,11 @@ pub fn get_deposit_proving_key() -> &'static Arc<ProvingKey<UnivariateKzgPCS<Bn2
 pub mod initialisation {
 
     use crate::{
-        driven::block_assembler::{BlockAssemblyStatus, SmartTrigger},
+        driven::block_assembler::BlockAssemblyStatus,
         ports::trees::{CommitmentTree, HistoricRootTree, NullifierTree},
     };
+
+    use super::driven::block_assembler::SmartTrigger;
     use nightfall_client::ports::proof::Proof;
     use ark_std::sync::Arc;
     use crate::ports::block_assembly_trigger::BlockAssemblyTrigger;
