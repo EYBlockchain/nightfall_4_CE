@@ -97,7 +97,6 @@ pub mod initialisation {
         driven::block_assembler::BlockAssemblyStatus,
         ports::trees::{CommitmentTree, HistoricRootTree, NullifierTree},
     };
-
     use super::driven::block_assembler::SmartTrigger;
     use nightfall_client::ports::proof::Proof;
     use ark_std::sync::Arc;
