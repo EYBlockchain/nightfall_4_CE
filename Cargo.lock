@@ -4307,6 +4307,7 @@ dependencies = [
  "tokio",
  "uint",
  "url",
+ "uuid 1.16.0",
  "warp",
 ]
 
@@ -4435,6 +4436,7 @@ dependencies = [
  "sha2 0.10.8",
  "tokio",
  "url",
+ "uuid 1.16.0",
 ]
 
 [[package]]

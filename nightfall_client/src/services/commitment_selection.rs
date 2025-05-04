@@ -38,10 +38,6 @@ pub async fn find_usable_commitments(
 ) -> Result<[Preimage; MAX_POSSIBLE_COMMITMENTS], &'static str> {
     let (avaliable_sorted_commitments, min_num_c) =
         verify_enough_commitments(target_token_id, target_value, db).await?;
-    ark_std::println!(
-        "avaliable_sorted_commitments: {:?}",
-        avaliable_sorted_commitments
-    );
 
     let mut max_num_c = MAX_POSSIBLE_COMMITMENTS;
     if avaliable_sorted_commitments.len() < MAX_POSSIBLE_COMMITMENTS {
