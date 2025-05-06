@@ -22,7 +22,7 @@ use tokio::{
     time::{self, Duration, Instant},
 };
 use std::marker::PhantomData;
-use log::{error,debug, info};
+use log::{error,debug};
 
 /// SmartTrigger is responsible for deciding when to trigger block assembly,
 /// based on time constraints and mempool state.
@@ -32,7 +32,7 @@ use log::{error,debug, info};
 ///  `max_wait_secs`: maximum time to wait before forcing block assembly
 ///  `status`: shared state indicating if the block assembly is currently active
 ///  `db`: handle to the database containing the mempool
-///  `target_block_fill_ratio`: threshold (e.g. 0.75) used to trigger block creation
+///  `target_block_fill_ratio`: threshold used to trigger block creation
 ///
 /// Behavior:
 /// - A block is triggered if either:
@@ -104,7 +104,7 @@ impl<P: Proof + Send + Sync> SmartTrigger<P> {
         let num_deposit_groups = match <mongodb::Client as TransactionsDB<P>>::count_mempool_deposits(&mut db).await {
             Ok(count) => {
                 let groups = (count + 3) / 4;
-                info!("Mempool deposits: {}, grouped into: {}", count, groups);
+                debug!("Mempool deposits: {}, grouped into: {}", count, groups);
                 groups
             }
             Err(e) => {
@@ -115,7 +115,7 @@ impl<P: Proof + Send + Sync> SmartTrigger<P> {
 
         let num_client_txs = match <mongodb::Client as TransactionsDB<P>>::count_mempool_transactions(&mut db).await {
             Ok(count) => {
-                info!("Mempool client transactions: {}", count);
+                debug!("Mempool client transactions: {}", count);
                 count 
             }
             Err(e) => {
