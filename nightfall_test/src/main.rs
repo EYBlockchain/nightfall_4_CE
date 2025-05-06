@@ -7,7 +7,7 @@ use lib::models::CertificateReq;
 use log::{debug, info, warn};
 use nightfall_client::domain::entities::HexConvertible;
 use std::fs;
-use test::{count_spent_commitments, get_erc20_balance, get_fee_balance, get_erc721_balance};
+use test::{count_spent_commitments, get_erc20_balance, get_erc721_balance, get_fee_balance};
 
 use lib::{
     blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
@@ -328,9 +328,9 @@ async fn main() {
         &http_client,
         Url::parse(&settings.nightfall_client.url).unwrap(),
         test_settings.erc721_deposit.token_id.clone(),
-    ).await;
+    )
+    .await;
     assert_eq!(None, balance);
-
 
     let transaction_erc721_deposit = create_nf3_deposit_transaction(
         &http_client,
@@ -439,7 +439,8 @@ async fn main() {
         &http_client,
         Url::parse(&settings.nightfall_client.url).unwrap(),
         test_settings.erc721_deposit.token_id,
-    ).await;
+    )
+    .await;
     assert!(balance.is_some_and(|balance| balance.is_zero()));
 
     // get the fee balance

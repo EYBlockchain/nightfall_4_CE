@@ -17,8 +17,7 @@ use jf_primitives::{
 use jf_relation::{Arithmetization, Circuit};
 use nf_curves::ed_on_bn254::{BabyJubjub, Fq as Fr254, Fr as BJJScalar};
 use nightfall_client::{
-    domain::entities::HexConvertible,
-    drivers::rest::utils::to_nf_token_id_from_str,
+    domain::entities::HexConvertible, drivers::rest::utils::to_nf_token_id_from_str,
 };
 use nightfall_client::{
     domain::entities::{DepositSecret, Preimage, Salt},
