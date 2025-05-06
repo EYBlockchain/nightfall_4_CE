@@ -154,14 +154,6 @@ async fn main() {
                 - client2_starting_fee_balance;
 
         // make up to 64 deposits so that we can test a large block (reuse deposit 2 data)
-        // first we need to pause block assembly so that we can make all the deposits in the same block
-        let pause_url = Url::parse(&settings.nightfall_proposer.url)
-            .unwrap()
-            .join("v1/pause")
-            .unwrap();
-        let res = http_client.get(pause_url).send().await.unwrap();
-        assert!(res.status().is_success());
-
         // create deposit commitments first
         let url = Url::parse(&settings.nightfall_client.url)
             .unwrap()
@@ -183,13 +175,7 @@ async fn main() {
             large_block_deposits
                 .push(Fr254::from_hex_string(&large_block_deposit.1.clone().unwrap()).unwrap());
         }
-        //now we can resume block assembly
-        let resume_url = Url::parse(&settings.nightfall_proposer.url)
-            .unwrap()
-            .join("v1/resume")
-            .unwrap();
-        let res = http_client.get(resume_url).send().await.unwrap();
-        assert!(res.status().is_success());
+      
 
         wait_on_chain(&large_block_deposits, &get_settings().nightfall_client.url)
             .await
@@ -198,13 +184,7 @@ async fn main() {
         info!("A large block full of ERC20 Deposits is now on-chain");
 
         // next, we'll do transfers
-        // but first we need to pause block assembly so that we can make all the transfers in the same block
-        let pause_url = Url::parse(&settings.nightfall_proposer.url)
-            .unwrap()
-            .join("v1/pause")
-            .unwrap();
-        let res = http_client.get(pause_url).send().await.unwrap();
-        assert!(res.status().is_success());
+        
         let url = Url::parse(&settings.nightfall_client.url)
             .unwrap()
             .join("v1/transfer")
@@ -229,14 +209,6 @@ async fn main() {
             .flat_map(|l| l["nullifiers"].as_array().unwrap())
             .filter(|n| !((Fr254::from_hex_string(n.as_str().unwrap()).unwrap()).is_zero()))
             .count();
-
-        //now we can resume block assembly
-        let resume_url = Url::parse(&settings.nightfall_proposer.url)
-            .unwrap()
-            .join("v1/resume")
-            .unwrap();
-        let res = http_client.get(resume_url).send().await.unwrap();
-        assert!(res.status().is_success());
 
         wait_on_chain(
             large_block_transfers

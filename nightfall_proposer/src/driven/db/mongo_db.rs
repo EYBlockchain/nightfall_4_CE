@@ -86,6 +86,8 @@ where
         Some(result)
     }
 
+    // Count transaction i the mempool
+    // This is used to determine if we need to assemble a block
     async fn count_mempool_transactions(&mut self) -> Result<u64, mongodb::error::Error> {
         let filter = doc! { "in_mempool": true };
         self.database(DB)
@@ -209,10 +211,11 @@ where
             Some(result)
         }
     }
-
+    // Count deposits in the mempool
+    // This is used to determine if we need to assemble a block
     async fn count_mempool_deposits(&mut self) -> Result<u64, mongodb::error::Error> {
         self.database(DB)
-            .collection::<DepositDatawithFee>("mempool_deposits")
+            .collection::<DepositDatawithFee>(DEPOSIT_COLLECTION)
             .count_documents(doc! {})
             .await
     }

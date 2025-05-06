@@ -186,7 +186,7 @@ pub mod initialisation {
     pub async fn get_block_assembly_status() -> &'static RwLock<BlockAssemblyStatus> {
         static BLOCK_ASSEMBLY_STATUS: OnceCell<RwLock<BlockAssemblyStatus>> = OnceCell::const_new();
         BLOCK_ASSEMBLY_STATUS
-            .get_or_init(|| async { RwLock::new(BlockAssemblyStatus::new()) })
+            .get_or_init(|| async { RwLock::new(BlockAssemblyStatus::new())})
             .await
     }
 }

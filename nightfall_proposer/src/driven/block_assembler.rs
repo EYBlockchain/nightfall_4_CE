@@ -27,12 +27,12 @@ use log::{error,debug, info};
 /// SmartTrigger is responsible for deciding when to trigger block assembly,
 /// based on time constraints and mempool state.
 ///
-/// Fields:
-/// - `interval_secs`: time between periodic checks of the mempool
-/// - `max_wait_secs`: maximum time to wait before forcing block assembly
-/// - `status`: shared state indicating if the block assembly is currently active
-/// - `db`: handle to the database containing the mempool
-/// - `target_block_fill_ratio`: threshold (e.g. 0.75) used to trigger block creation
+/// Parameters
+///  `interval_secs`: time between periodic checks of the mempool
+///  `max_wait_secs`: maximum time to wait before forcing block assembly
+///  `status`: shared state indicating if the block assembly is currently active
+///  `db`: handle to the database containing the mempool
+///  `target_block_fill_ratio`: threshold (e.g. 0.75) used to trigger block creation
 ///
 /// Behavior:
 /// - A block is triggered if either:
