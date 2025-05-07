@@ -1,15 +1,17 @@
 use crate::{
-    domain::entities::{Block, ClientTransactionWithMetaData, DepositData, DepositDatawithFee},
-    drivers::blockchain::block_assembly::BlockAssemblyError,
-    initialisation::get_db_connection,
-    ports::{db::TransactionsDB, proving::RecursiveProvingEngine},
+    domain::entities::{Block, ClientTransactionWithMetaData, DepositData, DepositDatawithFee, OnChainTransaction}, driven::db::mongo_db::StoredBlock, drivers::blockchain::block_assembly::BlockAssemblyError, initialisation::{get_blockchain_client_connection, get_db_connection}, ports::{db::TransactionsDB, proving::RecursiveProvingEngine}
 };
 use ark_bn254::Fr as Fr254;
 use ark_std::Zero;
+use lib::blockchain_client::BlockchainClientConnection;
 use log::{info, warn};
-use nightfall_client::ports::proof::{Proof, PublicInputs};
+use nightfall_client::{domain::error::EventHandlerError, ports::proof::{Proof, PublicInputs}};
 use std::{cmp::Reverse, env};
 use tokio::time::Instant;
+use crate::driven::db::mongo_db::PROPOSED_BLOCKS_COLLECTION;
+use nightfall_client::driven::db::mongo::DB;
+use bson::doc;
+use nightfall_client::domain::entities::HexConvertible;
 
 // Define a type alias for better readability
 type ALLTransactionData<P> = (
@@ -92,6 +94,44 @@ where
     );
 
     let block = make_block::<P, R>(included_deposits, selected_client_transactions).await?;
+    // save this block to Store block db
+    let db = &mut get_db_connection().await.write().await;
+    let current_block_number = db
+    .database(DB)
+    .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
+    .count_documents(doc! {})
+    .await
+    .expect("Failed to count documents");
+    ark_std::println!("Current block number in StoredBlock db: {:?}", current_block_number);
+    let our_address = get_blockchain_client_connection()
+        .await
+        .read()
+        .await
+        .get_address()
+        .ok_or_else(|| BlockAssemblyError::from(EventHandlerError::IOError(
+            "Could not retrieve our own address".to_string(),
+        )))?;
+    ark_std::println!("Our address in assemble_block: {:?}", our_address);
+    let store_block = StoredBlock {
+        layer2_block_number: current_block_number,
+        commitments: block
+        .transactions
+        .iter()
+        .flat_map(|ntx| {
+            ntx.commitments
+                .iter()
+                .map(|c| c.to_hex_string())
+                .collect::<Vec<_>>()
+        })
+        .collect(),
+        proposer_address: our_address,
+    };
+    ark_std::println!("store_block in assemble_block: {:?}", store_block);
+    db.database(DB)
+        .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
+        .insert_one(store_block.clone())
+        .await
+        .expect("Failed to insert block into database");
     Ok(block)
 }
 

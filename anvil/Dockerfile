@@ -6,4 +6,4 @@ RUN apk update && apk add curl
 # install additional ca-certificates e.g. zscaler certificate (can be removed if not needed)
 COPY ./configuration/trust/* /usr/local/share/ca-certificates/
 RUN chmod 644 /usr/local/share/ca-certificates/* && update-ca-certificates
-CMD ["anvil", "--base-fee", "58000000000"]
+CMD ["anvil", "--base-fee", "58000000000", "--block-time", "5"]

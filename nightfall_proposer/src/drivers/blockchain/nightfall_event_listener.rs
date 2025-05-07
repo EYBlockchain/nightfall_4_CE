@@ -26,6 +26,7 @@ where
     E: ProvingEngine<P>,
     N: NightfallContract,
 {
+    ark_std::println!("Starting event listener");
     // we use the async block and the BoxFuture so that we can recurse an async
     async move {
         let result = listen_for_events::<P, E, N>(start_block).await;
@@ -84,6 +85,16 @@ where
                         restart_event_listener::<P, E, N>(start_block).await;
                         return Err(EventHandlerError::StreamTerminated);
                     }
+
+                    EventHandlerError::BlockHashError(expected, found) => {
+                        warn!(
+                            "Block hash mismatch: expected {:?}, found {:?}. Restarting event listener",
+                            expected, found
+                        );
+                        restart_event_listener::<P, E, N>(start_block).await;
+                        return Err(EventHandlerError::StreamTerminated);
+                    }
+
                     _ => panic!("Error processing event: {:?}", e),
                 }
             }
@@ -106,6 +117,7 @@ where
         .read()
         .await
         .is_synchronised();
+    ark_std::println!("Restarting event listener, synchronisation state: {}", sync_state);
     if sync_state {
         panic!("Restarting event listener while synchronised. This should not happen");
     }

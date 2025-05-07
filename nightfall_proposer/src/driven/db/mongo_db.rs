@@ -1,19 +1,25 @@
 use crate::{
     domain::entities::{ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot},
-    ports::db::{HistoricRootsDB, TransactionsDB},
+    ports::db::{BlockStorageDB, HistoricRootsDB, TransactionsDB},
 };
 use ark_bn254::Fr as Fr254;
 use ark_ff::{BigInteger, PrimeField, Zero};
+use ethers::types::H160;
 use mongodb::bson::doc;
 use nightfall_client::{
     domain::{entities::ClientTransaction, error::ConversionError},
     ports::proof::Proof,
 };
 use serde::{Deserialize, Serialize};
+use futures::TryStreamExt;
+use sha2::{Digest, Sha256};
 
-const DB: &str = "nightfall";
+pub const DB: &str = "nightfall";
 const COLLECTION: &str = "ClientTransactions";
 const DEPOSIT_COLLECTION: &str = "Deposits";
+const PROPOSER_STATE_COLLECTION: &str = "ProposerState";
+const PROPOSER_STATE_ID: &str = "singleton";
+pub const PROPOSED_BLOCKS_COLLECTION: &str = "ProposedBlocks";
 
 #[async_trait::async_trait]
 impl<'a, P> TransactionsDB<'a, P> for mongodb::Client
@@ -297,6 +303,67 @@ impl TryFrom<HistoricRootEntry> for HistoricRoot {
                 .map_err(|_| ConversionError::ParseFailed)?,
             historic_root_entry.index,
         ))
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+/// A struct representing a stored block in the database
+/// To update local mempool so that proposers won't assemble the block with the same transactions onchain, proposers can just check if the commitments for deposit/client_transactions in mempool have appeared in the stored block.
+/// To sync the status, proposers need to check if block is the same as the one it remembers when layer 2 block number expected and onchain are the same, since commitments are unique, it's enought to check the hash of commitments in block.
+/// So we only store commitments and layer2_block_number in the block database.
+pub struct StoredBlock {
+    pub layer2_block_number: u64,
+    pub commitments: Vec<String>, 
+    pub proposer_address: H160,
+}
+impl StoredBlock {
+    pub fn hash(&self) -> Fr254 {
+        let mut bytes = Vec::new();
+        for c in &self.commitments {
+            bytes.extend_from_slice(c.as_bytes());
+        }
+        bytes.extend_from_slice(&self.proposer_address.to_fixed_bytes());
+        let hash = Sha256::digest(&bytes);
+        Fr254::from_be_bytes_mod_order(&hash)
+    }
+}
+#[async_trait::async_trait]
+impl BlockStorageDB for mongodb::Client {
+    async fn store_block(&self, block: &StoredBlock) -> Option<()> {
+        self.database(DB)
+            .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
+            .insert_one(block)
+            .await
+            .ok()?;
+        Some(())
+    }
+
+    async fn get_block_by_number(&self, block_number: u64) -> Option<StoredBlock> {
+        let filter = doc! { "layer2_block_number": block_number as i64 };
+        self.database(DB)
+            .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
+            .find_one(filter)
+            .await
+            .ok()?
+    }
+
+    async fn get_all_blocks(&self) -> Option<Vec<StoredBlock>> {
+        let cursor = self
+            .database(DB)
+            .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
+            .find(doc! {})
+            .await
+            .ok()?;
+        cursor.try_collect().await.ok()
+    }
+    async fn delete_block_by_number(&self, block_number: u64) -> Option<()> {
+        let filter = doc! { "layer2_block_number": block_number as i64 };
+        self.database(DB)
+            .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
+            .delete_one(filter)
+            .await
+            .ok()?;
+        Some(())
     }
 }
 

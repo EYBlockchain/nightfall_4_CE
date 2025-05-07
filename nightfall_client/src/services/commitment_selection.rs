@@ -225,6 +225,10 @@ async fn fetch_on_chain_commitments(
         .get_available_commitments(token_id)
         .await
         .ok_or("No commmitments found in the db")?;
+    ark_std::println!(
+        "commitments fetch_on_chain_commitments: {:?}",
+        commitments
+    );
     Ok(commitments.into_iter().map(|c| c.get_preimage()).collect())
 }
 

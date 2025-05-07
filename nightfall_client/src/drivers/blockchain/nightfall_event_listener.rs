@@ -94,6 +94,7 @@ where
         .await
         .expect("Could not check synchronisation state")
         .is_synchronised();
+    ark_std::println!("Sync state in restart_event_listener: {}", sync_state);
     if sync_state {
         panic!("Restarting event listener while synchronised. This should not happen");
     }

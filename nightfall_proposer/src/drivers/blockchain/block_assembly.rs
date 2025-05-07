@@ -16,7 +16,7 @@ use lib::blockchain_client::BlockchainClientConnection;
 use log::{debug, error, info, warn};
 use nightfall_bindings::round_robin::RoundRobin;
 use nightfall_client::{
-    domain::error::{ConversionError, NightfallContractError},
+    domain::error::{ConversionError, EventHandlerError, NightfallContractError},
     ports::proof::Proof,
 };
 use std::{
@@ -37,6 +37,13 @@ pub enum BlockAssemblyError {
     ProvingError(String),
     ContractError(String),
     ProviderError(ProviderError),
+    EventHandlerError(EventHandlerError),
+}
+
+impl From<EventHandlerError> for BlockAssemblyError {
+    fn from(e: EventHandlerError) -> Self {
+        BlockAssemblyError::EventHandlerError(e)
+    }
 }
 
 impl Error for BlockAssemblyError {}
@@ -60,6 +67,7 @@ impl Display for BlockAssemblyError {
             Self::ProvingError(s) => write!(f, "Error occurred while proving: {} ", s),
             Self::ContractError(s) => write!(f, "Contract error: {}", s),
             Self::ProviderError(e) => write!(f, "Provider error: {}", e),
+            Self::EventHandlerError(e) => write!(f, "Event handling error: {}", e),
         }
     }
 }

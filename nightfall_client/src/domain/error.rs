@@ -3,6 +3,7 @@ use std::{
     fmt::{Debug, Display, Formatter},
 };
 
+use ark_bn254::Fr as Fr254;
 use ark_serialize::SerializationError;
 use ethers::providers::ProviderError;
 
@@ -63,6 +64,8 @@ pub enum EventHandlerError {
     IOError(String),
     MissingBlocks(usize),
     HashError,
+    BlockNotFound(u64),
+    BlockHashError(Fr254, Fr254),
 }
 
 impl Display for EventHandlerError {
@@ -76,6 +79,10 @@ impl Display for EventHandlerError {
                 write!(f, "Missing layer 2 blocks. Last processed was: {}", n)
             }
             EventHandlerError::HashError => write!(f, "Hashing error"),
+            EventHandlerError::BlockNotFound(block_number) => {
+                write!(f, "Block not found: {}", block_number)
+            }
+            EventHandlerError::BlockHashError(a, b) => write!(f, "Block hash error, expected block hash: {}, got block hash: {}", a, b),
         }
     }
 }

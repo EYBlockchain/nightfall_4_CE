@@ -1,14 +1,12 @@
 use crate::{
-    domain::entities::{DepositData, DepositDatawithFee},
-    driven::nightfall_client_transaction::{
+    domain::entities::{Block as BlockEntity, DepositData, DepositDatawithFee, OnChainTransaction},
+    driven::{db::mongo_db::StoredBlock, nightfall_client_transaction::{
         process_deposit_transaction, process_nightfall_client_transaction,
-    },
+    }},
     drivers::blockchain::nightfall_event_listener::get_synchronisation_status,
     initialisation::{get_blockchain_client_connection, get_db_connection},
     ports::{
-        contracts::NightfallContract,
-        events::EventHandler,
-        trees::{CommitmentTree, HistoricRootTree, NullifierTree},
+        contracts::NightfallContract, db::BlockStorageDB, events::EventHandler, trees::{CommitmentTree, HistoricRootTree, NullifierTree}
     },
 };
 use ark_bn254::Fr as Fr254;
@@ -16,7 +14,7 @@ use ark_std::Zero;
 use ethers::{
     core::abi::AbiDecode,
     providers::Middleware,
-    types::{TxHash, H256, I256},
+    types::{TxHash, H160, H256, I256},
 };
 use lib::{blockchain_client::BlockchainClientConnection, merkle_trees::trees::IndexedTree};
 use log::{debug, error, info, warn};
@@ -26,7 +24,7 @@ use nightfall_bindings::nightfall::{
     SubmitClientTransactionCall,
 };
 use nightfall_client::{
-    domain::{entities::ClientTransaction, error::EventHandlerError},
+    domain::{entities::{ClientTransaction, HexConvertible}, error::EventHandlerError},
     driven::contract_functions::contract_type_conversions::FrBn254,
     drivers::rest::utils::to_nf_token_id_from_solidity,
     get_fee_token_id,
@@ -38,7 +36,6 @@ use std::{
     fmt::{Debug, Display},
 };
 use tokio::sync::{OnceCell, RwLock};
-
 // Define a mutable lazy static to hold the layer 2 blocknumber. We need this to
 // check if we're still in sync, but putting it in the context would mean passing it around too much
 pub async fn get_expected_layer2_blocknumber() -> &'static RwLock<I256> {
@@ -79,12 +76,12 @@ where
         debug!("Handling event {:?} for transaction {:?}", self, tx_hash);
         match &self {
             NightfallEvents::BlockProposedFilter(filter) => {
-                process_nightfall_calldata::<P, E, N>(tx_hash, Some(filter.layer_2_block_number))
+                process_nightfall_calldata::<P, E, N>(tx_hash, Some(filter.proposer_address), Some(filter.layer_2_block_number))
                     .await?
             }
             NightfallEvents::ClientTransactionSubmittedFilter(_f) => {
                 info!("Received TransactionSubmitted event");
-                process_nightfall_calldata::<P, E, N>(tx_hash, None).await?
+                process_nightfall_calldata::<P, E, N>(tx_hash, None, None).await?
             }
             NightfallEvents::DepositEscrowedFilter(filter) => {
                 info!("Received DepositEscrowed event");
@@ -103,7 +100,8 @@ where
 
 pub async fn process_nightfall_calldata<P, E, N>(
     transaction_hash: H256,
-    block_number: Option<I256>,
+    block_proposer: Option<H160>,
+    block_number: Option<I256>, // process_nightfall_calldata is called for ClientTransactionSubmitted and BlockProposed events, the first one doesn't have block_number so we make it optional
 ) -> Result<(), EventHandlerError>
 where
     P: Proof + Send + Serialize + Clone + Debug + Sync,
@@ -130,6 +128,7 @@ where
                     process_propose_block_event::<N>(
                         decode,
                         transaction_hash,
+                        block_proposer.unwrap(),
                         block_number.unwrap(),
                     )
                     .await?
@@ -150,17 +149,17 @@ where
 async fn process_propose_block_event<N: NightfallContract>(
     decode: ProposeBlockCall,
     transaction_hash: H256,
-    layer_2_block_number: I256,
+    block_proposer: H160,
+    layer_2_block_number_in_event: I256,
 ) -> Result<(), EventHandlerError> {
-    // get a lock on the db, we don't want anything else updating or reading the DB until
-    // we're done here
-    let db = &mut get_db_connection().await.write().await;
-    info!(
-        "Decoded Proposed block call from transaction {:?}",
-        transaction_hash
-    );
-    let blk = decode.blk;
-
+    let our_address = get_blockchain_client_connection()
+        .await
+        .read()
+        .await
+        .get_address()
+        .ok_or(EventHandlerError::IOError(
+            "Could not retrieve our own address".to_string(),
+        ))?;
     let sender_address = get_blockchain_client_connection()
         .await
         .read()
@@ -173,19 +172,56 @@ async fn process_propose_block_event<N: NightfallContract>(
             "Could not retrieve transaction".to_string(),
         ))?
         .from;
+    ark_std::println!("Inside process_propose_block_event");
+    ark_std::println!("our_address: {}", our_address);
+    ark_std::println!("sender_address: {}", sender_address);
+    ark_std::println!("sender_address from block event: {}", block_proposer);
 
+    // get a lock on the db, we don't want anything else updating or reading the DB until
+    // we're done here
+    let db = &mut get_db_connection().await.write().await;
+    info!(
+        "Decoded Proposed block call from transaction {:?}",
+        transaction_hash
+    );
+    let blk = decode.blk;
+
+    let layer_2_block_number_in_event_u64: u64 = layer_2_block_number_in_event
+            .try_into()
+            .expect("I256 to u64 conversion failed");
+    let store_block_pending = StoredBlock {
+        layer2_block_number: layer_2_block_number_in_event_u64,
+        commitments: blk
+        .transactions
+        .iter()
+        .flat_map(|ntx| {
+            let tx: OnChainTransaction = (*ntx).clone().into();
+            tx.commitments
+                .iter()
+                .map(|c| c.to_hex_string())
+                .collect::<Vec<_>>()
+        })
+        .collect(),
+        proposer_address: sender_address,
+    };
+    ark_std::println!("store_block_pending: {:?}", store_block_pending);
+    
     // check and update the sychronisation status
     let mut sync_status = get_synchronisation_status().await.write().await;
     // The first thing to do is to make sure that we've not missed any blocks.
     // If we have, then we'll need to resynchronise with the blockchain.
     let mut expected_onchain_block_number = get_expected_layer2_blocknumber().await.write().await;
-    if *expected_onchain_block_number < layer_2_block_number {
+    ark_std::println!("expected_onchain_block_number: {}", *expected_onchain_block_number);
+    ark_std::println!("layer_2_block_number: {}", layer_2_block_number_in_event);
+    if *expected_onchain_block_number < layer_2_block_number_in_event {
         // we've missed at least one block
+        ark_std::println!("Missed at least one block");
         warn!(
             "Out of sync with blockchain. Blocknumber of event was {}, expected {}",
-            layer_2_block_number, expected_onchain_block_number
+            layer_2_block_number_in_event, expected_onchain_block_number
         );
         sync_status.clear_synchronised();
+        //The event listener infrastructure (via start_event_listener and restart_event_listener) is responsible for replaying historical events to fill in the gap.
         return Err(EventHandlerError::MissingBlocks(
             expected_onchain_block_number.as_usize(),
         ));
@@ -193,41 +229,112 @@ async fn process_propose_block_event<N: NightfallContract>(
 
     // check if we're ahead of the event, this means we've already seen it and we shouldn't process it again
     // This could happen if we've missed some blocks and we're re-synchronising
-    if *expected_onchain_block_number > layer_2_block_number {
+    if *expected_onchain_block_number > layer_2_block_number_in_event {
+        //JJ: shouldn't we adjust the expected block number here?
+        ark_std::println!("Already processed block");
         warn!(
             "Already processed layer 2 block {} - skipping",
-            layer_2_block_number
+            layer_2_block_number_in_event
         );
         return Ok(());
     }
 
+    // if expected_onchain_block_number == layer_2_block_number, we need to check if the block hash is the same
+    // if it's not, then we need to re-synchronise.
+    // what can cause this situation? 
+    // 1) If proposer_1 failed to propose a block, and proposer_2
+    // proposed the same block, proposer_1 need to re-synchronise otherwise it will assemble next block with a wrong status.
+    // 2) If chain reorganisation happened, proposers need to re-synchronise.
+   
+    // get the block from the db and compute the block hash
+    let expected_block_number_u64: u64 = (*expected_onchain_block_number)
+        .try_into()
+        .expect("I256 to u64 conversion failed");
+    // if proposer is out of sync, it won't have this block in db 
+    let current_block_stored = db
+        .get_block_by_number(expected_block_number_u64)
+        .await;
+    ark_std::println!("expected_block_number_u64: {:?}", expected_block_number_u64);
+    ark_std::println!("current_block_stored: {:?}", current_block_stored);
+    
+    // let current_block_stored_hash = current_block_stored.hash();
+    
+    // ark_std::println!("current_block_stored_hash: {:?}", current_block_stored_hash);
+    // ark_std::println!("block_store_pending_hash: {:?}", block_store_pending_hash);
+
+    //     if (expected_block_number_u64 == layer_2_block_number_in_event_u64) && (current_block_stored_hash != block_store_pending_hash) {
+    //         warn!(
+    //             "Block hash mismatch. Expected {}, got {} in layer 2 block {}",
+    //             current_block_stored_hash, block_store_pending_hash, layer_2_block_number_in_event
+    //         );
+    //         // delete this block from the db, so later when restarting event listener, it will be reprocessed
+    //         db.delete_block_by_number(expected_block_number_u64)
+    //             .await;
+    //         sync_status.clear_synchronised();
+    //         return Err(EventHandlerError::BlockHashError(current_block_stored_hash, block_store_pending_hash));
+    //     }
+
+    match current_block_stored {
+        Some(current_block) => {
+            let current_block_stored_hash = current_block.hash();
+            let block_store_pending_hash = store_block_pending.hash();
+            ark_std::println!("current_block_stored_hash: {:?}", current_block_stored_hash);
+            ark_std::println!("block_store_pending_hash: {:?}", block_store_pending_hash);
+    
+            if expected_block_number_u64 == layer_2_block_number_in_event_u64
+                && current_block_stored_hash != block_store_pending_hash
+            {
+                warn!(
+                    "Block hash mismatch. Expected {}, got {} in layer 2 block {}",
+                    current_block_stored_hash,
+                    block_store_pending_hash,
+                    layer_2_block_number_in_event
+                );
+    
+                // Delete the invalid block and clear sync status
+                db.delete_block_by_number(expected_block_number_u64).await;
+                sync_status.clear_synchronised();
+    
+                return Err(EventHandlerError::BlockHashError(
+                    current_block_stored_hash,
+                    block_store_pending_hash,
+                ));
+            }
+        }
+    
+        None => {
+            ark_std::println!(
+                "No block found in DB at expected height {}. Assuming fresh state or first sync.",
+                expected_block_number_u64
+            );
+            // You might choose to return here, or continue if syncing should proceed regardless.
+        }
+    }
+
+   
     *expected_onchain_block_number += 1; // move on to the next block
 
     // warn that we're not synced with the blockchain if we're behind
-    let current_block_number = N::get_current_layer2_blocknumber().await.map_err(|_| {
+    // before we used the event filter layer 2 block number
+    // now we get the current_block_number from the blockchain
+    // what's the difference?
+    let current_block_number_in_contract = N::get_current_layer2_blocknumber().await.map_err(|_| {
         EventHandlerError::IOError("Could not retrieve current block number".to_string())
     })?;
-    ark_std::println!("process_propose_block_event: expected_onchain_block_number in proposer: {}", current_block_number);
+    ark_std::println!("process_propose_block_event: expected_onchain_block_number in proposer: {}", expected_onchain_block_number);
 
-    ark_std::println!("process_propose_block_event: Current L2 block number in proposer: {}", current_block_number);
+    ark_std::println!("process_propose_block_event: Current L2 block number in proposer: {}", current_block_number_in_contract);
 
     // if the current block number is exactly one, then we're automatically synchronised because we've seen one
     // blockproposed event (or we wouldn't be here) and that must also be the only one
-    if current_block_number == I256::one() {
+    if current_block_number_in_contract == I256::one() {
         debug!("Synchronised with blockchain");
         sync_status.set_synchronised();
     }
 
-    // next, we'll unpack the commitments and add them to the proposer's commitment tree
-    let our_address = get_blockchain_client_connection()
-        .await
-        .read()
-        .await
-        .get_address()
-        .ok_or(EventHandlerError::IOError(
-            "Could not retrieve our own address".to_string(),
-        ))?;
+    ark_std::println!("sync_status.is_synchronised(): {}", sync_status.is_synchronised());
 
+    // next, we'll unpack the commitments and add them to the proposer's commitment tree
     // normally, we don't update the trees if we're the proposer, because we'll have done it when we proposed the block
     // but if we're not in sync then we need to get this information from the blockchain.
     // There's one more case, where this is the first block, so we must be synchronised in the sense that our block count is the
@@ -238,6 +345,7 @@ async fn process_propose_block_event<N: NightfallContract>(
         .map_err(|_| {
             EventHandlerError::IOError("Could not retrieve commitment root".to_string())
         })?;
+    ark_std::println!("commitment_root: {:?}", commitment_root);
     if our_address != sender_address || !sync_status.is_synchronised() || commitment_root.is_zero()
     {
         let commitments = &blk
@@ -251,6 +359,7 @@ async fn process_propose_block_event<N: NightfallContract>(
             "Adding {} commitments to commitment tree",
             commitments.len()
         );
+        ark_std::println!("commitments: {:?}", commitments);
         <Client as CommitmentTree<Fr254>>::append_sub_trees(db, commitments, true)
             .await
             .map_err(|_| EventHandlerError::IOError("Could not store commitments".to_string()))?;
@@ -278,6 +387,7 @@ async fn process_propose_block_event<N: NightfallContract>(
     let historic_root: Fr254 = FrBn254::try_from(blk.commitments_root)
         .map_err(|_| EventHandlerError::IOError("Could not convert to Fr254".to_string()))?
         .into();
+    ark_std::println!("historic_root: {:?}", historic_root);
 
     db.append_historic_commitment_root(&historic_root, true)
         .await
@@ -303,7 +413,9 @@ async fn process_propose_block_event<N: NightfallContract>(
     }
 
     // see if we need to update the synchronisation status
-    let delta = current_block_number - layer_2_block_number - I256::one();
+    //This is a final safety check. Earlier we used event-level info to decide whether to sync. Now we consult the contract’s real-time state.
+
+    let delta = current_block_number_in_contract - layer_2_block_number_in_event - I256::one();
     if delta != I256::zero() {
         warn!(
             "Synchronising - behind blockchain by {} layer 2 blocks ",
@@ -314,6 +426,11 @@ async fn process_propose_block_event<N: NightfallContract>(
         debug!("Synchronised with blockchain");
         sync_status.set_synchronised();
     }
+
+    // store the block in the db
+    // if db doesn't have the block, it will be stored
+    db.store_block(&store_block_pending)
+        .await;
 
     Ok(())
 }
