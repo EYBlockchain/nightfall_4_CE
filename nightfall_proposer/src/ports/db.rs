@@ -18,10 +18,10 @@ pub trait TransactionsDB<'a, P> {
     async fn get_all_transactions(
         &mut self,
     ) -> Option<Vec<(Vec<u32>, ClientTransactionWithMetaData<P>)>>;
-    async fn get_all_mempool_transactions(
+    async fn get_all_mempool_client_transactions(
         &mut self,
     ) -> Option<Vec<(Vec<u32>, ClientTransactionWithMetaData<P>)>>;
-    async fn count_mempool_transactions(&mut self) -> Result<u64, mongodb::error::Error>;
+    async fn count_mempool_client_transactions(&mut self) -> Result<u64, mongodb::error::Error>;
     async fn is_transaction_in_mempool(&mut self, key: &'a [u32]) -> bool;
     async fn check_nullifier(&self, nullifier: Fr254) -> bool;
     async fn check_commitment(&self, commitment: Fr254) -> bool;

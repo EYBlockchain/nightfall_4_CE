@@ -65,7 +65,7 @@ where
     }
 
     // add in all the remaining trait items
-    async fn get_all_mempool_transactions(
+    async fn get_all_mempool_client_transactions(
         &mut self,
     ) -> Option<Vec<(Vec<u32>, ClientTransactionWithMetaData<P>)>> {
         let filter = doc! {"in_mempool": true};
@@ -86,9 +86,9 @@ where
         Some(result)
     }
 
-    // Count transaction i the mempool
+    // Count client_transaction in the mempool
     // This is used to determine if we need to assemble a block
-    async fn count_mempool_transactions(&mut self) -> Result<u64, mongodb::error::Error> {
+    async fn count_mempool_client_transactions(&mut self) -> Result<u64, mongodb::error::Error> {
         let filter = doc! { "in_mempool": true };
         self.database(DB)
             .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)

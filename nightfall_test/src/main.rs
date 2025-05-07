@@ -154,6 +154,14 @@ async fn main() {
                 - client2_starting_fee_balance;
 
         // make up to 64 deposits so that we can test a large block (reuse deposit 2 data)
+        // // first we need to pause block assembly so that we can make all the deposits in the same block
+        let pause_url = Url::parse(&settings.nightfall_proposer.url)
+            .unwrap()
+            .join("v1/pause")
+            .unwrap();
+        let res = http_client.get(pause_url).send().await.unwrap();
+        assert!(res.status().is_success());
+
         // create deposit commitments first
         let url = Url::parse(&settings.nightfall_client.url)
             .unwrap()
@@ -175,7 +183,13 @@ async fn main() {
             large_block_deposits
                 .push(Fr254::from_hex_string(&large_block_deposit.1.clone().unwrap()).unwrap());
         }
-      
+        //now we can resume block assembly
+        let resume_url = Url::parse(&settings.nightfall_proposer.url)
+            .unwrap()
+            .join("v1/resume")
+            .unwrap();
+        let res = http_client.get(resume_url).send().await.unwrap();
+        assert!(res.status().is_success());
 
         wait_on_chain(&large_block_deposits, &get_settings().nightfall_client.url)
             .await
@@ -184,7 +198,14 @@ async fn main() {
         info!("A large block full of ERC20 Deposits is now on-chain");
 
         // next, we'll do transfers
-        
+        // // but first we need to pause block assembly so that we can make all the transfers in the same block
+        let pause_url = Url::parse(&settings.nightfall_proposer.url)
+            .unwrap()
+            .join("v1/pause")
+            .unwrap();
+        let res = http_client.get(pause_url).send().await.unwrap();
+        assert!(res.status().is_success());
+
         let url = Url::parse(&settings.nightfall_client.url)
             .unwrap()
             .join("v1/transfer")
@@ -209,6 +230,14 @@ async fn main() {
             .flat_map(|l| l["nullifiers"].as_array().unwrap())
             .filter(|n| !((Fr254::from_hex_string(n.as_str().unwrap()).unwrap()).is_zero()))
             .count();
+
+        //now we can resume block assembly
+        let resume_url = Url::parse(&settings.nightfall_proposer.url)
+            .unwrap()
+            .join("v1/resume")
+            .unwrap();
+        let res = http_client.get(resume_url).send().await.unwrap();
+        assert!(res.status().is_success());
 
         wait_on_chain(
             large_block_transfers
@@ -237,13 +266,6 @@ async fn main() {
     // // Test values are carefully chosen so we can test the full range of token types and values, please don't change them. Instead, please add new tests if you need to test new values.
     // // To make the tests more readable and easier to debug, we submit commitments to blockchain everytime when we make requests for a specific token.
     info!("Commencing tests using the client_nf_3 API");
-
-    let pause_url = Url::parse(&settings.nightfall_proposer.url)
-        .unwrap()
-        .join("v1/pause")
-        .unwrap();
-    let res = http_client.get(pause_url).send().await.unwrap();
-    assert!(res.status().is_success());
     // // create deposit requests
     let url = Url::parse(&settings.nightfall_client.url)
         .unwrap()
@@ -370,13 +392,7 @@ async fn main() {
     .unwrap();
     debug!("transaction_erc1155_deposit_3 has been created");
 
-    let resume_url = Url::parse(&settings.nightfall_proposer.url)
-        .unwrap()
-        .join("v1/resume")
-        .unwrap();
-    let res = http_client.get(resume_url).send().await.unwrap();
-    assert!(res.status().is_success());
-
+ 
     // for each deposit request, we have value commitment and fee commitment (if fee is non-zero)
     // wait for the commitments to appear on-chain - we can't transfer until they are there
     wait_on_chain(
@@ -432,13 +448,7 @@ async fn main() {
     // we need up to seven commitments because we'll want to do up to seven withdraws in
     // the same block (we don't control when a block is computed), so we can't use a single commitment
     // even if it has enough value because the change won't be available until the next block.
-    let pause_url = Url::parse(&settings.nightfall_proposer.url)
-        .unwrap()
-        .join("v1/pause")
-        .unwrap();
-    let res = http_client.get(pause_url).send().await.unwrap();
-    assert!(res.status().is_success());
-
+   
     let url2 = Url::parse("http://client2:3000")
         .unwrap()
         .join("v1/deposit")
@@ -458,13 +468,7 @@ async fn main() {
         );
         debug!("transaction_erc20_deposit_4 has been created");
     }
-    let resume_url = Url::parse(&settings.nightfall_proposer.url)
-        .unwrap()
-        .join("v1/resume")
-        .unwrap();
-    let res = http_client.get(resume_url).send().await.unwrap();
-    assert!(res.status().is_success());
-
+ 
     for transaction in transactions_erc20_deposit_4.iter_mut().take(7) {
         // wait for the client2 fee commitments to appear on-chain
         wait_on_chain(
@@ -499,13 +503,7 @@ async fn main() {
     assert_eq!(balance, 7 + client2_starting_balance);
 
     info!("Sending transfer transactions");
-    let pause_url = Url::parse(&settings.nightfall_proposer.url)
-        .unwrap()
-        .join("v1/pause")
-        .unwrap();
-    let res = http_client.get(pause_url).send().await.unwrap();
-    assert!(res.status().is_success());
-
+  
     let url = Url::parse(&settings.nightfall_client.url)
         .unwrap()
         .join("v1/transfer")
@@ -539,13 +537,7 @@ async fn main() {
     .await
     .unwrap();
     debug!("transaction_erc20_transfer_2 has been created");
-    let resume_url = Url::parse(&settings.nightfall_proposer.url)
-        .unwrap()
-        .join("v1/resume")
-        .unwrap();
-    let res = http_client.get(resume_url).send().await.unwrap();
-    assert!(res.status().is_success());
-
+ 
     wait_on_chain(
         &[
             Fr254::from_hex_string(

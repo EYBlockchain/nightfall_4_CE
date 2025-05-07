@@ -186,7 +186,7 @@ where
     // 4. Get client transactions from mempool
     let current_client_transaction_meta_in_mempool = {
         let mempool_client_transactions: Option<Vec<(Vec<u32>, ClientTransactionWithMetaData<P>)>> =
-            db.get_all_mempool_transactions().await;
+            db.get_all_mempool_client_transactions().await;
         transactions_to_include_in_block(mempool_client_transactions)
             .into_iter()
             .map(|(_, v)| v)
@@ -541,7 +541,7 @@ mod tests {
             let mut db_lock = db.lock().await;
             let mempool_client_transactions: Option<
                 Vec<(Vec<u32>, ClientTransactionWithMetaData<PlonkProof>)>,
-            > = db_lock.get_all_mempool_transactions().await;
+            > = db_lock.get_all_mempool_client_transactions().await;
 
             transactions_to_include_in_block(mempool_client_transactions)
                 .into_iter()
@@ -673,7 +673,7 @@ mod tests {
             let mut db_lock = db.lock().await;
             let mempool_client_transactions: Option<
                 Vec<(Vec<u32>, ClientTransactionWithMetaData<PlonkProof>)>,
-            > = db_lock.get_all_mempool_transactions().await;
+            > = db_lock.get_all_mempool_client_transactions().await;
 
             transactions_to_include_in_block(mempool_client_transactions)
                 .into_iter()

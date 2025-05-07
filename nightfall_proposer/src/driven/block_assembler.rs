@@ -113,7 +113,7 @@ impl<P: Proof + Send + Sync> SmartTrigger<P> {
             }
         } as f32;
 
-        let num_client_txs = match <mongodb::Client as TransactionsDB<P>>::count_mempool_transactions(&mut db).await {
+        let num_client_txs = match <mongodb::Client as TransactionsDB<P>>::count_mempool_client_transactions(&mut db).await {
             Ok(count) => {
                 debug!("Mempool client transactions: {}", count);
                 count 
