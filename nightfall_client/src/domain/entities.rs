@@ -35,6 +35,14 @@ pub struct Request {
     pub status: RequestStatus,
     pub uuid: String,
 }
+
+/// Struct to represent the realtionship between request and commitment
+#[derive(Serialize, Deserialize, Debug)]
+pub struct RequestCommitmentMapping {
+    pub request_id: String,
+    pub commitment_hash: String,
+}
+
 /// An enum representing the possible statuses of an HTTP request
 #[derive(Serialize, Deserialize, Debug)]
 pub enum RequestStatus {
@@ -43,6 +51,7 @@ pub enum RequestStatus {
     Failed,
     Processing,
     ProposerUnreachable,
+    Confimed,
 }
 
 impl Display for RequestStatus {
@@ -53,6 +62,7 @@ impl Display for RequestStatus {
             RequestStatus::Failed => write!(f, "Failed"),
             RequestStatus::Processing => write!(f, "Processing"),
             RequestStatus::ProposerUnreachable => write!(f, "ProposerUnreachable"),
+            RequestStatus::Confimed => write!(f, "Confirmed"),
         }
     }
 }

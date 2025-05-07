@@ -61,13 +61,20 @@ where
     P: Proof,
     R: RecursiveProvingEngine<P> + Send + Sync + 'static,
 {
+    info!("Starting block assembly process");
     // initialise included_depositinfos_group, selected_client_transactions
     let included_depositinfos_group;
     let selected_client_transactions;
     {
+        info!("Getting DB connection");
         let db = &mut get_db_connection().await.write().await;
-        (included_depositinfos_group, selected_client_transactions) =
-            prepare_block_data::<P>(db).await?;
+        info!("Preparing block data");
+        let result = prepare_block_data::<P>(db).await;
+        match &result {
+            Ok(_) => info!("Block data prepared successfully"),
+            Err(e) => warn!("Failed to prepare block data: {:?}", e),
+        }
+        (included_depositinfos_group, selected_client_transactions) = result?;
     }
 
     // Convert DepositInfo into DepositData while maintaining nested structure
@@ -175,7 +182,7 @@ where
     R: RecursiveProvingEngine<P> + Send + Sync + 'static,
 {
     // Generate Proofs for deposit transaction
-    let mut deposit_proofs = deposit_transactions
+    let deposit_proofs_result = deposit_transactions
         .into_iter()
         .map(|chunk| {
             let mut public_inputs = PublicInputs::new();
@@ -187,19 +194,29 @@ where
                 )
             })?;
 
+            info!("Creating deposit proof for a group of 4 deposits");
             // Generate proof for this group of 4 deposits
             let proof = R::create_deposit_proof(&deposit_array, &mut public_inputs)
                 .map_err(|e| BlockAssemblyError::ProvingError(format!("Proving Error: {}", e)))?;
 
             Result::<(P, PublicInputs), BlockAssemblyError>::Ok((proof, public_inputs))
         })
-        .collect::<Result<Vec<(P, PublicInputs)>, BlockAssemblyError>>()?;
+        .collect::<Result<Vec<(P, PublicInputs)>, BlockAssemblyError>>();
+
+    match &deposit_proofs_result {
+        Ok(proofs) => info!("Generated {} deposit proofs", proofs.len()),
+        Err(e) => warn!("Failed to generate deposit proofs: {:?}", e),
+    }
+
+    let mut deposit_proofs = deposit_proofs_result?;
 
     let block_size = get_block_size()?;
     let transaction_count = deposit_proofs.len() + client_transactions.len();
+    info!("Current transaction count: {}, block size: {}", transaction_count, block_size);
     // append default deposit proof if the transaction count is less than block size
     if transaction_count < block_size {
         let default_deposits_count = block_size - transaction_count;
+        info!("Adding {} default deposit proofs to fill block", &default_deposits_count);
         let mut public_inputs = PublicInputs::new();
         let deposit_array: [DepositData; 4] = [DepositData::default(); 4];
         let proof = R::create_deposit_proof(&deposit_array, &mut public_inputs)
@@ -231,12 +248,15 @@ where
     // if there are no deposits in mempool, the all_deposits will be empty, otherwise will be the deposits in mempool
     let all_deposits = stored_deposits_in_mempool.unwrap_or_default();
 
-    // 2. Get client transactions from mempool
+    info!("Found {} deposits in mempool", all_deposits.len());
+
+    // 4. Get client transactions from mempool
     let current_client_transaction_meta_in_mempool = {
         let mempool_client_transactions: Option<Vec<(Vec<u32>, ClientTransactionWithMetaData<P>)>> =
-            db.get_all_mempool_client_transactions().await;
-        transactions_to_include_in_block(mempool_client_transactions)
-            .into_iter()
+            db.get_all_mempool_transactions().await;
+        let transactions = transactions_to_include_in_block(mempool_client_transactions);
+        info!("Found {} client transactions in mempool", transactions.len());
+        transactions.into_iter()
             .map(|(_, v)| v)
             .collect::<Vec<ClientTransactionWithMetaData<P>>>()
     };

@@ -14,7 +14,7 @@ use crate::{
     ports::{
         commitments::Nullifiable,
         contracts::NightfallContract,
-        db::{CommitmentDB, CommitmentEntryDB, RequestDB},
+        db::{CommitmentDB, CommitmentEntryDB, RequestDB, RequestCommitmentMappingDB},
         proof::{Proof, ProvingEngine},
         secret_hash::SecretHash,
     },
@@ -89,6 +89,14 @@ where
                     CommitmentStatus::PendingCreation,
                 );
                 commitment_entries.push(commitment_entry);
+
+                // Add mapping between request and commitment
+                let commitment_hex = commitment_hash.to_hex_string();
+                if let Some(_) = db.add_mapping(id, &commitment_hex).await {
+                    debug!("{id} Mapped commitment to request");
+                } else {
+                    error!("{id} Failed to  map commitment to request");
+                }
             }
         }
         db.store_commitments(&commitment_entries, true)

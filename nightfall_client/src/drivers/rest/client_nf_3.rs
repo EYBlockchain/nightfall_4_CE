@@ -13,7 +13,7 @@ use crate::{
         queue::{get_queue, QueuedRequest, TransactionRequest},
     },
     get_zkp_keys,
-    ports::{commitments::Nullifiable, contracts::NightfallContract, db::RequestDB},
+    ports::{commitments::Nullifiable, contracts::NightfallContract, db::{RequestCommitmentMappingDB, RequestDB}},
 };
 use crate::{
     domain::{
@@ -239,6 +239,8 @@ pub async fn handle_deposit<N: NightfallContract>(
         return Err(TransactionHandlerError::ClientNotSynchronized);
     }
 
+    info!("Deposit raw request: {:?}", req);
+
     // We convert the request into values
     let NF3DepositRequest {
         erc_address,
@@ -463,6 +465,8 @@ where
     E: ProvingEngine<P>,
     N: NightfallContract,
 {
+    info!("Request ID: {:#?}", request_id);
+
     let NF3TransferRequest {
         erc_address,
         token_id,

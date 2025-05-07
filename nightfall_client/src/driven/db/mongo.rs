@@ -2,6 +2,7 @@ use ark_bn254::Fr as Fr254;
 use ark_ff::{BigInteger, PrimeField};
 use ark_serialize::CanonicalSerialize;
 use async_trait::async_trait;
+use futures::TryStreamExt;
 use hex::encode;
 use jf_primitives::poseidon::{FieldHasher, Poseidon};
 use jf_primitives::trees::{Directions, PathElement};
@@ -12,8 +13,10 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::str;
 
-use crate::domain::entities::{CommitmentStatus, Request, RequestStatus, WithdrawData};
-use crate::ports::db::{CommitmentDB, RequestDB, WithdrawalDB};
+use crate::domain::entities::{
+    CommitmentStatus, Request, RequestCommitmentMapping, RequestStatus, WithdrawData,
+};
+use crate::ports::db::{CommitmentDB, RequestCommitmentMappingDB, RequestDB, WithdrawalDB};
 use crate::{
     domain::entities::Preimage,
     driven::contract_functions::contract_type_conversions::FrBn254,
@@ -167,6 +170,7 @@ pub struct CommitmentEntry {
         default
     )]
     pub nullifier: Fr254,
+    pub request_id: Option<String>,
 }
 
 impl Commitment for CommitmentEntry {
@@ -202,10 +206,78 @@ impl CommitmentEntryDB for CommitmentEntry {
             status,
             nullifier,
             key,
+            request_id: None,
         }
     }
     fn get_status(&self) -> CommitmentStatus {
         self.status
+    }
+    fn set_request_id(&mut self, request_id: String) {
+        self.request_id = Some(request_id);
+    }
+}
+
+#[async_trait]
+impl RequestCommitmentMappingDB for Client {
+    async fn add_mapping(&self, request_id: &str, commitment_hash: &str) -> Option<()> {
+        let mapping = RequestCommitmentMapping {
+            request_id: request_id.to_string(),
+            commitment_hash: commitment_hash.to_string(),
+        };
+
+        let result = self
+            .database(DB)
+            .collection::<RequestCommitmentMapping>("request_commitment_mappings")
+            .insert_one(&mapping)
+            .await;
+
+        match result {
+            Ok(_) => Some(()),
+            Err(e) => {
+                info!("Error adding request-commitment mapping: {}", e);
+                None
+            }
+        }
+    }
+
+    async fn get_requests_by_commitment(&self, commitment_hash: &str) -> Option<Vec<String>> {
+        let filter = doc! { "commitment_hash": commitment_hash };
+        let cursor = self
+            .database(DB)
+            .collection::<RequestCommitmentMapping>("request_commitment_mappings")
+            .find(filter)
+            .await
+            .ok()?;
+
+        let mappings = cursor
+            .try_collect::<Vec<_>>()
+            .await
+            .ok()?
+            .into_iter()
+            .map(|doc| doc.request_id)
+            .collect();
+
+        Some(mappings)
+    }
+
+    async fn get_commitments_by_request(&self, request_id: &str) -> Option<Vec<String>> {
+        let filter = doc! { "request_id": request_id };
+        let cursor = self
+            .database(DB)
+            .collection::<RequestCommitmentMapping>("request_commitment_mappings")
+            .find(filter)
+            .await
+            .ok()?;
+
+            let mappings = cursor
+            .try_collect::<Vec<_>>()
+            .await
+            .ok()?
+            .into_iter()
+            .map(|doc| doc.commitment_hash)
+            .collect();
+
+        Some(mappings)
     }
 }
 

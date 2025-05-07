@@ -260,6 +260,17 @@ async fn process_propose_block_event<N: NightfallContract>(
         db.mark_commitments_spent(nullifiers)
     );
 
+    debug!("Updating request status for confirmed commitments");
+    for commitment_hash in &commitment_hashes {
+        let commitment_hex = commitment_hash.to_hex_string();
+        if let Some(request_ids) = db.get_requests_by_commitment(&commitment_hex).await {
+            for request_id in request_ids {
+                debug!("Marking request {} as confirmed", request_id);
+                db.update_request(&request_id, RequestStatus::Confimed).await;
+            }
+        }
+    }
+
     // now attempt to decrypt the compressed secrets to see which commitments (if any) we own
     let mut commitment_entries = vec![];
     for transaction in blk.transactions.iter() {
