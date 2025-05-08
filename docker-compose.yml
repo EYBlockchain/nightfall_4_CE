@@ -468,8 +468,6 @@ services:
       start_period: 0s
     networks:
       - nightfall_network
-    ports:
-      - "8545:8545"
     
   test:
     container_name: nf4_test
