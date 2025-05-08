@@ -405,12 +405,28 @@ pub async fn handle_deposit<N: NightfallContract>(
 
     debug!("{id} Deposit commitment stored successfully");
 
+    // Add the mapping between request and commitment
+    let commitment_hex = commitment_hash.to_hex_string();
+    if let Some(_) = db.add_mapping(&id, &commitment_hex).await {
+        debug!("{id} Mapped commitment to request");
+    } else {
+        error!("{id} Failed to  map commitment to request");
+    }
+
     // Check if preimage_fee_option is Some, and store it in the DB if it exists
     if let Some(preimage_fee) = preimage_fee_option {
         let nullifier = preimage_fee
             .nullifier_hash(&nullifier_key)
             .expect("Could not hash commitment");
         let commitment_hash = preimage_fee.hash().expect("Could not hash commitment");
+
+        // Add the mapping for fee commitment as well
+        let commitment_hex = commitment_hash.to_hex_string();
+        if let Some(_) = db.add_mapping(&id, &commitment_hex).await {
+            debug!("{id} Mapped deposit fee commitment to request");
+        } else {
+            error!("{id} Failed to  map deposit fee commitment to request");
+        }
 
         let commitment_entry = CommitmentEntry::new(
             preimage_fee,
@@ -465,8 +481,6 @@ where
     E: ProvingEngine<P>,
     N: NightfallContract,
 {
-    info!("Request ID: {:#?}", request_id);
-
     let NF3TransferRequest {
         erc_address,
         token_id,

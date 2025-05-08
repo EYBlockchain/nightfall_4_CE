@@ -170,7 +170,6 @@ pub struct CommitmentEntry {
         default
     )]
     pub nullifier: Fr254,
-    pub request_id: Option<String>,
 }
 
 impl Commitment for CommitmentEntry {
@@ -206,14 +205,10 @@ impl CommitmentEntryDB for CommitmentEntry {
             status,
             nullifier,
             key,
-            request_id: None,
         }
     }
     fn get_status(&self) -> CommitmentStatus {
         self.status
-    }
-    fn set_request_id(&mut self, request_id: String) {
-        self.request_id = Some(request_id);
     }
 }
 

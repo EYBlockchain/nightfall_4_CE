@@ -51,7 +51,7 @@ pub enum RequestStatus {
     Failed,
     Processing,
     ProposerUnreachable,
-    Confimed,
+    Confirmed,
 }
 
 impl Display for RequestStatus {
@@ -62,7 +62,7 @@ impl Display for RequestStatus {
             RequestStatus::Failed => write!(f, "Failed"),
             RequestStatus::Processing => write!(f, "Processing"),
             RequestStatus::ProposerUnreachable => write!(f, "ProposerUnreachable"),
-            RequestStatus::Confimed => write!(f, "Confirmed"),
+            RequestStatus::Confirmed => write!(f, "Confirmed"),
         }
     }
 }

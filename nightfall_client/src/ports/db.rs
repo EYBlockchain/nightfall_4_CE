@@ -37,13 +37,6 @@ where
 pub trait CommitmentEntryDB: Commitment {
     fn new(preimage: Preimage, key: Fr254, nullifier: Fr254, status: CommitmentStatus) -> Self;
     fn get_status(&self) -> CommitmentStatus;
-
-    fn set_request_id(&mut self, request_id: String) {
-        // Default implementation that does nothing
-    }
-    fn get_request_id(&self) -> Option<&String> {
-        None
-    }
 }
 
 #[async_trait]
