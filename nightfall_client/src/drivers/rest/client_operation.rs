@@ -1,8 +1,11 @@
 use configuration::addresses::get_addresses;
 use ethers::types::TransactionReceipt;
 use nightfall_bindings::nightfall::{ClientTransaction as NightfallTransactionStruct, Nightfall};
+use nightfall_bindings::round_robin::RoundRobin;
+use nightfall_bindings::x509::Proposer;
 use std::{error::Error, fmt::Debug};
 use warp::{hyper::StatusCode, reject, reply, Reply};
+use url::Url;
 
 use crate::domain::entities::CommitmentStatus;
 use crate::domain::entities::HexConvertible;
@@ -165,16 +168,68 @@ where
 async fn process_transaction_offchain<P: Serialize>(
     l2_transaction: &ClientTransaction<P>,
 ) -> Result<Option<TransactionReceipt>, Box<dyn Error>> {
-    let (proposer_http_connection, url) = get_proposer_http_connection();
-    ark_std::println!("Sending transaction to proposer at: {}", url);
-    proposer_http_connection
-        .post(url.clone())
-        .json(l2_transaction)
-        .send()
-        .await?;
-    // obvs we won't have a transaction receipt to return if we've sent our transaction to a proposer but we need to return an Option<TransactionReceipt>
-    // for type compatibility with the onchain case
-    Ok(None)
+    let client = reqwest::Client::new();
+    let round_robin_instance = RoundRobin::new(
+        get_addresses().round_robin,
+        get_blockchain_client_connection()
+            .await
+            .read()
+            .await
+            .get_client(),
+    );
+    let proposers_struct: Vec<Proposer> = round_robin_instance
+    .get_proposers()
+    .call()
+    .await?;
+    ark_std::println!("Proposers in process_transaction_offchain: {:?}", proposers_struct);
+
+     // Send to each proposer’s /v1/transaction endpoint
+     for proposer in proposers_struct {
+        let url = match Url::parse(&proposer.url)
+            .and_then(|base| base.join("/v1/transaction")) {
+            Ok(u) => u,
+            Err(e) => {
+                log::warn!("Skipping proposer with invalid URL {}: {}", proposer.url, e);
+                continue;
+            }
+        };
+
+        let result = client
+            .post(url.clone())
+            .json(l2_transaction)
+            .send()
+            .await;
+
+        match result {
+            Ok(response) => {
+                if response.status().is_success() {
+                    log::info!("Successfully sent transaction to proposer at {}", url);
+                } else {
+                    log::warn!(
+                        "Failed to send transaction to proposer at {}. HTTP status: {}",
+                        url,
+                        response.status()
+                    );
+                }
+            }
+            Err(e) => {
+                log::warn!("Failed to send transaction to proposer at {}: {:?}", url, e);
+            }
+        }
+    }
+
+    Ok(None) // As per current off-chain flow, return no receipt
+
+    // let (proposer_http_connection, url) = get_proposer_http_connection();
+    // ark_std::println!("Sending transaction to proposer at: {}", url);
+    // proposer_http_connection
+    //     .post(url.clone())
+    //     .json(l2_transaction)
+    //     .send()
+    //     .await?;
+    // // obvs we won't have a transaction receipt to return if we've sent our transaction to a proposer but we need to return an Option<TransactionReceipt>
+    // // for type compatibility with the onchain case
+    // Ok(None)
 }
 
 async fn process_transaction_onchain<P>(
@@ -199,3 +254,4 @@ where
     let tx_receipt = tx.await?;
     Ok(tx_receipt)
 }
+
