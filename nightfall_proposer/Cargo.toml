@@ -59,3 +59,5 @@ harness = false
 
 [features]
 parallel = ["ark-std/parallel", "ark-ff/parallel", "ark-poly/parallel", "ark-ec/parallel"]
+
+
