@@ -306,7 +306,7 @@ impl TryFrom<HistoricRootEntry> for HistoricRoot {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 /// A struct representing a stored block in the database
 /// To update local mempool so that proposers won't assemble the block with the same transactions onchain, proposers can just check if the commitments for deposit/client_transactions in mempool have appeared in the stored block.
 /// To sync the status, proposers need to check if block is the same as the one it remembers when layer 2 block number expected and onchain are the same, since commitments are unique, it's enought to check the hash of commitments in block.
