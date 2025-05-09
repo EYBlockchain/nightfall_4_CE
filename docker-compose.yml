@@ -48,7 +48,6 @@ services:
       - AZURE_CLIENT_ID=${AZURE_CLIENT_ID}
       - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
       - AZURE_TENANT_ID=${AZURE_TENANT_ID}
-      - WEBHOOK_URL=${WEBHOOK_URL}
 
   indie-client:
     container_name: nf4_indie_client

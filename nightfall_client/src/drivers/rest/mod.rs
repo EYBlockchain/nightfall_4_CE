@@ -19,7 +19,7 @@ use self::{
     commitment::{get_all_commitments, get_commitment},
     health_check::health_route,
     keys::derive_key_mnemonic,
-    request_status::get_request_status,
+    request_status::{get_request_status, get_request_queue_length},
     synchronisation::synchronisation,
     withdraw::de_escrow,
 };
@@ -57,6 +57,7 @@ where
         .or(get_fee_balance())
         .or(synchronisation::<N>())
         .or(get_request_status())
+        .or(get_request_queue_length())
         .recover(handle_rejection)
 }
 

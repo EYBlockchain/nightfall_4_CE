@@ -1,4 +1,4 @@
-use crate::test_settings::TestSettings;
+use crate::{test_settings::TestSettings, TestError};
 use ark_bn254::Fr as Fr254;
 use ark_ec::twisted_edwards::Affine as TEAffine;
 use ark_ff::{BigInteger, PrimeField};
@@ -9,7 +9,8 @@ use configuration::{
 };
 use ethers::{
     signers::{LocalWallet, Signer},
-    types::{TransactionReceipt, H160}, utils::keccak256,
+    types::H160,
+    utils::keccak256,
 };
 use hex::ToHex;
 use jf_primitives::{
@@ -20,7 +21,7 @@ use lib::models::CertificateReq;
 use log::{debug, info};
 use nf_curves::ed_on_bn254::{BabyJubjub as BabyJubJub, Fr as BJJScalar};
 use nightfall_client::{
-    domain::entities::{CommitmentStatus, DepositSecret, HexConvertible, Preimage, Request, Salt},
+    domain::entities::{CommitmentStatus, DepositSecret, HexConvertible, Preimage, Salt},
     driven::{
         db::mongo::CommitmentEntry,
         plonk_prover::plonk_proof::{PlonkProof, PlonkProvingEngine},
@@ -51,9 +52,9 @@ use std::{
     fmt::{self, Display},
     os::unix::process::ExitStatusExt,
     path::PathBuf,
-    process::Command,
+    process::Command, sync::Arc,
 };
-use tokio::time;
+use tokio::{time, sync::Mutex};
 use url::Url;
 use uuid::Uuid;
 
@@ -114,13 +115,15 @@ pub async fn validate_certificate_with_server(
     client: &reqwest::Client,
     url: Url,
     certificate_req: CertificateReq,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<(), TestError> {
     let part_cert = Part::bytes(certificate_req.certificate.clone())
         .file_name("certificate.der")
-        .mime_str("application/octet-stream")?;
+        .mime_str("application/octet-stream")
+        .map_err(|e| TestError::new(e.to_string()))?;
     let part_priv_key = Part::bytes(certificate_req.certificate_private_key)
         .file_name("certificate.priv_key")
-        .mime_str("application/octet-stream")?;
+        .mime_str("application/octet-stream")
+        .map_err(|e| TestError::new(e.to_string()))?;
     let form = Form::new()
         .part("certificate", part_cert)
         .part("certificate_private_key", part_priv_key);
@@ -129,11 +132,15 @@ pub async fn validate_certificate_with_server(
         .multipart(form)
         .header(REQUEST_ID, Uuid::new_v4().to_string())
         .send()
-        .await?;
+        .await
+        .map_err(|e| TestError::new(e.to_string()))?;
     if response.status() != StatusCode::ACCEPTED {
-        return Err(Box::new(CertificateValidationError {
-            status: response.status(),
-        }));
+        return Err(TestError::new(
+            CertificateValidationError {
+                status: response.status(),
+            }
+            .to_string(),
+        ));
     }
     Ok(())
 }
@@ -193,7 +200,7 @@ impl TokenType {
 }
 
 // get a ZKP key object from the client container (client knows how to generate them)
-pub async fn get_key(url: Url, key_request: &KeyRequest) -> Result<ZKPKeys, Box<dyn Error>> {
+pub async fn get_key(url: Url, key_request: &KeyRequest) -> Result<ZKPKeys, TestError> {
     // getting a key is easy; we just pass in a mnemonic and a key object is returned from the nightfall client
     let client = reqwest::Client::new();
     let res = client
@@ -201,8 +208,12 @@ pub async fn get_key(url: Url, key_request: &KeyRequest) -> Result<ZKPKeys, Box<
         .json(key_request)
         .header(REQUEST_ID, Uuid::new_v4().to_string())
         .send()
-        .await?;
-    let key = res.json::<ZKPKeys>().await?;
+        .await
+        .map_err(|e| TestError::new(e.to_string()))?;
+    let key = res
+        .json::<ZKPKeys>()
+        .await
+        .map_err(|e| TestError::new(e.to_string()))?;
     Ok(key)
 }
 
@@ -211,12 +222,13 @@ pub fn load_addresses(settings: &Settings) -> Result<Addresses, AddressesError> 
     Addresses::load(s)
 }
 
-pub fn get_recipient_address(settings: &Settings) -> Result<String, Box<dyn Error>> {
+pub fn get_recipient_address(settings: &Settings) -> Result<String, TestError> {
     let recipient_address = format!(
         "0x{}",
         settings
             .signing_key
-            .parse::<LocalWallet>()?
+            .parse::<LocalWallet>()
+            .map_err(|e| TestError::new(e.to_string()))?
             .address()
             .encode_hex::<String>()
     );
@@ -254,12 +266,40 @@ pub fn forge_command(command: &[&str]) {
     }
 }
 
+/// This function waits until a Webhook response is received for every Request ID
+pub async fn wait_for_all_responses(large_block_deposit_ids: &[String], responses: Arc<Mutex<Vec<Value>>>) -> Vec<Value> {
+    let mut count = 0;
+    const POLL_TIME: u64 = 5;
+    // compare the response IDs with the request IDs
+    // if we find everything we need, we can break out of the loop and return the json data in the responses (ignoring the ID)
+    let response_data = loop {
+        count += 1;
+        let mut response_values = responses.lock().await;
+        if count > large_block_deposit_ids.len() as u64 {
+            panic!("Timed out waiting for all responses. Number of deposit ids was {} but only {} responses were received", large_block_deposit_ids.len(), response_values.len());
+        }
+        let response_ids = response_values.iter().map(|r| r["1"].as_str()).collect::<Vec<_>>();
+        // we'll do a simple O(n^2) search for the request IDs in the responses as the vector is small
+        let same = large_block_deposit_ids.iter().all(|id| response_ids.contains(&Some(id.as_str()))); 
+        // if we find everything we need, we can break out of the loop and return the json data in the responses (ignoring the ID)
+        if same {
+            let response_data = response_values.iter().map(|r| r["0"].clone()).collect::<Vec<_>>();
+            response_values.clear(); // clear the responses so we can reuse the vector
+            break response_data;
+        }
+        // if we get here, we haven't found everything we need yet
+        drop(response_values); // free the mutex lock while we wait for more responses
+        time::sleep(time::Duration::from_secs(POLL_TIME)).await;
+    };
+    response_data
+}
+
 /// this function returns a Future that resolves when all commitments in the slice are available on-chain
 /// We need to know who the recipient is so we can query the correct endpoint.
 pub async fn wait_on_chain(
     commitment_hashes: &[Fr254],
     recipient_url: &str,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<(), TestError> {
     info!("Waiting for commitments to appear on-chain");
     // get commitment hashes to act as database keys
     // query the DB for these hashes and wait until we have found them all
@@ -268,25 +308,33 @@ pub async fn wait_on_chain(
     let mut onchain_set = HashSet::<Fr254>::new();
     while count < commitment_hashes.len() {
         for hash in commitment_hashes.iter() {
-            let url = Url::parse(recipient_url)?
-                .join(&format!("v1/commitment/{}", hash.to_hex_string()))?;
+            let url = Url::parse(recipient_url)
+                .map_err(|e| TestError::new(e.to_string()))?
+                .join(&format!("v1/commitment/{}", hash.to_hex_string()))
+                .map_err(|e| TestError::new(e.to_string()))?;
             let res = client
                 .get(url)
                 .header(REQUEST_ID, Uuid::new_v4().to_string())
                 .send()
-                .await?;
+                .await
+                .map_err(|e| TestError::new(e.to_string()))
+                .map_err(|e| TestError::new(e.to_string()))?;
             match res.error_for_status() {
                 Ok(res) => {
-                    let commit = res.json::<CommitmentEntry>().await?;
+                    let commit = res
+                        .json::<CommitmentEntry>()
+                        .await
+                        .map_err(|e| TestError::new(e.to_string()))?;
                     // we only care about commitments that are unspent
                     if commit.status != CommitmentStatus::Unspent {
                         continue;
                     }
-                    let onchain_hash = commit.hash()?;
+                    let onchain_hash = commit.hash().map_err(|e| TestError::new(e.to_string()))?;
                     if onchain_set.contains(&onchain_hash) {
                         continue;
                     } else {
-                        let onchain_hash = commit.hash()?;
+                        let onchain_hash =
+                            commit.hash().map_err(|e| TestError::new(e.to_string()))?;
                         debug!("Commitment {} is on-chain", onchain_hash.to_hex_string());
                         count += 1;
                         onchain_set.insert(onchain_hash);
@@ -304,40 +352,44 @@ pub async fn wait_on_chain(
 }
 
 /// Function to submit a request to de-escrow funds after a withdraw
-pub async fn de_escrow_request(
-    req: WithdrawDataReq,
-    client_url: &str,
-) -> Result<u8, Box<dyn Error>> {
+pub async fn de_escrow_request(req:&WithdrawDataReq, client_url: &str) -> Result<u8, TestError> {
     let client = reqwest::Client::new();
-    let url = Url::parse(client_url)?.join("v1/de-escrow")?;
+    let url = Url::parse(client_url)
+        .map_err(|e| TestError::new(e.to_string()))?
+        .join("v1/de-escrow")
+        .map_err(|e| TestError::new(e.to_string()))?;
     let res = client
         .post(url)
         .json(&serde_json::json!(req))
         .header(REQUEST_ID, Uuid::new_v4().to_string())
         .send()
-        .await?;
-    res.json::<u8>().await.map_err(|e| e.into())
+        .await
+        .map_err(|e| TestError::new(e.to_string()))?;
+    res.json::<u8>()
+        .await
+        .map_err(|e| TestError::new(e.to_string()))
 }
 
 /// Function to generate proof and inputs for a random transaction
 pub fn create_random_proof_and_inputs(
     rng: &mut impl Rng,
-) -> Result<(PlonkProof, PublicInputs, PrivateInputs), Box<dyn Error>> {
+) -> Result<(PlonkProof, PublicInputs, PrivateInputs), TestError> {
     let (mut public_inputs, mut private_inputs) = build_valid_transfer_inputs(rng);
     debug!("Generating proof");
-    let proof = PlonkProvingEngine::prove(&mut private_inputs, &mut public_inputs)?;
+    let proof = PlonkProvingEngine::prove(&mut private_inputs, &mut public_inputs)
+        .map_err(|e| TestError::new(e.to_string()))?;
 
     Ok((proof, public_inputs, private_inputs))
 }
 
-/// Function to create a deposit transaction
+/// Function to create and send a deposit transaction, returning the ID of the transaction
 pub async fn create_nf3_deposit_transaction(
     client: &reqwest::Client,
     url: Url,
     token_type: TokenType,
     tx_details: TransactionDetails,
     deposit_fee: String,
-) -> Result<(String, Option<String>), Box<dyn Error>> {
+) -> Result<String, TestError> {
     let id = Uuid::new_v4().to_string();
     info!("Creating deposit transaction onchain {}", &id);
     let deposit_request = create_nf3_deposit_request(
@@ -352,44 +404,25 @@ pub async fn create_nf3_deposit_transaction(
         .json(&serde_json::json!(deposit_request))
         .header(REQUEST_ID, &id)
         .send()
-        .await?;
+        .await
+        .map_err(|e| TestError::new(e.to_string()))?;
 
-    res.error_for_status_ref()?;
+    res.error_for_status_ref()
+        .map_err(|e| TestError::new(e.to_string()))?;
     assert_eq!(res.status(), StatusCode::ACCEPTED);
 
-    let returned_id = res.headers().get(REQUEST_ID).unwrap().to_str()?;
+    let returned_id = res
+        .headers()
+        .get(REQUEST_ID)
+        .unwrap()
+        .to_str()
+        .map_err(|e| TestError::new(e.to_string()))?
+        .to_string();
     info!(
         "Deposit transaction {} has been processed by the client",
         returned_id
     );
-
-    // query the request status - it should be 'Submitted'
-    let url = url.join(&format!("request/{}", returned_id))?;
-    let request = client
-        .get(url)
-        .header(REQUEST_ID, &id)
-        .send()
-        .await?
-        .json::<Request>()
-        .await?;
-    assert_eq!(request.status.to_string(), "Submitted");
-    info!(
-        "Deposit transaction {} status is {}",
-        request.uuid, request.status
-    );
-
-    let res_body = res.text().await?;
-
-    // Parse the response for preimage hashes
-    let preimage_hashes: Vec<String> = serde_json::from_str(&res_body)?;
-
-    match preimage_hashes.len() {
-        1 => Ok((preimage_hashes[0].clone(), None)), // One preimage hash, return value hash only
-        2 => Ok((preimage_hashes[0].clone(), Some(preimage_hashes[1].clone()))), // Two preimage hashes, return both
-        _ => Err(Box::<dyn std::error::Error>::from(
-            "Unexpected number of preimage hashes",
-        )),
-    }
+    Ok(returned_id)
 }
 
 pub async fn create_nf3_transfer_transaction(
@@ -398,7 +431,7 @@ pub async fn create_nf3_transfer_transaction(
     url: Url,
     token_type: TokenType,
     tx_details: TransactionDetails,
-) -> Result<Value, Box<dyn Error>> {
+) -> Result<String, TestError> {
     let id = Uuid::new_v4().to_string();
     info!("Creating transfer transaction offchain {}", &id);
     let transfer_request = create_nf3_transfer_request(
@@ -407,40 +440,30 @@ pub async fn create_nf3_transfer_transaction(
         tx_details.fee,
         token_type,
         tx_details.token_id,
-    )?;
+    )
+    .map_err(|e| TestError::new(e.to_string()))?;
     let res = client
         .post(url.clone())
         .json(&serde_json::json!(transfer_request))
         .header(REQUEST_ID, &id)
         .send()
-        .await?;
-    res.error_for_status_ref()?;
+        .await
+        .map_err(|e| TestError::new(e.to_string()))?;
+    res.error_for_status_ref()
+        .map_err(|e| TestError::new(e.to_string()))?;
     assert_eq!(res.status(), StatusCode::ACCEPTED);
-    let returned_id = res.headers().get(REQUEST_ID).unwrap().to_str()?;
+    let returned_id = res
+        .headers()
+        .get(REQUEST_ID)
+        .unwrap()
+        .to_str()
+        .map_err(|e| TestError::new(e.to_string()))?
+        .to_string();
     info!(
         "Transfer transaction {} has been processed by the client",
         returned_id
     );
-
-    // query the request status - it should be 'Submitted'
-    let url = url.join(&format!("request/{}", returned_id))?;
-    let request = client
-        .get(url)
-        .header(REQUEST_ID, &id)
-        .send()
-        .await?
-        .json::<Request>()
-        .await?;
-    assert_eq!(request.status.to_string(), "Submitted");
-    info!(
-        "Transfer transaction {} status is {}",
-        request.uuid, request.status
-    );
-
-    // extract the transaction from the response and serialize it to a ClientTransaction
-    let (transaction, _) = res.json::<(Value, Option<TransactionReceipt>)>().await?;
-
-    Ok(transaction)
+    Ok(returned_id)
 }
 
 pub async fn create_nf3_withdraw_transaction(
@@ -449,7 +472,7 @@ pub async fn create_nf3_withdraw_transaction(
     token_type: TokenType,
     tx_details: TransactionDetails,
     recipient_address: String,
-) -> Result<WithdrawDataReq, Box<dyn Error>> {
+) -> Result<String, TestError> {
     let id = Uuid::new_v4().to_string();
     info!("Creating withdraw transaction offchain {}", &id);
     let withdraw_request = create_nf3_withdraw_request(
@@ -465,56 +488,30 @@ pub async fn create_nf3_withdraw_transaction(
         .json(&serde_json::json!(withdraw_request))
         .header(REQUEST_ID, &id)
         .send()
-        .await?;
+        .await
+        .map_err(|e| TestError::new(e.to_string()))?;
 
     // Ensure the response status is 200 OK or 202 ACCEPTED
-    res.error_for_status_ref()?;
+    res.error_for_status_ref()
+        .map_err(|e| TestError::new(e.to_string()))?;
     let status = res.status();
     assert!(
         status == StatusCode::OK || status == StatusCode::ACCEPTED,
         "Unexpected status code: {}",
         status
     );
-    let returned_id = res.headers().get(REQUEST_ID).unwrap().to_str()?;
+    let returned_id = res
+        .headers()
+        .get(REQUEST_ID)
+        .unwrap()
+        .to_str()
+        .map_err(|e| TestError::new(e.to_string()))?
+        .to_string();
     info!(
         "Withdraw transaction {} has been processed by the client",
         returned_id
     );
-
-    // Query the request status - it should be 'Submitted'
-    let url = url.join(&format!("request/{}", returned_id))?;
-    let request = client
-        .get(url)
-        .header(REQUEST_ID, &id)
-        .send()
-        .await?
-        .json::<Request>()
-        .await?;
-    assert_eq!(request.status.to_string(), "Submitted");
-    info!(
-        "Withdraw transaction {} status is {}",
-        request.uuid, request.status
-    );
-
-    // Deserialize the response to get withdraw_fund_salt
-    let response_body = res.json::<serde_json::Value>().await?; // Deserialize into a generic JSON structure
-
-    // Extract the `withdraw_fund_salt` from the response
-    let withdraw_fund_salt = response_body["withdraw_fund_salt"]
-        .as_str()
-        .ok_or("Missing or invalid withdraw_fund_salt in response")?
-        .to_string();
-
-    // Return the updated WithdrawDataReq with withdraw_fund_salt
-    Ok(WithdrawDataReq {
-        token_id: tx_details.token_id,
-        erc_address: token_type.address(),
-        recipient_address,
-        value: tx_details.value,
-        fee: tx_details.fee,
-        token_type: token_type.to_string(),
-        withdraw_fund_salt,
-    })
+    Ok(returned_id)
 }
 
 pub async fn get_balance(
@@ -522,48 +519,62 @@ pub async fn get_balance(
     url: Url,
     token_type: TokenType,
     token_id: String,
-) -> Result<String, Box<dyn Error>> {
+) -> Result<String, TestError> {
     let erc_address = token_type.address();
-    let url = url.join(&format!("{}/{}", erc_address, token_id))?;
+    let url = url
+        .join(&format!("{}/{}", erc_address, token_id))
+        .map_err(|e| TestError::new(e.to_string()))?;
     let res = client
         .get(url)
         .header(REQUEST_ID, Uuid::new_v4().to_string())
         .send()
-        .await?;
-    res.error_for_status_ref()?;
-    let balance = res.text().await?;
+        .await
+        .map_err(|e| TestError::new(e.to_string()))?;
+    res.error_for_status_ref()
+        .map_err(|e| TestError::new(e.to_string()))?;
+    let balance = res
+        .text()
+        .await
+        .map_err(|e| TestError::new(e.to_string()))?;
     Ok(balance)
 }
 
-pub async fn handle_fee_balance(
-    client: &reqwest::Client,
-    url: Url,
-) -> Result<String, Box<dyn Error>> {
+pub async fn handle_fee_balance(client: &reqwest::Client, url: Url) -> Result<String, TestError> {
     let res = client
         .get(url)
         .header(REQUEST_ID, Uuid::new_v4().to_string())
         .send()
-        .await?;
-    res.error_for_status_ref()?;
-    let balance = res.text().await?;
+        .await
+        .map_err(|e| TestError::new(e.to_string()))?;
+    res.error_for_status_ref()
+        .map_err(|e| TestError::new(e.to_string()))?;
+    let balance = res
+        .text()
+        .await
+        .map_err(|e| TestError::new(e.to_string()))?;
     Ok(balance)
 }
 
 pub async fn count_spent_commitments(
     client: &reqwest::Client,
     url: Url,
-) -> Result<usize, Box<dyn Error>> {
-    let url = url.join("commitments")?;
+) -> Result<usize, TestError> {
+    let url = url
+        .join("commitments")
+        .map_err(|e| TestError::new(e.to_string()))?;
 
     let res = client
         .get(url)
         .header(REQUEST_ID, Uuid::new_v4().to_string())
         .send()
-        .await?;
-    res.error_for_status_ref()?;
+        .await
+        .map_err(|e| TestError::new(e.to_string()))?;
+    res.error_for_status_ref()
+        .map_err(|e| TestError::new(e.to_string()))?;
     let count = res
         .json::<Vec<CommitmentEntry>>()
-        .await?
+        .await
+        .map_err(|e| TestError::new(e.to_string()))?
         .into_iter()
         .filter(|c| c.status == CommitmentStatus::Spent)
         .count();
@@ -596,14 +607,16 @@ fn create_nf3_transfer_request(
     fee: String,
     token_type: TokenType,
     token_id: String,
-) -> Result<NF3TransferRequest, Box<dyn Error>> {
+) -> Result<NF3TransferRequest, TestError> {
     Ok(NF3TransferRequest {
         erc_address: token_type.address(),
         token_id,
         recipient_data: NF3RecipientData {
             values: vec![value],
             recipient_compressed_zkp_public_keys: vec![hex::encode(
-                recipient_zkp_key.compressed_public_key()?,
+                recipient_zkp_key
+                    .compressed_public_key()
+                    .map_err(|e| TestError::new(e.to_string()))?,
             )],
         },
         fee,
@@ -693,7 +706,7 @@ pub fn build_valid_transfer_inputs(rng: &mut impl Rng) -> (PublicInputs, Private
     let nf_token_id = Fr254::from(nf_token_id);
 
     // Retrieve the fee token ID and nightfall address
-    let nf_address = H160::rand(rng);   
+    let nf_address = H160::rand(rng);
     // generate a 'random' fee token ID (we just use the keccak hash of 1)
     let fee_token_id = Fr254::from(BigUint::from_bytes_be(&keccak256([1])) >> 4);
 

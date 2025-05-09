@@ -23,6 +23,7 @@ url = "http://client:3000"
 log_level = "info"
 wallet_type = "local"
 db_url = "mongodb://nf4_db_client:27017"
+webhook_url = "http://test:8080/webhook" # The webhook URL for the client to send notifications to the propose
 
 [development.nightfall_proposer]
 url = "http://proposer:3000"
