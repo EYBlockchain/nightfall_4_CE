@@ -7,7 +7,7 @@ use lib::models::CertificateReq;
 use log::{debug, info, warn};
 use nightfall_client::domain::entities::HexConvertible;
 use std::fs;
-use test::{count_spent_commitments, get_erc20_balance, get_fee_balance, get_erc721_balance};
+use test::{count_spent_commitments, get_erc20_balance, get_erc721_balance, get_fee_balance};
 
 use lib::{
     blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,

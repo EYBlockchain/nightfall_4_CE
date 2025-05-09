@@ -132,11 +132,10 @@ impl DepositCircuitGadget<Fr254> for PlonkCircuit<Fr254> {
         ark_std::println!("size 4: {}", self.num_gates());
         // We push a zero variable because public data is always 5 field elements (the final two get compressed together but compressing with zero doesn't change the fourth element)
         sha_outputs.push(self.zero());
-        
+
         // Finalize the sha hash
         self.finalize_for_sha256_hash(&mut lookup_vars)?;
         ark_std::println!("size 5: {}", self.num_gates());
-
 
         // Make the relevant variables public
         // fee is special in a deposit proof, it's set to zero on purpose.

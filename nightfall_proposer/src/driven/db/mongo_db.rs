@@ -5,13 +5,13 @@ use crate::{
 use ark_bn254::Fr as Fr254;
 use ark_ff::{BigInteger, PrimeField, Zero};
 use ethers::types::H160;
+use futures::TryStreamExt;
 use mongodb::bson::doc;
 use nightfall_client::{
     domain::{entities::ClientTransaction, error::ConversionError},
     ports::proof::Proof,
 };
 use serde::{Deserialize, Serialize};
-use futures::TryStreamExt;
 use sha2::{Digest, Sha256};
 
 pub const DB: &str = "nightfall";
@@ -313,7 +313,7 @@ impl TryFrom<HistoricRootEntry> for HistoricRoot {
 /// So we only store commitments and layer2_block_number in the block database.
 pub struct StoredBlock {
     pub layer2_block_number: u64,
-    pub commitments: Vec<String>, 
+    pub commitments: Vec<String>,
     pub proposer_address: H160,
 }
 impl StoredBlock {

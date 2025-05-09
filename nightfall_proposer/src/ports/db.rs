@@ -1,6 +1,7 @@
-use crate::{domain::entities::{
-    ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot, Node,
-}, driven::db::mongo_db::StoredBlock};
+use crate::{
+    domain::entities::{ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot, Node},
+    driven::db::mongo_db::StoredBlock,
+};
 use ark_bn254::Fr as Fr254;
 use ark_ff::PrimeField;
 use lib::serialization::{ark_de_bytes, ark_se_bytes};

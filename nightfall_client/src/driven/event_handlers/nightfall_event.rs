@@ -156,8 +156,14 @@ async fn process_propose_block_event<N: NightfallContract>(
     let current_block_number = N::get_current_layer2_blocknumber().await.map_err(|_| {
         EventHandlerError::IOError("Could not retrieve current block number".to_string())
     })?;
-    ark_std::println!("process_propose_block_event: expected_onchain_block_number in client: {}", current_block_number);
-    ark_std::println!("process_propose_block_event: Current L2 block number in client: {}", current_block_number);
+    ark_std::println!(
+        "process_propose_block_event: expected_onchain_block_number in client: {}",
+        current_block_number
+    );
+    ark_std::println!(
+        "process_propose_block_event: Current L2 block number in client: {}",
+        current_block_number
+    );
 
     let delta = current_block_number - filter.layer_2_block_number - I256::one();
     // if we"re synchronising, we don"t want to check for duplicate keys because we expect to overwrite commitments already in the commitment collection

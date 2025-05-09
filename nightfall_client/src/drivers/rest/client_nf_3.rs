@@ -345,14 +345,17 @@ where
     } = transfer_req;
 
     // Convert the request into the relevant types.
-    let nf_token_id =
-        to_nf_token_id_from_str(erc_address.as_str(), reverse_hex_string(token_id.as_str()).as_str()).map_err(|e| {
-            error!(
-                "Error when retrieving the Nightfall token id from the erc address and token ID {}",
-                e
-            );
-            reject::custom(e)
-        })?;
+    let nf_token_id = to_nf_token_id_from_str(
+        erc_address.as_str(),
+        reverse_hex_string(token_id.as_str()).as_str(),
+    )
+    .map_err(|e| {
+        error!(
+            "Error when retrieving the Nightfall token id from the erc address and token ID {}",
+            e
+        );
+        reject::custom(e)
+    })?;
     let keys = *get_zkp_keys().lock().expect("Poisoned Mutex lock");
 
     let value =
@@ -444,10 +447,7 @@ where
         recipient_public_key,
         Salt::Transfer(Fr254::new((shared_secret.y).into())),
     );
-    ark_std::println!(
-        "new_commitment_one: {:?}",
-        new_commitment_one
-    );
+    ark_std::println!("new_commitment_one: {:?}", new_commitment_one);
 
     let new_commitment_two = if !token_change.is_zero() {
         Preimage::new(
@@ -460,10 +460,7 @@ where
     } else {
         Preimage::default()
     };
-    ark_std::println!(
-        "new_commitment_two: {:?}",
-        new_commitment_two
-    );
+    ark_std::println!("new_commitment_two: {:?}", new_commitment_two);
 
     let nightfall_address = FrBn254::from(get_addresses().nightfall()).0;
     let contract_nf_address = Affine::<BabyJubjub>::new_unchecked(Fr254::zero(), nightfall_address);
@@ -481,10 +478,7 @@ where
     } else {
         Preimage::default()
     };
-    ark_std::println!(
-        "new_commitment_three: {:?}",
-        new_commitment_three
-    );
+    ark_std::println!("new_commitment_three: {:?}", new_commitment_three);
 
     let new_commitment_four = if !fee_change.is_zero() {
         Preimage::new(
@@ -497,10 +491,7 @@ where
     } else {
         Preimage::default()
     };
-    ark_std::println!(
-        "new_commitment_four: {:?}",
-        new_commitment_four
-    );
+    ark_std::println!("new_commitment_four: {:?}", new_commitment_four);
 
     let new_commitments = [
         new_commitment_one,
@@ -548,14 +539,17 @@ where
     } = withdraw_req;
 
     // Convert the request into the relevant types.
-    let nf_token_id =
-        to_nf_token_id_from_str(erc_address.as_str(), reverse_hex_string(token_id.as_str()).as_str()).map_err(|e| {
-            error!(
-                "Error when retrieving the Nightfall token id from the erc address and token ID {}",
-                e
-            );
-            reject::custom(e)
-        })?;
+    let nf_token_id = to_nf_token_id_from_str(
+        erc_address.as_str(),
+        reverse_hex_string(token_id.as_str()).as_str(),
+    )
+    .map_err(|e| {
+        error!(
+            "Error when retrieving the Nightfall token id from the erc address and token ID {}",
+            e
+        );
+        reject::custom(e)
+    })?;
 
     let keys = *get_zkp_keys().lock().expect("Poisoned Mutex lock");
 

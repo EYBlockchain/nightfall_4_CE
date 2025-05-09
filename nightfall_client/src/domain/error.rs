@@ -82,7 +82,11 @@ impl Display for EventHandlerError {
             EventHandlerError::BlockNotFound(block_number) => {
                 write!(f, "Block not found: {}", block_number)
             }
-            EventHandlerError::BlockHashError(a, b) => write!(f, "Block hash error, expected block hash: {}, got block hash: {}", a, b),
+            EventHandlerError::BlockHashError(a, b) => write!(
+                f,
+                "Block hash error, expected block hash: {}, got block hash: {}",
+                a, b
+            ),
         }
     }
 }

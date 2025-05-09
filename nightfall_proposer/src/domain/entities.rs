@@ -1,13 +1,13 @@
 use ark_bn254::Fr as Fr254;
+use ark_ff::{BigInteger, PrimeField};
 use ark_serialize::SerializationError;
 use lib::serialization::{ark_de_hex, ark_se_hex};
 use log::error;
 use nightfall_client::domain::entities::{ClientTransaction, CompressedSecrets, HexConvertible};
 use serde::{Deserialize, Serialize};
+use sha2::Sha256;
 use sha3::{digest::generic_array::GenericArray, Digest, Keccak256};
 use std::fmt::Debug;
-use ark_ff::{BigInteger, PrimeField};
-use sha2::Sha256;
 
 /// A struct representing a node in a Merkle Tree
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -80,7 +80,6 @@ impl OnChainTransaction {
     }
 }
 
-
 /// A Block struct representing NF block
 /// NOTE: This is not finalised yet, we may need to change fields to this struct
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
@@ -103,7 +102,7 @@ pub struct Block {
 impl Block {
     #[allow(dead_code)]
     pub fn hash_commitments(&self) -> Fr254 {
-        let mut bytes = Vec::new(); 
+        let mut bytes = Vec::new();
         for tx in &self.transactions {
             let tx_hash = tx.hash_commitments();
             bytes.extend_from_slice(&tx_hash.into_bigint().to_bytes_be());
@@ -113,7 +112,7 @@ impl Block {
         Fr254::from_be_bytes_mod_order(&hash)
     }
     pub fn hash(&self) -> Fr254 {
-        let mut bytes = Vec::new(); 
+        let mut bytes = Vec::new();
 
         // 1. Hash commitments_root
         bytes.extend_from_slice(&self.commitments_root.into_bigint().to_bytes_be());
@@ -134,10 +133,9 @@ impl Block {
         // 6. Hash using SHA-256
         let hash = Sha256::digest(&bytes);
         // 7. Convert SHA-256 hash to Fr254 (modular reduction)
-         Fr254::from_be_bytes_mod_order(&hash)
+        Fr254::from_be_bytes_mod_order(&hash)
     }
 }
-
 
 /// Struct used to represent deposit data, used in making deposit proofs by the proposer.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq)]

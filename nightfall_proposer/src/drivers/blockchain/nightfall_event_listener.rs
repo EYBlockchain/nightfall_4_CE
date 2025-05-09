@@ -1,11 +1,16 @@
+use crate::initialisation::get_db_connection;
 use crate::ports::contracts::NightfallContract;
+use crate::ports::trees::CommitmentTree;
+use crate::ports::trees::NullifierTree;
 use crate::{
     initialisation::get_blockchain_client_connection, services::process_events::process_events,
 };
+use ark_bn254::Fr as Fr254;
 use configuration::addresses::get_addresses;
 use ethers::prelude::*;
 use futures::{future::BoxFuture, FutureExt};
 use lib::blockchain_client::BlockchainClientConnection;
+use lib::merkle_trees::trees::IndexedTree;
 use log::warn;
 use nightfall_bindings::nightfall::Nightfall;
 use nightfall_client::domain::entities::SynchronisationStatus;
@@ -14,6 +19,7 @@ use nightfall_client::{
     ports::proof::{Proof, ProvingEngine},
 };
 use tokio::sync::{OnceCell, RwLock};
+use mongodb::Client as MongoClient;
 
 /// This function starts the event handler. It will attempt to restart the event handler in case of errors
 /// for a bit, before giving up and panicing.
@@ -67,12 +73,14 @@ where
             .get_client(),
     );
     let events = nightfall_instance.events().from_block(start_block);
+    ark_std::println!("events: {:?}", events);
 
     let mut stream = events
         .subscribe_with_meta()
         .await
         .map_err(|_| EventHandlerError::NoEventStream)?;
     while let Some(Ok(evt)) = stream.next().await {
+        ark_std::println!("Event type detected: {:?}", evt.0);
         // process each event in the stream and handle any errors
         let result = process_events::<P, E, N>(evt.0, evt.1).await;
         match result {
@@ -117,10 +125,23 @@ where
         .read()
         .await
         .is_synchronised();
-    ark_std::println!("Restarting event listener, synchronisation state: {}", sync_state);
+    ark_std::println!(
+        "Restarting event listener, synchronisation state: {}",
+        sync_state
+    );
     if sync_state {
         panic!("Restarting event listener while synchronised. This should not happen");
     }
+    // clean the database and reset the trees
+    // this is a bit of a hack, but we need to reset the trees to get them back in sync
+    // with the blockchain. We should probably do this in a more elegant way, but this works for now 
+    // and we can improve it later
+    {
+        let db = &mut get_db_connection().await.write().await;
+        let _ = <MongoClient as CommitmentTree<Fr254>>::reset_tree(db).await;
+    }
+    // let _ = <MongoClient as IndexedTree<Fr254>>::reset_tree(db).await;
+    // let _ = <MongoClient as IndexedTree<Fr254>>::reset_tree(db).await;
     start_event_listener::<P, E, N>(0, start_block).await;
 }
 
