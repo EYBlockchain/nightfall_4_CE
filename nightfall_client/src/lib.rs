@@ -119,19 +119,6 @@ pub mod initialisation {
     }
 
     /// This function is used to provide a singleton proposer http connection across the entire application.
-    /// It's not wrapped in a mutex
-    // pub fn get_proposer_http_connection() -> &'static (reqwest::Client, Url) {
-    //     static PROPOSER_HTTP_CONNECTION: OnceLock<(reqwest::Client, Url)> = OnceLock::new();
-    //     PROPOSER_HTTP_CONNECTION.get_or_init(|| {
-    //         (
-    //             reqwest::Client::new(),
-    //             Url::parse(&get_settings().nightfall_proposer.url)
-    //                 .expect("Could not parse proposer url")
-    //                 .join("/v1/transaction")
-    //                 .expect("Could not join proposer url with /v1/transaction"),
-    //         )
-    //     })
-    // }
     pub fn get_proposer_http_connection() -> &'static (HttpClient, Url) {
         static PROPOSER_HTTP_CONNECTION: OnceLock<(HttpClient, Url)> = OnceLock::new();
     
