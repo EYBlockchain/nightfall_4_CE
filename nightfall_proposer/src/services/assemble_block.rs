@@ -248,10 +248,7 @@ where
         <mongodb::Client as TransactionsDB<P>>::get_mempool_deposits(db).await;
     // if there are no deposits in mempool, the all_deposits will be empty, otherwise will be the deposits in mempool
     let all_deposits = stored_deposits_in_mempool.unwrap_or_default();
-    // ark_std::println!(
-    //     "all_deposits in mempool: {:?}",
-    //     all_deposits
-    // );
+
     // 2. Get client transactions from mempool
     let current_client_transaction_meta_in_mempool = {
         let mempool_client_transactions: Option<Vec<(Vec<u32>, ClientTransactionWithMetaData<P>)>> =
@@ -261,19 +258,11 @@ where
             .map(|(_, v)| v)
             .collect::<Vec<ClientTransactionWithMetaData<P>>>()
     };
-    // ark_std::println!(
-    //     "current_client_transaction_meta_in_mempool in mempool: {:?}",
-    //     current_client_transaction_meta_in_mempool
-    // );
+
     // 3. Get the block stored in the database during processing propose_block
     let stored_blocks = db.get_all_blocks().await.unwrap_or_default();
     // check if commitments in current_client_transaction_meta_in_mempool and all_deposits are in the stored_block's commitments
     // if they are, remove the related transactions from the mempool
-    // ark_std::println!(
-    //     "stored_blocks in mempool: {:?}",
-    //     stored_blocks
-    // );
-    // Get the commitments from the stored block
     let all_commitments_onchain: HashSet<String> = stored_blocks
             .iter()
             .flat_map(|block| block.commitments.iter().cloned())
@@ -307,38 +296,14 @@ where
             })
             .collect();
 
-        ark_std::println!(
-            "Pending deposits: {:?}",
-            pending_deposits
-        );
-
-        // print the commitments.to_hex_string() in current_client_transaction_meta_in_mempool
         for tx in current_client_transaction_meta_in_mempool.iter() {
             let commitments = tx.client_transaction.commitments.clone();
             let commitments_hex: Vec<String> = commitments
                 .iter()
                 .map(|c| c.to_hex_string())
                 .collect();
-            ark_std::println!(
-                "Client transaction commitments: {:?}",
-                commitments_hex
-            );
         }
     
-    // let pending_client_transactions: Vec<ClientTransactionWithMetaData<P>> = current_client_transaction_meta_in_mempool
-    //         .clone()
-    //         .into_iter()
-    //         .filter(|tx| {
-    //             tx.client_transaction
-    //                 .commitments
-    //                 .iter()
-    //                 .all(|c| !all_commitments_onchain.contains(&c.to_hex_string()))
-    //         })
-    //         .collect();
-    //     ark_std::println!(
-    //         "Pending client transactions: {:?}",
-    //         pending_client_transactions
-    //     );
     let pending_client_transactions: Vec<ClientTransactionWithMetaData<P>> = current_client_transaction_meta_in_mempool
     .clone()
     .into_iter()
