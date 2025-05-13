@@ -1,5 +1,5 @@
 use crate::{
-    initialisation::{get_db_connection, get_blockchain_client_connection},
+    initialisation::{get_blockchain_client_connection, get_db_connection},
     ports::{
         contracts::NightfallContract,
         trees::{CommitmentTree, HistoricRootTree, NullifierTree},
@@ -9,16 +9,16 @@ use crate::{
 use ark_bn254::Fr as Fr254;
 use configuration::addresses::get_addresses;
 use ethers::prelude::*;
-use lib::{merkle_trees::trees::IndexedTree, blockchain_client::BlockchainClientConnection};
-use log::{warn,debug};
+use futures::{future::BoxFuture, FutureExt};
+use lib::blockchain_client::BlockchainClientConnection;
+use log::{debug, warn};
+use mongodb::Client as MongoClient;
 use nightfall_bindings::nightfall::Nightfall;
 use nightfall_client::{
     domain::{entities::SynchronisationStatus, error::EventHandlerError},
     ports::proof::{Proof, ProvingEngine},
 };
 use tokio::sync::{OnceCell, RwLock};
-use mongodb::Client as MongoClient;
-use futures::{future::BoxFuture, FutureExt};
 
 /// This function starts the event handler. It will attempt to restart the event handler in case of errors
 /// for a bit, before giving up and panicing.
@@ -126,7 +126,7 @@ where
     }
     // clean the database and reset the trees
     // this is a bit of a hack, but we need to reset the trees to get them back in sync
-    // with the blockchain. We should probably do this in a more elegant way, but this works for now 
+    // with the blockchain. We should probably do this in a more elegant way, but this works for now
     // and we can improve it later
     {
         let db = &mut get_db_connection().await.write().await;
@@ -134,7 +134,7 @@ where
         let _ = <MongoClient as HistoricRootTree<Fr254>>::reset_tree(db).await;
         let _ = <MongoClient as NullifierTree<Fr254>>::reset_tree(db).await;
     }
-    
+
     start_event_listener::<P, E, N>(0, start_block).await;
 }
 

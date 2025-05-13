@@ -1,15 +1,17 @@
 use crate::{
-    domain::entities::{
-        Block, ClientTransactionWithMetaData, DepositData, DepositDatawithFee,
-    },
+    domain::entities::{Block, ClientTransactionWithMetaData, DepositData, DepositDatawithFee},
     driven::db::mongo_db::{StoredBlock, PROPOSED_BLOCKS_COLLECTION},
     drivers::blockchain::block_assembly::BlockAssemblyError,
     initialisation::{get_blockchain_client_connection, get_db_connection},
-    ports::{db::{TransactionsDB, BlockStorageDB}, proving::RecursiveProvingEngine},
+    ports::{
+        db::{BlockStorageDB, TransactionsDB},
+        proving::RecursiveProvingEngine,
+    },
 };
 use ark_bn254::Fr as Fr254;
 use ark_std::{collections::HashSet, Zero};
 use bson::doc;
+use jf_primitives::poseidon::{FieldHasher, Poseidon};
 use lib::blockchain_client::BlockchainClientConnection;
 use log::{info, warn};
 use nightfall_client::{
@@ -19,8 +21,6 @@ use nightfall_client::{
 };
 use std::{cmp::Reverse, env};
 use tokio::time::Instant;
-use jf_primitives::poseidon::{FieldHasher, Poseidon};
-
 
 // Define a type alias for better readability
 type ALLTransactionData<P> = (
@@ -246,41 +246,42 @@ where
     // check if commitments in current_client_transaction_meta_in_mempool and all_deposits are in the stored_block's commitments
     // if they are, remove the related transactions from the mempool
     let all_commitments_onchain: HashSet<String> = stored_blocks
-            .iter()
-            .flat_map(|block| block.commitments.iter().cloned())
-            .collect();
+        .iter()
+        .flat_map(|block| block.commitments.iter().cloned())
+        .collect();
     // compute the deposit_commitments
     let mut pending_deposits: Vec<DepositDatawithFee> = all_deposits
+        .clone()
+        .into_iter()
+        .filter(|d| {
+            // write depositdata with fee to commitments later
+            let DepositDatawithFee { deposit_data, .. } = d;
+            let inputs = [
+                deposit_data.nf_token_id,
+                deposit_data.nf_slot_id,
+                deposit_data.value,
+                Fr254::from(0u64),
+                Fr254::from(1u64),
+                deposit_data.secret_hash,
+            ];
+            let poseidon = Poseidon::<Fr254>::new();
+            let commitment_hex = poseidon.hash(&inputs).unwrap().to_hex_string();
+            !all_commitments_onchain.contains(&commitment_hex)
+        })
+        .collect();
+
+    let pending_client_transactions: Vec<ClientTransactionWithMetaData<P>> =
+        current_client_transaction_meta_in_mempool
             .clone()
             .into_iter()
-            .filter(|d| {
-                // write depositdata with fee to commitments later
-                let DepositDatawithFee { deposit_data, .. } = d;
-                let inputs = [
-                    deposit_data.nf_token_id,
-                    deposit_data.nf_slot_id,
-                    deposit_data.value,
-                    Fr254::from(0u64),
-                    Fr254::from(1u64),
-                    deposit_data.secret_hash,
-                ];
-                let poseidon = Poseidon::<Fr254>::new();
-                let commitment_hex = poseidon.hash(&inputs).unwrap().to_hex_string();
-                !all_commitments_onchain.contains(&commitment_hex)
+            .filter(|tx| {
+                tx.client_transaction
+                    .commitments
+                    .iter()
+                    .filter(|c| c.to_hex_string() != Fr254::zero().to_hex_string())
+                    .all(|c| !all_commitments_onchain.contains(&c.to_hex_string()))
             })
             .collect();
-    
-    let pending_client_transactions: Vec<ClientTransactionWithMetaData<P>> = current_client_transaction_meta_in_mempool
-    .clone()
-    .into_iter()
-    .filter(|tx| {
-        tx.client_transaction
-            .commitments
-            .iter()
-            .filter(|c| c.to_hex_string() != Fr254::zero().to_hex_string())
-            .all(|c| !all_commitments_onchain.contains(&c.to_hex_string()))
-    })
-    .collect();
 
     // 4. Check if there are any pending deposits or client transactions
     if pending_deposits.is_empty() && pending_client_transactions.is_empty() {

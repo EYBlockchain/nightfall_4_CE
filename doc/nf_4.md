@@ -409,7 +409,15 @@ GET /v1/de-escrow
 
 ```sh
 curl -i --request POST 'http://localhost:3000/v1/de-escrow' \
-    --json '{"token_id": "0x01", "erc_address": "98eddadcfde04dc22a0e62119617e74a6bc77313", "recipient_address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266", "value": "0x00", "token_type": "1"}'
+    --json '{ 
+    "token_id": "0x00",
+    "erc_address": "0x959922be3caee4b8cd9a407cc3ac1c251c2007b1", 
+    "recipient_address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+    "value": "0x01", 
+    "token_type": "10",
+    "fee": "0x00",
+    "withdraw_fund_salt": "cb56f2a1befb9954b4d7885f5d3d29cfe9f7417118f1ec0f1bb9741abae01f0c"
+}'
 ```
 
 Returns:

@@ -61,9 +61,6 @@ contract RoundRobin is ProposerManager {
 
     function rotate_proposer() external override {
         require(can_rotate(), "It is not time to rotate the proposer");
-        console.log("we are rotating the proposer");
-        console.log("nightfall.layer2_block_number(): %s", nightfall.layer2_block_number());
-        console.log("start_l2_block: %s", start_l2_block);
         if (nightfall.layer2_block_number() == start_l2_block)
             ding_proposer(current.addr);
         current = proposers[current.next_addr];
@@ -145,11 +142,6 @@ contract RoundRobin is ProposerManager {
         escrow -= this_proposer.stake;
         pending_withdraws[proposer_address] += this_proposer.stake;
         delete proposers[proposer_address]; // make sure we can't remove it again
-        console.log(
-            "Jiajie: I'm in remove_proposer() and the proposer address is %s, url is %s",
-            this_proposer.addr,
-            this_proposer.url
-        );
         delete proposer_urls[this_proposer.url]; // free the URL for reuse
         proposer_count--;
         // we may now just have a single proposer. If this is the case, we need to link it to itself.
@@ -181,21 +173,6 @@ contract RoundRobin is ProposerManager {
 
     // this returns true if the current proposer has been in place for ROTATION_BLOCKS
     function can_rotate() private view returns (bool) {
-        console.log("Jiajie: I'm in can_rotate()");
-        console.log(
-            "Current proposer: %s",
-            current.addr
-        );
-        console.log(
-            "block.number: %s, start_l1_block: %s, ROTATION_BlOCKS: %s",
-            block.number,
-            start_l1_block,
-            ROTATION_BlOCKS
-        );
-        console.log(
-            "block.number >= start_l1_block + ROTATION_BlOCKS: %s",
-            block.number >= start_l1_block + ROTATION_BlOCKS
-        );
         return block.number >= start_l1_block + ROTATION_BlOCKS;
     }
 

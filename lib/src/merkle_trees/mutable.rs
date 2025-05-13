@@ -682,38 +682,26 @@ where
         let cache_collection = format!("{}_cache", tree_id);
         use mongodb::bson::Document;
         // Drop metadata collection
-        if let Err(e) = db
-            .collection::<Document>(&metadata_collection)
-            .drop()
-            .await
-        {
+        if let Err(e) = db.collection::<Document>(&metadata_collection).drop().await {
             if !e.to_string().contains("ns not found") {
                 return Err(MerkleTreeError::DatabaseError(e));
             }
         }
 
         // Drop nodes collection
-        if let Err(e) = db
-            .collection::<Document>(&nodes_collection)
-            .drop()
-            .await
-        {
+        if let Err(e) = db.collection::<Document>(&nodes_collection).drop().await {
             if !e.to_string().contains("ns not found") {
                 return Err(MerkleTreeError::DatabaseError(e));
             }
         }
 
         // Drop cache collection
-        if let Err(e) = db
-            .collection::<Document>(&cache_collection)
-            .drop()
-            .await
-        {
+        if let Err(e) = db.collection::<Document>(&cache_collection).drop().await {
             if !e.to_string().contains("ns not found") {
                 return Err(MerkleTreeError::DatabaseError(e));
             }
         }
-    ark_std::println!("rest mutable tree");
+        ark_std::println!("rest mutable tree");
         Ok(())
     }
 }

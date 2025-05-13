@@ -1,7 +1,6 @@
-use ark_bn254::Fr as Fr254;
 use configuration::{
     logging::init_logging,
-    settings::{get_settings, Settings},
+    settings::Settings,
 };
 use lib::models::CertificateReq;
 use log::{debug, info, warn};

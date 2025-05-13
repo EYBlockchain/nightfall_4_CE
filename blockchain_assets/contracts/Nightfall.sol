@@ -242,10 +242,7 @@ contract Nightfall is
                     DepositFeeState memory depositFeeState = feeBinding[
                             publicData
                         ];
-                    console.log("publicData: ", publicData);
-                    console.log("depositFeeState.escrowed: ", depositFeeState.escrowed);
-                    console.log("depositFeeState.redeemed: ", depositFeeState.redeemed);
-                    
+
                     localTotalFee += depositFeeState.fee;
                     require(
                             depositFeeState.escrowed == 1 && depositFeeState.redeemed == 0,

@@ -1,9 +1,7 @@
 use ark_ff::PrimeField;
 use jf_primitives::{poseidon::PoseidonParams, trees::imt::IMTCircuitInsertionInfo};
 use lib::merkle_trees::trees::{IndexedTree, MutableTree};
-
 use crate::ports::trees::NullifierTree;
-use serde::{Deserialize, Serialize};
 
 #[async_trait::async_trait]
 impl<F> NullifierTree<F> for mongodb::Client

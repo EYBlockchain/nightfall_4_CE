@@ -20,7 +20,7 @@ use ark_std::Zero;
 use ethers::{
     core::abi::AbiDecode,
     providers::Middleware,
-    types::{TxHash, H160, H256, I256},
+    types::{TxHash, H256, I256},
 };
 use lib::{blockchain_client::BlockchainClientConnection, merkle_trees::trees::IndexedTree};
 use log::{debug, error, info, warn};
@@ -87,14 +87,13 @@ where
             NightfallEvents::BlockProposedFilter(filter) => {
                 process_nightfall_calldata::<P, E, N>(
                     tx_hash,
-                    Some(filter.proposer_address),
                     Some(filter.layer_2_block_number),
                 )
                 .await?
             }
             NightfallEvents::ClientTransactionSubmittedFilter(_f) => {
                 info!("Received TransactionSubmitted event");
-                process_nightfall_calldata::<P, E, N>(tx_hash, None, None).await?
+                process_nightfall_calldata::<P, E, N>(tx_hash, None).await?
             }
             NightfallEvents::DepositEscrowedFilter(filter) => {
                 info!("Received DepositEscrowed event");
@@ -113,7 +112,6 @@ where
 
 pub async fn process_nightfall_calldata<P, E, N>(
     transaction_hash: H256,
-    block_proposer: Option<H160>,
     block_number: Option<I256>, // process_nightfall_calldata is called for ClientTransactionSubmitted and BlockProposed events, the first one doesn't have block_number so we make it optional
 ) -> Result<(), EventHandlerError>
 where
@@ -141,7 +139,8 @@ where
                     process_propose_block_event::<N>(
                         decode,
                         transaction_hash,
-                        block_proposer.unwrap(),
+                        block_number
+                            .expect("Block number should be present for BlockProposed event"),
                     )
                     .await?
                 }
@@ -228,16 +227,6 @@ async fn process_propose_block_event<N: NightfallContract>(
         return Err(EventHandlerError::MissingBlocks(
             expected_onchain_block_number.as_usize(),
         ));
-    }
-
-    // check if we're ahead of the event, this means we've already seen it and we shouldn't process it again
-    // This could happen if we've missed some blocks and we're re-synchronising
-    if *expected_onchain_block_number > layer_2_block_number_in_event {
-        warn!(
-            "Already processed layer 2 block {} - skipping",
-            layer_2_block_number_in_event
-        );
-        return Ok(());
     }
 
     // if expected_onchain_block_number == layer_2_block_number, we need to check if the block hash is the same

@@ -1,25 +1,20 @@
 use configuration::addresses::get_addresses;
 use ethers::types::TransactionReceipt;
-use nightfall_bindings::nightfall::{ClientTransaction as NightfallTransactionStruct, Nightfall};
-use nightfall_bindings::round_robin::RoundRobin;
-use nightfall_bindings::x509::Proposer;
+use nightfall_bindings::{
+    round_robin::RoundRobin,
+    x509::Proposer,
+    nightfall::{ClientTransaction as NightfallTransactionStruct, Nightfall}
+};
 use std::{error::Error, fmt::Debug};
-use warp::{hyper::StatusCode, reject, reply, Reply};
 use url::Url;
-
-use crate::domain::entities::CommitmentStatus;
-use crate::domain::entities::HexConvertible;
-use crate::driven::db::mongo::CommitmentEntry;
-use crate::drivers::blockchain::nightfall_event_listener::get_synchronisation_status;
-use crate::drivers::derive_key::ZKPKeys;
-use crate::drivers::rest::models::NullifierKey;
-use crate::get_zkp_keys;
+use warp::{hyper::StatusCode, reject, reply, Reply};
 use crate::{
     domain::{
-        entities::{ClientTransaction, Operation, Transport},
+        entities::{CommitmentStatus, HexConvertible, ClientTransaction, Operation, Transport},
         error::FailedClientOperation,
     },
-    initialisation::{get_db_connection, get_proposer_http_connection},
+    get_zkp_keys,
+    initialisation::get_db_connection,
     ports::{
         commitments::Nullifiable,
         contracts::NightfallContract,
@@ -28,6 +23,12 @@ use crate::{
         secret_hash::SecretHash,
     },
     services::client_operation::client_operation,
+    drivers::{
+        blockchain::nightfall_event_listener::get_synchronisation_status,
+        derive_key::ZKPKeys,
+        rest::models::NullifierKey
+    },
+    driven::db::mongo::CommitmentEntry,
 };
 use ark_bn254::Fr as Fr254;
 use lib::{
@@ -177,16 +178,12 @@ async fn process_transaction_offchain<P: Serialize>(
             .await
             .get_client(),
     );
-    let proposers_struct: Vec<Proposer> = round_robin_instance
-    .get_proposers()
-    .call()
-    .await?;
+    let proposers_struct: Vec<Proposer> = round_robin_instance.get_proposers().call().await?;
     // ark_std::println!("Proposers in process_transaction_offchain: {:?}", proposers_struct);
 
-     // Send to each proposer’s /v1/transaction endpoint
-     for proposer in proposers_struct {
-        let url = match Url::parse(&proposer.url)
-            .and_then(|base| base.join("/v1/transaction")) {
+    // Send to each proposer’s /v1/transaction endpoint
+    for proposer in proposers_struct {
+        let url = match Url::parse(&proposer.url).and_then(|base| base.join("/v1/transaction")) {
             Ok(u) => u,
             Err(e) => {
                 log::warn!("Skipping proposer with invalid URL {}: {}", proposer.url, e);
@@ -194,11 +191,7 @@ async fn process_transaction_offchain<P: Serialize>(
             }
         };
 
-        let result = client
-            .post(url.clone())
-            .json(l2_transaction)
-            .send()
-            .await;
+        let result = client.post(url.clone()).json(l2_transaction).send().await;
 
         match result {
             Ok(response) => {
@@ -254,4 +247,3 @@ where
     let tx_receipt = tx.await?;
     Ok(tx_receipt)
 }
-
