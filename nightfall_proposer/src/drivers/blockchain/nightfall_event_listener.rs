@@ -1,6 +1,7 @@
 use crate::initialisation::get_db_connection;
 use crate::ports::contracts::NightfallContract;
 use crate::ports::trees::CommitmentTree;
+use crate::ports::trees::HistoricRootTree;
 use crate::ports::trees::NullifierTree;
 use crate::{
     initialisation::get_blockchain_client_connection, services::process_events::process_events,
@@ -73,14 +74,14 @@ where
             .get_client(),
     );
     let events = nightfall_instance.events().from_block(start_block);
-    ark_std::println!("events: {:?}", events);
+    // ark_std::println!("events: {:?}", events);
 
     let mut stream = events
         .subscribe_with_meta()
         .await
         .map_err(|_| EventHandlerError::NoEventStream)?;
     while let Some(Ok(evt)) = stream.next().await {
-        ark_std::println!("Event type detected: {:?}", evt.0);
+        // ark_std::println!("Event type detected: {:?}", evt.0);
         // process each event in the stream and handle any errors
         let result = process_events::<P, E, N>(evt.0, evt.1).await;
         match result {
@@ -139,9 +140,10 @@ where
     {
         let db = &mut get_db_connection().await.write().await;
         let _ = <MongoClient as CommitmentTree<Fr254>>::reset_tree(db).await;
+        let _ = <MongoClient as HistoricRootTree<Fr254>>::reset_tree(db).await;
+        let _ = <MongoClient as NullifierTree<Fr254>>::reset_tree(db).await;
     }
-    // let _ = <MongoClient as IndexedTree<Fr254>>::reset_tree(db).await;
-    // let _ = <MongoClient as IndexedTree<Fr254>>::reset_tree(db).await;
+    
     start_event_listener::<P, E, N>(0, start_block).await;
 }
 

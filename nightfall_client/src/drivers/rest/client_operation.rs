@@ -181,7 +181,7 @@ async fn process_transaction_offchain<P: Serialize>(
     .get_proposers()
     .call()
     .await?;
-    ark_std::println!("Proposers in process_transaction_offchain: {:?}", proposers_struct);
+    // ark_std::println!("Proposers in process_transaction_offchain: {:?}", proposers_struct);
 
      // Send to each proposer’s /v1/transaction endpoint
      for proposer in proposers_struct {

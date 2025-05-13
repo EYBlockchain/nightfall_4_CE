@@ -113,6 +113,32 @@ where
         &mut self,
         commitments: &[F],
     ) -> Result<Vec<Self::CircuitInfo>, <Self as MutableTree<F>>::Error>;
+
+    // Reset the tree
+    async fn reset_tree(&self) -> Result<(), <Self as MutableTree<F>>::Error>
+    where
+        Self: MutableTree<F, Error = MerkleTreeError<mongodb::error::Error>>,
+    {
+        ark_std::println!("resting HistoricRootTree");
+        let _ = <Self as MutableTree<F>>::reset_mutable_tree(self, Self::TREE_NAME).await;
+         // select the proposer to use
+         use configuration::settings::get_settings;
+         use mongodb::Client;
+         let uri = &get_settings().nightfall_proposer.db_url;
+         let client = Client::with_uri_str(uri)
+             .await
+             .expect("Could not create database connection");
+        // it's not enough just to connect to a database, we need to initialise some trees in it
+       
+        <mongodb::Client as NullifierTree<Fr254>>::new_nullifier_tree(&client, 29, 3)
+        .await
+        .map_err(|e| {
+            log::error!("Could not create HistoricRootTree metadata: {:?}", e);
+            <Self as MutableTree<F>>::Error::from(e)
+        })?;
+        Ok(())
+    }
+
 }
 
 /// Trait defining the functionality of a historic root tree.
@@ -174,5 +200,30 @@ where
             <Self as MutableTree<F>>::get_membership_proof(self, leaf, leaf_index, Self::TREE_NAME)
                 .await
         }
+    }
+    // Reset the tree
+    async fn reset_tree(&self) -> Result<(), Self::Error>
+    where
+        Self: MutableTree<F, Error = MerkleTreeError<mongodb::error::Error>>,
+    {
+        ark_std::println!("resting HistoricRootTree");
+        let _ = <Self as MutableTree<F>>::reset_mutable_tree(self, Self::TREE_NAME).await;
+         // select the proposer to use
+         use configuration::settings::get_settings;
+         use mongodb::Client;
+         let uri = &get_settings().nightfall_proposer.db_url;
+         let client = Client::with_uri_str(uri)
+             .await
+             .expect("Could not create database connection");
+        // it's not enough just to connect to a database, we need to initialise some trees in it
+        <mongodb::Client as HistoricRootTree<Fr254>>::new_historic_root_tree(
+            &client, 32,
+        )
+        .await
+        .map_err(|e| {
+            log::error!("Could not create HistoricRootTree metadata: {:?}", e);
+            Self::Error::from(e)
+        })?;
+        Ok(())
     }
 }

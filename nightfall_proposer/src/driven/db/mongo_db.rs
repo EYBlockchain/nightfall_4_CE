@@ -330,6 +330,25 @@ impl StoredBlock {
 #[async_trait::async_trait]
 impl BlockStorageDB for mongodb::Client {
     async fn store_block(&self, block: &StoredBlock) -> Option<()> {
+        // check if the block already exists
+        let filter = doc! { "layer2_block_number": block.layer2_block_number as i64 };
+        let existing_block = self
+            .database(DB)
+            .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
+            .find_one(filter.clone())
+            .await
+            .ok()?;
+        if existing_block.is_some() {
+            // if the block already exists, we need to update it
+            let update = doc! { "$set": { "commitments": block.commitments.clone() } };
+            self.database(DB)
+                .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
+                .update_one(filter, update)
+                .await
+                .ok()?;
+            return Some(());
+        }
+        // if the block doesn't exist, we need to insert it
         self.database(DB)
             .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
             .insert_one(block)

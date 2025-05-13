@@ -38,10 +38,10 @@ pub async fn find_usable_commitments(
 ) -> Result<[Preimage; MAX_POSSIBLE_COMMITMENTS], &'static str> {
     let (avaliable_sorted_commitments, min_num_c) =
         verify_enough_commitments(target_token_id, target_value, db).await?;
-    ark_std::println!(
-        "avaliable_sorted_commitments: {:?}",
-        avaliable_sorted_commitments
-    );
+    // ark_std::println!(
+    //     "avaliable_sorted_commitments: {:?}",
+    //     avaliable_sorted_commitments
+    // );
 
     let mut max_num_c = MAX_POSSIBLE_COMMITMENTS;
     if avaliable_sorted_commitments.len() < MAX_POSSIBLE_COMMITMENTS {
@@ -225,7 +225,7 @@ async fn fetch_on_chain_commitments(
         .get_available_commitments(token_id)
         .await
         .ok_or("No commmitments found in the db")?;
-    ark_std::println!("commitments fetch_on_chain_commitments: {:?}", commitments);
+    // ark_std::println!("commitments fetch_on_chain_commitments: {:?}", commitments);
     Ok(commitments.into_iter().map(|c| c.get_preimage()).collect())
 }
 

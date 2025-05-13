@@ -107,20 +107,17 @@ impl DepositCircuitGadget<Fr254> for PlonkCircuit<Fr254> {
             .iter()
             .map(|data| DepositDataVar::from_deposit_data(data, self))
             .collect::<Result<Vec<DepositDataVar>, CircuitError>>()?;
-        ark_std::println!("size 1: {}", self.num_gates());
         // Now work out if each of the deposit data is real data
         let flags = data_vars
             .iter()
             .map(|var| var.is_real(self))
             .collect::<Result<Vec<BoolVar>, CircuitError>>()?;
-        ark_std::println!("size 2: {}", self.num_gates());
         // Next we calculate the output commitment hashes
         let new_commitments = data_vars
             .iter()
             .zip(flags.iter())
             .map(|(var, &flag)| var.to_commitment(self, flag))
             .collect::<Result<Vec<Variable>, CircuitError>>()?;
-        ark_std::println!("size 3: {}", self.num_gates());
 
         // Make the vector of lookup variables to push to and perform the sha hashing.
         let mut lookup_vars = Vec::<(Variable, Variable, Variable)>::new();
@@ -129,13 +126,11 @@ impl DepositCircuitGadget<Fr254> for PlonkCircuit<Fr254> {
             .zip(flags.iter())
             .map(|(var, &flag)| var.sha256_and_shift(self, &mut lookup_vars, flag))
             .collect::<Result<Vec<Variable>, CircuitError>>()?;
-        ark_std::println!("size 4: {}", self.num_gates());
         // We push a zero variable because public data is always 5 field elements (the final two get compressed together but compressing with zero doesn't change the fourth element)
         sha_outputs.push(self.zero());
 
         // Finalize the sha hash
         self.finalize_for_sha256_hash(&mut lookup_vars)?;
-        ark_std::println!("size 5: {}", self.num_gates());
 
         // Make the relevant variables public
         // fee is special in a deposit proof, it's set to zero on purpose.
@@ -145,7 +140,6 @@ impl DepositCircuitGadget<Fr254> for PlonkCircuit<Fr254> {
         // if there are deposit_fee, then there will be deposit_fee commitments,
         // otherwise there will only be value commitments.
         let _ = self.create_public_variable(Fr254::zero())?;
-        ark_std::println!("size 6: {}", self.num_gates());
 
         let fee = Fr254::zero();
         let roots: [Fr254; 4] = (0..4)
@@ -160,7 +154,6 @@ impl DepositCircuitGadget<Fr254> for PlonkCircuit<Fr254> {
                     "Could not convert roots to fixed length array".to_string(),
                 )
             })?;
-        ark_std::println!("size 7: {}", self.num_gates());
         let commitments: [Fr254; 4] = new_commitments
             .iter()
             .map(|&commitment| {
@@ -174,7 +167,6 @@ impl DepositCircuitGadget<Fr254> for PlonkCircuit<Fr254> {
                     "Could not convert commitments to fixed length array".to_string(),
                 )
             })?;
-        ark_std::println!("size 8: {}", self.num_gates());
 
         let nullifiers: [Fr254; 4] = (0..4)
             .map(|_| {
@@ -188,7 +180,6 @@ impl DepositCircuitGadget<Fr254> for PlonkCircuit<Fr254> {
                     "Could not convert roots to fixed length array".to_string(),
                 )
             })?;
-        ark_std::println!("size 9: {}", self.num_gates());
         let compressed_secrets: [Fr254; 5] = sha_outputs
             .iter()
             .map(|&pd| {
@@ -202,7 +193,6 @@ impl DepositCircuitGadget<Fr254> for PlonkCircuit<Fr254> {
                     "Could not convert public data to fixed length array".to_string(),
                 )
             })?;
-        ark_std::println!("size 10: {}", self.num_gates());
 
         Ok(PublicInputs::new()
             .fee(fee)

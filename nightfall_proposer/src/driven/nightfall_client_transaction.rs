@@ -149,7 +149,7 @@ where
     }
 
     // if all checks pass, we should store it in the TransactionsDB
-    info!("Transaction is valid, storing in database");
+    info!("Client Transaction is valid, storing in database");
     let key = db.store_transaction(client_transaction_with_metadata).await;
     match key {
         Some(_key) => Ok(()),
@@ -174,7 +174,7 @@ where
     if ctx.is_some() {
         return Err(ClientTransactionError::TransactionAlreadyExists);
     }
-    info!("Transaction is valid, storing in database");
+    info!("Deposit Transaction is valid, storing in database");
     let key =
         <mongodb::Client as TransactionsDB<P>>::set_mempool_deposits(db, vec![deposit_data]).await;
     match key {
