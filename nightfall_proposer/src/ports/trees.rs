@@ -3,7 +3,10 @@
 use ark_ff::PrimeField;
 use jf_primitives::{poseidon::PoseidonParams, trees::MembershipProof};
 use lib::merkle_trees::trees::{IndexedTree, MerkleTreeError, MutableTree};
-use ark_bn254::{Bn254, Fr as Fr254};
+use ark_bn254::Fr as Fr254;
+use log::debug;
+use configuration::settings::get_settings;
+use mongodb::Client;
 
 /// Trait defining the functionality of a commitment tree.
 #[async_trait::async_trait]
@@ -119,11 +122,10 @@ where
     where
         Self: MutableTree<F, Error = MerkleTreeError<mongodb::error::Error>>,
     {
-        ark_std::println!("resting HistoricRootTree");
+        debug!("resting HistoricRootTree");
         let _ = <Self as MutableTree<F>>::reset_mutable_tree(self, Self::TREE_NAME).await;
          // select the proposer to use
-         use configuration::settings::get_settings;
-         use mongodb::Client;
+
          let uri = &get_settings().nightfall_proposer.db_url;
          let client = Client::with_uri_str(uri)
              .await
@@ -206,7 +208,7 @@ where
     where
         Self: MutableTree<F, Error = MerkleTreeError<mongodb::error::Error>>,
     {
-        ark_std::println!("resting HistoricRootTree");
+        debug!("resting HistoricRootTree");
         let _ = <Self as MutableTree<F>>::reset_mutable_tree(self, Self::TREE_NAME).await;
          // select the proposer to use
          use configuration::settings::get_settings;

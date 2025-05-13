@@ -1,24 +1,20 @@
-use crate::driven::db::mongo_db::PROPOSED_BLOCKS_COLLECTION;
-use crate::ports::db::BlockStorageDB;
 use crate::{
     domain::entities::{
-        Block, ClientTransactionWithMetaData, DepositData, DepositDatawithFee, OnChainTransaction,
+        Block, ClientTransactionWithMetaData, DepositData, DepositDatawithFee,
     },
-    driven::db::mongo_db::StoredBlock,
+    driven::db::mongo_db::{StoredBlock, PROPOSED_BLOCKS_COLLECTION},
     drivers::blockchain::block_assembly::BlockAssemblyError,
     initialisation::{get_blockchain_client_connection, get_db_connection},
-    ports::{db::TransactionsDB, proving::RecursiveProvingEngine},
+    ports::{db::{TransactionsDB, BlockStorageDB}, proving::RecursiveProvingEngine},
 };
 use ark_bn254::Fr as Fr254;
-use ark_std::collections::HashSet;
-use ark_std::Zero;
+use ark_std::{collections::HashSet, Zero};
 use bson::doc;
 use lib::blockchain_client::BlockchainClientConnection;
 use log::{info, warn};
-use nightfall_client::domain::entities::HexConvertible;
-use nightfall_client::driven::db::mongo::DB;
 use nightfall_client::{
-    domain::error::EventHandlerError,
+    domain::{entities::HexConvertible, error::EventHandlerError},
+    driven::db::mongo::DB,
     ports::proof::{Proof, PublicInputs},
 };
 use std::{cmp::Reverse, env};
@@ -35,7 +31,6 @@ type ALLTransactionData<P> = (
 
 pub(crate) fn transactions_to_include_in_block<K, V>(
     mempool_transactions: Option<Vec<(K, V)>>,
-    // _block_size: usize,
 ) -> Vec<(K, V)> {
     // stuff happens here to decide which transactions to include in the block
     // NB: make sure the transaction's input commitments are still unspent: it's possible that they could have been spent since the Transaction<P> was created
@@ -74,14 +69,7 @@ where
         (included_depositinfos_group, selected_client_transactions) =
             prepare_block_data::<P>(db).await?;
     }
-    ark_std::println!(
-        "Proposer picked these tx in block, included_depositinfos_group: {:?}",
-        included_depositinfos_group
-    );
-    ark_std::println!(
-        "Proposer picked these tx in block, selected_client_transactions: {:?}",
-        selected_client_transactions
-    );
+
     // Convert DepositInfo into DepositData while maintaining nested structure
     // included_depositinfos_group has extra fee than DepositData, so we need to remove the fee
     let included_deposits: Vec<Vec<DepositData>> = included_depositinfos_group
@@ -121,10 +109,6 @@ where
         .count_documents(doc! {})
         .await
         .expect("Failed to count documents");
-    ark_std::println!(
-        "Current block number in StoredBlock db: {:?}",
-        current_block_number
-    );
     let our_address = get_blockchain_client_connection()
         .await
         .read()
@@ -135,7 +119,6 @@ where
                 "Could not retrieve our own address".to_string(),
             ))
         })?;
-    ark_std::println!("Our address in assemble_block: {:?}", our_address);
     let store_block = StoredBlock {
         layer2_block_number: current_block_number,
         commitments: block
@@ -150,7 +133,6 @@ where
             .collect(),
         proposer_address: our_address,
     };
-    // ark_std::println!("store_block in assemble_block: {:?}", store_block);
     db.database(DB)
         .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
         .insert_one(store_block.clone())
@@ -267,10 +249,6 @@ where
             .iter()
             .flat_map(|block| block.commitments.iter().cloned())
             .collect();
-    ark_std::println!(
-        "all_commitments_onchain: {:?}",
-        all_commitments_onchain
-    );
     // compute the deposit_commitments
     let mut pending_deposits: Vec<DepositDatawithFee> = all_deposits
             .clone()
@@ -288,21 +266,9 @@ where
                 ];
                 let poseidon = Poseidon::<Fr254>::new();
                 let commitment_hex = poseidon.hash(&inputs).unwrap().to_hex_string();
-                ark_std::println!(
-                    "DepositDatawithFee commitment_hex: {:?}",
-                    commitment_hex
-                );
                 !all_commitments_onchain.contains(&commitment_hex)
             })
             .collect();
-
-        for tx in current_client_transaction_meta_in_mempool.iter() {
-            let commitments = tx.client_transaction.commitments.clone();
-            let commitments_hex: Vec<String> = commitments
-                .iter()
-                .map(|c| c.to_hex_string())
-                .collect();
-        }
     
     let pending_client_transactions: Vec<ClientTransactionWithMetaData<P>> = current_client_transaction_meta_in_mempool
     .clone()
@@ -315,6 +281,8 @@ where
             .all(|c| !all_commitments_onchain.contains(&c.to_hex_string()))
     })
     .collect();
+
+    // 4. Check if there are any pending deposits or client transactions
     if pending_deposits.is_empty() && pending_client_transactions.is_empty() {
         warn!("No transactions pending");
         return Err(BlockAssemblyError::InsufficientTransactions);
@@ -386,11 +354,6 @@ where
     // 10. Clear selected client transactions from mempool
     db.set_in_mempool(&selected_client_transactions, false)
         .await;
-    // ark_std::println!("used_deposits_info: {:?}", used_deposits_info);
-    // ark_std::println!(
-    //     "Selected client transactions: {:?}",
-    //     selected_client_transactions
-    // );
     Ok((used_deposits_info, selected_client_transactions))
 }
 

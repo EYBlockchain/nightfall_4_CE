@@ -105,7 +105,7 @@ contract Nightfall is
     IERC3525Receiver
 {
     int256 public layer2_block_number = 0; // useful for checking your node is in sync, can be negative (offchain) to indicate a block that is not onchain
-    event BlockProposed(address proposer_address, int256 layer2_block_number);
+    event BlockProposed(int256 layer2_block_number);
     event ClientTransactionSubmitted();
     event DepositEscrowed(uint256 nfSlotId, uint256 value);
 
@@ -310,7 +310,7 @@ contract Nightfall is
         commitmentRoot = blk.commitments_root;
         nullifierRoot = blk.nullifier_root;
         historicRootsRoot = blk.commitments_root_root;
-        emit BlockProposed(msg.sender,layer2_block_number++);
+        emit BlockProposed(layer2_block_number++);
     }
 
     function supportsInterface(

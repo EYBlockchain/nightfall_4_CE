@@ -17,8 +17,6 @@ use sha2::{Digest, Sha256};
 pub const DB: &str = "nightfall";
 const COLLECTION: &str = "ClientTransactions";
 const DEPOSIT_COLLECTION: &str = "Deposits";
-const PROPOSER_STATE_COLLECTION: &str = "ProposerState";
-const PROPOSER_STATE_ID: &str = "singleton";
 pub const PROPOSED_BLOCKS_COLLECTION: &str = "ProposedBlocks";
 
 #[async_trait::async_trait]
