@@ -187,12 +187,6 @@ async fn process_transaction_offchain<P: Serialize>(
     let db = get_db_connection().await.write().await;
 
     // we need to update the request in the database to show that it's been sent to the proposer
-    //ading BACKOFF
-    // let proposer_response = proposer_http_connection
-    //     .post(url.clone())
-    //     .json(l2_transaction)
-    //     .send()
-    //     .await;
     const MAX_RETRIES: u32 = 3;
     const INITIAL_BACKOFF: Duration = Duration::from_millis(500);
 
@@ -207,12 +201,14 @@ async fn process_transaction_offchain<P: Serialize>(
                 let status = resp.status();
                 if status.is_success() {
                     db.update_request(id, RequestStatus::Submitted).await;
-                    debug!("{id} Successfully sent to proposer (attempt {attempt}).");
+                    debug!("{id} Client transaction successfully sent to proposer (attempt {attempt}).");
+                       // obvs we won't have a transaction receipt to return if we've sent our transaction to a proposer but we need to return an Option<TransactionReceipt>
+                       // for type compatibility with the onchain case
                     return Ok(None);
                 } else {
                     let body = resp.text().await.unwrap_or_default();
-                    error!("{id} Error from proposer: HTTP {} — Body: {}", status, body);
-
+                    error!("{id} Error from proposer: HTTP {} — Body: {}", status, body);    
+                    // only retry on specific HTTP status codes returned by the proposer, potentially temporary server errors,502 503,504.
                     if matches!(status, StatusCode::BAD_GATEWAY | StatusCode::SERVICE_UNAVAILABLE | StatusCode::GATEWAY_TIMEOUT) {
                         if attempt < MAX_RETRIES {
                             let backoff = INITIAL_BACKOFF * 2u32.pow(attempt - 1);
@@ -220,6 +216,7 @@ async fn process_transaction_offchain<P: Serialize>(
                             sleep(backoff).await;
                             continue;
                         } else {
+                            // mark as ProposerUnreachable after exhausting all retries for these specific errors.
                             db.update_request(id, RequestStatus::ProposerUnreachable).await;
                             return Err(Box::new(std::io::Error::new(
                                 std::io::ErrorKind::TimedOut,
@@ -227,6 +224,7 @@ async fn process_transaction_offchain<P: Serialize>(
                             )));
                         }
                     } else {
+                        // handle non-retryable HTTP status codes. Mark as Failed immediately.
                         db.update_request(id, RequestStatus::Failed).await;
                         return Err(Box::new(std::io::Error::new(
                             std::io::ErrorKind::Other,
@@ -236,11 +234,12 @@ async fn process_transaction_offchain<P: Serialize>(
                 }
             }
             Err(err) => {
-                error!("{id} Network error sending to proposer: {err}");
+                error!("{id} Network error sending to proposer: : {}",err);
                 if is_retriable_error(&err) && attempt < MAX_RETRIES {
                     let backoff = INITIAL_BACKOFF * 2u32.pow(attempt - 1);
                     warn!("{id} Retrying after network error in {:?}", backoff);
                     sleep(backoff).await;
+                    continue;
                 } else {
                     db.update_request(id, RequestStatus::ProposerUnreachable).await;
                     return Err(Box::new(err));
@@ -248,8 +247,7 @@ async fn process_transaction_offchain<P: Serialize>(
             }
         }
     }
-
-    // All retries exhausted — unreachable should never be hit
+    // All retries exhausted
     unreachable!()
 }
 
@@ -257,24 +255,7 @@ async fn process_transaction_offchain<P: Serialize>(
 fn is_retriable_error(err: &ReqwestError) -> bool {
     err.is_timeout() || err.is_connect() || err.is_request()
 }
-//     match proposer_response {
-//         Ok(_) => {
-//             db.update_request(id, RequestStatus::Submitted).await;
-//             debug!("{id} Client transaction sent to proposer");
-//         }
-//         Err(err) => {
-//             error!(
-//                 "{id} Failed to send client transaction to proposer: {}",
-//                 err
-//             );
-//             db.update_request(id, RequestStatus::Failed).await;
-//             return Err(Box::new(err));
-//         }
-//     }
-//     // obvs we won't have a transaction receipt to return if we've sent our transaction to a proposer but we need to return an Option<TransactionReceipt>
-//     // for type compatibility with the onchain case
-//     Ok(None)
-// }
+
 
 async fn process_transaction_onchain<P>(
     l2_transaction: &ClientTransaction<P>,
