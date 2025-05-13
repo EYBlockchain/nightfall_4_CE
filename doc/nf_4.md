@@ -390,7 +390,12 @@ curl -i --request POST 'http://localhost:3000/v1/withdraw' \
     --json '{"ercAddress": "98eddadcfde04dc22a0e62119617e74a6bc77313", "tokenId": "0x01", "tokenType": "1", "value": "0x00", "recipientAddress": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266", "fee": "0x09"}'
 ```
 
-Returns: `202 Accepted` on success, together with a json array that contains: the Client Transaction object and; the transaction receipt if the transfer transaction was placed on chain, otherwise (the normal situation) "null".
+Returns: 
+{
+    "success": true,
+    "message": "Withdraw operation completed successfully",
+    "withdraw_fund_salt": `the unique salt that's assigned to this withdraw, this salt will be used later in de-escrow`
+}.
 
 This call will nullify one or two spend commitments (same for fee spend commitments) and descrow the corresponding funds so that the user can withdraw funds. NB unlike a deposit, which both escrows funds and then creates a deposit transaction without further user input, a withdraw transaction, that moves funds from Layer 2 to Layer 1, must be manually followed up with a de-escrow transaction to recover the funds into the recipient's account from the Nightfall contracts 'pending' balance. This is because of the use of the safer 'withdraw' pattern.
 
@@ -422,8 +427,8 @@ curl -i --request POST 'http://localhost:3000/v1/de-escrow' \
 
 Returns:
 
-- If funds are available: `200 OK` and a JSON boolean set to `true`. The funds will also have been de-escrowed.
-- If funds are not available `404 NOT FOUND` and a JSON boolean set to `false`.
+- If funds are available: it will return `1`. The funds will also have been de-escrowed.
+- If funds are not available `404 NOT FOUND` and `0`.
 
 This call withdraws funds from escrow, after a successful Layer 2 -> Layer 1 withdraw, returning the funds to recipient address. There is no requirement for the caller to be the recipient.
 
