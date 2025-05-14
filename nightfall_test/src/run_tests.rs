@@ -1,5 +1,6 @@
 use ark_bn254::Fr as Fr254;
 use configuration::settings::{get_settings, Settings};
+use futures::future::try_join_all;
 use lib::models::CertificateReq;
 use log::{debug, info, warn};
 use nightfall_client::{
@@ -29,7 +30,6 @@ use ethers::{
     types::{TransactionReceipt, U256},
     utils::{format_units, parse_units},
 };
-use futures::future::try_join_all;
 use url::Url;
 
 pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_json::Value>>>) {
@@ -165,12 +165,15 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
                 TokenType::ERC20,
                 test_settings.erc20_deposit_large_block.clone(),
                 DEPOSIT_FEE.to_string(), //deposit_fee
-            )
-            .await
-            .unwrap();
+            );
             // save the IDs of the deposits so that we can wait for them to be on-chain
             large_block_deposit_ids.push(large_block_deposit_id);
         }
+
+        // throw all the transactions at the client as fast as we can
+        let large_block_deposit_ids = try_join_all(large_block_deposit_ids)
+            .await
+            .unwrap();
 
         // wait for all the responses to come back and convert the json responses to a vector of Fr254 commitments
         info!("Waiting for deposit responses");
@@ -221,11 +224,14 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
                 url.clone(),
                 TokenType::ERC20,
                 test_settings.erc20_transfer_large_block.clone(),
-            )
-            .await
-            .unwrap();
+            );
             large_block_transfer_ids.push(large_block_transfer_id);
         }
+
+        // throw all the transactions at the client as fast as we can
+        let large_block_transfer_ids = try_join_all(large_block_transfer_ids)
+            .await
+            .unwrap();
 
         // wait for responses to the transfer requests
         info!("Waiting for transfer responses");
@@ -306,8 +312,6 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
             test_settings.erc20_deposit_0.clone(),
             "0x00".to_string(), //deposit_fee
         )
-        .await
-        .unwrap(),
     );
     debug!("transaction_erc20_deposit_0 has been created");
 
@@ -319,8 +323,6 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
             test_settings.erc20_deposit_1,
             "0x27".to_string(), //deposit_fee
         )
-        .await
-        .unwrap(),
     );
     debug!("transaction_erc20_deposit_1 has been created");
 
@@ -332,8 +334,6 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
             test_settings.erc20_deposit_2.clone(),
             "0x06".to_string(), //deposit_fee
         )
-        .await
-        .unwrap(),
     );
     debug!("transaction_erc20_deposit_2 has been created");
 
@@ -345,8 +345,6 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
             test_settings.erc20_deposit_3,
             "0x00".to_string(), //deposit_fee
         )
-        .await
-        .unwrap(),
     );
     debug!("transaction_erc20_deposit_3 has been created");
 
@@ -368,8 +366,6 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
             test_settings.erc721_deposit.clone(),
             "0x08".to_string(), //deposit_fee
         )
-        .await
-        .unwrap(),
     );
     debug!("transaction_erc721_deposit has been created");
 
@@ -381,8 +377,6 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
             test_settings.erc3525_deposit_1,
             "0x0b".to_string(), //deposit_fee
         )
-        .await
-        .unwrap(),
     );
     debug!("transaction_erc3525_deposit_1 has been created");
 
@@ -394,8 +388,6 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
             test_settings.erc3525_deposit_2,
             "0x0e".to_string(), //deposit_fee
         )
-        .await
-        .unwrap(),
     );
     debug!("transaction_erc3525_deposit_2 has been created");
 
@@ -407,8 +399,6 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
             test_settings.erc1155_deposit_1,
             "0x11".to_string(), //deposit_fee
         )
-        .await
-        .unwrap(),
     );
     debug!("transaction_erc1155_deposit_1 has been created");
 
@@ -420,8 +410,6 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
             test_settings.erc1155_deposit_2,
             "0x14".to_string(), //deposit_fee
         )
-        .await
-        .unwrap(),
     );
     debug!("transaction_erc1155_deposit_2 has been created");
 
@@ -433,10 +421,11 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
             test_settings.erc1155_deposit_3_nft,
             "0x16".to_string(), //deposit_fee
         )
-        .await
-        .unwrap(),
     );
     debug!("transaction_erc1155_deposit_3 has been created");
+
+    // throw all the transactions at the client as fast as we can
+    let transaction_ids = try_join_all(transaction_ids).await.unwrap();
 
     // wait for the responses to the deposit requests to come back to the webhook server
     let commitment_hashes = wait_for_all_responses(&transaction_ids, responses.clone())
@@ -498,7 +487,7 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
         .join("v1/deposit")
         .unwrap();
 
-    transaction_ids.clear();
+    let mut transaction_ids = vec![];
 
     for _ in 0..7 {
         transaction_ids.push(
@@ -509,11 +498,14 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
                 test_settings.erc20_deposit_4.clone(),
                 "0x20".to_string(), //deposit_fee
             )
-            .await
-            .unwrap(),
         );
         debug!("transaction_erc20_deposit_4 has been created");
     }
+
+    // throw all the transactions at the client as fast as we can
+    let transaction_ids = try_join_all(transaction_ids)
+        .await
+        .unwrap();
 
     // wait for the responses to the deposit requests to come back to the webhook server
     let commitment_hashes = wait_for_all_responses(&transaction_ids, responses.clone())
@@ -564,7 +556,7 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
     assert!(res.status().is_success());
 
     // create transfer requests
-    transaction_ids.clear();
+    let mut transaction_ids = vec![];
 
     let url = Url::parse(&settings.nightfall_client.url)
         .unwrap()
@@ -579,8 +571,6 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
             TokenType::ERC20,
             test_settings.erc20_transfer_0,
         )
-        .await
-        .unwrap(),
     );
 
     transaction_ids.push(
@@ -591,8 +581,6 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
             TokenType::ERC20,
             test_settings.erc20_transfer_1,
         )
-        .await
-        .unwrap(),
     );
 
     debug!("transaction_erc20_transfer_1 has been created");
@@ -604,9 +592,12 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
             TokenType::ERC20,
             test_settings.erc20_transfer_2,
         )
-        .await
-        .unwrap(),
     );
+
+    // throw all the transactions at the client as fast as we can
+    let transaction_ids = try_join_all(transaction_ids)
+        .await
+        .unwrap();
 
     // wait for the responses to the transfer requests to come back to the webhook server
     let transactions = wait_for_all_responses(&transaction_ids, responses.clone())
@@ -654,7 +645,7 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
     assert_eq!(spent_commitments, nullifier_count);
 
     // create transfer requests for the other token types
-    transaction_ids.clear();
+    let mut transaction_ids = vec![];
 
     transaction_ids.push(
         create_nf3_transfer_transaction(
@@ -664,8 +655,6 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
             TokenType::ERC721,
             test_settings.erc721_transfer,
         )
-        .await
-        .unwrap(),
     );
     debug!("transaction_erc721_transfer has been created");
 
@@ -677,8 +666,6 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
             TokenType::ERC3525,
             test_settings.erc3525_transfer_1,
         )
-        .await
-        .unwrap(),
     );
     debug!("transaction_erc3525_transfer_1 has been created");
 
@@ -690,8 +677,6 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
             TokenType::ERC3525,
             test_settings.erc3525_transfer_2,
         )
-        .await
-        .unwrap(),
     );
     debug!("transaction_erc3525_transfer_2 has been created");
 
@@ -703,8 +688,6 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
             TokenType::ERC1155,
             test_settings.erc1155_transfer_1,
         )
-        .await
-        .unwrap(),
     );
     debug!("transaction_erc1155_transfer_1 has been created");
 
@@ -716,10 +699,13 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
             TokenType::ERC1155,
             test_settings.erc1155_transfer_2_nft,
         )
-        .await
-        .unwrap(),
     );
     debug!("transaction_erc1155_transfer_2 has been created");
+
+    // throw all the transactions at the client as fast as we can
+    let transaction_ids = try_join_all(transaction_ids)
+        .await
+        .unwrap();
 
     // wait for the responses to the transfer requests to come back to the webhook server
     let transactions = wait_for_all_responses(&transaction_ids, responses.clone())
@@ -781,8 +767,6 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
             test_settings.erc20_withdraw_0,
             recipient_address.clone(),
         )
-        .await
-        .unwrap(),
     );
     debug!("transaction_erc20_withdraw_0 has been created");
 
@@ -794,8 +778,6 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
             test_settings.erc20_withdraw_1,
             recipient_address.clone(),
         )
-        .await
-        .unwrap(),
     );
     debug!("transaction_erc20_withdraw_1 has been created");
 
@@ -807,10 +789,13 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
             test_settings.erc20_withdraw_2,
             recipient_address.clone(),
         )
-        .await
-        .unwrap(),
     );
     debug!("transaction_erc20_withdraw_2 has been created");
+
+    // throw all the transactions at the client as fast as we can
+    let withdraw_data = try_join_all(withdraw_data)
+        .await
+        .unwrap();
 
     // Extract the withdraw data and the ids as separate vectors
     let (withdraw_ids, mut withdraw_payload): (Vec<_>, Vec<_>) =
@@ -912,8 +897,6 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
             test_settings.erc721_withdraw,
             recipient_address.clone(),
         )
-        .await
-        .unwrap(),
     );
     debug!("transaction_erc721_withdraw has been created");
 
@@ -925,8 +908,6 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
             test_settings.erc3525_withdraw,
             recipient_address.clone(),
         )
-        .await
-        .unwrap(),
     );
     debug!("transaction_erc3525_withdraw has been created");
 
@@ -938,8 +919,6 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
             test_settings.erc1155_withdraw_1,
             recipient_address.clone(),
         )
-        .await
-        .unwrap(),
     );
     debug!("transaction_erc1155_withdraw_1 has been created");
 
@@ -951,10 +930,13 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
             test_settings.erc1155_withdraw_2_nft,
             recipient_address.clone(),
         )
-        .await
-        .unwrap(),
     );
     debug!("transaction_erc1155_withdraw_2 has been created");
+
+    // throw all the transactions at the client as fast as we can
+    let withdraw_data = try_join_all(withdraw_data)
+        .await
+        .unwrap();
 
     // Extract the withdraw data and the ids as separate vectors
     let (withdraw_ids, mut withdraw_payload): (Vec<_>, Vec<_>) =

@@ -299,7 +299,7 @@ pub async fn wait_for_all_responses(
         debug!("Response IDs: {:?}", response_ids);
         debug!("Request IDs: {:?}", large_block_deposit_ids);
         info!(
-            "Have {} IDs and {} proocessed client transactions",
+            "Have {} IDs and {} processed client transactions",
             large_block_deposit_ids.len(),
             response_ids.len()
         );
@@ -447,7 +447,7 @@ pub async fn create_nf3_deposit_transaction(
         .map_err(|e| TestError::new(e.to_string()))?
         .to_string();
     info!(
-        "Deposit transaction {} has been processed by the client",
+        "Deposit transaction {} has been accepted by the client",
         returned_id
     );
     Ok(returned_id)
@@ -488,7 +488,7 @@ pub async fn create_nf3_transfer_transaction(
         .map_err(|e| TestError::new(e.to_string()))?
         .to_string();
     info!(
-        "Transfer transaction {} has been processed by the client",
+        "Transfer transaction {} has been accepted by the client",
         returned_id
     );
     Ok(returned_id)
@@ -547,7 +547,7 @@ pub async fn create_nf3_withdraw_transaction(
     };
 
     info!(
-        "Withdraw transaction {} has been processed by the client",
+        "Withdraw transaction {} has been accepted by the client",
         returned_id
     );
     Ok((returned_id, withdraw_data_request))
