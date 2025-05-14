@@ -162,6 +162,7 @@ where
     E: ProvingEngine<P>,
     N: NightfallContract,
 {
+    const MAX_QUEUE_SIZE: usize = 1000;
     // extract the request ID
     let id = request_id.unwrap_or_default();
     // check if the id is a valid uuid
@@ -179,6 +180,17 @@ where
     // add the request to the queue
     debug!("Adding request to queue");
     let mut q = get_queue().await.write().await;
+    // check if the queue is full
+    if q.len() >= MAX_QUEUE_SIZE {
+        return Ok(reply::with_header(
+            reply::with_status(
+                json(&"Queue is full".to_string()),
+                StatusCode::SERVICE_UNAVAILABLE,
+            ),
+            "X-Request-ID",
+            id,
+        ));
+    }
     debug!("got lock on queue");
     q.push_back(QueuedRequest {
         transaction_request,
