@@ -69,7 +69,7 @@ where
     }
 
     // add in all the remaining trait items
-    async fn get_all_mempool_transactions(
+    async fn get_all_mempool_client_transactions(
         &mut self,
     ) -> Option<Vec<(Vec<u32>, ClientTransactionWithMetaData<P>)>> {
         let filter = doc! {"in_mempool": true};
@@ -88,6 +88,16 @@ where
             return None;
         };
         Some(result)
+    }
+
+    // Count client_transaction in the mempool
+    // This is used to determine if we need to assemble a block
+    async fn count_mempool_client_transactions(&mut self) -> Result<u64, mongodb::error::Error> {
+        let filter = doc! { "in_mempool": true };
+        self.database(DB)
+            .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
+            .count_documents(filter)
+            .await
     }
 
     async fn is_transaction_in_mempool(&mut self, k: &'a [u32]) -> bool {
@@ -204,6 +214,14 @@ where
         } else {
             Some(result)
         }
+    }
+    // Count deposits in the mempool
+    // This is used to determine if we need to assemble a block
+    async fn count_mempool_deposits(&mut self) -> Result<u64, mongodb::error::Error> {
+        self.database(DB)
+            .collection::<DepositDatawithFee>(DEPOSIT_COLLECTION)
+            .count_documents(doc! {})
+            .await
     }
 
     // Remove used deposits from the mempool

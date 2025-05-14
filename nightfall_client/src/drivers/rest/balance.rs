@@ -2,7 +2,6 @@ use super::utils::{reverse_hex_string, to_nf_token_id_from_str};
 use crate::{get_fee_token_id, initialisation::get_db_connection, ports::db::CommitmentDB};
 use ark_ff::{BigInteger, PrimeField};
 use warp::{http::StatusCode, path, reply::Reply, Filter};
-// use super::utils::to_nf_token_id_2;
 /// Endpoint to get a token balance
 /// NB for consistency with the rest of the API,
 /// the value is returned as a *hex* string.

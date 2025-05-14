@@ -6,7 +6,7 @@ use ark_std::{
     UniformRand, Zero,
 };
 use configuration::settings::{self, Settings};
-use ethers::utils::hex;
+use ethers::utils::{hex, keccak256};
 use itertools::izip;
 use jf_plonk::{
     errors::PlonkError,
@@ -30,7 +30,6 @@ use nightfall_client::{
     domain::entities::{DepositSecret, HexConvertible, Preimage, Salt},
     driven::plonk_prover::circuits::unified_circuit::unified_circuit_builder,
     drivers::{derive_key::ZKPKeys, rest::utils::to_nf_token_id_from_str},
-    get_fee_token_id,
     ports::{
         commitments::Commitment,
         proof::{PrivateInputs, PublicInputs},
@@ -41,10 +40,10 @@ use nightfall_proposer::{
     domain::entities::DepositData,
     driven::{deposit_circuit::deposit_circuit_builder, rollup_prover::RollupProver},
 };
+use num_bigint::BigUint;
 use std::{
     collections::HashMap,
     fs::File,
-    path::{Path, PathBuf},
 };
 
 fn main() {
@@ -72,33 +71,8 @@ pub fn generate_proving_keys(settings: &Settings) -> Result<(), PlonkError> {
     deposit_circuit.finalize_for_recursive_arithmetization::<RescueCRHF<Fq254>>()?;
     let mut rng = rand::thread_rng();
 
-    // make strenuous efforts to find the bin directory, even if the current working directory is not the root of the project
-    let path = Path::new(&settings.contracts.addresses_file);
-
-    let cwd = std::env::current_dir().map_err(PlonkError::IoError)?;
-    let mut cwd = cwd.as_path();
-    let path_out: PathBuf;
-    loop {
-        let file_path = cwd.join(path);
-        if file_path.is_file() {
-            path_out = file_path;
-            break;
-        }
-
-        cwd = cwd.parent().ok_or(PlonkError::InvalidParameters(
-            "Couldn't not get parent path".to_string(),
-        ))?;
-    }
-    let mut path = path_out.as_path();
-    path = path
-        .parent()
-        .ok_or(PlonkError::InvalidParameters(
-            "Couldn't not get parent path".to_string(),
-        ))?
-        .parent()
-        .ok_or(PlonkError::InvalidParameters(
-            "Couldn't not get parent path".to_string(),
-        ))?;
+    // locate the configuration directory
+    let path = std::env::current_dir()?.as_path().join("configuration");
 
     // if we're using a mock prover, we won't waste time downloading a real Perpetual Powers of Tau file
     // and generating a structured reference string
@@ -337,8 +311,8 @@ pub fn build_valid_transfer_inputs(rng: &mut impl Rng) -> (PublicInputs, Private
     let nf_token_id = to_nf_token_id_from_str(&erc_address_string, &token_id_string).unwrap();
     let nf_slot_id = nf_token_id;
 
-    // Retrieve the fee token ID
-    let fee_token_id = get_fee_token_id();
+    // generate a 'random' fee token ID (we just use the keccak hash of 1)
+    let fee_token_id = Fr254::from(BigUint::from_bytes_be(&keccak256([1])) >> 4);
 
     // Random values for fee and value
     let mut nullified_fee_one = rand_96_bit(rng);

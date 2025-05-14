@@ -12,8 +12,8 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::str;
 
-use crate::domain::entities::{CommitmentStatus, WithdrawData};
-use crate::ports::db::{CommitmentDB, WithdrawalDB};
+use crate::domain::entities::{CommitmentStatus, Request, RequestStatus, WithdrawData};
+use crate::ports::db::{CommitmentDB, RequestDB, WithdrawalDB};
 use crate::{
     domain::entities::Preimage,
     driven::contract_functions::contract_type_conversions::FrBn254,
@@ -56,6 +56,48 @@ pub fn to_fr254_proof(proof: MembershipProof<FrBn254>) -> MembershipProof<Fr254>
             })
             .collect(),
         leaf_index: proof.leaf_index,
+    }
+}
+
+#[async_trait]
+impl RequestDB for Client {
+    async fn store_request(&self, request_id: &str, status: RequestStatus) -> Option<()> {
+        let request = Request {
+            uuid: request_id.to_string(),
+            status,
+        };
+        let result = self
+            .database(DB)
+            .collection::<Request>("requests")
+            .insert_one(&request)
+            .await;
+        match result {
+            Ok(_) => Some(()),
+            Err(e) => {
+                info!("{} Got an error inserting request: {}", request.uuid, e);
+                None
+            }
+        }
+    }
+
+    async fn get_request(&self, request_id: &str) -> Option<Request> {
+        let filter = doc! { "uuid": request_id };
+        self.database(DB)
+            .collection::<Request>("requests")
+            .find_one(filter)
+            .await
+            .ok()?
+    }
+
+    async fn update_request(&self, request_id: &str, status: RequestStatus) -> Option<()> {
+        let filter = doc! { "uuid": request_id };
+        let update = doc! {"$set": { "status": status.to_string() }};
+        self.database(DB)
+            .collection::<Request>("requests")
+            .update_one(filter, update)
+            .await
+            .ok()?;
+        Some(())
     }
 }
 
@@ -297,12 +339,12 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
             .iter()
             .map(|c| hex::encode(c.into_bigint().to_bytes_le()))
             .collect::<Vec<_>>();
-
         // Step 1: Check which commitments exist in the database before updating
         let collection = self
             .database(DB)
             .collection::<CommitmentEntry>("commitments");
         let mut found_commitments = Vec::new();
+        
         let mut missing_commitments = Vec::new();
 
         for commitment in &commitment_str {
@@ -313,7 +355,6 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
                 Err(e) => ark_std::println!("Error querying commitment {}: {:?}", commitment, e),
             }
         }
-
         let filter = doc! { "key": { "$in": commitment_str }};
         let update = doc! {"$set": { "status": "Unspent" }};
         self.database(DB)

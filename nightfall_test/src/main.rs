@@ -960,105 +960,34 @@ async fn main() {
 
     // info!("Successfully withdrew ERC1155 tokens");
 
-    // // get the final balance of all the addresses used. As these are all addresses funded by Anvil,
-    // // we can simple print those balances
-    // let client = get_blockchain_client_connection()
-    //     .await
-    //     .read()
-    //     .await
-    //     .get_client();
-    // let accounts = client.get_accounts().await.unwrap();
-    // let initial_balance = U256::from(parse_units("10000.0", "ether").unwrap());
-    // let final_balances = try_join_all(
-    //     accounts
-    //         .iter()
-    //         .map(|a| client.get_balance(*a, None))
-    //         .collect::<Vec<_>>(),
-    // )
-    // .await
-    // .unwrap()
-    // .iter()
-    // .map(|b| initial_balance - b)
-    // .collect::<Vec<_>>();
-    // let final_balances_str = final_balances
-    //     .iter()
-    //     .map(|b| format_units(*b, "ether").unwrap())
-    //     .collect::<Vec<_>>();
-    // let total = final_balances.iter().fold(U256::zero(), |acc, b| acc + b);
-    // info!("Eth spent was {:#?}", final_balances_str);
-    // info!(
-    //     "Total spent was {:#?}",
-    //     format_units(total, "ether").unwrap()
-    // );
-}
-
-#[cfg(test)]
-mod tests {
-
-    use crate::test::{build_valid_transfer_inputs, create_random_proof_and_inputs};
-    use ark_bn254::{Bn254, Fq as Fq254, Fr as Fr254};
-
-    use ark_serialize::CanonicalSerialize;
-    use ark_std::{rand, test_rng};
-    use configuration::settings::Settings;
-    use jf_plonk::{nightfall::FFTPlonk, proof_system::UniversalSNARK};
-    use jf_primitives::{pcs::prelude::UnivariateKzgPCS, rescue::sponge::RescueCRHF};
-    use jf_relation::constraint_system::{Arithmetization, PlonkCircuit};
-    use nightfall_client::ports::proof::CircuitBuilder;
-
-    use std::{fs::File, io::Write, path::Path};
-    // We recreate the `generate_proving_key` function from `nightfall_deployer::deployment` so we don't
-    // have to build all of `nightfall_deployer/' when running the `generate_proof_and_inputs` test below.`
-    fn generate_proving_key() {
-        // Generate a dummy circuit.
-        let mut rng = test_rng();
-        let (mut public_inputs, mut private_inputs) = build_valid_transfer_inputs(&mut rng);
-
-        let mut circuit = <PlonkCircuit<Fr254> as CircuitBuilder>::build_circuit(
-            &mut public_inputs,
-            &mut private_inputs,
-        )
-        .unwrap();
-
-        circuit
-            .finalize_for_recursive_arithmetization::<RescueCRHF<Fq254>>()
-            .unwrap();
-
-        let mut rng = rand::thread_rng();
-        let srs_size = circuit.srs_size().unwrap();
-        let srs =
-            FFTPlonk::<UnivariateKzgPCS<Bn254>>::universal_setup_for_testing(srs_size, &mut rng)
-                .unwrap();
-        let (pk, _vk) = FFTPlonk::<UnivariateKzgPCS<Bn254>>::preprocess(&srs, &circuit).unwrap();
-        let settings = Settings::new().unwrap();
-        let path = Path::new(&settings.contracts.addresses_file);
-
-        let cwd = std::env::current_dir().unwrap();
-        let mut cwd = cwd.as_path();
-        let path_out: std::path::PathBuf;
-        loop {
-            let file_path = cwd.join(path);
-            if file_path.is_file() {
-                path_out = file_path;
-                break;
-            }
-
-            cwd = cwd.parent().unwrap();
-        }
-        let mut path = path_out.as_path();
-        path = path.parent().unwrap().parent().unwrap();
-
-        let pk_path = path.join("bin/proving_key");
-        let mut file = File::create(pk_path).unwrap();
-        let mut compressed_bytes = Vec::new();
-        pk.serialize_compressed(&mut compressed_bytes).unwrap();
-        file.write_all(&compressed_bytes).unwrap();
-    }
-
-    #[test]
-    fn generate_proof_and_inputs() {
-        generate_proving_key();
-        let rng = &mut test_rng();
-        let (_, _, _) = create_random_proof_and_inputs(rng).unwrap();
-    }
+    // get the final balance of all the addresses used. As these are all addresses funded by Anvil,
+    // we can simple print those balances
+    let client = get_blockchain_client_connection()
+        .await
+        .read()
+        .await
+        .get_client();
+    let accounts = client.get_accounts().await.unwrap();
+    let initial_balance = U256::from(parse_units("10000.0", "ether").unwrap());
+    let final_balances = try_join_all(
+        accounts
+            .iter()
+            .map(|a| client.get_balance(*a, None))
+            .collect::<Vec<_>>(),
+    )
+    .await
+    .unwrap()
+    .iter()
+    .map(|b| initial_balance - b)
+    .collect::<Vec<_>>();
+    let final_balances_str = final_balances
+        .iter()
+        .map(|b| format_units(*b, "ether").unwrap())
+        .collect::<Vec<_>>();
+    let total = final_balances.iter().fold(U256::zero(), |acc, b| acc + b);
+    info!("Eth spent was {:#?}", final_balances_str);
+    info!(
+        "Total spent was {:#?}",
+        format_units(total, "ether").unwrap()
+    );
 }

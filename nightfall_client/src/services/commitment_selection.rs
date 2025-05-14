@@ -6,17 +6,21 @@ use log::{debug, trace};
 use mongodb::{Client, Database};
 use nf_curves::ed_on_bn254::BJJTEAffine as JubJub;
 use serde::{Deserialize, Serialize};
-use std::cmp::Ordering;
-use std::collections::VecDeque;
-use std::sync::Arc;
-use std::{cmp, fmt::Debug};
+use std::{
+    cmp::Ordering,
+    collections::VecDeque, 
+    sync::Arc, 
+    cmp, 
+    fmt::Debug
+};
 use tokio::sync::RwLockWriteGuard;
-
-use crate::driven::contract_functions::contract_type_conversions::FrBn254;
-use crate::driven::db::mongo::CommitmentEntry;
-use crate::get_fee_token_id;
-use crate::initialisation::get_db_connection;
 use crate::{
+    get_fee_token_id,
+    initialisation::get_db_connection,
+    driven::{
+        contract_functions::contract_type_conversions::FrBn254,
+        db::mongo::CommitmentEntry
+    },
     domain::entities::Preimage,
     ports::{
         commitments::Commitment,
@@ -38,10 +42,6 @@ pub async fn find_usable_commitments(
 ) -> Result<[Preimage; MAX_POSSIBLE_COMMITMENTS], &'static str> {
     let (avaliable_sorted_commitments, min_num_c) =
         verify_enough_commitments(target_token_id, target_value, db).await?;
-    // ark_std::println!(
-    //     "avaliable_sorted_commitments: {:?}",
-    //     avaliable_sorted_commitments
-    // );
 
     let mut max_num_c = MAX_POSSIBLE_COMMITMENTS;
     if avaliable_sorted_commitments.len() < MAX_POSSIBLE_COMMITMENTS {
