@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use crate::domain::entities::RequestStatus;
-use crate::domain::notifications::NotificationPayload;
 use crate::driven::notifier::webhook_notifier::WebhookNotifier;
 use crate::drivers::rest::client_nf_3::handle_request;
 use crate::drivers::rest::models::{NF3DepositRequest, NF3TransferRequest, NF3WithdrawRequest};
@@ -11,7 +10,7 @@ use crate::ports::db::RequestDB;
 use crate::ports::proof::{Proof, ProvingEngine};
 use crate::services::data_publisher::DataPublisher;
 use configuration::settings::get_settings;
-use log::{info, warn};
+use log::{debug, info, warn};
 use std::collections::VecDeque;
 use tokio::sync::{OnceCell, RwLock};
 use tokio::time::sleep;
@@ -46,20 +45,24 @@ where
     E: ProvingEngine<P>,
     N: NightfallContract,
 {
-    let queue = get_queue();
-    let mut queue = queue.await.write().await;
     // register a notifier to publish to the webhook URL
     let mut publisher = DataPublisher::new();
     let webhook_url = &get_settings().nightfall_client.webhook_url;
-    info!("Using webhook URL: {}", webhook_url);
+    debug!("Using webhook URL: {}", webhook_url);
     let notifier = WebhookNotifier::new(webhook_url);
     publisher.register_notifier(Box::new(notifier));
 
     loop {
-        while let Some(request) = queue.pop_front() {
+        while let Some(request) = {
+            let mut queue = get_queue().await.write().await;
+            let request = queue.pop_front();
+            drop(queue); // drop the lock here so we don't hold up the queue while processing the request
+            request
+        }
+            {
             // Process the request here with a concurrency of 1
             // mark request as 'Processing'
-            info!("{} Processing request: ", request.uuid);
+            info!("Processing request: {}", request.uuid);
             let db = get_db_connection().await.write().await;
             let _ = db
                 .update_request(&request.uuid, RequestStatus::Processing)
@@ -72,15 +75,14 @@ where
                     let _ = db
                         .update_request(&request.uuid, RequestStatus::Submitted)
                         .await;
+                    drop(db); // drop the DB here so the mutex isn't locked while we process the next request
                     // Handle the response here
-                    info!("{} Request processed successfully: ", request.uuid);
+                    info!("Request {} processed successfully: ", request.uuid);
                     if webhook_url.is_empty() {
                         warn!("No webhook URL provided, skipping notification of successful transaction");
                     } else {
-                        // Create a notification payload
-                        let notification = NotificationPayload::TransactionEvent(response);
                         // Publish the notification
-                        publisher.publish(notification).await;
+                        publisher.publish(response).await;
                     }
                 }
                 Err(e) => {
@@ -89,6 +91,7 @@ where
                     let _ = db
                         .update_request(&request.uuid, RequestStatus::Failed)
                         .await;
+                    drop(db); // drop the DB here so the mutex isn't locked while we process the next request
                     warn!("{} Error processing request: {:?}", request.uuid, e);
                 }
             }

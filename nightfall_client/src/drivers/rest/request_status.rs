@@ -47,16 +47,14 @@ pub async fn handle_get_request_status(id: String) -> Result<impl Reply, warp::R
 }
 
 /// This endpoint is used to get the length of thr request queue
-pub fn get_request_queue_length(
+pub fn get_queue_length(
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     path!("v1" / "queue")
         .and(warp::get())
-        .and_then(handle_get_request_queue_length)
+        .and_then(handle_get_queue_length)
 }
-pub async fn handle_get_request_queue_length() -> Result<impl Reply, warp::Rejection> {
-    debug! {"Getting request queue length"};
+pub async fn handle_get_queue_length() -> Result<impl Reply, warp::Rejection> {
     let length = get_queue().await.read().await.len();
-    debug! {"Request queue length: {length:?}"};
     Ok(warp::reply::with_status(
         serde_json::to_string(&length).unwrap(),
         StatusCode::OK,

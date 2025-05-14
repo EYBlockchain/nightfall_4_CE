@@ -4,10 +4,10 @@ use super::{
     utils::{reverse_hex_string, to_nf_token_id_from_str},
 };
 use crate::{
-    domain::entities::{
+    domain::{entities::{
         DepositSecret, ERCAddress, HexConvertible, Operation, OperationType, Preimage, Salt,
         TokenType, Transport,
-    },
+    }, notifications::NotificationPayload},
     driven::contract_functions::contract_type_conversions::FrBn254,
     drivers::{
         blockchain::nightfall_event_listener::get_synchronisation_status, derive_key::ZKPKeys,
@@ -16,8 +16,7 @@ use crate::{
     initialisation::get_db_connection,
     ports::{
         commitments::Commitment,
-        db::CommitmentDB,
-        db::CommitmentEntryDB,
+        db::{CommitmentDB, CommitmentEntryDB},
         keys::KeySpending,
         proof::{Proof, ProvingEngine},
     },
@@ -50,7 +49,7 @@ use nf_curves::ed_on_bn254::{BabyJubjub, Fr as BJJScalar};
 use nightfall_bindings::{
     ierc1155::IERC1155, ierc20::IERC20, ierc3525::IERC3525, ierc721::IERC721, nightfall::Nightfall,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use warp::{
     hyper::StatusCode,
@@ -59,11 +58,11 @@ use warp::{
     Filter,
 };
 
-#[derive(Serialize)]
-struct WithdrawResponse {
+#[derive(Serialize, Deserialize)]
+pub struct WithdrawResponse {
     success: bool,
     message: String,
-    withdraw_fund_salt: String, // Return the withdraw_fund_salt
+    pub withdraw_fund_salt: String, // Return the withdraw_fund_salt
 }
 // A simplified client interface, which provides Deposit, Transfer and Withdraw operations,
 // with automated commitment selection, but without the flexibility of the lower-level
@@ -121,6 +120,7 @@ where
     N: NightfallContract,
 {
     let transaction_request = TransactionRequest::Deposit(deposit_req);
+    debug!("Queueing deposit request");
     queue_request::<P, E, N>(transaction_request, request_id).await
 }
 
@@ -177,13 +177,15 @@ where
     };
 
     // add the request to the queue
+    debug!("Adding request to queue");
     let mut q = get_queue().await.write().await;
+    debug!("got lock on queue");
     q.push_back(QueuedRequest {
         transaction_request,
         uuid: id.clone(),
     });
     drop(q); // drop the lock so other processes can access the queue
-
+    debug!("Added request to queue");
     // record the request as queued
     let db = get_db_connection().await.write().await;
     if let None = db.store_request(&id, RequestStatus::Queued).await {
@@ -197,6 +199,7 @@ where
         ));
     }
     drop(db); // drop the lock so other processes can access the DB
+    debug!("Stored request status in database");
 
     // return a 202 Accepted response with the request ID
     Ok(reply::with_header(
@@ -214,7 +217,7 @@ where
 pub async fn handle_request<P, E, N>(
     request: TransactionRequest,
     request_id: &str,
-) -> Result<String, TransactionHandlerError>
+) -> Result<NotificationPayload, TransactionHandlerError>
 where
     P: Proof,
     E: ProvingEngine<P>,
@@ -237,7 +240,7 @@ where
 pub async fn handle_deposit<N: NightfallContract>(
     req: NF3DepositRequest,
     id: &str,
-) -> Result<String, TransactionHandlerError> {
+) -> Result<NotificationPayload, TransactionHandlerError> {
     let sync_state = get_synchronisation_status::<N>()
         .await
         .map_err(|e| TransactionHandlerError::CustomError(e.to_string()))?
@@ -404,10 +407,7 @@ pub async fn handle_deposit<N: NightfallContract>(
         CommitmentStatus::PendingCreation,
     );
 
-    db.store_commitment(commitment_entry).await.ok_or({
-        error!("{id} Error while storing pending deposit commitment");
-        TransactionHandlerError::DatabaseError
-    })?;
+    db.store_commitment(commitment_entry).await.ok_or(TransactionHandlerError::DatabaseError)?;
 
     debug!("{id} Deposit commitment stored successfully");
 
@@ -424,12 +424,8 @@ pub async fn handle_deposit<N: NightfallContract>(
             nullifier,
             CommitmentStatus::PendingCreation,
         );
-
         // Store the fee commitment in the database, error if storage fails
-        db.store_commitment(commitment_entry).await.ok_or({
-            error!("{id} Error while storing pending deposit_fee commitment");
-            TransactionHandlerError::DatabaseError
-        })?;
+        db.store_commitment(commitment_entry).await.ok_or(TransactionHandlerError::DatabaseError)?;
     }
 
     debug!("{id} Deposit fee commitment stored successfully");
@@ -452,16 +448,22 @@ pub async fn handle_deposit<N: NightfallContract>(
     };
     debug!("{id} Deposit request completed successfully - returning reply to caller");
 
-    serde_json::to_string(&(response_data, id)).map_err(|e| {
+    let response = serde_json::to_string(&response_data).map_err(|e| {
         error!("{id} Error when serialising response: {}", e);
         TransactionHandlerError::JsonConversionError(e)
-    })
+    })?;
+    let uuid = serde_json::to_string(&id).map_err(|e| {
+        error!("{id} Error when serialising request ID: {}", e);
+        TransactionHandlerError::JsonConversionError(e)
+    })?;
+
+    Ok(NotificationPayload::TransactionEvent{ response, uuid })
 }
 
 async fn handle_transfer<P, E, N>(
     transfer_req: NF3TransferRequest,
     id: &str,
-) -> Result<String, TransactionHandlerError>
+) -> Result<NotificationPayload, TransactionHandlerError>
 where
     P: Proof,
     E: ProvingEngine<P>,
@@ -655,7 +657,7 @@ where
 async fn handle_withdraw<P, E, N>(
     withdraw_req: NF3WithdrawRequest,
     id: &str,
-) -> Result<String, TransactionHandlerError>
+) -> Result<NotificationPayload, TransactionHandlerError>
 where
     P: Proof,
     E: ProvingEngine<P>,
@@ -832,14 +834,24 @@ where
     )
     .await?;
     // Build the response
-    let response = WithdrawResponse {
+    let withdraw_response = WithdrawResponse {
         success: true,
         message: "Withdraw operation completed successfully".to_string(),
         withdraw_fund_salt: withdraw_fund_salt.to_hex_string(),
     };
-    // Return the response as JSON
-    serde_json::to_string(&(response, id)).map_err(|e| {
+
+    let response = serde_json::to_string(&withdraw_response).map_err(|e| {
         error!("{id} Error when serialising response: {}", e);
         TransactionHandlerError::JsonConversionError(e)
+    })?;
+    let uuid = serde_json::to_string(&id).map_err(|e| {
+        error!("{id} Error when serialising request ID: {}", e);
+        TransactionHandlerError::JsonConversionError(e)
+    })?;
+
+    // Return the response as JSON
+    Ok(NotificationPayload::TransactionEvent {
+        response,
+        uuid,
     })
 }

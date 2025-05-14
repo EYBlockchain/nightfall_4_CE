@@ -21,7 +21,10 @@ use lib::models::CertificateReq;
 use log::{debug, info};
 use nf_curves::ed_on_bn254::{BabyJubjub as BabyJubJub, Fr as BJJScalar};
 use nightfall_client::{
-    domain::entities::{CommitmentStatus, DepositSecret, HexConvertible, Preimage, Salt},
+    domain::{
+        entities::{CommitmentStatus, DepositSecret, HexConvertible, Preimage, Salt},
+        notifications::NotificationPayload,
+    },
     driven::{
         db::mongo::CommitmentEntry,
         plonk_prover::plonk_proof::{PlonkProof, PlonkProvingEngine},
@@ -52,9 +55,10 @@ use std::{
     fmt::{self, Display},
     os::unix::process::ExitStatusExt,
     path::PathBuf,
-    process::Command, sync::Arc,
+    process::Command,
+    sync::Arc,
 };
-use tokio::{time, sync::Mutex};
+use tokio::{sync::Mutex, time};
 use url::Url;
 use uuid::Uuid;
 
@@ -267,30 +271,54 @@ pub fn forge_command(command: &[&str]) {
 }
 
 /// This function waits until a Webhook response is received for every Request ID
-pub async fn wait_for_all_responses(large_block_deposit_ids: &[String], responses: Arc<Mutex<Vec<Value>>>) -> Vec<Value> {
-    let mut count = 0;
-    const POLL_TIME: u64 = 5;
+pub async fn wait_for_all_responses(
+    large_block_deposit_ids: &[String],
+    responses: Arc<Mutex<Vec<Value>>>,
+) -> Vec<String> {
     // compare the response IDs with the request IDs
     // if we find everything we need, we can break out of the loop and return the json data in the responses (ignoring the ID)
     let response_data = loop {
-        count += 1;
+        // get a lock on the current response vectore
         let mut response_values = responses.lock().await;
-        if count > large_block_deposit_ids.len() as u64 {
-            panic!("Timed out waiting for all responses. Number of deposit ids was {} but only {} responses were received", large_block_deposit_ids.len(), response_values.len());
-        }
-        let response_ids = response_values.iter().map(|r| r["1"].as_str()).collect::<Vec<_>>();
+        // destructure the vector to get the responses and the request IDs
+        let response_payloads = response_values
+            .iter()
+            .map(|r| serde_json::from_value::<NotificationPayload>(r.clone()).unwrap())
+            .collect::<Vec<_>>();
+        let (response_data, response_ids): (Vec<_>, Vec<_>) = response_payloads
+            .iter()
+            .cloned()
+            .filter_map(|r| match r {
+                NotificationPayload::TransactionEvent { uuid, response } => Some((
+                    response,
+                    serde_json::from_str::<String>(&uuid).expect("Could not parse uuid"),
+                )),
+                _ => None,
+            })
+            .unzip();
+        debug!("Response IDs: {:?}", response_ids);
+        debug!("Request IDs: {:?}", large_block_deposit_ids);
+        info!(
+            "Have {} IDs and {} proocessed client transactions",
+            large_block_deposit_ids.len(),
+            response_ids.len()
+        );
+        // check if the response IDs contain all the request IDs
         // we'll do a simple O(n^2) search for the request IDs in the responses as the vector is small
-        let same = large_block_deposit_ids.iter().all(|id| response_ids.contains(&Some(id.as_str()))); 
+        let same = large_block_deposit_ids
+            .iter()
+            .all(|id| response_ids.contains(&id));
         // if we find everything we need, we can break out of the loop and return the json data in the responses (ignoring the ID)
         if same {
-            let response_data = response_values.iter().map(|r| r["0"].clone()).collect::<Vec<_>>();
             response_values.clear(); // clear the responses so we can reuse the vector
             break response_data;
         }
         // if we get here, we haven't found everything we need yet
         drop(response_values); // free the mutex lock while we wait for more responses
-        time::sleep(time::Duration::from_secs(POLL_TIME)).await;
+        time::sleep(time::Duration::from_secs(10)).await;
     };
+    info!("All expected responses from the clients' webhooks have been received");
+    debug!("{:#?}", response_data);
     response_data
 }
 
@@ -352,7 +380,7 @@ pub async fn wait_on_chain(
 }
 
 /// Function to submit a request to de-escrow funds after a withdraw
-pub async fn de_escrow_request(req:&WithdrawDataReq, client_url: &str) -> Result<u8, TestError> {
+pub async fn de_escrow_request(req: &WithdrawDataReq, client_url: &str) -> Result<u8, TestError> {
     let client = reqwest::Client::new();
     let url = Url::parse(client_url)
         .map_err(|e| TestError::new(e.to_string()))?
@@ -406,7 +434,7 @@ pub async fn create_nf3_deposit_transaction(
         .send()
         .await
         .map_err(|e| TestError::new(e.to_string()))?;
-
+    debug!("Sent deposit request");
     res.error_for_status_ref()
         .map_err(|e| TestError::new(e.to_string()))?;
     assert_eq!(res.status(), StatusCode::ACCEPTED);
@@ -472,7 +500,7 @@ pub async fn create_nf3_withdraw_transaction(
     token_type: TokenType,
     tx_details: TransactionDetails,
     recipient_address: String,
-) -> Result<String, TestError> {
+) -> Result<(String, WithdrawDataReq), TestError> {
     let id = Uuid::new_v4().to_string();
     info!("Creating withdraw transaction offchain {}", &id);
     let withdraw_request = create_nf3_withdraw_request(
@@ -507,11 +535,22 @@ pub async fn create_nf3_withdraw_transaction(
         .to_str()
         .map_err(|e| TestError::new(e.to_string()))?
         .to_string();
+
+    let withdraw_data_request = WithdrawDataReq {
+        token_id: tx_details.token_id,
+        erc_address: token_type.address(),
+        recipient_address,
+        value: tx_details.value,
+        fee: tx_details.fee,
+        token_type: token_type.to_string(),
+        withdraw_fund_salt: String::default(),
+    };
+
     info!(
         "Withdraw transaction {} has been processed by the client",
         returned_id
     );
-    Ok(returned_id)
+    Ok((returned_id, withdraw_data_request))
 }
 
 pub async fn get_balance(

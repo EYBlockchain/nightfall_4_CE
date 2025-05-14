@@ -5,6 +5,7 @@ use std::{error::Error, fmt::Debug};
 use crate::domain::entities::CommitmentStatus;
 use crate::domain::entities::HexConvertible;
 use crate::domain::error::TransactionHandlerError;
+use crate::domain::notifications::NotificationPayload;
 use crate::driven::db::mongo::CommitmentEntry;
 use crate::drivers::blockchain::nightfall_event_listener::get_synchronisation_status;
 use crate::drivers::derive_key::ZKPKeys;
@@ -38,7 +39,7 @@ pub async fn handle_client_operation<P, E, N>(
     recipient_address: Fr254,
     secret_preimages: [impl SecretHash; 4],
     id: &str,
-) -> Result<String, TransactionHandlerError>
+) -> Result<NotificationPayload, TransactionHandlerError>
 where
     P: Proof + Debug + serde::Serialize + Clone + Send + Sync,
     E: ProvingEngine<P> + Send + Sync,
@@ -84,10 +85,7 @@ where
                 commitment_entries.push(commitment_entry);
             }
         }
-        db.store_commitments(&commitment_entries, true).await.ok_or( {
-            error!("{id} Failed to store commitments");
-            TransactionHandlerError::DatabaseError
-        })?
+        db.store_commitments(&commitment_entries, true).await.ok_or( TransactionHandlerError::DatabaseError)?;
     }
     // we should now have a situation where:
     // new_commitments[0] is the token commitment
@@ -153,8 +151,16 @@ where
         }
     }
 
-    serde_json::to_string(&(operation_result_json, tx_receipt, id))
-        .map_err(|e| TransactionHandlerError::JsonConversionError(e))
+    let response = serde_json::to_string(&(operation_result_json, tx_receipt))
+        .map_err(|e| TransactionHandlerError::JsonConversionError(e))?;
+
+    let uuid = serde_json::to_string(id)
+        .map_err(|e| TransactionHandlerError::JsonConversionError(e))?;
+
+    Ok(NotificationPayload::TransactionEvent {
+        response,
+        uuid,
+    })
 }
 
 async fn process_transaction_offchain<P: Serialize>(

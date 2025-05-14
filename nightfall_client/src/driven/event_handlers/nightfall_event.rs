@@ -328,7 +328,7 @@ async fn process_propose_block_event<N: NightfallContract>(
     // Let's use the Data Publisher to publish notification
     // if the WEBHOOK_URL is set
     let webhook_url = &get_settings().nightfall_client.webhook_url;
-    info!("Using webhook URL: {}", webhook_url);
+    debug!("Using webhook URL: {}", webhook_url);
     let mut publisher = DataPublisher::new();
     let notifier = WebhookNotifier::new(webhook_url);
 

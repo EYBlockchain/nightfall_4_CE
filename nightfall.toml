@@ -40,7 +40,7 @@ proposer_ding = 0                                                       # how mu
 proposer_rotation_blocks = 1                                            # how many blocks before we rotate proposers
 
 [development.nightfall_test]
-log_level = "info"
+log_level = "infor"
 
 [development.contracts]
 assets = "./blockchain_assets/artifacts"
