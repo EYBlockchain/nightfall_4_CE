@@ -121,20 +121,17 @@ pub mod initialisation {
     /// This function is used to provide a singleton proposer http connection across the entire application.
     pub fn get_proposer_http_connection() -> &'static (HttpClient, Url) {
         static PROPOSER_HTTP_CONNECTION: OnceLock<(HttpClient, Url)> = OnceLock::new();
-
         PROPOSER_HTTP_CONNECTION.get_or_init(|| {
             let base_url = &get_settings().nightfall_proposer.url;
             let url = Url::parse(base_url)
                 .expect("Could not parse proposer url")
                 .join("/v1/transaction")
                 .expect("Could not join proposer url with /v1/transaction");
-
             // Create a new HTTP client with a timeout
             let client = ClientBuilder::new()
                 .timeout(Duration::from_secs(5))
                 .build()
                 .expect("Could not build HTTP client with timeout");
-
             (client, url)
         })
     }
