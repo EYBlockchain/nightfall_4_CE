@@ -12,7 +12,6 @@ import {IERC3525Receiver} from "@erc-3525/contracts/IERC3525Receiver.sol";
 import "./ProposerManager.sol";
 import "./X509/Certified.sol";
 import "./X509/X509.sol";
-import "forge-std/console.sol";
 
 pragma solidity ^0.8.20;
 
