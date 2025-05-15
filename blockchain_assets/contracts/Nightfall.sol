@@ -600,18 +600,6 @@ contract Nightfall is
         return (verifier.verify(proof, publicInputs), feeSumAsNumber);
     }
 
-    // Allows a client to submit a transaction via the blockchain, rather than directly to
-    // a proposer. Other than that it does nothing. Deposit payments are now handled as
-    // part of propose_block(...).
-    // Consider if we really need to notarise the transaction on-chain. Candidate for deprecation?
-    function submit_client_transaction(
-        ClientTransaction calldata txn
-    ) external returns (ClientTransaction memory) {
-        emit ClientTransactionSubmitted();
-        return txn; // this is just to stop the compiler complaining about an unused parameter
-    }
-
-
     /// Function that can be called to see if funds are able to be de-escrowed following a withdraw transaction.
     function withdraw_processed(
         WithdrawData calldata data

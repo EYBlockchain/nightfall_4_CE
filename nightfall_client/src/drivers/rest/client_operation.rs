@@ -231,26 +231,3 @@ async fn process_transaction_offchain<P: Serialize>(
 
     Ok(None) // As per current off-chain flow, return no receipt
 }
-
-async fn process_transaction_onchain<P>(
-    l2_transaction: &ClientTransaction<P>,
-) -> Result<Option<TransactionReceipt>, Box<dyn Error>>
-where
-    P: Proof,
-{
-    let blockchain_client = get_blockchain_client_connection()
-        .await
-        .read()
-        .await
-        .get_client();
-    debug!("Creating contract instance");
-    let nightfall_instance = Nightfall::new(get_addresses().nightfall, blockchain_client);
-    debug!("Processing client transaction");
-    let nightfall_l2_transaction = NightfallTransactionStruct::try_from(l2_transaction.clone())?;
-    debug!("Creating nightfall submit_client_transaction function call");
-    let call = nightfall_instance.submit_client_transaction(nightfall_l2_transaction);
-    debug!("Sending transaction");
-    let tx = call.send().await?;
-    let tx_receipt = tx.await?;
-    Ok(tx_receipt)
-}
