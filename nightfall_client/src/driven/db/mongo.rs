@@ -344,7 +344,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
             .database(DB)
             .collection::<CommitmentEntry>("commitments");
         let mut found_commitments = Vec::new();
-        
+
         let mut missing_commitments = Vec::new();
 
         for commitment in &commitment_str {
@@ -380,7 +380,8 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
     }
 
     async fn store_commitment(&self, commitment: CommitmentEntry) -> Option<()> {
-        let result = self.database(DB)
+        let result = self
+            .database(DB)
             .collection::<CommitmentEntry>("commitments")
             .insert_one(&commitment)
             .await;
@@ -390,7 +391,10 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
                 Some(())
             }
             Err(e) => {
-                error!("Got an error inserting commitment: {:#?}, {}", commitment, e);
+                error!(
+                    "Got an error inserting commitment: {:#?}, {}",
+                    commitment, e
+                );
                 None
             }
         }

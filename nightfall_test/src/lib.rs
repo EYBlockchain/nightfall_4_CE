@@ -1,6 +1,6 @@
+pub mod run_tests;
 pub mod test;
 pub mod test_settings;
-pub mod run_tests;
 pub mod webhook;
 
 #[derive(Debug)]

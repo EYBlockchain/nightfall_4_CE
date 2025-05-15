@@ -19,7 +19,7 @@ use self::{
     commitment::{get_all_commitments, get_commitment},
     health_check::health_route,
     keys::derive_key_mnemonic,
-    request_status::{get_request_status, get_queue_length},
+    request_status::{get_queue_length, get_request_status},
     synchronisation::synchronisation,
     withdraw::de_escrow,
 };
@@ -44,9 +44,9 @@ where
     N: NightfallContract,
 {
     health_route()
-        .or(deposit_request::<P, E, N>())
-        .or(transfer_request::<P, E, N>())
-        .or(withdraw_request::<P, E, N>())
+        .or(deposit_request::<P>())
+        .or(transfer_request::<P>())
+        .or(withdraw_request::<P>())
         .or(get_commitment())
         .or(get_all_commitments())
         .or(derive_key_mnemonic())

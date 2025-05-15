@@ -91,13 +91,15 @@ pub enum TransactionHandlerError {
     DatabaseError,
     CustomError(String),
     Error,
-    ClientNotSynchronized
+    ClientNotSynchronized,
 }
 
 impl Display for TransactionHandlerError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            TransactionHandlerError::JsonConversionError(e) => write!(f, "Json conversion error: {}", e),
+            TransactionHandlerError::JsonConversionError(e) => {
+                write!(f, "Json conversion error: {}", e)
+            }
             TransactionHandlerError::DepositError(e) => write!(f, "Deposit error: {}", e),
             TransactionHandlerError::DatabaseError => write!(f, "Database error"),
             TransactionHandlerError::CustomError(s) => write!(f, "Transaction error: {}", s),

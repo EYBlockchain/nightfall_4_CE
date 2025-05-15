@@ -2,9 +2,11 @@ use std::sync::Arc;
 
 use configuration::{logging::init_logging, settings::Settings};
 use log::info;
-use nightfall_test::{run_tests::run_tests, webhook::{poll_queue, run_webhook_server}};
+use nightfall_test::{
+    run_tests::run_tests,
+    webhook::{poll_queue, run_webhook_server},
+};
 use tokio::task::JoinSet;
-
 
 #[tokio::main]
 async fn main() {
@@ -23,7 +25,7 @@ async fn main() {
     tasks.spawn(run_tests(responses.clone()));
     info!("Starting queue polling...");
     tasks.spawn(poll_queue());
-    
+
     tasks.join_next().await; // wait for any task to finish
     info!("Nightfall test client exited.");
 }

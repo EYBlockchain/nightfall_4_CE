@@ -58,8 +58,7 @@ where
             let request = queue.pop_front();
             drop(queue); // drop the lock here so we don't hold up the queue while processing the request
             request
-        }
-            {
+        } {
             // Process the request here with a concurrency of 1
             // mark request as 'Processing'
             info!("Processing request: {}", request.uuid);
@@ -76,7 +75,7 @@ where
                         .update_request(&request.uuid, RequestStatus::Submitted)
                         .await;
                     drop(db); // drop the DB here so the mutex isn't locked while we process the next request
-                    // Handle the response here
+                              // Handle the response here
                     info!("Request {} processed successfully: ", request.uuid);
                     if webhook_url.is_empty() {
                         warn!("No webhook URL provided, skipping notification of successful transaction");

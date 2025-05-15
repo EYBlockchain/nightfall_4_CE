@@ -307,7 +307,7 @@ pub async fn wait_for_all_responses(
         // we'll do a simple O(n^2) search for the request IDs in the responses as the vector is small
         let same = large_block_deposit_ids
             .iter()
-            .all(|id| response_ids.contains(&id));
+            .all(|id| response_ids.contains(id));
         // if we find everything we need, we can break out of the loop and return the json data in the responses (ignoring the ID)
         if same {
             response_values.clear(); // clear the responses so we can reuse the vector

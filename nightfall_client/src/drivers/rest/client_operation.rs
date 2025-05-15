@@ -1,7 +1,3 @@
-use configuration::addresses::get_addresses;
-use ethers::types::TransactionReceipt;
-use nightfall_bindings::nightfall::{ClientTransaction as NightfallTransactionStruct, Nightfall};
-use std::{error::Error, fmt::Debug};
 use crate::domain::entities::CommitmentStatus;
 use crate::domain::entities::HexConvertible;
 use crate::domain::error::TransactionHandlerError;
@@ -24,12 +20,16 @@ use crate::{
     services::client_operation::client_operation,
 };
 use ark_bn254::Fr as Fr254;
+use configuration::addresses::get_addresses;
+use ethers::types::TransactionReceipt;
 use lib::{
     blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
 };
 use log::{debug, error, info, warn};
 use nf_curves::ed_on_bn254::Fr as BJJScalar;
+use nightfall_bindings::nightfall::{ClientTransaction as NightfallTransactionStruct, Nightfall};
 use serde::Serialize;
+use std::{error::Error, fmt::Debug};
 #[allow(clippy::too_many_arguments)]
 pub async fn handle_client_operation<P, E, N>(
     operation: Operation,
@@ -85,7 +85,9 @@ where
                 commitment_entries.push(commitment_entry);
             }
         }
-        db.store_commitments(&commitment_entries, true).await.ok_or( TransactionHandlerError::DatabaseError)?;
+        db.store_commitments(&commitment_entries, true)
+            .await
+            .ok_or(TransactionHandlerError::DatabaseError)?;
     }
     // we should now have a situation where:
     // new_commitments[0] is the token commitment
@@ -152,15 +154,12 @@ where
     }
 
     let response = serde_json::to_string(&(operation_result_json, tx_receipt))
-        .map_err(|e| TransactionHandlerError::JsonConversionError(e))?;
+        .map_err(TransactionHandlerError::JsonConversionError)?;
 
-    let uuid = serde_json::to_string(id)
-        .map_err(|e| TransactionHandlerError::JsonConversionError(e))?;
+    let uuid =
+        serde_json::to_string(id).map_err(TransactionHandlerError::JsonConversionError)?;
 
-    Ok(NotificationPayload::TransactionEvent {
-        response,
-        uuid,
-    })
+    Ok(NotificationPayload::TransactionEvent { response, uuid })
 }
 
 async fn process_transaction_offchain<P: Serialize>(

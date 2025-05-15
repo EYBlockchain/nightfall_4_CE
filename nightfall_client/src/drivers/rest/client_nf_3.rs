@@ -4,10 +4,25 @@ use super::{
     utils::{reverse_hex_string, to_nf_token_id_from_str},
 };
 use crate::{
-    domain::{entities::{
-        DepositSecret, ERCAddress, HexConvertible, Operation, OperationType, Preimage, Salt,
-        TokenType, Transport,
-    }, notifications::NotificationPayload},
+    domain::{
+        entities::{CommitmentStatus, RequestStatus},
+        error::TransactionHandlerError,
+    },
+    driven::{
+        db::mongo::CommitmentEntry,
+        queue::{get_queue, QueuedRequest, TransactionRequest},
+    },
+    get_zkp_keys,
+    ports::{commitments::Nullifiable, contracts::NightfallContract, db::RequestDB},
+};
+use crate::{
+    domain::{
+        entities::{
+            DepositSecret, ERCAddress, HexConvertible, Operation, OperationType, Preimage, Salt,
+            TokenType, Transport,
+        },
+        notifications::NotificationPayload,
+    },
     driven::contract_functions::contract_type_conversions::FrBn254,
     drivers::{
         blockchain::nightfall_event_listener::get_synchronisation_status, derive_key::ZKPKeys,
@@ -23,18 +38,6 @@ use crate::{
     services::{
         client_operation::deposit_operation, commitment_selection::find_usable_commitments,
     },
-};
-use crate::{
-    domain::{
-        entities::{CommitmentStatus, RequestStatus},
-        error::TransactionHandlerError,
-    },
-    driven::{
-        db::mongo::CommitmentEntry,
-        queue::{get_queue, QueuedRequest, TransactionRequest},
-    },
-    get_zkp_keys,
-    ports::{commitments::Nullifiable, contracts::NightfallContract, db::RequestDB},
 };
 use ark_bn254::Fr as Fr254;
 use ark_ec::twisted_edwards::Affine;
@@ -70,98 +73,72 @@ pub struct WithdrawResponse {
 // It matches the API of NF_3 so it can be used with the NF_3 client, under the hood, it calls
 // the client_operation handler
 
-pub fn deposit_request<P, E, N>(
+pub fn deposit_request<P>(
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone
 where
     P: Proof,
-    E: ProvingEngine<P>,
-    N: NightfallContract,
 {
     path!("v1" / "deposit")
         .and(warp::body::json())
         .and(warp::header::optional::<String>("X-Request-ID"))
-        .and_then(queue_deposit_request::<P, E, N>)
+        .and_then(queue_deposit_request)
 }
 
-pub fn transfer_request<P, E, N>(
+pub fn transfer_request<P>(
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone
 where
     P: Proof,
-    E: ProvingEngine<P>,
-    N: NightfallContract,
 {
     path!("v1" / "transfer")
         .and(warp::body::json())
         .and(warp::header::optional::<String>("X-Request-ID"))
-        .and_then(queue_transfer_request::<P, E, N>)
+        .and_then(queue_transfer_request)
 }
 
-pub fn withdraw_request<P, E, N>(
+pub fn withdraw_request<P>(
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone
 where
     P: Proof,
-    E: ProvingEngine<P>,
-    N: NightfallContract,
 {
     path!("v1" / "withdraw")
         .and(warp::body::json())
         .and(warp::header::optional::<String>("X-Request-ID"))
-        .and_then(queue_withdraw_request::<P, E, N>)
+        .and_then(queue_withdraw_request)
 }
 
 /// function to queue the deposit requests
-async fn queue_deposit_request<P, E, N>(
+async fn queue_deposit_request(
     deposit_req: NF3DepositRequest,
     request_id: Option<String>,
-) -> Result<impl Reply, warp::Rejection>
-where
-    P: Proof,
-    E: ProvingEngine<P>,
-    N: NightfallContract,
-{
+) -> Result<impl Reply, warp::Rejection> {
     let transaction_request = TransactionRequest::Deposit(deposit_req);
     debug!("Queueing deposit request");
-    queue_request::<P, E, N>(transaction_request, request_id).await
+    queue_request(transaction_request, request_id).await
 }
 
 /// function to queue the transfer requests
-async fn queue_transfer_request<P, E, N>(
+async fn queue_transfer_request(
     transfer_req: NF3TransferRequest,
     request_id: Option<String>,
-) -> Result<impl Reply, warp::Rejection>
-where
-    P: Proof,
-    E: ProvingEngine<P>,
-    N: NightfallContract,
-{
+) -> Result<impl Reply, warp::Rejection> {
     let transaction_request = TransactionRequest::Transfer(transfer_req);
-    queue_request::<P, E, N>(transaction_request, request_id).await
+    queue_request(transaction_request, request_id).await
 }
 
 /// function to queue the withdraw requests
-async fn queue_withdraw_request<P, E, N>(
+async fn queue_withdraw_request(
     withdraw_req: NF3WithdrawRequest,
     request_id: Option<String>,
-) -> Result<impl Reply, warp::Rejection>
-where
-    P: Proof,
-    E: ProvingEngine<P>,
-    N: NightfallContract,
-{
+) -> Result<impl Reply, warp::Rejection> {
     let transaction_request = TransactionRequest::Withdraw(withdraw_req);
-    queue_request::<P, E, N>(transaction_request, request_id).await
+    queue_request(transaction_request, request_id).await
 }
 
 /// function to queue the transfer requests. This function queues all types of transaction request
-async fn queue_request<P, E, N>(
+async fn queue_request(
     transaction_request: TransactionRequest,
     request_id: Option<String>,
-) -> Result<impl Reply, warp::Rejection>
-where
-    P: Proof,
-    E: ProvingEngine<P>,
-    N: NightfallContract,
-{
+) -> Result<impl Reply, warp::Rejection> {
     const MAX_QUEUE_SIZE: usize = 1000;
     // extract the request ID
     let id = request_id.unwrap_or_default();
@@ -200,7 +177,7 @@ where
     debug!("Added request to queue");
     // record the request as queued
     let db = get_db_connection().await.write().await;
-    if let None = db.store_request(&id, RequestStatus::Queued).await {
+    if db.store_request(&id, RequestStatus::Queued).await.is_none() {
         return Ok(reply::with_header(
             reply::with_status(
                 json(&"Database error or duplicate transaction".to_string()),
@@ -360,7 +337,7 @@ pub async fn handle_deposit<N: NightfallContract>(
                 token_id,
                 secret_preimage,
                 token_type,
-                &id,
+                id,
             )
             .await
         }
@@ -373,7 +350,7 @@ pub async fn handle_deposit<N: NightfallContract>(
                 token_id,
                 secret_preimage,
                 token_type,
-                &id,
+                id,
             )
             .await
         }
@@ -386,7 +363,7 @@ pub async fn handle_deposit<N: NightfallContract>(
                 token_id,
                 secret_preimage,
                 token_type,
-                &id,
+                id,
             )
             .await
         }
@@ -399,11 +376,12 @@ pub async fn handle_deposit<N: NightfallContract>(
                 token_id,
                 secret_preimage,
                 token_type,
-                &id,
+                id,
             )
             .await
         }
-    }.map_err(|e| TransactionHandlerError::DepositError(e))?;
+    }
+    .map_err(TransactionHandlerError::DepositError)?;
 
     // Insert the preimage into the commitments DB as pending creation
     // TODO remove the blocknumber
@@ -419,7 +397,9 @@ pub async fn handle_deposit<N: NightfallContract>(
         CommitmentStatus::PendingCreation,
     );
 
-    db.store_commitment(commitment_entry).await.ok_or(TransactionHandlerError::DatabaseError)?;
+    db.store_commitment(commitment_entry)
+        .await
+        .ok_or(TransactionHandlerError::DatabaseError)?;
 
     debug!("{id} Deposit commitment stored successfully");
 
@@ -437,7 +417,9 @@ pub async fn handle_deposit<N: NightfallContract>(
             CommitmentStatus::PendingCreation,
         );
         // Store the fee commitment in the database, error if storage fails
-        db.store_commitment(commitment_entry).await.ok_or(TransactionHandlerError::DatabaseError)?;
+        db.store_commitment(commitment_entry)
+            .await
+            .ok_or(TransactionHandlerError::DatabaseError)?;
     }
 
     debug!("{id} Deposit fee commitment stored successfully");
@@ -469,7 +451,7 @@ pub async fn handle_deposit<N: NightfallContract>(
         TransactionHandlerError::JsonConversionError(e)
     })?;
 
-    Ok(NotificationPayload::TransactionEvent{ response, uuid })
+    Ok(NotificationPayload::TransactionEvent { response, uuid })
 }
 
 async fn handle_transfer<P, E, N>(
@@ -491,7 +473,7 @@ where
 
     // add the id to the request database
     let db = get_db_connection().await.write().await;
-    db.store_request(&id, RequestStatus::Queued)
+    db.store_request(id, RequestStatus::Queued)
         .await
         .ok_or(TransactionHandlerError::DatabaseError)?;
     drop(db); // drop the lock so other processes can access the DB
@@ -661,7 +643,7 @@ where
         ephemeral_private_key,
         Fr254::zero(),
         secret_preimages,
-        &id,
+        id,
     )
     .await
 }
@@ -686,7 +668,9 @@ where
 
     // add the id to the request database
     let db = get_db_connection().await.write().await;
-    db.store_request(&id, RequestStatus::Queued).await.ok_or(TransactionHandlerError::DatabaseError)?;
+    db.store_request(id, RequestStatus::Queued)
+        .await
+        .ok_or(TransactionHandlerError::DatabaseError)?;
     drop(db); // drop the lock so other processes can access the DB
 
     // Convert the request into the relevant types.
@@ -842,7 +826,7 @@ where
         BJJScalar::zero(),
         recipient_address,
         secret_preimages,
-        &id,
+        id,
     )
     .await?;
     // Build the response
@@ -862,8 +846,5 @@ where
     })?;
 
     // Return the response as JSON
-    Ok(NotificationPayload::TransactionEvent {
-        response,
-        uuid,
-    })
+    Ok(NotificationPayload::TransactionEvent { response, uuid })
 }
