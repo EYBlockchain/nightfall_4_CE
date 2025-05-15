@@ -306,7 +306,7 @@ async fn process_propose_block_event<N: NightfallContract>(
                 EventHandlerError::IOError("Could not convert commitment to Fr254".to_string())
             })?
             .into();
-        
+
         if test_hash != commitment_hash {
             debug!("Commitment {} is not owned by us", commitment_hash);
         } else {
@@ -331,7 +331,7 @@ async fn process_propose_block_event<N: NightfallContract>(
             commitment_entries.push(commitment_entry);
         }
     }
-    
+
     if (db
         .store_commitments(&commitment_entries, dup_key_check)
         .await)

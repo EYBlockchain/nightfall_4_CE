@@ -1,33 +1,24 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
+use crate::{
+    domain::entities::Preimage,
+    driven::{contract_functions::contract_type_conversions::FrBn254, db::mongo::CommitmentEntry},
+    get_fee_token_id,
+    initialisation::get_db_connection,
+    ports::{
+        commitments::Commitment,
+        db::{CommitmentDB, CommitmentEntryDB},
+    },
+};
 use ark_bn254::Fr as Fr254;
 use ark_ff::{BigInteger256, PrimeField, Zero};
 use log::{debug, trace};
 use mongodb::{Client, Database};
 use nf_curves::ed_on_bn254::BJJTEAffine as JubJub;
 use serde::{Deserialize, Serialize};
-use std::{
-    cmp::Ordering,
-    collections::VecDeque, 
-    sync::Arc, 
-    cmp, 
-    fmt::Debug
-};
-use tokio::sync::RwLockWriteGuard;
-use crate::{
-    get_fee_token_id,
-    initialisation::get_db_connection,
-    driven::{
-        contract_functions::contract_type_conversions::FrBn254,
-        db::mongo::CommitmentEntry
-    },
-    domain::entities::Preimage,
-    ports::{
-        commitments::Commitment,
-        db::{CommitmentDB, CommitmentEntryDB},
-    },
-};
+use std::{cmp, cmp::Ordering, collections::VecDeque, fmt::Debug, sync::Arc};
 use tokio::sync::Mutex;
+use tokio::sync::RwLockWriteGuard;
 
 const MAX_POSSIBLE_COMMITMENTS: usize = 2;
 

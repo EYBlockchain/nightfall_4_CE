@@ -85,11 +85,8 @@ where
         debug!("Handling event {:?} for transaction {:?}", self, tx_hash);
         match &self {
             NightfallEvents::BlockProposedFilter(filter) => {
-                process_nightfall_calldata::<P, E, N>(
-                    tx_hash,
-                    Some(filter.layer_2_block_number),
-                )
-                .await?
+                process_nightfall_calldata::<P, E, N>(tx_hash, Some(filter.layer_2_block_number))
+                    .await?
             }
             NightfallEvents::ClientTransactionSubmittedFilter(_f) => {
                 info!("Received TransactionSubmitted event");

@@ -53,6 +53,8 @@ pub trait TransactionsDB<'a, P> {
         &mut self,
         used_deposits: Vec<Vec<DepositDatawithFee>>,
     ) -> Option<u64>;
+    async fn remove_all_mempool_deposits(&mut self) -> Option<u64>;
+    async fn remove_all_mempool_client_transactions(&mut self) -> Option<u64>;
 }
 
 /// A database that stores historic roots of the commitments Merkle tree.

@@ -1,7 +1,4 @@
-use configuration::{
-    logging::init_logging,
-    settings::Settings,
-};
+use configuration::{logging::init_logging, settings::Settings};
 use lib::models::CertificateReq;
 use log::{debug, info, warn};
 use nightfall_client::domain::entities::HexConvertible;

@@ -2,6 +2,7 @@ use crate::{
     initialisation::{get_blockchain_client_connection, get_db_connection},
     ports::{
         contracts::NightfallContract,
+        db::TransactionsDB,
         trees::{CommitmentTree, HistoricRootTree, NullifierTree},
     },
     services::process_events::process_events,
@@ -129,10 +130,23 @@ where
     // with the blockchain. We should probably do this in a more elegant way, but this works for now
     // and we can improve it later
     {
-        let db = &mut get_db_connection().await.write().await;
+        // let db = &mut get_db_connection().await.write().await;
+        let mut db_guard = get_db_connection().await.write().await;
+        let db = &mut *db_guard;
         let _ = <MongoClient as CommitmentTree<Fr254>>::reset_tree(db).await;
         let _ = <MongoClient as HistoricRootTree<Fr254>>::reset_tree(db).await;
         let _ = <MongoClient as NullifierTree<Fr254>>::reset_tree(db).await;
+        // clean up the mempool, otherwise proposer gets duplicated transactions everytime it syncs
+
+        let removed_deposits = TransactionsDB::<P>::remove_all_mempool_deposits(db).await;
+        let removed_client_txs =
+            TransactionsDB::<P>::remove_all_mempool_client_transactions(db).await;
+
+        debug!(
+            "Mempool cleanup: removed {} deposits and {} client transactions.",
+            removed_deposits.unwrap_or(0),
+            removed_client_txs.unwrap_or(0)
+        );
     }
 
     start_event_listener::<P, E, N>(0, start_block).await;

@@ -156,7 +156,6 @@ pub struct DeEscrowDataReq {
     pub withdraw_fund_salt: String,
 }
 
-
 #[derive(Debug)]
 pub enum NF3RequestError {
     CouldNotDeserialiseRootKey,

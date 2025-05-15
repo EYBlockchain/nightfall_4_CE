@@ -231,9 +231,9 @@ impl Addresses {
                 let data =
                     toml::to_string(&self).map_err(|e| AddressesError::Toml(format!("{}", e)))?;
                 // create a path if it doesn't exist
-                if let Some(path) = p.parent() { 
+                if let Some(path) = p.parent() {
                     fs::create_dir_all(path)
-                    .map_err(|e| AddressesError::CouldNotWriteDirectory(format!("{}", e)))?;
+                        .map_err(|e| AddressesError::CouldNotWriteDirectory(format!("{}", e)))?;
                 }
                 fs::write(p, data)
                     .map_err(|e| AddressesError::CouldNotWriteFile(format!("{}", e)))?;

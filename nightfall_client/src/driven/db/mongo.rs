@@ -344,7 +344,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
             .database(DB)
             .collection::<CommitmentEntry>("commitments");
         let mut found_commitments = Vec::new();
-        
+
         let mut missing_commitments = Vec::new();
 
         for commitment in &commitment_str {

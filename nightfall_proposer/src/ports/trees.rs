@@ -128,19 +128,19 @@ where
         let _ = <Self as MutableTree<F>>::reset_mutable_tree(self, Self::TREE_NAME).await;
         // Step 2: Drop indexed_leaves collection
         let uri = &get_settings().nightfall_proposer.db_url;
-let client = Client::with_uri_str(uri)
-    .await
-    .expect("Could not create database connection");
+        let client = Client::with_uri_str(uri)
+            .await
+            .expect("Could not create database connection");
 
-let db = client.database("nightfall");
+        let db = client.database("nightfall");
 
-// Drop collections
-let indexed_collection = db.collection::<Document>("Nullifiers_indexed_leaves");
-if let Err(e) = indexed_collection.drop().await {
-    if !e.to_string().contains("ns not found") {
-        return Err(MerkleTreeError::DatabaseError(e));
-    }
-}
+        // Drop collections
+        let indexed_collection = db.collection::<Document>("Nullifiers_indexed_leaves");
+        if let Err(e) = indexed_collection.drop().await {
+            if !e.to_string().contains("ns not found") {
+                return Err(MerkleTreeError::DatabaseError(e));
+            }
+        }
         // select the proposer to use
 
         let uri = &get_settings().nightfall_proposer.db_url;

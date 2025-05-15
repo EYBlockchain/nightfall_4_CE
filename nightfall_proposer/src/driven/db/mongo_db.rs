@@ -218,6 +218,22 @@ where
     // Count deposits in the mempool
     // This is used to determine if we need to assemble a block
     async fn count_mempool_deposits(&mut self) -> Result<u64, mongodb::error::Error> {
+        // print all the contents in the collection
+        // Use empty filter to select all documents
+        let filter = doc! {};
+
+        // Get a cursor over all documents in the collection
+        let mut cursor = self
+            .database(DB)
+            .collection::<DepositDatawithFee>(DEPOSIT_COLLECTION)
+            .find(filter)
+            .await?;
+        use futures::StreamExt;
+        // Iterate over all documents and print them
+        while let Some(result) = cursor.next().await {
+            let deposit = result?; // Propagate deserialization errors
+            ark_std::println!("Printing deposits in mempool{:?}", deposit);
+        }
         self.database(DB)
             .collection::<DepositDatawithFee>(DEPOSIT_COLLECTION)
             .count_documents(doc! {})
@@ -253,6 +269,24 @@ where
         };
         // Delete matching documents
         let result = collection.delete_many(filter).await.ok()?;
+        Some(result.deleted_count)
+    }
+
+    // Remove all deposits from the mempool
+    async fn remove_all_mempool_deposits(&mut self) -> Option<u64> {
+        let collection = self
+            .database(DB)
+            .collection::<DepositDatawithFee>(DEPOSIT_COLLECTION);
+
+        let result = collection.delete_many(doc! {}).await.ok()?;
+        Some(result.deleted_count)
+    }
+    async fn remove_all_mempool_client_transactions(&mut self) -> Option<u64> {
+        let collection = self
+            .database(DB)
+            .collection::<ClientTransactionWithMetaData<P>>(COLLECTION);
+
+        let result = collection.delete_many(doc! {}).await.ok()?;
         Some(result.deleted_count)
     }
 }

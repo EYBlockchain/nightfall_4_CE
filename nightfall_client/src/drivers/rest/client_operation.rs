@@ -1,41 +1,48 @@
-use configuration::addresses::get_addresses;
-use ethers::types::TransactionReceipt;
-use nightfall_bindings::{
-    round_robin::RoundRobin,
-    x509::Proposer,
-    nightfall::{ClientTransaction as NightfallTransactionStruct, Nightfall}
-};
-use std::{error::Error, fmt::Debug};
-use url::Url;
-use warp::{
-    reply::{WithStatus, Json},
-    hyper::StatusCode, 
-    reject, 
-    reply
-};
 use crate::{
     domain::{
-        entities::{ClientTransaction, CommitmentStatus, HexConvertible, Operation, RequestStatus, Transport},
+        entities::{
+            ClientTransaction, CommitmentStatus, HexConvertible, Operation, RequestStatus,
+            Transport,
+        },
         error::FailedClientOperation,
-    }, driven::db::mongo::CommitmentEntry, drivers::{
-        blockchain::nightfall_event_listener::get_synchronisation_status,
-        derive_key::ZKPKeys,
-        rest::models::NullifierKey
-    }, get_zkp_keys, initialisation::get_db_connection, ports::{
+    },
+    driven::db::mongo::CommitmentEntry,
+    drivers::{
+        blockchain::nightfall_event_listener::get_synchronisation_status, derive_key::ZKPKeys,
+        rest::models::NullifierKey,
+    },
+    get_zkp_keys,
+    initialisation::get_db_connection,
+    ports::{
         commitments::Nullifiable,
         contracts::NightfallContract,
         db::{CommitmentDB, CommitmentEntryDB, RequestDB},
         proof::{Proof, ProvingEngine},
         secret_hash::SecretHash,
-    }, services::client_operation::client_operation
+    },
+    services::client_operation::client_operation,
 };
 use ark_bn254::Fr as Fr254;
+use configuration::addresses::get_addresses;
+use ethers::types::TransactionReceipt;
 use lib::{
     blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
 };
 use log::{debug, error, info, warn};
 use nf_curves::ed_on_bn254::Fr as BJJScalar;
+use nightfall_bindings::{
+    nightfall::{ClientTransaction as NightfallTransactionStruct, Nightfall},
+    round_robin::RoundRobin,
+    x509::Proposer,
+};
 use serde::Serialize;
+use std::{error::Error, fmt::Debug};
+use url::Url;
+use warp::{
+    hyper::StatusCode,
+    reject, reply,
+    reply::{Json, WithStatus},
+};
 #[allow(clippy::too_many_arguments)]
 pub async fn handle_client_operation<P, E, N>(
     operation: Operation,

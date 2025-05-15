@@ -9,7 +9,8 @@ use configuration::{
 };
 use ethers::{
     signers::{LocalWallet, Signer},
-    types::{TransactionReceipt, H160}, utils::keccak256,
+    types::{TransactionReceipt, H160},
+    utils::keccak256,
 };
 use hex::ToHex;
 use jf_primitives::{
@@ -693,7 +694,7 @@ pub fn build_valid_transfer_inputs(rng: &mut impl Rng) -> (PublicInputs, Private
     let nf_token_id = Fr254::from(nf_token_id);
 
     // Retrieve the fee token ID and nightfall address
-    let nf_address = H160::rand(rng);   
+    let nf_address = H160::rand(rng);
     // generate a 'random' fee token ID (we just use the keccak hash of 1)
     let fee_token_id = Fr254::from(BigUint::from_bytes_be(&keccak256([1])) >> 4);
 

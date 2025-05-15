@@ -718,8 +718,7 @@ impl RecursiveProver for RollupProver {
             ));
         }
 
-        if (outputs.len().next_power_of_two() != outputs.len())
-            || (outputs.len().ilog2() % 2 != 0)
+        if (outputs.len().next_power_of_two() != outputs.len()) || (outputs.len().ilog2() % 2 != 0)
         {
             return Err(PlonkError::InvalidParameters(
                 "Outputs length is not a power of four".to_string(),
