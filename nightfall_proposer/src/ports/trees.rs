@@ -50,8 +50,6 @@ where
     {
         let _ = <Self as MutableTree<F>>::reset_mutable_tree(self, Self::TREE_NAME).await;
         // select the proposer to use
-        use configuration::settings::get_settings;
-        use mongodb::Client;
         let uri = &get_settings().nightfall_proposer.db_url;
         let client = Client::with_uri_str(uri)
             .await

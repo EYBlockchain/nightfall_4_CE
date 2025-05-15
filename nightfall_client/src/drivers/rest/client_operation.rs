@@ -1,9 +1,6 @@
 use crate::{
     domain::{
-        entities::{
-            ClientTransaction, CommitmentStatus, HexConvertible, Operation, RequestStatus,
-            Transport,
-        },
+        entities::{ClientTransaction, CommitmentStatus, HexConvertible, Operation, RequestStatus},
         error::FailedClientOperation,
     },
     driven::db::mongo::CommitmentEntry,
@@ -31,7 +28,6 @@ use lib::{
 use log::{debug, error, info, warn};
 use nf_curves::ed_on_bn254::Fr as BJJScalar;
 use nightfall_bindings::{
-    nightfall::{ClientTransaction as NightfallTransactionStruct, Nightfall},
     round_robin::RoundRobin,
     x509::Proposer,
 };
@@ -138,11 +134,9 @@ where
     })?;
     // having done that, we can submit the nighfall transaction, either on or off chain, normally the latter
 
-    let tx_receipt = match operation.transport {
-        Transport::OnChain => process_transaction_onchain(&operation_result).await,
-        Transport::OffChain => process_transaction_offchain(&operation_result, id).await,
-    }
-    .map_err(|_| reject::custom(FailedClientOperation))?;
+    let tx_receipt = process_transaction_offchain(&operation_result, id)
+        .await
+        .map_err(|_| reject::custom(FailedClientOperation))?;
     info!("{id} {} transaction submitted", operation.operation_type);
     let mut operation_result_json = serde_json::to_value(&operation_result)
         .expect("Failed to serialize operation_result to JSON");

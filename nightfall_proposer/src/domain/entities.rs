@@ -1,11 +1,9 @@
 use ark_bn254::Fr as Fr254;
-use ark_ff::{BigInteger, PrimeField};
 use ark_serialize::SerializationError;
 use lib::serialization::{ark_de_hex, ark_se_hex};
 use log::error;
-use nightfall_client::domain::entities::{ClientTransaction, CompressedSecrets, HexConvertible};
+use nightfall_client::domain::entities::{ClientTransaction, CompressedSecrets};
 use serde::{Deserialize, Serialize};
-use sha2::Sha256;
 use sha3::{digest::generic_array::GenericArray, Digest, Keccak256};
 use std::fmt::Debug;
 
@@ -40,46 +38,6 @@ pub struct OnChainTransaction {
     // public data (public inputs) associated with this transaction.
     pub public_data: CompressedSecrets,
 }
-
-impl OnChainTransaction {
-    pub fn hash_commitments(&self) -> Fr254 {
-        let mut bytes = Vec::new();
-        for c in &self.commitments {
-            let c_string = c.to_hex_string();
-            bytes.extend_from_slice(c_string.as_bytes());
-        }
-        let hash = Sha256::digest(&bytes);
-        Fr254::from_be_bytes_mod_order(&hash)
-    }
-    pub fn hash(&self) -> Fr254 {
-        let mut bytes = Vec::with_capacity(32 * 14); // 14 field elements: 1 fee + 4 commitments + 4 nullifiers + 5 cipher_text
-
-        // 1. Hash fee
-        bytes.extend_from_slice(&self.fee.into_bigint().to_bytes_be());
-
-        // 2. Commitments
-        for c in &self.commitments {
-            bytes.extend_from_slice(&c.into_bigint().to_bytes_be());
-        }
-
-        // 3. Nullifiers
-        for n in &self.nullifiers {
-            bytes.extend_from_slice(&n.into_bigint().to_bytes_be());
-        }
-
-        // 4. Cipher text (CompressedSecrets)
-        for ct in &self.public_data.cipher_text {
-            bytes.extend_from_slice(&ct.into_bigint().to_bytes_be());
-        }
-
-        // 5. Hash using SHA-256
-        let hash = Sha256::digest(&bytes);
-
-        // 6. Convert SHA-256 hash to Fr254 (modular reduction)
-        Fr254::from_be_bytes_mod_order(&hash)
-    }
-}
-
 /// A Block struct representing NF block
 /// NOTE: This is not finalised yet, we may need to change fields to this struct
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
@@ -97,44 +55,6 @@ pub struct Block {
     // The list of transactions in this block.
     pub transactions: Vec<OnChainTransaction>,
     pub rollup_proof: Vec<u8>,
-}
-
-impl Block {
-    #[allow(dead_code)]
-    pub fn hash_commitments(&self) -> Fr254 {
-        let mut bytes = Vec::new();
-        for tx in &self.transactions {
-            let tx_hash = tx.hash_commitments();
-            bytes.extend_from_slice(&tx_hash.into_bigint().to_bytes_be());
-        }
-        bytes.extend_from_slice(&self.rollup_proof);
-        let hash = Sha256::digest(&bytes);
-        Fr254::from_be_bytes_mod_order(&hash)
-    }
-    pub fn hash(&self) -> Fr254 {
-        let mut bytes = Vec::new();
-
-        // 1. Hash commitments_root
-        bytes.extend_from_slice(&self.commitments_root.into_bigint().to_bytes_be());
-
-        // 2. Hash nullifiers_root
-        bytes.extend_from_slice(&self.nullifiers_root.into_bigint().to_bytes_be());
-
-        // 3. Hash commitments_root_root
-        bytes.extend_from_slice(&self.commitments_root_root.into_bigint().to_bytes_be());
-
-        // 4. Hash transactions
-        for tx in &self.transactions {
-            let tx_hash = tx.hash();
-            bytes.extend_from_slice(&tx_hash.into_bigint().to_bytes_be());
-        }
-        // 5. Hash rollup_proof
-        bytes.extend_from_slice(&self.rollup_proof);
-        // 6. Hash using SHA-256
-        let hash = Sha256::digest(&bytes);
-        // 7. Convert SHA-256 hash to Fr254 (modular reduction)
-        Fr254::from_be_bytes_mod_order(&hash)
-    }
 }
 
 /// Struct used to represent deposit data, used in making deposit proofs by the proposer.

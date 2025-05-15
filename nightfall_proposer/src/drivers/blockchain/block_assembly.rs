@@ -178,34 +178,6 @@ where
     );
             continue;
         }
-        // get_block_assembly_trigger::<P>()
-        //     .await
-        //     .read()
-        //     .await
-        //     .await_trigger()
-        //     .await;
-        // check if we're the current proposer. Go round again if we're not
-        // match round_robin_instance
-        //     .get_current_proposer_address()
-        //     .call()
-        //     .await
-        // {
-        //     Ok(current_proposer) => {
-        //         info!("The current proposer is: {:?}", current_proposer);
-        //         if current_proposer
-        //             != get_blockchain_client_connection()
-        //                 .await
-        //                 .read()
-        //                 .await
-        //                 .get_client()
-        //                 .address()
-        //         {
-        //             info!("We are not the current proposer");
-        //             continue; // in this case we're not the current proposer
-        //         }
-        //     }
-        //     Err(e) => panic!("Failed to get current proposer: {}", e), // in this case we have a problem and can't recover.
-        // }
         // Step 4: check if we're synchronised.
         // Go round again if we're not because we can't make new blocks
         let mut sync_status = get_synchronisation_status().await.write().await;
