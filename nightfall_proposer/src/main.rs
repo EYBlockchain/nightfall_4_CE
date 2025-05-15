@@ -44,6 +44,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     };
     let settings = get_settings();
     let max_event_listener_attempts_proposer = settings.nightfall_proposer.max_event_listener_attempts.unwrap_or(10); 
+    // start the event listener
     let task_1 = tokio::spawn(start_event_listener::<P, E, N>(settings.genesis_block, max_event_listener_attempts_proposer));
     let routes = routes::<P, E>();
     let task_2 = tokio::spawn(warp::serve(routes).run(([0, 0, 0, 0], 3000)));

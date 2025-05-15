@@ -19,7 +19,8 @@ use nightfall_client::{
 use tokio::sync::{OnceCell, RwLock};
 
 /// This function starts the event handler. It will attempt to restart the event handler in case of errors
-/// for a bit, before giving up and panicing.
+/// with an exponential backoff strategy for a configurable number of attempts. If the event handler
+/// fails after the maximum number of attempts, it will log an error and send a notification (if configured)
 pub fn start_event_listener<P, E, N>(
     start_block: usize,
     max_attempts: u32,
@@ -129,13 +130,11 @@ where
     if sync_state {
         panic!("Restarting event listener while synchronised. This should not happen");
     }
-    let settings = get_settings();
-    let max_attempts = settings.nightfall_proposer.max_event_listener_attempts.unwrap_or(10); 
+   let settings = get_settings();
+   let max_attempts = settings.nightfall_proposer.max_event_listener_attempts.unwrap_or(10); 
 
-    let start_block = u32::try_from(start_block)
-    .expect("start_block doesn't fit into u32");
-    start_event_listener::<P, E, N>(start_block as usize, max_attempts).await;
-   // start_event_listener::<P, E, N>(0, start_block).await;
+    start_event_listener::<P, E, N>(start_block, max_attempts).await;
+  
 }
 
 pub async fn get_synchronisation_status() -> &'static RwLock<SynchronisationStatus> {

@@ -40,6 +40,7 @@ async fn main() -> Result<(), JoinError> {
     utils::drop_collection::<Request>(url.as_str(), "nightfall", "requests")
         .await
         .expect("Failed to drop Requests collection");
+    
     let settings = get_settings();
     let max_event_listener_attempts_client = settings.nightfall_client.max_event_listener_attempts.unwrap_or(10); 
 

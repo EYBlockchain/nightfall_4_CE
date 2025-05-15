@@ -33,7 +33,7 @@ db_url = "mongodb://nf4_db_proposer:27017"
 block_assembly_max_wait_secs = 120 
 block_assembly_target_fill_ratio = 0.25 
 block_assembly_initial_interval_secs = 15
-
+max_event_listener_attempts = 10
 
 [development.nightfall_deployer]
 log_level = "info"

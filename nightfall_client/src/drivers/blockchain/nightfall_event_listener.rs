@@ -45,7 +45,7 @@ pub fn start_event_listener<N: NightfallContract>(
                     );
                     if attempts >= max_attempts {
                         log::error!("Client event listener: max attempts reached. Giving up.");
-                        if let Err(err) = notify_failure("Client event listener failed after max retries").await {
+                        if let Err(err) = notify_failure_client("Client event listener failed after max retries").await {
                             log::error!("Failed to send failure notification: {:?}", err);
                         }
                         break;
@@ -58,7 +58,7 @@ pub fn start_event_listener<N: NightfallContract>(
     }
     .boxed()
 }
-async fn notify_failure(message: &str) -> Result<(), ()> {
+async fn notify_failure_client(message: &str) -> Result<(), ()> {
     // Here we can implement the logic to nitify the failure, e.g, sending a message or an alert
     // for now, we'll just log the error
     log::error!("ALERT: {}", message);
@@ -124,9 +124,7 @@ where
     let settings = get_settings();
     let max_attempts = settings.nightfall_client.max_event_listener_attempts.unwrap_or(10); 
 
-    let start_block = u32::try_from(start_block)
-        .expect("start_block doesn't fit into u32");
-    start_event_listener::<N>(start_block as usize, max_attempts).await;
+    start_event_listener::<N>(start_block, max_attempts).await;
 }
 
 pub async fn get_synchronisation_status<N: NightfallContract>(
