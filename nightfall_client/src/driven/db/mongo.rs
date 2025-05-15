@@ -339,12 +339,12 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
             .iter()
             .map(|c| hex::encode(c.into_bigint().to_bytes_le()))
             .collect::<Vec<_>>();
-
         // Step 1: Check which commitments exist in the database before updating
         let collection = self
             .database(DB)
             .collection::<CommitmentEntry>("commitments");
         let mut found_commitments = Vec::new();
+        
         let mut missing_commitments = Vec::new();
 
         for commitment in &commitment_str {
@@ -355,7 +355,6 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
                 Err(e) => ark_std::println!("Error querying commitment {}: {:?}", commitment, e),
             }
         }
-
         let filter = doc! { "key": { "$in": commitment_str }};
         let update = doc! {"$set": { "status": "Unspent" }};
         self.database(DB)

@@ -37,6 +37,9 @@ pub struct ProposerConfig {
     pub log_level: String,
     pub wallet_type: String,
     pub db_url: String,
+    pub block_assembly_max_wait_secs: u64,
+    pub block_assembly_target_fill_ratio: f64,
+    pub block_assembly_initial_interval_secs: u64, 
 }
 
 #[derive(Debug, Deserialize, Default, Serialize)]
