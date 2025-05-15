@@ -16,7 +16,8 @@ use nightfall_bindings::nightfall::Nightfall;
 use std::panic;
 
 /// This function starts the event handler. It will attempt to restart the event handler in case of errors
-/// for a bit, before giving up and panicing.
+/// with an exponential backoff strategy for a configurable number of attempts. If the event handler
+/// fails after the maximum number of attempts, it will log an error and send a notification (if configured).
 pub fn start_event_listener<N: NightfallContract>(
     start_block: usize,
     max_attempts: u32, //max attempts to restart the event listener
@@ -44,6 +45,9 @@ pub fn start_event_listener<N: NightfallContract>(
                     );
                     if attempts >= max_attempts {
                         log::error!("Client event listener: max attempts reached. Giving up.");
+                        if let Err(err) = notify_failure("Client event listener failed after max retries").await {
+                            log::error!("Failed to send failure notification: {:?}", err);
+                        }
                         break;
                     }
                     sleep(backoff_delay).await;
@@ -54,32 +58,12 @@ pub fn start_event_listener<N: NightfallContract>(
     }
     .boxed()
 }
-// pub fn start_event_listener<N: NightfallContract>(
-//     allowed_failures: u32,
-//     start_block: usize,
-// ) -> BoxFuture<'static, ()> {
-//     // we use the async block and the BoxFuture so that we can recurse an async
-//     async move {
-//         let result = listen_for_events::<N>(start_block).await;
-//         match result {
-//             Ok(_) => {
-//                 panic!("It should not be possible for the event listener to terminate without an error");
-//             }
-//             Err(e) => {
-//                 log::error!(
-//                     "Event listener terminated with error: {:?}. Attempting restart in 10 seconds",
-//                     e
-//                 );
-//                 if allowed_failures > 50 {
-//                     panic!("Unable to start event listener");
-//                 }
-//                 tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
-//                 start_event_listener::<N>(allowed_failures + 1, start_block).await;
-//             }
-//         }
-//     }
-//     .boxed()
-// }
+async fn notify_failure(message: &str) -> Result<(), ()> {
+    // Here we can implement the logic to nitify the failure, e.g, sending a message or an alert
+    // for now, we'll just log the error
+    log::error!("ALERT: {}", message);
+    Ok(())
+}
 
 // This function listens for events and processes them. It's started by the start_event_listener function
 pub async fn listen_for_events<N: NightfallContract>(
