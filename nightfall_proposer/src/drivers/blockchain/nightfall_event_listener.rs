@@ -2,8 +2,7 @@ use crate::ports::contracts::NightfallContract;
 use crate::{
     initialisation::get_blockchain_client_connection, services::process_events::process_events,
 };
-use configuration::addresses::get_addresses;
-use configuration::settings::get_settings;
+use configuration::{addresses::get_addresses, settings::get_settings};
 use ethers::prelude::*;
 use std::time::Duration;
 use tokio::time::sleep;
