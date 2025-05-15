@@ -417,20 +417,19 @@ GET /v1/de-escrow
 ```sh
 curl -i --request POST 'http://localhost:3000/v1/de-escrow' \
     --json '{ 
-    "token_id": "0x00",
-    "erc_address": "0x959922be3caee4b8cd9a407cc3ac1c251c2007b1", 
-    "recipient_address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+    "tokenId": "0x00",
+    "ercAddress": "0x959922be3caee4b8cd9a407cc3ac1c251c2007b1", 
+    "recipientAddress": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
     "value": "0x01", 
-    "token_type": "10",
-    "fee": "0x00",
-    "withdraw_fund_salt": "cb56f2a1befb9954b4d7885f5d3d29cfe9f7417118f1ec0f1bb9741abae01f0c"
+    "tokenType": "10",
+    "withdrawFundSalt": "cb56f2a1befb9954b4d7885f5d3d29cfe9f7417118f1ec0f1bb9741abae01f0c"
 }'
 ```
 
 Returns:
 
 - If funds are available: it will return `1`. The funds will also have been de-escrowed.
-- If funds are not available `404 NOT FOUND` and `0`.
+- If funds are not available, it will return `0`.
 
 This call withdraws funds from escrow, after a successful Layer 2 -> Layer 1 withdraw, returning the funds to recipient address. There is no requirement for the caller to be the recipient.
 

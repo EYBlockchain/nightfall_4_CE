@@ -1,4 +1,4 @@
-use super::models::{DeEscrowDataReq, WithdrawDataReq};
+use super::models::DeEscrowDataReq;
 use crate::{
     domain::entities::{TokenType, WithdrawData},
     ports::contracts::NightfallContract,
