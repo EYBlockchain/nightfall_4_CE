@@ -20,13 +20,13 @@ chain_id = 31337 # Anvil chain id = 31337
 
 [development.nightfall_client]
 url = "http://client:3000"
-log_level = "debug"
+log_level = "info"
 wallet_type = "local"
 db_url = "mongodb://nf4_db_client:27017"
 
 [development.nightfall_proposer]
 url = "http://proposer:3000"
-log_level = "debug"
+log_level = "info"
 wallet_type = "local"
 db_url = "mongodb://nf4_db_proposer:27017"
 block_assembly_max_wait_secs = 120 
@@ -34,7 +34,7 @@ block_assembly_target_fill_ratio = 0.25
 block_assembly_initial_interval_secs = 15
 
 [development.nightfall_deployer]
-log_level = "debug"
+log_level = "info"
 default_proposer_address = "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720"
 default_proposer_url = "http://proposer:3000"
 proposer_stake = 0
@@ -42,7 +42,7 @@ proposer_ding = 0                                                       # how mu
 proposer_rotation_blocks = 1                                            # how many blocks before we rotate proposers
 
 [development.nightfall_test]
-log_level = "debug"
+log_level = "info"
 
 [development.contracts]
 assets = "./blockchain_assets/artifacts"
@@ -83,18 +83,18 @@ chain_id = 84532 # Base Sepolia chain id = 84532
 
 [base_sepolia.nightfall_client]
 url = "http://client:3000"
-log_level = "debug"
+log_level = "info"
 wallet_type = "local"
 db_url = "mongodb://nf4_db_client:27017"
 
 [base_sepolia.nightfall_proposer]
 url = "http://proposer:3000"
-log_level = "debug"
+log_level = "info"
 wallet_type = "local"
 db_url = "mongodb://nf4_db_proposer:27017"
 
 [base_sepolia.nightfall_deployer]
-log_level = "debug"
+log_level = "info"
 default_proposer_address = "0xB4482738243946ffAb384Fa5409bcad8F304a757"
 default_proposer_url = "http://proposer:3000"
 proposer_stake = 0
@@ -102,7 +102,7 @@ proposer_ding = 0                                                       # how mu
 proposer_rotation_blocks = 1                                            # how many blocks before we rotate proposers
 
 [base_sepolia.nightfall_test]
-log_level = "debug"
+log_level = "info"
 
 [base_sepolia.contracts]
 assets = "./blockchain_assets/artifacts"
