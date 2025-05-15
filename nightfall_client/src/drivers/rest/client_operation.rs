@@ -156,8 +156,7 @@ where
     let response = serde_json::to_string(&(operation_result_json, tx_receipt))
         .map_err(TransactionHandlerError::JsonConversionError)?;
 
-    let uuid =
-        serde_json::to_string(id).map_err(TransactionHandlerError::JsonConversionError)?;
+    let uuid = serde_json::to_string(id).map_err(TransactionHandlerError::JsonConversionError)?;
 
     Ok(NotificationPayload::TransactionEvent { response, uuid })
 }
