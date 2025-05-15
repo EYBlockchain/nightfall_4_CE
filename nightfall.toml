@@ -23,6 +23,7 @@ url = "http://client:3000"
 log_level = "info"
 wallet_type = "local"
 db_url = "mongodb://nf4_db_client:27017"
+max_event_listener_attempts = 10
 
 [development.nightfall_proposer]
 url = "http://proposer:3000"

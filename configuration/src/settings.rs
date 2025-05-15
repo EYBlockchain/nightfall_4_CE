@@ -27,6 +27,7 @@ pub struct ClientConfig {
     pub log_level: String,
     pub wallet_type: String,
     pub db_url: String,
+    pub max_event_listener_attempts: Option<u32>,
 }
 
 #[derive(Debug, Deserialize, Default, Serialize)]
