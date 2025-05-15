@@ -16,7 +16,7 @@ use nightfall_bindings::nightfall::Nightfall;
 use std::panic;
 
 /// This function starts the event handler. It will attempt to restart the event handler in case of errors
-/// with an exponential backoff strategy for a configurable number of attempts. If the event handler
+/// with an exponential backoff  for a configurable number of attempts. If the event handler
 /// fails after the maximum number of attempts, it will log an error and send a notification (if configured).
 pub fn start_event_listener<N: NightfallContract>(
     start_block: usize,
@@ -46,7 +46,7 @@ pub fn start_event_listener<N: NightfallContract>(
                     if attempts >= max_attempts {
                         log::error!("Client event listener: max attempts reached. Giving up.");
                         if let Err(err) = notify_failure_client("Client event listener failed after max retries").await {
-                            log::error!("Failed to send failure notification: {:?}", err);
+                            log::error!("Failed to send failure notification (client): {:?}", err);
                         }
                         break;
                     }
@@ -59,7 +59,7 @@ pub fn start_event_listener<N: NightfallContract>(
     .boxed()
 }
 async fn notify_failure_client(message: &str) -> Result<(), ()> {
-    // Here we can implement the logic to nitify the failure, e.g, sending a message or an alert
+    // Here we can implement the logic to notify the failure, e.g, sending a message or an alert
     // for now, we'll just log the error
     log::error!("ALERT: {}", message);
     Ok(())

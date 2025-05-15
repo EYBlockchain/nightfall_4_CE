@@ -19,7 +19,7 @@ use nightfall_client::{
 use tokio::sync::{OnceCell, RwLock};
 
 /// This function starts the event handler. It will attempt to restart the event handler in case of errors
-/// with an exponential backoff strategy for a configurable number of attempts. If the event handler
+/// with an exponential backoff for a configurable number of attempts. If the event handler
 /// fails after the maximum number of attempts, it will log an error and send a notification (if configured)
 pub fn start_event_listener<P, E, N>(
     start_block: usize,
