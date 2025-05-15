@@ -153,31 +153,31 @@ where
             .await_trigger()
             .await;
         let current_proposer_after_trigger = match round_robin_instance
-    .get_current_proposer_address()
-    .call()
-    .await
-{
-    Ok(addr) => addr,
-    Err(e) => {
-        error!("Failed to get current proposer after trigger: {}", e);
-        continue;
-    }
-};
+            .get_current_proposer_address()
+            .call()
+            .await
+        {
+            Ok(addr) => addr,
+            Err(e) => {
+                error!("Failed to get current proposer after trigger: {}", e);
+                continue;
+            }
+        };
 
-let our_address = get_blockchain_client_connection()
-    .await
-    .read()
-    .await
-    .get_client()
-    .address();
+        let our_address = get_blockchain_client_connection()
+            .await
+            .read()
+            .await
+            .get_client()
+            .address();
 
-if current_proposer_after_trigger != our_address {
-    info!(
+        if current_proposer_after_trigger != our_address {
+            info!(
         "Proposer has changed after trigger. Skipping block assembly. New proposer is: {:?}",
         current_proposer_after_trigger
     );
-    continue;
-}
+            continue;
+        }
         // get_block_assembly_trigger::<P>()
         //     .await
         //     .read()

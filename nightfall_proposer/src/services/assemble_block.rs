@@ -251,9 +251,8 @@ where
         .collect();
 
     // 4. Partition deposits into pending and stale
-    let (mut pending_deposits, stale_deposits): (Vec<_>, Vec<_>) = all_deposits
-        .into_iter()
-        .partition(|d| {
+    let (mut pending_deposits, stale_deposits): (Vec<_>, Vec<_>) =
+        all_deposits.into_iter().partition(|d| {
             let inputs = [
                 d.deposit_data.nf_token_id,
                 d.deposit_data.nf_slot_id,
@@ -268,7 +267,7 @@ where
         });
     // Partition client transactions into pending and stale
     let (pending_client_transactions, stale_client_transactions): (Vec<_>, Vec<_>) =
-    current_client_transaction_meta_in_mempool
+        current_client_transaction_meta_in_mempool
             .into_iter()
             .partition(|tx| {
                 tx.client_transaction

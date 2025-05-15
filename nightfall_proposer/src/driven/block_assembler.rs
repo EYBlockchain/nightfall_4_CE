@@ -1,5 +1,8 @@
 use crate::{
-    domain::entities::{Block, OnChainTransaction}, initialisation::get_blockchain_client_connection, ports::{block_assembly_trigger::BlockAssemblyTrigger, db::TransactionsDB}, services::assemble_block::get_block_size
+    domain::entities::{Block, OnChainTransaction},
+    initialisation::get_blockchain_client_connection,
+    ports::{block_assembly_trigger::BlockAssemblyTrigger, db::TransactionsDB},
+    services::assemble_block::get_block_size,
 };
 use async_trait::async_trait;
 
@@ -7,10 +10,13 @@ use configuration::addresses::get_addresses;
 use ethers::types::Bytes;
 use lib::blockchain_client::BlockchainClientConnection;
 use log::{debug, error, warn};
-use nightfall_bindings::{nightfall::{
-    Block as NightfallBlockStruct, CompressedSecrets as NightfallCompressedSecrets,
-    OnChainTransaction as NightfallOnChainTransaction,
-}, round_robin::RoundRobin};
+use nightfall_bindings::{
+    nightfall::{
+        Block as NightfallBlockStruct, CompressedSecrets as NightfallCompressedSecrets,
+        OnChainTransaction as NightfallOnChainTransaction,
+    },
+    round_robin::RoundRobin,
+};
 use nightfall_client::{
     domain::{entities::ClientTransaction, error::ConversionError},
     driven::contract_functions::contract_type_conversions::{FrBn254, Uint256},
@@ -78,8 +84,8 @@ impl<P: Proof + Send + Sync> BlockAssemblyTrigger for SmartTrigger<P> {
             } else {
                 0
             };
-             // Re-check current proposer
-             let round_robin_instance = RoundRobin::new(
+            // Re-check current proposer
+            let round_robin_instance = RoundRobin::new(
                 get_addresses().round_robin,
                 get_blockchain_client_connection()
                     .await
@@ -87,31 +93,31 @@ impl<P: Proof + Send + Sync> BlockAssemblyTrigger for SmartTrigger<P> {
                     .await
                     .get_client(),
             );
-        let current_proposer = match round_robin_instance
-        .get_current_proposer_address()
-        .call()
-        .await
-    {
-        Ok(addr) => addr,
-        Err(e) => {
-            error!("Failed to get current proposer: {}", e);
-            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-            continue;
-        }
-    };
-    let our_address = get_blockchain_client_connection()
-    .await
-    .read()
-    .await
-    .get_client()
-    .address();
-        if current_proposer != our_address {
-            debug!(
-                "Lost proposer status during trigger wait. Current proposer: {:?}",
-                current_proposer
-            );
-            break; // Exit loop early
-        }
+            let current_proposer = match round_robin_instance
+                .get_current_proposer_address()
+                .call()
+                .await
+            {
+                Ok(addr) => addr,
+                Err(e) => {
+                    error!("Failed to get current proposer: {}", e);
+                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                    continue;
+                }
+            };
+            let our_address = get_blockchain_client_connection()
+                .await
+                .read()
+                .await
+                .get_client()
+                .address();
+            if current_proposer != our_address {
+                debug!(
+                    "Lost proposer status during trigger wait. Current proposer: {:?}",
+                    current_proposer
+                );
+                break; // Exit loop early
+            }
             if self.status.read().await.is_running() && self.should_assemble().await {
                 debug!("Trigger activated by mempool check.");
                 break;

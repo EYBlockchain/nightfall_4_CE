@@ -61,7 +61,7 @@ where
             .await
             .map_err(|e| {
                 log::error!("Could not create commitment tree metadata: {:?}", e);
-                Self::Error::from(e)
+                e
             })?;
         Ok(())
     }
@@ -237,7 +237,7 @@ where
             .await
             .map_err(|e| {
                 log::error!("Could not create HistoricRootTree metadata: {:?}", e);
-                Self::Error::from(e)
+                e
             })?;
         Ok(())
     }

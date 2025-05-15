@@ -392,7 +392,6 @@ async fn main() {
     .unwrap();
     debug!("transaction_erc1155_deposit_3 has been created");
 
- 
     // for each deposit request, we have value commitment and fee commitment (if fee is non-zero)
     // wait for the commitments to appear on-chain - we can't transfer until they are there
     wait_on_chain(
@@ -448,7 +447,7 @@ async fn main() {
     // we need up to seven commitments because we'll want to do up to seven withdraws in
     // the same block (we don't control when a block is computed), so we can't use a single commitment
     // even if it has enough value because the change won't be available until the next block.
-   
+
     let url2 = Url::parse("http://client2:3000")
         .unwrap()
         .join("v1/deposit")
@@ -468,7 +467,7 @@ async fn main() {
         );
         debug!("transaction_erc20_deposit_4 has been created");
     }
- 
+
     for transaction in transactions_erc20_deposit_4.iter_mut().take(7) {
         // wait for the client2 fee commitments to appear on-chain
         wait_on_chain(
@@ -503,7 +502,7 @@ async fn main() {
     assert_eq!(balance, 7 + client2_starting_balance);
 
     info!("Sending transfer transactions");
-  
+
     let url = Url::parse(&settings.nightfall_client.url)
         .unwrap()
         .join("v1/transfer")
@@ -537,7 +536,7 @@ async fn main() {
     .await
     .unwrap();
     debug!("transaction_erc20_transfer_2 has been created");
- 
+
     wait_on_chain(
         &[
             Fr254::from_hex_string(
