@@ -48,7 +48,6 @@ where
     where
         Self: MutableTree<F, Error = MerkleTreeError<mongodb::error::Error>>,
     {
-        ark_std::println!("resting tree");
         let _ = <Self as MutableTree<F>>::reset_mutable_tree(self, Self::TREE_NAME).await;
         // select the proposer to use
         use configuration::settings::get_settings;

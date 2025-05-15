@@ -249,39 +249,47 @@ where
         .iter()
         .flat_map(|block| block.commitments.iter().cloned())
         .collect();
-    // compute the deposit_commitments
-    let mut pending_deposits: Vec<DepositDatawithFee> = all_deposits
-        .clone()
+
+    // 4. Partition deposits into pending and stale
+    let (mut pending_deposits, stale_deposits): (Vec<_>, Vec<_>) = all_deposits
         .into_iter()
-        .filter(|d| {
-            // write depositdata with fee to commitments later
-            let DepositDatawithFee { deposit_data, .. } = d;
+        .partition(|d| {
             let inputs = [
-                deposit_data.nf_token_id,
-                deposit_data.nf_slot_id,
-                deposit_data.value,
+                d.deposit_data.nf_token_id,
+                d.deposit_data.nf_slot_id,
+                d.deposit_data.value,
                 Fr254::from(0u64),
                 Fr254::from(1u64),
-                deposit_data.secret_hash,
+                d.deposit_data.secret_hash,
             ];
             let poseidon = Poseidon::<Fr254>::new();
             let commitment_hex = poseidon.hash(&inputs).unwrap().to_hex_string();
             !all_commitments_onchain.contains(&commitment_hex)
-        })
-        .collect();
-
-    let pending_client_transactions: Vec<ClientTransactionWithMetaData<P>> =
-        current_client_transaction_meta_in_mempool
-            .clone()
+        });
+    // Partition client transactions into pending and stale
+    let (pending_client_transactions, stale_client_transactions): (Vec<_>, Vec<_>) =
+    current_client_transaction_meta_in_mempool
             .into_iter()
-            .filter(|tx| {
+            .partition(|tx| {
                 tx.client_transaction
                     .commitments
                     .iter()
                     .filter(|c| c.to_hex_string() != Fr254::zero().to_hex_string())
                     .all(|c| !all_commitments_onchain.contains(&c.to_hex_string()))
-            })
-            .collect();
+            });
+
+    // Clean stale items from mempool
+    if !stale_deposits.is_empty() {
+        let _ = <mongodb::Client as TransactionsDB<P>>::remove_mempool_deposits(
+            db,
+            vec![stale_deposits.clone()],
+        )
+        .await;
+    }
+
+    if !stale_client_transactions.is_empty() {
+        let _ = db.set_in_mempool(&stale_client_transactions, false).await;
+    }
 
     // 4. Check if there are any pending deposits or client transactions
     if pending_deposits.is_empty() && pending_client_transactions.is_empty() {

@@ -218,22 +218,6 @@ where
     // Count deposits in the mempool
     // This is used to determine if we need to assemble a block
     async fn count_mempool_deposits(&mut self) -> Result<u64, mongodb::error::Error> {
-        // print all the contents in the collection
-        // Use empty filter to select all documents
-        let filter = doc! {};
-
-        // Get a cursor over all documents in the collection
-        let mut cursor = self
-            .database(DB)
-            .collection::<DepositDatawithFee>(DEPOSIT_COLLECTION)
-            .find(filter)
-            .await?;
-        use futures::StreamExt;
-        // Iterate over all documents and print them
-        while let Some(result) = cursor.next().await {
-            let deposit = result?; // Propagate deserialization errors
-            ark_std::println!("Printing deposits in mempool{:?}", deposit);
-        }
         self.database(DB)
             .collection::<DepositDatawithFee>(DEPOSIT_COLLECTION)
             .count_documents(doc! {})

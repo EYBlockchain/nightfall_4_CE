@@ -701,7 +701,6 @@ where
                 return Err(MerkleTreeError::DatabaseError(e));
             }
         }
-        ark_std::println!("rest mutable tree");
         Ok(())
     }
 }

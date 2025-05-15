@@ -102,7 +102,6 @@ where
     R: RecursiveProvingEngine<P> + Send + Sync + 'static,
     N: NightfallContract,
 {
-    ark_std::println!("I'm in Starting block assembly");
     let round_robin_instance = RoundRobin::new(
         get_addresses().round_robin,
         get_blockchain_client_connection()
@@ -128,16 +127,12 @@ where
             }
         };
 
-        ark_std::println!("Current proposer: {:?}", current_proposer);
-
         let our_address = get_blockchain_client_connection()
             .await
             .read()
             .await
             .get_client()
             .address();
-        ark_std::println!("our_address: {:?}", our_address);
-
 
         // Step 2: If we are not the proposer, wait and retry
         if current_proposer != our_address {
