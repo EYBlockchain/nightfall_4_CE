@@ -11,15 +11,15 @@ use ethers::types::Bytes;
 use lib::blockchain_client::BlockchainClientConnection;
 use log::{debug, error, warn};
 use nightfall_bindings::{
-    nightfall::{
-        Block as NightfallBlockStruct, CompressedSecrets as NightfallCompressedSecrets,
-        OnChainTransaction as NightfallOnChainTransaction,
-    },
+    nightfall::{Block as NightfallBlockStruct, OnChainTransaction as NightfallOnChainTransaction},
     round_robin::RoundRobin,
 };
 use nightfall_client::{
     domain::{entities::ClientTransaction, error::ConversionError},
-    driven::contract_functions::contract_type_conversions::{FrBn254, Uint256},
+    driven::contract_functions::contract_type_conversions::{
+        parse_compressed_secrets_to_onchain_ciphertext,
+        parse_onchain_ciphertext_to_compressed_secrets, FrBn254, Uint256,
+    },
     ports::proof::Proof,
 };
 use std::marker::PhantomData;
@@ -242,7 +242,7 @@ impl From<OnChainTransaction> for NightfallOnChainTransaction {
             fee: Uint256::from(otx.fee).into(),
             commitments: otx.commitments.map(|c| Uint256::from(c).into()),
             nullifiers: otx.nullifiers.map(|n| Uint256::from(n).into()),
-            public_data: NightfallCompressedSecrets::from(otx.public_data).cipher_text,
+            public_data: parse_compressed_secrets_to_onchain_ciphertext(otx.public_data),
         }
     }
 }
@@ -269,10 +269,7 @@ impl From<NightfallOnChainTransaction> for OnChainTransaction {
                     )
                     .0
             }),
-            public_data: NightfallCompressedSecrets {
-                cipher_text: ntx.public_data,
-            }
-            .into(),
+            public_data: parse_onchain_ciphertext_to_compressed_secrets(ntx.public_data),
         }
     }
 }

@@ -27,10 +27,7 @@ use lib::{
 };
 use log::{debug, error, info, warn};
 use nf_curves::ed_on_bn254::Fr as BJJScalar;
-use nightfall_bindings::{
-    round_robin::RoundRobin,
-    x509::Proposer,
-};
+use nightfall_bindings::{round_robin::RoundRobin, x509::Proposer};
 use serde::Serialize;
 use std::{error::Error, fmt::Debug};
 use url::Url;

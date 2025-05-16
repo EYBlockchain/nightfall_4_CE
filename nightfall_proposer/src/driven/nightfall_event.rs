@@ -1,10 +1,7 @@
 use crate::{
     domain::entities::{DepositData, DepositDatawithFee, OnChainTransaction},
     driven::{
-        db::mongo_db::StoredBlock,
-        nightfall_client_transaction::{
-            process_deposit_transaction, process_nightfall_client_transaction,
-        },
+        db::mongo_db::StoredBlock, nightfall_client_transaction::process_deposit_transaction,
     },
     drivers::blockchain::nightfall_event_listener::get_synchronisation_status,
     initialisation::{get_blockchain_client_connection, get_db_connection},
@@ -27,13 +24,9 @@ use log::{debug, error, info, warn};
 use mongodb::Client;
 use nightfall_bindings::nightfall::{
     DepositEscrowedFilter, NightfallCalls, NightfallEvents, ProposeBlockCall,
-    SubmitClientTransactionCall,
 };
 use nightfall_client::{
-    domain::{
-        entities::{ClientTransaction, HexConvertible},
-        error::EventHandlerError,
-    },
+    domain::{entities::HexConvertible, error::EventHandlerError},
     driven::contract_functions::contract_type_conversions::FrBn254,
     drivers::rest::utils::to_nf_token_id_from_solidity,
     get_fee_token_id,
@@ -126,30 +119,20 @@ where
         .await
         .map_err(|_| EventHandlerError::IOError("Could not retrieve transaction".to_string()))?;
     // if there is one, decode it. If not, throw.
-    match tx {
-        Some(tx) => {
-            let decoded =
-                NightfallCalls::decode(tx.input).map_err(|_| EventHandlerError::InvalidCalldata)?;
-            match decoded {
-                NightfallCalls::ProposeBlock(decode) => {
-                    // OK to use unwrap because the smart contract has to provide a block number
-                    process_propose_block_event::<N>(
-                        decode,
-                        transaction_hash,
-                        block_number
-                            .expect("Block number should be present for BlockProposed event"),
-                    )
-                    .await?
-                }
-
-                NightfallCalls::SubmitClientTransaction(decode) => {
-                    process_client_transaction_submitted_event::<P, E>(decode, transaction_hash)
-                        .await?;
-                }
-                _ => (),
-            }
+    if let Some(tx) = tx {
+        let decoded =
+            NightfallCalls::decode(tx.input).map_err(|_| EventHandlerError::InvalidCalldata)?;
+        if let NightfallCalls::ProposeBlock(decode) = decoded {
+            // OK to use unwrap because the smart contract has to provide a block number
+            process_propose_block_event::<N>(
+                decode,
+                transaction_hash,
+                block_number.expect("Block number should be present for BlockProposed event"),
+            )
+            .await?;
         }
-        None => panic!("Transaction not found when looking up calldata"),
+    } else {
+        panic!("Transaction not found when looking up calldata");
     }
     Ok(())
 }
@@ -389,30 +372,6 @@ async fn process_propose_block_event<N: NightfallContract>(
     Ok(())
 }
 
-async fn process_client_transaction_submitted_event<P, E>(
-    decode: SubmitClientTransactionCall,
-    transaction_hash: H256,
-) -> Result<(), EventHandlerError>
-where
-    P: Proof,
-    E: ProvingEngine<P>,
-{
-    info!(
-        "Decoded SubmitL2Transaction call from transaction {:?}",
-        transaction_hash
-    );
-    // now we do some type conversion Transaction -> Transaction<P> -> ClientTransactionWithMetaData<P>
-    let tx = decode.txn;
-    let client_transaction: ClientTransaction<P> = tx
-        .try_into()
-        .map_err(|_| EventHandlerError::InvalidCalldata)?;
-    process_nightfall_client_transaction::<P, E>(client_transaction)
-        .await
-        .map_err(|_| {
-            EventHandlerError::IOError("Could not process client transaction".to_string())
-        })?;
-    Ok(())
-}
 async fn process_deposit_escrowed_event<P, E>(
     transaction_hash: H256,
     filter: &DepositEscrowedFilter,

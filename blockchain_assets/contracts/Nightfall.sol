@@ -33,21 +33,6 @@ enum TokenType {
     ERC3525// 3
 }
 
-// A transaction of this type is created by a client. It will often go directly to a proposer and not touch the blockchain
-// we don't attempt a tight-packing pattern because it's never placed into a Storage slot.
-struct ClientTransaction {
-    uint256 fee; 
-    uint256[4] historic_commitment_roots;
-    uint256[4] commitments;
-    uint256[4] nullifiers;
-    CompressedSecrets compressed_secrets;
-    bytes compressed_proof;
-}
-
-struct CompressedSecrets {
-    uint256[4] cipher_text;
-}
-
 // This is the format for a transaction that has been processed by a Proposer and rolled up into a block
 // Note: fee is needed here, as we don't want proposer to alter some client's fee but keep the total fee unchanged.
 // Such as client_1_fee = 1, client_2_fee = 2, if proposer makes client_1_fee = 2, client_2_fee = 1 when it submits data to blockchain, (fee_sum is unchanged, but individual fee is changed), then proposer can get more fee from client_1 than it should get.
