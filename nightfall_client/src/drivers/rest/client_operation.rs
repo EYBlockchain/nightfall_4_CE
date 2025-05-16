@@ -28,8 +28,10 @@ use lib::{
 use log::{debug, error, info, warn};
 use nf_curves::ed_on_bn254::Fr as BJJScalar;
 use nightfall_bindings::{round_robin::RoundRobin, x509::Proposer};
+use reqwest::Error as ReqwestError;
 use serde::Serialize;
-use std::{error::Error, fmt::Debug};
+use std::{error::Error, fmt::Debug, time::Duration};
+use tokio::time::sleep;
 use url::Url;
 use warp::{
     hyper::StatusCode,
@@ -188,37 +190,94 @@ async fn process_transaction_offchain<P: Serialize>(
     );
     let proposers_struct: Vec<Proposer> = round_robin_instance.get_proposers().call().await?;
     info!("{id} Sending client transaction to proposer");
+    // we need to update the request in the database to show that it's been sent to the proposer
     let db = get_db_connection().await.write().await;
+    const MAX_RETRIES: u32 = 3;
+    const INITIAL_BACKOFF: Duration = Duration::from_millis(500);
     // Send to each proposer’s /v1/transaction endpoint
     for proposer in proposers_struct {
-        let url = match Url::parse(&proposer.url).and_then(|base| base.join("/v1/transaction")) {
-            Ok(u) => u,
-            Err(e) => {
-                log::warn!("Skipping proposer with invalid URL {}: {}", proposer.url, e);
-                continue;
-            }
-        };
-
-        let result = client.post(url.clone()).json(l2_transaction).send().await;
-
-        match result {
-            Ok(response) => {
-                if response.status().is_success() {
-                    db.update_request(id, RequestStatus::Submitted).await;
-                    debug!("{id} Successfully sent transaction to proposer at {}", url);
-                } else {
-                    error!(
-                        "Failed to send transaction to proposer at {}. HTTP status: {}",
-                        url,
-                        response.status()
-                    );
+        for attempt in 1..=MAX_RETRIES {
+            let url = match Url::parse(&proposer.url).and_then(|base| base.join("/v1/transaction"))
+            {
+                Ok(u) => u,
+                Err(e) => {
+                    log::warn!("Skipping proposer with invalid URL {}: {}", proposer.url, e);
+                    continue;
                 }
-            }
-            Err(e) => {
-                error!("Failed to send transaction to proposer at {}: {:?}", url, e);
+            };
+
+            let proposer_response = client.post(url.clone()).json(l2_transaction).send().await;
+
+            match proposer_response {
+                Ok(response) => {
+                    let status = response.status();
+                    if status.is_success() {
+                        db.update_request(id, RequestStatus::Submitted).await;
+                        debug!("{id} Successfully sent transaction to proposer at {}", url);
+                    } else {
+                        let body = response.text().await.unwrap_or_default();
+                        error!("{id} Error from proposer: HTTP {} — Body: {}", status, body);
+                        // only retry on specific HTTP status codes returned by the proposer, potentially temporary server errors,502 503,504.
+                        if matches!(
+                            status,
+                            StatusCode::BAD_GATEWAY
+                                | StatusCode::SERVICE_UNAVAILABLE
+                                | StatusCode::GATEWAY_TIMEOUT
+                        ) {
+                            if attempt < MAX_RETRIES {
+                                let backoff = INITIAL_BACKOFF * 2u32.pow(attempt - 1);
+                                warn!("{id} Retrying in {:?} (HTTP error {})", backoff, status);
+                                sleep(backoff).await;
+                                continue;
+                            } else {
+                                // mark as ProposerUnreachable after exhausting all retries for these specific errors.
+                                db.update_request(id, RequestStatus::ProposerUnreachable)
+                                    .await;
+                                return Err(Box::new(std::io::Error::new(
+                                    std::io::ErrorKind::TimedOut,
+                                    format!(
+                                        "Proposer returned {} after {} attempts",
+                                        status, MAX_RETRIES
+                                    ),
+                                )));
+                            }
+                        } else {
+                            // handle non-retryable HTTP status codes. Mark as Failed immediately.
+                            db.update_request(id, RequestStatus::Failed).await;
+                            return Err(Box::new(std::io::Error::new(
+                                std::io::ErrorKind::Other,
+                                format!(
+                                    "Proposer returned non-retryable error {} — {}",
+                                    status, body
+                                ),
+                            )));
+                        }
+                    }
+                }
+                Err(err) => {
+                    error!(
+                        "{id} Failed to send transaction to proposer at {}: {:?}",
+                        url, err
+                    );
+                    if is_retriable_error(&err) && attempt < MAX_RETRIES {
+                        let backoff = INITIAL_BACKOFF * 2u32.pow(attempt - 1);
+                        warn!("{id} Retrying after network error in {:?}", backoff);
+                        sleep(backoff).await;
+                        continue;
+                    } else {
+                        db.update_request(id, RequestStatus::ProposerUnreachable)
+                            .await;
+                        return Err(Box::new(err));
+                    }
+                }
             }
         }
     }
 
     Ok(None) // As per current off-chain flow, return no receipt
+}
+
+/// Only retry on network issues or timeouts
+fn is_retriable_error(err: &ReqwestError) -> bool {
+    err.is_timeout() || err.is_connect() || err.is_request()
 }

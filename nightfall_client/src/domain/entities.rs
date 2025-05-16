@@ -41,6 +41,7 @@ pub enum RequestStatus {
     Queued,
     Submitted,
     Failed,
+    ProposerUnreachable,
 }
 
 impl Display for RequestStatus {
@@ -49,6 +50,7 @@ impl Display for RequestStatus {
             RequestStatus::Queued => write!(f, "Queued"),
             RequestStatus::Submitted => write!(f, "Submitted"),
             RequestStatus::Failed => write!(f, "Failed"),
+            RequestStatus::ProposerUnreachable => write!(f, "ProposerUnreachable"),
         }
     }
 }
