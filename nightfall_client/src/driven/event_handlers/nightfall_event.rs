@@ -70,9 +70,6 @@ where
                         EventHandlerError::InvalidCalldata
                     })?;
             }
-            NightfallEvents::ClientTransactionSubmittedFilter(_f) => {
-                info!("Received TransactionSubmitted event")
-            }
             NightfallEvents::DepositEscrowedFilter(filter) => {
                 info!("Received DepositEscrowed event");
                 process_deposit_escrowed_event(tx_hash, filter)

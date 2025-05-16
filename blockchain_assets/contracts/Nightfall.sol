@@ -90,7 +90,6 @@ contract Nightfall is
 {
     int256 public layer2_block_number = 0; // useful for checking your node is in sync, can be negative (offchain) to indicate a block that is not onchain
     event BlockProposed(int256 layer2_block_number);
-    event ClientTransactionSubmitted();
     event DepositEscrowed(uint256 nfSlotId, uint256 value);
 
     mapping(uint256 => DepositFeeState) private feeBinding; // remembers a Deposit's fee

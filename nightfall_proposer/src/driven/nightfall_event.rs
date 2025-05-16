@@ -78,12 +78,7 @@ where
         debug!("Handling event {:?} for transaction {:?}", self, tx_hash);
         match &self {
             NightfallEvents::BlockProposedFilter(filter) => {
-                process_nightfall_calldata::<P, E, N>(tx_hash, Some(filter.layer_2_block_number))
-                    .await?
-            }
-            NightfallEvents::ClientTransactionSubmittedFilter(_f) => {
-                info!("Received TransactionSubmitted event");
-                process_nightfall_calldata::<P, E, N>(tx_hash, None).await?
+                process_nightfall_calldata::<P, E, N>(tx_hash, filter.layer_2_block_number).await?
             }
             NightfallEvents::DepositEscrowedFilter(filter) => {
                 info!("Received DepositEscrowed event");
@@ -102,7 +97,7 @@ where
 
 pub async fn process_nightfall_calldata<P, E, N>(
     transaction_hash: H256,
-    block_number: Option<I256>, // process_nightfall_calldata is called for ClientTransactionSubmitted and BlockProposed events, the first one doesn't have block_number so we make it optional
+    block_number: I256,
 ) -> Result<(), EventHandlerError>
 where
     P: Proof + Send + Serialize + Clone + Debug + Sync,
@@ -124,12 +119,7 @@ where
             NightfallCalls::decode(tx.input).map_err(|_| EventHandlerError::InvalidCalldata)?;
         if let NightfallCalls::ProposeBlock(decode) = decoded {
             // OK to use unwrap because the smart contract has to provide a block number
-            process_propose_block_event::<N>(
-                decode,
-                transaction_hash,
-                block_number.expect("Block number should be present for BlockProposed event"),
-            )
-            .await?;
+            process_propose_block_event::<N>(decode, transaction_hash, block_number).await?;
         }
     } else {
         panic!("Transaction not found when looking up calldata");
