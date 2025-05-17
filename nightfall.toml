@@ -88,12 +88,14 @@ url = "http://client:3000"
 log_level = "info"
 wallet_type = "local"
 db_url = "mongodb://nf4_db_client:27017"
+max_event_listener_attempts = 10
 
 [base_sepolia.nightfall_proposer]
 url = "http://proposer:3000"
 log_level = "info"
 wallet_type = "local"
 db_url = "mongodb://nf4_db_proposer:27017"
+max_event_listener_attempts = 10
 
 [base_sepolia.nightfall_deployer]
 log_level = "info"
