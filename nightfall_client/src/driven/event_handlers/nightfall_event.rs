@@ -19,6 +19,7 @@ use crate::services::data_publisher::DataPublisher;
 use crate::{domain::error::EventHandlerError, ports::events::EventHandler};
 use ark_bn254::Fr as Fr254;
 use ark_ff::BigInteger;
+use configuration::settings::get_settings;
 use lib::{
     blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
 };
@@ -32,7 +33,6 @@ use nightfall_bindings::nightfall::{
     BlockProposedFilter, CompressedSecrets as NightfallCompressedSecrets, DepositEscrowedFilter,
     NightfallCalls, NightfallEvents, ProposeBlockCall,
 };
-use std::env;
 use std::error::Error;
 use std::sync::OnceLock;
 use tokio::sync::Mutex;
@@ -297,7 +297,7 @@ async fn process_propose_block_event<N: NightfallContract>(
                 EventHandlerError::IOError("Could not convert commitment to Fr254".to_string())
             })?
             .into();
-        
+
         if test_hash != commitment_hash {
             debug!("Commitment {} is not owned by us", commitment_hash);
         } else {
@@ -322,7 +322,7 @@ async fn process_propose_block_event<N: NightfallContract>(
             commitment_entries.push(commitment_entry);
         }
     }
-    
+
     if (db
         .store_commitments(&commitment_entries, dup_key_check)
         .await)
@@ -336,31 +336,28 @@ async fn process_propose_block_event<N: NightfallContract>(
 
     // Let's use the Data Publisher to publish notification
     // if the WEBHOOK_URL is set
-    if let Ok(webhook_url) = env::var("WEBHOOK_URL") {
-        if !webhook_url.is_empty() {
-            info!("Using webhook URL: {}", webhook_url);
-            let mut publisher = DataPublisher::new();
-            let notifier = WebhookNotifier::new(webhook_url);
+    let webhook_url = &get_settings().nightfall_client.webhook_url;
+    debug!("Using webhook URL: {}", webhook_url);
+    let mut publisher = DataPublisher::new();
+    let notifier = WebhookNotifier::new(webhook_url);
 
-            publisher.register_notifier(Box::new(notifier));
+    publisher.register_notifier(Box::new(notifier));
 
-            // Let's get the full hash as it gets truncated otherwise
-            let l1_txn_hash = format!("{:#x}", transaction_hash);
-            let owned_commitment_hashes = commitment_hashes
-                .iter()
-                .filter(|&c| !c.0.is_zero())
-                .map(|&c| c.to_hex_string())
-                .collect();
+    // Let's get the full hash as it gets truncated otherwise
+    let l1_txn_hash = format!("{:#x}", transaction_hash);
+    let owned_commitment_hashes = commitment_hashes
+        .iter()
+        .filter(|&c| !c.0.is_zero())
+        .map(|&c| c.to_hex_string())
+        .collect();
 
-            let notification = NotificationPayload::BlockchainEvent {
-                l1_txn_hash,
-                l2_block_number: filter.layer_2_block_number,
-                commitments: owned_commitment_hashes,
-            };
+    let notification = NotificationPayload::BlockchainEvent {
+        l1_txn_hash,
+        l2_block_number: filter.layer_2_block_number,
+        commitments: owned_commitment_hashes,
+    };
 
-            publisher.publish(notification).await;
-        }
-    }
+    publisher.publish(notification).await;
     Ok(())
 }
 

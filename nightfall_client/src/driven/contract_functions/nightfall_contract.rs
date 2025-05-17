@@ -165,12 +165,12 @@ impl<M> NightfallContract for Nightfall<M> {
                 }
             })?
             .await?;
-
-        info!(
-            "Gas used in de_escrow_funds: {:?}",
-            receipt.clone().unwrap().gas_used
-        );
-
+        if receipt.clone().unwrap().gas_used.is_some() {
+            info!(
+                "Gas used in de_escrow_funds: {:?}",
+                receipt.clone().unwrap().gas_used.unwrap()
+            );
+        }
         receipt.ok_or(NightfallContractError::EscrowError(
             "Transaction unsuccesful".to_string(),
         ))?;

@@ -1,10 +1,7 @@
 use crate::{
     drivers::blockchain::nightfall_event_listener::get_synchronisation_status,
     initialisation::{get_block_assembly_trigger, get_blockchain_client_connection},
-    ports::{
-        contracts::NightfallContract,
-        proving::RecursiveProvingEngine,
-    },
+    ports::{contracts::NightfallContract, proving::RecursiveProvingEngine},
     services::assemble_block::assemble_block,
 };
 use ark_serialize::SerializationError;

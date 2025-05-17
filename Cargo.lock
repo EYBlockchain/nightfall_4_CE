@@ -4437,6 +4437,7 @@ dependencies = [
  "tokio",
  "url",
  "uuid 1.16.0",
+ "warp",
 ]
 
 [[package]]
