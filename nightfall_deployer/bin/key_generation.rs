@@ -41,10 +41,7 @@ use nightfall_proposer::{
     driven::{deposit_circuit::deposit_circuit_builder, rollup_prover::RollupProver},
 };
 use num_bigint::BigUint;
-use std::{
-    collections::HashMap,
-    fs::File,
-};
+use std::{collections::HashMap, fs::File};
 
 fn main() {
     let settings: Settings = settings::Settings::new().unwrap();

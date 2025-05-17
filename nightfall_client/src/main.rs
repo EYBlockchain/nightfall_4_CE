@@ -7,7 +7,10 @@ use ark_bn254::Fr as Fr254;
 use nightfall_bindings::nightfall::Nightfall;
 use nightfall_client::{
     domain::entities::{Node, Request},
-    driven::plonk_prover::plonk_proof::{PlonkProof, PlonkProvingEngine},
+    driven::{
+        plonk_prover::plonk_proof::{PlonkProof, PlonkProvingEngine},
+        queue::process_queue,
+    },
     drivers::{blockchain::nightfall_event_listener::start_event_listener, rest::routes},
 };
 use tokio::task::JoinError;
@@ -49,9 +52,14 @@ async fn main() -> Result<(), JoinError> {
     // set up the warp server
     let routes = routes::<PlonkProof, PlonkProvingEngine, Nightfall<LocalWsClient>>();
     let task_2 = tokio::spawn(warp::serve(routes).run(([0, 0, 0, 0], 3000)));
-    info!("Starting warp server and event_handler threads");
+    let task_3 = tokio::spawn(process_queue::<
+        PlonkProof,
+        PlonkProvingEngine,
+        Nightfall<LocalWsClient>,
+    >());
+    info!("Starting warp server, request queue, and event_handler threads");
     // we'll run the warp server and blockchain listener in parallel in separate threads
-    let (_r1, _r2) = (task_2.await?, task_1.await?);
+    let (_r1, _r2, _r3) = (task_1.await?, task_2.await?, task_3.await?);
     error!("Client exited unexpectedly.");
     Ok(())
 }
