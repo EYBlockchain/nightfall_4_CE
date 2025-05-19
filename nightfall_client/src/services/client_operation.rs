@@ -88,7 +88,7 @@ where
     // commitment Merkle tree. This Merkle proof is available in the commitment DB because we will
     // have computed and stored it when the commitment was added to the tree (and hopefully updated
     //it since as the Merkle tree root is updated so that we obfuscate which block it was deposited in).
-    info!("{id} Finding membership proofs for spend commitments");
+    debug!("{id} Finding membership proofs for spend commitments");
     let (membership_proofs, roots) = {
         let mut proofs = vec![];
         let mut roots = vec![];

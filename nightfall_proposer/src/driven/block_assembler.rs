@@ -1,15 +1,15 @@
 use crate::{
     domain::entities::{Block, OnChainTransaction},
     ports::block_assembly_trigger::BlockAssemblyTrigger,
-    services::assemble_block::get_block_size,
     ports::db::TransactionsDB,
+    services::assemble_block::get_block_size,
 };
 use async_trait::async_trait;
 
 use ethers::types::Bytes;
+use log::{debug, error};
 use nightfall_bindings::nightfall::{
-    Block as NightfallBlockStruct,
-    CompressedSecrets as NightfallCompressedSecrets,
+    Block as NightfallBlockStruct, CompressedSecrets as NightfallCompressedSecrets,
     OnChainTransaction as NightfallOnChainTransaction,
 };
 use nightfall_client::{
@@ -17,12 +17,11 @@ use nightfall_client::{
     driven::contract_functions::contract_type_conversions::{FrBn254, Uint256},
     ports::proof::Proof,
 };
+use std::marker::PhantomData;
 use tokio::{
     sync::RwLock,
     time::{self, Duration, Instant},
 };
-use std::marker::PhantomData;
-use log::{error,debug};
 
 /// SmartTrigger is responsible for deciding when to trigger block assembly,
 /// based on time constraints and mempool state.
@@ -52,7 +51,7 @@ impl<P: Proof> SmartTrigger<P> {
         interval_secs: u64,
         max_wait_secs: u64,
         status: &'static RwLock<BlockAssemblyStatus>,
-        db: &'static RwLock<mongodb::Client>, 
+        db: &'static RwLock<mongodb::Client>,
         target_block_fill_ratio: f32,
     ) -> Self {
         Self {
@@ -71,7 +70,7 @@ impl<P: Proof + Send + Sync> BlockAssemblyTrigger for SmartTrigger<P> {
     async fn await_trigger(&self) {
         let interval_duration = Duration::from_secs(self.interval_secs);
         let mut interval = time::interval(interval_duration);
-        let short_wait = Duration::from_secs(5); 
+        let short_wait = Duration::from_secs(5);
         let start = Instant::now();
         loop {
             if self.status.read().await.is_running() && self.should_assemble().await {
@@ -79,7 +78,10 @@ impl<P: Proof + Send + Sync> BlockAssemblyTrigger for SmartTrigger<P> {
                 break;
             }
             if start.elapsed().as_secs() >= self.max_wait_secs {
-                debug!("Max wait time elapsed ({}s). Triggering block assembly.", self.max_wait_secs);
+                debug!(
+                    "Max wait time elapsed ({}s). Triggering block assembly.",
+                    self.max_wait_secs
+                );
                 break;
             }
 
@@ -90,7 +92,7 @@ impl<P: Proof + Send + Sync> BlockAssemblyTrigger for SmartTrigger<P> {
                         break;
                     }
                 }
-                _ = time::sleep(short_wait) => {    
+                _ = time::sleep(short_wait) => {
                 }
             }
         }
@@ -101,34 +103,37 @@ impl<P: Proof + Send + Sync> SmartTrigger<P> {
     async fn should_assemble(&self) -> bool {
         let mut db = self.db.write().await;
 
-        let num_deposit_groups = match <mongodb::Client as TransactionsDB<P>>::count_mempool_deposits(&mut db).await {
-            Ok(count) => {
-                let groups = (count + 3) / 4;
-                debug!("Mempool deposits: {}, grouped into: {}", count, groups);
-                groups
-            }
-            Err(e) => {
-                error!("Error counting deposits: {:?}", e);
-                0
-            }
-        } as f32;
+        let num_deposit_groups =
+            match <mongodb::Client as TransactionsDB<P>>::count_mempool_deposits(&mut db).await {
+                Ok(count) => {
+                    let groups = (count + 3) / 4;
+                    debug!("Mempool deposits: {}, grouped into: {}", count, groups);
+                    groups
+                }
+                Err(e) => {
+                    error!("Error counting deposits: {:?}", e);
+                    0
+                }
+            } as f32;
 
-        let num_client_txs = match <mongodb::Client as TransactionsDB<P>>::count_mempool_client_transactions(&mut db).await {
-            Ok(count) => {
-                debug!("Mempool client transactions: {}", count);
-                count 
-            }
-            Err(e) => {
-                error!("Error counting client transactions: {:?}", e);
-                0
-            }
-        }as f32;
+        let num_client_txs =
+            match <mongodb::Client as TransactionsDB<P>>::count_mempool_client_transactions(&mut db)
+                .await
+            {
+                Ok(count) => {
+                    debug!("Mempool client transactions: {}", count);
+                    count
+                }
+                Err(e) => {
+                    error!("Error counting client transactions: {:?}", e);
+                    0
+                }
+            } as f32;
 
         let block_size = get_block_size().unwrap_or(64) as f32;
         let fill_ratio = (num_deposit_groups + num_client_txs) / block_size;
-    
-        fill_ratio >= self.target_block_fill_ratio
 
+        fill_ratio >= self.target_block_fill_ratio
     }
 }
 
