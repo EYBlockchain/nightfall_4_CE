@@ -409,6 +409,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
                 match e.kind.as_ref() {
                     ErrorKind::Write(WriteError(write_error)) => {
                         if write_error.code == 11000 && !dup_key_check {
+                            println!("Duplicate key error: {:?}", write_error);
                             // duplicate key error but we don't care
                             Some(())
                         } else {

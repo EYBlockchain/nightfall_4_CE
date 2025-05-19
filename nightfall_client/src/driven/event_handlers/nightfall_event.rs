@@ -157,6 +157,10 @@ async fn process_propose_block_event<N: NightfallContract>(
         EventHandlerError::IOError("Could not retrieve current block number".to_string())
     })?;
     let delta = current_block_number - filter.layer_2_block_number - I256::one();
+    println!(
+        "Current block number is {}, delta is {}",
+        current_block_number, delta
+    );
     // if we"re synchronising, we don"t want to check for duplicate keys because we expect to overwrite commitments already in the commitment collection
     let dup_key_check = if delta != I256::zero() {
         warn!(
@@ -292,12 +296,12 @@ async fn process_propose_block_event<N: NightfallContract>(
         let test_hash = test_preimage
             .hash()
             .map_err(|_| EventHandlerError::IOError("Could not hash preimage".to_string()))?;
+
         let commitment_hash = FrBn254::try_from(transaction.commitments[0])
             .map_err(|_| {
                 EventHandlerError::IOError("Could not convert commitment to Fr254".to_string())
             })?
-            .into();
-        
+            .into();      
         if test_hash != commitment_hash {
             debug!("Commitment {} is not owned by us", commitment_hash);
         } else {
