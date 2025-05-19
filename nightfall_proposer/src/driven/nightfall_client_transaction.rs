@@ -96,7 +96,6 @@ where
     let hash = &client_transaction
         .hash()
         .map_err(|_| ClientTransactionError::HashGenerationFailed)?;
-
     let ctx = db.find_transaction(&client_transaction).await;
     // if it is, we should return an error
     if ctx.is_some() {

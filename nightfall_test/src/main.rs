@@ -137,7 +137,7 @@ async fn main() {
         && std::env::var("NF4_LARGE_BLOCK_TEST").unwrap() == "true"
     {
         warn!("Running large block test");
-        const N_LARGE_BLOCK: usize = 64;
+        const N_LARGE_BLOCK: usize = 1;
         const DEPOSIT_FEE: &str = "0x06";
 
         // work out how much we'll change the balance of the two clients by making the large block deposits

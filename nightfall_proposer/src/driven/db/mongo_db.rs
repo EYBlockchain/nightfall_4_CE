@@ -161,7 +161,10 @@ where
     ) -> Option<ClientTransactionWithMetaData<P>> {
         // we'll compute the hash of the transaction and then look it up in the database
         let hash = v.hash().ok()?;
-        let filter = doc! {"hash": hash};
+        let filter = doc! {
+            "hash": hash,
+            "in_mempool": true
+        };
         self.database(DB)
             .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
             .find_one(filter)
