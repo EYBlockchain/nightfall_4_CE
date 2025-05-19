@@ -10,6 +10,7 @@ services:
     build:
       dockerfile: nightfall_client/Dockerfile
       context: .
+
     stdin_open: true # keep stdin open, so we can print things in docker compose up
     platform: linux/amd64 # Required for building on M1 Macs
     ports:
@@ -48,7 +49,6 @@ services:
       - AZURE_CLIENT_ID=${AZURE_CLIENT_ID}
       - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
       - AZURE_TENANT_ID=${AZURE_TENANT_ID}
-      - WEBHOOK_URL=${WEBHOOK_URL}
 
   indie-client:
     container_name: nf4_indie_client
@@ -487,8 +487,10 @@ services:
         source: address_data
         target: /app/configuration/toml
         read_only: true
+    # Give the test container a static IP address so it can be contacted by the clients' webhooks. It doesn't get added to the dns with 'docker compose run test'
     networks:
-      - nightfall_network
+      nightfall_network:
+        ipv4_address: 172.18.0.250
     stdin_open: true # keep stdin open, so we can print things in docker compose up
     tty: true # required for logs to print in colour
     environment:
@@ -544,3 +546,8 @@ volumes:
 
 networks:
    nightfall_network:
+    ipam:
+      driver: default
+      config:
+        - subnet: "172.18.0.0/24"
+          

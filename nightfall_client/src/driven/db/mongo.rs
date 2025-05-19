@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use hex::encode;
 use jf_primitives::poseidon::{FieldHasher, Poseidon};
 use jf_primitives::trees::{Directions, PathElement};
-use log::info;
+use log::{debug, error, info};
 use mongodb::error::{ErrorKind, WriteFailure::WriteError};
 use mongodb::{bson::doc, Client};
 use serde::{Deserialize, Serialize};
@@ -380,12 +380,24 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
     }
 
     async fn store_commitment(&self, commitment: CommitmentEntry) -> Option<()> {
-        self.database(DB)
+        let result = self
+            .database(DB)
             .collection::<CommitmentEntry>("commitments")
             .insert_one(&commitment)
-            .await
-            .ok()?;
-        Some(())
+            .await;
+        match result {
+            Ok(ins) => {
+                debug!("Store commitment result {:#?}", ins);
+                Some(())
+            }
+            Err(e) => {
+                error!(
+                    "Got an error inserting commitment: {:#?}, {}",
+                    commitment, e
+                );
+                None
+            }
+        }
     }
 
     /// function to store multiple commitments in the database, optionally ignoring duplicate key errors

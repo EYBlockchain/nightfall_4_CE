@@ -31,6 +31,7 @@ use ethers::{
     providers::Middleware,
     types::{TxHash, H256, I256, U256},
 };
+use configuration::settings::get_settings;
 use lib::{
     blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
 };
@@ -338,31 +339,28 @@ async fn process_propose_block_event<N: NightfallContract>(
 
     // Let's use the Data Publisher to publish notification
     // if the WEBHOOK_URL is set
-    if let Ok(webhook_url) = env::var("WEBHOOK_URL") {
-        if !webhook_url.is_empty() {
-            info!("Using webhook URL: {}", webhook_url);
-            let mut publisher = DataPublisher::new();
-            let notifier = WebhookNotifier::new(webhook_url);
+    let webhook_url = &get_settings().nightfall_client.webhook_url;
+    debug!("Using webhook URL: {}", webhook_url);
+    let mut publisher = DataPublisher::new();
+    let notifier = WebhookNotifier::new(webhook_url);
 
-            publisher.register_notifier(Box::new(notifier));
+    publisher.register_notifier(Box::new(notifier));
 
-            // Let's get the full hash as it gets truncated otherwise
-            let l1_txn_hash = format!("{:#x}", transaction_hash);
-            let owned_commitment_hashes = commitment_hashes
-                .iter()
-                .filter(|&c| !c.0.is_zero())
-                .map(|&c| c.to_hex_string())
-                .collect();
+    // Let's get the full hash as it gets truncated otherwise
+    let l1_txn_hash = format!("{:#x}", transaction_hash);
+    let owned_commitment_hashes = commitment_hashes
+        .iter()
+        .filter(|&c| !c.0.is_zero())
+        .map(|&c| c.to_hex_string())
+        .collect();
 
-            let notification = NotificationPayload::BlockchainEvent {
-                l1_txn_hash,
-                l2_block_number: filter.layer_2_block_number,
-                commitments: owned_commitment_hashes,
-            };
+    let notification = NotificationPayload::BlockchainEvent {
+        l1_txn_hash,
+        l2_block_number: filter.layer_2_block_number,
+        commitments: owned_commitment_hashes,
+    };
 
-            publisher.publish(notification).await;
-        }
-    }
+    publisher.publish(notification).await;
     Ok(())
 }
 

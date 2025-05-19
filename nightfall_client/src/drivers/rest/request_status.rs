@@ -1,3 +1,4 @@
+use crate::driven::queue::get_queue;
 use crate::initialisation::get_db_connection;
 use crate::ports::db::RequestDB;
 use log::debug;
@@ -43,4 +44,19 @@ pub async fn handle_get_request_status(id: String) -> Result<impl Reply, warp::R
             StatusCode::NOT_FOUND,
         ))
     }
+}
+
+/// This endpoint is used to get the length of thr request queue
+pub fn get_queue_length(
+) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
+    path!("v1" / "queue")
+        .and(warp::get())
+        .and_then(handle_get_queue_length)
+}
+pub async fn handle_get_queue_length() -> Result<impl Reply, warp::Rejection> {
+    let length = get_queue().await.read().await.len();
+    Ok(warp::reply::with_status(
+        serde_json::to_string(&length).unwrap(),
+        StatusCode::OK,
+    ))
 }

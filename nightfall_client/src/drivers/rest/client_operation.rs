@@ -47,7 +47,7 @@ pub async fn handle_client_operation<P, E, N>(
     recipient_address: Fr254,
     secret_preimages: [impl SecretHash; 4],
     id: &str,
-) -> Result<warp::reply::WithHeader<WithStatus<Json>>, warp::Rejection>
+) -> Result<NotificationPayload, TransactionHandlerError>
 where
     P: Proof + Debug + serde::Serialize + Clone + Send + Sync,
     E: ProvingEngine<P> + Send + Sync,
@@ -57,18 +57,11 @@ where
 
     let sync_state = get_synchronisation_status::<N>()
         .await
-        .map_err(reject::custom)?
+        .map_err(|e| TransactionHandlerError::CustomError(e.to_string()))?
         .is_synchronised();
     if !sync_state {
         warn!("{id} Rejecting request - Proposer is not synchronised with the blockchain");
-        return Ok(reply::with_header(
-            reply::with_status(
-                reply::json(&"Proposer is not synchronised with the blockchain"),
-                StatusCode::SERVICE_UNAVAILABLE,
-            ),
-            "X-Request-ID",
-            id,
-        ));
+        return Err(TransactionHandlerError::ClientNotSynchronized);
     }
 
     // get the zkp keys from the global state. They will have been created when the keys were requested using a mnemonic
@@ -100,10 +93,9 @@ where
                 commitment_entries.push(commitment_entry);
             }
         }
-        if (db.store_commitments(&commitment_entries, true).await).is_none() {
-            error!("{id} Failed to store commitments");
-            return Err(reject::custom(FailedClientOperation));
-        }
+        db.store_commitments(&commitment_entries, true)
+            .await
+            .ok_or(TransactionHandlerError::DatabaseError)?;
     }
     // we should now have a situation where:
     // new_commitments[0] is the token commitment
@@ -127,9 +119,9 @@ where
         id,
     )
     .await
-    .map_err(|err| {
-        error!("{} {}", err, id);
-        reject::custom(FailedClientOperation)
+    .map_err(|e| {
+        error!("{id} {}", e);
+        TransactionHandlerError::CustomError(e.to_string())
     })?;
     // having done that, we can submit the nighfall transaction, either on or off chain, normally the latter
 
@@ -166,15 +158,15 @@ where
             *ciphertext = serde_json::json!(value_array);
         }
     }
-    Ok(reply::with_header(
-        reply::with_status(
-            reply::json(&(operation_result_json, tx_receipt)),
-            StatusCode::ACCEPTED,
-        ),
-        "X-Request-ID",
-        id,
-    ))
+
+    let response = serde_json::to_string(&(operation_result_json, tx_receipt))
+        .map_err(TransactionHandlerError::JsonConversionError)?;
+
+    let uuid = serde_json::to_string(id).map_err(TransactionHandlerError::JsonConversionError)?;
+
+    Ok(NotificationPayload::TransactionEvent { response, uuid })
 }
+
 async fn process_transaction_offchain<P: Serialize>(
     l2_transaction: &ClientTransaction<P>,
     id: &str,

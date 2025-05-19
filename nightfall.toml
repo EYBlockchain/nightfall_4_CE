@@ -23,6 +23,7 @@ url = "http://client:3000"
 log_level = "info"
 wallet_type = "local"
 db_url = "mongodb://nf4_db_client:27017"
+webhook_url = "http://172.18.0.250:8080/webhook" # The webhook URL for the client to send notifications to the propose
 
 [development.nightfall_proposer]
 url = "http://proposer:3000"
@@ -81,11 +82,13 @@ configuration_url = "http://configuration:80" # The name of the proposer config 
 [base_sepolia.network]
 chain_id = 84532 # Base Sepolia chain id = 84532
 
+
 [base_sepolia.nightfall_client]
 url = "http://client:3000"
 log_level = "info"
 wallet_type = "local"
 db_url = "mongodb://nf4_db_client:27017"
+webhook_url = "http://172.18.0.250:8080/webhook" # The webhook URL for the client to send notifications to the propose
 
 [base_sepolia.nightfall_proposer]
 url = "http://proposer:3000"
