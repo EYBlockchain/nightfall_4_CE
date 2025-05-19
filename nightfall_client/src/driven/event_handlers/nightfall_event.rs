@@ -26,12 +26,12 @@ use crate::{
 };
 use ark_bn254::Fr as Fr254;
 use ark_ff::BigInteger;
+use configuration::settings::get_settings;
 use ethers::{
     abi::AbiDecode,
     providers::Middleware,
     types::{TxHash, H256, I256, U256},
 };
-use configuration::settings::get_settings;
 use lib::{
     blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
 };
@@ -39,7 +39,7 @@ use log::{debug, error, info, warn};
 use nightfall_bindings::nightfall::{
     BlockProposedFilter, DepositEscrowedFilter, NightfallCalls, NightfallEvents, ProposeBlockCall,
 };
-use std::{env, error::Error, sync::OnceLock};
+use std::{error::Error, sync::OnceLock};
 use tokio::{join, sync::Mutex};
 
 // Define a mutable lazy static to hold the layer 2 blocknumber. We need this to

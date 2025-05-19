@@ -1,7 +1,8 @@
 use crate::{
     domain::{
         entities::{ClientTransaction, CommitmentStatus, HexConvertible, Operation, RequestStatus},
-        error::FailedClientOperation,
+        error::TransactionHandlerError,
+        notifications::NotificationPayload,
     },
     driven::db::mongo::CommitmentEntry,
     drivers::{
@@ -33,11 +34,7 @@ use serde::Serialize;
 use std::{error::Error, fmt::Debug, time::Duration};
 use tokio::time::sleep;
 use url::Url;
-use warp::{
-    hyper::StatusCode,
-    reject, reply,
-    reply::{Json, WithStatus},
-};
+use warp::hyper::StatusCode;
 #[allow(clippy::too_many_arguments)]
 pub async fn handle_client_operation<P, E, N>(
     operation: Operation,
@@ -127,7 +124,7 @@ where
 
     let tx_receipt = process_transaction_offchain(&operation_result, id)
         .await
-        .map_err(|_| reject::custom(FailedClientOperation))?;
+        .map_err(|e| TransactionHandlerError::CustomError(e.to_string()))?;
     info!("{id} {} transaction submitted", operation.operation_type);
     let mut operation_result_json = serde_json::to_value(&operation_result)
         .expect("Failed to serialize operation_result to JSON");

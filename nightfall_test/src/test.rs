@@ -9,7 +9,7 @@ use configuration::{
 };
 use ethers::{
     signers::{LocalWallet, Signer},
-    types::{TransactionReceipt, H160},
+    types::H160,
     utils::keccak256,
 };
 use hex::ToHex;
