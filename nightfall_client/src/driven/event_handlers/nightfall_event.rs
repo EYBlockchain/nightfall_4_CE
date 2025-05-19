@@ -175,8 +175,8 @@ async fn process_propose_block_event<N: NightfallContract>(
 
     // get keys from the lazy static global that holds them. We'll use these to decrpyt the compressed secrets
     let ZKPKeys {
-        zkp_public_key: recipient_public_key,
-        zkp_private_key: recipient_private_key,
+        zkp_public_key,
+        zkp_private_key,
         nullifier_key,
         ..
     } = *get_zkp_keys().lock().expect("Poisoned lock");
@@ -276,7 +276,7 @@ async fn process_propose_block_event<N: NightfallContract>(
         });
 
         // Attempt to decrypt the compressed secrets
-        let decrypt = kemdem_decrypt(recipient_private_key, &compressed_secrets.cipher_text)
+        let decrypt = kemdem_decrypt(zkp_private_key, &compressed_secrets.cipher_text)
             .map_err(|_| {
                 EventHandlerError::IOError("Could not decrypt compressed secrets".to_string())
             })?;
@@ -287,7 +287,7 @@ async fn process_propose_block_event<N: NightfallContract>(
             nf_slot_id: decrypt[1],
             value: decrypt[2],
             salt: Salt::Transfer(decrypt[3]),
-            public_key: recipient_public_key,
+            public_key: zkp_public_key,
         };
         let test_hash = test_preimage
             .hash()
