@@ -1,16 +1,12 @@
 use crate::{
     domain::{
-        entities::{CommitmentStatus, HexConvertible, Preimage, Salt},
+        entities::{CommitmentStatus, CompressedSecrets, HexConvertible, Preimage, Salt},
         error::EventHandlerError,
         notifications::NotificationPayload,
     },
     driven::{
-        contract_functions::contract_type_conversions::{
-            parse_onchain_ciphertext_to_compressed_secrets, FrBn254,
-        },
-        db::mongo::CommitmentEntry,
-        notifier::webhook_notifier::WebhookNotifier,
-        primitives::kemdem_functions::kemdem_decrypt,
+        contract_functions::contract_type_conversions::FrBn254, db::mongo::CommitmentEntry,
+        notifier::webhook_notifier::WebhookNotifier, primitives::kemdem_functions::kemdem_decrypt,
     },
     drivers::derive_key::ZKPKeys,
     get_zkp_keys,
@@ -275,8 +271,7 @@ async fn process_propose_block_event<N: NightfallContract>(
 
         // Extract the compressed secrets from the public data
         let compressed_secrets_onchain = transaction.public_data;
-        let compressed_secrets =
-            parse_onchain_ciphertext_to_compressed_secrets(compressed_secrets_onchain);
+        let compressed_secrets: CompressedSecrets = compressed_secrets_onchain.into();
 
         // Attempt to decrypt the compressed secrets
         let decrypt = kemdem_decrypt(recipient_private_key, &compressed_secrets.cipher_text)

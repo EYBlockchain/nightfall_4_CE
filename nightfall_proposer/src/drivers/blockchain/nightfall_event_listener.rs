@@ -10,8 +10,6 @@ use crate::{
 use ark_bn254::Fr as Fr254;
 use configuration::{addresses::get_addresses, settings::get_settings};
 use ethers::prelude::*;
-use std::time::Duration;
-use tokio::time::sleep;
 use futures::{future::BoxFuture, FutureExt};
 use lib::blockchain_client::BlockchainClientConnection;
 use log::{debug, warn};
@@ -21,7 +19,9 @@ use nightfall_client::{
     domain::{entities::SynchronisationStatus, error::EventHandlerError},
     ports::proof::{Proof, ProvingEngine},
 };
+use std::time::Duration;
 use tokio::sync::{OnceCell, RwLock};
+use tokio::time::sleep;
 
 /// This function starts the event handler. It will attempt to restart the event handler in case of errors
 /// with an exponential backoff for a configurable number of attempts. If the event handler
@@ -40,7 +40,7 @@ where
     async move {
         let mut attempts = 0;
         let mut backoff_delay = Duration::from_secs(2);
-        let max_attempts = std::cmp::max(1, max_attempts); 
+        let max_attempts = std::cmp::max(1, max_attempts);
 
         loop {
             attempts += 1;
@@ -60,8 +60,15 @@ where
                     );
                     if attempts >= max_attempts {
                         log::error!("Proposer event listener: max attempts reached. Giving up.");
-                        if let Err(err) = notify_failure_proposer("Proposer event listener failed after max retries").await {
-                            log::error!("Failed to send failure notification (proposer): {:?}", err);
+                        if let Err(err) = notify_failure_proposer(
+                            "Proposer event listener failed after max retries",
+                        )
+                        .await
+                        {
+                            log::error!(
+                                "Failed to send failure notification (proposer): {:?}",
+                                err
+                            );
                         }
                         break;
                     }
@@ -171,11 +178,13 @@ where
         );
     }
 
-   let settings = get_settings();
-   let max_attempts = settings.nightfall_proposer.max_event_listener_attempts.unwrap_or(10); 
+    let settings = get_settings();
+    let max_attempts = settings
+        .nightfall_proposer
+        .max_event_listener_attempts
+        .unwrap_or(10);
 
     start_event_listener::<P, E, N>(start_block, max_attempts).await;
-  
 }
 
 pub async fn get_synchronisation_status() -> &'static RwLock<SynchronisationStatus> {

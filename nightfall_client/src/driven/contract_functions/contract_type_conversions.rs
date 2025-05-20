@@ -214,48 +214,52 @@ impl From<Address> for FrBn254 {
         FrBn254(Fr254::new(BigInteger256::new(digits)))
     }
 }
-pub fn parse_onchain_ciphertext_to_compressed_secrets(ciphertext: [U256; 4]) -> CompressedSecrets {
-    let mut compressed_point = [0u8; 32];
-    ciphertext[3].to_little_endian(&mut compressed_point);
-    // We need to work out what the 255th bit is set to
-    let top_bit = compressed_point[31] >> 7;
-    let to_subtract = BigUint::from(top_bit) << 255;
-    let y_coord = BigUint::from_bytes_le(&compressed_point) - to_subtract;
+impl From<[U256; 4]> for CompressedSecrets {
+    fn from(ciphertext: [U256; 4]) -> CompressedSecrets {
+        let mut compressed_point = [0u8; 32];
+        ciphertext[3].to_little_endian(&mut compressed_point);
+        // We need to work out what the 255th bit is set to
+        let top_bit = compressed_point[31] >> 7;
+        let to_subtract = BigUint::from(top_bit) << 255;
+        let y_coord = BigUint::from_bytes_le(&compressed_point) - to_subtract;
 
-    let final_secrets = [
-        <FrBn254 as Into<Fr254>>::into(
-            FrBn254::try_from(ciphertext[0]).expect("Conversion from U256 to Fr should never"),
-        ),
-        <FrBn254 as Into<Fr254>>::into(
-            FrBn254::try_from(ciphertext[1]).expect("Conversion from U256 to Fr should never"),
-        ),
-        <FrBn254 as Into<Fr254>>::into(
-            FrBn254::try_from(ciphertext[2]).expect("Conversion from U256 to Fr should never"),
-        ),
-        Fr254::from(y_coord),
-        Fr254::from(top_bit),
-    ];
+        let final_secrets = [
+            <FrBn254 as Into<Fr254>>::into(
+                FrBn254::try_from(ciphertext[0])
+                    .expect("Conversion from U256 to Fr should never fail"),
+            ),
+            <FrBn254 as Into<Fr254>>::into(
+                FrBn254::try_from(ciphertext[1])
+                    .expect("Conversion from U256 to Fr should never fail"),
+            ),
+            <FrBn254 as Into<Fr254>>::into(
+                FrBn254::try_from(ciphertext[2])
+                    .expect("Conversion from U256 to Fr should never fail"),
+            ),
+            Fr254::from(y_coord),
+            Fr254::from(top_bit),
+        ];
 
-    CompressedSecrets {
-        cipher_text: final_secrets, // if the conversion fails, it's not recoverable so ok to panic
+        CompressedSecrets {
+            cipher_text: final_secrets, // if the conversion fails, it's not recoverable so ok to panic
+        }
     }
 }
+impl From<CompressedSecrets> for [U256; 4] {
+    fn from(compressed_secrets: CompressedSecrets) -> [U256; 4] {
+        let secrets_4: BigUint = compressed_secrets.cipher_text[3].into();
+        let flag: BigUint = compressed_secrets.cipher_text[4].into();
 
-pub fn parse_compressed_secrets_to_onchain_ciphertext(
-    compressed_secrets: CompressedSecrets,
-) -> [U256; 4] {
-    let secrets_4: BigUint = compressed_secrets.cipher_text[3].into();
-    let flag: BigUint = compressed_secrets.cipher_text[4].into();
+        let compressed_point: BigUint = secrets_4 + (flag << 255);
 
-    let compressed_point: BigUint = secrets_4 + (flag << 255);
-
-    let final_secret = U256::from_little_endian(&compressed_point.to_bytes_le());
-    [
-        Uint256::from(compressed_secrets.cipher_text[0]).0,
-        Uint256::from(compressed_secrets.cipher_text[1]).0,
-        Uint256::from(compressed_secrets.cipher_text[2]).0,
-        final_secret,
-    ]
+        let final_secret = U256::from_little_endian(&compressed_point.to_bytes_le());
+        [
+            Uint256::from(compressed_secrets.cipher_text[0]).0,
+            Uint256::from(compressed_secrets.cipher_text[1]).0,
+            Uint256::from(compressed_secrets.cipher_text[2]).0,
+            final_secret,
+        ]
+    }
 }
 #[cfg(test)]
 mod test {

@@ -16,10 +16,7 @@ use nightfall_bindings::{
 };
 use nightfall_client::{
     domain::{entities::ClientTransaction, error::ConversionError},
-    driven::contract_functions::contract_type_conversions::{
-        parse_compressed_secrets_to_onchain_ciphertext,
-        parse_onchain_ciphertext_to_compressed_secrets, FrBn254, Uint256,
-    },
+    driven::contract_functions::contract_type_conversions::{FrBn254, Uint256},
     ports::proof::Proof,
 };
 use std::marker::PhantomData;
@@ -242,7 +239,7 @@ impl From<OnChainTransaction> for NightfallOnChainTransaction {
             fee: Uint256::from(otx.fee).into(),
             commitments: otx.commitments.map(|c| Uint256::from(c).into()),
             nullifiers: otx.nullifiers.map(|n| Uint256::from(n).into()),
-            public_data: parse_compressed_secrets_to_onchain_ciphertext(otx.public_data),
+            public_data: otx.public_data.into(),
         }
     }
 }
@@ -269,7 +266,7 @@ impl From<NightfallOnChainTransaction> for OnChainTransaction {
                     )
                     .0
             }),
-            public_data: parse_onchain_ciphertext_to_compressed_secrets(ntx.public_data),
+            public_data: ntx.public_data.into(),
         }
     }
 }
