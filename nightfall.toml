@@ -12,8 +12,7 @@ test_x509_certificates = true
 mock_prover = true
 genesis_block = 0
 ethereum_client_url = "ws://anvil:8545"
-configuration_url = "http://configuration:80"  
-                                     # The name of the proposer config to use can be overridden by env var NF4_PROPOSER_CONFIG
+configuration_url = "http://configuration:80" # The name of the proposer config to use can be overridden by env var NF4_PROPOSER_CONFIG
 
 [development.network]
 chain_id = 31337 # Anvil chain id = 31337
@@ -23,6 +22,8 @@ url = "http://client:3000"
 log_level = "info"
 wallet_type = "local"
 db_url = "mongodb://nf4_db_client:27017"
+max_event_listener_attempts = 10
+webhook_url = "http://172.18.0.250:8080/webhook" # The webhook URL for the client to send notifications to the propose
 
 [development.nightfall_proposer]
 url = "http://proposer:3000"
@@ -32,6 +33,7 @@ db_url = "mongodb://nf4_db_proposer:27017"
 block_assembly_max_wait_secs = 120 
 block_assembly_target_fill_ratio = 0.25 
 block_assembly_initial_interval_secs = 15
+max_event_listener_attempts = 10
 
 [development.nightfall_deployer]
 log_level = "info"
@@ -81,17 +83,22 @@ configuration_url = "http://configuration:80" # The name of the proposer config 
 [base_sepolia.network]
 chain_id = 84532 # Base Sepolia chain id = 84532
 
+
 [base_sepolia.nightfall_client]
 url = "http://client:3000"
 log_level = "info"
 wallet_type = "local"
 db_url = "mongodb://nf4_db_client:27017"
+max_event_listener_attempts = 10
+webhook_url = "http://172.18.0.250:8080/webhook" # The webhook URL for the client to send notifications to the propose
 
 [base_sepolia.nightfall_proposer]
 url = "http://proposer:3000"
 log_level = "info"
 wallet_type = "local"
 db_url = "mongodb://nf4_db_proposer:27017"
+max_event_listener_attempts = 10
+
 
 [base_sepolia.nightfall_deployer]
 log_level = "info"

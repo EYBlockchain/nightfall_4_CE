@@ -2,8 +2,10 @@ use crate::domain::{entities::SynchronisationStatus, error::EventHandlerError};
 use crate::driven::event_handlers::nightfall_event::get_expected_layer2_blocknumber;
 use crate::ports::contracts::NightfallContract;
 use crate::services::process_events::process_events;
-use configuration::addresses::get_addresses;
+use configuration::{addresses::get_addresses, settings::get_settings};
 use ethers::prelude::*;
+use std::time::Duration;
+use tokio::time::sleep;
 use futures::{future::BoxFuture, FutureExt};
 use lib::{
     blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
@@ -13,32 +15,53 @@ use nightfall_bindings::nightfall::Nightfall;
 use std::panic;
 
 /// This function starts the event handler. It will attempt to restart the event handler in case of errors
-/// for a bit, before giving up and panicing.
+/// with an exponential backoff  for a configurable number of attempts. If the event handler
+/// fails after the maximum number of attempts, it will log an error and send a notification (if configured).
 pub fn start_event_listener<N: NightfallContract>(
-    allowed_failures: u32,
     start_block: usize,
+    max_attempts: u32, //max attempts to restart the event listener
 ) -> BoxFuture<'static, ()> {
-    // we use the async block and the BoxFuture so that we can recurse an async
     async move {
-        let result = listen_for_events::<N>(start_block).await;
-        match result {
-            Ok(_) => {
-                panic!("It should not be possible for the event listener to terminate without an error");
-            }
-            Err(e) => {
-                log::error!(
-                    "Event listener terminated with error: {:?}. Attempting restart in 10 seconds",
-                    e
-                );
-                if allowed_failures > 50 {
-                    panic!("Unable to start event listener");
+        let mut attempts = 0;
+        let mut backoff_delay = Duration::from_secs(2);
+        let max_attempts = std::cmp::max(1, max_attempts);
+
+        loop {
+            attempts += 1;
+            log::info!("Client event listener (attempt {})...", attempts);
+            let result = listen_for_events::<N>(start_block).await;
+
+            match result {
+                Ok(_) => {
+                    log::info!("Client event listener finished successfully.");
+                    break;
                 }
-                tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
-                start_event_listener::<N>(allowed_failures + 1, start_block).await;
+                Err(e) => {
+                    log::error!(
+                        "Client event listener terminated with error: {:?}. Restarting in {:?}",
+                        e,
+                        backoff_delay
+                    );
+                    if attempts >= max_attempts {
+                        log::error!("Client event listener: max attempts reached. Giving up.");
+                        if let Err(err) = notify_failure_client("Client event listener failed after max retries").await {
+                            log::error!("Failed to send failure notification (client): {:?}", err);
+                        }
+                        break;
+                    }
+                    sleep(backoff_delay).await;
+                    backoff_delay *= 2;
+                }
             }
         }
     }
     .boxed()
+}
+async fn notify_failure_client(message: &str) -> Result<(), ()> {
+    // Here we can implement the logic to notify the failure, e.g, sending a message or an alert
+    // for now, we'll just log the error
+    log::error!("ALERT: {}", message);
+    Ok(())
 }
 
 // This function listens for events and processes them. It's started by the start_event_listener function
@@ -97,7 +120,10 @@ where
     if sync_state {
         panic!("Restarting event listener while synchronised. This should not happen");
     }
-    start_event_listener::<N>(0, start_block).await;
+    let settings = get_settings();
+    let max_attempts = settings.nightfall_client.max_event_listener_attempts.unwrap_or(10); 
+
+    start_event_listener::<N>(start_block, max_attempts).await;
 }
 
 pub async fn get_synchronisation_status<N: NightfallContract>(

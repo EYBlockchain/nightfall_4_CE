@@ -83,6 +83,34 @@ impl Display for EventHandlerError {
 impl Error for EventHandlerError {}
 impl Reject for EventHandlerError {}
 
+#[derive(Debug)]
+/// Error type used by the handler that processes deposit, transfer and withdraw transactions
+pub enum TransactionHandlerError {
+    JsonConversionError(serde_json::Error),
+    DepositError(DepositError),
+    DatabaseError,
+    CustomError(String),
+    Error,
+    ClientNotSynchronized,
+}
+
+impl Display for TransactionHandlerError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            TransactionHandlerError::JsonConversionError(e) => {
+                write!(f, "Json conversion error: {}", e)
+            }
+            TransactionHandlerError::DepositError(e) => write!(f, "Deposit error: {}", e),
+            TransactionHandlerError::DatabaseError => write!(f, "Database error"),
+            TransactionHandlerError::CustomError(s) => write!(f, "Transaction error: {}", s),
+            TransactionHandlerError::Error => write!(f, "Transaction error"),
+            TransactionHandlerError::ClientNotSynchronized => write!(f, "Client not synchronized"),
+        }
+    }
+}
+
+impl Error for TransactionHandlerError {}
+
 /// Error type for handling calls to a token contract
 #[derive(Debug)]
 pub enum TokenContractError {
