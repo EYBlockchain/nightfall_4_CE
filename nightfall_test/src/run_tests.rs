@@ -122,9 +122,8 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
         client2_starting_balance,
         client1_starting_fee_balance,
         nullified_count,
-    ) = if 1 == 1
-    // std::env::var("NF4_LARGE_BLOCK_TEST").is_ok()
-    // && std::env::var("NF4_LARGE_BLOCK_TEST").unwrap() == "true"
+    ) = if std::env::var("NF4_LARGE_BLOCK_TEST").is_ok()
+        && std::env::var("NF4_LARGE_BLOCK_TEST").unwrap() == "true"
     {
         warn!("Running large block test");
         const N_LARGE_BLOCK: usize = 64;

@@ -285,9 +285,6 @@ pub async fn wait_for_all_responses(
             .iter()
             .map(|r| serde_json::from_value::<NotificationPayload>(r.clone()).unwrap())
             .collect::<Vec<_>>();
-        for r in response_values.iter() {
-            info!("Raw response: {:?}", r);
-        }
         let (response_data, response_ids): (Vec<_>, Vec<_>) = response_payloads
             .iter()
             .cloned()
