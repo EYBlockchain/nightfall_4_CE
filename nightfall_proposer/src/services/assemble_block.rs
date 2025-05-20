@@ -253,7 +253,7 @@ where
     // 4. Get client transactions from mempool
     let current_client_transaction_meta_in_mempool = {
         let mempool_client_transactions: Option<Vec<(Vec<u32>, ClientTransactionWithMetaData<P>)>> =
-            db.get_all_mempool_transactions().await;
+            db.get_all_mempool_client_transactions().await;
         let transactions = transactions_to_include_in_block(mempool_client_transactions);
         info!("Found {} client transactions in mempool", transactions.len());
         transactions.into_iter()
