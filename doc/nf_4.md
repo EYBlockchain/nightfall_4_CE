@@ -304,6 +304,27 @@ No other containers are required, although for development use, the following ot
 
 Figure 1: Diagram of NF_4 volumes and containers in production.
 
+### Client Webhook
+
+The `client` takes some seconds to compute a proof and, during that time, its compute resources will be fully utilised. It can therefore only process deposit/transfer or withdraw transaction one at a time (concurrency of one). This would cause problems for the http connection to the `client`, which could therefore only be synchronous and would block while the computation is happening. This would cause undesirable strong coupling to the calling application. To avoid this situation, the `client` receives such transactions concurrently and places them into a queue, returning a `202 Accepted` response. Once the proof is computed and the client transaction is sent to a `proposer`, a webhook returns further information about the transaction (see API documentation for details) in a TransactionEvent JSON object.
+
+The Webhook also returns a BlockchainEvent object, when a L2 block is on-chain. This is useful for knowing when a transaction is on-chain. The two objects can be deserialised thusly:
+
+```rust
+    BlockchainEvent {
+        l1_txn_hash: String,
+        l2_block_number: I256,
+        commitments: Vec<String>,
+    }
+    TransactionEvent {
+        response: String,
+        uuid: String,
+    }
+```
+
+The uuid is the X-Request-ID for the original deposit/transfer/withdraw transaction. This enables the webhook response to be correlated with the original request.
+The webhook URL can be set in the `Nightfall.toml` configuration file.
+
 ## APIs
 
 These API urls are examples. Some values such as erc addresses are implementation-specific, so the values given won't work everywhere but they show the general form of an API call. The values below arise from using the deployer container with Anvil and a wallet mneumonic of `test test test test test test test test test test test junk`.
@@ -346,7 +367,9 @@ curl -i -H "X-Request-ID: 16cf74ad-e28c-421e-a125-78bed5e1c435" --request POST '
     --json '{ "ercAddress": "0x6fcb6af7f7947f8480c36e8ffca0c66f6f2be32b", "tokenId": "0x00", "tokenType": "0", "value": "0x04", "fee": "0x02",  "deposit_fee": "0x05" }' 
 ```
 
-Returns: `202 Accepted` on success, together with a hex-encoded string representation of the commitment hash, e.g. `"2663d801222713718bae6598c8d0d290de149bfece052910b29012987faebdf9"`
+Returns: `202 Accepted` on success, `503 Service Unavailable` if the transaction queue is full (set at 1000)
+
+Webhook returns: TransactionEvent object with a `uuid` field containing the X-Request_ID value from the corresponding transaction and a `response` field containing hex-encoded string representation of the commitment hash, e.g. `"2663d801222713718bae6598c8d0d290de149bfece052910b29012987faebdf9"`
 
 This request will return a status code 202, to indicate that it has been correctly received and is being processed, together with a body which contains the deposit's commitment hash encoded as a hex string. To determine when the corresponding commitment makes it on chain, poll the `commitment/<hash-value>` interface. A 404 error indicates that the deposit commitment is not yet on chain.
 
@@ -370,7 +393,9 @@ curl -i  -H "X-Request-ID: 16cf74ad-e28c-421e-a125-78bed5e1c435" --request POST 
     --json '{ "ercAddress": "95bd8d42f30351685e96c62eddc0d0613bf9a87a", "tokenId": "0x00", "recipientData": { "values": ["0x06"], "recipientCompressedZkpPublicKeys": ["2a2fec73694898850dccccaf188853d3d69b251c8aa2538fcb2be6f470aa7205"] }, "fee": "0x02" }'
 ```
 
-Returns: `202 Accepted` on success, together with a json array that contains: the Client Transaction object and; the transaction receipt if the transfer transaction was placed on chain, otherwise (the normal situation) "null".
+Returns: `202 Accepted` on success, `503 Service Unavailable` if the transaction queue is full (set at 1000)
+
+Webhook returns: TransactionEvent object with a `uuid` field containing the X-Request_ID value from the corresponding transaction and a `response` field containing a json array that contains: the Client Transaction object and; the transaction receipt if the transfer transaction was placed on chain, otherwise (the normal situation) "null".
 
 This call will nullify one or two spend commitments and create two output commitments - one for the recipient and one for change. It will do a similar thing with fee commitments that are used to pay the proposer. NF_4 will use an internal algorithm to select the most suitable input commitments (with a maximum of two) whilst minimising the amount of 'commitment dust' created. There must be one or two commitments already owned by the sender, whose total value is the same as or greater than the amount to be sent, otherwise the transaction will fail with 'no suitable commitments found': you can't send money you don't have.
 
@@ -392,7 +417,17 @@ curl -i  -H "X-Request-ID: 16cf74ad-e28c-421e-a125-78bed5e1c435" --request POST 
     --json '{"ercAddress": "98eddadcfde04dc22a0e62119617e74a6bc77313", "tokenId": "0x01", "tokenType": "1", "value": "0x00", "recipientAddress": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266", "fee": "0x09"}'
 ```
 
-Returns: `202 Accepted` on success, together with a json array that contains: the Client Transaction object and; the transaction receipt if the transfer transaction was placed on chain, otherwise (the normal situation) "null".
+Returns: `202 Accepted` on success, `503 Service Unavailable` if the transaction queue is full (set at 1000)
+
+Webhook returns: TransactionEvent object with a `uuid` field containing the X-Request_ID value from the corresponding transaction and a `response` field containing a serialised WithdrawResponse object:
+
+```rust
+WithdrawResponse {
+    success: bool,
+    message: String, // contains "Withdraw operation completed successfully"
+    pub withdraw_fund_salt: String,
+}
+```
 
 This call will nullify one or two spend commitments (same for fee spend commitments) and descrow the corresponding funds so that the user can withdraw funds. NB unlike a deposit, which both escrows funds and then creates a deposit transaction without further user input, a withdraw transaction, that moves funds from Layer 2 to Layer 1, must be manually followed up with a de-escrow transaction to recover the funds into the recipient's account from the Nightfall contracts 'pending' balance. This is because of the use of the safer 'withdraw' pattern.
 
