@@ -4,7 +4,7 @@ use futures::future::try_join_all;
 use lib::models::CertificateReq;
 use log::{debug, info, warn};
 use nightfall_client::{
-    domain::entities::HexConvertible, drivers::rest::client_nf_3::WithdrawResponse,
+    domain::entities::HexConvertible, drivers::rest::{client_nf_3::WithdrawResponse, models::DeEscrowDataReq},
 };
 use serde_json::Value;
 use std::fs;
@@ -277,11 +277,11 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
         (0, 0, 0, 0)
     };
 
-    // /***********************************************************************************************
-    //  * Tests using the client_nf_3 API
-    //  **********************************************************************************************/
-    // // Test values are carefully chosen so we can test the full range of token types and values, please don't change them. Instead, please add new tests if you need to test new values.
-    // // To make the tests more readable and easier to debug, we submit commitments to blockchain everytime when we make requests for a specific token.
+    /***********************************************************************************************
+     * Tests using the client_nf_3 API
+     **********************************************************************************************/
+    // Test values are carefully chosen so we can test the full range of token types and values, please don't change them. Instead, please add new tests if you need to test new values.
+    // To make the tests more readable and easier to debug, we submit commitments to blockchain everytime when we make requests for a specific token.
     info!("Commencing tests using the client_nf_3 API");
 
     let pause_url = Url::parse(&settings.nightfall_proposer.url)
@@ -752,18 +752,25 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
         .collect::<Vec<_>>();
 
     //replace the empty withdraw_fund_salts in the withdraw_data with the salts from the withdraw_responses
-    let withdraw_data_requests = withdraw_payload
-        .iter_mut()
-        .zip(withdraw_responses.into_iter())
-        .map(|(l, r)| {
-            l.withdraw_fund_salt = r.withdraw_fund_salt;
-            l
-        })
-        .collect::<Vec<_>>();
+    let de_escrow_data_requests = withdraw_payload
+    .iter_mut()
+    .zip(withdraw_responses.into_iter())
+    .map(|(l, r)| {
+        l.withdraw_fund_salt = r.withdraw_fund_salt.clone();
+        DeEscrowDataReq {
+            token_id: l.token_id.clone(),
+            erc_address: l.erc_address.clone(),
+            recipient_address: l.recipient_address.clone(),
+            value: l.value.clone(),
+            token_type: l.token_type.clone(),
+            withdraw_fund_salt: l.withdraw_fund_salt.clone(),
+        }
+    })
+    .collect::<Vec<_>>();
 
     let mut proceed = 0;
     while proceed == 0 {
-        let result = de_escrow_request(withdraw_data_requests[0], "http://client2:3000").await;
+        let result = de_escrow_request(&de_escrow_data_requests[0], "http://client2:3000").await;
         match result {
             Ok(b) => {
                 if b == 1 {
@@ -785,7 +792,7 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
     proceed = 0;
 
     while proceed == 0 {
-        let result = de_escrow_request(withdraw_data_requests[1], "http://client2:3000").await;
+        let result = de_escrow_request(&de_escrow_data_requests[1], "http://client2:3000").await;
         match result {
             Ok(b) => {
                 if b == 1 {
@@ -807,7 +814,7 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
     proceed = 0;
 
     while proceed == 0 {
-        let result = de_escrow_request(withdraw_data_requests[2], "http://client2:3000").await;
+        let result = de_escrow_request(&de_escrow_data_requests[2], "http://client2:3000").await;
         match result {
             Ok(_) => {
                 info!("Withdrawing funds");
@@ -883,19 +890,26 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
         .collect::<Vec<_>>();
 
     //replace the empty withdraw_fund_salts in the withdraw_data with the salts from the withdraw_responses
-    let withdraw_data_requests = withdraw_payload
-        .iter_mut()
-        .zip(withdraw_responses.into_iter())
-        .map(|(l, r)| {
-            l.withdraw_fund_salt = r.withdraw_fund_salt;
-            l
-        })
-        .collect::<Vec<_>>();
+    let de_escrow_data_requests = withdraw_payload
+    .iter_mut()
+    .zip(withdraw_responses.into_iter())
+    .map(|(l, r)| {
+        l.withdraw_fund_salt = r.withdraw_fund_salt.clone();
+        DeEscrowDataReq {
+            token_id: l.token_id.clone(),
+            erc_address: l.erc_address.clone(),
+            recipient_address: l.recipient_address.clone(),
+            value: l.value.clone(),
+            token_type: l.token_type.clone(),
+            withdraw_fund_salt: l.withdraw_fund_salt.clone(),
+        }
+    })
+    .collect::<Vec<_>>();
 
     proceed = 0;
 
     while proceed == 0 {
-        let result = de_escrow_request(withdraw_data_requests[0], "http://client2:3000").await;
+        let result = de_escrow_request(&de_escrow_data_requests[0], "http://client2:3000").await;
         match result {
             Ok(_) => {
                 info!("Withdrawing funds");
@@ -914,7 +928,7 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
     info!("Successfully withdrew ERC721 tokens");
 
     while proceed == 0 {
-        let result = de_escrow_request(withdraw_data_requests[1], "http://client2:3000").await;
+        let result = de_escrow_request(&de_escrow_data_requests[1], "http://client2:3000").await;
         match result {
             Ok(_) => {
                 info!("Withdrawing funds");
@@ -933,7 +947,7 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
     info!("Successfully withdrew ERC3525 token");
 
     while proceed == 0 {
-        let result = de_escrow_request(withdraw_data_requests[2], "http://client2:3000").await;
+        let result = de_escrow_request(&de_escrow_data_requests[2], "http://client2:3000").await;
         match result {
             Ok(_) => {
                 info!("Withdrawing funds");
@@ -949,7 +963,7 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
 
     proceed = 0;
     while proceed == 0 {
-        let result = de_escrow_request(withdraw_data_requests[3], "http://client2:3000").await;
+        let result = de_escrow_request(&de_escrow_data_requests[3], "http://client2:3000").await;
         match result {
             Ok(_) => {
                 info!("Withdrawing funds");
