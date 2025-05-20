@@ -8,8 +8,10 @@ use crate::{
     services::process_events::process_events,
 };
 use ark_bn254::Fr as Fr254;
-use configuration::addresses::get_addresses;
+use configuration::{addresses::get_addresses, settings::get_settings};
 use ethers::prelude::*;
+use std::time::Duration;
+use tokio::time::sleep;
 use futures::{future::BoxFuture, FutureExt};
 use lib::blockchain_client::BlockchainClientConnection;
 use log::{debug, warn};
@@ -22,10 +24,11 @@ use nightfall_client::{
 use tokio::sync::{OnceCell, RwLock};
 
 /// This function starts the event handler. It will attempt to restart the event handler in case of errors
-/// for a bit, before giving up and panicing.
+/// with an exponential backoff for a configurable number of attempts. If the event handler
+/// fails after the maximum number of attempts, it will log an error and send a notification (if configured)
 pub fn start_event_listener<P, E, N>(
-    allowed_failures: u32,
     start_block: usize,
+    max_attempts: u32,
 ) -> BoxFuture<'static, ()>
 where
     P: Proof,
@@ -35,25 +38,44 @@ where
     debug!("Starting event listener");
     // we use the async block and the BoxFuture so that we can recurse an async
     async move {
-        let result = listen_for_events::<P, E, N>(start_block).await;
-        match result {
-            Ok(_) => {
-                panic!("It should not be possible for the event listener to terminate without an error");
-            }
-            Err(e) => {
-                log::error!(
-                    "Event listener terminated with error: {:?}. Attempting restart in 10 seconds",
-                    e
-                );
-                if allowed_failures > 50 {
-                    panic!("Unable to start event listener");
+        let mut attempts = 0;
+        let mut backoff_delay = Duration::from_secs(2);
+        let max_attempts = std::cmp::max(1, max_attempts); 
+
+        loop {
+            attempts += 1;
+            log::info!("Proposer event listener (attempt {})...", attempts);
+            let result = listen_for_events::<P, E, N>(start_block).await;
+
+            match result {
+                Ok(_) => {
+                    log::info!("Proposer event listener finished successfully.");
+                    break;
                 }
-                tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
-                start_event_listener::<P, E, N>(allowed_failures + 1, start_block).await;
+                Err(e) => {
+                    log::error!(
+                        "Proposer event listener terminated with error: {:?}. Restarting in {:?}",
+                        e,
+                        backoff_delay
+                    );
+                    if attempts >= max_attempts {
+                        log::error!("Proposer event listener: max attempts reached. Giving up.");
+                        if let Err(err) = notify_failure_proposer("Proposer event listener failed after max retries").await {
+                            log::error!("Failed to send failure notification (proposer): {:?}", err);
+                        }
+                        break;
+                    }
+                    sleep(backoff_delay).await;
+                    backoff_delay *= 2;
+                }
             }
         }
     }
     .boxed()
+}
+async fn notify_failure_proposer(message: &str) -> Result<(), ()> {
+    log::error!("ALERT (Proposer): {}", message);
+    Ok(())
 }
 
 // This function listens for events and processes them. It's started by the start_event_listener function
@@ -149,7 +171,11 @@ where
         );
     }
 
-    start_event_listener::<P, E, N>(0, start_block).await;
+   let settings = get_settings();
+   let max_attempts = settings.nightfall_proposer.max_event_listener_attempts.unwrap_or(10); 
+
+    start_event_listener::<P, E, N>(start_block, max_attempts).await;
+  
 }
 
 pub async fn get_synchronisation_status() -> &'static RwLock<SynchronisationStatus> {

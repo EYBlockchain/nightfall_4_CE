@@ -43,9 +43,12 @@ async fn main() -> Result<(), JoinError> {
     utils::drop_collection::<Request>(url.as_str(), "nightfall", "requests")
         .await
         .expect("Failed to drop Requests collection");
+    
+    let settings = get_settings();
+    let max_event_listener_attempts_client = settings.nightfall_client.max_event_listener_attempts.unwrap_or(10); 
 
     // start the event listener
-    let task_1 = tokio::spawn(start_event_listener::<N>(0, get_settings().genesis_block));
+    let task_1 = tokio::spawn(start_event_listener::<N>(settings.genesis_block, max_event_listener_attempts_client));
     // set up the warp server
     let routes = routes::<PlonkProof, PlonkProvingEngine, Nightfall<LocalWsClient>>();
     let task_2 = tokio::spawn(warp::serve(routes).run(([0, 0, 0, 0], 3000)));
