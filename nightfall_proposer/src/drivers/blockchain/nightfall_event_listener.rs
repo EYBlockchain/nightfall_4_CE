@@ -1,21 +1,27 @@
-use crate::ports::contracts::NightfallContract;
 use crate::{
-    initialisation::get_blockchain_client_connection, services::process_events::process_events,
+    initialisation::{get_blockchain_client_connection, get_db_connection},
+    ports::{
+        contracts::NightfallContract,
+        db::TransactionsDB,
+        trees::{CommitmentTree, HistoricRootTree, NullifierTree},
+    },
+    services::process_events::process_events,
 };
+use ark_bn254::Fr as Fr254;
 use configuration::{addresses::get_addresses, settings::get_settings};
 use ethers::prelude::*;
-use std::time::Duration;
-use tokio::time::sleep;
 use futures::{future::BoxFuture, FutureExt};
 use lib::blockchain_client::BlockchainClientConnection;
-use log::warn;
+use log::{debug, warn};
+use mongodb::Client as MongoClient;
 use nightfall_bindings::nightfall::Nightfall;
-use nightfall_client::domain::entities::SynchronisationStatus;
 use nightfall_client::{
-    domain::error::EventHandlerError,
+    domain::{entities::SynchronisationStatus, error::EventHandlerError},
     ports::proof::{Proof, ProvingEngine},
 };
+use std::time::Duration;
 use tokio::sync::{OnceCell, RwLock};
+use tokio::time::sleep;
 
 /// This function starts the event handler. It will attempt to restart the event handler in case of errors
 /// with an exponential backoff for a configurable number of attempts. If the event handler
@@ -29,10 +35,12 @@ where
     E: ProvingEngine<P>,
     N: NightfallContract,
 {
+    debug!("Starting event listener");
+    // we use the async block and the BoxFuture so that we can recurse an async
     async move {
         let mut attempts = 0;
         let mut backoff_delay = Duration::from_secs(2);
-        let max_attempts = std::cmp::max(1, max_attempts); 
+        let max_attempts = std::cmp::max(1, max_attempts);
 
         loop {
             attempts += 1;
@@ -52,8 +60,15 @@ where
                     );
                     if attempts >= max_attempts {
                         log::error!("Proposer event listener: max attempts reached. Giving up.");
-                        if let Err(err) = notify_failure_proposer("Proposer event listener failed after max retries").await {
-                            log::error!("Failed to send failure notification (proposer): {:?}", err);
+                        if let Err(err) = notify_failure_proposer(
+                            "Proposer event listener failed after max retries",
+                        )
+                        .await
+                        {
+                            log::error!(
+                                "Failed to send failure notification (proposer): {:?}",
+                                err
+                            );
                         }
                         break;
                     }
@@ -104,6 +119,16 @@ where
                         restart_event_listener::<P, E, N>(start_block).await;
                         return Err(EventHandlerError::StreamTerminated);
                     }
+
+                    EventHandlerError::BlockHashError(expected, found) => {
+                        warn!(
+                            "Block hash mismatch: expected {:?}, found {:?}. Restarting event listener",
+                            expected, found
+                        );
+                        restart_event_listener::<P, E, N>(start_block).await;
+                        return Err(EventHandlerError::StreamTerminated);
+                    }
+
                     _ => panic!("Error processing event: {:?}", e),
                 }
             }
@@ -129,11 +154,37 @@ where
     if sync_state {
         panic!("Restarting event listener while synchronised. This should not happen");
     }
-   let settings = get_settings();
-   let max_attempts = settings.nightfall_proposer.max_event_listener_attempts.unwrap_or(10); 
+    // clean the database and reset the trees
+    // this is a bit of a hack, but we need to reset the trees to get them back in sync
+    // with the blockchain. We should probably do this in a more elegant way, but this works for now
+    // and we can improve it later
+    {
+        // let db = &mut get_db_connection().await.write().await;
+        let mut db_guard = get_db_connection().await.write().await;
+        let db = &mut *db_guard;
+        let _ = <MongoClient as CommitmentTree<Fr254>>::reset_tree(db).await;
+        let _ = <MongoClient as HistoricRootTree<Fr254>>::reset_tree(db).await;
+        let _ = <MongoClient as NullifierTree<Fr254>>::reset_tree(db).await;
+        // clean up the mempool, otherwise proposer gets duplicated transactions everytime it syncs
+
+        let removed_deposits = TransactionsDB::<P>::remove_all_mempool_deposits(db).await;
+        let removed_client_txs =
+            TransactionsDB::<P>::remove_all_mempool_client_transactions(db).await;
+
+        debug!(
+            "Mempool cleanup: removed {} deposits and {} client transactions.",
+            removed_deposits.unwrap_or(0),
+            removed_client_txs.unwrap_or(0)
+        );
+    }
+
+    let settings = get_settings();
+    let max_attempts = settings
+        .nightfall_proposer
+        .max_event_listener_attempts
+        .unwrap_or(10);
 
     start_event_listener::<P, E, N>(start_block, max_attempts).await;
-  
 }
 
 pub async fn get_synchronisation_status() -> &'static RwLock<SynchronisationStatus> {

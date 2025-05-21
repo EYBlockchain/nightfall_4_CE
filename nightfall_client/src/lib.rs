@@ -127,6 +127,7 @@ pub mod initialisation {
                 .expect("Could not parse proposer url")
                 .join("/v1/transaction")
                 .expect("Could not join proposer url with /v1/transaction");
+
             // Create a new HTTP client with a timeout
             let client = ClientBuilder::new()
                 .timeout(Duration::from_secs(5))

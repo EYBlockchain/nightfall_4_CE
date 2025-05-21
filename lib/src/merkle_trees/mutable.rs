@@ -673,6 +673,36 @@ where
             leaves: commitments.to_vec(),
         })
     }
+    async fn reset_mutable_tree(&self, tree_id: &str) -> Result<(), Self::Error> {
+        let db = self.database(<Self as MutableTree<F>>::MUT_DB_NAME);
+
+        // Collection names
+        let metadata_collection = format!("{}_metadata", tree_id);
+        let nodes_collection = format!("{}_nodes", tree_id);
+        let cache_collection = format!("{}_cache", tree_id);
+        use mongodb::bson::Document;
+        // Drop metadata collection
+        if let Err(e) = db.collection::<Document>(&metadata_collection).drop().await {
+            if !e.to_string().contains("ns not found") {
+                return Err(MerkleTreeError::DatabaseError(e));
+            }
+        }
+
+        // Drop nodes collection
+        if let Err(e) = db.collection::<Document>(&nodes_collection).drop().await {
+            if !e.to_string().contains("ns not found") {
+                return Err(MerkleTreeError::DatabaseError(e));
+            }
+        }
+
+        // Drop cache collection
+        if let Err(e) = db.collection::<Document>(&cache_collection).drop().await {
+            if !e.to_string().contains("ns not found") {
+                return Err(MerkleTreeError::DatabaseError(e));
+            }
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
