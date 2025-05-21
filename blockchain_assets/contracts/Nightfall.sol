@@ -239,15 +239,12 @@ contract Nightfall is
                     if (publicData == 0) {
                         continue;
                     }
-                    DepositFeeState memory depositFeeState = feeBinding[
-                            publicData
-                        ];
-                    localTotalFee += depositFeeState.fee;
+                    localTotalFee += feeBinding[publicData].fee;
                     require(
-                            depositFeeState.escrowed == 1 && depositFeeState.redeemed == 0,
+                            feeBinding[publicData].escrowed == 1 && feeBinding[publicData].redeemed == 0,
                             "Deposit either has not been escrowed or has already been redeemed"
                         );
-                    depositFeeState.redeemed = 1;
+                    feeBinding[publicData].redeemed = 1;
                 }
                 totalFee = localTotalFee; 
                 continue;

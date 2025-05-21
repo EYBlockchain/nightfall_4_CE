@@ -217,11 +217,14 @@ services:
     container_name: nf4_proposer2
     stop_grace_period: 3s
     profiles:
+      - development
       - sync_test
     build:
       dockerfile: nightfall_proposer/Dockerfile
       context: .
     platform: linux/amd64 # Required for building on M1 Macs
+    ports:
+      - "3003:3000"
     healthcheck:
       test: ["CMD", "wget" ,"--no-verbose", "--tries=1", "--spider", "http://localhost:3000/v1/health"]
       interval: 5s
@@ -337,6 +340,8 @@ services:
     container_name: nf4_db_proposer2
     stop_grace_period: 3s
     profiles:
+      - development
+      - proposer
       - sync_test
     image: mongo:4.4.1-bionic # Replace with mongo:6.0 when image is available
     ports:
