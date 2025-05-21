@@ -38,7 +38,6 @@ pub struct OnChainTransaction {
     // public data (public inputs) associated with this transaction.
     pub public_data: CompressedSecrets,
 }
-
 /// A Block struct representing NF block
 /// NOTE: This is not finalised yet, we may need to change fields to this struct
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]

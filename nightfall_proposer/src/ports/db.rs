@@ -1,11 +1,19 @@
-use crate::domain::entities::{
-    ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot, Node,
+use crate::{
+    domain::entities::{ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot, Node},
+    driven::db::mongo_db::StoredBlock,
 };
 use ark_bn254::Fr as Fr254;
 use ark_ff::PrimeField;
 use lib::serialization::{ark_de_bytes, ark_se_bytes};
 use nightfall_client::domain::entities::ClientTransaction;
 use serde::{Deserialize, Serialize};
+#[async_trait::async_trait]
+pub trait BlockStorageDB {
+    async fn store_block(&self, block: &StoredBlock) -> Option<()>;
+    async fn get_block_by_number(&self, block_number: u64) -> Option<StoredBlock>;
+    async fn get_all_blocks(&self) -> Option<Vec<StoredBlock>>;
+    async fn delete_block_by_number(&self, block_number: u64) -> Option<()>;
+}
 /// Used to store transactions that are on chain. Can be queried to see if a nullifier or commitment is on chain.
 #[async_trait::async_trait]
 pub trait TransactionsDB<'a, P> {
@@ -45,6 +53,8 @@ pub trait TransactionsDB<'a, P> {
         &mut self,
         used_deposits: Vec<Vec<DepositDatawithFee>>,
     ) -> Option<u64>;
+    async fn remove_all_mempool_deposits(&mut self) -> Option<u64>;
+    async fn remove_all_mempool_client_transactions(&mut self) -> Option<u64>;
 }
 
 /// A database that stores historic roots of the commitments Merkle tree.

@@ -425,7 +425,7 @@ Webhook returns: TransactionEvent object with a `uuid` field containing the X-Re
 WithdrawResponse {
     success: bool,
     message: String, // contains "Withdraw operation completed successfully"
-    pub withdraw_fund_salt: String,
+    pub withdraw_fund_salt: String,`the unique salt that's assigned to this withdraw, this salt will be used later in de-escrow`
 }
 ```
 
@@ -446,13 +446,20 @@ GET /v1/de-escrow
 
 ```sh
 curl -i --request POST 'http://localhost:3000/v1/de-escrow' \
-    --json '{"token_id": "0x01", "erc_address": "98eddadcfde04dc22a0e62119617e74a6bc77313", "recipient_address": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266", "value": "0x00", "token_type": "1"}'
+    --json '{ 
+    "tokenId": "0x00",
+    "ercAddress": "0x959922be3caee4b8cd9a407cc3ac1c251c2007b1", 
+    "recipientAddress": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+    "value": "0x01", 
+    "tokenType": "10",
+    "withdrawFundSalt": "cb56f2a1befb9954b4d7885f5d3d29cfe9f7417118f1ec0f1bb9741abae01f0c"
+}'
 ```
 
 Returns:
 
-- If funds are available: `200 OK` and a JSON boolean set to `true`. The funds will also have been de-escrowed.
-- If funds are not available `404 NOT FOUND` and a JSON boolean set to `false`.
+- If funds are available: it will return `1`. The funds will also have been de-escrowed.
+- If funds are not available, it will return `0`.
 
 This call withdraws funds from escrow, after a successful Layer 2 -> Layer 1 withdraw, returning the funds to recipient address. There is no requirement for the caller to be the recipient.
 

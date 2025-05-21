@@ -1,13 +1,24 @@
 use crate::{
     domain::entities::{Block, ClientTransactionWithMetaData, DepositData, DepositDatawithFee},
+    driven::db::mongo_db::{StoredBlock, PROPOSED_BLOCKS_COLLECTION},
     drivers::blockchain::block_assembly::BlockAssemblyError,
-    initialisation::get_db_connection,
-    ports::{db::TransactionsDB, proving::RecursiveProvingEngine},
+    initialisation::{get_blockchain_client_connection, get_db_connection},
+    ports::{
+        db::{BlockStorageDB, TransactionsDB},
+        proving::RecursiveProvingEngine,
+    },
 };
 use ark_bn254::Fr as Fr254;
-use ark_std::Zero;
+use ark_std::{collections::HashSet, Zero};
+use bson::doc;
+use jf_primitives::poseidon::{FieldHasher, Poseidon};
+use lib::blockchain_client::BlockchainClientConnection;
 use log::{info, warn};
-use nightfall_client::ports::proof::{Proof, PublicInputs};
+use nightfall_client::{
+    domain::{entities::HexConvertible, error::EventHandlerError},
+    driven::db::mongo::DB,
+    ports::proof::{Proof, PublicInputs},
+};
 use std::{cmp::Reverse, env};
 use tokio::time::Instant;
 
@@ -20,7 +31,6 @@ type ALLTransactionData<P> = (
 
 pub(crate) fn transactions_to_include_in_block<K, V>(
     mempool_transactions: Option<Vec<(K, V)>>,
-    // _block_size: usize,
 ) -> Vec<(K, V)> {
     // stuff happens here to decide which transactions to include in the block
     // NB: make sure the transaction's input commitments are still unspent: it's possible that they could have been spent since the Transaction<P> was created
@@ -59,6 +69,7 @@ where
         (included_depositinfos_group, selected_client_transactions) =
             prepare_block_data::<P>(db).await?;
     }
+
     // Convert DepositInfo into DepositData while maintaining nested structure
     // included_depositinfos_group has extra fee than DepositData, so we need to remove the fee
     let included_deposits: Vec<Vec<DepositData>> = included_depositinfos_group
@@ -90,6 +101,43 @@ where
     );
 
     let block = make_block::<P, R>(included_deposits, selected_client_transactions).await?;
+    // save this block to Store block db
+    let db = &mut get_db_connection().await.write().await;
+    let current_block_number = db
+        .database(DB)
+        .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
+        .count_documents(doc! {})
+        .await
+        .expect("Failed to count documents");
+    let our_address = get_blockchain_client_connection()
+        .await
+        .read()
+        .await
+        .get_address()
+        .ok_or_else(|| {
+            BlockAssemblyError::from(EventHandlerError::IOError(
+                "Could not retrieve our own address".to_string(),
+            ))
+        })?;
+    let store_block = StoredBlock {
+        layer2_block_number: current_block_number,
+        commitments: block
+            .transactions
+            .iter()
+            .flat_map(|ntx| {
+                ntx.commitments
+                    .iter()
+                    .map(|c| c.to_hex_string())
+                    .collect::<Vec<_>>()
+            })
+            .collect(),
+        proposer_address: our_address,
+    };
+    db.database(DB)
+        .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
+        .insert_one(store_block.clone())
+        .await
+        .expect("Failed to insert block into database");
     Ok(block)
 }
 
@@ -181,9 +229,9 @@ where
     let stored_deposits_in_mempool: Option<Vec<DepositDatawithFee>> =
         <mongodb::Client as TransactionsDB<P>>::get_mempool_deposits(db).await;
     // if there are no deposits in mempool, the all_deposits will be empty, otherwise will be the deposits in mempool
-    let mut all_deposits = stored_deposits_in_mempool.unwrap_or_default();
+    let all_deposits = stored_deposits_in_mempool.unwrap_or_default();
 
-    // 4. Get client transactions from mempool
+    // 2. Get client transactions from mempool
     let current_client_transaction_meta_in_mempool = {
         let mempool_client_transactions: Option<Vec<(Vec<u32>, ClientTransactionWithMetaData<P>)>> =
             db.get_all_mempool_client_transactions().await;
@@ -193,7 +241,57 @@ where
             .collect::<Vec<ClientTransactionWithMetaData<P>>>()
     };
 
-    if all_deposits.is_empty() && current_client_transaction_meta_in_mempool.is_empty() {
+    // 3. Get the block stored in the database during processing propose_block
+    let stored_blocks = db.get_all_blocks().await.unwrap_or_default();
+    // check if commitments in current_client_transaction_meta_in_mempool and all_deposits are in the stored_block's commitments
+    // if they are, remove the related transactions from the mempool
+    let all_commitments_onchain: HashSet<String> = stored_blocks
+        .iter()
+        .flat_map(|block| block.commitments.iter().cloned())
+        .collect();
+
+    // 4. Partition deposits into pending and stale
+    let (mut pending_deposits, stale_deposits): (Vec<_>, Vec<_>) =
+        all_deposits.into_iter().partition(|d| {
+            let inputs = [
+                d.deposit_data.nf_token_id,
+                d.deposit_data.nf_slot_id,
+                d.deposit_data.value,
+                Fr254::from(0u64),
+                Fr254::from(1u64),
+                d.deposit_data.secret_hash,
+            ];
+            let poseidon = Poseidon::<Fr254>::new();
+            let commitment_hex = poseidon.hash(&inputs).unwrap().to_hex_string();
+            !all_commitments_onchain.contains(&commitment_hex)
+        });
+    // Partition client transactions into pending and stale
+    let (pending_client_transactions, stale_client_transactions): (Vec<_>, Vec<_>) =
+        current_client_transaction_meta_in_mempool
+            .into_iter()
+            .partition(|tx| {
+                tx.client_transaction
+                    .commitments
+                    .iter()
+                    .filter(|c| c.to_hex_string() != Fr254::zero().to_hex_string())
+                    .all(|c| !all_commitments_onchain.contains(&c.to_hex_string()))
+            });
+
+    // Clean stale items from mempool
+    if !stale_deposits.is_empty() {
+        let _ = <mongodb::Client as TransactionsDB<P>>::remove_mempool_deposits(
+            db,
+            vec![stale_deposits.clone()],
+        )
+        .await;
+    }
+
+    if !stale_client_transactions.is_empty() {
+        let _ = db.set_in_mempool(&stale_client_transactions, false).await;
+    }
+
+    // 4. Check if there are any pending deposits or client transactions
+    if pending_deposits.is_empty() && pending_client_transactions.is_empty() {
         warn!("No transactions pending");
         return Err(BlockAssemblyError::InsufficientTransactions);
     }
@@ -209,8 +307,8 @@ where
 
     // 5.1. Group deposits into sets of 4, if there are less than 4, pad with default deposits
     // sort the deposits by fee in descending order
-    all_deposits.sort_by_key(|d| Reverse(d.fee));
-    for deposit in all_deposits.clone().iter() {
+    pending_deposits.sort_by_key(|d| Reverse(d.fee));
+    for deposit in pending_deposits.clone().iter() {
         current_group.push(*deposit);
         if current_group.len() == 4 {
             deposit_groups.push(current_group.clone());
@@ -232,7 +330,7 @@ where
     }
 
     // 5.3. Push client transactions (1:1 mapping)
-    for client_tx in current_client_transaction_meta_in_mempool.iter() {
+    for client_tx in pending_client_transactions.iter() {
         all_transactions.push((
             None,
             Some(client_tx.clone()),
@@ -264,7 +362,6 @@ where
     // 10. Clear selected client transactions from mempool
     db.set_in_mempool(&selected_client_transactions, false)
         .await;
-
     Ok((used_deposits_info, selected_client_transactions))
 }
 

@@ -251,6 +251,8 @@ where
         commitments: &[F],
         tree_id: &str,
     ) -> Result<Vec<CircuitInsertionInfo<F>>, Self::Error>;
+    /// Clears all data (nodes, state) for the specified tree.
+    async fn reset_mutable_tree(&self, tree_id: &str) -> Result<(), Self::Error>;
 }
 
 /// a trait for an indexed merkle tree, which is a mutable tree that can be used to prove non-membership of a leaf

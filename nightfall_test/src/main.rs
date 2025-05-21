@@ -1,11 +1,10 @@
-use std::sync::Arc;
-
 use configuration::{logging::init_logging, settings::Settings};
 use log::info;
 use nightfall_test::{
     run_tests::run_tests,
     webhook::{poll_queue, run_webhook_server},
 };
+use std::sync::Arc;
 use tokio::task::JoinSet;
 
 #[tokio::main]
