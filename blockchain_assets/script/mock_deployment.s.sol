@@ -18,7 +18,7 @@ contract MockDeployer is Script {
         address client2 = vm.envAddress("CLIENT2_ADDRESS");
         vm.startBroadcast(deployerPrivateKey);
         new ERC20Mock(2000, owner, client2);
-        new ERC721Mock(426, 526, owner);
+        new ERC721Mock(426, owner);
         new ERC1155Mock(2, 100, 73, 0, owner);
         new ERC3525Mock(7, 100, 8, 120, 5, owner);
         vm.stopBroadcast();
