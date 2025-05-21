@@ -12,14 +12,13 @@ import {IERC3525Receiver} from "@erc-3525/contracts/IERC3525Receiver.sol";
 import "./ProposerManager.sol";
 import "./X509/Certified.sol";
 import "./X509/X509.sol";
+
 pragma solidity ^0.8.20;
 
 enum OperationType {
     DEPOSIT,
     WITHDRAW,
-    TRANSFER,
-    TOKENISE,
-    BURN
+    TRANSFER
 }
 // in entities.rs, we have defined
 // TokenType::ERC20 => 0,
@@ -32,21 +31,6 @@ enum TokenType {
     ERC1155, // 1
     ERC721, // 2
     ERC3525// 3
-}
-
-// A transaction of this type is created by a client. It will often go directly to a proposer and not touch the blockchain
-// we don't attempt a tight-packing pattern because it's never placed into a Storage slot.
-struct ClientTransaction {
-    uint256 fee; 
-    uint256[4] historic_commitment_roots;
-    uint256[4] commitments;
-    uint256[4] nullifiers;
-    CompressedSecrets compressed_secrets;
-    bytes compressed_proof;
-}
-
-struct CompressedSecrets {
-    uint256[4] cipher_text;
 }
 
 // This is the format for a transaction that has been processed by a Proposer and rolled up into a block
@@ -106,7 +90,6 @@ contract Nightfall is
 {
     int256 public layer2_block_number = 0; // useful for checking your node is in sync, can be negative (offchain) to indicate a block that is not onchain
     event BlockProposed(int256 layer2_block_number);
-    event ClientTransactionSubmitted();
     event DepositEscrowed(uint256 nfSlotId, uint256 value);
 
     mapping(uint256 => DepositFeeState) private feeBinding; // remembers a Deposit's fee
@@ -242,6 +225,7 @@ contract Nightfall is
                     DepositFeeState memory depositFeeState = feeBinding[
                             publicData
                         ];
+
                     localTotalFee += depositFeeState.fee;
                     require(
                             depositFeeState.escrowed == 1 && depositFeeState.redeemed == 0,
@@ -598,18 +582,6 @@ contract Nightfall is
         bytes memory proof = blk.rollup_proof[288:];
         return (verifier.verify(proof, publicInputs), feeSumAsNumber);
     }
-
-    // Allows a client to submit a transaction via the blockchain, rather than directly to
-    // a proposer. Other than that it does nothing. Deposit payments are now handled as
-    // part of propose_block(...).
-    // Consider if we really need to notarise the transaction on-chain. Candidate for deprecation?
-    function submit_client_transaction(
-        ClientTransaction calldata txn
-    ) external returns (ClientTransaction memory) {
-        emit ClientTransactionSubmitted();
-        return txn; // this is just to stop the compiler complaining about an unused parameter
-    }
-
 
     /// Function that can be called to see if funds are able to be de-escrowed following a withdraw transaction.
     function withdraw_processed(

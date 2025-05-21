@@ -128,6 +128,7 @@ impl DepositCircuitGadget<Fr254> for PlonkCircuit<Fr254> {
             .collect::<Result<Vec<Variable>, CircuitError>>()?;
         // We push a zero variable because public data is always 5 field elements (the final two get compressed together but compressing with zero doesn't change the fourth element)
         sha_outputs.push(self.zero());
+
         // Finalize the sha hash
         self.finalize_for_sha256_hash(&mut lookup_vars)?;
 
@@ -139,6 +140,7 @@ impl DepositCircuitGadget<Fr254> for PlonkCircuit<Fr254> {
         // if there are deposit_fee, then there will be deposit_fee commitments,
         // otherwise there will only be value commitments.
         let _ = self.create_public_variable(Fr254::zero())?;
+
         let fee = Fr254::zero();
         let roots: [Fr254; 4] = (0..4)
             .map(|_| {

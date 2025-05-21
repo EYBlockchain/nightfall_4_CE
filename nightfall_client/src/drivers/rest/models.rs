@@ -128,7 +128,7 @@ pub struct NF3RecipientData {
     pub recipient_compressed_zkp_public_keys: Vec<String>,
 }
 
-/// Struct used for checking that funds are available to withdraw/ de-escrowing.
+/// Struct used for checking that funds are available to withdraw.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct WithdrawDataReq {
     pub token_id: String,
@@ -137,6 +137,22 @@ pub struct WithdrawDataReq {
     pub value: String,
     pub fee: String,
     pub token_type: String,
+    pub withdraw_fund_salt: String,
+}
+
+/// Struct used for checking that funds are available to de-escrow.
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct DeEscrowDataReq {
+    #[serde(rename = "tokenId")]
+    pub token_id: String,
+    #[serde(rename = "ercAddress")]
+    pub erc_address: String,
+    #[serde(rename = "recipientAddress")]
+    pub recipient_address: String,
+    pub value: String,
+    #[serde(rename = "tokenType")]
+    pub token_type: String,
+    #[serde(rename = "withdrawFundSalt")]
     pub withdraw_fund_salt: String,
 }
 
@@ -199,9 +215,9 @@ impl TryFrom<SecretPreimageReq> for DepositSecret {
     }
 }
 
-impl TryFrom<WithdrawDataReq> for WithdrawData {
+impl TryFrom<DeEscrowDataReq> for WithdrawData {
     type Error = &'static str;
-    fn try_from(req: WithdrawDataReq) -> Result<Self, Self::Error> {
+    fn try_from(req: DeEscrowDataReq) -> Result<Self, Self::Error> {
         let nf_token_id = to_nf_token_id_from_str(req.erc_address.as_str(), req.token_id.as_str())
             .map_err(|_| "Failed to convert erc address and token id to Nightfall equivalent")?;
         Ok(WithdrawData {

@@ -1,16 +1,18 @@
 use crate::{
     domain::entities::{Block, OnChainTransaction},
-    ports::block_assembly_trigger::BlockAssemblyTrigger,
-    ports::db::TransactionsDB,
+    initialisation::get_blockchain_client_connection,
+    ports::{block_assembly_trigger::BlockAssemblyTrigger, db::TransactionsDB},
     services::assemble_block::get_block_size,
 };
 use async_trait::async_trait;
 
+use configuration::addresses::get_addresses;
 use ethers::types::Bytes;
-use log::{debug, error};
-use nightfall_bindings::nightfall::{
-    Block as NightfallBlockStruct, CompressedSecrets as NightfallCompressedSecrets,
-    OnChainTransaction as NightfallOnChainTransaction,
+use lib::blockchain_client::BlockchainClientConnection;
+use log::{debug, error, warn};
+use nightfall_bindings::{
+    nightfall::{Block as NightfallBlockStruct, OnChainTransaction as NightfallOnChainTransaction},
+    round_robin::RoundRobin,
 };
 use nightfall_client::{
     domain::{entities::ClientTransaction, error::ConversionError},
@@ -73,17 +75,65 @@ impl<P: Proof + Send + Sync> BlockAssemblyTrigger for SmartTrigger<P> {
         let short_wait = Duration::from_secs(5);
         let start = Instant::now();
         loop {
+            let elapsed = start.elapsed().as_secs();
+            let remaining = if self.max_wait_secs > elapsed {
+                self.max_wait_secs - elapsed
+            } else {
+                0
+            };
+            // Re-check current proposer
+            let round_robin_instance = RoundRobin::new(
+                get_addresses().round_robin,
+                get_blockchain_client_connection()
+                    .await
+                    .read()
+                    .await
+                    .get_client(),
+            );
+            let current_proposer = match round_robin_instance
+                .get_current_proposer_address()
+                .call()
+                .await
+            {
+                Ok(addr) => addr,
+                Err(e) => {
+                    error!("Failed to get current proposer: {}", e);
+                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                    continue;
+                }
+            };
+            let our_address = get_blockchain_client_connection()
+                .await
+                .read()
+                .await
+                .get_client()
+                .address();
+            if current_proposer != our_address {
+                debug!(
+                    "Lost proposer status during trigger wait. Current proposer: {:?}",
+                    current_proposer
+                );
+                break; // Exit loop early
+            }
             if self.status.read().await.is_running() && self.should_assemble().await {
                 debug!("Trigger activated by mempool check.");
                 break;
             }
-            if start.elapsed().as_secs() >= self.max_wait_secs {
+            if elapsed >= self.max_wait_secs {
                 debug!(
                     "Max wait time elapsed ({}s). Triggering block assembly.",
                     self.max_wait_secs
                 );
                 break;
             }
+
+            // Log status of trigger wait with dynamic information
+            warn!(
+            "Not enough transactions to assemble a block yet. Elapsed: {}s, remaining: {}s, will wait for more txs or until timeout ({}s).",
+            elapsed,
+            remaining,
+            self.max_wait_secs
+        );
 
             tokio::select! {
                 _ = interval.tick() => {
@@ -189,7 +239,7 @@ impl From<OnChainTransaction> for NightfallOnChainTransaction {
             fee: Uint256::from(otx.fee).into(),
             commitments: otx.commitments.map(|c| Uint256::from(c).into()),
             nullifiers: otx.nullifiers.map(|n| Uint256::from(n).into()),
-            public_data: NightfallCompressedSecrets::from(otx.public_data).cipher_text,
+            public_data: otx.public_data.into(),
         }
     }
 }
@@ -216,10 +266,7 @@ impl From<NightfallOnChainTransaction> for OnChainTransaction {
                     )
                     .0
             }),
-            public_data: NightfallCompressedSecrets {
-                cipher_text: ntx.public_data,
-            }
-            .into(),
+            public_data: ntx.public_data.into(),
         }
     }
 }

@@ -1,31 +1,24 @@
-use crate::domain::entities::{Proposer, WithdrawData};
-use crate::domain::error::ConversionError;
-use crate::ports::db::ToHexString;
 use crate::{
-    domain::entities::{ClientTransaction, CompressedSecrets},
-    ports::proof::Proof,
+    domain::{
+        entities::{CompressedSecrets, Proposer, WithdrawData},
+        error::ConversionError,
+    },
+    ports::db::ToHexString,
 };
 use ark_bn254::Fr as Fr254;
-
 use ark_ff::{BigInt, BigInteger, BigInteger256, PrimeField};
 use ark_std::Zero;
 use core::fmt::Debug;
 use ethers::types::{Address, U256};
-use log::error;
 use nightfall_bindings::{
-    nightfall::{
-        ClientTransaction as NightfallClientTransactionStruct,
-        CompressedSecrets as NightfallCompressedSecretsStruct,
-        WithdrawData as NightfallWithdrawData,
-    },
-    round_robin::Proposer as NightfallProposer,
+    nightfall::WithdrawData as NightfallWithdrawData, round_robin::Proposer as NightfallProposer,
 };
 use num_bigint::BigUint;
-use serde::de::{self, Visitor};
-use serde::{Deserialize, Deserializer, Serialize};
-use std::fmt;
-use std::ops::Add;
-use std::str::FromStr;
+use serde::{
+    de::{self, Visitor},
+    {Deserialize, Deserializer, Serialize},
+};
+use std::{fmt, ops::Add, str::FromStr};
 
 /// enables conversion between a Proposer as used in the ProposerManager contract, and a for suitable for serialisation
 impl From<NightfallProposer> for Proposer {
@@ -36,137 +29,6 @@ impl From<NightfallProposer> for Proposer {
             url: proposer.url,
             next_addr: proposer.next_addr,
             previous_addr: proposer.previous_addr,
-        }
-    }
-}
-
-/// enables conversion between the ClientTransaction<P> struct used in this application and the Transaction struct used in the Nightfall contract
-/// Mainly this is a conversion from field elements in Fq into U256.
-impl<P: Serialize + Proof + Debug + Clone> TryFrom<ClientTransaction<P>>
-    for NightfallClientTransactionStruct
-{
-    type Error = ConversionError;
-    fn try_from(transaction_l2: ClientTransaction<P>) -> Result<Self, ConversionError> {
-        let nightfall_transaction_struct = NightfallClientTransactionStruct {
-            fee: Uint256::from(transaction_l2.fee).into(),
-            historic_commitment_roots: transaction_l2
-                .historic_commitment_roots
-                .into_iter()
-                .map(|root| Uint256::from(root).into())
-                .collect::<Vec<U256>>()
-                .try_into()
-                .map_err(|_| ConversionError::FixedLengthArrayError)?,
-            commitments: transaction_l2
-                .commitments
-                .into_iter()
-                .map(|commitment| Uint256::from(commitment).into())
-                .collect::<Vec<U256>>()
-                .try_into()
-                .map_err(|_| ConversionError::FixedLengthArrayError)?,
-            nullifiers: transaction_l2
-                .nullifiers
-                .into_iter()
-                .map(|nullifier| Uint256::from(nullifier).into())
-                .collect::<Vec<U256>>()
-                .try_into()
-                .map_err(|_| ConversionError::FixedLengthArrayError)?,
-            compressed_secrets: transaction_l2.compressed_secrets.into(),
-            compressed_proof: transaction_l2
-                .proof
-                .compress_proof()
-                .map_err(ConversionError::ProofCompression)?,
-        };
-        Ok(nightfall_transaction_struct)
-    }
-}
-// does the inverse of the above but definitely isn't a From trait because the conversion can overflow going in this direction
-impl<P: Serialize + Proof + Debug + Clone> TryFrom<NightfallClientTransactionStruct>
-    for ClientTransaction<P>
-{
-    type Error = ConversionError;
-    fn try_from(
-        nightfall_transaction_struct: NightfallClientTransactionStruct,
-    ) -> Result<Self, ConversionError> {
-        Ok(Self {
-            fee: FrBn254::try_from(nightfall_transaction_struct.fee)?.into(),
-            historic_commitment_roots: nightfall_transaction_struct
-                .historic_commitment_roots
-                .into_iter()
-                .map(|root| FrBn254::try_from(root).map(|fq| fq.into()))
-                .collect::<Result<Vec<Fr254>, ConversionError>>()?
-                .try_into()
-                .map_err(|_| ConversionError::FixedLengthArrayError)?,
-            commitments: nightfall_transaction_struct
-                .commitments
-                .into_iter()
-                .map(|commitment| FrBn254::try_from(commitment).map(|fq| fq.into()))
-                .collect::<Result<Vec<Fr254>, ConversionError>>()?
-                .try_into()
-                .map_err(|_| ConversionError::FixedLengthArrayError)?,
-            nullifiers: nightfall_transaction_struct
-                .nullifiers
-                .into_iter()
-                .map(|nullifier| FrBn254::try_from(nullifier).map(|fq| fq.into()))
-                .collect::<Result<Vec<Fr254>, ConversionError>>()?
-                .try_into()
-                .map_err(|_| ConversionError::FixedLengthArrayError)?,
-            compressed_secrets: nightfall_transaction_struct.compressed_secrets.into(),
-            proof: Proof::from_compressed(nightfall_transaction_struct.compressed_proof).map_err(
-                |e| {
-                    error!("{}", e);
-                    ConversionError::ProofDecompression
-                },
-            )?,
-        })
-    }
-}
-
-/// conversion from an on-chain version of Compressed Secrets to an offchain version, and vice versa
-impl From<CompressedSecrets> for NightfallCompressedSecretsStruct {
-    fn from(secrets: CompressedSecrets) -> NightfallCompressedSecretsStruct {
-        let secrets_4: BigUint = secrets.cipher_text[3].into();
-        let flag: BigUint = secrets.cipher_text[4].into();
-
-        let compressed_point: BigUint = secrets_4 + (flag << 255);
-
-        let final_secret = U256::from_little_endian(&compressed_point.to_bytes_le());
-        let cipher_text = [
-            Uint256::from(secrets.cipher_text[0]).0,
-            Uint256::from(secrets.cipher_text[1]).0,
-            Uint256::from(secrets.cipher_text[2]).0,
-            final_secret,
-        ];
-        NightfallCompressedSecretsStruct { cipher_text }
-    }
-}
-impl From<NightfallCompressedSecretsStruct> for CompressedSecrets {
-    fn from(secrets: NightfallCompressedSecretsStruct) -> CompressedSecrets {
-        let mut compressed_point = [0u8; 32];
-        secrets.cipher_text[3].to_little_endian(&mut compressed_point);
-        // We need to work out what the 255th bit is set to
-        let top_bit = compressed_point[31] >> 7;
-        let to_subtract = BigUint::from(top_bit) << 255;
-        let y_coord = BigUint::from_bytes_le(&compressed_point) - to_subtract;
-
-        let final_secrets = [
-            <FrBn254 as Into<Fr254>>::into(
-                FrBn254::try_from(secrets.cipher_text[0])
-                    .expect("Conversion from U256 to Fr should never"),
-            ),
-            <FrBn254 as Into<Fr254>>::into(
-                FrBn254::try_from(secrets.cipher_text[1])
-                    .expect("Conversion from U256 to Fr should never"),
-            ),
-            <FrBn254 as Into<Fr254>>::into(
-                FrBn254::try_from(secrets.cipher_text[2])
-                    .expect("Conversion from U256 to Fr should never"),
-            ),
-            Fr254::from(y_coord),
-            Fr254::from(top_bit),
-        ];
-
-        CompressedSecrets {
-            cipher_text: final_secrets, // if the conversion fails, it's not recoverable so ok to panic
         }
     }
 }
@@ -352,7 +214,53 @@ impl From<Address> for FrBn254 {
         FrBn254(Fr254::new(BigInteger256::new(digits)))
     }
 }
+impl From<[U256; 4]> for CompressedSecrets {
+    fn from(ciphertext: [U256; 4]) -> CompressedSecrets {
+        let mut compressed_point = [0u8; 32];
+        ciphertext[3].to_little_endian(&mut compressed_point);
+        // We need to work out what the 255th bit is set to
+        let top_bit = compressed_point[31] >> 7;
+        let to_subtract = BigUint::from(top_bit) << 255;
+        let y_coord = BigUint::from_bytes_le(&compressed_point) - to_subtract;
 
+        let final_secrets = [
+            <FrBn254 as Into<Fr254>>::into(
+                FrBn254::try_from(ciphertext[0])
+                    .expect("Conversion from U256 to Fr should never fail"),
+            ),
+            <FrBn254 as Into<Fr254>>::into(
+                FrBn254::try_from(ciphertext[1])
+                    .expect("Conversion from U256 to Fr should never fail"),
+            ),
+            <FrBn254 as Into<Fr254>>::into(
+                FrBn254::try_from(ciphertext[2])
+                    .expect("Conversion from U256 to Fr should never fail"),
+            ),
+            Fr254::from(y_coord),
+            Fr254::from(top_bit),
+        ];
+
+        CompressedSecrets {
+            cipher_text: final_secrets, // if the conversion fails, it's not recoverable so ok to panic
+        }
+    }
+}
+impl From<CompressedSecrets> for [U256; 4] {
+    fn from(compressed_secrets: CompressedSecrets) -> [U256; 4] {
+        let secrets_4: BigUint = compressed_secrets.cipher_text[3].into();
+        let flag: BigUint = compressed_secrets.cipher_text[4].into();
+
+        let compressed_point: BigUint = secrets_4 + (flag << 255);
+
+        let final_secret = U256::from_little_endian(&compressed_point.to_bytes_le());
+        [
+            Uint256::from(compressed_secrets.cipher_text[0]).0,
+            Uint256::from(compressed_secrets.cipher_text[1]).0,
+            Uint256::from(compressed_secrets.cipher_text[2]).0,
+            final_secret,
+        ]
+    }
+}
 #[cfg(test)]
 mod test {
     use super::*;

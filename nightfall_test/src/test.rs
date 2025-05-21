@@ -32,8 +32,7 @@ use nightfall_client::{
     drivers::{
         derive_key::ZKPKeys,
         rest::models::{
-            KeyRequest, NF3DepositRequest, NF3RecipientData, NF3TransferRequest,
-            NF3WithdrawRequest, WithdrawDataReq,
+            DeEscrowDataReq, KeyRequest, NF3DepositRequest, NF3RecipientData, NF3TransferRequest, NF3WithdrawRequest, WithdrawDataReq
         },
     },
     ports::{
@@ -380,7 +379,7 @@ pub async fn wait_on_chain(
 }
 
 /// Function to submit a request to de-escrow funds after a withdraw
-pub async fn de_escrow_request(req: &WithdrawDataReq, client_url: &str) -> Result<u8, TestError> {
+pub async fn de_escrow_request(req: &DeEscrowDataReq, client_url: &str) -> Result<u8, TestError> {
     let client = reqwest::Client::new();
     let url = Url::parse(client_url)
         .map_err(|e| TestError::new(e.to_string()))?

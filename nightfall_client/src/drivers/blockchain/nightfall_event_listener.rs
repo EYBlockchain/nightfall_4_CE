@@ -4,8 +4,6 @@ use crate::ports::contracts::NightfallContract;
 use crate::services::process_events::process_events;
 use configuration::{addresses::get_addresses, settings::get_settings};
 use ethers::prelude::*;
-use std::time::Duration;
-use tokio::time::sleep;
 use futures::{future::BoxFuture, FutureExt};
 use lib::{
     blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
@@ -13,6 +11,8 @@ use lib::{
 use log::{debug, warn};
 use nightfall_bindings::nightfall::Nightfall;
 use std::panic;
+use std::time::Duration;
+use tokio::time::sleep;
 
 /// This function starts the event handler. It will attempt to restart the event handler in case of errors
 /// with an exponential backoff  for a configurable number of attempts. If the event handler
@@ -44,7 +44,10 @@ pub fn start_event_listener<N: NightfallContract>(
                     );
                     if attempts >= max_attempts {
                         log::error!("Client event listener: max attempts reached. Giving up.");
-                        if let Err(err) = notify_failure_client("Client event listener failed after max retries").await {
+                        if let Err(err) =
+                            notify_failure_client("Client event listener failed after max retries")
+                                .await
+                        {
                             log::error!("Failed to send failure notification (client): {:?}", err);
                         }
                         break;
@@ -121,7 +124,10 @@ where
         panic!("Restarting event listener while synchronised. This should not happen");
     }
     let settings = get_settings();
-    let max_attempts = settings.nightfall_client.max_event_listener_attempts.unwrap_or(10); 
+    let max_attempts = settings
+        .nightfall_client
+        .max_event_listener_attempts
+        .unwrap_or(10);
 
     start_event_listener::<N>(start_block, max_attempts).await;
 }

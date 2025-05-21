@@ -1,4 +1,4 @@
-use super::models::WithdrawDataReq;
+use super::models::DeEscrowDataReq;
 use crate::{
     domain::entities::{TokenType, WithdrawData},
     ports::contracts::NightfallContract,
@@ -30,7 +30,7 @@ pub fn de_escrow() -> impl Filter<Extract = (impl warp::Reply,), Error = warp::R
         .and_then(handle_de_escrow)
 }
 
-pub async fn handle_de_escrow(data: WithdrawDataReq) -> Result<impl Reply, warp::Rejection> {
+pub async fn handle_de_escrow(data: DeEscrowDataReq) -> Result<impl Reply, warp::Rejection> {
     let token_type: TokenType = u8::from_str_radix(&data.token_type, 16)
         .map_err(|_| {
             error!("Could not convert token type");
