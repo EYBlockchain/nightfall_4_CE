@@ -1,41 +1,42 @@
-use crate::domain::entities::{
-    CommitmentStatus, CompressedSecrets, HexConvertible, Preimage, Salt,
+use crate::{
+    domain::{
+        entities::{CommitmentStatus, CompressedSecrets, HexConvertible, Preimage, Salt},
+        error::EventHandlerError,
+        notifications::NotificationPayload,
+    },
+    driven::{
+        contract_functions::contract_type_conversions::FrBn254, db::mongo::CommitmentEntry,
+        notifier::webhook_notifier::WebhookNotifier, primitives::kemdem_functions::kemdem_decrypt,
+    },
+    drivers::derive_key::ZKPKeys,
+    get_zkp_keys,
+    initialisation::get_db_connection,
+    ports::{
+        commitments::{Commitment, Nullifiable},
+        contracts::NightfallContract,
+        db::{CommitmentDB, CommitmentEntryDB},
+        events::EventHandler,
+        trees::CommitmentTree,
+    },
+    services::data_publisher::DataPublisher,
 };
-
-use crate::domain::notifications::NotificationPayload;
-use crate::driven::contract_functions::contract_type_conversions::FrBn254;
-use crate::driven::db::mongo::CommitmentEntry;
-use crate::driven::notifier::webhook_notifier::WebhookNotifier;
-use crate::driven::primitives::kemdem_functions::kemdem_decrypt;
-
-use crate::drivers::derive_key::ZKPKeys;
-use crate::get_zkp_keys;
-use crate::initialisation::get_db_connection;
-use crate::ports::commitments::{Commitment, Nullifiable};
-use crate::ports::contracts::NightfallContract;
-use crate::ports::db::{CommitmentDB, CommitmentEntryDB};
-use crate::ports::trees::CommitmentTree;
-use crate::services::data_publisher::DataPublisher;
-use crate::{domain::error::EventHandlerError, ports::events::EventHandler};
 use ark_bn254::Fr as Fr254;
 use ark_ff::BigInteger;
 use configuration::settings::get_settings;
+use ethers::{
+    abi::AbiDecode,
+    providers::Middleware,
+    types::{TxHash, H256, I256, U256},
+};
 use lib::{
     blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
 };
-use tokio::join;
-
-use ethers::abi::AbiDecode;
-use ethers::providers::Middleware;
-use ethers::types::{TxHash, H256, I256, U256};
 use log::{debug, error, info, warn};
 use nightfall_bindings::nightfall::{
-    BlockProposedFilter, CompressedSecrets as NightfallCompressedSecrets, DepositEscrowedFilter,
-    NightfallCalls, NightfallEvents, ProposeBlockCall,
+    BlockProposedFilter, DepositEscrowedFilter, NightfallCalls, NightfallEvents, ProposeBlockCall,
 };
-use std::error::Error;
-use std::sync::OnceLock;
-use tokio::sync::Mutex;
+use std::{error::Error, sync::OnceLock};
+use tokio::{join, sync::Mutex};
 
 // Define a mutable lazy static to hold the layer 2 blocknumber. We need this to
 // check if we're still in sync.
@@ -65,9 +66,6 @@ where
                         debug!("{}", e);
                         EventHandlerError::InvalidCalldata
                     })?;
-            }
-            NightfallEvents::ClientTransactionSubmittedFilter(_f) => {
-                info!("Received TransactionSubmitted event")
             }
             NightfallEvents::DepositEscrowedFilter(filter) => {
                 info!("Received DepositEscrowed event");
@@ -156,6 +154,7 @@ async fn process_propose_block_event<N: NightfallContract>(
     let current_block_number = N::get_current_layer2_blocknumber().await.map_err(|_| {
         EventHandlerError::IOError("Could not retrieve current block number".to_string())
     })?;
+
     let delta = current_block_number - filter.layer_2_block_number - I256::one();
     // if we"re synchronising, we don"t want to check for duplicate keys because we expect to overwrite commitments already in the commitment collection
     let dup_key_check = if delta != I256::zero() {
@@ -271,9 +270,8 @@ async fn process_propose_block_event<N: NightfallContract>(
         }
 
         // Extract the compressed secrets from the public data
-        let compressed_secrets = CompressedSecrets::from(NightfallCompressedSecrets {
-            cipher_text: transaction.public_data,
-        });
+        let compressed_secrets_onchain = transaction.public_data;
+        let compressed_secrets: CompressedSecrets = compressed_secrets_onchain.into();
 
         // Attempt to decrypt the compressed secrets
         let decrypt = kemdem_decrypt(recipient_private_key, &compressed_secrets.cipher_text)

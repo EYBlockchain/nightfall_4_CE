@@ -1,41 +1,41 @@
-use configuration::addresses::get_addresses;
-use ethers::types::TransactionReceipt;
-use nightfall_bindings::nightfall::{ClientTransaction as NightfallTransactionStruct, Nightfall};
-use reqwest::Error as ReqwestError;
-use reqwest::StatusCode;
-use std::{error::Error, fmt::Debug, time::Duration};
-use tokio::time::sleep;
-
-use crate::domain::entities::CommitmentStatus;
-use crate::domain::entities::HexConvertible;
-use crate::domain::entities::RequestStatus;
-use crate::domain::error::TransactionHandlerError;
-use crate::domain::notifications::NotificationPayload;
-use crate::driven::db::mongo::CommitmentEntry;
-use crate::drivers::blockchain::nightfall_event_listener::get_synchronisation_status;
-use crate::drivers::derive_key::ZKPKeys;
-use crate::drivers::rest::models::NullifierKey;
-use crate::get_zkp_keys;
-use crate::ports::db::RequestDB;
 use crate::{
-    domain::entities::{ClientTransaction, Operation, Transport},
-    initialisation::{get_db_connection, get_proposer_http_connection},
+    domain::{
+        entities::{ClientTransaction, CommitmentStatus, HexConvertible, Operation, RequestStatus},
+        error::TransactionHandlerError,
+        notifications::NotificationPayload,
+    },
+    driven::db::mongo::CommitmentEntry,
+    drivers::{
+        blockchain::nightfall_event_listener::get_synchronisation_status, derive_key::ZKPKeys,
+        rest::models::NullifierKey,
+    },
+    get_zkp_keys,
+    initialisation::get_db_connection,
     ports::{
         commitments::Nullifiable,
         contracts::NightfallContract,
-        db::{CommitmentDB, CommitmentEntryDB},
+        db::{CommitmentDB, CommitmentEntryDB, RequestDB},
         proof::{Proof, ProvingEngine},
         secret_hash::SecretHash,
     },
     services::client_operation::client_operation,
 };
 use ark_bn254::Fr as Fr254;
+use configuration::addresses::get_addresses;
+use ethers::types::TransactionReceipt;
+use futures::future::join_all;
 use lib::{
     blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
 };
 use log::{debug, error, info, warn};
 use nf_curves::ed_on_bn254::Fr as BJJScalar;
+use nightfall_bindings::{round_robin::RoundRobin, x509::Proposer};
+use reqwest::{Client, Error as ReqwestError};
 use serde::Serialize;
+use std::{error::Error, fmt::Debug, time::Duration};
+use tokio::time::sleep;
+use url::Url;
+use warp::hyper::StatusCode;
 #[allow(clippy::too_many_arguments)]
 pub async fn handle_client_operation<P, E, N>(
     operation: Operation,
@@ -123,11 +123,9 @@ where
     })?;
     // having done that, we can submit the nighfall transaction, either on or off chain, normally the latter
 
-    let tx_receipt = match operation.transport {
-        Transport::OnChain => process_transaction_onchain(&operation_result).await,
-        Transport::OffChain => process_transaction_offchain(&operation_result, id).await,
-    }
-    .map_err(|e| TransactionHandlerError::CustomError(e.to_string()))?;
+    let tx_receipt = process_transaction_offchain(&operation_result, id)
+        .await
+        .map_err(|e| TransactionHandlerError::CustomError(e.to_string()))?;
     info!("{id} {} transaction submitted", operation.operation_type);
     let mut operation_result_json = serde_json::to_value(&operation_result)
         .expect("Failed to serialize operation_result to JSON");
@@ -167,116 +165,149 @@ where
     Ok(NotificationPayload::TransactionEvent { response, uuid })
 }
 
-async fn process_transaction_offchain<P: Serialize>(
+/// Only retry on network issues or timeouts
+fn is_retriable_error(err: &ReqwestError) -> bool {
+    err.is_timeout() || err.is_connect() || err.is_request()
+}
+async fn send_to_proposer_with_retry<P: Serialize + Sync>(
+    client: &Client,
+    proposer: Proposer,
     l2_transaction: &ClientTransaction<P>,
     id: &str,
-) -> Result<Option<TransactionReceipt>, Box<dyn Error>> {
-    info!("{id} Sending client transaction to proposer");
-    let (proposer_http_connection, url) = get_proposer_http_connection();
-    let db = get_db_connection().await.write().await;
+    max_retries: u32,
+    initial_backoff: Duration,
+) -> Result<(), (String, bool)> {
+    let url = match Url::parse(&proposer.url).and_then(|base| base.join("/v1/transaction")) {
+        Ok(u) => u,
+        Err(e) => {
+            warn!("Skipping proposer with invalid URL {}: {}", proposer.url, e);
+            return Err((format!("Invalid URL: {}", e), false));
+        }
+    };
 
-    // we need to update the request in the database to show that it's been sent to the proposer
-    const MAX_RETRIES: u32 = 3;
-    const INITIAL_BACKOFF: Duration = Duration::from_millis(500);
-
-    for attempt in 1..=MAX_RETRIES {
-        let proposer_response = proposer_http_connection
-            .post(url.clone())
-            .json(l2_transaction)
-            .send()
-            .await;
-        match proposer_response {
-            Ok(resp) => {
-                let status = resp.status();
+    for attempt in 1..=max_retries {
+        match client.post(url.clone()).json(l2_transaction).send().await {
+            Ok(response) => {
+                let status = response.status();
                 if status.is_success() {
-                    db.update_request(id, RequestStatus::Submitted).await;
-                    debug!("{id} Client transaction successfully sent to proposer (attempt {attempt}).");
-                    // obvs we won't have a transaction receipt to return if we've sent our transaction to a proposer but we need to return an Option<TransactionReceipt>
-                    // for type compatibility with the onchain case
-                    return Ok(None);
+                    debug!("{id} Successfully sent transaction to proposer at {}", url);
+                    return Ok(());
                 } else {
-                    let body = resp.text().await.unwrap_or_default();
+                    let body = response.text().await.unwrap_or_default();
                     error!("{id} Error from proposer: HTTP {} — Body: {}", status, body);
-                    // only retry on specific HTTP status codes returned by the proposer, potentially temporary server errors,502 503,504.
                     if matches!(
                         status,
                         StatusCode::BAD_GATEWAY
                             | StatusCode::SERVICE_UNAVAILABLE
                             | StatusCode::GATEWAY_TIMEOUT
-                    ) {
-                        if attempt < MAX_RETRIES {
-                            let backoff = INITIAL_BACKOFF * 2u32.pow(attempt - 1);
-                            warn!("{id} Retrying in {:?} (HTTP error {})", backoff, status);
-                            sleep(backoff).await;
-                            continue;
-                        } else {
-                            // mark as ProposerUnreachable after exhausting all retries for these specific errors.
-                            db.update_request(id, RequestStatus::ProposerUnreachable)
-                                .await;
-                            return Err(Box::new(std::io::Error::new(
-                                std::io::ErrorKind::TimedOut,
-                                format!(
-                                    "Proposer returned {} after {} attempts",
-                                    status, MAX_RETRIES
-                                ),
-                            )));
-                        }
+                    ) && attempt < max_retries
+                    {
+                        let backoff = initial_backoff * 2u32.pow(attempt - 1);
+                        warn!("{id} Retrying proposer {} in {:?}", proposer.url, backoff);
+                        sleep(backoff).await;
+                        continue;
                     } else {
-                        // handle non-retryable HTTP status codes. Mark as Failed immediately.
-                        db.update_request(id, RequestStatus::Failed).await;
-                        return Err(Box::new(std::io::Error::new(
-                            std::io::ErrorKind::Other,
-                            format!(
-                                "Proposer returned non-retryable error {} — {}",
-                                status, body
-                            ),
-                        )));
+                        let retriable = matches!(
+                            status,
+                            StatusCode::BAD_GATEWAY
+                                | StatusCode::SERVICE_UNAVAILABLE
+                                | StatusCode::GATEWAY_TIMEOUT
+                        );
+                        return Err((
+                            format!("Proposer returned HTTP {}: {}", status, body),
+                            retriable,
+                        ));
                     }
                 }
             }
             Err(err) => {
-                error!("{id} Network error sending to proposer: : {}", err);
-                if is_retriable_error(&err) && attempt < MAX_RETRIES {
-                    let backoff = INITIAL_BACKOFF * 2u32.pow(attempt - 1);
-                    warn!("{id} Retrying after network error in {:?}", backoff);
+                error!("{id} Network error sending to proposer {}: {:?}", url, err);
+                if is_retriable_error(&err) && attempt < max_retries {
+                    let backoff = initial_backoff * 2u32.pow(attempt - 1);
+                    warn!("{id} Retrying network error in {:?}", backoff);
                     sleep(backoff).await;
                     continue;
                 } else {
-                    db.update_request(id, RequestStatus::ProposerUnreachable)
-                        .await;
-                    return Err(Box::new(err));
+                    return Err((format!("Network error: {}", err), true));
                 }
             }
         }
     }
-    // All retries exhausted
-    unreachable!()
+
+    Err((
+        format!("Max retries exhausted for proposer {}", proposer.url),
+        true,
+    ))
 }
 
-/// Only retry on network issues or timeouts
-fn is_retriable_error(err: &ReqwestError) -> bool {
-    err.is_timeout() || err.is_connect() || err.is_request()
-}
-
-async fn process_transaction_onchain<P>(
+pub async fn process_transaction_offchain<P: Serialize + Sync>(
     l2_transaction: &ClientTransaction<P>,
-) -> Result<Option<TransactionReceipt>, Box<dyn Error>>
-where
-    P: Proof,
-{
-    let blockchain_client = get_blockchain_client_connection()
-        .await
-        .read()
-        .await
-        .get_client();
-    debug!("Creating contract instance");
-    let nightfall_instance = Nightfall::new(get_addresses().nightfall, blockchain_client);
-    debug!("Processing client transaction");
-    let nightfall_l2_transaction = NightfallTransactionStruct::try_from(l2_transaction.clone())?;
-    debug!("Creating nightfall submit_client_transaction function call");
-    let call = nightfall_instance.submit_client_transaction(nightfall_l2_transaction);
-    debug!("Sending transaction");
-    let tx = call.send().await?;
-    let tx_receipt = tx.await?;
-    Ok(tx_receipt)
+    id: &str,
+) -> Result<Option<TransactionReceipt>, Box<dyn Error>> {
+    info!("{id} Sending client transaction to all proposers concurrently.");
+    const MAX_RETRIES: u32 = 3;
+    const INITIAL_BACKOFF: Duration = Duration::from_millis(500);
+
+    let client = Client::new();
+    let round_robin_instance = RoundRobin::new(
+        get_addresses().round_robin,
+        get_blockchain_client_connection()
+            .await
+            .read()
+            .await
+            .get_client(),
+    );
+    let proposers_struct: Vec<Proposer> = round_robin_instance.get_proposers().call().await?;
+    let db = get_db_connection().await.write().await;
+
+    let futures: Vec<_> = proposers_struct
+        .into_iter()
+        .map(|proposer| {
+            send_to_proposer_with_retry(
+                &client,
+                proposer,
+                l2_transaction,
+                id,
+                MAX_RETRIES,
+                INITIAL_BACKOFF,
+            )
+        })
+        .collect();
+
+    let results = join_all(futures).await;
+
+    let mut any_success = false;
+    let mut any_retriable_failures = false;
+
+    for result in results {
+        match result {
+            Ok(_) => {
+                any_success = true;
+            }
+            Err((msg, retriable)) => {
+                warn!("{id} Proposer error: {}", msg);
+                if retriable {
+                    any_retriable_failures = true;
+                }
+            }
+        }
+    }
+
+    if any_success {
+        db.update_request(id, RequestStatus::Submitted).await;
+        Ok(None)
+    } else if any_retriable_failures {
+        db.update_request(id, RequestStatus::ProposerUnreachable)
+            .await;
+        Err(Box::new(std::io::Error::new(
+            std::io::ErrorKind::TimedOut,
+            format!("{id} All proposers unreachable after retries."),
+        )))
+    } else {
+        db.update_request(id, RequestStatus::Failed).await;
+        Err(Box::new(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("{id} All proposers rejected the transaction."),
+        )))
+    }
 }
