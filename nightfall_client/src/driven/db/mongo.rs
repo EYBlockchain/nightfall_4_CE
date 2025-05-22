@@ -3,6 +3,8 @@ use ark_ff::{BigInteger, PrimeField};
 use ark_serialize::CanonicalSerialize;
 use async_trait::async_trait;
 use futures::TryStreamExt;
+use ethers::abi::AbiEncode;
+use ethers::types::{H256, I256};
 use hex::encode;
 use jf_primitives::poseidon::{FieldHasher, Poseidon};
 use jf_primitives::trees::{Directions, PathElement};
@@ -170,6 +172,8 @@ pub struct CommitmentEntry {
         default
     )]
     pub nullifier: Fr254,
+    pub layer_1_transaction_hash: Option<H256>,
+    pub layer_2_block_number:Option<I256>,
 }
 
 impl Commitment for CommitmentEntry {
@@ -205,6 +209,8 @@ impl CommitmentEntryDB for CommitmentEntry {
             status,
             nullifier,
             key,
+            layer_1_transaction_hash: None,
+            layer_2_block_number: None,
         }
     }
     fn get_status(&self) -> CommitmentStatus {
@@ -401,29 +407,15 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
         Some(())
     }
 
-    async fn mark_commitments_unspent(&self, commitments: &[Fr254]) -> Option<()> {
+    async fn mark_commitments_unspent(&self, commitments: &[Fr254], l1_hash: Option<H256>, l2_blocknumber: Option<I256>) -> Option<()> {
         let commitment_str = commitments
             .iter()
             .map(|c| hex::encode(c.into_bigint().to_bytes_le()))
             .collect::<Vec<_>>();
-        // Step 1: Check which commitments exist in the database before updating
-        let collection = self
-            .database(DB)
-            .collection::<CommitmentEntry>("commitments");
-        let mut found_commitments = Vec::new();
-
-        let mut missing_commitments = Vec::new();
-
-        for commitment in &commitment_str {
-            let filter = doc! { "key": commitment };
-            match collection.find_one(filter).await {
-                Ok(Some(_)) => found_commitments.push(commitment.clone()),
-                Ok(None) => missing_commitments.push(commitment.clone()),
-                Err(e) => ark_std::println!("Error querying commitment {}: {:?}", commitment, e),
-            }
-        }
+        let l1_hash = l1_hash.map(|h| h.encode_hex());
+        let l2_blocknumber = l2_blocknumber.map(|b| b.encode_hex());
         let filter = doc! { "key": { "$in": commitment_str }};
-        let update = doc! {"$set": { "status": "Unspent" }};
+        let update = doc! {"$set": { "status": "Unspent", "layer_1_transaction_hash": l1_hash, "layer_2_block_number": l2_blocknumber }};
         self.database(DB)
             .collection::<CommitmentEntry>("commitments")
             .update_many(filter, update)

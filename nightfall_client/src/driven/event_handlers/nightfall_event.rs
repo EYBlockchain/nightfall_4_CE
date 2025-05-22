@@ -256,7 +256,7 @@ async fn process_propose_block_event<N: NightfallContract>(
     }
     debug!("Updating commitment database with on-chain data");
     join!(
-        db.mark_commitments_unspent(&commitment_hashes),
+        db.mark_commitments_unspent(&commitment_hashes, Some(transaction_hash), Some(filter.layer_2_block_number) ),
         db.mark_commitments_spent(nullifiers)
     );
 
