@@ -407,10 +407,9 @@ pub async fn handle_deposit<N: NightfallContract>(
 
     // Add the mapping between request and commitment
     let commitment_hex = commitment_hash.to_hex_string();
-    if let Some(_) = db.add_mapping(&id, &commitment_hex).await {
-        debug!("{id} Mapped commitment to request");
-    } else {
-        error!("{id} Failed to  map commitment to request");
+    match db.add_mapping(id, &commitment_hex).await {
+        Ok(_) => debug!("{id} Mapped commitment to request"),
+        Err(e) => error!("{id} Failed to  map commitment to request: {e}"),
     }
 
     // Check if preimage_fee_option is Some, and store it in the DB if it exists
@@ -422,10 +421,9 @@ pub async fn handle_deposit<N: NightfallContract>(
 
         // Add the mapping for fee commitment as well
         let commitment_hex = commitment_hash.to_hex_string();
-        if let Some(_) = db.add_mapping(&id, &commitment_hex).await {
-            debug!("{id} Mapped deposit fee commitment to request");
-        } else {
-            error!("{id} Failed to  map deposit fee commitment to request");
+        match db.add_mapping(id, &commitment_hex).await {
+            Ok(_) => debug!("{id} Mapped deposit fee commitment to request"),
+            Err(e) => error!("{id} Failed to  map deposit fee commitment to request: {e}"),
         }
 
         let commitment_entry = CommitmentEntry::new(

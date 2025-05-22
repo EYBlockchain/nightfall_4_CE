@@ -41,7 +41,7 @@ pub trait CommitmentEntryDB: Commitment {
 
 #[async_trait]
 pub trait RequestCommitmentMappingDB {
-    async fn add_mapping(&self, request_id: &str, commitment_hash: &str) -> Option<()>;
+    async fn add_mapping(&self, request_id: &str, commitment_hash: &str) -> Result<(), String>;
     async fn get_requests_by_commitment(&self, commitment_hash: &str) -> Option<Vec<String>>;
     async fn get_commitments_by_request(&self, request_id: &str) -> Option<Vec<String>>;
 }

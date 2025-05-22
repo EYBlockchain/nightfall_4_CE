@@ -214,10 +214,10 @@ impl CommitmentEntryDB for CommitmentEntry {
 
 #[async_trait]
 impl RequestCommitmentMappingDB for Client {
-    async fn add_mapping(&self, request_id: &str, commitment_hash: &str) -> Option<()> {
+    async fn add_mapping(&self, request_id: &str, commitment_hash: &str) -> Result<(), String> {
         let mapping = RequestCommitmentMapping {
-            request_id: request_id.to_string(),
-            commitment_hash: commitment_hash.to_string(),
+            request_id: request_id.to_owned(),
+            commitment_hash: commitment_hash.to_owned(),
         };
 
         let result = self
@@ -227,10 +227,10 @@ impl RequestCommitmentMappingDB for Client {
             .await;
 
         match result {
-            Ok(_) => Some(()),
+            Ok(_) => Ok(()),
             Err(e) => {
-                info!("Error adding request-commitment mapping: {}", e);
-                None
+                error!("Error adding request-commitment mapping: {}", e);
+                Err(format!("DB error: {}", e))
             }
         }
     }

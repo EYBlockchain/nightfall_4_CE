@@ -92,10 +92,9 @@ where
 
                 // Add mapping between request and commitment
                 let commitment_hex = commitment_hash.to_hex_string();
-                if let Some(_) = db.add_mapping(id, &commitment_hex).await {
-                    debug!("{id} Mapped commitment to request");
-                } else {
-                    error!("{id} Failed to  map commitment to request");
+                match db.add_mapping(id, &commitment_hex).await {
+                    Ok(_) => debug!("{id} Mapped commitment to request"),
+                    Err(e) => error!("{id} Failed to  map commitment to request: {e}"),
                 }
             }
         }
