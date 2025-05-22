@@ -17,7 +17,7 @@ use ark_serialize::SerializationError;
 use ark_std::UniformRand;
 
 use jf_primitives::poseidon::{FieldHasher, Poseidon, PoseidonError};
-use log::error;
+use log::{error, warn};
 use nf_curves::ed_on_bn254::{BabyJubjub, Fr as BJJScalar};
 use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
@@ -273,7 +273,10 @@ impl From<u8> for TokenType {
             1 => TokenType::ERC1155,
             2 => TokenType::ERC721,
             3 => TokenType::ERC3525,
-            _ => TokenType::ERC20,
+            _ => {
+                warn!("TokenType value {} not supported, defaulting to ERC20", value);
+                TokenType::ERC20
+            },
         }
     }
 }
