@@ -2,9 +2,9 @@ use ark_bn254::Fr as Fr254;
 use ark_ff::{BigInteger, PrimeField};
 use ark_serialize::CanonicalSerialize;
 use async_trait::async_trait;
-use futures::TryStreamExt;
 use ethers::abi::AbiEncode;
 use ethers::types::{H256, I256};
+use futures::TryStreamExt;
 use hex::encode;
 use jf_primitives::poseidon::{FieldHasher, Poseidon};
 use jf_primitives::trees::{Directions, PathElement};
@@ -173,7 +173,7 @@ pub struct CommitmentEntry {
     )]
     pub nullifier: Fr254,
     pub layer_1_transaction_hash: Option<H256>,
-    pub layer_2_block_number:Option<I256>,
+    pub layer_2_block_number: Option<I256>,
 }
 
 impl Commitment for CommitmentEntry {
@@ -270,7 +270,7 @@ impl RequestCommitmentMappingDB for Client {
             .await
             .ok()?;
 
-            let mappings = cursor
+        let mappings = cursor
             .try_collect::<Vec<_>>()
             .await
             .ok()?
@@ -407,7 +407,12 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
         Some(())
     }
 
-    async fn mark_commitments_unspent(&self, commitments: &[Fr254], l1_hash: Option<H256>, l2_blocknumber: Option<I256>) -> Option<()> {
+    async fn mark_commitments_unspent(
+        &self,
+        commitments: &[Fr254],
+        l1_hash: Option<H256>,
+        l2_blocknumber: Option<I256>,
+    ) -> Option<()> {
         let commitment_str = commitments
             .iter()
             .map(|c| hex::encode(c.into_bigint().to_bytes_le()))

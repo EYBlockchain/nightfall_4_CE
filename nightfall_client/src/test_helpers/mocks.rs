@@ -151,7 +151,12 @@ impl CommitmentDB<Fr254, MockCommitmentEntry> for HashMap<Fr254, MockCommitmentE
         todo!()
     }
 
-    async fn mark_commitments_unspent(&self, _commitments: &[Fr254], _l1_hash: Option<H256>, _l2_blocknumber: Option<I256>) -> Option<()> {
+    async fn mark_commitments_unspent(
+        &self,
+        _commitments: &[Fr254],
+        _l1_hash: Option<H256>,
+        _l2_blocknumber: Option<I256>,
+    ) -> Option<()> {
         todo!()
     }
 

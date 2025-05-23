@@ -4,7 +4,9 @@ use futures::future::try_join_all;
 use lib::models::CertificateReq;
 use log::{debug, info, warn};
 use nightfall_client::{
-    domain::entities::HexConvertible, driven::db::mongo::CommitmentEntry, drivers::rest::{client_nf_3::WithdrawResponse, models::DeEscrowDataReq}
+    domain::entities::HexConvertible,
+    driven::db::mongo::CommitmentEntry,
+    drivers::rest::{client_nf_3::WithdrawResponse, models::DeEscrowDataReq},
 };
 use serde_json::Value;
 use std::fs;
@@ -450,7 +452,10 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
     info!("Querying commitment endpoint");
     let commitment_url = Url::parse(&settings.nightfall_client.url)
         .unwrap()
-        .join(&format!("v1/commitment/{}", commitment_hashes[0].to_hex_string()))
+        .join(&format!(
+            "v1/commitment/{}",
+            commitment_hashes[0].to_hex_string()
+        ))
         .unwrap();
     let commitment = http_client
         .get(commitment_url)
@@ -460,7 +465,11 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
         .json::<CommitmentEntry>()
         .await
         .expect("Failed to parse commitment entry");
-    assert_eq!(commitment.layer_2_block_number, Some(I256::zero()), "The commitment should be in block 0");
+    assert_eq!(
+        commitment.layer_2_block_number,
+        Some(I256::zero()),
+        "The commitment should be in block 0"
+    );
 
     info!("Making client2 fee commitments so that it can withdraw");
     // give client 2 some deposit fee commitments so that it can transact
@@ -770,20 +779,20 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
 
     //replace the empty withdraw_fund_salts in the withdraw_data with the salts from the withdraw_responses
     let de_escrow_data_requests = withdraw_payload
-    .iter_mut()
-    .zip(withdraw_responses.into_iter())
-    .map(|(l, r)| {
-        l.withdraw_fund_salt = r.withdraw_fund_salt.clone();
-        DeEscrowDataReq {
-            token_id: l.token_id.clone(),
-            erc_address: l.erc_address.clone(),
-            recipient_address: l.recipient_address.clone(),
-            value: l.value.clone(),
-            token_type: l.token_type.clone(),
-            withdraw_fund_salt: l.withdraw_fund_salt.clone(),
-        }
-    })
-    .collect::<Vec<_>>();
+        .iter_mut()
+        .zip(withdraw_responses.into_iter())
+        .map(|(l, r)| {
+            l.withdraw_fund_salt = r.withdraw_fund_salt.clone();
+            DeEscrowDataReq {
+                token_id: l.token_id.clone(),
+                erc_address: l.erc_address.clone(),
+                recipient_address: l.recipient_address.clone(),
+                value: l.value.clone(),
+                token_type: l.token_type.clone(),
+                withdraw_fund_salt: l.withdraw_fund_salt.clone(),
+            }
+        })
+        .collect::<Vec<_>>();
 
     let mut proceed = 0;
     while proceed == 0 {
@@ -908,20 +917,20 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
 
     //replace the empty withdraw_fund_salts in the withdraw_data with the salts from the withdraw_responses
     let de_escrow_data_requests = withdraw_payload
-    .iter_mut()
-    .zip(withdraw_responses.into_iter())
-    .map(|(l, r)| {
-        l.withdraw_fund_salt = r.withdraw_fund_salt.clone();
-        DeEscrowDataReq {
-            token_id: l.token_id.clone(),
-            erc_address: l.erc_address.clone(),
-            recipient_address: l.recipient_address.clone(),
-            value: l.value.clone(),
-            token_type: l.token_type.clone(),
-            withdraw_fund_salt: l.withdraw_fund_salt.clone(),
-        }
-    })
-    .collect::<Vec<_>>();
+        .iter_mut()
+        .zip(withdraw_responses.into_iter())
+        .map(|(l, r)| {
+            l.withdraw_fund_salt = r.withdraw_fund_salt.clone();
+            DeEscrowDataReq {
+                token_id: l.token_id.clone(),
+                erc_address: l.erc_address.clone(),
+                recipient_address: l.recipient_address.clone(),
+                value: l.value.clone(),
+                token_type: l.token_type.clone(),
+                withdraw_fund_salt: l.withdraw_fund_salt.clone(),
+            }
+        })
+        .collect::<Vec<_>>();
 
     proceed = 0;
 
