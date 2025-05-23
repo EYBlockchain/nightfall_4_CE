@@ -132,6 +132,7 @@ services:
       - AZURE_CLIENT_ID=${AZURE_CLIENT_ID}
       - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
       - AZURE_TENANT_ID=${AZURE_TENANT_ID}
+      - WEBHOOK_URL=${WEBHOOK_URL}
   proposer:
     container_name: nf4_proposer
     stop_grace_period: 3s
@@ -467,6 +468,8 @@ services:
       start_period: 0s
     networks:
       - nightfall_network
+    ports:
+      - "8545:8545" 
     
   test:
     container_name: nf4_test
