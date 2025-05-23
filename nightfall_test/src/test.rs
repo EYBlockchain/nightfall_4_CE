@@ -64,12 +64,42 @@ use uuid::Uuid;
 
 const REQUEST_ID: &str = "X-Request-ID";
 
-/// Function to create a chain reorg on the Anvil test rpc.
-pub async fn anvil_reorg(client: &reqwest::Client, url: &Url, depth: u64) -> Result<(), TestError> {
+/// Function to create a chain reorg on the Anvil test rpc., optionally passing in new transactions to be included in the reorg.
+/// Here are some example transactions to pass in. They're json objects and can be stored in Value type.
+///    [
+///        {
+///            "from": "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc",
+///            "to": "0x976EA74026E726554dB657fA54763abd0C3a0aa9",
+///            "value": 100
+///        },
+///        1
+///    ],
+///    [
+///        {
+///            "from": "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc",
+///            "to": "0x976EA74026E726554dB657fA54763abd0C3a0aa9",
+///            "value": 200
+///        },
+///        2
+///    ]
+pub async fn anvil_reorg(
+    client: &reqwest::Client,
+    url: &Url,
+    depth: u64,
+    new_transactions: Option<Value>,
+) -> Result<(), TestError> {
+    let new_transactions = if let Some(nt) = new_transactions {
+        nt
+    } else {
+        // If no new transactions are provided, we'll provide an empty array.
+        serde_json::json!([
+                // transactions go here
+            ])
+    };
     let payload = serde_json::json!({
         "jsonrpc": "2.0",
         "method": "anvil_reorg",
-        "params": [depth, []],
+        "params": [depth, new_transactions ],
         "id": 1
     });
 
@@ -294,16 +324,20 @@ pub fn forge_command(command: &[&str]) {
 /// This function gets the latest layer 2 block number from the responses vector that the webhook server populates
 pub async fn get_latest_l2_block_number(responses: Arc<Mutex<Vec<Value>>>) -> Option<u64> {
     let responses = responses.lock().await;
-    responses.iter().map(|r| {
-        // Deserialize the JSON value into a NotificationPayload
-        serde_json::from_value::<NotificationPayload>(r.clone()).unwrap()
-    })
-    // Filter the NotificationPayloads to find the ones that are BlockchainEvents and extract the l2_block_number
-    .filter_map(|r| match r {
-        NotificationPayload::BlockchainEvent { l2_block_number, .. } => Some(l2_block_number.as_u64()),
-        _ => None,
-    })
-    .max()
+    responses
+        .iter()
+        .map(|r| {
+            // Deserialize the JSON value into a NotificationPayload
+            serde_json::from_value::<NotificationPayload>(r.clone()).unwrap()
+        })
+        // Filter the NotificationPayloads to find the ones that are BlockchainEvents and extract the l2_block_number
+        .filter_map(|r| match r {
+            NotificationPayload::BlockchainEvent {
+                l2_block_number, ..
+            } => Some(l2_block_number.as_u64()),
+            _ => None,
+        })
+        .max()
 }
 
 /// This function waits until a Webhook response is received for every Request ID
@@ -928,10 +962,13 @@ pub fn build_valid_transfer_inputs(rng: &mut impl Rng) -> (PublicInputs, Private
 
 #[cfg(test)]
 mod tests {
-    use ethers::{providers::{Http, Provider}, utils::Anvil};
+    use super::*;
+    use ethers::{
+        providers::{Http, Provider},
+        utils::Anvil,
+    };
     use ethers_middleware::Middleware;
     use reqwest::Client;
-    use super::*;
 
     #[tokio::test]
     async fn test_anvil_reorg() {
@@ -941,8 +978,14 @@ mod tests {
         let provider = Provider::<Http>::try_from(anvil.endpoint()).unwrap();
 
         // Mine three blocks to ensure there is some chain history before reorg
-        provider.request::<_, ()>("anvil_mine", serde_json::json!([3])).await.unwrap();
-        assert_eq!(provider.get_block_number().await.unwrap(), ethers::types::U64::from(3));
+        provider
+            .request::<_, ()>("anvil_mine", serde_json::json!([3]))
+            .await
+            .unwrap();
+        assert_eq!(
+            provider.get_block_number().await.unwrap(),
+            ethers::types::U64::from(3)
+        );
 
         // get the balances of the first two accounts
         let accounts = provider.get_accounts().await.unwrap();
@@ -962,23 +1005,39 @@ mod tests {
             .await
             .unwrap();
         // wait for the transaction to be mined
-        let tx_receipt  = tx.await.unwrap().unwrap();
+        let tx_receipt = tx.await.unwrap().unwrap();
         // check that the block number is 4
-        assert_eq!(tx_receipt.block_number.unwrap(), ethers::types::U64::from(4));
+        assert_eq!(
+            tx_receipt.block_number.unwrap(),
+            ethers::types::U64::from(4)
+        );
         // check that the node also thinks the block number is 4
-        assert_eq!(provider.get_block_number().await.unwrap(), ethers::types::U64::from(4));
+        assert_eq!(
+            provider.get_block_number().await.unwrap(),
+            ethers::types::U64::from(4)
+        );
         // check that the transaction is in the block
-        let block = provider.get_block_with_txs(tx_receipt.block_number.unwrap()).await.unwrap().unwrap();
-        assert!(block.transactions.iter().any(|t| t.hash == tx_receipt.transaction_hash));
- 
+        let block = provider
+            .get_block_with_txs(tx_receipt.block_number.unwrap())
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(block
+            .transactions
+            .iter()
+            .any(|t| t.hash == tx_receipt.transaction_hash));
+
         // Check the balances transferred after the transaction
         let new_balance2 = provider.get_balance(to, None).await.unwrap();
-        assert_eq!(new_balance2, balance2 + ethers::types::U256::from(100_000_000_000_000_000u128));
+        assert_eq!(
+            new_balance2,
+            balance2 + ethers::types::U256::from(100_000_000_000_000_000u128)
+        );
 
         // simulate a reorg of depth 1
         let url = Url::parse(&endpoint).unwrap();
         let client = Client::new();
-        anvil_reorg(&client, &url, 1).await.unwrap();
+        anvil_reorg(&client, &url, 1, None).await.unwrap();
         // Check the block number after the reorg, it should not have changed because the reorged chain has the same depth (a property of Anvil)
         let new_block_number = provider.get_block_number().await.unwrap();
         assert_eq!(new_block_number, ethers::types::U64::from(4));
@@ -988,8 +1047,14 @@ mod tests {
         assert_eq!(reverted_balance1, balance1);
         assert_eq!(reverted_balance2, balance2);
         // Check that the transaction is no longer in the block
-        let block = provider.get_block_with_txs(new_block_number).await.unwrap().unwrap();
-        assert!(!block.transactions.iter().any(|t| t.hash == tx_receipt.transaction_hash));
+        let block = provider
+            .get_block_with_txs(new_block_number)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(!block
+            .transactions
+            .iter()
+            .any(|t| t.hash == tx_receipt.transaction_hash));
     }
 }
-
