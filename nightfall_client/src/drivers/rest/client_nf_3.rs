@@ -13,7 +13,7 @@ use crate::{
         queue::{get_queue, QueuedRequest, TransactionRequest},
     },
     get_zkp_keys,
-    ports::{commitments::Nullifiable, contracts::NightfallContract, db::RequestDB},
+    ports::{commitments::Nullifiable, contracts::NightfallContract, db::{RequestCommitmentMappingDB, RequestDB}},
 };
 use crate::{
     domain::{
@@ -239,6 +239,8 @@ pub async fn handle_deposit<N: NightfallContract>(
         return Err(TransactionHandlerError::ClientNotSynchronized);
     }
 
+    info!("Deposit raw request: {:?}", req);
+
     // We convert the request into values
     let NF3DepositRequest {
         erc_address,
@@ -403,12 +405,26 @@ pub async fn handle_deposit<N: NightfallContract>(
 
     debug!("{id} Deposit commitment stored successfully");
 
+    // Add the mapping between request and commitment
+    let commitment_hex = commitment_hash.to_hex_string();
+    match db.add_mapping(id, &commitment_hex).await {
+        Ok(_) => debug!("{id} Mapped commitment to request"),
+        Err(e) => error!("{id} Failed to  map commitment to request: {e}"),
+    }
+
     // Check if preimage_fee_option is Some, and store it in the DB if it exists
     if let Some(preimage_fee) = preimage_fee_option {
         let nullifier = preimage_fee
             .nullifier_hash(&nullifier_key)
             .expect("Could not hash commitment");
         let commitment_hash = preimage_fee.hash().expect("Could not hash commitment");
+
+        // Add the mapping for fee commitment as well
+        let commitment_hex = commitment_hash.to_hex_string();
+        match db.add_mapping(id, &commitment_hex).await {
+            Ok(_) => debug!("{id} Mapped deposit fee commitment to request"),
+            Err(e) => error!("{id} Failed to  map deposit fee commitment to request: {e}"),
+        }
 
         let commitment_entry = CommitmentEntry::new(
             preimage_fee,

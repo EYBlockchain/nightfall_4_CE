@@ -1,6 +1,6 @@
 use crate::{
     domain::{
-        entities::{CommitmentStatus, CompressedSecrets, HexConvertible, Preimage, Salt},
+        entities::{CommitmentStatus, CompressedSecrets, HexConvertible, Preimage, RequestStatus, Salt},
         error::EventHandlerError,
         notifications::NotificationPayload,
     },
@@ -14,7 +14,7 @@ use crate::{
     ports::{
         commitments::{Commitment, Nullifiable},
         contracts::NightfallContract,
-        db::{CommitmentDB, CommitmentEntryDB},
+        db::{CommitmentDB, CommitmentEntryDB, RequestCommitmentMappingDB, RequestDB},
         events::EventHandler,
         trees::CommitmentTree,
     },
@@ -35,7 +35,7 @@ use log::{debug, error, info, warn};
 use nightfall_bindings::nightfall::{
     BlockProposedFilter, DepositEscrowedFilter, NightfallCalls, NightfallEvents, ProposeBlockCall,
 };
-use std::{error::Error, sync::OnceLock};
+use std::{error::Error, sync::OnceLock, collections::HashSet};
 use tokio::{join, sync::Mutex};
 
 // Define a mutable lazy static to hold the layer 2 blocknumber. We need this to
@@ -260,6 +260,18 @@ async fn process_propose_block_event<N: NightfallContract>(
         db.mark_commitments_spent(nullifiers)
     );
 
+    debug!("Updating request status for confirmed commitments");
+    for commitment_hash in &commitment_hashes {
+        let commitment_hex = commitment_hash.to_hex_string();
+        if let Some(request_ids) = db.get_requests_by_commitment(&commitment_hex).await {
+            for request_id in request_ids {
+                debug!("Marking request {} as confirmed", request_id);
+                db.update_request(&request_id, RequestStatus::Confirmed)
+                    .await;
+            }
+        }
+    }
+
     // now attempt to decrypt the compressed secrets to see which commitments (if any) we own
     let mut commitment_entries = vec![];
     for transaction in blk.transactions.iter() {
@@ -348,16 +360,29 @@ async fn process_propose_block_event<N: NightfallContract>(
 
     // Let's get the full hash as it gets truncated otherwise
     let l1_txn_hash = format!("{:#x}", transaction_hash);
-    let owned_commitment_hashes = commitment_hashes
+    let owned_commitment_hashes: Vec<String> = commitment_hashes
         .iter()
         .filter(|&c| !c.0.is_zero())
         .map(|&c| c.to_hex_string())
         .collect();
 
+    // Get request IDs associated with commitments
+    let mut request_id_set = HashSet::new();
+    for commitment_hash in owned_commitment_hashes.clone() {
+        if let Some(ids) = db.get_requests_by_commitment(&commitment_hash).await {
+            for id in ids {
+                request_id_set.insert(id);
+            }
+        }
+    }
+
+    let request_ids = request_id_set.into_iter().collect();
+
     let notification = NotificationPayload::BlockchainEvent {
         l1_txn_hash,
         l2_block_number: filter.layer_2_block_number,
         commitments: owned_commitment_hashes,
+        request_ids,
     };
 
     publisher.publish(notification).await;
