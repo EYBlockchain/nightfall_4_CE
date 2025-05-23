@@ -23,6 +23,13 @@ pub mod erc721_mock {
                         ),
                     },
                     ::ethers::core::abi::ethabi::Param {
+                        name: ::std::borrow::ToOwned::to_owned("initial_id2"),
+                        kind: ::ethers::core::abi::ethabi::ParamType::Uint(256usize),
+                        internal_type: ::core::option::Option::Some(
+                            ::std::borrow::ToOwned::to_owned("uint256"),
+                        ),
+                    },
+                    ::ethers::core::abi::ethabi::Param {
                         name: ::std::borrow::ToOwned::to_owned("initialOwner"),
                         kind: ::ethers::core::abi::ethabi::ParamType::Address,
                         internal_type: ::core::option::Option::Some(

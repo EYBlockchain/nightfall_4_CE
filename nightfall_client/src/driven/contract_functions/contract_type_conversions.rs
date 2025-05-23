@@ -57,11 +57,11 @@ pub struct FrBn254(pub ark_bn254::Fr);
 impl TryFrom<U256> for FrBn254 {
     type Error = ConversionError;
     fn try_from(u256: U256) -> Result<Self, ConversionError> {
-        let max_positive = Uint256::from(<Fr254 as PrimeField>::MODULUS).into();
+        let max_positive = Uint256::from(<Fr254 as PrimeField>::MODULUS).0;
         if u256 > max_positive {
             return Err(ConversionError::Overflow);
         }
-        Ok(FrBn254(Fr254::new(BigInteger256::new(u256.0))))
+        Ok(FrBn254(Fr254::new(BigInt::<4>::from(Uint256(u256)))))
     }
 }
 impl From<FrBn254> for Fr254 {
