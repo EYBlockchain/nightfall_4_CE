@@ -57,7 +57,7 @@ fn main() {
 pub fn generate_proving_keys(settings: &Settings) -> Result<(), PlonkError> {
     // Generate a dummy circuit.
     let (mut public_inputs, mut private_inputs) =
-        build_valid_transfer_inputs(&mut ark_std::test_rng());
+        build_valid_transfer_inputs(&mut ark_std::rand::thread_rng());
     let mut circuit = unified_circuit_builder(&mut public_inputs, &mut private_inputs)?;
 
     circuit.finalize_for_recursive_arithmetization::<RescueCRHF<Fq254>>()?;
@@ -301,7 +301,7 @@ pub fn build_valid_transfer_inputs(rng: &mut impl Rng) -> (PublicInputs, Private
     let mut rng_erc_address = rand::thread_rng();
     let erc_address: [u8; 20] = rng_erc_address.gen();
     let erc_address_string = format!("0x{}", hex::encode(erc_address));
-    let mut rng_token_id = jf_utils::test_rng();
+    let mut rng_token_id = ark_std::rand::thread_rng();
     let token_id_fr = Fr254::rand(&mut rng_token_id);
     let token_id_string = Fr254::to_hex_string(&token_id_fr);
 
