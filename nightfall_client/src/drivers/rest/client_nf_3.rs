@@ -13,7 +13,11 @@ use crate::{
         queue::{get_queue, QueuedRequest, TransactionRequest},
     },
     get_zkp_keys,
-    ports::{commitments::Nullifiable, contracts::NightfallContract, db::{RequestCommitmentMappingDB, RequestDB}},
+    ports::{
+        commitments::Nullifiable,
+        contracts::NightfallContract,
+        db::{RequestCommitmentMappingDB, RequestDB},
+    },
 };
 use crate::{
     domain::{

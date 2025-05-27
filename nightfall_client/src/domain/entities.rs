@@ -284,9 +284,12 @@ impl From<u8> for TokenType {
             2 => TokenType::ERC721,
             3 => TokenType::ERC3525,
             _ => {
-                warn!("TokenType value {} not supported, defaulting to ERC20", value);
+                warn!(
+                    "TokenType value {} not supported, defaulting to ERC20",
+                    value
+                );
                 TokenType::ERC20
-            },
+            }
         }
     }
 }
