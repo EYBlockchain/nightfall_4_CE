@@ -18,7 +18,6 @@ use nf_curves::ed_on_bn254::BJJTEAffine as JubJub;
 use serde::{Deserialize, Serialize};
 use std::{cmp, cmp::Ordering, collections::VecDeque, fmt::Debug, sync::Arc};
 use tokio::sync::Mutex;
-use tokio::sync::RwLockWriteGuard;
 
 const MAX_POSSIBLE_COMMITMENTS: usize = 2;
 
