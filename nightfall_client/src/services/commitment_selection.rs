@@ -287,13 +287,11 @@ mod test {
         // fee: 1, 2, 5, 3, 6,token_id: 2, target_fee: 4, output: 1,3
         // Set up MongoDB test container
         let container = get_mongo().await;
-        let client = get_db_connection(&container).await;
-        let db_lock = Arc::new(tokio::sync::RwLock::new(client));
+        let db = get_db_connection(&container).await;
 
         // Insert mock commitments into a single database collection
         {
-            let db_write = db_lock.write().await;
-            let database = db_write.database("nightfall");
+            let database = db.database("nightfall");
             let commitments_collection = database.collection::<CommitmentEntry>("commitments");
 
             let commitments = vec![
@@ -393,10 +391,9 @@ mod test {
         let fee_token_id = Fr254::from(2u64);
 
         {
-            let mut db_write = db_lock.write().await;
             let value_result =
-                find_usable_commitments(nf_token_id, target_value, &mut db_write).await;
-            let fee_result = find_usable_commitments(fee_token_id, target_fee, &mut db_write).await;
+                find_usable_commitments(nf_token_id, target_value, &db).await;
+            let fee_result = find_usable_commitments(fee_token_id, target_fee, &db).await;
 
             // Validate results
             assert!(value_result.is_ok(), "Value Commitment selection failed");
@@ -442,13 +439,11 @@ mod test {
         // value: 5,6,7,token_id: 1, target_value: 3, output: 5
         // Set up MongoDB test container
         let container = get_mongo().await;
-        let client = get_db_connection(&container).await;
-        let db_lock = Arc::new(tokio::sync::RwLock::new(client));
+        let db = get_db_connection(&container).await;
 
         // Insert mock commitments into a single database collection
         {
-            let db_write = db_lock.write().await;
-            let database = db_write.database("nightfall");
+            let database = db.database("nightfall");
             let commitments_collection = database.collection::<CommitmentEntry>("commitments");
 
             let commitments = vec![
@@ -489,9 +484,8 @@ mod test {
         let nf_token_id = Fr254::from(1u64);
 
         {
-            let mut db_write = db_lock.write().await;
             let value_result =
-                find_usable_commitments(nf_token_id, target_value, &mut db_write).await;
+                find_usable_commitments(nf_token_id, target_value, &db).await;
             // Validate results
             assert!(value_result.is_ok(), "Commitment selection failed");
             let selected_value_commitments = value_result.unwrap();
@@ -522,13 +516,11 @@ mod test {
         // fee: 2,5,6,12,13,token_id: 2, target_fee: 12, output: 12
         // Set up MongoDB test container
         let container = get_mongo().await;
-        let client = get_db_connection(&container).await;
-        let db_lock = Arc::new(tokio::sync::RwLock::new(client));
+        let db = get_db_connection(&container).await;
 
         // Insert mock commitments into a single database collection
         {
-            let db_write = db_lock.write().await;
-            let database = db_write.database("nightfall");
+            let database = db.database("nightfall");
             let commitments_collection = database.collection::<CommitmentEntry>("commitments");
 
             let commitments = vec![
@@ -611,15 +603,14 @@ mod test {
         let fee_token_id = Fr254::from(2u64);
 
         {
-            let mut db_write = db_lock.write().await;
             let value_result =
-                find_usable_commitments(nf_token_id, target_value, &mut db_write).await;
+                find_usable_commitments(nf_token_id, target_value, &db).await;
 
             // Validate results
             assert!(value_result.is_ok(), "Commitment selection failed");
             let selected_value_commitments = value_result.unwrap();
 
-            let fee_result = find_usable_commitments(fee_token_id, target_fee, &mut db_write).await;
+            let fee_result = find_usable_commitments(fee_token_id, target_fee, &db).await;
 
             // Validate results
             assert!(fee_result.is_ok(), "Commitment selection failed");
@@ -663,13 +654,11 @@ mod test {
         // value: 5,6,7,token_id: 1, target_value: 14, catch error
         // Set up MongoDB test container
         let container = get_mongo().await;
-        let client = get_db_connection(&container).await;
-        let db_lock = Arc::new(tokio::sync::RwLock::new(client));
+        let db = get_db_connection(&container).await;
 
         // Insert mock commitments into a single database collection
         {
-            let db_write = db_lock.write().await;
-            let database = db_write.database("nightfall");
+            let database = db.database("nightfall");
             let commitments_collection = database.collection::<CommitmentEntry>("commitments");
 
             let commitments = vec![
@@ -710,8 +699,7 @@ mod test {
         let nf_token_id = Fr254::from(1u64);
 
         {
-            let mut db_write = db_lock.write().await;
-            let result = find_usable_commitments(nf_token_id, target_value, &mut db_write).await;
+            let result = find_usable_commitments(nf_token_id, target_value, &db).await;
             // catch error
             match result {
                 Ok(_) => panic!("Expected an error, but got Ok."),
@@ -732,13 +720,12 @@ mod test {
         // value: 5,6,7,token_id: 1, target_value: 100, catch error
         // Set up MongoDB test container
         let container = get_mongo().await;
-        let client = get_db_connection(&container).await;
-        let db_lock = Arc::new(tokio::sync::RwLock::new(client));
+        let db = get_db_connection(&container).await;
+        
 
         // Insert mock commitments into a single database collection
         {
-            let db_write = db_lock.write().await;
-            let database = db_write.database("nightfall");
+            let database = db.database("nightfall");
             let commitments_collection = database.collection::<CommitmentEntry>("commitments");
 
             let commitments = vec![
@@ -778,8 +765,7 @@ mod test {
         let target_value = Fr254::from(100u64);
         let nf_token_id = Fr254::from(1u64);
         {
-            let mut db_write = db_lock.write().await;
-            let result = find_usable_commitments(nf_token_id, target_value, &mut db_write).await;
+            let result = find_usable_commitments(nf_token_id, target_value, &db).await;
             // catch error
             match result {
                 Ok(_) => panic!("Expected an error, but got Ok."),
