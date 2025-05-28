@@ -6,43 +6,43 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-reqwest = { version = "0.11.6", features = ["json", "blocking"] }
+reqwest = { version = "0.11.27", features = ["json", "blocking"] }
 warp = "0.3.7"
-async-trait = "0.1.82"
-hex = "0.4.2"
+async-trait = "0.1.88"
+hex = "0.4.3"
 dotenv = "0.15.0"
 x509-parser = "0.16.0"
-openssl = "0.10.66"
-ethers = { version = "2.0.10", features = ["ws"] }
-tokio = { version = "1.25.0", features = ["full"] }
-ethers-solc = "2.0.8"
+openssl = "0.10.72"
+ethers = { version = "2.0.14", features = ["ws"] }
+tokio = { version = "1.45.0", features = ["full"] }
+ethers-solc = "2.0.14"
 configuration = { path = "../configuration" }
-toml = "0.8.8"
-ark-serialize = "0.4.0"
+toml = "0.8.22"
+ark-serialize = "0.4.2"
 ark-std = { version = "0.4.0", default-features = false }
 ark-bn254 = "0.4.0"
-alloy-rlp = "0.3.11" 
+alloy-rlp = "0.3.12" 
 jf-plonk = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", features = [
     "test-srs",
 ] }
 jf-relation = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git" }
 jf-primitives = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git" }
 nf-curves = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git" }
-ark-ec = { version = "0.4.0", features = ["parallel"] }
-num-bigint = "0.4.3"
+ark-ec = { version = "0.4.2", features = ["parallel"] }
+num-bigint = "0.4.6"
 nightfall-bindings = { path = "../nightfall_bindings" }
 ark-ff = { version = "0.4.2", features = ["parallel"] }
-mongodb = "3.0.1"
-serde = "1.0.208"
-log = "0.4.22"
-url = "2.5.2"
+mongodb = "3.2.3"
+serde = "1.0.219"
+log = "0.4.27"
+url = "2.5.4"
 testcontainers = { version = "0.19.0", features = ["blocking"] }
-futures = "0.3.30"
+futures = "0.3.31"
 azure_identity = "0.21.0"
 azure_security_keyvault = "0.21.0"
 [build-dependencies]
 configuration = { path = "../configuration" }
-tokio = { version = "1.39.3", features = ["full"] }
+tokio = { version = "1.45.0", features = ["full"] }
 jf-primitives = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git" }
 jf-plonk = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", features = [
     "test-srs",
@@ -50,5 +50,5 @@ jf-plonk = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", featu
 
 
 [dev-dependencies]
-url = "2.4.0"
-serde_json = "1.0.93"
+url = "2.5.4"
+serde_json = "1.0.140"

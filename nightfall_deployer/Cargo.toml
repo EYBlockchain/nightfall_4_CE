@@ -13,21 +13,21 @@ path = "bin/key_generation.rs"
 jf-utils = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", features = [
     "parallel",
 ] }
-itertools = "0.10.1"
+itertools = "0.10.5"
 dotenv = "0.15.0"
-ethers = { version = "2.0.10", features = ["ws"] }
-tokio = { version = "1.25.0", features = ["full"] }
-ethers-solc = "2.0.8"
+ethers = { version = "2.0.14", features = ["ws"] }
+tokio = { version = "1.45.0", features = ["full"] }
+ethers-solc = "2.0.14"
 configuration = { path = "../configuration" }
 nightfall_test = { path = "../nightfall_test" }
-toml = "0.8.8"
-serde = "1.0.173"
-log = "0.4.20"
-warp = "0.3.3"
+toml = "0.8.22"
+serde = "1.0.219"
+log = "0.4.27"
+warp = "0.3.7"
 sha2 = "0.10"
 nightfall_client = { path = "../nightfall_client" }
 nightfall_proposer = { path = "../nightfall_proposer" }
-ark-serialize = "0.4.0"
+ark-serialize = "0.4.2"
 ark-std = { version = "0.4.0", default-features = false }
 ark-bn254 = "0.4.0"
 jf-plonk = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", features = [
@@ -36,20 +36,20 @@ jf-plonk = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", featu
 jf-relation = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git" }
 jf-primitives = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git" }
 nf-curves = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git" }
-ark-ec = { version = "0.4.0", features = ["parallel"] }
-ark-ff = { version = "0.4.0", features = ["parallel"] }
-ark-poly = { version = "0.4.0", features = ["parallel"] }
-num-bigint = "0.4.3"
+ark-ec = { version = "0.4.2", features = ["parallel"] }
+ark-ff = { version = "0.4.2", features = ["parallel"] }
+ark-poly = { version = "0.4.2", features = ["parallel"] }
+num-bigint = "0.4.6"
 nightfall-bindings = { path = "../nightfall_bindings" }
-reqwest = { version = "0.11.6", features = ["json", "blocking"] }
-url = "2.5.2"
+reqwest = { version = "0.11.27", features = ["json", "blocking"] }
+url = "2.5.4"
 
 [build-dependencies]
 configuration = { path = "../configuration" }
-log = "0.4.20"
+log = "0.4.27"
 
 [dev-dependencies]
-url = "2.4.0"
+url = "2.5.4"
 jf-utils = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git" }
 
 [features]
