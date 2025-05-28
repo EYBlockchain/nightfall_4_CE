@@ -550,7 +550,7 @@ where
     // Select the commitments to be spent.
     let spend_commitments;
     {
-        let db = &mut get_db_connection().await;
+        let db = get_db_connection().await;
         let fee_token_id = get_fee_token_id();
         let spend_value_commitments = find_usable_commitments(nf_token_id, value,db)
         .await.map_err(|e|{
@@ -721,7 +721,7 @@ where
     let spend_commitments;
 
     {
-        let db = &mut get_db_connection().await;
+        let db = get_db_connection().await;
         let fee_token_id = get_fee_token_id();
         let spend_value_commitments = find_usable_commitments(nf_token_id, value,db)
         .await.map_err(|e|{

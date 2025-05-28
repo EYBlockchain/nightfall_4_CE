@@ -399,11 +399,9 @@ where
 mod tests {
     use super::*;
     use nightfall_client::driven::plonk_prover::plonk_proof::PlonkProof;
-    use std::sync::Arc;
     use testcontainers::{
         core::IntoContainerPort, runners::AsyncRunner, ContainerAsync, GenericImage,
     };
-    use tokio::sync::Mutex;
 
     async fn get_mongo() -> ContainerAsync<GenericImage> {
         GenericImage::new("mongo", "4.4.1-bionic")
@@ -429,12 +427,10 @@ mod tests {
         // left deposit = None
         // left client transactions: None
         let container = get_mongo().await;
-        let db_client = get_db_connection(&container).await;
-        let db = Arc::new(Mutex::new(db_client));
-
+        let db = get_db_connection(&container).await;
+       
         // **1. Insert 240 deposits into mempool**
         {
-            let mut db_write = db.lock().await;
             let deposits: Vec<DepositDatawithFee> = (1..=240)
                 .map(|i| DepositDatawithFee {
                     fee: Fr254::from(i),
@@ -448,14 +444,13 @@ mod tests {
                 .collect();
 
             <mongodb::Client as TransactionsDB<PlonkProof>>::set_mempool_deposits(
-                &mut *db_write,
+                &db,
                 deposits,
             )
             .await;
         }
         // **2. Insert 32 client transactions into mempool**
         {
-            let db_write = db.lock().await;
             let transactions: Vec<ClientTransactionWithMetaData<PlonkProof>> = (241..=244)
                 .map(|i| ClientTransactionWithMetaData {
                     client_transaction: nightfall_client::domain::entities::ClientTransaction {
@@ -471,14 +466,13 @@ mod tests {
                 .collect();
 
             for tx in transactions {
-                db_write.store_transaction(tx).await.unwrap();
+                db.store_transaction(tx).await.unwrap();
             }
         }
 
-        let db_clone = Arc::clone(&db);
+    
         let result = {
-            let mut db_lock = db_clone.lock().await;
-            prepare_block_data::<PlonkProof>(&mut db_lock).await
+            prepare_block_data::<PlonkProof>(&db).await
         };
 
         assert!(result.is_ok(), "prepare_block_data failed");
@@ -520,8 +514,7 @@ mod tests {
 
         // **3. Check that the remaining 2 deposits are stored back in the mempool**
         let remaining_deposits = {
-            let mut db_lock = db.lock().await;
-            <mongodb::Client as TransactionsDB<PlonkProof>>::get_mempool_deposits(&mut *db_lock)
+            <mongodb::Client as TransactionsDB<PlonkProof>>::get_mempool_deposits(&db)
                 .await
         };
         assert!(
@@ -538,12 +531,10 @@ mod tests {
         // Used deposit  (2...=257)
         // left deposit = (1)
         let container = get_mongo().await;
-        let db_client = get_db_connection(&container).await;
-        let db = Arc::new(Mutex::new(db_client));
+        let db = get_db_connection(&container).await;
 
         // Insert 257 deposit transactions into mempool**
         {
-            let mut db_write = db.lock().await;
             let deposits: Vec<DepositDatawithFee> = (1..=257)
                 .map(|i| DepositDatawithFee {
                     fee: Fr254::from(i),
@@ -557,16 +548,15 @@ mod tests {
                 .collect();
 
             <mongodb::Client as TransactionsDB<PlonkProof>>::set_mempool_deposits(
-                &mut *db_write,
+            &db,
                 deposits,
             )
             .await;
         }
 
-        let db_clone = Arc::clone(&db);
+
         let result = {
-            let mut db_lock = db_clone.lock().await;
-            prepare_block_data::<PlonkProof>(&mut db_lock).await
+            prepare_block_data::<PlonkProof>(&db).await
         };
 
         assert!(result.is_ok(), "Should succeed with only on-chain deposits");
@@ -594,8 +584,7 @@ mod tests {
         );
 
         let remaining_deposits = {
-            let mut db_lock = db.lock().await;
-            <mongodb::Client as TransactionsDB<PlonkProof>>::get_mempool_deposits(&mut *db_lock)
+            <mongodb::Client as TransactionsDB<PlonkProof>>::get_mempool_deposits(&db)
                 .await
         };
         // fee in the remaining deposit should be 1
