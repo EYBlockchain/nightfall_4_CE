@@ -63,6 +63,119 @@ use url::Url;
 use uuid::Uuid;
 
 const REQUEST_ID: &str = "X-Request-ID";
+const MINING_INTERVAL: u32 = 5; // the mining interval
+
+/// This function sets the mining interval to be MINING_INTERVAL and ensures that automining is off
+/// We don't want to rely on the initial configuration of Anvil being correct.
+pub async fn set_anvil_mining_interval(
+    client: &reqwest::Client,
+    url: &Url,
+    interval: u32,
+) -> Result<(), TestError> {
+    // Disable automining
+    let disable_automine = serde_json::json!({
+        "jsonrpc": "2.0",
+        "method": "evm_setAutomine",
+        "params": [false],
+        "id": 1
+    });
+    client
+        .post(url.clone())
+        .json(&disable_automine)
+        .send()
+        .await
+        .map_err(|e| TestError::new(e.to_string()))?
+        .error_for_status_ref()
+        .map_err(|e| TestError::new(e.to_string()))?;
+
+    // Set interval mining
+    let set_interval = serde_json::json!({
+        "jsonrpc": "2.0",
+        "method": "evm_setIntervalMining",
+        "params": [interval],
+        "id": 1
+    });
+    client
+        .post(url.clone())
+        .json(&set_interval)
+        .send()
+        .await
+        .map_err(|e| TestError::new(e.to_string()))?
+        .error_for_status_ref()
+        .map_err(|e| TestError::new(e.to_string()))?;
+
+    Ok(())
+}
+
+/// This function will return the transactions in the last n blocks
+pub async fn get_transactions_in_last_n_blocks(
+    client: &reqwest::Client,
+    url: &Url,
+    n: u64,
+) -> Result<Option<Value>, TestError> {
+    // Get the latest block number
+    let payload = serde_json::json!({
+        "jsonrpc": "2.0",
+        "method": "eth_blockNumber",
+        "params": [],
+        "id": 1
+    });
+    let res = client
+        .post(url.clone())
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| TestError::new(e.to_string()))?;
+    let res_json: Value = res
+        .json()
+        .await
+        .map_err(|e| TestError::new(e.to_string()))?;
+    let latest_block_hex = res_json["result"]
+        .as_str()
+        .ok_or_else(|| TestError::new("Failed to get latest block number".to_string()))?;
+    let latest_block = u64::from_str_radix(latest_block_hex.trim_start_matches("0x"), 16)
+        .map_err(|e| TestError::new(e.to_string()))?;
+
+    let mut txs_per_block = Vec::new();
+
+    for i in 0..n {
+        let block_number = latest_block.saturating_sub(i);
+        let block_number_hex = format!("0x{:x}", block_number);
+        let block_payload = serde_json::json!({
+            "jsonrpc": "2.0",
+            "method": "eth_getBlockByNumber",
+            "params": [block_number_hex, true],
+            "id": 1
+        });
+        let block_res = client
+            .post(url.clone())
+            .json(&block_payload)
+            .send()
+            .await
+            .map_err(|e| TestError::new(e.to_string()))?;
+        let block_json: Value = block_res
+            .json()
+            .await
+            .map_err(|e| TestError::new(e.to_string()))?;
+        let block_obj = &block_json["result"];
+        if block_obj.is_null() {
+            continue;
+        }
+        let txs = block_obj["transactions"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        // Only include non-empty transaction arrays
+        if !txs.is_empty() {
+            txs_per_block.push(serde_json::json!(txs));
+        }
+    }
+    if txs_per_block.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(Value::Array(txs_per_block)))
+    }
+}
 
 /// Function to create a chain reorg on the Anvil test rpc., optionally passing in new transactions to be included in the reorg.
 /// Here are some example transactions to pass in. They're json objects and can be stored in Value type.
@@ -86,8 +199,17 @@ pub async fn anvil_reorg(
     client: &reqwest::Client,
     url: &Url,
     depth: u64,
-    new_transactions: Option<Value>,
+    replay: bool,
 ) -> Result<(), TestError> {
+    // before we do anything, we should turn mining off because if a block can be created while this function, the depth is ill-defined
+    set_anvil_mining_interval(client, url, 0).await?;
+    // next we'll get all the transactions that are in the last 'depth' worth of blocks, so that we can replay them
+    let new_transactions = if replay {
+        get_transactions_in_last_n_blocks(client, url, depth).await?
+    } else {
+        None
+    };
+
     let new_transactions = if let Some(nt) = new_transactions {
         nt
     } else {
@@ -112,6 +234,8 @@ pub async fn anvil_reorg(
 
     res.error_for_status_ref()
         .map_err(|e| TestError::new(e.to_string()))?;
+    // reset the mining interval
+    set_anvil_mining_interval(client, url, MINING_INTERVAL).await?;
     Ok(())
 }
 
@@ -963,15 +1087,77 @@ pub fn build_valid_transfer_inputs(rng: &mut impl Rng) -> (PublicInputs, Private
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ethers::signers::Wallet;
+    use ethers::types::{TransactionRequest, U256};
     use ethers::{
         providers::{Http, Provider},
         utils::Anvil,
     };
     use ethers_middleware::Middleware;
+    use ethers_middleware::SignerMiddleware;
     use reqwest::Client;
-
+    use std::str::FromStr;
     #[tokio::test]
-    async fn test_anvil_reorg() {
+    async fn test_get_transactions_in_last_n_blocks() {
+        // Start a new Anvil instance
+        let anvil = Anvil::new().spawn();
+        let endpoint = anvil.endpoint();
+        let url = Url::parse(&endpoint).unwrap();
+        let client = Client::new();
+
+        // Set up ethers provider and wallet
+        let provider = Provider::<Http>::try_from(endpoint.clone()).unwrap();
+        let wallet: Wallet<ethers::core::k256::ecdsa::SigningKey> = anvil.keys()[0].clone().into();
+        let wallet = wallet.with_chain_id(anvil.chain_id());
+        let provider = Arc::new(SignerMiddleware::new(provider, wallet));
+
+        // Get two accounts
+        let accounts = provider.get_accounts().await.unwrap();
+        let from = accounts[0];
+        let to = accounts[1];
+
+        // Send three transactions
+        let mut tx_hashes = Vec::new();
+        for i in 0..3 {
+            let tx = TransactionRequest::new()
+                .from(from)
+                .to(to)
+                .value(U256::from(1_000_000_000_000_000u128 + i));
+            let pending_tx = provider.send_transaction(tx, None).await.unwrap();
+            let receipt = pending_tx.await.unwrap().unwrap();
+            tx_hashes.push(receipt.transaction_hash);
+        }
+
+        // Wait for the blocks to be mined
+        let _latest_block = provider.get_block_number().await.unwrap().as_u64();
+
+        // Retrieve transactions in the last 3 blocks
+        let txs_json = get_transactions_in_last_n_blocks(&client, &url, 3)
+            .await
+            .expect("Failed to get transactions")
+            .expect("No transactions found");
+
+        // Flatten the transactions from all blocks
+        let mut found_hashes = Vec::new();
+        for block_txs in txs_json.as_array().unwrap() {
+            for tx in block_txs.as_array().unwrap() {
+                let hash_str = tx["hash"].as_str().unwrap();
+                let hash = ethers::types::H256::from_str(hash_str).unwrap();
+                found_hashes.push(hash);
+            }
+        }
+
+        // All submitted tx hashes should be present in the found_hashes
+        for hash in tx_hashes {
+            assert!(
+                found_hashes.contains(&hash),
+                "Transaction hash {:?} not found in last n blocks",
+                hash
+            );
+        }
+    }
+    #[tokio::test]
+    async fn test_anvil_reorg_no_replay() {
         // Start a new Anvil instance
         let anvil = Anvil::new().spawn();
         let endpoint = anvil.endpoint();
@@ -1037,7 +1223,7 @@ mod tests {
         // simulate a reorg of depth 1
         let url = Url::parse(&endpoint).unwrap();
         let client = Client::new();
-        anvil_reorg(&client, &url, 1, None).await.unwrap();
+        anvil_reorg(&client, &url, 1, false).await.unwrap();
         // Check the block number after the reorg, it should not have changed because the reorged chain has the same depth (a property of Anvil)
         let new_block_number = provider.get_block_number().await.unwrap();
         assert_eq!(new_block_number, ethers::types::U64::from(4));
@@ -1056,5 +1242,104 @@ mod tests {
             .transactions
             .iter()
             .any(|t| t.hash == tx_receipt.transaction_hash));
+    }
+
+    #[tokio::test]
+    async fn test_anvil_reorg_with_replay() {
+        // Start a new Anvil instance
+        let anvil = Anvil::new().spawn();
+        let endpoint = anvil.endpoint();
+        let provider = Provider::<Http>::try_from(anvil.endpoint()).unwrap();
+
+        // Mine three blocks to ensure there is some chain history before reorg
+        provider
+            .request::<_, ()>("anvil_mine", serde_json::json!([3]))
+            .await
+            .unwrap();
+        assert_eq!(
+            provider.get_block_number().await.unwrap(),
+            ethers::types::U64::from(3)
+        );
+
+        // Get the balances of the first two accounts
+        let accounts = provider.get_accounts().await.unwrap();
+        let balance1 = provider.get_balance(accounts[0], None).await.unwrap();
+        let balance2 = provider.get_balance(accounts[1], None).await.unwrap();
+
+        // Transfer 0.1 ether from the first account to the second account
+        let from = accounts[0];
+        let to = accounts[1];
+        let tx = provider
+            .send_transaction(
+                ethers::types::TransactionRequest::new()
+                    .from(from)
+                    .to(to)
+                    .value(ethers::types::U256::from(100_000_000_000_000_000u128)),
+                None,
+            )
+            .await
+            .unwrap();
+        // Wait for the transaction to be mined
+        let tx_receipt = tx.await.unwrap().unwrap();
+        // Check that the block number is 4
+        assert_eq!(
+            tx_receipt.block_number.unwrap(),
+            ethers::types::U64::from(4)
+        );
+        // Check that the node also thinks the block number is 4
+        assert_eq!(
+            provider.get_block_number().await.unwrap(),
+            ethers::types::U64::from(4)
+        );
+        // Check that the transaction is in the block
+        let block = provider
+            .get_block_with_txs(tx_receipt.block_number.unwrap())
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(block
+            .transactions
+            .iter()
+            .any(|t| t.hash == tx_receipt.transaction_hash));
+
+        // Check the balances transferred after the transaction
+        let new_balance2 = provider.get_balance(to, None).await.unwrap();
+        assert_eq!(
+            new_balance2,
+            balance2 + ethers::types::U256::from(100_000_000_000_000_000u128)
+        );
+
+        // Simulate a reorg of depth 1 with replay = true
+        let url = Url::parse(&endpoint).unwrap();
+        let client = Client::new();
+        anvil_reorg(&client, &url, 1, true).await.unwrap();
+
+        // Check the block number after the reorg, it should not have changed because the reorged chain has the same depth (a property of Anvil)
+        let new_block_number = provider.get_block_number().await.unwrap();
+        assert_eq!(new_block_number, ethers::types::U64::from(4));
+
+        // Check the balances after the reorg, they should be the same as after the transaction, since the tx was replayed
+        let replayed_balance1 = provider.get_balance(from, None).await.unwrap();
+        let replayed_balance2 = provider.get_balance(to, None).await.unwrap();
+        assert_eq!(
+            replayed_balance2,
+            balance2 + ethers::types::U256::from(100_000_000_000_000_000u128)
+        );
+        // The sender's balance should be less than or equal to the original balance (due to gas costs)
+        assert!(replayed_balance1 < balance1);
+
+        // Check that the transaction is still in the block (replayed)
+        let block = provider
+            .get_block_with_txs(new_block_number)
+            .await
+            .unwrap()
+            .unwrap();
+        let found = block.transactions.iter().any(|t| {
+            t.to == Some(to) && t.value == ethers::types::U256::from(100_000_000_000_000_000u128)
+        });
+        assert!(
+            found,
+            "Replayed transaction not found in block after reorg with replay"
+        );
     }
 }
