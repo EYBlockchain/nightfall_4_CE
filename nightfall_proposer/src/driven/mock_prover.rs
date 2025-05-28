@@ -90,7 +90,7 @@ impl RecursiveProvingEngine<PlonkProof> for MockProver {
 
         // get the current historic root
         let current_historic_root = <Client as MutableTree<Fr254>>::get_root(
-            &db,
+            db,
             <Client as HistoricRootTree<Fr254>>::TREE_NAME,
         )
         .await?;
@@ -111,7 +111,7 @@ impl RecursiveProvingEngine<PlonkProof> for MockProver {
             .await?;
         // use the final commitment circuit info to get the new root of the commitment tree.
         let new_commitment_root = <Client as MutableTree<Fr254>>::get_root(
-            &db,
+            db,
             <Client as CommitmentTree<Fr254>>::TREE_NAME,
         )
         .await?;
@@ -125,7 +125,7 @@ impl RecursiveProvingEngine<PlonkProof> for MockProver {
             for root in pi.roots.iter() {
                 if !root_proofs.contains_key(root) {
                     let proof = <Client as HistoricRootTree<Fr254>>::get_membership_proof(
-                        &db,
+                        db,
                         Some(root),
                         None,
                     )
@@ -150,14 +150,14 @@ impl RecursiveProvingEngine<PlonkProof> for MockProver {
         }
 
         let nullifier_root = <Client as MutableTree<Fr254>>::get_root(
-            &db,
+            db,
             <Client as NullifierTree<Fr254>>::TREE_NAME,
         )
         .await?;
 
         // work out what the new historic root tree root would be if we were to add this new historic root
         let old_historic_root = <Client as MutableTree<Fr254>>::get_root(
-            &db,
+            db,
             <Client as HistoricRootTree<Fr254>>::TREE_NAME,
         )
         .await?;
@@ -177,14 +177,14 @@ impl RecursiveProvingEngine<PlonkProof> for MockProver {
             .ok_or(MerkleTreeError::TreeNotFound)?;
         let updated_historic_root =
             <Client as HistoricRootTree<Fr254>>::append_historic_commitment_root(
-                &db,
+                db,
                 &new_commitment_root,
                 false,
             )
             .await?;
 
         let historic_root_proof = <Client as HistoricRootTree<Fr254>>::get_membership_proof(
-            &db,
+            db,
             None,
             Some(metadata.sub_tree_count),
         )
