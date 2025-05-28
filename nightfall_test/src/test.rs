@@ -63,7 +63,6 @@ use url::Url;
 use uuid::Uuid;
 
 const REQUEST_ID: &str = "X-Request-ID";
-const MINING_INTERVAL: u32 = 5; // the mining interval
 
 /// This function sets the mining interval to be MINING_INTERVAL and ensures that automining is off
 /// We don't want to rely on the initial configuration of Anvil being correct.
@@ -179,18 +178,15 @@ pub async fn get_transactions_in_last_n_blocks(
 
 /// Function to create a chain reorg on the Anvil test rpc., optionally replaying new transactions to be included in the reorg.
 /// The replay boolean indicates whether to replay the transactions from the last 'depth' blocks or to leave them empty.
-/// The automine boolean should be set true if automining is being used and false if interval mining is being used.
 pub async fn anvil_reorg(
     client: &reqwest::Client,
     url: &Url,
     depth: u64,
     replay: bool,
-    automine: bool,
+    interval: u32,
 ) -> Result<(), TestError> {
     // before we do anything, we should turn mining off because if a block can be created while this function, the depth is ill-defined
-    if !automine {
-        set_anvil_mining_interval(client, url, 0).await?;
-    }
+    set_anvil_mining_interval(client, url, 0).await?;
     // next we'll get all the transactions that are in the last 'depth' worth of blocks, so that we can replay them
     let new_transactions = if replay {
         get_transactions_in_last_n_blocks(client, url, depth).await?
@@ -223,9 +219,7 @@ pub async fn anvil_reorg(
     res.error_for_status_ref()
         .map_err(|e| TestError::new(e.to_string()))?;
     // reset the mining interval
-    if !automine {
-        set_anvil_mining_interval(client, url, MINING_INTERVAL).await?;
-    }   
+    set_anvil_mining_interval(client, url, interval).await?;
     Ok(())
 }
 
@@ -1213,7 +1207,7 @@ mod tests {
         // simulate a reorg of depth 1
         let url = Url::parse(&endpoint).unwrap();
         let client = Client::new();
-        anvil_reorg(&client, &url, 1, false, false).await.unwrap();
+        anvil_reorg(&client, &url, 1, false, 5).await.unwrap();
         // Check the block number after the reorg, it should not have changed because the reorged chain has the same depth (a property of Anvil)
         let new_block_number = provider.get_block_number().await.unwrap();
         assert_eq!(new_block_number, ethers::types::U64::from(4));
@@ -1302,7 +1296,7 @@ mod tests {
         // Simulate a reorg of depth 1 with replay = true
         let url = Url::parse(&endpoint).unwrap();
         let client = Client::new();
-        anvil_reorg(&client, &url, 1, true, false).await.unwrap();
+        anvil_reorg(&client, &url, 1, true, 5).await.unwrap();
 
         // Check the block number after the reorg, it should not have changed because the reorged chain has the same depth (a property of Anvil)
         let new_block_number = provider.get_block_number().await.unwrap();
