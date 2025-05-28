@@ -180,7 +180,7 @@ async fn queue_request(
     drop(q); // drop the lock so other processes can access the queue
     debug!("Added request to queue");
     // record the request as queued
-    let db = get_db_connection().await.write().await;
+    let db = get_db_connection().await;
     if db.store_request(&id, RequestStatus::Queued).await.is_none() {
         return Ok(reply::with_header(
             reply::with_status(
@@ -191,7 +191,6 @@ async fn queue_request(
             id,
         ));
     }
-    drop(db); // drop the lock so other processes can access the DB
     debug!("Stored request status in database");
 
     // return a 202 Accepted response with the request ID
@@ -330,8 +329,9 @@ pub async fn handle_deposit<N: NightfallContract>(
         secret_preimage_two,
         secret_preimage_three,
     );
-    let db: tokio::sync::RwLockWriteGuard<'_, mongodb::Client> =
-        get_db_connection().await.write().await;
+  
+    let db: &'static mongodb::Client = get_db_connection().await;
+   
     // Then match on the token type and call the correct function
     let (preimage_value, preimage_fee_option) = match token_type {
         TokenType::ERC20 => {
@@ -492,11 +492,10 @@ where
     } = transfer_req;
 
     // add the id to the request database
-    let db = get_db_connection().await.write().await;
+    let db = get_db_connection().await;
     db.store_request(id, RequestStatus::Queued)
         .await
         .ok_or(TransactionHandlerError::DatabaseError)?;
-    drop(db); // drop the lock so other processes can access the DB
 
     // Convert the request into the relevant types.
     let nf_token_id =
@@ -551,7 +550,7 @@ where
     // Select the commitments to be spent.
     let spend_commitments;
     {
-        let db = &mut get_db_connection().await.write().await;
+        let db = &mut get_db_connection().await;
         let fee_token_id = get_fee_token_id();
         let spend_value_commitments = find_usable_commitments(nf_token_id, value,db)
         .await.map_err(|e|{
@@ -687,11 +686,10 @@ where
     } = withdraw_req;
 
     // add the id to the request database
-    let db = get_db_connection().await.write().await;
+    let db = get_db_connection().await;
     db.store_request(id, RequestStatus::Queued)
         .await
         .ok_or(TransactionHandlerError::DatabaseError)?;
-    drop(db); // drop the lock so other processes can access the DB
 
     // Convert the request into the relevant types.
     let nf_token_id =
@@ -723,7 +721,7 @@ where
     let spend_commitments;
 
     {
-        let db = &mut get_db_connection().await.write().await;
+        let db = &mut get_db_connection().await;
         let fee_token_id = get_fee_token_id();
         let spend_value_commitments = find_usable_commitments(nf_token_id, value,db)
         .await.map_err(|e|{

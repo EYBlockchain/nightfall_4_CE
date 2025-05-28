@@ -29,7 +29,7 @@ const MAX_POSSIBLE_COMMITMENTS: usize = 2;
 pub async fn find_usable_commitments(
     target_token_id: Fr254,
     target_value: Fr254,
-    db: &mut RwLockWriteGuard<'_, Client>,
+    db: &Client,
 ) -> Result<[Preimage; MAX_POSSIBLE_COMMITMENTS], &'static str> {
     let (avaliable_sorted_commitments, min_num_c) =
         verify_enough_commitments(target_token_id, target_value, db).await?;
@@ -209,7 +209,7 @@ fn calculate_minimum_commitments(
 
 // Fetch and filter on-chain commitments
 async fn fetch_on_chain_commitments(
-    db: &mut RwLockWriteGuard<'_, Client>,
+    db: &Client,
     token_id: Fr254,
 ) -> Result<Vec<Preimage>, &'static str> {
     let commitments = db
@@ -222,7 +222,7 @@ async fn fetch_on_chain_commitments(
 async fn verify_enough_commitments(
     target_token_id: Fr254,
     target_value: Fr254,
-    db: &mut RwLockWriteGuard<'_, Client>,
+    db: &Client,
 ) -> Result<(std::vec::Vec<Preimage>, usize), &'static str> {
     // Fetch on-chain commitments for the non-fee component
     let mut on_chain_old_value_commitments =

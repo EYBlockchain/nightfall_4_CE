@@ -67,7 +67,7 @@ where
     let selected_client_transactions;
     {
         info!("Getting DB connection");
-        let db = &mut get_db_connection().await.write().await;
+        let db = get_db_connection().await;
         info!("Preparing block data");
         let result = prepare_block_data::<P>(db).await;
         match &result {
@@ -109,7 +109,7 @@ where
 
     let block = make_block::<P, R>(included_deposits, selected_client_transactions).await?;
     // save this block to Store block db
-    let db = &mut get_db_connection().await.write().await;
+    let db = get_db_connection().await;
     let current_block_number = db
         .database(DB)
         .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
@@ -235,7 +235,7 @@ where
 }
 
 pub(crate) async fn prepare_block_data<P>(
-    db: &mut mongodb::Client,
+    db: &mongodb::Client,
 ) -> Result<
     (
         Vec<Vec<DepositDatawithFee>>,
@@ -455,7 +455,7 @@ mod tests {
         }
         // **2. Insert 32 client transactions into mempool**
         {
-            let mut db_write = db.lock().await;
+            let db_write = db.lock().await;
             let transactions: Vec<ClientTransactionWithMetaData<PlonkProof>> = (241..=244)
                 .map(|i| ClientTransactionWithMetaData {
                     client_transaction: nightfall_client::domain::entities::ClientTransaction {
@@ -615,12 +615,11 @@ mod tests {
         // Left client transactions: 10 transactions (fees 1...10)
         // Left deposits: 0
         let container = get_mongo().await;
-        let db_client = get_db_connection(&container).await;
-        let db = Arc::new(Mutex::new(db_client));
+        let db = get_db_connection(&container).await;
+       
 
         // Insert 74 deposit transactions into mempool**
         {
-            let mut db_write = db.lock().await;
             let transactions: Vec<ClientTransactionWithMetaData<PlonkProof>> = (1..=74)
                 .map(|i| ClientTransactionWithMetaData {
                     client_transaction: nightfall_client::domain::entities::ClientTransaction {
@@ -636,14 +635,13 @@ mod tests {
                 .collect();
 
             for tx in transactions {
-                db_write.store_transaction(tx).await.unwrap();
+                db.store_transaction(tx).await.unwrap();
             }
         }
 
-        let db_clone = Arc::clone(&db);
+        
         let result = {
-            let mut db_lock = db_clone.lock().await;
-            prepare_block_data::<PlonkProof>(&mut db_lock).await
+            prepare_block_data::<PlonkProof>(&db).await
         };
 
         assert!(result.is_ok(), "Should succeed with only on-chain deposits");
@@ -663,12 +661,11 @@ mod tests {
             expected_fees_client, actual_fees_client,
             "Deposit fees do not match expected values"
         );
-
+       
         let remaining_client = {
-            let mut db_lock = db.lock().await;
             let mempool_client_transactions: Option<
                 Vec<(Vec<u32>, ClientTransactionWithMetaData<PlonkProof>)>,
-            > = db_lock.get_all_mempool_client_transactions().await;
+            > = db.get_all_mempool_client_transactions().await;
 
             transactions_to_include_in_block(mempool_client_transactions)
                 .into_iter()
@@ -696,12 +693,10 @@ mod tests {
         // Left deposits: none
 
         let container = get_mongo().await;
-        let db_client = get_db_connection(&container).await;
-        let db = Arc::new(Mutex::new(db_client));
+        let db = get_db_connection(&container).await;
 
         // **1. Insert 3 deposits into mempool**
         {
-            let mut db_write = db.lock().await;
             let deposits: Vec<DepositDatawithFee> = (200..=203)
                 .map(|i| DepositDatawithFee {
                     fee: Fr254::from(i),
@@ -715,7 +710,7 @@ mod tests {
                 .collect();
 
             <mongodb::Client as TransactionsDB<PlonkProof>>::set_mempool_deposits(
-                &mut *db_write,
+                &db,
                 deposits,
             )
             .await;
@@ -723,7 +718,6 @@ mod tests {
 
         // Insert 64 client transactions into mempool**
         {
-            let mut db_write = db.lock().await;
             let transactions: Vec<ClientTransactionWithMetaData<PlonkProof>> = (1..=64)
                 .map(|i| ClientTransactionWithMetaData {
                     client_transaction: nightfall_client::domain::entities::ClientTransaction {
@@ -739,14 +733,13 @@ mod tests {
                 .collect();
 
             for tx in transactions {
-                db_write.store_transaction(tx).await.unwrap();
+                db.store_transaction(tx).await.unwrap();
             }
         }
 
-        let db_clone = Arc::clone(&db);
+        
         let result = {
-            let mut db_lock = db_clone.lock().await;
-            prepare_block_data::<PlonkProof>(&mut db_lock).await
+            prepare_block_data::<PlonkProof>(&db).await
         };
 
         assert!(
@@ -783,8 +776,7 @@ mod tests {
         );
 
         let actual_fees_deposit_remainning: Vec<Fr254> = {
-            let mut db_lock = db.lock().await;
-            <mongodb::Client as TransactionsDB<PlonkProof>>::get_mempool_deposits(&mut *db_lock)
+            <mongodb::Client as TransactionsDB<PlonkProof>>::get_mempool_deposits(&db)
                 .await
                 .unwrap_or_else(Vec::new) // Ensuring it's never None
                 .into_iter()
@@ -797,10 +789,9 @@ mod tests {
         );
 
         let remaining_client = {
-            let mut db_lock = db.lock().await;
             let mempool_client_transactions: Option<
                 Vec<(Vec<u32>, ClientTransactionWithMetaData<PlonkProof>)>,
-            > = db_lock.get_all_mempool_client_transactions().await;
+            > = db.get_all_mempool_client_transactions().await;
 
             transactions_to_include_in_block(mempool_client_transactions)
                 .into_iter()

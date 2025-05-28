@@ -24,7 +24,7 @@ where
     }
     /// let's multiple sub trees be added in a single batch - it calls insert_subtree for each sub tree
     async fn batch_insert_with_circuit_info(
-        &mut self,
+        &self,
         commitments: &[F],
     ) -> Result<Vec<Self::CircuitInfo>, <Self as MutableTree<F>>::Error> {
         <Self as IndexedTree<F>>::batch_insert_nullifiers_with_circuit_info(

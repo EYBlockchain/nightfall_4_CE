@@ -154,7 +154,7 @@ async fn process_propose_block_event<N: NightfallContract>(
         .from;
     // get a lock on the db, we don't want anything else updating or reading the DB until
     // we're done here
-    let db = &mut get_db_connection().await.write().await;
+    let db = get_db_connection().await;
     info!(
         "Decoded Proposed block call from transaction {:?}",
         transaction_hash

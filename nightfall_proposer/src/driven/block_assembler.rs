@@ -43,7 +43,7 @@ pub struct SmartTrigger<P: Proof> {
     pub interval_secs: u64,
     pub max_wait_secs: u64,
     pub status: &'static RwLock<BlockAssemblyStatus>,
-    pub db: &'static RwLock<mongodb::Client>,
+    pub db: &'static mongodb::Client,
     pub target_block_fill_ratio: f32,
     pub phantom: PhantomData<P>,
 }
@@ -53,7 +53,7 @@ impl<P: Proof> SmartTrigger<P> {
         interval_secs: u64,
         max_wait_secs: u64,
         status: &'static RwLock<BlockAssemblyStatus>,
-        db: &'static RwLock<mongodb::Client>,
+        db: &'static mongodb::Client,
         target_block_fill_ratio: f32,
     ) -> Self {
         Self {
@@ -151,10 +151,10 @@ impl<P: Proof + Send + Sync> BlockAssemblyTrigger for SmartTrigger<P> {
 
 impl<P: Proof + Send + Sync> SmartTrigger<P> {
     async fn should_assemble(&self) -> bool {
-        let mut db = self.db.write().await;
+        let db = self.db;
 
         let num_deposit_groups =
-            match <mongodb::Client as TransactionsDB<P>>::count_mempool_deposits(&mut db).await {
+            match <mongodb::Client as TransactionsDB<P>>::count_mempool_deposits( db).await {
                 Ok(count) => {
                     let groups = (count + 3) / 4;
                     debug!("Mempool deposits: {}, grouped into: {}", count, groups);
@@ -167,7 +167,7 @@ impl<P: Proof + Send + Sync> SmartTrigger<P> {
             } as f32;
 
         let num_client_txs =
-            match <mongodb::Client as TransactionsDB<P>>::count_mempool_client_transactions(&mut db)
+            match <mongodb::Client as TransactionsDB<P>>::count_mempool_client_transactions( db)
                 .await
             {
                 Ok(count) => {

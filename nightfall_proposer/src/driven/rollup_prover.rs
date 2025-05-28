@@ -1019,7 +1019,7 @@ impl RecursiveProvingEngine<PlonkProof> for RollupProver {
             .collect::<Vec<Fr254>>();
 
         // work out what the new historic root would be if we were to add these new commitments
-        let mut db = get_db_connection().await.write().await;
+        let mut db = get_db_connection().await;
 
         // get the current historic root
         let current_historic_root = <Client as MutableTree<Fr254>>::get_root(

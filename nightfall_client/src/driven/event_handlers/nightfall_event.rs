@@ -186,7 +186,7 @@ async fn process_propose_block_event<N: NightfallContract>(
         ..
     } = *get_zkp_keys().lock().expect("Poisoned lock");
     debug!("Processing transactions");
-    let db = &get_db_connection().await.write().await;
+    let db = &get_db_connection().await.clone();
 
     // first, add _all_ the commitments to the commitment tree
     // This does mean iterating over the transactions twice, but that's a fast operation and it has the benefit of making

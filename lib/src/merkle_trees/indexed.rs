@@ -269,7 +269,7 @@ where
     }
 
     async fn insert_nullifiers_for_circuit(
-        &mut self,
+        &self,
         leaves: &[F],
         tree_id: &str,
     ) -> Result<IMTCircuitInsertionInfo<F>, <Self as MutableTree<F>>::Error> {
@@ -450,7 +450,7 @@ where
     }
 
     async fn batch_insert_nullifiers_with_circuit_info(
-        &mut self,
+        &self,
         nullifiers: &[F],
         tree_id: &str,
     ) -> Result<Vec<IMTCircuitInsertionInfo<F>>, <Self as MutableTree<F>>::Error> {
@@ -742,7 +742,7 @@ mod test {
         updated_leaves.append(&mut leaves_2.clone());
 
         // get a Mongo container and connect to it
-        let mut client = get_db_connection(&container).await;
+        let client = get_db_connection(&container).await;
         // make a new tree
         <mongodb::Client as IndexedTree<Fr254>>::new_indexed_tree(
             &client,

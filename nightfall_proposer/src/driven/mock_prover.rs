@@ -86,7 +86,7 @@ impl RecursiveProvingEngine<PlonkProof> for MockProver {
             .collect::<Vec<Fr254>>();
 
         // work out what the new historic root would be if we were to add these new commitments
-        let mut db = get_db_connection().await.write().await;
+        let db = get_db_connection().await;
 
         // get the current historic root
         let current_historic_root = <Client as MutableTree<Fr254>>::get_root(
@@ -97,7 +97,7 @@ impl RecursiveProvingEngine<PlonkProof> for MockProver {
         // Create the commitments circuit info
         let commitment_circuit_info =
             <Client as CommitmentTree<Fr254>>::batch_insert_with_circuit_info(
-                &mut db,
+                db,
                 &new_commitments,
             )
             .await?;
@@ -105,7 +105,7 @@ impl RecursiveProvingEngine<PlonkProof> for MockProver {
         debug!("Inserting nullifiers");
         let nullifier_circuit_info =
             <Client as NullifierTree<Fr254>>::batch_insert_with_circuit_info(
-                &mut db,
+                db,
                 &insert_nullifiers,
             )
             .await?;

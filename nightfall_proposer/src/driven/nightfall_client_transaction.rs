@@ -85,9 +85,8 @@ where
     //
     // Do a series of checks that make sure this Transaction<P> is valid, and won't cause the rollup to fail
     //
-    let db: &mut tokio::sync::RwLockWriteGuard<'_, mongodb::Client> =
-        &mut get_db_connection().await.write().await; // we need a write lock to store the transaction
-                                                      // 1) first we should check that the transaction is proof verifies
+    let db = get_db_connection().await; // `db` is now &'static mongodb::Client
+                                                         // `db` is directly usable for all database operations, including writes.
     let public_inputs = PublicInputs::from(&client_transaction);
     if let Err(error) = E::verify(&client_transaction.proof, &public_inputs) {
         return Err(ClientTransactionError::ProofDidNotVerify(error));
@@ -163,8 +162,7 @@ where
     P: Proof,
     E: ProvingEngine<P>,
 {
-    let db: &mut tokio::sync::RwLockWriteGuard<'_, mongodb::Client> =
-        &mut get_db_connection().await.write().await; // we need a write lock to store the transaction
+    let db = get_db_connection().await; // `db` is now &'static mongodb::Client
 
     // 1) then we should check that the transaction is not already in the database i.e. this isn't a replay
 
