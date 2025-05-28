@@ -32,7 +32,8 @@ use nightfall_client::{
     drivers::{
         derive_key::ZKPKeys,
         rest::models::{
-            DeEscrowDataReq, KeyRequest, NF3DepositRequest, NF3RecipientData, NF3TransferRequest, NF3WithdrawRequest, WithdrawDataReq
+            DeEscrowDataReq, KeyRequest, NF3DepositRequest, NF3RecipientData, NF3TransferRequest,
+            NF3WithdrawRequest, WithdrawDataReq,
         },
     },
     ports::{

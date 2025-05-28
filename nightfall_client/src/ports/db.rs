@@ -7,6 +7,7 @@ use super::{
 
 use ark_bn254::Fr as Fr254;
 use async_trait::async_trait;
+use ethers::types::{H256, I256};
 use futures::Future;
 
 #[async_trait]
@@ -29,7 +30,12 @@ where
     async fn get_available_commitments(&self, nf_token_id: Fr254) -> Option<Vec<V>>;
     async fn mark_commitments_pending_spend(&self, commitments: Vec<K>) -> Option<()>;
     async fn mark_commitments_pending_creation(&self, commitments: Vec<K>) -> Option<()>;
-    async fn mark_commitments_unspent(&self, commitments: &[K]) -> Option<()>;
+    async fn mark_commitments_unspent(
+        &self,
+        commitments: &[K],
+        layer_1_transaction_hash: Option<H256>,
+        layer_2_block_number: Option<I256>,
+    ) -> Option<()>;
     async fn mark_commitments_spent(&self, nullifiers: Vec<K>) -> Option<()>;
     async fn add_nullifier(&self, key: &K, nullifier: K) -> Option<()>;
 }

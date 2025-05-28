@@ -212,11 +212,17 @@ where
 
     let block_size = get_block_size()?;
     let transaction_count = deposit_proofs.len() + client_transactions.len();
-    info!("Current transaction count: {}, block size: {}", transaction_count, block_size);
+    info!(
+        "Current transaction count: {}, block size: {}",
+        transaction_count, block_size
+    );
     // append default deposit proof if the transaction count is less than block size
     if transaction_count < block_size {
         let default_deposits_count = block_size - transaction_count;
-        info!("Adding {} default deposit proofs to fill block", &default_deposits_count);
+        info!(
+            "Adding {} default deposit proofs to fill block",
+            &default_deposits_count
+        );
         let mut public_inputs = PublicInputs::new();
         let deposit_array: [DepositData; 4] = [DepositData::default(); 4];
         let proof = R::create_deposit_proof(&deposit_array, &mut public_inputs)
@@ -255,8 +261,12 @@ where
         let mempool_client_transactions: Option<Vec<(Vec<u32>, ClientTransactionWithMetaData<P>)>> =
             db.get_all_mempool_client_transactions().await;
         let transactions = transactions_to_include_in_block(mempool_client_transactions);
-        info!("Found {} client transactions in mempool", transactions.len());
-        transactions.into_iter()
+        info!(
+            "Found {} client transactions in mempool",
+            transactions.len()
+        );
+        transactions
+            .into_iter()
             .map(|(_, v)| v)
             .collect::<Vec<ClientTransactionWithMetaData<P>>>()
     };

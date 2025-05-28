@@ -1,6 +1,8 @@
 use crate::{
     domain::{
-        entities::{CommitmentStatus, CompressedSecrets, HexConvertible, Preimage, RequestStatus, Salt},
+        entities::{
+            CommitmentStatus, CompressedSecrets, HexConvertible, Preimage, RequestStatus, Salt,
+        },
         error::EventHandlerError,
         notifications::NotificationPayload,
     },
@@ -35,7 +37,7 @@ use log::{debug, error, info, warn};
 use nightfall_bindings::nightfall::{
     BlockProposedFilter, DepositEscrowedFilter, NightfallCalls, NightfallEvents, ProposeBlockCall,
 };
-use std::{error::Error, sync::OnceLock, collections::HashSet};
+use std::{collections::HashSet, error::Error, sync::OnceLock};
 use tokio::{join, sync::Mutex};
 
 // Define a mutable lazy static to hold the layer 2 blocknumber. We need this to
@@ -256,7 +258,11 @@ async fn process_propose_block_event<N: NightfallContract>(
     }
     debug!("Updating commitment database with on-chain data");
     join!(
-        db.mark_commitments_unspent(&commitment_hashes),
+        db.mark_commitments_unspent(
+            &commitment_hashes,
+            Some(transaction_hash),
+            Some(filter.layer_2_block_number)
+        ),
         db.mark_commitments_spent(nullifiers)
     );
 
@@ -290,8 +296,8 @@ async fn process_propose_block_event<N: NightfallContract>(
         let compressed_secrets: CompressedSecrets = compressed_secrets_onchain.into();
 
         // Attempt to decrypt the compressed secrets
-        let decrypt = kemdem_decrypt(zkp_private_key, &compressed_secrets.cipher_text)
-            .map_err(|_| {
+        let decrypt =
+            kemdem_decrypt(zkp_private_key, &compressed_secrets.cipher_text).map_err(|_| {
                 EventHandlerError::IOError("Could not decrypt compressed secrets".to_string())
             })?;
         // now we have a candidate decrypt, we need to test if it's really a decrypt by seeing if

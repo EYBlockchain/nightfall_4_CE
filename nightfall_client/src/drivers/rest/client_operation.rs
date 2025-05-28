@@ -14,7 +14,7 @@ use crate::{
     ports::{
         commitments::Nullifiable,
         contracts::NightfallContract,
-        db::{CommitmentDB, CommitmentEntryDB, RequestDB, RequestCommitmentMappingDB},
+        db::{CommitmentDB, CommitmentEntryDB, RequestCommitmentMappingDB, RequestDB},
         proof::{Proof, ProvingEngine},
         secret_hash::SecretHash,
     },
