@@ -9,7 +9,6 @@ import "../contracts/proof_verification/MockVerifier.sol";
 import "../contracts/proof_verification/RollupVerifier.sol";
 import "../contracts/proof_verification/INFVerifier.sol";
 import "../contracts/X509/X509.sol";
-import "forge-std/console2.sol";
 import "../contracts/SanctionsListMock.sol";
 import "../contracts/X509/Certified.sol";
 
@@ -99,17 +98,6 @@ contract Deployer is Script {
     config.exitPenalty = toml.readUint(string.concat(runMode, ".nightfall_deployer.proposer_exit_penalty"));
     config.coolingBlocks = toml.readUint(string.concat(runMode, ".nightfall_deployer.proposer_cooling_blocks"));
     config.rotationBlocks = toml.readUint(string.concat(runMode, ".nightfall_deployer.proposer_rotation_blocks"));
-    console2.log(
-        "RoundRobinConfig: %s, %s, %s",
-        config.stake,
-        config.ding,
-        config.exitPenalty
-    );
-    console2.log(
-        "RoundRobinConfig: %s, %s",
-        config.coolingBlocks,
-        config.rotationBlocks
-    );
     return config;
 }
 

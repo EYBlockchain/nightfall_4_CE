@@ -3,7 +3,6 @@ pragma solidity ^0.8.20;
 
 import "./ProposerManager.sol";
 import "./Nightfall.sol";
-import "forge-std/console2.sol";
 
 /// @title Proposers
 /// @notice An Round-Robin implementation for choosing proposers
