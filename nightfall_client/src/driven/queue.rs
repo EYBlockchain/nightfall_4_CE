@@ -62,20 +62,16 @@ where
             // Process the request here with a concurrency of 1
             // mark request as 'Processing'
             info!("Processing request: {}", request.uuid);
-            let db = get_db_connection().await.write().await;
+            let db = get_db_connection().await;
             let _ = db
                 .update_request(&request.uuid, RequestStatus::Processing)
                 .await; // we'll carry on even if this fails
-            drop(db); // drop the DB here so the mutex isn't locked while we process the request
-                      // it would be better to queue a closure and run that, but it would be async and Rust doesn't handle those well yet.
             match handle_request::<P, E, N>(request.transaction_request, &request.uuid).await {
                 Ok(response) => {
-                    let db = get_db_connection().await.write().await;
+                    let db = get_db_connection().await;
                     let _ = db
                         .update_request(&request.uuid, RequestStatus::Submitted)
                         .await;
-                    drop(db); // drop the DB here so the mutex isn't locked while we process the next request
-                              // Handle the response here
                     info!("Request {} processed successfully: ", request.uuid);
                     if webhook_url.is_empty() {
                         warn!("No webhook URL provided, skipping notification of successful transaction");
@@ -86,11 +82,10 @@ where
                 }
                 Err(e) => {
                     // Handle the error here
-                    let db = get_db_connection().await.write().await;
+                    let db = get_db_connection().await;
                     let _ = db
                         .update_request(&request.uuid, RequestStatus::Failed)
                         .await;
-                    drop(db); // drop the DB here so the mutex isn't locked while we process the next request
                     warn!("{} Error processing request: {:?}", request.uuid, e);
                 }
             }

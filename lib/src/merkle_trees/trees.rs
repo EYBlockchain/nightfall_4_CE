@@ -241,13 +241,13 @@ where
     async fn get_root(&self, tree_id: &str) -> Result<F, Self::Error>;
     /// Inserts leaves into the tree and returns information allowing us to verify in a circuit.
     async fn insert_for_circuit(
-        &mut self,
+        &self,
         leaves: &[F],
         tree_id: &str,
     ) -> Result<CircuitInsertionInfo<F>, Self::Error>;
     /// let's multiple sub trees be added in a single batch - it calls insert_subtree for each sub tree
     async fn batch_insert_with_circuit_info(
-        &mut self,
+        &self,
         commitments: &[F],
         tree_id: &str,
     ) -> Result<Vec<CircuitInsertionInfo<F>>, Self::Error>;
@@ -289,13 +289,13 @@ where
     ) -> Result<F, <Self as MutableTree<F>>::Error>;
     /// Inserts leaves into the tree and returns information allowing us to verify in a circuit.
     async fn insert_nullifiers_for_circuit(
-        &mut self,
+        &self,
         leaves: &[F],
         tree_id: &str,
     ) -> Result<IMTCircuitInsertionInfo<F>, <Self as MutableTree<F>>::Error>;
     /// let's multiple sub trees be added in a single batch - it calls insert_subtree for each sub tree
     async fn batch_insert_nullifiers_with_circuit_info(
-        &mut self,
+        &self,
         commitments: &[F],
         tree_id: &str,
     ) -> Result<Vec<IMTCircuitInsertionInfo<F>>, <Self as MutableTree<F>>::Error>;

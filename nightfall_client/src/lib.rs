@@ -96,27 +96,28 @@ pub mod initialisation {
     use reqwest::ClientBuilder;
     use std::sync::OnceLock;
     use std::time::Duration;
-    use tokio::sync::{OnceCell, RwLock};
+    use tokio::sync::OnceCell;
     use url::Url;
 
-    /// This function is used to provide a singleton database connection across the entire application.
-    pub async fn get_db_connection() -> &'static RwLock<MongoClient> {
-        static DB_CONNECTION: OnceCell<RwLock<MongoClient>> = OnceCell::const_new();
-        DB_CONNECTION
-            .get_or_init(|| async {
-                RwLock::new({
-                    let client = MongoClient::with_uri_str(&get_settings().nightfall_client.db_url)
-                        .await
-                        .expect("Could not create database connection");
-                    // it's not enough just to connect to a database, we need to initialise some trees in it
-                    <mongodb::Client as CommitmentTree<Fr254>>::new_commitment_tree(&client, 29, 3)
-                        .await
-                        .expect("Could not create commitment tree");
-                    client
-                })
-            })
-            .await
-    }
+   
+/// This function is used to provide a singleton database connection across the entire application.
+pub async fn get_db_connection() -> &'static MongoClient {
+    static DB_CONNECTION: OnceCell<MongoClient> = OnceCell::const_new();
+    DB_CONNECTION
+        .get_or_init(
+            || async { 
+                let client = MongoClient::with_uri_str(&get_settings().nightfall_client.db_url)
+                    .await
+                    .expect("Could not create database connection");
+                // Initialize the commitment tree in the database
+                <MongoClient as CommitmentTree<Fr254>>::new_commitment_tree(&client, 29, 3)
+                    .await
+                    .expect("Could not create commitment tree");
+                client
+            }
+        )
+        .await
+}
 
     /// This function is used to provide a singleton proposer http connection across the entire application.
     pub fn get_proposer_http_connection() -> &'static (HttpClient, Url) {
