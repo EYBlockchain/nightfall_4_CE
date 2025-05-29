@@ -18,7 +18,10 @@ use lib::{
 
 use crate::{
     test::{
-        self, create_nf3_deposit_transaction, create_nf3_transfer_transaction, create_nf3_withdraw_transaction, de_escrow_request, forge_command, get_key, get_recipient_address, load_addresses, set_anvil_mining_interval, validate_certificate_with_server, wait_for_all_responses, wait_on_chain, TokenType
+        self, create_nf3_deposit_transaction, create_nf3_transfer_transaction,
+        create_nf3_withdraw_transaction, de_escrow_request, forge_command, get_key,
+        get_recipient_address, load_addresses, set_anvil_mining_interval,
+        validate_certificate_with_server, wait_for_all_responses, wait_on_chain, TokenType,
     },
     test_settings::TestSettings,
 };
@@ -30,7 +33,10 @@ use ethers::{
 };
 use url::Url;
 
-pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_json::Value>>>, mining_interval: u32) {
+pub async fn run_tests(
+    responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_json::Value>>>,
+    mining_interval: u32,
+) {
     let settings: Settings = Settings::new().unwrap();
     let test_settings: TestSettings = TestSettings::new().unwrap();
     info!("Running tests on nightall_client http:// interface");
