@@ -37,10 +37,7 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
 
     // override the mining interval that may have been set in Anvil. If Anvil was set to automine, also turn that off
     let http_client = reqwest::Client::new();
-    let url = Url::parse("http://anvil:8545")
-        .unwrap()
-        .join("v1/setAnvilMiningInterval")
-        .unwrap();
+    let url = Url::parse("http://anvil:8545").unwrap();
     set_anvil_mining_interval(&http_client, &url, mining_interval).await
         .expect("Failed to set Anvil mining interval"); 
 
