@@ -52,6 +52,8 @@ pub struct DeployerConfig {
     pub default_proposer_url: String,
     pub proposer_stake: u64,
     pub proposer_ding: u64,
+    pub proposer_exit_penalty: u64,
+    pub proposer_cooling_blocks: u64,
     pub proposer_rotation_blocks: u64,
 }
 

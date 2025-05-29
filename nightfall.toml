@@ -39,9 +39,11 @@ max_event_listener_attempts = 10
 log_level = "info"
 default_proposer_address = "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720"
 default_proposer_url = "http://proposer:3000"
-proposer_stake = 0
-proposer_ding = 0                                                       # how much to fine a proposer for not making a block
-proposer_rotation_blocks = 1                                            # how many blocks before we rotate proposers
+proposer_stake = 4
+proposer_ding = 3                                                       # how much to fine a proposer for not making a block
+proposer_exit_penalty = 2                                               # how much to fine a proposer for deregister during its turn
+proposer_cooling_blocks = 4                                             # how many blocks before a de-registered proposer can register again
+proposer_rotation_blocks = 4                                            # how many blocks before we rotate proposers
 
 [development.nightfall_test]
 log_level = "info"
@@ -104,9 +106,11 @@ max_event_listener_attempts = 10
 log_level = "info"
 default_proposer_address = "0xB4482738243946ffAb384Fa5409bcad8F304a757"
 default_proposer_url = "http://proposer:3000"
-proposer_stake = 0
-proposer_ding = 0                                                       # how much to fine a proposer for not making a block
-proposer_rotation_blocks = 1                                            # how many blocks before we rotate proposers
+proposer_stake = 4
+proposer_ding = 3                                                       # how much to fine a proposer for not making a block
+proposer_exit_penalty = 2                                               # how much to fine a proposer for deregister during its turn
+proposer_cooling_blocks = 4                                             # how many blocks before a de-registered proposer can register again
+proposer_rotation_blocks = 4                                            # how many blocks before we rotate proposers
 
 [base_sepolia.nightfall_test]
 log_level = "info"
@@ -137,3 +141,4 @@ certificate_policies = [
 
 [production]
 # This is the production environment - add an appropriate configuration here, using development as a template
+

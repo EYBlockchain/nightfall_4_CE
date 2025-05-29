@@ -9,10 +9,20 @@ import "../contracts/proof_verification/MockVerifier.sol";
 import "../contracts/proof_verification/RollupVerifier.sol";
 import "../contracts/proof_verification/INFVerifier.sol";
 import "../contracts/X509/X509.sol";
+import "forge-std/console2.sol";
 import "../contracts/SanctionsListMock.sol";
 import "../contracts/X509/Certified.sol";
 
 contract Deployer is Script {
+    struct RoundRobinConfig {
+    address defaultProposerAddress;
+    string defaultProposerUrl;
+    uint stake;
+    uint ding;
+    uint exitPenalty;
+    uint coolingBlocks;
+    uint rotationBlocks;
+}
     using stdToml for string;
 
     // we adjust the toml stanza that we use depending on the run mode
@@ -46,13 +56,19 @@ contract Deployer is Script {
             address(x509),
             address(sanctionsList)
         );
-        RoundRobin roundRobin = new RoundRobin(
-            toml.readAddress(string.concat(runMode, ".nightfall_deployer.default_proposer_address")),
-            toml.readString(string.concat(runMode, ".nightfall_deployer.default_proposer_url")),
-            0,
-            0,
-            4
+        
+        RoundRobinConfig memory rrConfig = readRoundRobinConfig(toml);
+
+        RoundRobin roundRobin = new RoundRobin{value: rrConfig.stake}(
+            rrConfig.defaultProposerAddress,
+            rrConfig.defaultProposerUrl,
+            rrConfig.stake,
+            rrConfig.ding,
+            rrConfig.exitPenalty,
+            rrConfig.coolingBlocks,
+            rrConfig.rotationBlocks
         );
+
 
         // We let deployer to configure X509 contract with essential root information such as modulus, exponent, extended key usages, and certificate policies
         // Currently we only have the configuration for local development
@@ -69,6 +85,33 @@ contract Deployer is Script {
 
         vm.stopBroadcast();
     }
+
+    function readRoundRobinConfig(string memory toml)
+    internal
+    view
+    returns (RoundRobinConfig memory)
+{
+    RoundRobinConfig memory config;
+    config.defaultProposerAddress = toml.readAddress(string.concat(runMode, ".nightfall_deployer.default_proposer_address"));
+    config.defaultProposerUrl = toml.readString(string.concat(runMode, ".nightfall_deployer.default_proposer_url"));
+    config.stake = toml.readUint(string.concat(runMode, ".nightfall_deployer.proposer_stake"));
+    config.ding = toml.readUint(string.concat(runMode, ".nightfall_deployer.proposer_ding"));
+    config.exitPenalty = toml.readUint(string.concat(runMode, ".nightfall_deployer.proposer_exit_penalty"));
+    config.coolingBlocks = toml.readUint(string.concat(runMode, ".nightfall_deployer.proposer_cooling_blocks"));
+    config.rotationBlocks = toml.readUint(string.concat(runMode, ".nightfall_deployer.proposer_rotation_blocks"));
+    console2.log(
+        "RoundRobinConfig: %s, %s, %s",
+        config.stake,
+        config.ding,
+        config.exitPenalty
+    );
+    console2.log(
+        "RoundRobinConfig: %s, %s",
+        config.coolingBlocks,
+        config.rotationBlocks
+    );
+    return config;
+}
 
     function initializeVerifierAndSanctions(
         string memory toml
