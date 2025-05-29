@@ -27,7 +27,7 @@ pub async fn handle_get_request_status(id: String) -> Result<impl Reply, warp::R
             ))
         }
     };
-    let db = get_db_connection().await.read().await;
+    let db = get_db_connection().await;
     // get the request
     debug! {"Getting request status for {id}"};
     let request = db.get_request(&id).await;

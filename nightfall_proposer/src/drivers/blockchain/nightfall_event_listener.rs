@@ -160,8 +160,7 @@ where
     // and we can improve it later
     {
         // let db = &mut get_db_connection().await.write().await;
-        let mut db_guard = get_db_connection().await.write().await;
-        let db = &mut *db_guard;
+        let db = get_db_connection().await;
         let _ = <MongoClient as CommitmentTree<Fr254>>::reset_tree(db).await;
         let _ = <MongoClient as HistoricRootTree<Fr254>>::reset_tree(db).await;
         let _ = <MongoClient as NullifierTree<Fr254>>::reset_tree(db).await;
