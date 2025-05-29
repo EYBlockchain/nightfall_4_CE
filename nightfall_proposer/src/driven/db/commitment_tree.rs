@@ -17,7 +17,7 @@ where
     const TREE_NAME: &'static str = "Commitments";
 
     async fn batch_insert_with_circuit_info(
-        &mut self,
+        &self,
         commitments: &[F],
     ) -> Result<Vec<Self::CircuitInfo>, Self::Error> {
         <Self as MutableTree<F>>::batch_insert_with_circuit_info(

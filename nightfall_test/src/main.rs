@@ -9,6 +9,7 @@ use tokio::task::JoinSet;
 
 #[tokio::main]
 async fn main() {
+    const MINING_INTERVAL: u32 = 5; // seconds
     let settings: Settings = Settings::new().unwrap();
     init_logging(
         settings.nightfall_test.log_level.as_str(),
@@ -21,7 +22,7 @@ async fn main() {
     info!("Starting webhook server...");
     tasks.spawn(run_webhook_server(responses.clone()));
     info!("Running tests...");
-    tasks.spawn(run_tests(responses.clone()));
+    tasks.spawn(run_tests(responses.clone(), MINING_INTERVAL));
     info!("Starting queue polling...");
     tasks.spawn(poll_queue());
 

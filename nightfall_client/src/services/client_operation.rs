@@ -92,7 +92,7 @@ where
     let (membership_proofs, roots) = {
         let mut proofs = vec![];
         let mut roots = vec![];
-        let db = &mut get_db_connection().await.write().await;
+        let db = get_db_connection().await;
         for commitment in spend_commitments.iter() {
             // ignore zero commitments here because they won't be in our commitment database. We check
             // for zero commitments by checking the preimage has default token id. We have already adjusted

@@ -27,7 +27,7 @@ pub fn get_commitment(
 pub async fn handle_get_commitment(key: String) -> Result<impl Reply, warp::Rejection> {
     let parsed_key = Fr254::from_hex_string(&key)
         .map_err(|_| reject::custom(CommitmentError::KeyParsingError))?;
-    let commitment_db = &mut get_db_connection().await.write().await;
+    let commitment_db = get_db_connection().await;
     trace!("Looking up commitment in DB, with key {}", &key);
     if let Some(res) = commitment_db.get_commitment(&parsed_key).await {
         Ok(reply::with_status(reply::json(&res), StatusCode::OK))
@@ -49,7 +49,7 @@ pub fn get_all_commitments(
 }
 
 pub async fn handle_get_all_commitments() -> Result<impl Reply, warp::Rejection> {
-    let commitment_db = &mut get_db_connection().await.write().await;
+    let commitment_db = get_db_connection().await;
     let res = commitment_db
         .get_all_commitments()
         .await

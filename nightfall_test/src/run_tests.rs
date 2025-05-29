@@ -18,10 +18,7 @@ use lib::{
 
 use crate::{
     test::{
-        self, create_nf3_deposit_transaction, create_nf3_transfer_transaction,
-        create_nf3_withdraw_transaction, de_escrow_request, forge_command, get_key,
-        get_recipient_address, load_addresses, validate_certificate_with_server,
-        wait_for_all_responses, wait_on_chain, TokenType,
+        self, create_nf3_deposit_transaction, create_nf3_transfer_transaction, create_nf3_withdraw_transaction, de_escrow_request, forge_command, get_key, get_recipient_address, load_addresses, set_anvil_mining_interval, validate_certificate_with_server, wait_for_all_responses, wait_on_chain, TokenType
     },
     test_settings::TestSettings,
 };
@@ -33,10 +30,19 @@ use ethers::{
 };
 use url::Url;
 
-pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_json::Value>>>) {
+pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_json::Value>>>, mining_interval: u32) {
     let settings: Settings = Settings::new().unwrap();
     let test_settings: TestSettings = TestSettings::new().unwrap();
     info!("Running tests on nightall_client http:// interface");
+
+    // override the mining interval that may have been set in Anvil. If Anvil was set to automine, also turn that off
+    let http_client = reqwest::Client::new();
+    let url = Url::parse("http://anvil:8545")
+        .unwrap()
+        .join("v1/setAnvilMiningInterval")
+        .unwrap();
+    set_anvil_mining_interval(&http_client, &url, mining_interval).await
+        .expect("Failed to set Anvil mining interval"); 
 
     // generate the zkp keys (they will be held in-memory in the client)
     let url = Url::parse(&settings.nightfall_client.url)
@@ -68,7 +74,6 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
 
     // Validate the certificate with the server before proceeding
     info!("Validating Client's certificate");
-    let http_client = reqwest::Client::new();
     let cert_url = Url::parse(&settings.nightfall_client.url)
         .unwrap()
         .join("/v1/certification")

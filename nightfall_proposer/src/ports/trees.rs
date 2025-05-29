@@ -30,7 +30,7 @@ where
     async fn insert_for_circuit(&mut self, leaves: &[F]) -> Result<Self::CircuitInfo, Self::Error>;
     /// let's multiple sub trees be added in a single batch - it calls insert_subtree for each sub tree
     async fn batch_insert_with_circuit_info(
-        &mut self,
+        &self,
         commitments: &[F],
     ) -> Result<Vec<Self::CircuitInfo>, Self::Error>;
     /// get a new commitment tree
@@ -111,7 +111,7 @@ where
     ) -> Result<Self::CircuitInfo, <Self as MutableTree<F>>::Error>;
     /// let's multiple sub trees be added in a single batch - it calls insert_subtree for each sub tree
     async fn batch_insert_with_circuit_info(
-        &mut self,
+        &self,
         commitments: &[F],
     ) -> Result<Vec<Self::CircuitInfo>, <Self as MutableTree<F>>::Error>;
 
