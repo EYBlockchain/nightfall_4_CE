@@ -25,7 +25,7 @@ use crate::{
 use ark_std::Zero;
 use ethers::{
     providers::Middleware,
-    types::{TransactionReceipt, I256, U256},
+    types::{TransactionReceipt, U256},
     utils::{format_units, parse_units},
 };
 use url::Url;
@@ -468,9 +468,9 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
         .await
         .expect("Failed to parse commitment entry");
     assert_eq!(
-        commitment.layer_2_block_number,
-        Some(I256::zero()),
-        "The commitment should be in block 0"
+        commitment.key,
+        commitment_hashes[0],
+        "The commitment hashes should match"
     );
 
     info!("Making client2 fee commitments so that it can withdraw");
