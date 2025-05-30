@@ -591,7 +591,7 @@ where
     }
 
     async fn batch_insert_with_circuit_info(
-        &mut self,
+        &self,
         commitments: &[F],
         tree_id: &str,
     ) -> Result<Vec<CircuitInsertionInfo<F>>, Self::Error> {
@@ -623,7 +623,7 @@ where
     }
 
     async fn insert_for_circuit(
-        &mut self,
+        &self,
         commitments: &[F],
         tree_id: &str,
     ) -> Result<CircuitInsertionInfo<F>, Self::Error> {

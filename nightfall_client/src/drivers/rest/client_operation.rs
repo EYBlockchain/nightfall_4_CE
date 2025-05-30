@@ -72,9 +72,9 @@ where
 
     debug!("{id} Calling client_operation");
     // We should store the change commitments, so that when they appear on-chain, we can add them to the commitments DB.
-    // That will mean that they could potentially be spent. Scope it so the lock gets dropped and other processes can access the DB.
+    // That will mean that they could potentially be spent. 
     {
-        let db = &mut get_db_connection().await.write().await;
+        let db = get_db_connection().await;
         let mut commitment_entries = vec![];
         for commitment in new_commitments.iter() {
             if commitment.get_public_key() == zkp_public_key {
@@ -265,8 +265,8 @@ pub async fn process_transaction_offchain<P: Serialize + Sync>(
             .get_client(),
     );
     let proposers_struct: Vec<Proposer> = round_robin_instance.get_proposers().call().await?;
-    let db = get_db_connection().await.write().await;
-
+    let db = get_db_connection().await;
+    
     let futures: Vec<_> = proposers_struct
         .into_iter()
         .map(|proposer| {

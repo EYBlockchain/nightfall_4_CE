@@ -108,11 +108,10 @@ pub mod initialisation {
     use tokio::sync::{OnceCell, RwLock};
 
     /// This function is used to provide a singleton database connection across the entire application.
-    pub async fn get_db_connection() -> &'static RwLock<Client> {
-        static DB_CONNECTION: OnceCell<RwLock<Client>> = OnceCell::const_new();
+    pub async fn get_db_connection() -> &'static Client {
+        static DB_CONNECTION: OnceCell<Client> = OnceCell::const_new();
         DB_CONNECTION
             .get_or_init(|| async {
-                RwLock::new({
                     // select the proposer to use
                     let uri = &get_settings().nightfall_proposer.db_url;
                     let client = Client::with_uri_str(uri)
@@ -140,7 +139,7 @@ pub mod initialisation {
                     .expect("Couldn't insert zero leaf into the historic root tree");
                     client
                 })
-            })
+           
             .await
     }
 

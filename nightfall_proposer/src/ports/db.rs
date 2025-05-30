@@ -18,26 +18,26 @@ pub trait BlockStorageDB {
 #[async_trait::async_trait]
 pub trait TransactionsDB<'a, P> {
     async fn store_transaction(
-        &mut self,
+        &self,
         transaction: ClientTransactionWithMetaData<P>,
     ) -> Option<()>;
-    async fn get_transaction(&mut self, key: &'a [u32])
+    async fn get_transaction(&self, key: &'a [u32])
         -> Option<ClientTransactionWithMetaData<P>>;
     async fn get_all_transactions(
-        &mut self,
+        &self,
     ) -> Option<Vec<(Vec<u32>, ClientTransactionWithMetaData<P>)>>;
     async fn get_all_mempool_client_transactions(
-        &mut self,
+        &self,
     ) -> Option<Vec<(Vec<u32>, ClientTransactionWithMetaData<P>)>>;
-    async fn count_mempool_client_transactions(&mut self) -> Result<u64, mongodb::error::Error>;
-    async fn is_transaction_in_mempool(&mut self, key: &'a [u32]) -> bool;
+    async fn count_mempool_client_transactions(&self) -> Result<u64, mongodb::error::Error>;
+    async fn is_transaction_in_mempool(&self, key: &'a [u32]) -> bool;
     async fn check_nullifier(&self, nullifier: Fr254) -> bool;
     async fn check_commitment(&self, commitment: Fr254) -> bool;
-    async fn update_commitment<M>(&mut self, mutator: M, key: &'a [u32]) -> Option<()>
+    async fn update_commitment<M>(&self, mutator: M, key: &'a [u32]) -> Option<()>
     where
         M: Fn(&ClientTransactionWithMetaData<P>) -> ClientTransactionWithMetaData<P> + Send;
     async fn set_in_mempool(
-        &mut self,
+        &self,
         transactions: &[ClientTransactionWithMetaData<P>],
         in_mempool: bool,
     ) -> Option<u64>;
@@ -46,15 +46,15 @@ pub trait TransactionsDB<'a, P> {
         tx: &ClientTransaction<P>,
     ) -> Option<ClientTransactionWithMetaData<P>>;
     async fn find_deposit(&self, tx: &DepositDatawithFee) -> Option<DepositDatawithFee>;
-    async fn set_mempool_deposits(&mut self, deposits: Vec<DepositDatawithFee>) -> Option<u64>;
-    async fn get_mempool_deposits(&mut self) -> Option<Vec<DepositDatawithFee>>;
-    async fn count_mempool_deposits(&mut self) -> Result<u64, mongodb::error::Error>;
+    async fn set_mempool_deposits(&self, deposits: Vec<DepositDatawithFee>) -> Option<u64>;
+    async fn get_mempool_deposits(&self) -> Option<Vec<DepositDatawithFee>>;
+    async fn count_mempool_deposits(&self) -> Result<u64, mongodb::error::Error>;
     async fn remove_mempool_deposits(
-        &mut self,
+        &self,
         used_deposits: Vec<Vec<DepositDatawithFee>>,
     ) -> Option<u64>;
-    async fn remove_all_mempool_deposits(&mut self) -> Option<u64>;
-    async fn remove_all_mempool_client_transactions(&mut self) -> Option<u64>;
+    async fn remove_all_mempool_deposits(&self) -> Option<u64>;
+    async fn remove_all_mempool_client_transactions(&self) -> Option<u64>;
 }
 
 /// A database that stores historic roots of the commitments Merkle tree.

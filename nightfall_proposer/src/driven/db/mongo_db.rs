@@ -25,7 +25,7 @@ where
     P: Proof,
 {
     async fn store_transaction(
-        &mut self,
+        &self,
         transaction: ClientTransactionWithMetaData<P>,
     ) -> Option<()> {
         self.database(DB)
@@ -37,7 +37,7 @@ where
     }
 
     async fn get_transaction(
-        &mut self,
+        &self,
         key: &'a [u32],
     ) -> Option<ClientTransactionWithMetaData<P>> {
         let filter = doc! {"hash": key};
@@ -49,7 +49,7 @@ where
     }
 
     async fn get_all_transactions(
-        &mut self,
+        &self,
     ) -> Option<Vec<(Vec<u32>, ClientTransactionWithMetaData<P>)>> {
         let mut cursor: mongodb::Cursor<ClientTransactionWithMetaData<P>> = self
             .database(DB)
@@ -70,7 +70,7 @@ where
 
     // add in all the remaining trait items
     async fn get_all_mempool_client_transactions(
-        &mut self,
+        &self,
     ) -> Option<Vec<(Vec<u32>, ClientTransactionWithMetaData<P>)>> {
         let filter = doc! {"in_mempool": true};
         let mut cursor: mongodb::Cursor<ClientTransactionWithMetaData<P>> = self
@@ -92,7 +92,7 @@ where
 
     // Count client_transaction in the mempool
     // This is used to determine if we need to assemble a block
-    async fn count_mempool_client_transactions(&mut self) -> Result<u64, mongodb::error::Error> {
+    async fn count_mempool_client_transactions(&self) -> Result<u64, mongodb::error::Error> {
         let filter = doc! { "in_mempool": true };
         self.database(DB)
             .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
@@ -100,7 +100,7 @@ where
             .await
     }
 
-    async fn is_transaction_in_mempool(&mut self, k: &'a [u32]) -> bool {
+    async fn is_transaction_in_mempool(&self, k: &'a [u32]) -> bool {
         let filter = doc! {"hash": k};
         let result = self
             .database(DB)
@@ -122,7 +122,7 @@ where
         todo!()
     }
 
-    async fn update_commitment<M>(&mut self, mutator: M, key: &'a [u32]) -> Option<()>
+    async fn update_commitment<M>(&self, mutator: M, key: &'a [u32]) -> Option<()>
     where
         M: Fn(&ClientTransactionWithMetaData<P>) -> ClientTransactionWithMetaData<P> + Send,
     {
@@ -139,7 +139,7 @@ where
     }
 
     async fn set_in_mempool(
-        &mut self,
+        &self,
         txs: &[ClientTransactionWithMetaData<P>],
         in_mempool: bool,
     ) -> Option<u64> {
@@ -184,7 +184,7 @@ where
     }
 
     // Store unused deposits in the mempool
-    async fn set_mempool_deposits(&mut self, deposits: Vec<DepositDatawithFee>) -> Option<u64> {
+    async fn set_mempool_deposits(&self, deposits: Vec<DepositDatawithFee>) -> Option<u64> {
         if deposits.is_empty() {
             return Some(0);
         }
@@ -200,7 +200,7 @@ where
     }
 
     // Retrieve deposits from the mempool
-    async fn get_mempool_deposits(&mut self) -> Option<Vec<DepositDatawithFee>> {
+    async fn get_mempool_deposits(&self) -> Option<Vec<DepositDatawithFee>> {
         let collection = self
             .database(DB)
             .collection::<DepositDatawithFee>(DEPOSIT_COLLECTION);
@@ -220,7 +220,7 @@ where
     }
     // Count deposits in the mempool
     // This is used to determine if we need to assemble a block
-    async fn count_mempool_deposits(&mut self) -> Result<u64, mongodb::error::Error> {
+    async fn count_mempool_deposits(&self) -> Result<u64, mongodb::error::Error> {
         self.database(DB)
             .collection::<DepositDatawithFee>(DEPOSIT_COLLECTION)
             .count_documents(doc! {})
@@ -229,7 +229,7 @@ where
 
     // Remove used deposits from the mempool
     async fn remove_mempool_deposits(
-        &mut self,
+        &self,
         used_deposits: Vec<Vec<DepositDatawithFee>>,
     ) -> Option<u64> {
         let used_deposits: Vec<DepositDatawithFee> = used_deposits.into_iter().flatten().collect();
@@ -260,7 +260,7 @@ where
     }
 
     // Remove all deposits from the mempool
-    async fn remove_all_mempool_deposits(&mut self) -> Option<u64> {
+    async fn remove_all_mempool_deposits(&self) -> Option<u64> {
         let collection = self
             .database(DB)
             .collection::<DepositDatawithFee>(DEPOSIT_COLLECTION);
@@ -268,7 +268,7 @@ where
         let result = collection.delete_many(doc! {}).await.ok()?;
         Some(result.deleted_count)
     }
-    async fn remove_all_mempool_client_transactions(&mut self) -> Option<u64> {
+    async fn remove_all_mempool_client_transactions(&self) -> Option<u64> {
         let collection = self
             .database(DB)
             .collection::<ClientTransactionWithMetaData<P>>(COLLECTION);

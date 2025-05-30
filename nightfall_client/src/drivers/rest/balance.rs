@@ -21,7 +21,7 @@ pub async fn handle_get_balance(
     // see if we can decode the input
     if let Ok(nf_token_id) = nf_token_id {
         // search the commitment db for a preimage with the correct nf_token_id
-        let db = get_db_connection().await.read().await;
+        let db = get_db_connection().await;
         // get the balance
         let balance = db.get_balance(&nf_token_id).await;
         if let Some(balance) = balance {
@@ -56,7 +56,7 @@ pub fn get_fee_balance(
 pub async fn handle_get_fee_balance() -> Result<impl Reply, warp::Rejection> {
     let fee_token_id = get_fee_token_id();
     // search the commitment db for a preimage with the correct nf_token_id
-    let db = get_db_connection().await.read().await;
+    let db = get_db_connection().await;
     // get the balance
     let balance = db.get_balance(&fee_token_id).await;
     if let Some(balance) = balance {
