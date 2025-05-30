@@ -18,7 +18,7 @@ use lib::{
 
 use crate::{
     test::{
-        self, create_nf3_deposit_transaction, create_nf3_transfer_transaction, create_nf3_withdraw_transaction, de_escrow_request, forge_command, get_key, get_recipient_address, load_addresses, set_anvil_mining_interval, validate_certificate_with_server, wait_for_all_responses, wait_on_chain, TokenType
+        self, anvil_reorg, create_nf3_deposit_transaction, create_nf3_transfer_transaction, create_nf3_withdraw_transaction, de_escrow_request, forge_command, get_key, get_recipient_address, load_addresses, set_anvil_mining_interval, validate_certificate_with_server, wait_for_all_responses, wait_on_chain, TokenType
     },
     test_settings::TestSettings,
 };
@@ -427,6 +427,24 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
         .await
         .unwrap();
     info!("Deposit commitments for client 1 are now on-chain");
+
+    info!("Performing chain reorg after client 1 deposit phase");
+
+// Build the Anvil HTTP client and URL
+let anvil_http_client = reqwest::Client::new();
+let anvil_url = Url::parse("http://anvil:8545").unwrap();
+
+// Define reorg depth (e.g., 1 block), whether to replay transactions (true or false), and restore interval
+let reorg_depth = 1;
+let replay_transactions = true; 
+let mining_interval = 5;  // restore original interval
+
+// Execute the reorg
+anvil_reorg(&anvil_http_client, &anvil_url, reorg_depth, replay_transactions, mining_interval)
+    .await
+    .expect("Failed to perform Anvil reorg");
+
+info!("Chain reorg completed; continuing with tests");
 
     // get the balance of the ERC721 token we just deposited
     let balance = get_erc721_balance(
