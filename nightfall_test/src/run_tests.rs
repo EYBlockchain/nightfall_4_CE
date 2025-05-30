@@ -25,7 +25,7 @@ use crate::{
 use ark_std::Zero;
 use ethers::{
     providers::Middleware,
-    types::{TransactionReceipt, I256, U256},
+    types::{TransactionReceipt, U256},
     utils::{format_units, parse_units},
 };
 use url::Url;
@@ -37,10 +37,7 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
 
     // override the mining interval that may have been set in Anvil. If Anvil was set to automine, also turn that off
     let http_client = reqwest::Client::new();
-    let url = Url::parse("http://anvil:8545")
-        .unwrap()
-        .join("v1/setAnvilMiningInterval")
-        .unwrap();
+    let url = Url::parse("http://anvil:8545").unwrap();
     set_anvil_mining_interval(&http_client, &url, mining_interval).await
         .expect("Failed to set Anvil mining interval"); 
 
@@ -471,9 +468,9 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
         .await
         .expect("Failed to parse commitment entry");
     assert_eq!(
-        commitment.layer_2_block_number,
-        Some(I256::zero()),
-        "The commitment should be in block 0"
+        commitment.key,
+        commitment_hashes[0],
+        "The commitment hashes should match"
     );
 
     info!("Making client2 fee commitments so that it can withdraw");
