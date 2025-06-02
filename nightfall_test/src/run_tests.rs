@@ -521,7 +521,6 @@ pub async fn run_tests(
         "The token id should be 0x00"
     );
 
-
     info!("Making client2 fee commitments so that it can withdraw");
     // give client 2 some deposit fee commitments so that it can transact
     // we need up to seven commitments because we'll want to do up to seven withdraws in

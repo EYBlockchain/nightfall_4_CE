@@ -1,7 +1,11 @@
 use ark_bn254::Fr as Fr254;
 use reqwest::StatusCode;
-use warp::{path, reject, reply::{self, Reply}, Filter};
-
+use warp::{
+    path, reject,
+    reply::{self, Reply},
+    Filter,
+};
+use crate::domain::entities::HexConvertible;
 use crate::ports::contracts::NightfallContract;
 
 #[derive(Debug)]
@@ -20,17 +24,15 @@ pub fn get_token_info<N: NightfallContract>(
 }
 
 /// Handler for the GET request to retrieve token information
-async fn handle_get_token_info<N: NightfallContract>(nf_token_id: String) -> Result<impl Reply, warp::Rejection> {
-    dbg!(nf_token_id.clone());
-    let nf_token_id = nf_token_id
-        .parse::<Fr254>().map_err(|_| reject::custom(InvalidQuery))?;
+async fn handle_get_token_info<N: NightfallContract>(
+    nf_token_id: String,
+) -> Result<impl Reply, warp::Rejection> {
+    let nf_token_id = Fr254::from_hex_string(&nf_token_id)
+        .map_err(|_| reject::custom(InvalidQuery))?;
 
     let token_info = N::get_token_info(nf_token_id)
         .await
         .map_err(|_| reject::custom(NotFound))?;
 
-    Ok(reply::with_status(  
-        reply::json(&token_info),
-        StatusCode::OK,
-    ))
+    Ok(reply::with_status(reply::json(&token_info), StatusCode::OK))
 }

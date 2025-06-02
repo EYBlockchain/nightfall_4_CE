@@ -212,9 +212,7 @@ impl<M> NightfallContract for Nightfall<M> {
             .map_err(|_| NightfallContractError::TransactionError)
     }
 
-    async fn get_token_info(
-        nf_token_id: Fr254,
-    ) -> Result<TokenData, NightfallContractError> {
+    async fn get_token_info(nf_token_id: Fr254) -> Result<TokenData, NightfallContractError> {
         let client = get_blockchain_client_connection()
             .await
             .read()

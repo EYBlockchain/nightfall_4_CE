@@ -1,14 +1,11 @@
-use crate::ports::{
-    contracts::NightfallContract,
-    proof::Proof,
-};
+use crate::ports::{contracts::NightfallContract, proof::Proof};
 use balance::{get_balance, get_fee_balance};
 use lib::validate_certificate::certification_validation_request;
 use log::error;
 use proposers::get_proposers;
 use reqwest::StatusCode;
-use token_info::InvalidQuery;
 use std::fmt::Debug;
+use token_info::InvalidQuery;
 use warp::{
     reject::Rejection,
     reply::{self, Reply},
@@ -22,8 +19,8 @@ use self::{
     keys::derive_key_mnemonic,
     request_status::{get_queue_length, get_request_status},
     synchronisation::synchronisation,
-    withdraw::de_escrow,
     token_info::get_token_info,
+    withdraw::de_escrow,
 };
 
 mod balance;
@@ -36,9 +33,9 @@ pub mod models;
 pub mod proposers;
 mod request_status;
 mod synchronisation;
+mod token_info;
 pub mod utils;
 mod withdraw;
-mod token_info;
 
 pub fn routes<P, N>() -> impl Filter<Extract = (impl warp::Reply,)> + Clone
 where
@@ -69,10 +66,7 @@ async fn handle_rejection(err: Rejection) -> Result<impl Reply, std::convert::In
         Ok(reply::with_status("NOT_FOUND", StatusCode::NOT_FOUND))
     } else if let Some(e) = err.find::<InvalidQuery>() {
         error!("Invalid query error: {:?}", e);
-        Ok(reply::with_status(
-            "BAD_REQUEST",
-            StatusCode::BAD_REQUEST,
-        ))
+        Ok(reply::with_status("BAD_REQUEST", StatusCode::BAD_REQUEST))
     } else {
         error!("unhandled rejection: {:?}", err);
         Ok(reply::with_status(
@@ -80,5 +74,4 @@ async fn handle_rejection(err: Rejection) -> Result<impl Reply, std::convert::In
             StatusCode::INTERNAL_SERVER_ERROR,
         ))
     }
-    
 }
