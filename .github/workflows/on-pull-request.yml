@@ -74,6 +74,7 @@ jobs:
             mkdir -p /home/testrunner/ptau-cache
             wget https://pse-trusted-setup-ppot.s3.eu-central-1.amazonaws.com/pot28_0080/ppot_0080_26.ptau
             mv ppot_0080_26.ptau /home/testrunner/ptau-cache/ppot_26.ptau
+            chmod 444 ptau-cache/ppot_26.ptau # Make it read-only
             echo "Cached ppot_26.ptau created"
           fi
           ln -sf /home/testrunner/ptau-cache/ppot_26.ptau /home/testrunner/actions-runner/_work/nightfall_4_PV/nightfall_4_PV/configuration/bin/ppot_26.ptau
