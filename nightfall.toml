@@ -19,7 +19,7 @@ chain_id = 31337 # Anvil chain id = 31337
 
 [development.nightfall_client]
 url = "http://client:3000"
-log_level = "info"
+log_level = "debug"
 wallet_type = "local"
 db_url = "mongodb://nf4_db_client:27017"
 max_event_listener_attempts = 10
@@ -27,7 +27,7 @@ webhook_url = "http://172.18.0.250:8080/webhook" # The webhook URL for the clien
 
 [development.nightfall_proposer]
 url = "http://proposer:3000"
-log_level = "info"
+log_level = "debug"
 wallet_type = "local"
 db_url = "mongodb://nf4_db_proposer:27017"
 block_assembly_max_wait_secs = 120 
@@ -36,7 +36,7 @@ block_assembly_initial_interval_secs = 15
 max_event_listener_attempts = 10
 
 [development.nightfall_deployer]
-log_level = "info"
+log_level = "debug"
 default_proposer_address = "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720"
 default_proposer_url = "http://proposer:3000"
 proposer_stake = 0
@@ -44,7 +44,7 @@ proposer_ding = 0                                                       # how mu
 proposer_rotation_blocks = 1                                            # how many blocks before we rotate proposers
 
 [development.nightfall_test]
-log_level = "info"
+log_level = "debug"
 
 [development.contracts]
 assets = "./blockchain_assets/artifacts"
@@ -86,7 +86,7 @@ chain_id = 84532 # Base Sepolia chain id = 84532
 
 [base_sepolia.nightfall_client]
 url = "http://client:3000"
-log_level = "info"
+log_level = "debug"
 wallet_type = "local"
 db_url = "mongodb://nf4_db_client:27017"
 max_event_listener_attempts = 10
@@ -94,14 +94,14 @@ webhook_url = "http://172.18.0.250:8080/webhook" # The webhook URL for the clien
 
 [base_sepolia.nightfall_proposer]
 url = "http://proposer:3000"
-log_level = "info"
+log_level = "debug"
 wallet_type = "local"
 db_url = "mongodb://nf4_db_proposer:27017"
 max_event_listener_attempts = 10
 
 
 [base_sepolia.nightfall_deployer]
-log_level = "info"
+log_level = "debug"
 default_proposer_address = "0xB4482738243946ffAb384Fa5409bcad8F304a757"
 default_proposer_url = "http://proposer:3000"
 proposer_stake = 0
@@ -109,7 +109,7 @@ proposer_ding = 0                                                       # how mu
 proposer_rotation_blocks = 1                                            # how many blocks before we rotate proposers
 
 [base_sepolia.nightfall_test]
-log_level = "info"
+log_level = "debug"
 
 [base_sepolia.contracts]
 assets = "./blockchain_assets/artifacts"
