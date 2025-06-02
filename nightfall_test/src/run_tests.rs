@@ -44,8 +44,9 @@ pub async fn run_tests(
     // override the mining interval that may have been set in Anvil. If Anvil was set to automine, also turn that off
     let http_client = reqwest::Client::new();
     let url = Url::parse("http://anvil:8545").unwrap();
-    set_anvil_mining_interval(&http_client, &url, mining_interval).await
-        .expect("Failed to set Anvil mining interval"); 
+    set_anvil_mining_interval(&http_client, &url, mining_interval)
+        .await
+        .expect("Failed to set Anvil mining interval");
 
     // generate the zkp keys (they will be held in-memory in the client)
     let url = Url::parse(&settings.nightfall_client.url)
@@ -474,8 +475,7 @@ pub async fn run_tests(
         .await
         .expect("Failed to parse commitment entry");
     assert_eq!(
-        commitment.key,
-        commitment_hashes[0],
+        commitment.key, commitment_hashes[0],
         "The commitment hashes should match"
     );
 
