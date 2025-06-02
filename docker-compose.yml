@@ -367,6 +367,9 @@ services:
     build:
       dockerfile: nightfall_deployer/Dockerfile
       context: .
+      ulimits:
+        nofile:
+          soft: 65536
     platform: linux/amd64 # Required for building on M1 Macs
     # command: ["tail", "-f","/dev/null"] # For debugging if required
     networks:
