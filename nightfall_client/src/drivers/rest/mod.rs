@@ -1,12 +1,13 @@
 use crate::ports::{
     contracts::NightfallContract,
-    proof::{Proof, ProvingEngine},
+    proof::Proof,
 };
 use balance::{get_balance, get_fee_balance};
 use lib::validate_certificate::certification_validation_request;
 use log::error;
 use proposers::get_proposers;
 use reqwest::StatusCode;
+use token_info::InvalidQuery;
 use std::fmt::Debug;
 use warp::{
     reject::Rejection,
@@ -22,6 +23,7 @@ use self::{
     request_status::{get_queue_length, get_request_status},
     synchronisation::synchronisation,
     withdraw::de_escrow,
+    token_info::get_token_info,
 };
 
 mod balance;
@@ -36,11 +38,11 @@ mod request_status;
 mod synchronisation;
 pub mod utils;
 mod withdraw;
+mod token_info;
 
-pub fn routes<P, E, N>() -> impl Filter<Extract = (impl warp::Reply,)> + Clone
+pub fn routes<P, N>() -> impl Filter<Extract = (impl warp::Reply,)> + Clone
 where
     P: Proof + Debug + Send + serde::Serialize + Clone + Sync,
-    E: ProvingEngine<P> + Send + Sync,
     N: NightfallContract,
 {
     health_route()
@@ -58,12 +60,19 @@ where
         .or(synchronisation::<N>())
         .or(get_request_status())
         .or(get_queue_length())
+        .or(get_token_info::<N>())
         .recover(handle_rejection)
 }
 
 async fn handle_rejection(err: Rejection) -> Result<impl Reply, std::convert::Infallible> {
     if err.is_not_found() {
         Ok(reply::with_status("NOT_FOUND", StatusCode::NOT_FOUND))
+    } else if let Some(e) = err.find::<InvalidQuery>() {
+        error!("Invalid query error: {:?}", e);
+        Ok(reply::with_status(
+            "BAD_REQUEST",
+            StatusCode::BAD_REQUEST,
+        ))
     } else {
         error!("unhandled rejection: {:?}", err);
         Ok(reply::with_status(
@@ -71,4 +80,5 @@ async fn handle_rejection(err: Rejection) -> Result<impl Reply, std::convert::In
             StatusCode::INTERNAL_SERVER_ERROR,
         ))
     }
+    
 }

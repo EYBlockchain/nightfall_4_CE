@@ -481,6 +481,14 @@ impl DepositSecret {
     }
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct TokenData {
+    #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
+    pub erc_address: Fr254,
+    #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
+    pub token_id: BigInteger256,
+}
+
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct WithdrawData {
     #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
