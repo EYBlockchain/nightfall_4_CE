@@ -336,7 +336,6 @@ async fn process_propose_block_event<N: NightfallContract>(
                 .map_err(|_| EventHandlerError::HashError)?;
             let commitment_entry = CommitmentEntry::new(
                 test_preimage,
-                commitment_hash,
                 nullifier,
                 CommitmentStatus::Unspent,
             );

@@ -164,7 +164,8 @@ impl From<DBMembershipProof> for MembershipProof<Fr254> {
 pub struct CommitmentEntry {
     pub preimage: Preimage,
     pub status: CommitmentStatus,
-    #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
+    
+    #[serde(rename = "_id",serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
     pub key: Fr254,
     #[serde(
         serialize_with = "ark_se_hex",
@@ -203,7 +204,8 @@ impl Commitment for CommitmentEntry {
     }
 }
 impl CommitmentEntryDB for CommitmentEntry {
-    fn new(preimage: Preimage, key: Fr254, nullifier: Fr254, status: CommitmentStatus) -> Self {
+    fn new(preimage: Preimage, nullifier: Fr254, status: CommitmentStatus) -> Self {
+        let key = preimage.hash().expect("failed to hash preimage");
         Self {
             preimage,
             status,
@@ -443,7 +445,10 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
         Some(())
     }
 
-    async fn store_commitment(&self, commitment: CommitmentEntry) -> Option<()> {
+    async fn store_commitment(
+        &self, 
+        commitment: CommitmentEntry
+    ) -> Option<()> {
         let result = self
             .database(DB)
             .collection::<CommitmentEntry>("commitments")

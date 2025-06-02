@@ -84,7 +84,6 @@ where
                     .expect("Nullifiers must be hashable");
                 let commitment_entry = CommitmentEntry::new(
                     commitment.get_preimage(),
-                    commitment_hash,
                     nullifier,
                     CommitmentStatus::PendingCreation,
                 );
