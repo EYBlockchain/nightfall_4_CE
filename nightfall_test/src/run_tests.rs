@@ -1,4 +1,5 @@
 use ark_bn254::Fr as Fr254;
+use ark_ff::BigInteger256;
 use configuration::settings::{get_settings, Settings};
 use futures::future::try_join_all;
 use lib::{hex_conversion::HexConvertible, models::CertificateReq};
@@ -6,7 +7,7 @@ use log::{debug, info, warn};
 use nightfall_client::{
     domain::entities::{HexConvertible, TokenData},
     driven::db::mongo::CommitmentEntry,
-    drivers::rest::{client_nf_3::WithdrawResponse, models::DeEscrowDataReq},
+    drivers::rest::{client_nf_3::WithdrawResponse, models::DeEscrowDataReq, utils::reverse_hex_string},
 };
 use serde_json::Value;
 use std::fs;
@@ -510,14 +511,15 @@ pub async fn run_tests(
         .await
         .expect("Failed to parse token info");
     // this should be an erc20 token
+    // TODO: this awkard string manipulation will be removed once the endianess of conversions is standardised
     assert_eq!(
-        token_data.erc_address.to_hex_string(),
+        reverse_hex_string(&token_data.erc_address.to_hex_string()).trim_start_matches("00"),
         TokenType::ERC20.address(),
         "The erc address should match the ERC20 token address"
     );
     assert_eq!(
-        token_data.token_id.to_hex_string(),
-        "0x00".to_string(),
+        token_data.token_id,
+        BigInteger256::zero(),
         "The token id should be 0x00"
     );
 
