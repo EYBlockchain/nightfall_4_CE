@@ -28,10 +28,10 @@ async fn main() -> Result<(), JoinError> {
 
     let result = tasks.join_next().await; // wait for any task to finish
     match result {
-        Some(Ok(_)) => {
+        Some(Ok(_)) => { 
             info!("Nightfall tests completed successfully.");
             return Ok(());
-        }
+        },
         Some(Err(e)) => {
             error!("Nightfall tests failed with error: {:?}", e);
             return Err(e);
