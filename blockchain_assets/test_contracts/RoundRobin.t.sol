@@ -7,6 +7,8 @@ import "../contracts/proof_verification/MockVerifier.sol";
 import "forge-std/Test.sol";
 import "forge-std/console2.sol";
 import "../contracts/SanctionsListMock.sol";
+import "../contracts/X509/X509.sol";
+
 
 contract RoundRobinTest is Test {
     address public default_proposer_address =
@@ -15,13 +17,21 @@ contract RoundRobinTest is Test {
     string public default_proposer_url = "http://localhost:3000";
     string public proposer2_url = "http://localhost:3001";
 
+    X509 x509Contract;
     RoundRobin roundRobin;
     Nightfall nightfall;
     MockVerifier verifier;
 
     function setUp() public {
         vm.deal(address(this), 100);
+        x509Contract = new X509(address(this));
+        address sanctionedUser = address(0x123);
+        SanctionsListMock sanctionsListMock = new SanctionsListMock(
+            sanctionedUser
+        );
         roundRobin = new RoundRobin{value: 5}(
+            address(x509Contract),
+            address(sanctionsListMock),
             default_proposer_address,
             default_proposer_url,
             5, // stake
@@ -30,11 +40,7 @@ contract RoundRobinTest is Test {
             1, // allow to reregister immediately (no cooling_blocks)
             0 // allow to rotate immediately
         );
-        X509 x509Contract = new X509(address(this));
-        address sanctionedUser = address(0x123);
-        SanctionsListMock sanctionsListMock = new SanctionsListMock(
-            sanctionedUser
-        );
+        
 
         verifier = new MockVerifier();
 
@@ -70,6 +76,10 @@ contract RoundRobinTest is Test {
             default_proposer_address
         );
 
+        // as this test is about the Round Robin proposer management
+        // we temporally turn off x509
+        x509Contract.enableAllowlisting(false);
+
         roundRobin.add_proposer{value: 5}(proposer2_url);
         uint256 updatedEscrow = roundRobin.escrow();
         assertEq(
@@ -98,7 +108,6 @@ contract RoundRobinTest is Test {
         );
         assertEq(roundRobin.get_proposers()[0].url, default_proposer_url);
         roundRobin.rotate_proposer();
-        uint256 newEscrowtest2 = roundRobin.escrow();
         // check that the rotation has succeeded
         assertEq(roundRobin.get_current_proposer_address(), proposer2_address);
 

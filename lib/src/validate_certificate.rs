@@ -222,7 +222,7 @@ mod tests {
     #[test]
     fn test_sign_and_verify_ethereum_address() {
         let der_private_key = include_bytes!(
-            "../../blockchain_assets/test_contracts/X509/_certificates/user/user-2.priv_key"
+            "../../blockchain_assets/test_contracts/X509/_certificates/user/user-1.priv_key"
         );
         let address_bytes: [u8; 20] = decode("1804c8AB1F12E6bbf3894d4083f33e07309d1f38")
             .unwrap()

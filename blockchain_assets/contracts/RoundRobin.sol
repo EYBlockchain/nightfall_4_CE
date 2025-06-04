@@ -3,11 +3,14 @@ pragma solidity ^0.8.20;
 
 import "./ProposerManager.sol";
 import "./Nightfall.sol";
+import "./X509/Certified.sol";
+
 
 /// @title Proposers
 /// @notice An Round-Robin implementation for choosing proposers
 
-contract RoundRobin is ProposerManager {
+contract RoundRobin is ProposerManager, Certified {
+
     mapping(address => Proposer) public proposers;
     mapping(address => uint) public pending_withdraws;
     mapping(string => bool) public proposer_urls;
@@ -27,7 +30,9 @@ contract RoundRobin is ProposerManager {
     uint public immutable ROTATION_BlOCKS;
     uint public escrow = 0;
     Nightfall private nightfall;
-    address private owner;
+
+    // instance of the certified contract
+    Certified private certified;
 
     modifier only_owner() {
         require(msg.sender == owner, "Only the owner can call this function");
@@ -35,6 +40,8 @@ contract RoundRobin is ProposerManager {
     }
 
     constructor(
+        address x509_address,
+        address sanctionsListAddress,
         address default_proposer_address,
         string memory default_proposer_url,
         uint stake,
@@ -42,7 +49,13 @@ contract RoundRobin is ProposerManager {
         uint exit_penalty,
         uint cooling_blocks,
         uint rotation_blocks
-    ) payable {
+    ) 
+        Certified(
+            X509Interface(x509_address),
+            SanctionsListInterface(sanctionsListAddress)
+        )
+        payable 
+    {
         STAKE = stake;
         DING = ding;
         EXIT_PENALTY = exit_penalty;
@@ -71,7 +84,16 @@ contract RoundRobin is ProposerManager {
         proposers[default_proposer_address] = current;
         proposer_urls[default_proposer_url] = true;
         proposer_count = 1;
-        owner = msg.sender;
+    }
+
+    function set_x509_address(address x509_address) external onlyOwner {
+        x509 = X509(x509_address);
+    }
+
+    function set_sanctions_list(
+        address sanctionsListAddress
+    ) external onlyOwner {
+        sanctionsList = SanctionsListInterface(sanctionsListAddress);
     }
 
     // we set the nightfall contract address later because we probably don't know it at the time of deployment
@@ -90,7 +112,7 @@ contract RoundRobin is ProposerManager {
 
     function add_proposer(
         string calldata proposer_url
-    ) external payable override {
+    ) external payable override onlyCertified{
         // Enforce cooldown only if they have previously exited
         if (last_exit_block[msg.sender] != 0) {
             require(block.number > last_exit_block[msg.sender] + COOLDOWN_BLOCKS, "Cooldown period not met");

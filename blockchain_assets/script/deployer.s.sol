@@ -59,6 +59,8 @@ contract Deployer is Script {
         RoundRobinConfig memory rrConfig = readRoundRobinConfig(toml);
 
         RoundRobin roundRobin = new RoundRobin{value: rrConfig.stake}(
+            address(x509),
+            address(sanctionsList),
             rrConfig.defaultProposerAddress,
             rrConfig.defaultProposerUrl,
             rrConfig.stake,
