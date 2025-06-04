@@ -112,34 +112,31 @@ pub mod initialisation {
         static DB_CONNECTION: OnceCell<Client> = OnceCell::const_new();
         DB_CONNECTION
             .get_or_init(|| async {
-                    // select the proposer to use
-                    let uri = &get_settings().nightfall_proposer.db_url;
-                    let client = Client::with_uri_str(uri)
-                        .await
-                        .expect("Could not create database connection");
-                    // it's not enough just to connect to a database, we need to initialise some trees in it
-                    <mongodb::Client as CommitmentTree<Fr254>>::new_commitment_tree(&client, 29, 3)
-                        .await
-                        .expect("Could not create commitment tree");
-                    <mongodb::Client as HistoricRootTree<Fr254>>::new_historic_root_tree(
-                        &client, 32,
-                    )
+                // select the proposer to use
+                let uri = &get_settings().nightfall_proposer.db_url;
+                let client = Client::with_uri_str(uri)
+                    .await
+                    .expect("Could not create database connection");
+                // it's not enough just to connect to a database, we need to initialise some trees in it
+                <mongodb::Client as CommitmentTree<Fr254>>::new_commitment_tree(&client, 29, 3)
+                    .await
+                    .expect("Could not create commitment tree");
+                <mongodb::Client as HistoricRootTree<Fr254>>::new_historic_root_tree(&client, 32)
                     .await
                     .expect("Could not create historic root tree");
-                    <mongodb::Client as NullifierTree<Fr254>>::new_nullifier_tree(&client, 29, 3)
-                        .await
-                        .expect("Could not create historic root tree");
-
-                    <Client as HistoricRootTree<Fr254>>::append_historic_commitment_root(
-                        &client,
-                        &Fr254::from(0u8),
-                        true,
-                    )
+                <mongodb::Client as NullifierTree<Fr254>>::new_nullifier_tree(&client, 29, 3)
                     .await
-                    .expect("Couldn't insert zero leaf into the historic root tree");
-                    client
-                })
-           
+                    .expect("Could not create historic root tree");
+
+                <Client as HistoricRootTree<Fr254>>::append_historic_commitment_root(
+                    &client,
+                    &Fr254::from(0u8),
+                    true,
+                )
+                .await
+                .expect("Couldn't insert zero leaf into the historic root tree");
+                client
+            })
             .await
     }
 

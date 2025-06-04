@@ -17,12 +17,8 @@ pub trait BlockStorageDB {
 /// Used to store transactions that are on chain. Can be queried to see if a nullifier or commitment is on chain.
 #[async_trait::async_trait]
 pub trait TransactionsDB<'a, P> {
-    async fn store_transaction(
-        &self,
-        transaction: ClientTransactionWithMetaData<P>,
-    ) -> Option<()>;
-    async fn get_transaction(&self, key: &'a [u32])
-        -> Option<ClientTransactionWithMetaData<P>>;
+    async fn store_transaction(&self, transaction: ClientTransactionWithMetaData<P>) -> Option<()>;
+    async fn get_transaction(&self, key: &'a [u32]) -> Option<ClientTransactionWithMetaData<P>>;
     async fn get_all_transactions(
         &self,
     ) -> Option<Vec<(Vec<u32>, ClientTransactionWithMetaData<P>)>>;

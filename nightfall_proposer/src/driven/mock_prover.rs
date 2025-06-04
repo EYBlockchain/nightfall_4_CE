@@ -96,11 +96,8 @@ impl RecursiveProvingEngine<PlonkProof> for MockProver {
         .await?;
         // Create the commitments circuit info
         let commitment_circuit_info =
-            <Client as CommitmentTree<Fr254>>::batch_insert_with_circuit_info(
-                db,
-                &new_commitments,
-            )
-            .await?;
+            <Client as CommitmentTree<Fr254>>::batch_insert_with_circuit_info(db, &new_commitments)
+                .await?;
         // Create the nullifier circuit info
         debug!("Inserting nullifiers");
         let nullifier_circuit_info =

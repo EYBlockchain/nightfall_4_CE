@@ -99,13 +99,11 @@ pub mod initialisation {
     use tokio::sync::OnceCell;
     use url::Url;
 
-   
-/// This function is used to provide a singleton database connection across the entire application.
-pub async fn get_db_connection() -> &'static MongoClient {
-    static DB_CONNECTION: OnceCell<MongoClient> = OnceCell::const_new();
-    DB_CONNECTION
-        .get_or_init(
-            || async { 
+    /// This function is used to provide a singleton database connection across the entire application.
+    pub async fn get_db_connection() -> &'static MongoClient {
+        static DB_CONNECTION: OnceCell<MongoClient> = OnceCell::const_new();
+        DB_CONNECTION
+            .get_or_init(|| async {
                 let client = MongoClient::with_uri_str(&get_settings().nightfall_client.db_url)
                     .await
                     .expect("Could not create database connection");
@@ -114,10 +112,9 @@ pub async fn get_db_connection() -> &'static MongoClient {
                     .await
                     .expect("Could not create commitment tree");
                 client
-            }
-        )
-        .await
-}
+            })
+            .await
+    }
 
     /// This function is used to provide a singleton proposer http connection across the entire application.
     pub fn get_proposer_http_connection() -> &'static (HttpClient, Url) {

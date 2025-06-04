@@ -428,7 +428,7 @@ mod tests {
         // left client transactions: None
         let container = get_mongo().await;
         let db = get_db_connection(&container).await;
-       
+
         // **1. Insert 240 deposits into mempool**
         {
             let deposits: Vec<DepositDatawithFee> = (1..=240)
@@ -443,11 +443,8 @@ mod tests {
                 })
                 .collect();
 
-            <mongodb::Client as TransactionsDB<PlonkProof>>::set_mempool_deposits(
-                &db,
-                deposits,
-            )
-            .await;
+            <mongodb::Client as TransactionsDB<PlonkProof>>::set_mempool_deposits(&db, deposits)
+                .await;
         }
         // **2. Insert 32 client transactions into mempool**
         {
@@ -470,10 +467,7 @@ mod tests {
             }
         }
 
-    
-        let result = {
-            prepare_block_data::<PlonkProof>(&db).await
-        };
+        let result = { prepare_block_data::<PlonkProof>(&db).await };
 
         assert!(result.is_ok(), "prepare_block_data failed");
         let (included_deposits, selected_client_transactions) = result.unwrap();
@@ -513,10 +507,8 @@ mod tests {
         );
 
         // **3. Check that the remaining 2 deposits are stored back in the mempool**
-        let remaining_deposits = {
-            <mongodb::Client as TransactionsDB<PlonkProof>>::get_mempool_deposits(&db)
-                .await
-        };
+        let remaining_deposits =
+            { <mongodb::Client as TransactionsDB<PlonkProof>>::get_mempool_deposits(&db).await };
         assert!(
             remaining_deposits
                 .as_ref()
@@ -547,17 +539,11 @@ mod tests {
                 })
                 .collect();
 
-            <mongodb::Client as TransactionsDB<PlonkProof>>::set_mempool_deposits(
-            &db,
-                deposits,
-            )
-            .await;
+            <mongodb::Client as TransactionsDB<PlonkProof>>::set_mempool_deposits(&db, deposits)
+                .await;
         }
 
-
-        let result = {
-            prepare_block_data::<PlonkProof>(&db).await
-        };
+        let result = { prepare_block_data::<PlonkProof>(&db).await };
 
         assert!(result.is_ok(), "Should succeed with only on-chain deposits");
         let (included_deposits, selected_client_transactions) = result.unwrap();
@@ -583,10 +569,8 @@ mod tests {
             "Deposit fees do not match expected values"
         );
 
-        let remaining_deposits = {
-            <mongodb::Client as TransactionsDB<PlonkProof>>::get_mempool_deposits(&db)
-                .await
-        };
+        let remaining_deposits =
+            { <mongodb::Client as TransactionsDB<PlonkProof>>::get_mempool_deposits(&db).await };
         // fee in the remaining deposit should be 1
         let remain_deposits_fee: Vec<Fr254> =
             remaining_deposits.unwrap().iter().map(|d| d.fee).collect();
@@ -605,7 +589,6 @@ mod tests {
         // Left deposits: 0
         let container = get_mongo().await;
         let db = get_db_connection(&container).await;
-       
 
         // Insert 74 deposit transactions into mempool**
         {
@@ -628,10 +611,7 @@ mod tests {
             }
         }
 
-        
-        let result = {
-            prepare_block_data::<PlonkProof>(&db).await
-        };
+        let result = { prepare_block_data::<PlonkProof>(&db).await };
 
         assert!(result.is_ok(), "Should succeed with only on-chain deposits");
         let (included_deposits, selected_client_transactions) = result.unwrap();
@@ -650,7 +630,7 @@ mod tests {
             expected_fees_client, actual_fees_client,
             "Deposit fees do not match expected values"
         );
-       
+
         let remaining_client = {
             let mempool_client_transactions: Option<
                 Vec<(Vec<u32>, ClientTransactionWithMetaData<PlonkProof>)>,
@@ -698,11 +678,8 @@ mod tests {
                 })
                 .collect();
 
-            <mongodb::Client as TransactionsDB<PlonkProof>>::set_mempool_deposits(
-                &db,
-                deposits,
-            )
-            .await;
+            <mongodb::Client as TransactionsDB<PlonkProof>>::set_mempool_deposits(&db, deposits)
+                .await;
         }
 
         // Insert 64 client transactions into mempool**
@@ -726,10 +703,7 @@ mod tests {
             }
         }
 
-        
-        let result = {
-            prepare_block_data::<PlonkProof>(&db).await
-        };
+        let result = { prepare_block_data::<PlonkProof>(&db).await };
 
         assert!(
             result.is_ok(),

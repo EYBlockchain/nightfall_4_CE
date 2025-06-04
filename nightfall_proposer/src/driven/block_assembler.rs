@@ -154,7 +154,7 @@ impl<P: Proof + Send + Sync> SmartTrigger<P> {
         let db = self.db;
 
         let num_deposit_groups =
-            match <mongodb::Client as TransactionsDB<P>>::count_mempool_deposits( db).await {
+            match <mongodb::Client as TransactionsDB<P>>::count_mempool_deposits(db).await {
                 Ok(count) => {
                     let groups = (count + 3) / 4;
                     debug!("Mempool deposits: {}, grouped into: {}", count, groups);
@@ -167,7 +167,7 @@ impl<P: Proof + Send + Sync> SmartTrigger<P> {
             } as f32;
 
         let num_client_txs =
-            match <mongodb::Client as TransactionsDB<P>>::count_mempool_client_transactions( db)
+            match <mongodb::Client as TransactionsDB<P>>::count_mempool_client_transactions(db)
                 .await
             {
                 Ok(count) => {
