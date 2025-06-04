@@ -7,7 +7,9 @@ use log::{debug, info, warn};
 use nightfall_client::{
     domain::entities::{HexConvertible, TokenData},
     driven::db::mongo::CommitmentEntry,
-    drivers::rest::{client_nf_3::WithdrawResponse, models::DeEscrowDataReq, utils::reverse_hex_string},
+    drivers::rest::{
+        client_nf_3::WithdrawResponse, models::DeEscrowDataReq, utils::reverse_hex_string,
+    },
 };
 use serde_json::Value;
 use std::fs;

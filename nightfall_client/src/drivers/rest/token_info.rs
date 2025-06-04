@@ -1,3 +1,5 @@
+use crate::domain::entities::HexConvertible;
+use crate::ports::contracts::NightfallContract;
 use ark_bn254::Fr as Fr254;
 use reqwest::StatusCode;
 use warp::{
@@ -5,8 +7,6 @@ use warp::{
     reply::{self, Reply},
     Filter,
 };
-use crate::domain::entities::HexConvertible;
-use crate::ports::contracts::NightfallContract;
 
 #[derive(Debug)]
 pub struct InvalidQuery;
@@ -27,8 +27,8 @@ pub fn get_token_info<N: NightfallContract>(
 async fn handle_get_token_info<N: NightfallContract>(
     nf_token_id: String,
 ) -> Result<impl Reply, warp::Rejection> {
-    let nf_token_id = Fr254::from_hex_string(&nf_token_id)
-        .map_err(|_| reject::custom(InvalidQuery))?;
+    let nf_token_id =
+        Fr254::from_hex_string(&nf_token_id).map_err(|_| reject::custom(InvalidQuery))?;
     let token_info = N::get_token_info(nf_token_id)
         .await
         .map_err(|_| reject::custom(NotFound))?;
