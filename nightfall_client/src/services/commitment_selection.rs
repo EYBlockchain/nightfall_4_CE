@@ -390,8 +390,7 @@ mod test {
         let fee_token_id = Fr254::from(2u64);
 
         {
-            let value_result =
-                find_usable_commitments(nf_token_id, target_value, &db).await;
+            let value_result = find_usable_commitments(nf_token_id, target_value, &db).await;
             let fee_result = find_usable_commitments(fee_token_id, target_fee, &db).await;
 
             // Validate results
@@ -483,8 +482,7 @@ mod test {
         let nf_token_id = Fr254::from(1u64);
 
         {
-            let value_result =
-                find_usable_commitments(nf_token_id, target_value, &db).await;
+            let value_result = find_usable_commitments(nf_token_id, target_value, &db).await;
             // Validate results
             assert!(value_result.is_ok(), "Commitment selection failed");
             let selected_value_commitments = value_result.unwrap();
@@ -602,8 +600,7 @@ mod test {
         let fee_token_id = Fr254::from(2u64);
 
         {
-            let value_result =
-                find_usable_commitments(nf_token_id, target_value, &db).await;
+            let value_result = find_usable_commitments(nf_token_id, target_value, &db).await;
 
             // Validate results
             assert!(value_result.is_ok(), "Commitment selection failed");
@@ -720,7 +717,6 @@ mod test {
         // Set up MongoDB test container
         let container = get_mongo().await;
         let db = get_db_connection(&container).await;
-        
 
         // Insert mock commitments into a single database collection
         {

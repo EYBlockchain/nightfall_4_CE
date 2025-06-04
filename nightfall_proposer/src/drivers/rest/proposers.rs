@@ -142,11 +142,11 @@ async fn handle_remove_proposer() -> Result<impl Reply, warp::Rejection> {
             .get_client(),
     );
     let signer_address = get_blockchain_client_connection()
-    .await
-    .read()
-    .await
-    .get_client()
-    .address();
+        .await
+        .read()
+        .await
+        .get_client()
+        .address();
 
     // Read penalty + cooling config from settings
     let settings = get_settings();

@@ -87,6 +87,59 @@ contract X509Test is Test {
             addr: msg.sender
         });
         x509.validateCertificate(endUser_certificate_args);
+
+        // test that one certificate is used for multiple addresses
+        X509.CertificateArgs memory endUser_certificate_args_2 = X509.CertificateArgs({
+            certificate: endUserCert_derBuffer,
+            tlvLength: endUserCert_tlvLength,
+            addressSignature: signature,
+            isEndUser: true,
+            checkOnly: false,
+            oidGroup: 0,
+            addr: address(0x1234567890123456789012345678901234567890)
+        });
+        vm.expectRevert("X509: This certificate is already linked to a different address");
+        x509.validateCertificate(endUser_certificate_args_2);
+
+        // generate a new signature for the new address and validate again
+        bytes memory newSignature = hex"902d8ef80339224944ee64e55e02aa56ef81e883a720be744cf2f26a1bb4d2b693c0eb0f55ea3e945871bd395229742e72e61a103c4c56683022e031e63cfeece0a27391d8aa06859a292656e496ee3b61009f64a195ade104a7bcb53b2929b19392b4c9ed69fe222fc756210e1a594822c7ed798f37580ee15df17b0100b5559bd3245166b72e48c0d6d60e1b4436d49c8a0ab1bd237ee8c62ad9a9da3784629934348a148784a947da66b0733593ff01152e97f804e68167a504a6dbf8e0a8459c82453028fa89abaf7efc287db32f9f26d51c2d28cd1302b6609b955e8ede9691eb78b27074f15b9ed989bac96bf7ba5a049f3039b0f9e6e3a04a1ba7d16ca89fb365ebd1754828131cc93d3695b84a0470dd1748e402cb3fa8c3bec515339b62e43b580656b50f3253ee21b8f343483741cd5950bd2e7e62ead75dd768847c6e496b84df5fe73c86d07ee0aefac8d5f7d7f2f169191540a61f4b7a7a0bc9d5412f985df149437ad99109cf708bd47b921ad1ac52bd71ec80a32d037c1b8fde0d939bbcf427260184f39d065999b9d54910de675f7d89938adc097a0aaf5f5b6d51304ca72f6c25aac909bb8605db82eacb4249553dae1251a6108d80aa7e9a3553efd17bdc1c2d65005877db10c76c1227ed5db43901bb84f3bce9098602f9a85cf82570dd5b3b386ad8c63518f825a42aa3391600d3c473fec7a151b013";
+
+        X509.CertificateArgs memory endUser_certificate_args_3 = X509.CertificateArgs({
+            certificate: endUserCert_derBuffer,
+            tlvLength: endUserCert_tlvLength,
+            addressSignature: newSignature,
+            isEndUser: true,
+            checkOnly: false,
+            oidGroup: 0,
+            addr: address(0x1234567890123456789012345678901234567890)
+        });
+        vm.expectRevert("X509: This certificate is already linked to a different address");
+        x509.validateCertificate(endUser_certificate_args_3);
+
+        // test that one address uses multiple certificates
+        bytes memory endUserCert_derBuffer_2 = vm.readFileBinary("./blockchain_assets/test_contracts/X509/_certificates/user/user-2.der");
+        uint256 endUserCert_tlvLength_2 = x509.computeNumberOfTlvs(endUserCert_derBuffer_2, 0);
+
+        bytes memory newSignature_2 = hex"1916854696adce08e2dc54b4b2b6a57f4656e6bca6048d77f614e98de1d9cf17c15a0be9542e3476446d4f0e0a2a616d65f13c48728cf9e4a132e7a2c68b4137b837e29af34543a5a3ffe44dba5d682852dc610b0d87ded123cf02c21355dba7308a0910529cacf9b55cd397326aa2b4c7b558d79395f720451ef2a4a62f96d6954392bb361f234e039732d07bd13b27e033ff22ed720d493328282dc5800400333bfb6d7c8ae8c1f1a832887e8711ccddabdf370c4e1e2487b56f23e8e986ebc007e7cf11f29bc4d96c83e540c1e7ec64968fb46d8b036cff68adab66af687d442423b1a5ba56e42ab95f9001669c66bf8359ed76d0330c4808381fa56e55aa84a58903527accd661464a1528f4bc440540db1616e2ad69b902601c5b5ba2e59b46a8a3fc796943976ded100ba875e21e4070b815270fdc4f6343d72f47418babe8f9fa01202de5fccb0958562c43a104e9ce931dd79f3a67d377b10cbd784482b95b6508c3a80a993494e6749a8bcfdb1bfe6f960a7019b433ddd702b9feaa8d4aeeeecf6fdfe2ec38588a630f5ee30182b6233d4e20ba7e3fb94a6a0e8278d5529e466d419485bb55486b80fef370bbbc1803b7eaa134501aede81f695114d44fb564eb1b5c8d3850a961f252c831e6b6b5979e9ea8439c94368476cb32ce4a9364e684b9f42259b9d78660d42a6fe3f2d9a32136bf4824da00bc63688472";
+
+         X509.CertificateArgs memory endUser_certificate_args_4 = X509.CertificateArgs({
+            certificate: endUserCert_derBuffer_2,
+            tlvLength: endUserCert_tlvLength_2,
+            addressSignature: newSignature_2,
+            isEndUser: true,
+            checkOnly: false,
+            oidGroup: 0,
+            addr: msg.sender
+        });
+        vm.expectRevert("X509: This address is already linked to a different certificate");
+        x509.validateCertificate(endUser_certificate_args_4);
+
+        // test revoking a certificate
+        // We get the Subject Key Identifier of the first certificate 
+        uint256 subjectKeyIdentifier = 862439946556481412989584028553655760204435390395;
+        x509.revokeKeyFromUserAddress(subjectKeyIdentifier);
+        vm.expectRevert("X509: The subject key of this certificate has been revoked");
+        x509.validateCertificate(endUser_certificate_args);
     }
 
     function bytesToUint256(bytes memory b) internal pure returns (uint256) {
