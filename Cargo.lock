@@ -4360,8 +4360,10 @@ name = "nightfall_sync_test"
 version = "0.1.0"
 dependencies = [
  "configuration",
+ "lib",
  "log",
  "nightfall_client",
+ "nightfall_test",
  "reqwest 0.12.15",
  "tokio",
 ]
