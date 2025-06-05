@@ -72,7 +72,7 @@ where
 
     debug!("{id} Calling client_operation");
     // We should store the change commitments, so that when they appear on-chain, we can add them to the commitments DB.
-    // That will mean that they could potentially be spent. 
+    // That will mean that they could potentially be spent.
     {
         let db = get_db_connection().await;
         let mut commitment_entries = vec![];
@@ -265,7 +265,7 @@ pub async fn process_transaction_offchain<P: Serialize + Sync>(
     );
     let proposers_struct: Vec<Proposer> = round_robin_instance.get_proposers().call().await?;
     let db = get_db_connection().await;
-    
+
     let futures: Vec<_> = proposers_struct
         .into_iter()
         .map(|proposer| {

@@ -329,9 +329,9 @@ pub async fn handle_deposit<N: NightfallContract>(
         secret_preimage_two,
         secret_preimage_three,
     );
-  
+
     let db: &'static mongodb::Client = get_db_connection().await;
-   
+
     // Then match on the token type and call the correct function
     let (preimage_value, preimage_fee_option) = match token_type {
         TokenType::ERC20 => {
