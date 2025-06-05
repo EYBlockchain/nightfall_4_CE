@@ -38,7 +38,7 @@ where
     let mut bytes = vec![];
     a.serialize_with_mode(&mut bytes, Compress::Yes)
         .map_err(serde::ser::Error::custom)?;
-    bytes.reverse(); // Convert to big-endian
+    bytes.reverse(); // Convert to big-endian (the arkworks format is little-endian and that's what their serializer produces)
     let hex_str = bytes.to_hex_string();
     s.serialize_str(&hex_str)
 }
@@ -49,7 +49,7 @@ where
 {
     let hex_str: &str = serde::de::Deserialize::deserialize(data)?;
     let mut bytes = Vec::<u8>::from_hex_string(hex_str).map_err(serde::de::Error::custom)?;
-    bytes.reverse(); // Convert to little-endian (which is the expected format for arkworks)
+    bytes.reverse(); // Convert to little-endian (which is the expected format for the arkworks deserialiser)
     let a = A::deserialize_with_mode(bytes.as_slice(), Compress::Yes, Validate::Yes)
         .map_err(serde::de::Error::custom)?;
     Ok(a)
@@ -192,8 +192,6 @@ impl<'de> Deserialize<'de> for FrWrapperPadded {
 
 #[cfg(test)]
 mod tests {
-    use crate::hex_conversion::HexConvertible;
-
     use super::*;
     use ark_bn254::Fr as Fr254;
     use std::str::FromStr;
@@ -225,8 +223,6 @@ mod tests {
         let element = Fr254::from_str("43981").unwrap();
         let wrapper = FrWrapperhex(element);
         let serialized = serde_json::to_string(&wrapper).unwrap();
-        dbg!(&serialized);
-        dbg!(element.to_hex_string());
         let deserialized: FrWrapperhex = serde_json::from_str(&serialized).unwrap();
         let deserialized_element = deserialized.0;
         assert_eq!(element, deserialized_element);

@@ -17,12 +17,12 @@ use jf_primitives::{
     poseidon::Poseidon,
     trees::{Directions, MembershipProof, PathElement, TreeHasher},
 };
-use lib::models::CertificateReq;
+use lib::{models::CertificateReq, hex_conversion::HexConvertible};
 use log::{debug, info};
 use nf_curves::ed_on_bn254::{BabyJubjub as BabyJubJub, Fr as BJJScalar};
 use nightfall_client::{
     domain::{
-        entities::{CommitmentStatus, DepositSecret, HexConvertible, Preimage, Salt},
+        entities::{CommitmentStatus, DepositSecret, Preimage, Salt},
         notifications::NotificationPayload,
     },
     driven::{

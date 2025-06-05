@@ -1,7 +1,7 @@
 use super::{
     client_operation::handle_client_operation,
     models::{NF3DepositRequest, NF3TransferRequest, NF3WithdrawRequest, NullifierKey},
-    utils::{reverse_hex_string, to_nf_token_id_from_str},
+    utils::to_nf_token_id_from_str,
 };
 use crate::{
     domain::{
@@ -497,7 +497,7 @@ where
 
     // Convert the request into the relevant types.
     let nf_token_id =
-        to_nf_token_id_from_str(erc_address.as_str(), reverse_hex_string(token_id.as_str()).as_str()).map_err(|e| {
+        to_nf_token_id_from_str(erc_address.as_str(), token_id.as_str()).map_err(|e| {
             error!(
                 "{id} Error when retrieving the Nightfall token id from the erc address and token ID {}",
                 e
@@ -691,7 +691,7 @@ where
 
     // Convert the request into the relevant types.
     let nf_token_id =
-        to_nf_token_id_from_str(erc_address.as_str(), reverse_hex_string(token_id.as_str()).as_str()).map_err(|e| {
+        to_nf_token_id_from_str(erc_address.as_str(), token_id.as_str()).map_err(|e| {
             error!(
                 "{id} Error when retrieving the Nightfall token id from the erc address and token ID {}",e);
             TransactionHandlerError::CustomError(e.to_string())

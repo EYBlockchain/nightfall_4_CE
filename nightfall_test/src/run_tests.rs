@@ -1,9 +1,9 @@
 use ark_bn254::Fr as Fr254;
 use configuration::settings::{get_settings, Settings};
 use futures::future::try_join_all;
+use lib::{models::CertificateReq, hex_conversion::HexConvertible};
 use log::{debug, info, warn};
 use nightfall_client::{
-    domain::entities::HexConvertible,
     driven::db::mongo::CommitmentEntry,
     drivers::rest::{client_nf_3::WithdrawResponse, models::DeEscrowDataReq},
 };
@@ -13,7 +13,7 @@ use test::{count_spent_commitments, get_erc20_balance, get_erc721_balance, get_f
 
 use lib::{
     blockchain_client::BlockchainClientConnection,
-    initialisation::get_blockchain_client_connection, models::CertificateReq,
+    initialisation::get_blockchain_client_connection,
 };
 
 use crate::{

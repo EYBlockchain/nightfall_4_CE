@@ -27,7 +27,7 @@ use jf_primitives::{
 };
 use nf_curves::ed_on_bn254::{BabyJubjub as BabyJubJub, Fr as BJJScalar};
 use nightfall_client::{
-    domain::entities::{DepositSecret, HexConvertible, Preimage, Salt},
+    domain::entities::{DepositSecret, Preimage, Salt},
     driven::plonk_prover::circuits::unified_circuit::unified_circuit_builder,
     drivers::{derive_key::ZKPKeys, rest::utils::to_nf_token_id_from_str},
     ports::{
@@ -42,6 +42,7 @@ use nightfall_proposer::{
 };
 use num_bigint::BigUint;
 use std::{collections::HashMap, fs::File};
+use lib::hex_conversion::HexConvertible;
 
 fn main() {
     let settings: Settings = settings::Settings::new().unwrap();

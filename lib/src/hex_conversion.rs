@@ -1,9 +1,14 @@
+/// This module provides functionality to convert various types to and from hexadecimal strings.
+/// It uses a bigendian representation for the conversions.
+
+
 use ark_bn254::Fr as Fr254;
 use ark_ff::{BigInteger256, BigInteger};
 use num_bigint::BigUint;
 use ark_ff::PrimeField;
 use crate::error::HexError;
 use nf_curves::ed_on_bn254::Fr as BJJScalar;
+
 
 // Define a single trait for hexadecimal conversion
 pub trait HexConvertible {

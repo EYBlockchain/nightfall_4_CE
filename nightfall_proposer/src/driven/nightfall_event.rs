@@ -19,14 +19,14 @@ use ethers::{
     providers::Middleware,
     types::{TxHash, H256, I256},
 };
-use lib::{blockchain_client::BlockchainClientConnection, merkle_trees::trees::IndexedTree};
+use lib::{blockchain_client::BlockchainClientConnection, merkle_trees::trees::IndexedTree, hex_conversion::HexConvertible,};
 use log::{debug, error, info, warn};
 use mongodb::Client;
 use nightfall_bindings::nightfall::{
     DepositEscrowedFilter, NightfallCalls, NightfallEvents, ProposeBlockCall,
 };
 use nightfall_client::{
-    domain::{entities::HexConvertible, error::EventHandlerError},
+    domain::error::EventHandlerError,
     driven::contract_functions::contract_type_conversions::FrBn254,
     drivers::rest::utils::to_nf_token_id_from_solidity,
     get_fee_token_id,
