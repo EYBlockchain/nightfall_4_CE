@@ -1,5 +1,5 @@
 use crate::{
-    domain::entities::{DepositSecret, HexConvertible, WithdrawData},
+    domain::entities::{DepositSecret, WithdrawData},
     ports::keys::KeySpending,
 };
 use ark_bn254::Fr as Fr254;
@@ -9,7 +9,7 @@ use std::{
     fmt::{self, Debug, Display, Formatter},
 };
 use warp::reject::Reject;
-
+use lib::hex_conversion::HexConvertible;
 use super::utils::to_nf_token_id_from_str;
 
 #[derive(Debug)]

@@ -1,7 +1,7 @@
 use crate::{
     domain::{
         entities::{
-            ClientTransaction, CompressedSecrets, DepositSecret, HexConvertible, Preimage, Salt,
+            ClientTransaction, CompressedSecrets, DepositSecret, Preimage, Salt,
             TokenType,
         },
         error::DepositError,
@@ -18,6 +18,7 @@ use crate::{
         trees::CommitmentTree,
     },
 };
+use lib::hex_conversion::HexConvertible;
 use ark_bn254::Fr as Fr254;
 use ark_ec::twisted_edwards::Affine as TEAffine;
 use ark_ff::BigInteger256;

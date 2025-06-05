@@ -22,7 +22,7 @@ use crate::{
 use crate::{
     domain::{
         entities::{
-            DepositSecret, ERCAddress, HexConvertible, Operation, OperationType, Preimage, Salt,
+            DepositSecret, ERCAddress, Operation, OperationType, Preimage, Salt,
             TokenType, Transport,
         },
         notifications::NotificationPayload,
@@ -50,7 +50,7 @@ use ark_serialize::CanonicalDeserialize;
 use ark_std::{rand::thread_rng, UniformRand};
 use configuration::addresses::get_addresses;
 use jf_primitives::poseidon::{FieldHasher, Poseidon};
-use lib::wallets::LocalWsClient;
+use lib::{wallets::LocalWsClient, hex_conversion::HexConvertible};
 use log::{debug, error, info, warn};
 use nf_curves::ed_on_bn254::{BabyJubjub, Fr as BJJScalar};
 use nightfall_bindings::{

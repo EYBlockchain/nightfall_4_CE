@@ -304,7 +304,7 @@ pub fn unified_circuit_builder(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::entities::HexConvertible;
+    use lib::hex_conversion::HexConvertible;
     use crate::{
         domain::entities::{DepositSecret, Preimage, Salt},
         driven::primitives::kemdem_functions::kemdem_encrypt,

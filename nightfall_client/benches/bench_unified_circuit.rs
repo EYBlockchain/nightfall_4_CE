@@ -16,9 +16,7 @@ use jf_primitives::{
 };
 use jf_relation::{Arithmetization, Circuit};
 use nf_curves::ed_on_bn254::{BabyJubjub, Fq as Fr254, Fr as BJJScalar};
-use nightfall_client::{
-    domain::entities::HexConvertible, drivers::rest::utils::to_nf_token_id_from_str,
-};
+use nightfall_client::drivers::rest::utils::to_nf_token_id_from_str;
 use nightfall_client::{
     domain::entities::{DepositSecret, Preimage, Salt},
     driven::{
@@ -32,6 +30,7 @@ use nightfall_client::{
         secret_hash::SecretHash,
     },
 };
+use lib::hex_conversion::HexConvertible;
 use num_bigint::BigUint;
 use rand::Rng;
 use std::time::{Duration, Instant};

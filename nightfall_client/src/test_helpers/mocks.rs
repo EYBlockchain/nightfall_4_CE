@@ -3,7 +3,7 @@
 use std::{collections::HashMap, fmt::Debug, sync::Arc};
 
 use crate::{
-    domain::entities::{ClientTransaction, CommitmentStatus, HexConvertible, Preimage, Salt},
+    domain::entities::{ClientTransaction, CommitmentStatus, Preimage, Salt},
     drivers::{derive_key::ZKPKeys, rest::models::PreimageReq},
     get_fee_token_id,
     ports::{
@@ -12,6 +12,7 @@ use crate::{
         proof::{PrivateInputs, Proof, ProvingEngine, PublicInputs},
     },
 };
+use lib::hex_conversion::HexConvertible;
 use ark_bn254::Fr as Fr254;
 use ark_ec::AffineRepr;
 use ark_ff::{BigInt, BigInteger, Field, PrimeField};
