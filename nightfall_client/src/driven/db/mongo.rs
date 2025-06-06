@@ -330,7 +330,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
     }
 
     async fn get_commitment(&self, k: &Fr254) -> Option<CommitmentEntry> {
-        let filter = doc! { "key": hex::encode(k.into_bigint().to_bytes_le()) };
+        let filter = doc! { "_id": hex::encode(k.into_bigint().to_bytes_le()) };
         self.database(DB)
             .collection::<CommitmentEntry>("commitments")
             .find_one(filter)
@@ -367,7 +367,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
             .into_iter()
             .map(|c| hex::encode(c.into_bigint().to_bytes_le()))
             .collect::<Vec<_>>();
-        let filter = doc! { "key": { "$in": commitment_str }};
+        let filter = doc! { "_id": { "$in": commitment_str }};
         let update = doc! {"$set": { "status": "PendingSpend" }};
         self.database(DB)
             .collection::<CommitmentEntry>("commitments")
@@ -382,7 +382,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
             .into_iter()
             .map(|c| hex::encode(c.into_bigint().to_bytes_le()))
             .collect::<Vec<_>>();
-        let filter = doc! { "key": { "$in": commitment_str }};
+        let filter = doc! { "_id": { "$in": commitment_str }};
         let update = doc! {"$set": { "status": "PendingCreation" }};
         self.database(DB)
             .collection::<CommitmentEntry>("commitments")
@@ -421,7 +421,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
             .collect::<Vec<_>>();
         let l1_hash = l1_hash.map(|h| h.encode_hex());
         let l2_blocknumber = l2_blocknumber.map(|b| b.encode_hex());
-        let filter = doc! { "key": { "$in": commitment_str }};
+        let filter = doc! { "_id": { "$in": commitment_str }};
         let update = doc! {"$set": { "status": "Unspent", "layer_1_transaction_hash": l1_hash, "layer_2_block_number": l2_blocknumber }};
         self.database(DB)
             .collection::<CommitmentEntry>("commitments")
@@ -433,7 +433,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
 
     // we compute a nullifier for each spend commitment that we process.
     async fn add_nullifier(&self, key: &Fr254, nullifier: Fr254) -> Option<()> {
-        let filter = doc! { "key": hex::encode(key.into_bigint().to_bytes_le())};
+        let filter = doc! { "_id": hex::encode(key.into_bigint().to_bytes_le())};
         let update =
             doc! {"$set": { "nullifier": hex::encode(nullifier.into_bigint().to_bytes_le()) }};
 
