@@ -1,8 +1,6 @@
 use crate::{
     domain::{
-        entities::{
-            CommitmentStatus, CompressedSecrets, Preimage, RequestStatus, Salt,
-        },
+        entities::{CommitmentStatus, CompressedSecrets, Preimage, RequestStatus, Salt},
         error::EventHandlerError,
         notifications::NotificationPayload,
     },
@@ -31,7 +29,8 @@ use ethers::{
     types::{TxHash, H256, I256, U256},
 };
 use lib::{
-    blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection, hex_conversion::HexConvertible
+    blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
+    initialisation::get_blockchain_client_connection,
 };
 use log::{debug, error, info, warn};
 use nightfall_bindings::nightfall::{

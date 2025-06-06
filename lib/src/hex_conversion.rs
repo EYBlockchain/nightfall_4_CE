@@ -1,14 +1,11 @@
+use crate::error::HexError;
 /// This module provides functionality to convert various types to and from hexadecimal strings.
 /// It uses a bigendian representation for the conversions.
-
-
 use ark_bn254::Fr as Fr254;
-use ark_ff::{BigInteger256, BigInteger};
-use num_bigint::BigUint;
 use ark_ff::PrimeField;
-use crate::error::HexError;
+use ark_ff::{BigInteger, BigInteger256};
 use nf_curves::ed_on_bn254::Fr as BJJScalar;
-
+use num_bigint::BigUint;
 
 // Define a single trait for hexadecimal conversion
 pub trait HexConvertible {
@@ -118,18 +115,18 @@ impl HexConvertible for Vec<u8> {
 mod test {
     use super::*;
     use ark_ff::BigInt;
+    use ark_ff::UniformRand;
     use ark_std::rand::{self, Rng, RngCore};
     use ark_std::test_rng;
     use nf_curves::ed_on_bn254::Fr as BJJScalar;
-    use ark_ff::UniformRand;
 
     #[test]
     fn correctly_manipulate_strings() {
         // Test Vec<u8> <-> hex string
         let test_vec: Vec<u8> = vec![
-            0x01, 0xd5, 0xed, 0x4c, 0x6c, 0x7a, 0x9d, 0xff, 0x2f, 0x5e, 0x38, 0x53, 0x3c, 0x06, 0x73,
-            0xe2, 0x52, 0xd0, 0xe7, 0x61, 0xa6, 0x21, 0xfb, 0x01, 0xd7, 0x50, 0x40, 0xda, 0x65,
-            0xa5, 0x4a, 0x4a, 0x00
+            0x01, 0xd5, 0xed, 0x4c, 0x6c, 0x7a, 0x9d, 0xff, 0x2f, 0x5e, 0x38, 0x53, 0x3c, 0x06,
+            0x73, 0xe2, 0x52, 0xd0, 0xe7, 0x61, 0xa6, 0x21, 0xfb, 0x01, 0xd7, 0x50, 0x40, 0xda,
+            0x65, 0xa5, 0x4a, 0x4a, 0x00,
         ];
         let test_string = "01d5ed4c6c7a9dff2f5e38533c0673e252d0e761a621fb01d75040da65a54a4a00";
         let encoded = test_vec.to_hex_string();
@@ -176,8 +173,7 @@ mod test {
         // Convert BJJScalar to hex string
         let hex_string_from_bjj_scalar = BJJScalar::to_hex_string(&test_bjj_scalar);
         // Convert hex string back to BJJScalar
-        let parsed_bjj_scalar =
-            BJJScalar::from_hex_string(&hex_string_from_bjj_scalar).unwrap();
+        let parsed_bjj_scalar = BJJScalar::from_hex_string(&hex_string_from_bjj_scalar).unwrap();
         assert_eq!(test_bjj_scalar, parsed_bjj_scalar);
     }
 

@@ -1,16 +1,16 @@
+use super::utils::to_nf_token_id_from_str;
 use crate::{
     domain::entities::{DepositSecret, WithdrawData},
     ports::keys::KeySpending,
 };
 use ark_bn254::Fr as Fr254;
+use lib::hex_conversion::HexConvertible;
 use serde::{Deserialize, Serialize};
 use std::{
     error::Error,
     fmt::{self, Debug, Display, Formatter},
 };
 use warp::reject::Reject;
-use lib::hex_conversion::HexConvertible;
-use super::utils::to_nf_token_id_from_str;
 
 #[derive(Debug)]
 pub struct NullifierKey(pub Fr254);

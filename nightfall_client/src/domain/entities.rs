@@ -1,18 +1,19 @@
-use lib::error::HexError;
 use crate::ports::secret_hash::SecretHash;
 use crate::ports::{
     commitments::{Commitment, Nullifiable},
     key_provider::KeyProvider,
     proof::{Proof, PublicInputs},
 };
+use lib::error::HexError;
 
 use ark_bn254::Fr as Fr254;
 use ark_ec::twisted_edwards::Affine as TEAffine;
-use lib::serialization::{ark_de_hex, ark_se_hex};
 use ark_serialize::SerializationError;
 use ark_std::UniformRand;
+use lib::serialization::{ark_de_hex, ark_se_hex};
 
 use jf_primitives::poseidon::{FieldHasher, Poseidon, PoseidonError};
+use lib::hex_conversion::HexConvertible;
 use log::{error, warn};
 use nf_curves::ed_on_bn254::{BabyJubjub, Fr as BJJScalar};
 use num_bigint::BigUint;
@@ -24,7 +25,6 @@ use std::{
     fmt::{Debug, Display},
     str::{self, FromStr},
 };
-use lib::hex_conversion::HexConvertible;
 
 /// A struct representing the status of an HTTP request
 #[derive(Serialize, Deserialize, Debug)]

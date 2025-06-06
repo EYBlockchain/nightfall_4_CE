@@ -1,10 +1,10 @@
 //! File contains utility functions used by the REST API, such as ones for converting from erc address and token id to
 //! Nightfall token id.
 use crate::domain::error::ConversionError;
-use lib::hex_conversion::HexConvertible;
 use ark_bn254::Fr as Fr254;
 use ark_ff::{BigInteger, PrimeField};
-use ethers:: types::{H160, U256};
+use ethers::types::{H160, U256};
+use lib::hex_conversion::HexConvertible;
 use log::debug;
 use num::BigUint;
 use sha2::{Digest, Sha256};
@@ -116,7 +116,7 @@ mod tests {
     use jf_primitives::circuit::sha256::Sha256HashGadget;
     use jf_relation::{Circuit, PlonkCircuit, Variable};
     use rand::Rng;
-    
+
     #[test]
     fn test_nf_token_id_consistency() {
         for _ in 0..10 {

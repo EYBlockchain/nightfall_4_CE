@@ -304,7 +304,6 @@ pub fn unified_circuit_builder(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use lib::hex_conversion::HexConvertible;
     use crate::{
         domain::entities::{DepositSecret, Preimage, Salt},
         driven::primitives::kemdem_functions::kemdem_encrypt,
@@ -329,6 +328,7 @@ mod tests {
         trees::{Directions, MembershipProof, PathElement, TreeHasher},
     };
     use jf_relation::Arithmetization;
+    use lib::hex_conversion::HexConvertible;
     use nf_curves::ed_on_bn254::Fr as BJJScalar;
     use num_bigint::BigUint;
     use rand::Rng;

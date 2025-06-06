@@ -25,6 +25,7 @@ use jf_primitives::{
         Directions, MembershipProof, PathElement, TreeHasher,
     },
 };
+use lib::hex_conversion::HexConvertible;
 use nf_curves::ed_on_bn254::{BabyJubjub as BabyJubJub, Fr as BJJScalar};
 use nightfall_client::{
     domain::entities::{DepositSecret, Preimage, Salt},
@@ -42,7 +43,6 @@ use nightfall_proposer::{
 };
 use num_bigint::BigUint;
 use std::{collections::HashMap, fs::File};
-use lib::hex_conversion::HexConvertible;
 
 fn main() {
     let settings: Settings = settings::Settings::new().unwrap();

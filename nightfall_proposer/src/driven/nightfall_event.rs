@@ -19,7 +19,10 @@ use ethers::{
     providers::Middleware,
     types::{TxHash, H256, I256},
 };
-use lib::{blockchain_client::BlockchainClientConnection, merkle_trees::trees::IndexedTree, hex_conversion::HexConvertible,};
+use lib::{
+    blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
+    merkle_trees::trees::IndexedTree,
+};
 use log::{debug, error, info, warn};
 use mongodb::Client;
 use nightfall_bindings::nightfall::{

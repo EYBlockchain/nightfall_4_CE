@@ -1,12 +1,12 @@
 pub mod blockchain_client;
 pub mod error;
+pub mod hex_conversion;
 pub mod merkle_trees;
 pub mod models;
 pub mod serialization;
 pub mod utils;
 pub mod validate_certificate;
 pub mod wallets;
-pub mod hex_conversion;
 
 pub mod initialisation {
     use crate::blockchain_client::BlockchainClientConnection;

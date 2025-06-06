@@ -15,6 +15,7 @@ use jf_primitives::{
     trees::{Directions, MembershipProof, PathElement, TreeHasher},
 };
 use jf_relation::{Arithmetization, Circuit};
+use lib::hex_conversion::HexConvertible;
 use nf_curves::ed_on_bn254::{BabyJubjub, Fq as Fr254, Fr as BJJScalar};
 use nightfall_client::drivers::rest::utils::to_nf_token_id_from_str;
 use nightfall_client::{
@@ -30,7 +31,6 @@ use nightfall_client::{
         secret_hash::SecretHash,
     },
 };
-use lib::hex_conversion::HexConvertible;
 use num_bigint::BigUint;
 use rand::Rng;
 use std::time::{Duration, Instant};

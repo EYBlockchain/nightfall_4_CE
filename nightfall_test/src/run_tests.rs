@@ -1,7 +1,7 @@
 use ark_bn254::Fr as Fr254;
 use configuration::settings::{get_settings, Settings};
 use futures::future::try_join_all;
-use lib::{models::CertificateReq, hex_conversion::HexConvertible};
+use lib::{hex_conversion::HexConvertible, models::CertificateReq};
 use log::{debug, info, warn};
 use nightfall_client::{
     driven::db::mongo::CommitmentEntry,

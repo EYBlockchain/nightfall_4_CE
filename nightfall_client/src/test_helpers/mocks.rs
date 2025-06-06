@@ -12,7 +12,6 @@ use crate::{
         proof::{PrivateInputs, Proof, ProvingEngine, PublicInputs},
     },
 };
-use lib::hex_conversion::HexConvertible;
 use ark_bn254::Fr as Fr254;
 use ark_ec::AffineRepr;
 use ark_ff::{BigInt, BigInteger, Field, PrimeField};
@@ -22,6 +21,7 @@ use ark_std::{rand::Rng, UniformRand};
 use async_trait::async_trait;
 use ethers::types::{Bytes, H256, I256};
 use jf_primitives::poseidon::PoseidonError;
+use lib::hex_conversion::HexConvertible;
 use nf_curves::ed_on_bn254::{
     BJJTEAffine as JubJubAffine, BJJTEProjective as JubJub, Fr as FqJubJub,
 };
