@@ -469,7 +469,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
         }
     }
 
-    /// function to store multiple commitments in the database, optionally ignoring duplicate key errors
+    /// function to store multiple commitments in the database, optionally ignoring duplicate _id errors
     async fn store_commitments(
         &self,
         commitments: &[CommitmentEntry],
@@ -485,13 +485,13 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
             .await;
         match res {
             Ok(_) => Some(()),
-            // unpack the Mongo error and check if it's a duplicate key error. If so, behave according to dup_key_check
+            // unpack the Mongo error and check if it's a duplicate _id error. If so, behave according to dup_key_check
             Err(e) => {
                 match e.kind.as_ref() {
                     ErrorKind::Write(WriteError(write_error)) => {
                         if write_error.code == 11000 && !dup_key_check {
-                            println!("Duplicate key error: {:?}", write_error);
-                            // duplicate key error but we don't care
+                            println!("Duplicate _id error: {:?}", write_error);
+                            // duplicate _id error but we don't care
                             Some(())
                         } else {
                             None
