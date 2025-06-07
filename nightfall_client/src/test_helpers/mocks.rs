@@ -57,7 +57,7 @@ impl MockCommitmentEntry {
     }
 }
 impl CommitmentEntryDB for MockCommitmentEntry {
-    fn new(preimage: Preimage, _key: Fr254, nullifier: Fr254, status: CommitmentStatus) -> Self {
+    fn new(preimage: Preimage, nullifier: Fr254, status: CommitmentStatus) -> Self {
         Self {
             preimage,
             nullifier,
