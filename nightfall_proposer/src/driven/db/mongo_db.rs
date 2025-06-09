@@ -24,10 +24,7 @@ impl<'a, P> TransactionsDB<'a, P> for mongodb::Client
 where
     P: Proof,
 {
-    async fn store_transaction(
-        &self,
-        transaction: ClientTransactionWithMetaData<P>,
-    ) -> Option<()> {
+    async fn store_transaction(&self, transaction: ClientTransactionWithMetaData<P>) -> Option<()> {
         self.database(DB)
             .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
             .insert_one(transaction)
@@ -36,10 +33,7 @@ where
         Some(())
     }
 
-    async fn get_transaction(
-        &self,
-        key: &'a [u32],
-    ) -> Option<ClientTransactionWithMetaData<P>> {
+    async fn get_transaction(&self, key: &'a [u32]) -> Option<ClientTransactionWithMetaData<P>> {
         let filter = doc! {"hash": key};
         self.database(DB)
             .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)

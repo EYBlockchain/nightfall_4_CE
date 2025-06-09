@@ -36,7 +36,9 @@ async fn main() -> Result<(), JoinError> {
             error!("Nightfall tests failed with error: {:?}", e);
             return Err(e);
         }
-        None => { error!("No tasks were completed.");
-            panic!("No tasks were completed, this is unexpected.");},
+        None => {
+            error!("No tasks were completed.");
+            panic!("No tasks were completed, this is unexpected.");
+        }
     }
 }
