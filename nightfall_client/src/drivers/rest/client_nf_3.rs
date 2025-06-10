@@ -398,7 +398,6 @@ pub async fn handle_deposit<N: NightfallContract>(
     let commitment_hash = preimage_value.hash().expect("Could not hash commitment");
     let commitment_entry = CommitmentEntry::new(
         preimage_value,
-        commitment_hash,
         nullifier,
         CommitmentStatus::PendingCreation,
     );
@@ -432,7 +431,6 @@ pub async fn handle_deposit<N: NightfallContract>(
 
         let commitment_entry = CommitmentEntry::new(
             preimage_fee,
-            commitment_hash,
             nullifier,
             CommitmentStatus::PendingCreation,
         );
