@@ -41,7 +41,7 @@ where
 }
 
 pub trait CommitmentEntryDB: Commitment {
-    fn new(preimage: Preimage, key: Fr254, nullifier: Fr254, status: CommitmentStatus) -> Self;
+    fn new(preimage: Preimage, nullifier: Fr254, status: CommitmentStatus) -> Self;
     fn get_status(&self) -> CommitmentStatus;
 }
 
