@@ -1,7 +1,6 @@
 use ark_bn254::Fr as Fr254;
 use configuration::settings::{get_settings, Settings};
 use futures::future::try_join_all;
-use lib::models::CertificateReq;
 use log::{debug, info, warn};
 use nightfall_client::{
     domain::entities::HexConvertible,
@@ -13,7 +12,8 @@ use std::fs;
 use test::{count_spent_commitments, get_erc20_balance, get_erc721_balance, get_fee_balance};
 
 use lib::{
-    blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
+    blockchain_client::BlockchainClientConnection,
+    initialisation::get_blockchain_client_connection, models::CertificateReq,
 };
 
 use crate::{
@@ -83,29 +83,40 @@ pub async fn run_tests(
         .join("/v1/certification")
         .unwrap();
 
-    let client_cert =
+    let client_1_cert =
         fs::read("../blockchain_assets/test_contracts/X509/_certificates/user/user-1.der")
             .expect("Failed to read user-1 certificate");
-    let client_cert_private_key =
+    let client_1_cert_private_key =
         fs::read("../blockchain_assets/test_contracts/X509/_certificates/user/user-1.priv_key")
             .expect("Failed to read user priv_key");
 
-    let client_certificate_req = CertificateReq {
-        certificate: client_cert,
-        certificate_private_key: client_cert_private_key,
+    let client_1_certificate_req = CertificateReq {
+        certificate: client_1_cert,
+        certificate_private_key: client_1_cert_private_key,
     };
-    validate_certificate_with_server(&http_client, cert_url, client_certificate_req.clone())
+    validate_certificate_with_server(&http_client, cert_url, client_1_certificate_req.clone())
         .await
-        .expect("Certificate validation failed");
+        .expect("Client 1 Certificate validation failed");
 
     info!("Validating Client Two's certificate");
-    let cert_url = Url::parse("http://client2:3000")
+    let client_2_cert =
+        fs::read("../blockchain_assets/test_contracts/X509/_certificates/user/user-2.der")
+            .expect("Failed to read user-2 certificate");
+    let client_2_cert_private_key =
+        fs::read("../blockchain_assets/test_contracts/X509/_certificates/user/user-2.priv_key")
+            .expect("Failed to read user priv_key");
+
+    let client_2_certificate_req = CertificateReq {
+        certificate: client_2_cert,
+        certificate_private_key: client_2_cert_private_key,
+    };
+    let cert_2_url = Url::parse("http://client2:3000")
         .unwrap()
         .join("/v1/certification")
         .unwrap();
-    validate_certificate_with_server(&http_client, cert_url, client_certificate_req)
+    validate_certificate_with_server(&http_client, cert_2_url, client_2_certificate_req)
         .await
-        .expect("Certificate validation failed");
+        .expect("Client 2 Certificate validation failed");
 
     info!("Validating Proposer's certificate");
     //let http_client = reqwest::Client::new();
@@ -114,10 +125,10 @@ pub async fn run_tests(
         .join("/v1/certification")
         .unwrap();
     let proposer_cert =
-        fs::read("../blockchain_assets/test_contracts/X509/_certificates/user/user-2.der")
+        fs::read("../blockchain_assets/test_contracts/X509/_certificates/user/user-3.der")
             .expect("Failed to read proposer's certificate");
     let proposer_cert_private_key =
-        fs::read("../blockchain_assets/test_contracts/X509/_certificates/user/user-2.priv_key")
+        fs::read("../blockchain_assets/test_contracts/X509/_certificates/user/user-3.priv_key")
             .expect("Failed to read proposer's certificate priv_key");
     let proposer_certificate_req = CertificateReq {
         certificate: proposer_cert,
