@@ -1,5 +1,5 @@
 use configuration::{addresses::get_addresses, settings::get_settings};
-use ethers::providers::ProviderError;
+use ethers::{providers::ProviderError, types::U256};
 use log::{info, warn};
 use nightfall_bindings::round_robin::RoundRobin;
 /// APIs for managing proposers
@@ -62,6 +62,16 @@ async fn handle_rotate_proposer() -> Result<impl Reply, warp::Rejection> {
             .await
             .get_client(),
     );
+    match proposer_manager.proposer_count().call().await {
+        Ok(count) => {
+            if count <= U256::one() {
+                warn!("Rotation requested, but only one active proposer; rotation will have no effect.");
+            }
+        }
+        Err(e) => {
+            warn!("Failed to fetch proposer count before rotation: {:?}", e);
+        }
+    }
     // rotate the proposer
     let tx_call = proposer_manager.rotate_proposer();
     let tx_result = tx_call.send().await;
@@ -131,6 +141,36 @@ async fn handle_remove_proposer() -> Result<impl Reply, warp::Rejection> {
             .await
             .get_client(),
     );
+    let signer_address = get_blockchain_client_connection()
+        .await
+        .read()
+        .await
+        .get_client()
+        .address();
+
+    // Read penalty + cooling config from settings
+    let settings = get_settings();
+    let penalty = settings.nightfall_deployer.proposer_exit_penalty;
+    let cooling_blocks = settings.nightfall_deployer.proposer_cooling_blocks;
+
+    // Fetch the current proposer address on-chain
+    match proposer_manager.get_current_proposer_address().call().await {
+        Ok(current_proposer) => {
+            if current_proposer == signer_address {
+                warn!(
+                    "You are removing yourself as the active proposer — this will deduct an exit penalty of {} units and start a cooldown period of {} L1 blocks before you can re-register.",
+                    penalty,
+                    cooling_blocks
+                );
+            } else {
+                info!("You are removing yourself, but you are not the active proposer — no penalty will be applied.");
+            }
+        }
+        Err(e) => {
+            warn!("Could not check current proposer before removal: {:?}", e);
+        }
+    }
+
     // remove the proposer
     let tx = proposer_manager
         .remove_proposer()
