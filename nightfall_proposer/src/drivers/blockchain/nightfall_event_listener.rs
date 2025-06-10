@@ -159,7 +159,6 @@ where
     // with the blockchain. We should probably do this in a more elegant way, but this works for now
     // and we can improve it later
     {
-        // let db = &mut get_db_connection().await.write().await;
         let db = get_db_connection().await;
         let _ = <MongoClient as CommitmentTree<Fr254>>::reset_tree(db).await;
         let _ = <MongoClient as HistoricRootTree<Fr254>>::reset_tree(db).await;

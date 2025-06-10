@@ -7,7 +7,7 @@ pub use allowlist::*;
     clippy::upper_case_acronyms,
     clippy::type_complexity,
     dead_code,
-    non_camel_case_types,
+    non_camel_case_types
 )]
 pub mod allowlist {
     #[allow(deprecated)]
@@ -17,119 +17,95 @@ pub mod allowlist {
             functions: ::core::convert::From::from([
                 (
                     ::std::borrow::ToOwned::to_owned("allowlisting"),
-                    ::std::vec![
-                        ::ethers::core::abi::ethabi::Function {
-                            name: ::std::borrow::ToOwned::to_owned("allowlisting"),
-                            inputs: ::std::vec![],
-                            outputs: ::std::vec![
-                                ::ethers::core::abi::ethabi::Param {
-                                    name: ::std::string::String::new(),
-                                    kind: ::ethers::core::abi::ethabi::ParamType::Bool,
-                                    internal_type: ::core::option::Option::Some(
-                                        ::std::borrow::ToOwned::to_owned("bool"),
-                                    ),
-                                },
-                            ],
-                            constant: ::core::option::Option::None,
-                            state_mutability: ::ethers::core::abi::ethabi::StateMutability::View,
-                        },
-                    ],
+                    ::std::vec![::ethers::core::abi::ethabi::Function {
+                        name: ::std::borrow::ToOwned::to_owned("allowlisting"),
+                        inputs: ::std::vec![],
+                        outputs: ::std::vec![::ethers::core::abi::ethabi::Param {
+                            name: ::std::string::String::new(),
+                            kind: ::ethers::core::abi::ethabi::ParamType::Bool,
+                            internal_type: ::core::option::Option::Some(
+                                ::std::borrow::ToOwned::to_owned("bool"),
+                            ),
+                        },],
+                        constant: ::core::option::Option::None,
+                        state_mutability: ::ethers::core::abi::ethabi::StateMutability::View,
+                    },],
                 ),
                 (
                     ::std::borrow::ToOwned::to_owned("enableAllowlisting"),
-                    ::std::vec![
-                        ::ethers::core::abi::ethabi::Function {
-                            name: ::std::borrow::ToOwned::to_owned("enableAllowlisting"),
-                            inputs: ::std::vec![
-                                ::ethers::core::abi::ethabi::Param {
-                                    name: ::std::borrow::ToOwned::to_owned("_allowlisting"),
-                                    kind: ::ethers::core::abi::ethabi::ParamType::Bool,
-                                    internal_type: ::core::option::Option::Some(
-                                        ::std::borrow::ToOwned::to_owned("bool"),
-                                    ),
-                                },
-                            ],
-                            outputs: ::std::vec![],
-                            constant: ::core::option::Option::None,
-                            state_mutability: ::ethers::core::abi::ethabi::StateMutability::NonPayable,
-                        },
-                    ],
+                    ::std::vec![::ethers::core::abi::ethabi::Function {
+                        name: ::std::borrow::ToOwned::to_owned("enableAllowlisting"),
+                        inputs: ::std::vec![::ethers::core::abi::ethabi::Param {
+                            name: ::std::borrow::ToOwned::to_owned("_allowlisting"),
+                            kind: ::ethers::core::abi::ethabi::ParamType::Bool,
+                            internal_type: ::core::option::Option::Some(
+                                ::std::borrow::ToOwned::to_owned("bool"),
+                            ),
+                        },],
+                        outputs: ::std::vec![],
+                        constant: ::core::option::Option::None,
+                        state_mutability: ::ethers::core::abi::ethabi::StateMutability::NonPayable,
+                    },],
                 ),
                 (
                     ::std::borrow::ToOwned::to_owned("isAllowlisted"),
-                    ::std::vec![
-                        ::ethers::core::abi::ethabi::Function {
-                            name: ::std::borrow::ToOwned::to_owned("isAllowlisted"),
-                            inputs: ::std::vec![
-                                ::ethers::core::abi::ethabi::Param {
-                                    name: ::std::borrow::ToOwned::to_owned("_user"),
-                                    kind: ::ethers::core::abi::ethabi::ParamType::Address,
-                                    internal_type: ::core::option::Option::Some(
-                                        ::std::borrow::ToOwned::to_owned("address"),
-                                    ),
-                                },
-                            ],
-                            outputs: ::std::vec![
-                                ::ethers::core::abi::ethabi::Param {
-                                    name: ::std::string::String::new(),
-                                    kind: ::ethers::core::abi::ethabi::ParamType::Bool,
-                                    internal_type: ::core::option::Option::Some(
-                                        ::std::borrow::ToOwned::to_owned("bool"),
-                                    ),
-                                },
-                            ],
-                            constant: ::core::option::Option::None,
-                            state_mutability: ::ethers::core::abi::ethabi::StateMutability::View,
-                        },
-                    ],
+                    ::std::vec![::ethers::core::abi::ethabi::Function {
+                        name: ::std::borrow::ToOwned::to_owned("isAllowlisted"),
+                        inputs: ::std::vec![::ethers::core::abi::ethabi::Param {
+                            name: ::std::borrow::ToOwned::to_owned("_user"),
+                            kind: ::ethers::core::abi::ethabi::ParamType::Address,
+                            internal_type: ::core::option::Option::Some(
+                                ::std::borrow::ToOwned::to_owned("address"),
+                            ),
+                        },],
+                        outputs: ::std::vec![::ethers::core::abi::ethabi::Param {
+                            name: ::std::string::String::new(),
+                            kind: ::ethers::core::abi::ethabi::ParamType::Bool,
+                            internal_type: ::core::option::Option::Some(
+                                ::std::borrow::ToOwned::to_owned("bool"),
+                            ),
+                        },],
+                        constant: ::core::option::Option::None,
+                        state_mutability: ::ethers::core::abi::ethabi::StateMutability::View,
+                    },],
                 ),
                 (
                     ::std::borrow::ToOwned::to_owned("owner"),
-                    ::std::vec![
-                        ::ethers::core::abi::ethabi::Function {
-                            name: ::std::borrow::ToOwned::to_owned("owner"),
-                            inputs: ::std::vec![],
-                            outputs: ::std::vec![
-                                ::ethers::core::abi::ethabi::Param {
-                                    name: ::std::string::String::new(),
-                                    kind: ::ethers::core::abi::ethabi::ParamType::Address,
-                                    internal_type: ::core::option::Option::Some(
-                                        ::std::borrow::ToOwned::to_owned("address"),
-                                    ),
-                                },
-                            ],
-                            constant: ::core::option::Option::None,
-                            state_mutability: ::ethers::core::abi::ethabi::StateMutability::View,
-                        },
-                    ],
+                    ::std::vec![::ethers::core::abi::ethabi::Function {
+                        name: ::std::borrow::ToOwned::to_owned("owner"),
+                        inputs: ::std::vec![],
+                        outputs: ::std::vec![::ethers::core::abi::ethabi::Param {
+                            name: ::std::string::String::new(),
+                            kind: ::ethers::core::abi::ethabi::ParamType::Address,
+                            internal_type: ::core::option::Option::Some(
+                                ::std::borrow::ToOwned::to_owned("address"),
+                            ),
+                        },],
+                        constant: ::core::option::Option::None,
+                        state_mutability: ::ethers::core::abi::ethabi::StateMutability::View,
+                    },],
                 ),
                 (
                     ::std::borrow::ToOwned::to_owned("users"),
-                    ::std::vec![
-                        ::ethers::core::abi::ethabi::Function {
-                            name: ::std::borrow::ToOwned::to_owned("users"),
-                            inputs: ::std::vec![
-                                ::ethers::core::abi::ethabi::Param {
-                                    name: ::std::string::String::new(),
-                                    kind: ::ethers::core::abi::ethabi::ParamType::Address,
-                                    internal_type: ::core::option::Option::Some(
-                                        ::std::borrow::ToOwned::to_owned("address"),
-                                    ),
-                                },
-                            ],
-                            outputs: ::std::vec![
-                                ::ethers::core::abi::ethabi::Param {
-                                    name: ::std::string::String::new(),
-                                    kind: ::ethers::core::abi::ethabi::ParamType::Bool,
-                                    internal_type: ::core::option::Option::Some(
-                                        ::std::borrow::ToOwned::to_owned("bool"),
-                                    ),
-                                },
-                            ],
-                            constant: ::core::option::Option::None,
-                            state_mutability: ::ethers::core::abi::ethabi::StateMutability::View,
-                        },
-                    ],
+                    ::std::vec![::ethers::core::abi::ethabi::Function {
+                        name: ::std::borrow::ToOwned::to_owned("users"),
+                        inputs: ::std::vec![::ethers::core::abi::ethabi::Param {
+                            name: ::std::string::String::new(),
+                            kind: ::ethers::core::abi::ethabi::ParamType::Address,
+                            internal_type: ::core::option::Option::Some(
+                                ::std::borrow::ToOwned::to_owned("address"),
+                            ),
+                        },],
+                        outputs: ::std::vec![::ethers::core::abi::ethabi::Param {
+                            name: ::std::string::String::new(),
+                            kind: ::ethers::core::abi::ethabi::ParamType::Bool,
+                            internal_type: ::core::option::Option::Some(
+                                ::std::borrow::ToOwned::to_owned("bool"),
+                            ),
+                        },],
+                        constant: ::core::option::Option::None,
+                        state_mutability: ::ethers::core::abi::ethabi::StateMutability::View,
+                    },],
                 ),
             ]),
             events: ::std::collections::BTreeMap::new(),
@@ -139,9 +115,8 @@ pub mod allowlist {
         }
     }
     ///The parsed JSON ABI of the contract.
-    pub static ALLOWLIST_ABI: ::ethers::contract::Lazy<::ethers::core::abi::Abi> = ::ethers::contract::Lazy::new(
-        __abi,
-    );
+    pub static ALLOWLIST_ABI: ::ethers::contract::Lazy<::ethers::core::abi::Abi> =
+        ::ethers::contract::Lazy::new(__abi);
     pub struct Allowlist<M>(::ethers::contract::Contract<M>);
     impl<M> ::core::clone::Clone for Allowlist<M> {
         fn clone(&self) -> Self {
@@ -161,7 +136,9 @@ pub mod allowlist {
     }
     impl<M> ::core::fmt::Debug for Allowlist<M> {
         fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-            f.debug_tuple(::core::stringify!(Allowlist)).field(&self.address()).finish()
+            f.debug_tuple(::core::stringify!(Allowlist))
+                .field(&self.address())
+                .finish()
         }
     }
     impl<M: ::ethers::providers::Middleware> Allowlist<M> {
@@ -171,18 +148,14 @@ pub mod allowlist {
             address: T,
             client: ::std::sync::Arc<M>,
         ) -> Self {
-            Self(
-                ::ethers::contract::Contract::new(
-                    address.into(),
-                    ALLOWLIST_ABI.clone(),
-                    client,
-                ),
-            )
+            Self(::ethers::contract::Contract::new(
+                address.into(),
+                ALLOWLIST_ABI.clone(),
+                client,
+            ))
         }
         ///Calls the contract's `allowlisting` (0xab0939ab) function
-        pub fn allowlisting(
-            &self,
-        ) -> ::ethers::contract::builders::ContractCall<M, bool> {
+        pub fn allowlisting(&self) -> ::ethers::contract::builders::ContractCall<M, bool> {
             self.0
                 .method_hash([171, 9, 57, 171], ())
                 .expect("method not found (this should never happen)")
@@ -208,10 +181,7 @@ pub mod allowlist {
         ///Calls the contract's `owner` (0x8da5cb5b) function
         pub fn owner(
             &self,
-        ) -> ::ethers::contract::builders::ContractCall<
-            M,
-            ::ethers::core::types::Address,
-        > {
+        ) -> ::ethers::contract::builders::ContractCall<M, ::ethers::core::types::Address> {
             self.0
                 .method_hash([141, 165, 203, 91], ())
                 .expect("method not found (this should never happen)")
@@ -226,8 +196,7 @@ pub mod allowlist {
                 .expect("method not found (this should never happen)")
         }
     }
-    impl<M: ::ethers::providers::Middleware> From<::ethers::contract::Contract<M>>
-    for Allowlist<M> {
+    impl<M: ::ethers::providers::Middleware> From<::ethers::contract::Contract<M>> for Allowlist<M> {
         fn from(contract: ::ethers::contract::Contract<M>) -> Self {
             Self::new(contract.address(), contract.client())
         }
@@ -243,7 +212,7 @@ pub mod allowlist {
         Debug,
         PartialEq,
         Eq,
-        Hash
+        Hash,
     )]
     #[ethcall(name = "allowlisting", abi = "allowlisting()")]
     pub struct AllowlistingCall;
@@ -258,7 +227,7 @@ pub mod allowlist {
         Debug,
         PartialEq,
         Eq,
-        Hash
+        Hash,
     )]
     #[ethcall(name = "enableAllowlisting", abi = "enableAllowlisting(bool)")]
     pub struct EnableAllowlistingCall {
@@ -275,7 +244,7 @@ pub mod allowlist {
         Debug,
         PartialEq,
         Eq,
-        Hash
+        Hash,
     )]
     #[ethcall(name = "isAllowlisted", abi = "isAllowlisted(address)")]
     pub struct IsAllowlistedCall {
@@ -292,7 +261,7 @@ pub mod allowlist {
         Debug,
         PartialEq,
         Eq,
-        Hash
+        Hash,
     )]
     #[ethcall(name = "owner", abi = "owner()")]
     pub struct OwnerCall;
@@ -307,7 +276,7 @@ pub mod allowlist {
         Debug,
         PartialEq,
         Eq,
-        Hash
+        Hash,
     )]
     #[ethcall(name = "users", abi = "users(address)")]
     pub struct UsersCall(pub ::ethers::core::types::Address);
@@ -320,7 +289,7 @@ pub mod allowlist {
         Debug,
         PartialEq,
         Eq,
-        Hash
+        Hash,
     )]
     pub enum AllowlistCalls {
         Allowlisting(AllowlistingCall),
@@ -334,29 +303,23 @@ pub mod allowlist {
             data: impl AsRef<[u8]>,
         ) -> ::core::result::Result<Self, ::ethers::core::abi::AbiError> {
             let data = data.as_ref();
-            if let Ok(decoded) = <AllowlistingCall as ::ethers::core::abi::AbiDecode>::decode(
-                data,
-            ) {
+            if let Ok(decoded) = <AllowlistingCall as ::ethers::core::abi::AbiDecode>::decode(data)
+            {
                 return Ok(Self::Allowlisting(decoded));
             }
-            if let Ok(decoded) = <EnableAllowlistingCall as ::ethers::core::abi::AbiDecode>::decode(
-                data,
-            ) {
+            if let Ok(decoded) =
+                <EnableAllowlistingCall as ::ethers::core::abi::AbiDecode>::decode(data)
+            {
                 return Ok(Self::EnableAllowlisting(decoded));
             }
-            if let Ok(decoded) = <IsAllowlistedCall as ::ethers::core::abi::AbiDecode>::decode(
-                data,
-            ) {
+            if let Ok(decoded) = <IsAllowlistedCall as ::ethers::core::abi::AbiDecode>::decode(data)
+            {
                 return Ok(Self::IsAllowlisted(decoded));
             }
-            if let Ok(decoded) = <OwnerCall as ::ethers::core::abi::AbiDecode>::decode(
-                data,
-            ) {
+            if let Ok(decoded) = <OwnerCall as ::ethers::core::abi::AbiDecode>::decode(data) {
                 return Ok(Self::Owner(decoded));
             }
-            if let Ok(decoded) = <UsersCall as ::ethers::core::abi::AbiDecode>::decode(
-                data,
-            ) {
+            if let Ok(decoded) = <UsersCall as ::ethers::core::abi::AbiDecode>::decode(data) {
                 return Ok(Self::Users(decoded));
             }
             Err(::ethers::core::abi::Error::InvalidData.into())
@@ -365,15 +328,11 @@ pub mod allowlist {
     impl ::ethers::core::abi::AbiEncode for AllowlistCalls {
         fn encode(self) -> Vec<u8> {
             match self {
-                Self::Allowlisting(element) => {
-                    ::ethers::core::abi::AbiEncode::encode(element)
-                }
+                Self::Allowlisting(element) => ::ethers::core::abi::AbiEncode::encode(element),
                 Self::EnableAllowlisting(element) => {
                     ::ethers::core::abi::AbiEncode::encode(element)
                 }
-                Self::IsAllowlisted(element) => {
-                    ::ethers::core::abi::AbiEncode::encode(element)
-                }
+                Self::IsAllowlisted(element) => ::ethers::core::abi::AbiEncode::encode(element),
                 Self::Owner(element) => ::ethers::core::abi::AbiEncode::encode(element),
                 Self::Users(element) => ::ethers::core::abi::AbiEncode::encode(element),
             }
@@ -383,9 +342,7 @@ pub mod allowlist {
         fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
             match self {
                 Self::Allowlisting(element) => ::core::fmt::Display::fmt(element, f),
-                Self::EnableAllowlisting(element) => {
-                    ::core::fmt::Display::fmt(element, f)
-                }
+                Self::EnableAllowlisting(element) => ::core::fmt::Display::fmt(element, f),
                 Self::IsAllowlisted(element) => ::core::fmt::Display::fmt(element, f),
                 Self::Owner(element) => ::core::fmt::Display::fmt(element, f),
                 Self::Users(element) => ::core::fmt::Display::fmt(element, f),
@@ -428,7 +385,7 @@ pub mod allowlist {
         Debug,
         PartialEq,
         Eq,
-        Hash
+        Hash,
     )]
     pub struct AllowlistingReturn(pub bool);
     ///Container type for all return fields from the `isAllowlisted` function with signature `isAllowlisted(address)` and selector `0x05a3b809`
@@ -442,7 +399,7 @@ pub mod allowlist {
         Debug,
         PartialEq,
         Eq,
-        Hash
+        Hash,
     )]
     pub struct IsAllowlistedReturn(pub bool);
     ///Container type for all return fields from the `owner` function with signature `owner()` and selector `0x8da5cb5b`
@@ -456,7 +413,7 @@ pub mod allowlist {
         Debug,
         PartialEq,
         Eq,
-        Hash
+        Hash,
     )]
     pub struct OwnerReturn(pub ::ethers::core::types::Address);
     ///Container type for all return fields from the `users` function with signature `users(address)` and selector `0xa87430ba`
@@ -470,7 +427,7 @@ pub mod allowlist {
         Debug,
         PartialEq,
         Eq,
-        Hash
+        Hash,
     )]
     pub struct UsersReturn(pub bool);
 }

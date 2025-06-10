@@ -53,14 +53,14 @@ where
 {
     debug!("{id} Handling client operation: {:?}", operation);
 
-    let sync_state = get_synchronisation_status::<N>()
-        .await
-        .map_err(|e| TransactionHandlerError::CustomError(e.to_string()))?
-        .is_synchronised();
-    if !sync_state {
-        warn!("{id} Rejecting request - Proposer is not synchronised with the blockchain");
-        return Err(TransactionHandlerError::ClientNotSynchronized);
-    }
+    // let sync_state = get_synchronisation_status::<N>()
+    //     .await
+    //     .map_err(|e| TransactionHandlerError::CustomError(e.to_string()))?
+    //     .is_synchronised();
+    // if !sync_state {
+    //     warn!("{id} Rejecting request - Proposer is not synchronised with the blockchain");
+    //     return Err(TransactionHandlerError::ClientNotSynchronized);
+    // }
 
     // get the zkp keys from the global state. They will have been created when the keys were requested using a mnemonic
     let ZKPKeys {
@@ -72,7 +72,7 @@ where
 
     debug!("{id} Calling client_operation");
     // We should store the change commitments, so that when they appear on-chain, we can add them to the commitments DB.
-    // That will mean that they could potentially be spent. 
+    // That will mean that they could potentially be spent.
     {
         let db = get_db_connection().await;
         let mut commitment_entries = vec![];
@@ -266,7 +266,7 @@ pub async fn process_transaction_offchain<P: Serialize + Sync>(
     );
     let proposers_struct: Vec<Proposer> = round_robin_instance.get_proposers().call().await?;
     let db = get_db_connection().await;
-    
+
     let futures: Vec<_> = proposers_struct
         .into_iter()
         .map(|proposer| {

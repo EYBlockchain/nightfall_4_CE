@@ -1,7 +1,11 @@
 use crate::domain::{entities::SynchronisationStatus, error::EventHandlerError};
+use crate::driven::db::mongo::BlockStorageDB;
 use crate::driven::event_handlers::nightfall_event::get_expected_layer2_blocknumber;
+use crate::initialisation::get_db_connection;
 use crate::ports::contracts::NightfallContract;
+use crate::ports::trees::CommitmentTree;
 use crate::services::process_events::process_events;
+use ark_bn254::Fr as Fr254;
 use configuration::{addresses::get_addresses, settings::get_settings};
 use ethers::prelude::*;
 use futures::{future::BoxFuture, FutureExt};
@@ -9,6 +13,7 @@ use lib::{
     blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
 };
 use log::{debug, warn};
+use mongodb::Client as MongoClient;
 use nightfall_bindings::nightfall::Nightfall;
 use std::panic;
 use std::time::Duration;
@@ -84,6 +89,7 @@ pub async fn listen_for_events<N: NightfallContract>(
         get_addresses().nightfall()
     );
     let events = nightfall_instance.events().from_block(start_block);
+    ark_std::println!("Events from block 0: {:?}", events);
     let mut stream = events
         .subscribe_with_meta()
         .await
@@ -129,18 +135,54 @@ where
         .max_event_listener_attempts
         .unwrap_or(10);
 
+    // clean the database and reset the trees
+    // this is a bit of a hack, but we need to reset the trees to get them back in sync
+    // with the blockchain. We should probably do this in a more elegant way, but this works for now
+    // and we can improve it later
+    {
+        let db = get_db_connection().await;
+        let _ = <MongoClient as CommitmentTree<Fr254>>::reset_tree(db).await;
+    }
+
     start_event_listener::<N>(start_block, max_attempts).await;
 }
 
 pub async fn get_synchronisation_status<N: NightfallContract>(
 ) -> Result<SynchronisationStatus, EventHandlerError> {
-    let expected_block = get_expected_layer2_blocknumber().lock().await;
-    let current_block = N::get_current_layer2_blocknumber()
+    let expected_block_number = get_expected_layer2_blocknumber().lock().await;
+    let current_block_number = N::get_current_layer2_blocknumber()
         .await
         .map_err(|_| EventHandlerError::IOError("Could not read current block".to_string()))?;
     debug!(
-        "Expected block: {}, Current block: {}",
-        *expected_block, current_block
+        "Expected block number: {}, Current block number: {}",
+        *expected_block_number, current_block_number
     );
-    Ok(SynchronisationStatus::new(*expected_block == current_block))
+    if *expected_block_number != current_block_number {
+        return Ok(SynchronisationStatus::new(false));
+    } else {
+        let expected_u64: u64 = expected_block_number
+            .checked_sub(I256::one())
+            .ok_or_else(|| EventHandlerError::IOError("Underflow getting previous block".into()))?
+            .try_into()
+            .map_err(|_| EventHandlerError::IOError("Invalid block number".into()))?;
+
+        let db = get_db_connection().await;
+
+        let stored_block = db.get_block_by_number(expected_u64).await.ok_or_else(|| {
+            warn!(
+                "Missing block {} in local DB while checking synchronisation",
+                expected_u64
+            );
+            EventHandlerError::BlockNotFound(expected_u64)
+        })?;
+
+        let stored_hash = stored_block.hash();
+        debug!(
+            "Client is in sync at block {}, hash {}",
+            expected_u64, stored_hash
+        );
+
+        Ok(SynchronisationStatus::new(true))
+    }
+    // Ok(SynchronisationStatus::new(*expected_block == current_block))
 }

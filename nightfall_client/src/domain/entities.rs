@@ -16,9 +16,11 @@ use ark_ff::PrimeField;
 use ark_serialize::SerializationError;
 use ark_std::UniformRand;
 
+use crate::driven::contract_functions::contract_type_conversions::FrBn254;
 use jf_primitives::poseidon::{FieldHasher, Poseidon, PoseidonError};
 use log::{error, warn};
 use nf_curves::ed_on_bn254::{BabyJubjub, Fr as BJJScalar};
+use nightfall_bindings::nightfall::OnChainTransaction as NightfallOnChainTransaction;
 use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
 use sha3::{digest::generic_array::GenericArray, Digest, Keccak256};
@@ -133,7 +135,47 @@ pub struct CompressedSecrets {
     #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
     pub cipher_text: [Fr254; 5],
 }
-
+//Todo: Move this and the same one in proposer to lib
+/// Transaction struct representing NF on chain transaction
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Copy)]
+pub struct OnChainTransaction {
+    // The fee paid to the proposer.
+    #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
+    pub fee: Fr254,
+    // List of new commitments created by this transaction.
+    #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
+    pub commitments: [Fr254; 4],
+    // List of nullifiers consumed by this transaction.
+    #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
+    pub nullifiers: [Fr254; 4],
+    // public data (public inputs) associated with this transaction.
+    pub public_data: CompressedSecrets,
+}
+// Move this to lib
+impl From<NightfallOnChainTransaction> for OnChainTransaction {
+    fn from(ntx: NightfallOnChainTransaction) -> Self {
+        Self {
+            fee: FrBn254::try_from(ntx.fee)
+                .expect("Conversion of on-chain fee into field element should never fail")
+                .0,
+            commitments: ntx.commitments.map(|c| {
+                FrBn254::try_from(c)
+                    .expect(
+                        "Conversion of on-chain commitments into field elements should never fail",
+                    )
+                    .0
+            }),
+            nullifiers: ntx.nullifiers.map(|n| {
+                FrBn254::try_from(n)
+                    .expect(
+                        "Conversion of on-chain commitments into field elements should never fail",
+                    )
+                    .0
+            }),
+            public_data: ntx.public_data.into(),
+        }
+    }
+}
 pub struct EnvironmentKey;
 
 impl KeyProvider<BJJScalar> for EnvironmentKey {

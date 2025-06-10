@@ -185,7 +185,10 @@ pub async fn anvil_reorg(
     replay: bool,
     interval: u32,
 ) -> Result<(), TestError> {
-    debug!("Reorging the chain with depth {}, replaying blocks is set to {}", depth, replay);
+    debug!(
+        "Reorging the chain with depth {}, replaying blocks is set to {}",
+        depth, replay
+    );
     // before we do anything, we should turn mining off because if a block can be created while this function, the depth is ill-defined
     set_anvil_mining_interval(client, url, 0).await?;
     // next we'll get all the transactions that are in the last 'depth' worth of blocks, so that we can replay them

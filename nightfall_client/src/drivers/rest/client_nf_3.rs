@@ -138,7 +138,7 @@ async fn queue_withdraw_request(
     queue_request(transaction_request, request_id).await
 }
 
-/// function to queue the transfer requests. This function queues all types of transaction request
+/// This function queues all types of transaction request
 async fn queue_request(
     transaction_request: TransactionRequest,
     request_id: Option<String>,
@@ -233,14 +233,14 @@ pub async fn handle_deposit<N: NightfallContract>(
     req: NF3DepositRequest,
     id: &str,
 ) -> Result<NotificationPayload, TransactionHandlerError> {
-    let sync_state = get_synchronisation_status::<N>()
-        .await
-        .map_err(|e| TransactionHandlerError::CustomError(e.to_string()))?
-        .is_synchronised();
-    if !sync_state {
-        warn!("{id} Rejecting request - Client is not synchronised with the blockchain");
-        return Err(TransactionHandlerError::ClientNotSynchronized);
-    }
+    // let sync_state = get_synchronisation_status::<N>()
+    //     .await
+    //     .map_err(|e| TransactionHandlerError::CustomError(e.to_string()))?
+    //     .is_synchronised();
+    // if !sync_state {
+    //     warn!("{id} Rejecting request - Client is not synchronised with the blockchain");
+    //     return Err(TransactionHandlerError::ClientNotSynchronized);
+    // }
 
     info!("Deposit raw request: {:?}", req);
 
@@ -329,9 +329,9 @@ pub async fn handle_deposit<N: NightfallContract>(
         secret_preimage_two,
         secret_preimage_three,
     );
-  
+
     let db: &'static mongodb::Client = get_db_connection().await;
-   
+
     // Then match on the token type and call the correct function
     let (preimage_value, preimage_fee_option) = match token_type {
         TokenType::ERC20 => {

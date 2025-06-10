@@ -1,7 +1,11 @@
 use std::time::Duration;
 
 use crate::domain::entities::RequestStatus;
+use crate::domain::error::TransactionHandlerError;
 use crate::driven::notifier::webhook_notifier::WebhookNotifier;
+use crate::drivers::blockchain::nightfall_event_listener::{
+    get_synchronisation_status, restart_event_listener,
+};
 use crate::drivers::rest::client_nf_3::handle_request;
 use crate::drivers::rest::models::{NF3DepositRequest, NF3TransferRequest, NF3WithdrawRequest};
 use crate::initialisation::get_db_connection;
@@ -10,7 +14,7 @@ use crate::ports::db::RequestDB;
 use crate::ports::proof::{Proof, ProvingEngine};
 use crate::services::data_publisher::DataPublisher;
 use configuration::settings::get_settings;
-use log::{debug, info, warn};
+use log::{debug, error, info, warn};
 use std::collections::VecDeque;
 use tokio::sync::{OnceCell, RwLock};
 use tokio::time::sleep;
@@ -53,6 +57,17 @@ where
     publisher.register_notifier(Box::new(notifier));
 
     loop {
+        let sync_state = match get_synchronisation_status::<N>().await {
+            Ok(status) => status.is_synchronised(),
+            Err(e) => {
+                error!("Failed to get synchronisation status: {:?}", e);
+                return;
+            }
+        };
+        if !sync_state {
+            warn!("Client is not synchronised with the blockchain, restarting event listener");
+            restart_event_listener::<N>(0).await;
+        }
         while let Some(request) = {
             let mut queue = get_queue().await.write().await;
             let request = queue.pop_front();

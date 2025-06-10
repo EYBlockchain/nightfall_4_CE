@@ -24,10 +24,102 @@ use crate::{
     driven::contract_functions::contract_type_conversions::FrBn254,
     ports::{commitments::Commitment, db::CommitmentEntryDB},
 };
+use ethers::types::H160;
 use jf_primitives::{poseidon::PoseidonError, trees::MembershipProof};
 use lib::serialization::{ark_de_hex, ark_se_hex};
+use sha2::Sha256;
+use sha3::Digest;
 
 pub const DB: &str = "nightfall";
+pub const PROPOSED_BLOCKS_COLLECTION: &str = "ProposedBlocks";
+
+// To do, move this to lib, and change proposer to use it as well.
+#[async_trait::async_trait]
+pub trait BlockStorageDB {
+    async fn store_block(&self, block: &StoredBlock) -> Option<()>;
+    async fn get_block_by_number(&self, block_number: u64) -> Option<StoredBlock>;
+    async fn get_all_blocks(&self) -> Option<Vec<StoredBlock>>;
+    async fn delete_block_by_number(&self, block_number: u64) -> Option<()>;
+}
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+/// A struct representing a stored block in the database
+/// To update local mempool so that proposers won't assemble the block with the same transactions onchain, proposers can just check if the commitments for deposit/client_transactions in mempool have appeared in the stored block.
+/// To sync the status, proposers need to check if block is the same as the one it remembers when layer 2 block number expected and onchain are the same, since commitments are unique, it's enought to check the hash of commitments in block.
+/// So we only store commitments and layer2_block_number in the block database.
+pub struct StoredBlock {
+    pub layer2_block_number: u64,
+    pub commitments: Vec<String>,
+    pub proposer_address: H160,
+}
+impl StoredBlock {
+    pub fn hash(&self) -> Fr254 {
+        let mut bytes = Vec::new();
+        for c in &self.commitments {
+            bytes.extend_from_slice(c.as_bytes());
+        }
+        bytes.extend_from_slice(&self.proposer_address.to_fixed_bytes());
+        let hash = Sha256::digest(&bytes);
+        Fr254::from_be_bytes_mod_order(&hash)
+    }
+}
+#[async_trait::async_trait]
+impl BlockStorageDB for mongodb::Client {
+    async fn store_block(&self, block: &StoredBlock) -> Option<()> {
+        // check if the block already exists
+        let filter = doc! { "layer2_block_number": block.layer2_block_number as i64 };
+        let existing_block = self
+            .database(DB)
+            .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
+            .find_one(filter.clone())
+            .await
+            .ok()?;
+        if existing_block.is_some() {
+            // if the block already exists, we need to update it
+            let update = doc! { "$set": { "commitments": block.commitments.clone() } };
+            self.database(DB)
+                .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
+                .update_one(filter, update)
+                .await
+                .ok()?;
+            return Some(());
+        }
+        // if the block doesn't exist, we need to insert it
+        self.database(DB)
+            .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
+            .insert_one(block)
+            .await
+            .ok()?;
+        Some(())
+    }
+
+    async fn get_block_by_number(&self, block_number: u64) -> Option<StoredBlock> {
+        let filter = doc! { "layer2_block_number": block_number as i64 };
+        self.database(DB)
+            .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
+            .find_one(filter)
+            .await
+            .ok()?
+    }
+
+    async fn get_all_blocks(&self) -> Option<Vec<StoredBlock>> {
+        let cursor = self
+            .database(DB)
+            .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
+            .find(doc! {})
+            .await
+            .ok()?;
+        cursor.try_collect().await.ok()
+    }
+    async fn delete_block_by_number(&self, block_number: u64) -> Option<()> {
+        let filter = doc! { "layer2_block_number": block_number as i64 };
+        self.database(DB)
+            .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
+            .delete_one(filter)
+            .await
+            .ok()?;
+        Some(())
+    }
+}
 
 /// Utility function to convert a MembershipProof<Fr254> to a MemershipProof<FrBn254>
 ///
