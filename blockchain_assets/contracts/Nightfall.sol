@@ -511,6 +511,7 @@ contract Nightfall is
         
             // Load the hashed value and shift right by 4 bits
             result := shr(4, mload(freePtr))
+            
         }
     }
 

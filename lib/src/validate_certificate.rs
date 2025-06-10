@@ -231,6 +231,8 @@ mod tests {
         let address = H160::from(address_bytes);
         let signature =
             sign_ethereum_address(der_private_key, &address).expect("Failed to sign address");
+        // print signature in hex format
+        ark_std::println!("Signature: {:?}", hex::encode(&signature));
         let private_key =
             Rsa::private_key_from_der(der_private_key).expect("Failed to parse private key");
         let public_key_pem = private_key

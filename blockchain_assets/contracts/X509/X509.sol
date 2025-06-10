@@ -7,7 +7,7 @@ import './DerParser.sol';
 import './Allowlist.sol';
 import './X509Interface.sol';
 import './Sha.sol';
-
+import "forge-std/console2.sol";
 contract X509 is DERParser, Allowlist, Sha, X509Interface {
     uint256 constant SECONDS_PER_DAY = 24 * 60 * 60;
     int256 constant OFFSET19700101 = 2440588;
@@ -31,6 +31,9 @@ contract X509 is DERParser, Allowlist, Sha, X509Interface {
     mapping(bytes32 => RSAPublicKey) trustedPublicKeys;
     mapping(bytes32 => bool) revokedKeys;
     mapping(address => bytes32) keysByUser;
+    // Reverse mapping to ensure one certificate is tied to one address
+    mapping(bytes32 => address) addressByKey; 
+
     bytes32[][] extendedKeyUsageOIDs; // this is an array of arrays because each CA has their own set of OIDs that they use
     bytes32[][] certificatePoliciesOIDs; // this is an array of arrays because each CA has their own set of OIDs that they use
 
@@ -412,6 +415,10 @@ contract X509 is DERParser, Allowlist, Sha, X509Interface {
         uint256 expiry = checkDates(tlvs);
         RSAPublicKey memory certificatePublicKey = extractPublicKey(tlvs);
         bytes32 subjectKeyIdentifier = extractSubjectKeyIdentifier(tlvs);
+        console2.log(
+            'X509: Subject Key Identifier: %s',
+            uint256(subjectKeyIdentifier)
+        );
         require(
             !revokedKeys[subjectKeyIdentifier],
             'X509: The subject key of this certificate has been revoked'
@@ -437,11 +444,24 @@ contract X509 is DERParser, Allowlist, Sha, X509Interface {
         checkCertificatePolicies(tlvs, oidGroup);
         // // If we get here, we're good so add this user to the allowlist data, unless we're only checking the certificate.
         if (!checkOnly) {
+            // Ensure one certificate is tied to one address and vice versa
+            require(
+                keysByUser[addr] == bytes32(0) || keysByUser[addr] == subjectKeyIdentifier,
+                'X509: This address is already linked to a different certificate'
+            );
+            require(
+                addressByKey[subjectKeyIdentifier] == address(0) || addressByKey[subjectKeyIdentifier] == addr,
+                'X509: This certificate is already linked to a different address'
+            );
             // Before we finally add the address to the allowlist, just check that the sender of the allowlist request actually owns the
             // end user cert.  We do this by getting them to sign the Ethereum address they want allowlisted.
             checkSignature(addressSignature, abi.encodePacked(uint160(addr)), certificatePublicKey);
             expires[addr] = expiry;
             keysByUser[addr] = subjectKeyIdentifier;
+
+            // RECORD reverse mapping for one-to-one binding
+            addressByKey[subjectKeyIdentifier] = addr; 
+
             addUserToAllowlist(addr); // all checks have passed, so they are free to trade for now.
         }
     }
@@ -472,6 +492,11 @@ contract X509 is DERParser, Allowlist, Sha, X509Interface {
         );
         revokedKeys[subjectKeyIdentifier] = true;
         delete trustedPublicKeys[subjectKeyIdentifier];
+
+        // CLEANUP: remove bidirectional binding when revoked
+        address addr = addressByKey[subjectKeyIdentifier];
+        delete keysByUser[addr];
+        delete addressByKey[subjectKeyIdentifier];
     }
 
     /** 
@@ -495,5 +520,10 @@ contract X509 is DERParser, Allowlist, Sha, X509Interface {
         );
         revokedKeys[subjectKeyIdentifier] = true;
         delete trustedPublicKeys[subjectKeyIdentifier];
+
+        // CLEANUP: remove bidirectional binding when revoked
+        address addr = addressByKey[subjectKeyIdentifier];
+        delete keysByUser[addr];
+        delete addressByKey[subjectKeyIdentifier];
     }
 }
