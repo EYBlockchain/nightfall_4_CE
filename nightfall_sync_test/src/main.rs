@@ -2,10 +2,10 @@ use configuration::{logging::init_logging, settings::get_settings};
 use lib::models::CertificateReq;
 use log::{debug, info};
 use nightfall_client::domain::entities::Proposer;
-use reqwest::{StatusCode, Url};
-use tokio::time;
-use std::fs;
 use nightfall_test::test::validate_certificate_with_server;
+use reqwest::{StatusCode, Url};
+use std::fs;
+use tokio::time;
 
 #[tokio::main]
 async fn main() {
@@ -55,11 +55,7 @@ async fn main() {
     let list = res.json::<Vec<Proposer>>().await.unwrap();
     info!("Proposer list: {:?}", list);
     // prepare Proposer 2 valid certificate
-    let cert_url = Url::parse(&settings.nightfall_client.url)
-        .unwrap()
-        .join("/v1/certification")
-        .unwrap();
-
+    info!("Verifying Proposer 2 certificate");
     let proposer_2_cert =
         fs::read("../blockchain_assets/test_contracts/X509/_certificates/user/user-4.der")
             .expect("Failed to read user-4 certificate");
@@ -77,7 +73,7 @@ async fn main() {
         .join("/v1/certification")
         .unwrap();
     validate_certificate_with_server(&http_client, cert_url, proposer_2_certificate_req.clone())
-        .await 
+        .await
         .expect("Client 1 Certificate validation failed");
     // if all is well, register the second proposer
     info!("Proposer 2 is synchronised. Registering proposer 2");
