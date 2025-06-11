@@ -6,12 +6,15 @@ use crate::{
 };
 use ark_serialize::SerializationError;
 use configuration::addresses::get_addresses;
-
-use ethers::providers::ProviderError;
+use configuration::settings::Settings;
+use ethers::prelude::*;
+use ethers::providers::{Middleware, Provider, ProviderError, Ws};
+use ethers::types::H256;
+use ethers::types::{BlockId, BlockNumber};
 use jf_plonk::errors::PlonkError;
-use lib::blockchain_client::BlockchainClientConnection;
+use lib::{blockchain_client::BlockchainClientConnection};
 use log::{debug, error, info, warn};
-use nightfall_bindings::round_robin::RoundRobin;
+use nightfall_bindings::round_robin::{ProposerRotatedFilter, RoundRobin};
 use nightfall_client::{
     domain::error::{ConversionError, EventHandlerError, NightfallContractError},
     ports::proof::Proof,
@@ -20,6 +23,8 @@ use std::{
     error::Error,
     fmt::{Debug, Display, Formatter},
 };
+use std::{sync::Arc, time::Duration};
+use tokio::sync::Mutex;
 
 #[derive(Debug)]
 pub enum BlockAssemblyError {
@@ -35,6 +40,9 @@ pub enum BlockAssemblyError {
     ContractError(String),
     ProviderError(ProviderError),
     EventHandlerError(EventHandlerError),
+    FinalityTimeout,
+    QueueError(String),
+    Other(String),
 }
 
 impl From<EventHandlerError> for BlockAssemblyError {
@@ -65,6 +73,9 @@ impl Display for BlockAssemblyError {
             Self::ContractError(s) => write!(f, "Contract error: {}", s),
             Self::ProviderError(e) => write!(f, "Provider error: {}", e),
             Self::EventHandlerError(e) => write!(f, "Event handling error: {}", e),
+            Self::QueueError(s) => write!(f, "Queued error: {}", s),
+            Self::Other(s) => write!(f, "Other error: {}", s),
+            Self::FinalityTimeout => write!(f, "Finality timeout occurred."),
         }
     }
 }
@@ -93,6 +104,80 @@ impl From<PlonkError> for BlockAssemblyError {
     }
 }
 
+async fn check_l1_finality(
+    client: &Provider<Ws>,
+    tx_hash_l1: H256,
+    confirmations_required: U64,
+    wait_timeout: Option<Duration>,
+) -> Result<bool, BlockAssemblyError> {
+    let start_time = std::time::Instant::now();
+    let poll_interval = Duration::from_secs(2);
+
+    loop {
+        // Get finalized block (with fallback to latest)
+        let finalized_block = match client
+            .get_block(BlockId::Number(BlockNumber::Finalized))
+            .await
+        {
+            Ok(Some(block)) => block,
+            Ok(None) => {
+                let current_block = client
+                    .get_block_number()
+                    .await
+                    .map_err(BlockAssemblyError::ProviderError)?;
+                client
+                    .get_block(BlockId::Number(BlockNumber::Number(current_block)))
+                    .await
+                    .map_err(BlockAssemblyError::ProviderError)?
+                    .ok_or(BlockAssemblyError::Other("Current block not found".into()))?
+            }
+            Err(e) => return Err(BlockAssemblyError::ProviderError(e)),
+        };
+        // Check transaction receipt
+        match client.get_transaction_receipt(tx_hash_l1).await {
+            Ok(Some(tx_receipt)) => {
+                if let (Some(receipt_block_number), Some(finalized_block_number)) =
+                    (tx_receipt.block_number, finalized_block.number)
+                {
+                    // Already finalized
+                    if receipt_block_number <= finalized_block_number {
+                        let confirmations =
+                            finalized_block_number.saturating_sub(receipt_block_number);
+                        if confirmations >= confirmations_required {
+                            return Ok(true);
+                        }
+                    }
+
+                    // Can never be finalized (tx too new)
+                    if receipt_block_number + confirmations_required > finalized_block_number
+                        && wait_timeout.is_none()
+                    {
+                        return Ok(false);
+                    }
+                }
+            }
+            Ok(None) => {
+                // Transaction not found yet
+                if let Some(timeout) = wait_timeout {
+                    if start_time.elapsed() > timeout {
+                        return Err(BlockAssemblyError::FinalityTimeout);
+                    }
+                } else {
+                    return Ok(false);
+                }
+            }
+            Err(e) => return Err(BlockAssemblyError::ProviderError(e)),
+        }
+
+        // Exit if no waiting requested
+        if wait_timeout.is_none() {
+            return Ok(false);
+        }
+
+        tokio::time::sleep(poll_interval).await;
+    }
+}
+
 // once called this function will trigger the block assembly process whenever
 // certain conditions are met
 // Any errors that propogate back up to here will cause a panic.
@@ -102,15 +187,98 @@ where
     R: RecursiveProvingEngine<P> + Send + Sync + 'static,
     N: NightfallContract,
 {
-    let round_robin_instance = RoundRobin::new(
+    let settings = Settings::new().unwrap();
+    let provider = Provider::<Ws>::connect(&settings.ethereum_client_url)
+        .await
+        .map_err(BlockAssemblyError::ProviderError)?;
+    let round_robin_instance = Arc::new(RoundRobin::new(
         get_addresses().round_robin,
         get_blockchain_client_connection()
             .await
             .read()
             .await
             .get_client(),
-    );
+    ));
+
+    // Shared queue for blocks waiting for finality confirmation
+    let pending_blocks = Arc::new(Mutex::new(Vec::new()));
+    let confirmations_required = U64::from(12);
+    let finality_check_interval = Duration::from_secs(5);
+
     debug!("Starting block assembly");
+
+    // Spawn the finality checking task
+    // we should start this if we have atleast one pending block
+    let _finality_checker: tokio::task::JoinHandle<Result<(), BlockAssemblyError>> = {
+        let pending_blocks = Arc::clone(&pending_blocks);
+        let provider = provider.clone();
+        let round_robin_instance = Arc::clone(&round_robin_instance);
+        tokio::spawn(async move {
+            loop {
+                // Check proposer rotation events
+                let start_block = match round_robin_instance.start_l_1_block().await {
+                    Ok(block) => block,
+                    Err(_) => {
+                        return Err(BlockAssemblyError::FailedToAssembleBlock(
+                            "Failed to get start block for round robin".to_string(),
+                        ));
+                    }
+                };
+                let mut blocks = pending_blocks.lock().await;
+                // If start_block is zero, then we assume the contract has just been deployed and rotation has not yet started.
+                if start_block.is_zero() && blocks.len() > 0 {
+                    info!("Proposing {} pending blocks", blocks.len());
+                    for block in blocks.drain(..) {
+                        if let Err(e) = N::propose_block(block).await {
+                            error!("Failed to propose block: {}", e);
+                        }
+                    }
+                }
+                let round_robin_events = round_robin_instance
+                    .event()
+                    .from_block(start_block.as_u64());
+                let rotate_proposer_log: Vec<(ProposerRotatedFilter, LogMeta)> =
+                    match round_robin_events.query_with_meta().await {
+                        Ok(logs) => logs,
+                        Err(_) => {
+                            return Err(BlockAssemblyError::FailedToAssembleBlock(
+                                "Failed to query round robin rotate proposer events".to_string(),
+                            ));
+                        }
+                    };
+                for (_, log_meta) in rotate_proposer_log {
+                    let tx_hash = log_meta.transaction_hash;
+                    match check_l1_finality(
+                        &provider,
+                        tx_hash,
+                        confirmations_required,
+                        Some(finality_check_interval),
+                    )
+                    .await
+                    {
+                        Ok(true) => {
+                            // Process all pending blocks
+                            info!("Rotate Proposer Transaction finalized: {:?}", tx_hash);
+                            info!("Proposing {} pending blocks", blocks.len());
+                            for block in blocks.drain(..) {
+                                if let Err(e) = N::propose_block(block).await {
+                                    error!("Failed to propose block: {}", e);
+                                }
+                            }
+                        }
+                        Ok(false) => {
+                            debug!("Transaction not yet finalized");
+                        }
+                        Err(e) => {
+                            error!("Finality check error: {}", e);
+                        }
+                    }
+                }
+                tokio::time::sleep(finality_check_interval).await;
+            }
+        })
+    };
+    // Main block assembly loop
     loop {
         debug!("Checking proposer status...");
         // Step 1: Get current proposer address from smart contract
@@ -194,11 +362,8 @@ where
             warn!("We are not synchronised. We won't make blocks until we are");
             continue;
         }
-
         debug!("Triggered block assembly");
         let block_result = assemble_block::<P, R>().await;
-        // now we have a result, check if it's in error; if it is and it's just that we don't have >=2 transactions
-        // yet (an InsufficientTransactions error) we can continue, otherwise panic (at least for now)
         let block = match block_result {
             Ok(block) => block,
             Err(e) => match e {
@@ -209,17 +374,11 @@ where
                 }
             },
         };
-
-        // Step 6: Propose the block on-chain
-        // send the block to the blockchain by calling Nighfall.sol's proposeBlock function
-        info!("*Proposing block*");
-        match N::propose_block(block).await {
-            Ok(_) => {
-                info!("Block proposed successfully");
-            }
-            Err(e) => {
-                error!("Failed to propose block: {}", e);
-            }
-        }; // we'll move on to the next block even if this block fails
+        // Add to pending blocks queue
+        {
+            let mut blocks = pending_blocks.lock().await;
+            blocks.push(block);
+            info!("Added block to queue ({} pending)", blocks.len());
+        }
     }
 }

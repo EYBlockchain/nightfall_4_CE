@@ -141,7 +141,7 @@ async fn process_propose_block_event<N: NightfallContract>(
     }
 
     // check if we're ahead of the event, this means we've already seen it and we shouldn't process it again
-    // This could happen if we've missed some blocks and we're re-synchronising
+    // This could happen if we've missed some blocks and we're re-synchronising or even during chain reorg.
     if *expected_onchain_block_number > filter.layer_2_block_number {
         warn!(
             "Already processed layer 2 block {} - skipping",

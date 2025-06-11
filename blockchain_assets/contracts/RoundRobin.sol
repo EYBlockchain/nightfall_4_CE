@@ -65,6 +65,7 @@ contract RoundRobin is ProposerManager {
         current = proposers[current.next_addr];
         start_l1_block = block.number;
         start_l2_block = nightfall.layer2_block_number();
+        emit ProposerRotated(current);
     }
 
     function add_proposer(

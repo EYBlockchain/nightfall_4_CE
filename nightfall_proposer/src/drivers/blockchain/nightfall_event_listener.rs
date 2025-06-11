@@ -101,7 +101,6 @@ where
             .get_client(),
     );
     let events = nightfall_instance.events().from_block(start_block);
-
     let mut stream = events
         .subscribe_with_meta()
         .await

@@ -10,7 +10,9 @@ use nightfall_client::{
 };
 use serde_json::Value;
 use std::fs;
-use test::{count_spent_commitments, get_erc20_balance, get_erc721_balance, get_fee_balance};
+use test::{
+    anvil_reorg, count_spent_commitments, get_erc20_balance, get_erc721_balance, get_fee_balance,
+};
 
 use lib::{
     blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
@@ -18,7 +20,10 @@ use lib::{
 
 use crate::{
     test::{
-        self, create_nf3_deposit_transaction, create_nf3_transfer_transaction, create_nf3_withdraw_transaction, de_escrow_request, forge_command, get_key, get_recipient_address, load_addresses, set_anvil_mining_interval, validate_certificate_with_server, wait_for_all_responses, wait_on_chain, TokenType
+        self, create_nf3_deposit_transaction, create_nf3_transfer_transaction,
+        create_nf3_withdraw_transaction, de_escrow_request, forge_command, get_key,
+        get_recipient_address, load_addresses, set_anvil_mining_interval,
+        validate_certificate_with_server, wait_for_all_responses, wait_on_chain, TokenType,
     },
     test_settings::TestSettings,
 };
@@ -30,7 +35,10 @@ use ethers::{
 };
 use url::Url;
 
-pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_json::Value>>>, mining_interval: u32) {
+pub async fn run_tests(
+    responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_json::Value>>>,
+    mining_interval: u32,
+) {
     let settings: Settings = Settings::new().unwrap();
     let test_settings: TestSettings = TestSettings::new().unwrap();
     info!("Running tests on nightall_client http:// interface");
@@ -38,8 +46,9 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
     // override the mining interval that may have been set in Anvil. If Anvil was set to automine, also turn that off
     let http_client = reqwest::Client::new();
     let url = Url::parse("http://anvil:8545").unwrap();
-    set_anvil_mining_interval(&http_client, &url, mining_interval).await
-        .expect("Failed to set Anvil mining interval"); 
+    set_anvil_mining_interval(&http_client, &url, mining_interval)
+        .await
+        .expect("Failed to set Anvil mining interval");
 
     // generate the zkp keys (they will be held in-memory in the client)
     let url = Url::parse(&settings.nightfall_client.url)
@@ -468,8 +477,7 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
         .await
         .expect("Failed to parse commitment entry");
     assert_eq!(
-        commitment.key,
-        commitment_hashes[0],
+        commitment.key, commitment_hashes[0],
         "The commitment hashes should match"
     );
 
@@ -600,6 +608,20 @@ pub async fn run_tests(responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_js
         })
         .map(|l| l.0)
         .collect::<Vec<_>>();
+
+    info!("Starting chain reorg, {} blocks reorged", 200);
+
+    anvil_reorg(
+        &http_client,
+        &Url::parse("http://anvil:8545").unwrap(),
+        200,
+        true,
+        5,
+    )
+    .await
+    .unwrap();
+
+    info!("====== Chain reorg completed =========");
 
     // compute the commmitments for the transactions
     let commitment_hashes = transactions
