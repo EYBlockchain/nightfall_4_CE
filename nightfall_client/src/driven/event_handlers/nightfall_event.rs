@@ -323,20 +323,12 @@ async fn process_propose_block_event<N: NightfallContract>(
             debug!("Commitment {} is not owned by us", commitment_hash);
         } else {
             info!("Received commitment owned by us, with hash {}", test_hash);
-            // We can transfer to ourselves, so we need to check if we already have the commitment in our database
-            let found_commitment = db.get_commitment(&commitment_hash).await;
-            if found_commitment.is_some() {
-                debug!("Commitment {} already in database", commitment_hash);
-                // If we already have the commitment, we don't need to do anything
-                continue;
-            }
             // store our newly received commitment in our commitment db
             let nullifier = test_preimage
                 .nullifier_hash(&nullifier_key)
                 .map_err(|_| EventHandlerError::HashError)?;
             let commitment_entry = CommitmentEntry::new(
                 test_preimage,
-                commitment_hash,
                 nullifier,
                 CommitmentStatus::Unspent,
             );

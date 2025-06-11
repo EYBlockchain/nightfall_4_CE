@@ -164,7 +164,8 @@ impl From<DBMembershipProof> for MembershipProof<Fr254> {
 pub struct CommitmentEntry {
     pub preimage: Preimage,
     pub status: CommitmentStatus,
-    #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
+    
+    #[serde(rename = "_id",serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
     pub key: Fr254,
     #[serde(
         serialize_with = "ark_se_hex",
@@ -203,7 +204,8 @@ impl Commitment for CommitmentEntry {
     }
 }
 impl CommitmentEntryDB for CommitmentEntry {
-    fn new(preimage: Preimage, key: Fr254, nullifier: Fr254, status: CommitmentStatus) -> Self {
+    fn new(preimage: Preimage, nullifier: Fr254, status: CommitmentStatus) -> Self {
+        let key = preimage.hash().expect("failed to hash preimage");
         Self {
             preimage,
             status,
@@ -328,7 +330,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
     }
 
     async fn get_commitment(&self, k: &Fr254) -> Option<CommitmentEntry> {
-        let filter = doc! { "key": hex::encode(k.into_bigint().to_bytes_le()) };
+        let filter = doc! { "_id": hex::encode(k.into_bigint().to_bytes_le()) };
         self.database(DB)
             .collection::<CommitmentEntry>("commitments")
             .find_one(filter)
@@ -365,7 +367,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
             .into_iter()
             .map(|c| hex::encode(c.into_bigint().to_bytes_le()))
             .collect::<Vec<_>>();
-        let filter = doc! { "key": { "$in": commitment_str }};
+        let filter = doc! { "_id": { "$in": commitment_str }};
         let update = doc! {"$set": { "status": "PendingSpend" }};
         self.database(DB)
             .collection::<CommitmentEntry>("commitments")
@@ -380,7 +382,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
             .into_iter()
             .map(|c| hex::encode(c.into_bigint().to_bytes_le()))
             .collect::<Vec<_>>();
-        let filter = doc! { "key": { "$in": commitment_str }};
+        let filter = doc! { "_id": { "$in": commitment_str }};
         let update = doc! {"$set": { "status": "PendingCreation" }};
         self.database(DB)
             .collection::<CommitmentEntry>("commitments")
@@ -419,7 +421,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
             .collect::<Vec<_>>();
         let l1_hash = l1_hash.map(|h| h.encode_hex());
         let l2_blocknumber = l2_blocknumber.map(|b| b.encode_hex());
-        let filter = doc! { "key": { "$in": commitment_str }};
+        let filter = doc! { "_id": { "$in": commitment_str }};
         let update = doc! {"$set": { "status": "Unspent", "layer_1_transaction_hash": l1_hash, "layer_2_block_number": l2_blocknumber }};
         self.database(DB)
             .collection::<CommitmentEntry>("commitments")
@@ -431,7 +433,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
 
     // we compute a nullifier for each spend commitment that we process.
     async fn add_nullifier(&self, key: &Fr254, nullifier: Fr254) -> Option<()> {
-        let filter = doc! { "key": hex::encode(key.into_bigint().to_bytes_le())};
+        let filter = doc! { "_id": hex::encode(key.into_bigint().to_bytes_le())};
         let update =
             doc! {"$set": { "nullifier": hex::encode(nullifier.into_bigint().to_bytes_le()) }};
 
@@ -443,7 +445,10 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
         Some(())
     }
 
-    async fn store_commitment(&self, commitment: CommitmentEntry) -> Option<()> {
+    async fn store_commitment(
+        &self, 
+        commitment: CommitmentEntry
+    ) -> Option<()> {
         let result = self
             .database(DB)
             .collection::<CommitmentEntry>("commitments")
@@ -464,7 +469,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
         }
     }
 
-    /// function to store multiple commitments in the database, optionally ignoring duplicate key errors
+    /// function to store multiple commitments in the database, optionally ignoring duplicate _id errors
     async fn store_commitments(
         &self,
         commitments: &[CommitmentEntry],
@@ -480,13 +485,13 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
             .await;
         match res {
             Ok(_) => Some(()),
-            // unpack the Mongo error and check if it's a duplicate key error. If so, behave according to dup_key_check
+            // unpack the Mongo error and check if it's a duplicate _id error. If so, behave according to dup_key_check
             Err(e) => {
                 match e.kind.as_ref() {
                     ErrorKind::Write(WriteError(write_error)) => {
                         if write_error.code == 11000 && !dup_key_check {
-                            println!("Duplicate key error: {:?}", write_error);
-                            // duplicate key error but we don't care
+                            println!("Duplicate _id error: {:?}", write_error);
+                            // duplicate _id error but we don't care
                             Some(())
                         } else {
                             None

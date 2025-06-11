@@ -17,6 +17,20 @@ pub mod round_robin {
             constructor: ::core::option::Option::Some(::ethers::core::abi::ethabi::Constructor {
                 inputs: ::std::vec![
                     ::ethers::core::abi::ethabi::Param {
+                        name: ::std::borrow::ToOwned::to_owned("x509_address"),
+                        kind: ::ethers::core::abi::ethabi::ParamType::Address,
+                        internal_type: ::core::option::Option::Some(
+                            ::std::borrow::ToOwned::to_owned("address"),
+                        ),
+                    },
+                    ::ethers::core::abi::ethabi::Param {
+                        name: ::std::borrow::ToOwned::to_owned("sanctionsListAddress"),
+                        kind: ::ethers::core::abi::ethabi::ParamType::Address,
+                        internal_type: ::core::option::Option::Some(
+                            ::std::borrow::ToOwned::to_owned("address"),
+                        ),
+                    },
+                    ::ethers::core::abi::ethabi::Param {
                         name: ::std::borrow::ToOwned::to_owned(
                             "default_proposer_address",
                         ),
@@ -47,6 +61,20 @@ pub mod round_robin {
                         ),
                     },
                     ::ethers::core::abi::ethabi::Param {
+                        name: ::std::borrow::ToOwned::to_owned("exit_penalty"),
+                        kind: ::ethers::core::abi::ethabi::ParamType::Uint(256usize),
+                        internal_type: ::core::option::Option::Some(
+                            ::std::borrow::ToOwned::to_owned("uint256"),
+                        ),
+                    },
+                    ::ethers::core::abi::ethabi::Param {
+                        name: ::std::borrow::ToOwned::to_owned("cooling_blocks"),
+                        kind: ::ethers::core::abi::ethabi::ParamType::Uint(256usize),
+                        internal_type: ::core::option::Option::Some(
+                            ::std::borrow::ToOwned::to_owned("uint256"),
+                        ),
+                    },
+                    ::ethers::core::abi::ethabi::Param {
                         name: ::std::borrow::ToOwned::to_owned("rotation_blocks"),
                         kind: ::ethers::core::abi::ethabi::ParamType::Uint(256usize),
                         internal_type: ::core::option::Option::Some(
@@ -57,10 +85,54 @@ pub mod round_robin {
             }),
             functions: ::core::convert::From::from([
                 (
+                    ::std::borrow::ToOwned::to_owned("COOLDOWN_BLOCKS"),
+                    ::std::vec![
+                        ::ethers::core::abi::ethabi::Function {
+                            name: ::std::borrow::ToOwned::to_owned("COOLDOWN_BLOCKS"),
+                            inputs: ::std::vec![],
+                            outputs: ::std::vec![
+                                ::ethers::core::abi::ethabi::Param {
+                                    name: ::std::string::String::new(),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::Uint(
+                                        256usize,
+                                    ),
+                                    internal_type: ::core::option::Option::Some(
+                                        ::std::borrow::ToOwned::to_owned("uint256"),
+                                    ),
+                                },
+                            ],
+                            constant: ::core::option::Option::None,
+                            state_mutability: ::ethers::core::abi::ethabi::StateMutability::View,
+                        },
+                    ],
+                ),
+                (
                     ::std::borrow::ToOwned::to_owned("DING"),
                     ::std::vec![
                         ::ethers::core::abi::ethabi::Function {
                             name: ::std::borrow::ToOwned::to_owned("DING"),
+                            inputs: ::std::vec![],
+                            outputs: ::std::vec![
+                                ::ethers::core::abi::ethabi::Param {
+                                    name: ::std::string::String::new(),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::Uint(
+                                        256usize,
+                                    ),
+                                    internal_type: ::core::option::Option::Some(
+                                        ::std::borrow::ToOwned::to_owned("uint256"),
+                                    ),
+                                },
+                            ],
+                            constant: ::core::option::Option::None,
+                            state_mutability: ::ethers::core::abi::ethabi::StateMutability::View,
+                        },
+                    ],
+                ),
+                (
+                    ::std::borrow::ToOwned::to_owned("EXIT_PENALTY"),
+                    ::std::vec![
+                        ::ethers::core::abi::ethabi::Function {
+                            name: ::std::borrow::ToOwned::to_owned("EXIT_PENALTY"),
                             inputs: ::std::vec![],
                             outputs: ::std::vec![
                                 ::ethers::core::abi::ethabi::Param {
@@ -210,6 +282,56 @@ pub mod round_robin {
                                     ),
                                     internal_type: ::core::option::Option::Some(
                                         ::std::borrow::ToOwned::to_owned("struct Proposer[]"),
+                                    ),
+                                },
+                            ],
+                            constant: ::core::option::Option::None,
+                            state_mutability: ::ethers::core::abi::ethabi::StateMutability::View,
+                        },
+                    ],
+                ),
+                (
+                    ::std::borrow::ToOwned::to_owned("last_exit_block"),
+                    ::std::vec![
+                        ::ethers::core::abi::ethabi::Function {
+                            name: ::std::borrow::ToOwned::to_owned("last_exit_block"),
+                            inputs: ::std::vec![
+                                ::ethers::core::abi::ethabi::Param {
+                                    name: ::std::string::String::new(),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::Address,
+                                    internal_type: ::core::option::Option::Some(
+                                        ::std::borrow::ToOwned::to_owned("address"),
+                                    ),
+                                },
+                            ],
+                            outputs: ::std::vec![
+                                ::ethers::core::abi::ethabi::Param {
+                                    name: ::std::string::String::new(),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::Uint(
+                                        256usize,
+                                    ),
+                                    internal_type: ::core::option::Option::Some(
+                                        ::std::borrow::ToOwned::to_owned("uint256"),
+                                    ),
+                                },
+                            ],
+                            constant: ::core::option::Option::None,
+                            state_mutability: ::ethers::core::abi::ethabi::StateMutability::View,
+                        },
+                    ],
+                ),
+                (
+                    ::std::borrow::ToOwned::to_owned("owner"),
+                    ::std::vec![
+                        ::ethers::core::abi::ethabi::Function {
+                            name: ::std::borrow::ToOwned::to_owned("owner"),
+                            inputs: ::std::vec![],
+                            outputs: ::std::vec![
+                                ::ethers::core::abi::ethabi::Param {
+                                    name: ::std::string::String::new(),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::Address,
+                                    internal_type: ::core::option::Option::Some(
+                                        ::std::borrow::ToOwned::to_owned("address"),
                                     ),
                                 },
                             ],
@@ -381,6 +503,35 @@ pub mod round_robin {
                     ],
                 ),
                 (
+                    ::std::borrow::ToOwned::to_owned("setAuthorities"),
+                    ::std::vec![
+                        ::ethers::core::abi::ethabi::Function {
+                            name: ::std::borrow::ToOwned::to_owned("setAuthorities"),
+                            inputs: ::std::vec![
+                                ::ethers::core::abi::ethabi::Param {
+                                    name: ::std::borrow::ToOwned::to_owned(
+                                        "sanctionsListAddress",
+                                    ),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::Address,
+                                    internal_type: ::core::option::Option::Some(
+                                        ::std::borrow::ToOwned::to_owned("address"),
+                                    ),
+                                },
+                                ::ethers::core::abi::ethabi::Param {
+                                    name: ::std::borrow::ToOwned::to_owned("x509Address"),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::Address,
+                                    internal_type: ::core::option::Option::Some(
+                                        ::std::borrow::ToOwned::to_owned("address"),
+                                    ),
+                                },
+                            ],
+                            outputs: ::std::vec![],
+                            constant: ::core::option::Option::None,
+                            state_mutability: ::ethers::core::abi::ethabi::StateMutability::NonPayable,
+                        },
+                    ],
+                ),
+                (
                     ::std::borrow::ToOwned::to_owned("set_nightfall"),
                     ::std::vec![
                         ::ethers::core::abi::ethabi::Function {
@@ -388,6 +539,48 @@ pub mod round_robin {
                             inputs: ::std::vec![
                                 ::ethers::core::abi::ethabi::Param {
                                     name: ::std::borrow::ToOwned::to_owned("nightfall_address"),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::Address,
+                                    internal_type: ::core::option::Option::Some(
+                                        ::std::borrow::ToOwned::to_owned("address"),
+                                    ),
+                                },
+                            ],
+                            outputs: ::std::vec![],
+                            constant: ::core::option::Option::None,
+                            state_mutability: ::ethers::core::abi::ethabi::StateMutability::NonPayable,
+                        },
+                    ],
+                ),
+                (
+                    ::std::borrow::ToOwned::to_owned("set_sanctions_list"),
+                    ::std::vec![
+                        ::ethers::core::abi::ethabi::Function {
+                            name: ::std::borrow::ToOwned::to_owned("set_sanctions_list"),
+                            inputs: ::std::vec![
+                                ::ethers::core::abi::ethabi::Param {
+                                    name: ::std::borrow::ToOwned::to_owned(
+                                        "sanctionsListAddress",
+                                    ),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::Address,
+                                    internal_type: ::core::option::Option::Some(
+                                        ::std::borrow::ToOwned::to_owned("address"),
+                                    ),
+                                },
+                            ],
+                            outputs: ::std::vec![],
+                            constant: ::core::option::Option::None,
+                            state_mutability: ::ethers::core::abi::ethabi::StateMutability::NonPayable,
+                        },
+                    ],
+                ),
+                (
+                    ::std::borrow::ToOwned::to_owned("set_x509_address"),
+                    ::std::vec![
+                        ::ethers::core::abi::ethabi::Function {
+                            name: ::std::borrow::ToOwned::to_owned("set_x509_address"),
+                            inputs: ::std::vec![
+                                ::ethers::core::abi::ethabi::Param {
+                                    name: ::std::borrow::ToOwned::to_owned("x509_address"),
                                     kind: ::ethers::core::abi::ethabi::ParamType::Address,
                                     internal_type: ::core::option::Option::Some(
                                         ::std::borrow::ToOwned::to_owned("address"),
@@ -588,12 +781,28 @@ pub mod round_robin {
             let deployer = ::ethers::contract::ContractDeployer::new(deployer);
             Ok(deployer)
         }
+        ///Calls the contract's `COOLDOWN_BLOCKS` (0x54831354) function
+        pub fn cooldown_blocks(
+            &self,
+        ) -> ::ethers::contract::builders::ContractCall<M, ::ethers::core::types::U256> {
+            self.0
+                .method_hash([84, 131, 19, 84], ())
+                .expect("method not found (this should never happen)")
+        }
         ///Calls the contract's `DING` (0xd7ae76b6) function
         pub fn ding(
             &self,
         ) -> ::ethers::contract::builders::ContractCall<M, ::ethers::core::types::U256> {
             self.0
                 .method_hash([215, 174, 118, 182], ())
+                .expect("method not found (this should never happen)")
+        }
+        ///Calls the contract's `EXIT_PENALTY` (0x0acf4f93) function
+        pub fn exit_penalty(
+            &self,
+        ) -> ::ethers::contract::builders::ContractCall<M, ::ethers::core::types::U256> {
+            self.0
+                .method_hash([10, 207, 79, 147], ())
                 .expect("method not found (this should never happen)")
         }
         ///Calls the contract's `ROTATION_BlOCKS` (0x97c1d047) function
@@ -646,6 +855,26 @@ pub mod round_robin {
         ) -> ::ethers::contract::builders::ContractCall<M, ::std::vec::Vec<Proposer>> {
             self.0
                 .method_hash([72, 192, 244, 135], ())
+                .expect("method not found (this should never happen)")
+        }
+        ///Calls the contract's `last_exit_block` (0x22b092af) function
+        pub fn last_exit_block(
+            &self,
+            p0: ::ethers::core::types::Address,
+        ) -> ::ethers::contract::builders::ContractCall<M, ::ethers::core::types::U256> {
+            self.0
+                .method_hash([34, 176, 146, 175], p0)
+                .expect("method not found (this should never happen)")
+        }
+        ///Calls the contract's `owner` (0x8da5cb5b) function
+        pub fn owner(
+            &self,
+        ) -> ::ethers::contract::builders::ContractCall<
+            M,
+            ::ethers::core::types::Address,
+        > {
+            self.0
+                .method_hash([141, 165, 203, 91], ())
                 .expect("method not found (this should never happen)")
         }
         ///Calls the contract's `pending_withdraws` (0xc739d79c) function
@@ -708,6 +937,16 @@ pub mod round_robin {
                 .method_hash([193, 47, 102, 110], ())
                 .expect("method not found (this should never happen)")
         }
+        ///Calls the contract's `setAuthorities` (0x4a8a4073) function
+        pub fn set_authorities(
+            &self,
+            sanctions_list_address: ::ethers::core::types::Address,
+            x_509_address: ::ethers::core::types::Address,
+        ) -> ::ethers::contract::builders::ContractCall<M, ()> {
+            self.0
+                .method_hash([74, 138, 64, 115], (sanctions_list_address, x_509_address))
+                .expect("method not found (this should never happen)")
+        }
         ///Calls the contract's `set_nightfall` (0x194f6b64) function
         pub fn set_nightfall(
             &self,
@@ -715,6 +954,24 @@ pub mod round_robin {
         ) -> ::ethers::contract::builders::ContractCall<M, ()> {
             self.0
                 .method_hash([25, 79, 107, 100], nightfall_address)
+                .expect("method not found (this should never happen)")
+        }
+        ///Calls the contract's `set_sanctions_list` (0x97e20d0e) function
+        pub fn set_sanctions_list(
+            &self,
+            sanctions_list_address: ::ethers::core::types::Address,
+        ) -> ::ethers::contract::builders::ContractCall<M, ()> {
+            self.0
+                .method_hash([151, 226, 13, 14], sanctions_list_address)
+                .expect("method not found (this should never happen)")
+        }
+        ///Calls the contract's `set_x509_address` (0xd5e6c6f9) function
+        pub fn set_x_509_address(
+            &self,
+            x_509_address: ::ethers::core::types::Address,
+        ) -> ::ethers::contract::builders::ContractCall<M, ()> {
+            self.0
+                .method_hash([213, 230, 198, 249], x_509_address)
                 .expect("method not found (this should never happen)")
         }
         ///Calls the contract's `start_l1_block` (0xac2beca0) function
@@ -788,6 +1045,21 @@ pub mod round_robin {
     pub struct ProposerRotatedFilter {
         pub proposer: Proposer,
     }
+    ///Container type for all input parameters for the `COOLDOWN_BLOCKS` function with signature `COOLDOWN_BLOCKS()` and selector `0x54831354`
+    #[derive(
+        Clone,
+        ::ethers::contract::EthCall,
+        ::ethers::contract::EthDisplay,
+        serde::Serialize,
+        serde::Deserialize,
+        Default,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash
+    )]
+    #[ethcall(name = "COOLDOWN_BLOCKS", abi = "COOLDOWN_BLOCKS()")]
+    pub struct CooldownBlocksCall;
     ///Container type for all input parameters for the `DING` function with signature `DING()` and selector `0xd7ae76b6`
     #[derive(
         Clone,
@@ -803,6 +1075,21 @@ pub mod round_robin {
     )]
     #[ethcall(name = "DING", abi = "DING()")]
     pub struct DingCall;
+    ///Container type for all input parameters for the `EXIT_PENALTY` function with signature `EXIT_PENALTY()` and selector `0x0acf4f93`
+    #[derive(
+        Clone,
+        ::ethers::contract::EthCall,
+        ::ethers::contract::EthDisplay,
+        serde::Serialize,
+        serde::Deserialize,
+        Default,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash
+    )]
+    #[ethcall(name = "EXIT_PENALTY", abi = "EXIT_PENALTY()")]
+    pub struct ExitPenaltyCall;
     ///Container type for all input parameters for the `ROTATION_BlOCKS` function with signature `ROTATION_BlOCKS()` and selector `0x97c1d047`
     #[derive(
         Clone,
@@ -898,6 +1185,36 @@ pub mod round_robin {
     )]
     #[ethcall(name = "get_proposers", abi = "get_proposers()")]
     pub struct GetProposersCall;
+    ///Container type for all input parameters for the `last_exit_block` function with signature `last_exit_block(address)` and selector `0x22b092af`
+    #[derive(
+        Clone,
+        ::ethers::contract::EthCall,
+        ::ethers::contract::EthDisplay,
+        serde::Serialize,
+        serde::Deserialize,
+        Default,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash
+    )]
+    #[ethcall(name = "last_exit_block", abi = "last_exit_block(address)")]
+    pub struct LastExitBlockCall(pub ::ethers::core::types::Address);
+    ///Container type for all input parameters for the `owner` function with signature `owner()` and selector `0x8da5cb5b`
+    #[derive(
+        Clone,
+        ::ethers::contract::EthCall,
+        ::ethers::contract::EthDisplay,
+        serde::Serialize,
+        serde::Deserialize,
+        Default,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash
+    )]
+    #[ethcall(name = "owner", abi = "owner()")]
+    pub struct OwnerCall;
     ///Container type for all input parameters for the `pending_withdraws` function with signature `pending_withdraws(address)` and selector `0xc739d79c`
     #[derive(
         Clone,
@@ -988,6 +1305,24 @@ pub mod round_robin {
     )]
     #[ethcall(name = "rotate_proposer", abi = "rotate_proposer()")]
     pub struct RotateProposerCall;
+    ///Container type for all input parameters for the `setAuthorities` function with signature `setAuthorities(address,address)` and selector `0x4a8a4073`
+    #[derive(
+        Clone,
+        ::ethers::contract::EthCall,
+        ::ethers::contract::EthDisplay,
+        serde::Serialize,
+        serde::Deserialize,
+        Default,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash
+    )]
+    #[ethcall(name = "setAuthorities", abi = "setAuthorities(address,address)")]
+    pub struct SetAuthoritiesCall {
+        pub sanctions_list_address: ::ethers::core::types::Address,
+        pub x_509_address: ::ethers::core::types::Address,
+    }
     ///Container type for all input parameters for the `set_nightfall` function with signature `set_nightfall(address)` and selector `0x194f6b64`
     #[derive(
         Clone,
@@ -1004,6 +1339,40 @@ pub mod round_robin {
     #[ethcall(name = "set_nightfall", abi = "set_nightfall(address)")]
     pub struct SetNightfallCall {
         pub nightfall_address: ::ethers::core::types::Address,
+    }
+    ///Container type for all input parameters for the `set_sanctions_list` function with signature `set_sanctions_list(address)` and selector `0x97e20d0e`
+    #[derive(
+        Clone,
+        ::ethers::contract::EthCall,
+        ::ethers::contract::EthDisplay,
+        serde::Serialize,
+        serde::Deserialize,
+        Default,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash
+    )]
+    #[ethcall(name = "set_sanctions_list", abi = "set_sanctions_list(address)")]
+    pub struct SetSanctionsListCall {
+        pub sanctions_list_address: ::ethers::core::types::Address,
+    }
+    ///Container type for all input parameters for the `set_x509_address` function with signature `set_x509_address(address)` and selector `0xd5e6c6f9`
+    #[derive(
+        Clone,
+        ::ethers::contract::EthCall,
+        ::ethers::contract::EthDisplay,
+        serde::Serialize,
+        serde::Deserialize,
+        Default,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash
+    )]
+    #[ethcall(name = "set_x509_address", abi = "set_x509_address(address)")]
+    pub struct SetX509AddressCall {
+        pub x_509_address: ::ethers::core::types::Address,
     }
     ///Container type for all input parameters for the `start_l1_block` function with signature `start_l1_block()` and selector `0xac2beca0`
     #[derive(
@@ -1064,20 +1433,27 @@ pub mod round_robin {
         Hash
     )]
     pub enum RoundRobinCalls {
+        CooldownBlocks(CooldownBlocksCall),
         Ding(DingCall),
+        ExitPenalty(ExitPenaltyCall),
         RotationBlOCKS(RotationBlOCKSCall),
         Stake(StakeCall),
         AddProposer(AddProposerCall),
         Escrow(EscrowCall),
         GetCurrentProposerAddress(GetCurrentProposerAddressCall),
         GetProposers(GetProposersCall),
+        LastExitBlock(LastExitBlockCall),
+        Owner(OwnerCall),
         PendingWithdraws(PendingWithdrawsCall),
         ProposerCount(ProposerCountCall),
         ProposerUrls(ProposerUrlsCall),
         Proposers(ProposersCall),
         RemoveProposer(RemoveProposerCall),
         RotateProposer(RotateProposerCall),
+        SetAuthorities(SetAuthoritiesCall),
         SetNightfall(SetNightfallCall),
+        SetSanctionsList(SetSanctionsListCall),
+        SetX509Address(SetX509AddressCall),
         StartL1Block(StartL1BlockCall),
         StartL2Block(StartL2BlockCall),
         Withdraw(WithdrawCall),
@@ -1087,10 +1463,20 @@ pub mod round_robin {
             data: impl AsRef<[u8]>,
         ) -> ::core::result::Result<Self, ::ethers::core::abi::AbiError> {
             let data = data.as_ref();
+            if let Ok(decoded) = <CooldownBlocksCall as ::ethers::core::abi::AbiDecode>::decode(
+                data,
+            ) {
+                return Ok(Self::CooldownBlocks(decoded));
+            }
             if let Ok(decoded) = <DingCall as ::ethers::core::abi::AbiDecode>::decode(
                 data,
             ) {
                 return Ok(Self::Ding(decoded));
+            }
+            if let Ok(decoded) = <ExitPenaltyCall as ::ethers::core::abi::AbiDecode>::decode(
+                data,
+            ) {
+                return Ok(Self::ExitPenalty(decoded));
             }
             if let Ok(decoded) = <RotationBlOCKSCall as ::ethers::core::abi::AbiDecode>::decode(
                 data,
@@ -1122,6 +1508,16 @@ pub mod round_robin {
             ) {
                 return Ok(Self::GetProposers(decoded));
             }
+            if let Ok(decoded) = <LastExitBlockCall as ::ethers::core::abi::AbiDecode>::decode(
+                data,
+            ) {
+                return Ok(Self::LastExitBlock(decoded));
+            }
+            if let Ok(decoded) = <OwnerCall as ::ethers::core::abi::AbiDecode>::decode(
+                data,
+            ) {
+                return Ok(Self::Owner(decoded));
+            }
             if let Ok(decoded) = <PendingWithdrawsCall as ::ethers::core::abi::AbiDecode>::decode(
                 data,
             ) {
@@ -1152,10 +1548,25 @@ pub mod round_robin {
             ) {
                 return Ok(Self::RotateProposer(decoded));
             }
+            if let Ok(decoded) = <SetAuthoritiesCall as ::ethers::core::abi::AbiDecode>::decode(
+                data,
+            ) {
+                return Ok(Self::SetAuthorities(decoded));
+            }
             if let Ok(decoded) = <SetNightfallCall as ::ethers::core::abi::AbiDecode>::decode(
                 data,
             ) {
                 return Ok(Self::SetNightfall(decoded));
+            }
+            if let Ok(decoded) = <SetSanctionsListCall as ::ethers::core::abi::AbiDecode>::decode(
+                data,
+            ) {
+                return Ok(Self::SetSanctionsList(decoded));
+            }
+            if let Ok(decoded) = <SetX509AddressCall as ::ethers::core::abi::AbiDecode>::decode(
+                data,
+            ) {
+                return Ok(Self::SetX509Address(decoded));
             }
             if let Ok(decoded) = <StartL1BlockCall as ::ethers::core::abi::AbiDecode>::decode(
                 data,
@@ -1178,7 +1589,13 @@ pub mod round_robin {
     impl ::ethers::core::abi::AbiEncode for RoundRobinCalls {
         fn encode(self) -> Vec<u8> {
             match self {
+                Self::CooldownBlocks(element) => {
+                    ::ethers::core::abi::AbiEncode::encode(element)
+                }
                 Self::Ding(element) => ::ethers::core::abi::AbiEncode::encode(element),
+                Self::ExitPenalty(element) => {
+                    ::ethers::core::abi::AbiEncode::encode(element)
+                }
                 Self::RotationBlOCKS(element) => {
                     ::ethers::core::abi::AbiEncode::encode(element)
                 }
@@ -1193,6 +1610,10 @@ pub mod round_robin {
                 Self::GetProposers(element) => {
                     ::ethers::core::abi::AbiEncode::encode(element)
                 }
+                Self::LastExitBlock(element) => {
+                    ::ethers::core::abi::AbiEncode::encode(element)
+                }
+                Self::Owner(element) => ::ethers::core::abi::AbiEncode::encode(element),
                 Self::PendingWithdraws(element) => {
                     ::ethers::core::abi::AbiEncode::encode(element)
                 }
@@ -1211,7 +1632,16 @@ pub mod round_robin {
                 Self::RotateProposer(element) => {
                     ::ethers::core::abi::AbiEncode::encode(element)
                 }
+                Self::SetAuthorities(element) => {
+                    ::ethers::core::abi::AbiEncode::encode(element)
+                }
                 Self::SetNightfall(element) => {
+                    ::ethers::core::abi::AbiEncode::encode(element)
+                }
+                Self::SetSanctionsList(element) => {
+                    ::ethers::core::abi::AbiEncode::encode(element)
+                }
+                Self::SetX509Address(element) => {
                     ::ethers::core::abi::AbiEncode::encode(element)
                 }
                 Self::StartL1Block(element) => {
@@ -1229,7 +1659,9 @@ pub mod round_robin {
     impl ::core::fmt::Display for RoundRobinCalls {
         fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
             match self {
+                Self::CooldownBlocks(element) => ::core::fmt::Display::fmt(element, f),
                 Self::Ding(element) => ::core::fmt::Display::fmt(element, f),
+                Self::ExitPenalty(element) => ::core::fmt::Display::fmt(element, f),
                 Self::RotationBlOCKS(element) => ::core::fmt::Display::fmt(element, f),
                 Self::Stake(element) => ::core::fmt::Display::fmt(element, f),
                 Self::AddProposer(element) => ::core::fmt::Display::fmt(element, f),
@@ -1238,22 +1670,37 @@ pub mod round_robin {
                     ::core::fmt::Display::fmt(element, f)
                 }
                 Self::GetProposers(element) => ::core::fmt::Display::fmt(element, f),
+                Self::LastExitBlock(element) => ::core::fmt::Display::fmt(element, f),
+                Self::Owner(element) => ::core::fmt::Display::fmt(element, f),
                 Self::PendingWithdraws(element) => ::core::fmt::Display::fmt(element, f),
                 Self::ProposerCount(element) => ::core::fmt::Display::fmt(element, f),
                 Self::ProposerUrls(element) => ::core::fmt::Display::fmt(element, f),
                 Self::Proposers(element) => ::core::fmt::Display::fmt(element, f),
                 Self::RemoveProposer(element) => ::core::fmt::Display::fmt(element, f),
                 Self::RotateProposer(element) => ::core::fmt::Display::fmt(element, f),
+                Self::SetAuthorities(element) => ::core::fmt::Display::fmt(element, f),
                 Self::SetNightfall(element) => ::core::fmt::Display::fmt(element, f),
+                Self::SetSanctionsList(element) => ::core::fmt::Display::fmt(element, f),
+                Self::SetX509Address(element) => ::core::fmt::Display::fmt(element, f),
                 Self::StartL1Block(element) => ::core::fmt::Display::fmt(element, f),
                 Self::StartL2Block(element) => ::core::fmt::Display::fmt(element, f),
                 Self::Withdraw(element) => ::core::fmt::Display::fmt(element, f),
             }
         }
     }
+    impl ::core::convert::From<CooldownBlocksCall> for RoundRobinCalls {
+        fn from(value: CooldownBlocksCall) -> Self {
+            Self::CooldownBlocks(value)
+        }
+    }
     impl ::core::convert::From<DingCall> for RoundRobinCalls {
         fn from(value: DingCall) -> Self {
             Self::Ding(value)
+        }
+    }
+    impl ::core::convert::From<ExitPenaltyCall> for RoundRobinCalls {
+        fn from(value: ExitPenaltyCall) -> Self {
+            Self::ExitPenalty(value)
         }
     }
     impl ::core::convert::From<RotationBlOCKSCall> for RoundRobinCalls {
@@ -1286,6 +1733,16 @@ pub mod round_robin {
             Self::GetProposers(value)
         }
     }
+    impl ::core::convert::From<LastExitBlockCall> for RoundRobinCalls {
+        fn from(value: LastExitBlockCall) -> Self {
+            Self::LastExitBlock(value)
+        }
+    }
+    impl ::core::convert::From<OwnerCall> for RoundRobinCalls {
+        fn from(value: OwnerCall) -> Self {
+            Self::Owner(value)
+        }
+    }
     impl ::core::convert::From<PendingWithdrawsCall> for RoundRobinCalls {
         fn from(value: PendingWithdrawsCall) -> Self {
             Self::PendingWithdraws(value)
@@ -1316,9 +1773,24 @@ pub mod round_robin {
             Self::RotateProposer(value)
         }
     }
+    impl ::core::convert::From<SetAuthoritiesCall> for RoundRobinCalls {
+        fn from(value: SetAuthoritiesCall) -> Self {
+            Self::SetAuthorities(value)
+        }
+    }
     impl ::core::convert::From<SetNightfallCall> for RoundRobinCalls {
         fn from(value: SetNightfallCall) -> Self {
             Self::SetNightfall(value)
+        }
+    }
+    impl ::core::convert::From<SetSanctionsListCall> for RoundRobinCalls {
+        fn from(value: SetSanctionsListCall) -> Self {
+            Self::SetSanctionsList(value)
+        }
+    }
+    impl ::core::convert::From<SetX509AddressCall> for RoundRobinCalls {
+        fn from(value: SetX509AddressCall) -> Self {
+            Self::SetX509Address(value)
         }
     }
     impl ::core::convert::From<StartL1BlockCall> for RoundRobinCalls {
@@ -1336,6 +1808,20 @@ pub mod round_robin {
             Self::Withdraw(value)
         }
     }
+    ///Container type for all return fields from the `COOLDOWN_BLOCKS` function with signature `COOLDOWN_BLOCKS()` and selector `0x54831354`
+    #[derive(
+        Clone,
+        ::ethers::contract::EthAbiType,
+        ::ethers::contract::EthAbiCodec,
+        serde::Serialize,
+        serde::Deserialize,
+        Default,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash
+    )]
+    pub struct CooldownBlocksReturn(pub ::ethers::core::types::U256);
     ///Container type for all return fields from the `DING` function with signature `DING()` and selector `0xd7ae76b6`
     #[derive(
         Clone,
@@ -1350,6 +1836,20 @@ pub mod round_robin {
         Hash
     )]
     pub struct DingReturn(pub ::ethers::core::types::U256);
+    ///Container type for all return fields from the `EXIT_PENALTY` function with signature `EXIT_PENALTY()` and selector `0x0acf4f93`
+    #[derive(
+        Clone,
+        ::ethers::contract::EthAbiType,
+        ::ethers::contract::EthAbiCodec,
+        serde::Serialize,
+        serde::Deserialize,
+        Default,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash
+    )]
+    pub struct ExitPenaltyReturn(pub ::ethers::core::types::U256);
     ///Container type for all return fields from the `ROTATION_BlOCKS` function with signature `ROTATION_BlOCKS()` and selector `0x97c1d047`
     #[derive(
         Clone,
@@ -1420,6 +1920,34 @@ pub mod round_robin {
         Hash
     )]
     pub struct GetProposersReturn(pub ::std::vec::Vec<Proposer>);
+    ///Container type for all return fields from the `last_exit_block` function with signature `last_exit_block(address)` and selector `0x22b092af`
+    #[derive(
+        Clone,
+        ::ethers::contract::EthAbiType,
+        ::ethers::contract::EthAbiCodec,
+        serde::Serialize,
+        serde::Deserialize,
+        Default,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash
+    )]
+    pub struct LastExitBlockReturn(pub ::ethers::core::types::U256);
+    ///Container type for all return fields from the `owner` function with signature `owner()` and selector `0x8da5cb5b`
+    #[derive(
+        Clone,
+        ::ethers::contract::EthAbiType,
+        ::ethers::contract::EthAbiCodec,
+        serde::Serialize,
+        serde::Deserialize,
+        Default,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash
+    )]
+    pub struct OwnerReturn(pub ::ethers::core::types::Address);
     ///Container type for all return fields from the `pending_withdraws` function with signature `pending_withdraws(address)` and selector `0xc739d79c`
     #[derive(
         Clone,
