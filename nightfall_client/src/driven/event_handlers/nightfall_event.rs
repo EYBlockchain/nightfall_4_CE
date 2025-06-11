@@ -326,11 +326,8 @@ async fn process_propose_block_event<N: NightfallContract>(
             let nullifier = test_preimage
                 .nullifier_hash(&nullifier_key)
                 .map_err(|_| EventHandlerError::HashError)?;
-            let commitment_entry = CommitmentEntry::new(
-                test_preimage,
-                nullifier,
-                CommitmentStatus::Unspent,
-            );
+            let commitment_entry =
+                CommitmentEntry::new(test_preimage, nullifier, CommitmentStatus::Unspent);
             commitment_entries.push(commitment_entry);
         }
     }
