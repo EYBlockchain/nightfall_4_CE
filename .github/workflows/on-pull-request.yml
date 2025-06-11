@@ -63,6 +63,21 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: link pptau cache
+        # This is a workaround to avoid downloading the ppot_26.ptau file every time. It creates a symlink to a cached file (which will be downloaded if it doesn't exist on the testrunner).
+        run: |
+          if [ -e /home/testrunner/ptau-cache/ppot_26.ptau ]
+          then
+            echo "Using cached ppot_26.ptau"
+          else
+            echo "Downloading ppot file to cache"
+            mkdir -p /home/testrunner/ptau-cache
+            wget https://pse-trusted-setup-ppot.s3.eu-central-1.amazonaws.com/pot28_0080/ppot_0080_26.ptau
+            mv ppot_0080_26.ptau /home/testrunner/ptau-cache/ppot_26.ptau
+            chmod 444 ptau-cache/ppot_26.ptau # Make it read-only
+            echo "Cached ppot_26.ptau created"
+          fi
+          ln -sf /home/testrunner/ptau-cache/ppot_26.ptau /home/testrunner/actions-runner/_work/nightfall_4_PV/nightfall_4_PV/configuration/bin/ppot_26.ptau
       - name: Clear previous run
         run: docker compose --profile sync_test down -v
       - name: Build
