@@ -12,8 +12,7 @@ use std::fs;
 use test::{count_spent_commitments, get_erc20_balance, get_erc721_balance, get_fee_balance};
 
 use lib::{
-    blockchain_client::BlockchainClientConnection,
-    initialisation::get_blockchain_client_connection,
+    blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
 };
 
 use crate::{
@@ -813,67 +812,17 @@ pub async fn run_tests(
         })
         .collect::<Vec<_>>();
 
-    let mut proceed = 0;
-    while proceed == 0 {
-        let result = de_escrow_request(&de_escrow_data_requests[0], "http://client2:3000").await;
-        match result {
-            Ok(b) => {
-                if b == 1 {
-                    info!("Withdrawing funds");
-                } else {
-                    info!("Not yet able to withdraw funds");
-                }
-                proceed = b;
-            }
-            Err(_) => {
-                info!("Could not yet withdraw funds");
-                proceed = 0;
-            }
+    // Wait until all ERC20 funds are available to withdraw
+    info!("Waiting for ERC20 funds to be available for withdrawal");
+    for request in &de_escrow_data_requests {
+        while !de_escrow_request(request, "http://client2:3000").await.unwrap() {
+            info!("Not yet able to withdraw funds");
+            tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
         }
-        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
     }
-    debug!("erc20_withdraw_0 has been withdrawn");
-
-    proceed = 0;
-
-    while proceed == 0 {
-        let result = de_escrow_request(&de_escrow_data_requests[1], "http://client2:3000").await;
-        match result {
-            Ok(b) => {
-                if b == 1 {
-                    info!("Withdrawing funds");
-                } else {
-                    info!("Not yet able to withdraw funds");
-                }
-                proceed = b;
-            }
-            Err(_) => {
-                info!("Could not yet withdraw funds");
-                proceed = 0;
-            }
-        }
-        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-    }
-    debug!("erc20_withdraw_1 has been withdrawn");
-
-    proceed = 0;
-
-    while proceed == 0 {
-        let result = de_escrow_request(&de_escrow_data_requests[2], "http://client2:3000").await;
-        match result {
-            Ok(_) => {
-                info!("Withdrawing funds");
-                proceed = 1;
-            }
-            Err(_) => {
-                info!("Could not yet withdraw funds");
-                proceed = 0;
-            }
-        }
-        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-    }
-
     info!("Successfully withdrew ERC20 tokens");
+
+    //check the balance of the ERC20 tokens after the withdraws
     let balance = get_erc20_balance(&http_client, Url::parse("http://client2:3000").unwrap()).await;
     info!(
         "Balance of ERC20 tokens held as layer 2 commitments by client2: {}",
@@ -951,78 +900,15 @@ pub async fn run_tests(
         })
         .collect::<Vec<_>>();
 
-    proceed = 0;
-
-    while proceed == 0 {
-        let result = de_escrow_request(&de_escrow_data_requests[0], "http://client2:3000").await;
-        match result {
-            Ok(_) => {
-                info!("Withdrawing funds");
-                proceed = 1;
-            }
-            Err(_) => {
-                info!("Could not yet withdraw funds");
-                proceed = 0;
-            }
+    // Wait until all ERC721, ERC3525 and ERC1155 funds are available to withdraw
+    info!("Waiting for ERC721, ERC3525 and ERC1155 funds to be available for withdrawal");
+    for request in &de_escrow_data_requests {
+        while !de_escrow_request(request, "http://client2:3000").await.unwrap() {
+            info!("Not yet able to withdraw funds");
+            tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
         }
-        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
     }
-
-    proceed = 0;
-
-    info!("Successfully withdrew ERC721 tokens");
-
-    while proceed == 0 {
-        let result = de_escrow_request(&de_escrow_data_requests[1], "http://client2:3000").await;
-        match result {
-            Ok(_) => {
-                info!("Withdrawing funds");
-                proceed = 1;
-            }
-            Err(_) => {
-                info!("Could not yet withdraw funds");
-                proceed = 0;
-            }
-        }
-        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-    }
-
-    proceed = 0;
-
-    info!("Successfully withdrew ERC3525 token");
-
-    while proceed == 0 {
-        let result = de_escrow_request(&de_escrow_data_requests[2], "http://client2:3000").await;
-        match result {
-            Ok(_) => {
-                info!("Withdrawing funds");
-                proceed = 1;
-            }
-            Err(_) => {
-                info!("Could not yet withdraw funds");
-                proceed = 0;
-            }
-        }
-        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-    }
-
-    proceed = 0;
-    while proceed == 0 {
-        let result = de_escrow_request(&de_escrow_data_requests[3], "http://client2:3000").await;
-        match result {
-            Ok(_) => {
-                info!("Withdrawing funds");
-                proceed = 1;
-            }
-            Err(_) => {
-                info!("Could not yet withdraw funds");
-                proceed = 0;
-            }
-        }
-        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-    }
-
-    info!("Successfully withdrew ERC1155 tokens");
+    info!("Successfully withdrew other tokens");
 
     // get the final balance of all the addresses used. As these are all addresses funded by Anvil,
     // we can simple print those balances

@@ -583,8 +583,8 @@ contract Nightfall is
     /// Function that can be called to see if funds are able to be de-escrowed following a withdraw transaction.
     function withdraw_processed(
         WithdrawData calldata data
-    ) public view returns (uint8) {   
+    ) public view returns (bool) {   
         bytes32 key = keccak256(abi.encode(data));
-        return withdrawalIncluded[key];
+        return withdrawalIncluded[key] == 1;
     }
 }
