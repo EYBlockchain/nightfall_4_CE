@@ -7,8 +7,9 @@ use crate::domain::{
 };
 use ark_bn254::Fr as Fr254;
 use ark_ff::BigInteger256;
-use ethers::types::I256;
+use ethers::types::{H160, I256};
 use futures::Future;
+use nightfall_bindings::nightfall::Block;
 
 /// Interface trait for a token contract.
 pub trait TokenContract {
@@ -50,4 +51,8 @@ pub trait NightfallContract {
 
     fn get_current_layer2_blocknumber(
     ) -> impl Future<Output = Result<I256, NightfallContractError>> + Send;
+
+    fn get_layer2_block_by_number(
+        block_number: I256,
+    ) -> impl Future<Output = Result<(H160, Block), NightfallContractError>> + Send;
 }

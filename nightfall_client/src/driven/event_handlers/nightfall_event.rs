@@ -185,6 +185,7 @@ async fn process_propose_block_event<N: NightfallContract>(
             .collect(),
         proposer_address,
     };
+    ark_std::println!("Client's store_block_pending: {:?}", store_block_pending);
     // get a lock on the db, we don't want anything else updating or reading the DB until
     // we're done here
     let db = &mut get_db_connection().await;

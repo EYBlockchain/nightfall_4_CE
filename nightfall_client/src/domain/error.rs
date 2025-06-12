@@ -180,6 +180,12 @@ pub enum NightfallContractError {
     TransactionError,
     EscrowError(String),
     PoseidonError(PoseidonError),
+    BlockNotFound(u64),
+    ProviderError(String),
+    MissingTransactionHash(String),
+    TransactionNotFound(ethers::types::H256),
+    AbiDecodeError(String),
+    DecodedCallError(String),
 }
 
 impl Display for NightfallContractError {
@@ -200,6 +206,24 @@ impl Display for NightfallContractError {
             }
             NightfallContractError::EscrowError(s) => write!(f, "Escrow Funds Error: {}", s),
             NightfallContractError::PoseidonError(e) => write!(f, "Hashing Error: {}", e),
+            NightfallContractError::BlockNotFound(n) => {
+                write!(f, "Layer 2 block number {} not found on-chain", n)
+            }
+            NightfallContractError::ProviderError(e) => {
+                write!(f, "Blockchain provider error: {}", e)
+            }
+            NightfallContractError::MissingTransactionHash(s) => {
+                write!(f, "Missing transaction hash: {}", s)
+            }
+            NightfallContractError::TransactionNotFound(tx_hash) => {
+                write!(f, "Transaction not found: {}", tx_hash)
+            }
+            NightfallContractError::AbiDecodeError(s) => {
+                write!(f, "ABI decode error: {}", s)
+            }
+            NightfallContractError::DecodedCallError(s) => {
+                write!(f, "Decoded call error: {}", s)
+            }
         }
     }
 }

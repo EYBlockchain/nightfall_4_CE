@@ -1,5 +1,6 @@
+use crate::domain::entities::{HexConvertible, OnChainTransaction};
 use crate::domain::{entities::SynchronisationStatus, error::EventHandlerError};
-use crate::driven::db::mongo::BlockStorageDB;
+use crate::driven::db::mongo::{BlockStorageDB, StoredBlock};
 use crate::driven::event_handlers::nightfall_event::get_expected_layer2_blocknumber;
 use crate::initialisation::get_db_connection;
 use crate::ports::contracts::NightfallContract;
@@ -163,19 +164,19 @@ pub async fn get_synchronisation_status<N: NightfallContract>(
     }
     // else {
     ark_std::println!("About to convert expected_block_number to u64");
-let i256_val = *expected_block_number;
+    let i256_val = *expected_block_number;
 
-assert!(
-    i256_val >= I256::zero(),
-    "expected_block_number is negative: {}",
-    i256_val
-);
+    assert!(
+        i256_val >= I256::zero(),
+        "expected_block_number is negative: {}",
+        i256_val
+    );
 
-let expected_u64: u64 = i256_val
-    .try_into()
-    .expect("expected_block_number must be non-negative and within u64 range");
+    let expected_u64: u64 = i256_val
+        .try_into()
+        .expect("expected_block_number must be non-negative and within u64 range");
 
-ark_std::println!("expected_u64: {}", expected_u64);
+    ark_std::println!("expected_u64: {}", expected_u64);
 
     if expected_u64 == 0 {
         debug!("Genesis state: no blocks proposed yet, assuming synchronised.");
@@ -184,23 +185,71 @@ ark_std::println!("expected_u64: {}", expected_u64);
 
     {
         let db = get_db_connection().await;
+        // if client saved block before, then check the hash of the block
+        // Try to fetch the expected block from local DB
+        match db.get_block_by_number(expected_u64).await {
+            Some(stored_block) => {
+                let stored_hash = stored_block.hash();
+                // Now find the transaction that emitted BlockProposed(expected_u64)
+                let (proposer_address, block_onchain) =
+                    N::get_layer2_block_by_number(current_block_number)
+                        .await
+                        .map_err(|_| {
+                            EventHandlerError::IOError(
+                                "Could not read block from blockchain".to_string(),
+                            )
+                        })?;
 
-        let stored_block = db.get_block_by_number(expected_u64).await.ok_or_else(|| {
-            warn!(
-                "Missing block {} in local DB while checking synchronisation",
-                expected_u64
-            );
-            EventHandlerError::BlockNotFound(expected_u64)
-        })?;
+                let store_block_pending = StoredBlock {
+                    layer2_block_number: expected_u64,
+                    commitments: block_onchain
+                        .transactions
+                        .iter()
+                        .flat_map(|ntx| {
+                            let tx: OnChainTransaction = (*ntx).clone().into();
+                            tx.commitments
+                                .iter()
+                                .map(|c| c.to_hex_string())
+                                .collect::<Vec<_>>()
+                        })
+                        .collect(),
+                    proposer_address,
+                };
+                ark_std::println!("Client's store_block_pending: {:?}", store_block_pending);
+                let expected_hash = store_block_pending.hash();
+                ark_std::println!(
+                    "Expected hash: {}, Stored hash: {}",
+                    expected_hash,
+                    stored_hash
+                );
+                if expected_hash != stored_hash {
+                    warn!(
+                        "Block {} hash mismatch: expected {}, found {}",
+                        expected_u64, expected_hash, stored_hash
+                    );
+                    // If the hashes do not match, we are out of sync
+                    return Ok(SynchronisationStatus::new(false));
+                } else {
+                    debug!(
+                        "Block {} found in local DB with correct hash.",
+                        expected_u64
+                    );
+                    return Ok(SynchronisationStatus::new(true));
+                }
+            }
+            None => {
+                debug!(
+                    "Block {} not found in local DB, assuming client is in sync.",
+                    expected_u64
+                );
 
-        let stored_hash = stored_block.hash();
-        debug!(
-            "Client is in sync at block {}, hash {}",
-            expected_u64, stored_hash
-        );
-        // }
-
-        Ok(SynchronisationStatus::new(true))
+                // Treat as in sync if not yet saved
+                return Ok(SynchronisationStatus::new(true));
+            }
+        }
     }
+
+    // If we reach here, the block exists and the hash is correct
+    Ok(SynchronisationStatus::new(true))
     // Ok(SynchronisationStatus::new(*expected_block == current_block))
 }
