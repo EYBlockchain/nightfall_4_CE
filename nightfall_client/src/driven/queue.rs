@@ -64,6 +64,7 @@ where
                 return;
             }
         };
+        ark_std::println!("Synchronisation status: {}", sync_state);
         if !sync_state {
             warn!("Client is not synchronised with the blockchain, restarting event listener");
             restart_event_listener::<N>(0).await;

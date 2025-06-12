@@ -7,7 +7,7 @@ pub use ultra_vk::*;
     clippy::upper_case_acronyms,
     clippy::type_complexity,
     dead_code,
-    non_camel_case_types
+    non_camel_case_types,
 )]
 pub mod ultra_vk {
     #[allow(deprecated)]
@@ -22,18 +22,21 @@ pub mod ultra_vk {
         }
     }
     ///The parsed JSON ABI of the contract.
-    pub static ULTRAVK_ABI: ::ethers::contract::Lazy<::ethers::core::abi::Abi> =
-        ::ethers::contract::Lazy::new(__abi);
+    pub static ULTRAVK_ABI: ::ethers::contract::Lazy<::ethers::core::abi::Abi> = ::ethers::contract::Lazy::new(
+        __abi,
+    );
     #[rustfmt::skip]
     const __BYTECODE: &[u8] = b"`U`2`\x0B\x82\x82\x829\x80Q_\x1A`s\x14`&WcNH{q`\xE0\x1B_R_`\x04R`$_\xFD[0_R`s\x81S\x82\x81\xF3\xFEs\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x000\x14`\x80`@R_\x80\xFD\xFE\xA2dipfsX\"\x12 \x82\x88+\x91p\xB3\xDBnI\xF7x\x12\xC2^\xD9-\xE3\x1B\xC7\x88q8(\xD5aH\x13\xA5\xC6d/\xF7dsolcC\0\x08\x18\x003";
     /// The bytecode of the contract.
-    pub static ULTRAVK_BYTECODE: ::ethers::core::types::Bytes =
-        ::ethers::core::types::Bytes::from_static(__BYTECODE);
+    pub static ULTRAVK_BYTECODE: ::ethers::core::types::Bytes = ::ethers::core::types::Bytes::from_static(
+        __BYTECODE,
+    );
     #[rustfmt::skip]
     const __DEPLOYED_BYTECODE: &[u8] = b"s\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x000\x14`\x80`@R_\x80\xFD\xFE\xA2dipfsX\"\x12 \x82\x88+\x91p\xB3\xDBnI\xF7x\x12\xC2^\xD9-\xE3\x1B\xC7\x88q8(\xD5aH\x13\xA5\xC6d/\xF7dsolcC\0\x08\x18\x003";
     /// The deployed bytecode of the contract.
-    pub static ULTRAVK_DEPLOYED_BYTECODE: ::ethers::core::types::Bytes =
-        ::ethers::core::types::Bytes::from_static(__DEPLOYED_BYTECODE);
+    pub static ULTRAVK_DEPLOYED_BYTECODE: ::ethers::core::types::Bytes = ::ethers::core::types::Bytes::from_static(
+        __DEPLOYED_BYTECODE,
+    );
     pub struct UltraVK<M>(::ethers::contract::Contract<M>);
     impl<M> ::core::clone::Clone for UltraVK<M> {
         fn clone(&self) -> Self {
@@ -53,9 +56,7 @@ pub mod ultra_vk {
     }
     impl<M> ::core::fmt::Debug for UltraVK<M> {
         fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-            f.debug_tuple(::core::stringify!(UltraVK))
-                .field(&self.address())
-                .finish()
+            f.debug_tuple(::core::stringify!(UltraVK)).field(&self.address()).finish()
         }
     }
     impl<M: ::ethers::providers::Middleware> UltraVK<M> {
@@ -65,11 +66,13 @@ pub mod ultra_vk {
             address: T,
             client: ::std::sync::Arc<M>,
         ) -> Self {
-            Self(::ethers::contract::Contract::new(
-                address.into(),
-                ULTRAVK_ABI.clone(),
-                client,
-            ))
+            Self(
+                ::ethers::contract::Contract::new(
+                    address.into(),
+                    ULTRAVK_ABI.clone(),
+                    client,
+                ),
+            )
         }
         /// Constructs the general purpose `Deployer` instance based on the provided constructor arguments and sends it.
         /// Returns a new instance of a deployer that returns an instance of this contract after sending the transaction
@@ -111,7 +114,8 @@ pub mod ultra_vk {
             Ok(deployer)
         }
     }
-    impl<M: ::ethers::providers::Middleware> From<::ethers::contract::Contract<M>> for UltraVK<M> {
+    impl<M: ::ethers::providers::Middleware> From<::ethers::contract::Contract<M>>
+    for UltraVK<M> {
         fn from(contract: ::ethers::contract::Contract<M>) -> Self {
             Self::new(contract.address(), contract.client())
         }

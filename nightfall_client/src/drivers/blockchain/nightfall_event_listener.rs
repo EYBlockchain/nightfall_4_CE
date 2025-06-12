@@ -158,14 +158,31 @@ pub async fn get_synchronisation_status<N: NightfallContract>(
         *expected_block_number, current_block_number
     );
     if *expected_block_number != current_block_number {
+        ark_std::println!("*expected_block_number != current_block_number");
         return Ok(SynchronisationStatus::new(false));
-    } else {
-        let expected_u64: u64 = expected_block_number
-            .checked_sub(I256::one())
-            .ok_or_else(|| EventHandlerError::IOError("Underflow getting previous block".into()))?
-            .try_into()
-            .map_err(|_| EventHandlerError::IOError("Invalid block number".into()))?;
+    }
+    // else {
+    ark_std::println!("About to convert expected_block_number to u64");
+let i256_val = *expected_block_number;
 
+assert!(
+    i256_val >= I256::zero(),
+    "expected_block_number is negative: {}",
+    i256_val
+);
+
+let expected_u64: u64 = i256_val
+    .try_into()
+    .expect("expected_block_number must be non-negative and within u64 range");
+
+ark_std::println!("expected_u64: {}", expected_u64);
+
+    if expected_u64 == 0 {
+        debug!("Genesis state: no blocks proposed yet, assuming synchronised.");
+        return Ok(SynchronisationStatus::new(true));
+    }
+
+    {
         let db = get_db_connection().await;
 
         let stored_block = db.get_block_by_number(expected_u64).await.ok_or_else(|| {
@@ -181,6 +198,7 @@ pub async fn get_synchronisation_status<N: NightfallContract>(
             "Client is in sync at block {}, hash {}",
             expected_u64, stored_hash
         );
+        // }
 
         Ok(SynchronisationStatus::new(true))
     }
