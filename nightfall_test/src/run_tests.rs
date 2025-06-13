@@ -5,10 +5,10 @@ use futures::future::try_join_all;
 use lib::{hex_conversion::HexConvertible, models::CertificateReq};
 use log::{debug, info, warn};
 use nightfall_client::{
-    domain::entities::{HexConvertible, TokenData},
+    domain::entities::TokenData,
     driven::db::mongo::CommitmentEntry,
     drivers::rest::{
-        client_nf_3::WithdrawResponse, models::DeEscrowDataReq, utils::reverse_hex_string,
+        client_nf_3::WithdrawResponse, models::DeEscrowDataReq,
     },
 };
 use serde_json::Value;
@@ -515,7 +515,7 @@ pub async fn run_tests(
     // this should be an erc20 token
     // TODO: this awkard string manipulation will be removed once the endianess of conversions is standardised
     assert_eq!(
-        reverse_hex_string(&token_data.erc_address.to_hex_string()).trim_start_matches("00"),
+        token_data.erc_address.to_hex_string(),
         TokenType::ERC20.address(),
         "The erc address should match the ERC20 token address"
     );

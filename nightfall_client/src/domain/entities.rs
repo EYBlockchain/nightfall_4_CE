@@ -4,6 +4,7 @@ use crate::ports::{
     key_provider::KeyProvider,
     proof::{Proof, PublicInputs},
 };
+use ark_ff::BigInteger256;
 use lib::error::HexError;
 
 use ark_bn254::Fr as Fr254;

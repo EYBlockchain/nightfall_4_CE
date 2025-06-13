@@ -1,4 +1,4 @@
-use crate::domain::entities::HexConvertible;
+use lib::hex_conversion::HexConvertible;
 use crate::ports::contracts::NightfallContract;
 use ark_bn254::Fr as Fr254;
 use reqwest::StatusCode;
