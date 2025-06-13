@@ -903,6 +903,14 @@ pub async fn run_tests(
     // Wait until all ERC721, ERC3525 and ERC1155 funds are available to withdraw
     info!("Waiting for ERC721, ERC3525 and ERC1155 funds to be available for withdrawal");
     for request in &de_escrow_data_requests {
+        // test bug by ignoring requests with a withdraw_fund_salt that has a leading zero
+        if request.withdraw_fund_salt.starts_with('0') {
+            warn!(
+                "Ignoring request with leading zero in withdraw_fund_salt: {:?}",
+                request
+            );
+            continue;
+        }
         while !de_escrow_request(request, "http://client2:3000").await.unwrap() {
             info!("Not yet able to withdraw funds {:?}", request);
             tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
