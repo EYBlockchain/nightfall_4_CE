@@ -7,9 +7,7 @@ use log::{debug, info, warn};
 use nightfall_client::{
     domain::entities::TokenData,
     driven::db::mongo::CommitmentEntry,
-    drivers::rest::{
-        client_nf_3::WithdrawResponse, models::DeEscrowDataReq,
-    },
+    drivers::rest::{client_nf_3::WithdrawResponse, models::DeEscrowDataReq},
 };
 use serde_json::Value;
 use std::fs;
@@ -513,9 +511,8 @@ pub async fn run_tests(
         .await
         .expect("Failed to parse token info");
     // this should be an erc20 token
-    // TODO: this awkard string manipulation will be removed once the endianess of conversions is standardised
     assert_eq!(
-        token_data.erc_address.to_hex_string(),
+        token_data.erc_address.to_hex_string().trim_start_matches("00"),
         TokenType::ERC20.address(),
         "The erc address should match the ERC20 token address"
     );

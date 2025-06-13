@@ -1,6 +1,6 @@
-use lib::hex_conversion::HexConvertible;
 use crate::ports::contracts::NightfallContract;
 use ark_bn254::Fr as Fr254;
+use lib::hex_conversion::HexConvertible;
 use reqwest::StatusCode;
 use warp::{
     path, reject,
