@@ -4,11 +4,11 @@ use crate::{
     ports::contracts::NightfallContract,
 };
 use lib::wallets::LocalWsClient;
-use log::{error, info};
+use log::{debug, error};
 use nightfall_bindings::nightfall::Nightfall;
 use reqwest::StatusCode;
 use std::{error::Error, fmt::Debug};
-use warp::{path, reject, reply, Filter, Reply};
+use warp::{path, reject, Filter, Reply};
 
 #[derive(Debug)]
 pub struct FailedDeEscrow;
@@ -47,8 +47,8 @@ pub async fn handle_de_escrow(data: DeEscrowDataReq) -> Result<impl Reply, warp:
     let available = Nightfall::<LocalWsClient>::withdraw_available(withdraw_data).await;
     match available {
         Ok(b) => {
-            if b == 1 {
-                info!("Withdraw is on chain, attempting to de-escrow funds");
+            if b {
+                debug!("Withdraw is on chain, attempting to de-escrow funds");
                 Nightfall::<LocalWsClient>::de_escrow_funds(withdraw_data, token_type)
                     .await
                     .map_err(|e| {
@@ -56,10 +56,10 @@ pub async fn handle_de_escrow(data: DeEscrowDataReq) -> Result<impl Reply, warp:
                         reject::custom(FailedDeEscrow)
                     })?;
 
-                Ok(reply::with_status(reply::json(&b), StatusCode::OK))
+                Ok(StatusCode::OK)
             } else {
-                info!("Not yet able to de-escrow funds");
-                Ok(reply::with_status(reply::json(&b), StatusCode::NOT_FOUND))
+                debug!("Not yet able to de-escrow funds");
+                Ok(StatusCode::NOT_FOUND)
             }
         }
         Err(e) => {

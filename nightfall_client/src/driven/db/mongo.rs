@@ -1,13 +1,11 @@
 use ark_bn254::Fr as Fr254;
-use ark_ff::{BigInteger, PrimeField};
-use ark_serialize::CanonicalSerialize;
 use async_trait::async_trait;
 use ethers::abi::AbiEncode;
 use ethers::types::{H256, I256};
 use futures::TryStreamExt;
-use hex::encode;
 use jf_primitives::poseidon::{FieldHasher, Poseidon};
 use jf_primitives::trees::{Directions, PathElement};
+use lib::hex_conversion::HexConvertible;
 use log::{debug, error, info};
 use mongodb::error::{ErrorKind, WriteFailure::WriteError};
 use mongodb::{bson::doc, Client};
@@ -164,8 +162,12 @@ impl From<DBMembershipProof> for MembershipProof<Fr254> {
 pub struct CommitmentEntry {
     pub preimage: Preimage,
     pub status: CommitmentStatus,
-    
-    #[serde(rename = "_id",serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
+
+    #[serde(
+        rename = "_id",
+        serialize_with = "ark_se_hex",
+        deserialize_with = "ark_de_hex"
+    )]
     pub key: Fr254,
     #[serde(
         serialize_with = "ark_se_hex",
@@ -302,12 +304,8 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
         Ok(result)
     }
     async fn get_available_commitments(&self, nf_token_id: Fr254) -> Option<Vec<CommitmentEntry>> {
-        let mut nf_token_id_serialised = Vec::new();
-        nf_token_id
-            .serialize_compressed(&mut nf_token_id_serialised)
-            .ok();
         let filter = doc! {
-            "preimage.nf_token_id": hex::encode(nf_token_id_serialised),
+            "preimage.nf_token_id": nf_token_id.to_hex_string(),
             "status": "Unspent"
         };
         let mut cursor = self
@@ -330,7 +328,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
     }
 
     async fn get_commitment(&self, k: &Fr254) -> Option<CommitmentEntry> {
-        let filter = doc! { "_id": hex::encode(k.into_bigint().to_bytes_le()) };
+        let filter = doc! { "_id": k.to_hex_string() };
         self.database(DB)
             .collection::<CommitmentEntry>("commitments")
             .find_one(filter)
@@ -340,7 +338,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
 
     async fn get_balance(&self, nf_token_id: &Fr254) -> Option<Fr254> {
         let filter = doc! {
-            "preimage.nf_token_id": hex::encode(nf_token_id.into_bigint().to_bytes_le()),
+            "preimage.nf_token_id": nf_token_id.to_hex_string(),
             "status": "Unspent",
         };
         let mut cursor = self
@@ -365,7 +363,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
     async fn mark_commitments_pending_spend(&self, commitments: Vec<Fr254>) -> Option<()> {
         let commitment_str = commitments
             .into_iter()
-            .map(|c| hex::encode(c.into_bigint().to_bytes_le()))
+            .map(|c| c.to_hex_string())
             .collect::<Vec<_>>();
         let filter = doc! { "_id": { "$in": commitment_str }};
         let update = doc! {"$set": { "status": "PendingSpend" }};
@@ -380,7 +378,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
     async fn mark_commitments_pending_creation(&self, commitments: Vec<Fr254>) -> Option<()> {
         let commitment_str = commitments
             .into_iter()
-            .map(|c| hex::encode(c.into_bigint().to_bytes_le()))
+            .map(|c| c.to_hex_string())
             .collect::<Vec<_>>();
         let filter = doc! { "_id": { "$in": commitment_str }};
         let update = doc! {"$set": { "status": "PendingCreation" }};
@@ -397,7 +395,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
     async fn mark_commitments_spent(&self, nullifiers: Vec<Fr254>) -> Option<()> {
         let nullifiers_str = nullifiers
             .into_iter()
-            .map(|c| hex::encode(c.into_bigint().to_bytes_le()))
+            .map(|c| c.to_hex_string())
             .collect::<Vec<_>>();
         let filter = doc! { "nullifier": { "$in": nullifiers_str }};
         let update = doc! {"$set": { "status": "Spent"}};
@@ -417,7 +415,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
     ) -> Option<()> {
         let commitment_str = commitments
             .iter()
-            .map(|c| hex::encode(c.into_bigint().to_bytes_le()))
+            .map(|c| c.to_hex_string())
             .collect::<Vec<_>>();
         let l1_hash = l1_hash.map(|h| h.encode_hex());
         let l2_blocknumber = l2_blocknumber.map(|b| b.encode_hex());
@@ -433,9 +431,8 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
 
     // we compute a nullifier for each spend commitment that we process.
     async fn add_nullifier(&self, key: &Fr254, nullifier: Fr254) -> Option<()> {
-        let filter = doc! { "_id": hex::encode(key.into_bigint().to_bytes_le())};
-        let update =
-            doc! {"$set": { "nullifier": hex::encode(nullifier.into_bigint().to_bytes_le()) }};
+        let filter = doc! { "_id": key.to_hex_string() };
+        let update = doc! {"$set": { "nullifier": nullifier.to_hex_string() }};
 
         self.database(DB)
             .collection::<CommitmentEntry>("commitments")
@@ -445,10 +442,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
         Some(())
     }
 
-    async fn store_commitment(
-        &self, 
-        commitment: CommitmentEntry
-    ) -> Option<()> {
+    async fn store_commitment(&self, commitment: CommitmentEntry) -> Option<()> {
         let result = self
             .database(DB)
             .collection::<CommitmentEntry>("commitments")
@@ -573,11 +567,7 @@ impl WithdrawalDB<Fr254, PendingWithdrawal> for Client {
     }
 
     async fn remove_withdrawal(&mut self, key: Fr254) -> Option<()> {
-        let mut bytes = vec![];
-        key.serialize_compressed(&mut bytes).ok()?;
-
-        let hex_str = encode(&bytes);
-        let query = doc! {"key": hex_str};
+        let query = doc! {"key": key.to_hex_string()};
 
         let delete_count = self
             .database(DB)
