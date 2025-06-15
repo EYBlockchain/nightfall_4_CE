@@ -210,9 +210,11 @@ impl<M> NightfallContract for Nightfall<M> {
             .await
             .map_err(|_| NightfallContractError::TransactionError)
     }
+    // given a layer 2 block number, return the layer 2 block and the sender address
     async fn get_layer2_block_by_number(
         block_number: I256,
     ) -> Result<(H160, Block), NightfallContractError> {
+        let block_number = block_number - I256::one();
         let client = get_blockchain_client_connection()
             .await
             .read()
@@ -240,9 +242,6 @@ impl<M> NightfallContract for Nightfall<M> {
             )
         })?;
         ark_std::println!("tx_hash of block {} is: {}", block_number, tx_hash);
-
-        // change this error later
-
         // Step 5: Fetch transaction
         let tx = client
             .get_transaction(tx_hash)

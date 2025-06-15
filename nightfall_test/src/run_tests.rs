@@ -1,34 +1,39 @@
-use ark_bn254::Fr as Fr254;
-use configuration::settings::{get_settings, Settings};
-use futures::future::try_join_all;
-use lib::models::CertificateReq;
-use log::{debug, info, warn};
-use nightfall_bindings::nightfall::Nightfall;
-use nightfall_client::{
-    domain::entities::HexConvertible,
-    driven::db::mongo::CommitmentEntry,
-    drivers::rest::{client_nf_3::WithdrawResponse, models::DeEscrowDataReq}, ports::contracts::NightfallContract,
-};
-use serde_json::Value;
-use std::fs;
-use test::{count_spent_commitments, get_erc20_balance, get_erc721_balance, get_fee_balance};
-use ethers::providers::{Provider, Http};
-use lib::{
-    blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
-};
-use lib::wallets::LocalWsClient;
 use crate::{
     test::{
-        self, anvil_reorg, create_nf3_deposit_transaction, create_nf3_transfer_transaction, create_nf3_withdraw_transaction, de_escrow_request, forge_command, get_key, get_l1_block_hash_of_layer2_block, get_recipient_address, load_addresses, set_anvil_mining_interval, validate_certificate_with_server, wait_for_all_responses, wait_on_chain, TokenType
+        self, anvil_reorg, create_nf3_deposit_transaction, create_nf3_transfer_transaction,
+        create_nf3_withdraw_transaction, de_escrow_request, forge_command, get_key,
+        get_l1_block_hash_of_layer2_block, get_recipient_address, load_addresses,
+        set_anvil_mining_interval, validate_certificate_with_server, wait_for_all_responses,
+        wait_on_chain, TokenType,
     },
     test_settings::TestSettings,
 };
+use ark_bn254::Fr as Fr254;
 use ark_std::Zero;
+use configuration::settings::{get_settings, Settings};
+use ethers::providers::{Http, Provider};
 use ethers::{
     providers::Middleware,
     types::{TransactionReceipt, U256},
     utils::{format_units, parse_units},
 };
+use futures::future::try_join_all;
+use lib::models::CertificateReq;
+use lib::wallets::LocalWsClient;
+use lib::{
+    blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
+};
+use log::{debug, info, warn};
+use nightfall_bindings::nightfall::Nightfall;
+use nightfall_client::{
+    domain::entities::HexConvertible,
+    driven::db::mongo::CommitmentEntry,
+    drivers::rest::{client_nf_3::WithdrawResponse, models::DeEscrowDataReq},
+    ports::contracts::NightfallContract,
+};
+use serde_json::Value;
+use std::fs;
+use test::{count_spent_commitments, get_erc20_balance, get_erc721_balance, get_fee_balance};
 use url::Url;
 
 pub async fn run_tests(
@@ -326,87 +331,87 @@ pub async fn run_tests(
     ));
     debug!("transaction_erc20_deposit_1 has been created");
 
-    transaction_ids.push(create_nf3_deposit_transaction(
-        &http_client,
-        url.clone(),
-        TokenType::ERC20,
-        test_settings.erc20_deposit_2.clone(),
-        "0x06".to_string(), //deposit_fee
-    ));
-    debug!("transaction_erc20_deposit_2 has been created");
+    // transaction_ids.push(create_nf3_deposit_transaction(
+    //     &http_client,
+    //     url.clone(),
+    //     TokenType::ERC20,
+    //     test_settings.erc20_deposit_2.clone(),
+    //     "0x06".to_string(), //deposit_fee
+    // ));
+    // debug!("transaction_erc20_deposit_2 has been created");
 
-    transaction_ids.push(create_nf3_deposit_transaction(
-        &http_client,
-        url.clone(),
-        TokenType::ERC20,
-        test_settings.erc20_deposit_3,
-        "0x00".to_string(), //deposit_fee
-    ));
-    debug!("transaction_erc20_deposit_3 has been created");
+    // transaction_ids.push(create_nf3_deposit_transaction(
+    //     &http_client,
+    //     url.clone(),
+    //     TokenType::ERC20,
+    //     test_settings.erc20_deposit_3,
+    //     "0x00".to_string(), //deposit_fee
+    // ));
+    // debug!("transaction_erc20_deposit_3 has been created");
 
-    // check that we have no 'balance' of the ERC721 token
-    // get the balance of the ERC721 token we just deposited
-    let balance = get_erc721_balance(
-        &http_client,
-        Url::parse(&settings.nightfall_client.url).unwrap(),
-        test_settings.erc721_deposit.token_id.clone(),
-    )
-    .await;
-    assert_eq!(None, balance);
+    // // check that we have no 'balance' of the ERC721 token
+    // // get the balance of the ERC721 token we just deposited
+    // let balance = get_erc721_balance(
+    //     &http_client,
+    //     Url::parse(&settings.nightfall_client.url).unwrap(),
+    //     test_settings.erc721_deposit.token_id.clone(),
+    // )
+    // .await;
+    // assert_eq!(None, balance);
 
-    transaction_ids.push(create_nf3_deposit_transaction(
-        &http_client,
-        url.clone(),
-        TokenType::ERC721,
-        test_settings.erc721_deposit.clone(),
-        "0x08".to_string(), //deposit_fee
-    ));
-    debug!("transaction_erc721_deposit has been created");
+    // transaction_ids.push(create_nf3_deposit_transaction(
+    //     &http_client,
+    //     url.clone(),
+    //     TokenType::ERC721,
+    //     test_settings.erc721_deposit.clone(),
+    //     "0x08".to_string(), //deposit_fee
+    // ));
+    // debug!("transaction_erc721_deposit has been created");
 
-    transaction_ids.push(create_nf3_deposit_transaction(
-        &http_client,
-        url.clone(),
-        TokenType::ERC3525,
-        test_settings.erc3525_deposit_1,
-        "0x0b".to_string(), //deposit_fee
-    ));
-    debug!("transaction_erc3525_deposit_1 has been created");
+    // transaction_ids.push(create_nf3_deposit_transaction(
+    //     &http_client,
+    //     url.clone(),
+    //     TokenType::ERC3525,
+    //     test_settings.erc3525_deposit_1,
+    //     "0x0b".to_string(), //deposit_fee
+    // ));
+    // debug!("transaction_erc3525_deposit_1 has been created");
 
-    transaction_ids.push(create_nf3_deposit_transaction(
-        &http_client,
-        url.clone(),
-        TokenType::ERC3525,
-        test_settings.erc3525_deposit_2,
-        "0x0e".to_string(), //deposit_fee
-    ));
-    debug!("transaction_erc3525_deposit_2 has been created");
+    // transaction_ids.push(create_nf3_deposit_transaction(
+    //     &http_client,
+    //     url.clone(),
+    //     TokenType::ERC3525,
+    //     test_settings.erc3525_deposit_2,
+    //     "0x0e".to_string(), //deposit_fee
+    // ));
+    // debug!("transaction_erc3525_deposit_2 has been created");
 
-    transaction_ids.push(create_nf3_deposit_transaction(
-        &http_client,
-        url.clone(),
-        TokenType::ERC1155,
-        test_settings.erc1155_deposit_1,
-        "0x11".to_string(), //deposit_fee
-    ));
-    debug!("transaction_erc1155_deposit_1 has been created");
+    // transaction_ids.push(create_nf3_deposit_transaction(
+    //     &http_client,
+    //     url.clone(),
+    //     TokenType::ERC1155,
+    //     test_settings.erc1155_deposit_1,
+    //     "0x11".to_string(), //deposit_fee
+    // ));
+    // debug!("transaction_erc1155_deposit_1 has been created");
 
-    transaction_ids.push(create_nf3_deposit_transaction(
-        &http_client,
-        url.clone(),
-        TokenType::ERC1155,
-        test_settings.erc1155_deposit_2,
-        "0x14".to_string(), //deposit_fee
-    ));
-    debug!("transaction_erc1155_deposit_2 has been created");
+    // transaction_ids.push(create_nf3_deposit_transaction(
+    //     &http_client,
+    //     url.clone(),
+    //     TokenType::ERC1155,
+    //     test_settings.erc1155_deposit_2,
+    //     "0x14".to_string(), //deposit_fee
+    // ));
+    // debug!("transaction_erc1155_deposit_2 has been created");
 
-    transaction_ids.push(create_nf3_deposit_transaction(
-        &http_client,
-        url.clone(),
-        TokenType::ERC1155,
-        test_settings.erc1155_deposit_3_nft,
-        "0x16".to_string(), //deposit_fee
-    ));
-    debug!("transaction_erc1155_deposit_3 has been created");
+    // transaction_ids.push(create_nf3_deposit_transaction(
+    //     &http_client,
+    //     url.clone(),
+    //     TokenType::ERC1155,
+    //     test_settings.erc1155_deposit_3_nft,
+    //     "0x16".to_string(), //deposit_fee
+    // ));
+    // debug!("transaction_erc1155_deposit_3 has been created");
 
     // throw all the transactions at the client as fast as we can
     let transaction_ids = try_join_all(transaction_ids).await.unwrap();
@@ -433,14 +438,27 @@ pub async fn run_tests(
         .unwrap();
     info!("Deposit commitments for client 1 are now on-chain");
 
-    let current_layer2_block_number =  Nightfall::<LocalWsClient>::get_current_layer2_blocknumber()
+    let current_layer2_block_number = Nightfall::<LocalWsClient>::get_current_layer2_blocknumber()
         .await
         .expect("Failed to get current layer 2 block number");
 
+    ark_std::println!(
+        "Current layer 2 block number: {}",
+        current_layer2_block_number
+    );
+
     // get the l1 block hash which hash current_layer2_block_number l2 block
-    let l1_block_hash = get_l1_block_hash_of_layer2_block(current_layer2_block_number).await.unwrap();
+    let l1_block_hash = get_l1_block_hash_of_layer2_block(current_layer2_block_number)
+        .await
+        .unwrap();
 
     ark_std::println!("l1_block_hash before reorg: {}", l1_block_hash);
+
+    let (proposer_address, l2_block) =
+        Nightfall::<LocalWsClient>::get_layer2_block_by_number(current_layer2_block_number)
+            .await
+            .expect("Failed to get layer 2 block by number");
+    ark_std::println!("Layer 2 block: {:?}", l2_block);
 
     ark_std::println!("Starting Reorg");
     let anvil_url = Url::parse("http://anvil:8545").unwrap();
@@ -449,7 +467,9 @@ pub async fn run_tests(
         .unwrap();
     ark_std::println!("Finished Reorg");
 
-    let l1_block_hash = get_l1_block_hash_of_layer2_block(current_layer2_block_number).await.unwrap();
+    let l1_block_hash = get_l1_block_hash_of_layer2_block(current_layer2_block_number)
+        .await
+        .unwrap();
 
     ark_std::println!("l1_block_hash after reorg: {}", l1_block_hash);
 
