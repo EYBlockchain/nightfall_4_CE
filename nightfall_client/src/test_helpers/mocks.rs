@@ -3,7 +3,7 @@
 use std::{collections::HashMap, fmt::Debug, sync::Arc};
 
 use crate::{
-    domain::entities::{ClientTransaction, CommitmentStatus, HexConvertible, Preimage, Salt},
+    domain::entities::{ClientTransaction, CommitmentStatus, Preimage, Salt},
     drivers::{derive_key::ZKPKeys, rest::models::PreimageReq},
     get_fee_token_id,
     ports::{
@@ -21,6 +21,7 @@ use ark_std::{rand::Rng, UniformRand};
 use async_trait::async_trait;
 use ethers::types::{Bytes, H256, I256};
 use jf_primitives::poseidon::PoseidonError;
+use lib::hex_conversion::HexConvertible;
 use nf_curves::ed_on_bn254::{
     BJJTEAffine as JubJubAffine, BJJTEProjective as JubJub, Fr as FqJubJub,
 };

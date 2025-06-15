@@ -1,21 +1,13 @@
 //! File contains utility functions used by the REST API, such as ones for converting from erc address and token id to
 //! Nightfall token id.
-use crate::domain::{entities::HexConvertible, error::ConversionError};
+use crate::domain::error::ConversionError;
 use ark_bn254::Fr as Fr254;
 use ark_ff::{BigInteger, PrimeField};
-use ethers::{
-    abi::{encode, Tokenizable},
-    types::{H160, U256},
-};
+use ethers::types::{H160, U256};
+use lib::hex_conversion::HexConvertible;
 use log::debug;
 use num::BigUint;
 use sha2::{Digest, Sha256};
-
-pub fn reverse_hex_string(hex_string: &str) -> String {
-    let mut bytes = Vec::<u8>::from_hex_string(hex_string).unwrap();
-    bytes.reverse();
-    hex::encode(bytes)
-}
 
 #[allow(dead_code)]
 pub fn to_nf_token_id_from_str(
@@ -28,58 +20,39 @@ pub fn to_nf_token_id_from_str(
     );
     let mut erc_vec =
         Vec::<u8>::from_hex_string(erc_address).map_err(|_| ConversionError::ParseFailed)?;
-    if erc_vec.len() < 20 {
-        erc_vec.resize(20, 0);
+
+    while erc_vec.len() < 32 {
+        erc_vec.insert(0, 0);
     }
-    let erc_bytes: [u8; 20] = erc_vec
-        .try_into()
-        .map_err(|_| ConversionError::FixedLengthArrayError)?;
+
     let mut token_vec =
         Vec::<u8>::from_hex_string(token_id).map_err(|_| ConversionError::ParseFailed)?;
-    if token_vec.len() < 32 {
-        token_vec.resize(32, 0);
+    while token_vec.len() < 32 {
+        token_vec.insert(0, 0);
     }
-    token_vec.reverse();
-    let token_bytes: [u8; 32] = token_vec
-        .try_into()
-        .map_err(|_| ConversionError::FixedLengthArrayError)?;
 
-    let solidity_erc_address: H160 = H160(erc_bytes);
-    let solidity_token_id: U256 = U256::from_big_endian(&token_bytes);
+    let mut input_bytes = Vec::new();
+    input_bytes.extend_from_slice(&erc_vec);
+    input_bytes.extend_from_slice(&token_vec);
 
-    // Initialize SHA-256 hasher
+    // Hash the result
     let mut hasher = Sha256::new();
+    hasher.update(&input_bytes);
+    let digest = hasher.finalize();
 
-    // Apply the same encoding as before
-    let encoded_input = encode(&[
-        solidity_erc_address.into_token(),
-        solidity_token_id.into_token(),
-    ]);
+    // Shift digest right by 4 bits as in Solidity implementation (to fit into Fr)
+    let mut nf_token_id = BigUint::from_bytes_be(&digest);
+    nf_token_id >>= 4;
 
-    // Hash the encoded input
-    hasher.update(encoded_input);
-    let sha256_result = hasher.finalize();
-
-    // Convert hash output to BigUint and apply right shift
-    let hash_out: BigUint = BigUint::from_bytes_be(&sha256_result) >> 4;
-    Ok(Fr254::from(hash_out))
+    Ok(Fr254::from(nf_token_id))
 }
 
 pub fn to_nf_token_id_from_fr254(erc_address: Fr254, token_id: Fr254) -> Fr254 {
-    let erc_address_bytes = {
-        let mut bytes = erc_address.into_bigint().to_bytes_be();
-        while bytes.len() < 32 {
-            bytes.insert(0, 0);
-        }
-        // Reverse only the last 20 bytes
-        let (prefix, suffix) = bytes.split_at(12);
-        let mut reversed_suffix = suffix.to_vec();
-        reversed_suffix.reverse(); // reverse the last 20 bytes
-
-        let mut final_bytes = prefix.to_vec(); // first 12 bytes unchanged
-        final_bytes.extend(reversed_suffix); // append reversed 20 bytes
-        final_bytes
-    };
+    // convert to a string and pad to 32 bytes
+    let mut erc_address_bytes = erc_address.into_bigint().to_bytes_be();
+    while erc_address_bytes.len() < 32 {
+        erc_address_bytes.insert(0, 0);
+    }
 
     let token_id_bytes = {
         let mut bytes = token_id.into_bigint().to_bytes_be();
@@ -143,12 +116,7 @@ mod tests {
     use jf_primitives::circuit::sha256::Sha256HashGadget;
     use jf_relation::{Circuit, PlonkCircuit, Variable};
     use rand::Rng;
-    #[test]
-    fn test_reverse_hex_string() {
-        let hex_string = "0x01234567890abcde0f";
-        let reversed = reverse_hex_string(hex_string);
-        assert_eq!(reversed, "0fdebc0a8967452301");
-    }
+
     #[test]
     fn test_nf_token_id_consistency() {
         for _ in 0..10 {
@@ -170,8 +138,10 @@ mod tests {
             let solidity_erc_address =
                 H160::from_slice(&Vec::<u8>::from_hex_string(&erc_address_string).unwrap());
             let mut token_id_bytes = Vec::<u8>::from_hex_string(&token_id_string).unwrap();
-            token_id_bytes.resize(32, 0);
-            token_id_bytes.reverse();
+            // pad left to 32 bytes
+            while token_id_bytes.len() < 32 {
+                token_id_bytes.insert(0, 0);
+            }
             let solidity_token_id = U256::from_big_endian(&token_id_bytes);
             let nf_token_id_from_solidity =
                 to_nf_token_id_from_solidity(solidity_erc_address, solidity_token_id);

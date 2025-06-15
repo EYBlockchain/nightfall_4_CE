@@ -1,5 +1,6 @@
 pub mod blockchain_client;
 pub mod error;
+pub mod hex_conversion;
 pub mod merkle_trees;
 pub mod models;
 pub mod serialization;

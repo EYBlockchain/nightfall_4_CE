@@ -177,7 +177,7 @@ impl<M> NightfallContract for Nightfall<M> {
         Ok(())
     }
 
-    async fn withdraw_available(withdraw_data: WithdrawData) -> Result<u8, NightfallContractError> {
+    async fn withdraw_available(withdraw_data: WithdrawData) -> Result<bool, NightfallContractError> {
         let client = get_blockchain_client_connection()
             .await
             .read()

@@ -12,10 +12,10 @@ use ark_bn254::Fr as Fr254;
 use ark_std::{collections::HashSet, Zero};
 use bson::doc;
 use jf_primitives::poseidon::{FieldHasher, Poseidon};
-use lib::blockchain_client::BlockchainClientConnection;
+use lib::{blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible};
 use log::{info, warn};
 use nightfall_client::{
-    domain::{entities::HexConvertible, error::EventHandlerError},
+    domain::error::EventHandlerError,
     driven::db::mongo::DB,
     ports::proof::{Proof, PublicInputs},
 };
