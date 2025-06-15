@@ -532,11 +532,11 @@ pub async fn get_l1_block_hash_of_layer2_block(
     let event_sig = H256::from(keccak256("BlockProposed(int256)"));
         let filter = Filter::new()
         .address(nightfall_address)
-        .from_block(0u64)
-        .to_block(latest_block)
-        .topic0(event_sig);
+        // .from_block(0u64)
+        // .to_block(latest_block)
+        .topic0(event_sig)
         // .event("BlockProposed(int256)");
-    // .topic1(block_topic);
+    .topic1(block_topic);
     ark_std::println!("filter: {:?}", filter);
 
     let logs = client
@@ -544,6 +544,11 @@ pub async fn get_l1_block_hash_of_layer2_block(
         .await
         .map_err(|e| NightfallContractError::ProviderError(format!("Provider error: {}", e)))?;
     ark_std::println!("logs: {:?}", logs);
+let logs2 = client.get_logs(&Filter::new().from_block(0u64).to_block(latest_block).address(nightfall_address)).await.unwrap();
+for log in logs2 {
+    println!("Log topics2: {:?}", log.topics);
+}
+
     // get the first log, as we only check first l1 block which contains the block number
     let log = logs
         .first()

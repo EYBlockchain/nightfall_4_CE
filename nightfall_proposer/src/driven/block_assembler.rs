@@ -180,8 +180,26 @@ impl<P: Proof + Send + Sync> SmartTrigger<P> {
                 }
             } as f32;
 
-        let block_size = get_block_size().unwrap_or(64) as f32;
+         let block_size = match get_block_size() {
+            Ok(size) => size as f32,
+            Err(e) => {
+                log::warn!(
+                    "Falling back to default block size 64 due to error: {:?}",
+                    e
+                );
+                64.0
+            }
+        };
+
         let fill_ratio = (num_deposit_groups + num_client_txs) / block_size;
+        ark_std::println!(
+            "Block size: {}, deposits: {}, client txs: {}, fill_ratio: {}, expected ratio: {}",
+            block_size,
+            num_deposit_groups,
+            num_client_txs,
+            fill_ratio,
+            self.target_block_fill_ratio
+        );
 
         fill_ratio >= self.target_block_fill_ratio
     }

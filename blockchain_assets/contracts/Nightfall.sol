@@ -89,7 +89,7 @@ contract Nightfall is
     IERC3525Receiver
 {
     int256 public layer2_block_number = 0; // useful for checking your node is in sync, can be negative (offchain) to indicate a block that is not onchain
-    event BlockProposed(int256 layer2_block_number);
+    event BlockProposed(int256 indexed layer2_block_number);
     event DepositEscrowed(uint256 nfSlotId, uint256 value);
 
     mapping(uint256 => DepositFeeState) private feeBinding; // remembers a Deposit's fee
