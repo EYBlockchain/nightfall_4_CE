@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use crate::domain::entities::RequestStatus;
+use crate::domain::entities::SynchronisationPhase::Desynchronized;
 use crate::domain::error::TransactionHandlerError;
 use crate::driven::notifier::webhook_notifier::WebhookNotifier;
 use crate::drivers::blockchain::nightfall_event_listener::{
@@ -18,7 +19,6 @@ use log::{debug, error, info, warn};
 use std::collections::VecDeque;
 use tokio::sync::{OnceCell, RwLock};
 use tokio::time::sleep;
-use crate::domain::entities::SynchronisationPhase::Desynchronized;
 /// This module implements a queue of received requests. Requests can be added to the queue
 /// asynchronously but are executed with a concurrency of 1.
 ///

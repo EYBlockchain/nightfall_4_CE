@@ -3,10 +3,11 @@ use configuration::settings::{get_settings, Settings};
 use futures::future::try_join_all;
 use lib::models::CertificateReq;
 use log::{debug, info, warn};
+use nightfall_bindings::nightfall::Nightfall;
 use nightfall_client::{
     domain::entities::HexConvertible,
     driven::db::mongo::CommitmentEntry,
-    drivers::rest::{client_nf_3::WithdrawResponse, models::DeEscrowDataReq},
+    drivers::rest::{client_nf_3::WithdrawResponse, models::DeEscrowDataReq}, ports::contracts::NightfallContract,
 };
 use serde_json::Value;
 use std::fs;
@@ -15,13 +16,10 @@ use ethers::providers::{Provider, Http};
 use lib::{
     blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
 };
-
+use lib::wallets::LocalWsClient;
 use crate::{
     test::{
-        self, anvil_reorg, create_nf3_deposit_transaction, create_nf3_transfer_transaction,
-        create_nf3_withdraw_transaction, de_escrow_request, forge_command, get_key,
-        get_recipient_address, load_addresses, set_anvil_mining_interval,
-        validate_certificate_with_server, wait_for_all_responses, wait_on_chain, TokenType,
+        self, anvil_reorg, create_nf3_deposit_transaction, create_nf3_transfer_transaction, create_nf3_withdraw_transaction, de_escrow_request, forge_command, get_key, get_l1_block_hash_of_layer2_block, get_recipient_address, load_addresses, set_anvil_mining_interval, validate_certificate_with_server, wait_for_all_responses, wait_on_chain, TokenType
     },
     test_settings::TestSettings,
 };
@@ -435,9 +433,14 @@ pub async fn run_tests(
         .unwrap();
     info!("Deposit commitments for client 1 are now on-chain");
 
-    let provider = Provider::<Http>::try_from("http://anvil:8545").unwrap();
-    let before_reorg_block = provider.get_block_number().await.unwrap();
-    info!("Block before reorg: {}", before_reorg_block);    
+    let current_layer2_block_number =  Nightfall::<LocalWsClient>::get_current_layer2_blocknumber()
+        .await
+        .expect("Failed to get current layer 2 block number");
+
+    // get the l1 block hash which hash current_layer2_block_number l2 block
+    let l1_block_hash = get_l1_block_hash_of_layer2_block(current_layer2_block_number).await.unwrap();
+
+    ark_std::println!("l1_block_hash before reorg: {}", l1_block_hash);
 
     ark_std::println!("Starting Reorg");
     let anvil_url = Url::parse("http://anvil:8545").unwrap();
@@ -445,6 +448,10 @@ pub async fn run_tests(
         .await
         .unwrap();
     ark_std::println!("Finished Reorg");
+
+    let l1_block_hash = get_l1_block_hash_of_layer2_block(current_layer2_block_number).await.unwrap();
+
+    ark_std::println!("l1_block_hash after reorg: {}", l1_block_hash);
 
     // get the balance of the ERC721 token we just deposited
     let balance = get_erc721_balance(

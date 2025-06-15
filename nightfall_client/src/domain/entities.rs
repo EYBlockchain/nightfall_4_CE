@@ -103,10 +103,10 @@ impl SynchronisationStatus {
     pub fn set_synchronised(&mut self) {
         self.phase = SynchronisationPhase::Synchronized;
     }
-    /// clear the synchronisation status 
+    /// clear the synchronisation status
     pub fn clear_synchronised(&mut self) {
-    self.phase = SynchronisationPhase::Desynchronized;
-}
+        self.phase = SynchronisationPhase::Desynchronized;
+    }
 }
 
 /// a struct representing the states that a commitment can be in

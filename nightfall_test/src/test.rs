@@ -4,25 +4,28 @@ use ark_ec::twisted_edwards::Affine as TEAffine;
 use ark_ff::{BigInteger, PrimeField};
 use ark_std::{rand::Rng, test_rng, UniformRand};
 use configuration::{
-    addresses::{Addresses, AddressesError, Sources},
+    addresses::{get_addresses, Addresses, AddressesError, Sources},
     settings::Settings,
 };
 use ethers::{
     signers::{LocalWallet, Signer},
-    types::H160,
+    types::{BigEndianHash, Filter, H160, H256, I256},
     utils::keccak256,
 };
+use ethers_middleware::Middleware;
 use hex::ToHex;
 use jf_primitives::{
     poseidon::Poseidon,
     trees::{Directions, MembershipProof, PathElement, TreeHasher},
 };
-use lib::models::CertificateReq;
+use lib::initialisation::get_blockchain_client_connection;
+use lib::{blockchain_client::BlockchainClientConnection, models::CertificateReq};
 use log::{debug, info};
 use nf_curves::ed_on_bn254::{BabyJubjub as BabyJubJub, Fr as BJJScalar};
 use nightfall_client::{
     domain::{
         entities::{CommitmentStatus, DepositSecret, HexConvertible, Preimage, Salt},
+        error::NightfallContractError,
         notifications::NotificationPayload,
     },
     driven::{
@@ -502,6 +505,60 @@ pub async fn wait_for_all_responses(
     info!("All expected responses from the clients' webhooks have been received");
     debug!("{:#?}", response_data);
     response_data
+}
+
+/// Function to get the L1 block hash of a given layer 2 block number
+pub async fn get_l1_block_hash_of_layer2_block(
+    block_number: I256,
+) -> Result<H256, NightfallContractError> {
+    let client = get_blockchain_client_connection()
+        .await
+        .read()
+        .await
+        .get_client();
+    let nightfall_address = get_addresses().nightfall();
+    let block_topic = H256::from_uint(&block_number.into_raw());
+
+    let filter = Filter::new()
+        .address(nightfall_address)
+        .event("BlockProposed(int256)")
+        .topic1(block_topic);
+
+    let logs = client
+        .get_logs(&filter)
+        .await
+        .map_err(|e| NightfallContractError::ProviderError(format!("Provider error: {}", e)))?;
+
+    let log = logs
+        .first()
+        .ok_or_else(|| NightfallContractError::BlockNotFound(block_number.as_u64()))?;
+
+    let tx_hash = log.transaction_hash.ok_or_else(|| {
+        NightfallContractError::MissingTransactionHash("Log has no transaction hash".to_string())
+    })?;
+
+    // Fetch the full transaction to get block hash
+    let tx = client
+        .get_transaction(tx_hash)
+        .await
+        .map_err(|e| {
+            NightfallContractError::ProviderError(format!("get_transaction error: {}", e))
+        })?
+        .ok_or(NightfallContractError::TransactionNotFound(tx_hash))?;
+
+    let block_hash = tx.block_hash.ok_or_else(|| {
+        NightfallContractError::MissingTransactionHash(
+            "Transaction does not have a block hash (possibly pending)".to_string(),
+        )
+    })?;
+
+    ark_std::println!(
+        "L2 block {} was submitted in L1 block hash: {}",
+        block_number,
+        block_hash
+    );
+
+    Ok(block_hash)
 }
 
 /// this function returns a Future that resolves when all commitments in the slice are available on-chain

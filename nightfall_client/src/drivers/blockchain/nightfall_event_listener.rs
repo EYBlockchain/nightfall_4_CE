@@ -2,6 +2,7 @@ use crate::domain::entities::{HexConvertible, OnChainTransaction, Synchronisatio
 use crate::domain::{entities::SynchronisationStatus, error::EventHandlerError};
 use crate::driven::db::mongo::{BlockStorageDB, StoredBlock};
 use crate::driven::event_handlers::nightfall_event::get_expected_layer2_blocknumber;
+use crate::drivers::blockchain::nightfall_event_listener::SynchronisationPhase::Synchronized;
 use crate::initialisation::get_db_connection;
 use crate::ports::contracts::NightfallContract;
 use crate::ports::trees::CommitmentTree;
@@ -19,7 +20,6 @@ use nightfall_bindings::nightfall::Nightfall;
 use std::panic;
 use std::time::Duration;
 use tokio::time::sleep;
-use crate::drivers::blockchain::nightfall_event_listener::SynchronisationPhase::Synchronized;
 
 /// This function starts the event handler. It will attempt to restart the event handler in case of errors
 /// with an exponential backoff  for a configurable number of attempts. If the event handler
@@ -128,7 +128,7 @@ where
         .await
         .expect("Could not check synchronisation state")
         .phase();
-    if sync_state == Synchronized{
+    if sync_state == Synchronized {
         panic!("Restarting event listener while synchronised. This should not happen");
     }
     let settings = get_settings();
@@ -166,7 +166,9 @@ pub async fn get_synchronisation_status<N: NightfallContract>(
             "Client is behind chain: expected block {} < current block {}",
             *expected_block_number, current_block_number
         );
-        return Ok(SynchronisationStatus::new(SynchronisationPhase::Desynchronized));
+        return Ok(SynchronisationStatus::new(
+            SynchronisationPhase::Desynchronized,
+        ));
     }
 
     if *expected_block_number > current_block_number {
@@ -175,9 +177,11 @@ pub async fn get_synchronisation_status<N: NightfallContract>(
             "Client is ahead of chain: expected block {} > current block {}",
             *expected_block_number, current_block_number
         );
-        return Ok(SynchronisationStatus::new(SynchronisationPhase::AheadOfChain {
-            blocks_ahead: delta.as_usize(),
-        }));
+        return Ok(SynchronisationStatus::new(
+            SynchronisationPhase::AheadOfChain {
+                blocks_ahead: delta.as_usize(),
+            },
+        ));
     }
 
     // expected == current
@@ -201,7 +205,9 @@ pub async fn get_synchronisation_status<N: NightfallContract>(
                 N::get_layer2_block_by_number(current_block_number)
                     .await
                     .map_err(|_| {
-                        EventHandlerError::IOError("Could not read block from blockchain".to_string())
+                        EventHandlerError::IOError(
+                            "Could not read block from blockchain".to_string(),
+                        )
                     })?;
 
             let store_block_pending = StoredBlock {
@@ -227,10 +233,17 @@ pub async fn get_synchronisation_status<N: NightfallContract>(
                     "Hash mismatch at block {}: expected {}, found {}",
                     expected_u64, expected_hash, stored_hash
                 );
-                return Ok(SynchronisationStatus::new(SynchronisationPhase::Desynchronized));
+                return Ok(SynchronisationStatus::new(
+                    SynchronisationPhase::Desynchronized,
+                ));
             } else {
-                debug!("Block {} verified in local DB with matching hash.", expected_u64);
-                return Ok(SynchronisationStatus::new(SynchronisationPhase::Synchronized));
+                debug!(
+                    "Block {} verified in local DB with matching hash.",
+                    expected_u64
+                );
+                return Ok(SynchronisationStatus::new(
+                    SynchronisationPhase::Synchronized,
+                ));
             }
         }
         None => {
@@ -238,7 +251,9 @@ pub async fn get_synchronisation_status<N: NightfallContract>(
                 "Block {} not found in local DB. Assuming client is still in sync.",
                 expected_u64
             );
-            return Ok(SynchronisationStatus::new(SynchronisationPhase::Synchronized));
+            return Ok(SynchronisationStatus::new(
+                SynchronisationPhase::Synchronized,
+            ));
         }
     }
 }
