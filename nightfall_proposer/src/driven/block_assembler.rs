@@ -192,7 +192,7 @@ impl<P: Proof + Send + Sync> SmartTrigger<P> {
         };
 
         let fill_ratio = (num_deposit_groups + num_client_txs) / block_size;
-        ark_std::println!(
+        debug!(
             "Block size: {}, deposits: {}, client txs: {}, fill_ratio: {}, expected ratio: {}",
             block_size,
             num_deposit_groups,

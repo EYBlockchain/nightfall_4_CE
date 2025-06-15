@@ -422,6 +422,21 @@ mod test {
     use super::*;
     use ark_bn254::Fr as Fr254;
     use ark_std::UniformRand;
+    // use num_bigint::BigInt;
+// use ark_std::One;  
+// use ark_std::Zero; 
+
+fn limbs_to_bigint(limbs: &[u64]) -> BigInt {
+    let base: BigInt = BigInt::one() << 64; // 2^64
+    let mut result = BigInt::zero();
+
+    for (i, &limb) in limbs.iter().enumerate() {
+        // Convert each limb to BigInt and multiply by base^i, then add to the result
+        result += BigInt::from(limb) * &base.pow(i as u32);
+    }
+
+    result
+}
     #[test]
     fn test_historic_root_type_conversion() {
         let rng = &mut ark_std::test_rng();
