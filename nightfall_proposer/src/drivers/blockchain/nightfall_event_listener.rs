@@ -22,6 +22,7 @@ use nightfall_client::{
 use std::time::Duration;
 use tokio::sync::{OnceCell, RwLock};
 use tokio::time::sleep;
+use nightfall_client::domain::entities::SynchronisationPhase::Desynchronized;
 
 /// This function starts the event handler. It will attempt to restart the event handler in case of errors
 /// with an exponential backoff for a configurable number of attempts. If the event handler
@@ -188,6 +189,6 @@ where
 pub async fn get_synchronisation_status() -> &'static RwLock<SynchronisationStatus> {
     static SYNCHRONISATION_STATUS: OnceCell<RwLock<SynchronisationStatus>> = OnceCell::const_new();
     SYNCHRONISATION_STATUS
-        .get_or_init(|| async { RwLock::new(SynchronisationStatus::new(false)) })
+        .get_or_init(|| async { RwLock::new(SynchronisationStatus::new(Desynchronized)) })
         .await
 }

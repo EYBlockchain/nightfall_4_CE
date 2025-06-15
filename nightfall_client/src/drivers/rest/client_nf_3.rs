@@ -233,15 +233,6 @@ pub async fn handle_deposit<N: NightfallContract>(
     req: NF3DepositRequest,
     id: &str,
 ) -> Result<NotificationPayload, TransactionHandlerError> {
-    // let sync_state = get_synchronisation_status::<N>()
-    //     .await
-    //     .map_err(|e| TransactionHandlerError::CustomError(e.to_string()))?
-    //     .is_synchronised();
-    // if !sync_state {
-    //     warn!("{id} Rejecting request - Client is not synchronised with the blockchain");
-    //     return Err(TransactionHandlerError::ClientNotSynchronized);
-    // }
-
     info!("Deposit raw request: {:?}", req);
 
     // We convert the request into values

@@ -3,7 +3,7 @@ use super::contract_type_conversions::{Addr, FrBn254, Uint256};
 use crate::{
     domain::{
         entities::{DepositSecret, TokenType, WithdrawData},
-        error::{EventHandlerError, NightfallContractError},
+        error::NightfallContractError,
     },
     drivers::rest::utils::to_nf_token_id_from_solidity,
     ports::{contracts::NightfallContract, secret_hash::SecretHash},

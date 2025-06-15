@@ -70,26 +70,43 @@ impl Display for RequestStatus {
 }
 
 /// A struct representing the synchronisation status of a container
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SynchronisationPhase {
+    /// Client is fully caught up with the on-chain state.
+    Synchronized,
+    /// Client is ahead of the chain and No need to resync.
+    AheadOfChain { blocks_ahead: usize },
+    /// Client is out-of-sync and must restart syncing.
+    Desynchronized,
+}
+
+/// A struct representing the synchronisation status of a container
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct SynchronisationStatus(bool);
+pub struct SynchronisationStatus {
+    phase: SynchronisationPhase,
+}
 
 impl SynchronisationStatus {
     /// Create a new instance
-    pub fn new(synchronised: bool) -> Self {
-        Self(synchronised)
+    pub fn new(phase: SynchronisationPhase) -> Self {
+        Self { phase }
+    }
+    /// Get the current synchronisation phase
+    pub fn phase(&self) -> SynchronisationPhase {
+        self.phase
     }
     /// return whether the application is synchronised with the blockchain
     pub fn is_synchronised(&self) -> bool {
-        self.0
+        matches!(self.phase, SynchronisationPhase::Synchronized)
     }
-    /// set the synchronisation status to true
+    /// Set the synchronisation status to fully synchronised
     pub fn set_synchronised(&mut self) {
-        self.0 = true;
+        self.phase = SynchronisationPhase::Synchronized;
     }
-    /// clear the synchronisation status
+    /// clear the synchronisation status 
     pub fn clear_synchronised(&mut self) {
-        self.0 = false;
-    }
+    self.phase = SynchronisationPhase::Desynchronized;
+}
 }
 
 /// a struct representing the states that a commitment can be in

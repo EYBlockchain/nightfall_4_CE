@@ -18,7 +18,7 @@ use log::{debug, error, info, warn};
 use std::collections::VecDeque;
 use tokio::sync::{OnceCell, RwLock};
 use tokio::time::sleep;
-
+use crate::domain::entities::SynchronisationPhase::Desynchronized;
 /// This module implements a queue of received requests. Requests can be added to the queue
 /// asynchronously but are executed with a concurrency of 1.
 ///
@@ -58,14 +58,14 @@ where
 
     loop {
         let sync_state = match get_synchronisation_status::<N>().await {
-            Ok(status) => status.is_synchronised(),
+            Ok(status) => status.phase(),
             Err(e) => {
                 error!("Failed to get synchronisation status: {:?}", e);
                 return;
             }
         };
-        ark_std::println!("Synchronisation status: {}", sync_state);
-        if !sync_state {
+        ark_std::println!("Synchronisation status: {:?}", sync_state);
+        if sync_state == Desynchronized {
             warn!("Client is not synchronised with the blockchain, restarting event listener");
             restart_event_listener::<N>(0).await;
         }

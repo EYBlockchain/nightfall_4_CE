@@ -53,15 +53,6 @@ where
 {
     debug!("{id} Handling client operation: {:?}", operation);
 
-    // let sync_state = get_synchronisation_status::<N>()
-    //     .await
-    //     .map_err(|e| TransactionHandlerError::CustomError(e.to_string()))?
-    //     .is_synchronised();
-    // if !sync_state {
-    //     warn!("{id} Rejecting request - Proposer is not synchronised with the blockchain");
-    //     return Err(TransactionHandlerError::ClientNotSynchronized);
-    // }
-
     // get the zkp keys from the global state. They will have been created when the keys were requested using a mnemonic
     let ZKPKeys {
         zkp_private_key,

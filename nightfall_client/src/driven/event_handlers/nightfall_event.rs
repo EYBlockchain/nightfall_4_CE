@@ -224,8 +224,8 @@ async fn process_propose_block_event<N: NightfallContract>(
             ));
         } else {
             debug!(
-                "Block with layer 2 block number {} already exists in database, no chain reorg detected.",
-                layer_2_block_number_in_event_u64
+                "Block hash matches for layer 2 block {}: {}",
+                layer_2_block_number_in_event, existing_block_stored_hash
             );
         }
     }
