@@ -13,6 +13,8 @@ import "./ProposerManager.sol";
 import "./X509/Certified.sol";
 import "./X509/X509.sol";
 
+import "forge-std/console2.sol";
+
 pragma solidity ^0.8.20;
 
 enum OperationType {
@@ -264,7 +266,14 @@ contract Nightfall is
 
                     // Now hash over the full 128 bytes
                     key := keccak256(memPtr, 128)
-                }   
+                }
+                console2.log("counter: ", i);
+                console2.logBytes32(key);
+                console2.log("computed data.nf_token_id: ", data.nf_token_id);
+                console2.log("computed data.recipient_address: ", data.recipient_address);
+                console2.log("computed data.value: ", data.value);
+                console2.log("computed data.withdraw_fund_salt: ", data.withdraw_fund_salt);
+                console2.logBytes32(bytes32(data.withdraw_fund_salt));
 
                 // the public data (data) here includes the recipient address. When the recipient attempts to
                 // withdraw the amount they are due, they will have to provide the same public data so that the
@@ -437,6 +446,8 @@ contract Nightfall is
         TokenType token_type
     ) external payable onlyCertified {
         bytes32 key = keccak256(abi.encode(data));
+        console2.log("descrow_funds key");
+        console2.logBytes32(key);
         require(
             withdrawalIncluded[key] == 1,
             "Either no funds are available to withdraw, or they are already withdrawn"
@@ -585,6 +596,13 @@ contract Nightfall is
         WithdrawData calldata data
     ) public view returns (bool) {   
         bytes32 key = keccak256(abi.encode(data));
+        console2.logBytes32(key);
+        console2.log("withdraw_processed data.nf_token_id: ", data.nf_token_id);
+        console2.log("withdraw_processed data.recipient_address: ", data.recipient_address);
+        console2.log("withdraw_processed data.value: ", data.value);
+        console2.log("withdraw_processed data.withdraw_fund_salt: ", data.withdraw_fund_salt);
+        console2.logBytes32(bytes32(data.withdraw_fund_salt));
+
         return withdrawalIncluded[key] == 1;
     }
 }

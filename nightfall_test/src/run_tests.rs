@@ -905,17 +905,8 @@ pub async fn run_tests(
 
     // Wait until all ERC721, ERC3525 and ERC1155 funds are available to withdraw
     info!("Waiting for ERC721, ERC3525 and ERC1155 funds to be available for withdrawal");
-    let mut leading_zero_requests = Vec::new();
     for request in &de_escrow_data_requests {
-        if request.withdraw_fund_salt.starts_with('0') {
-            warn!(
-                "Saving request with leading zero in withdraw_fund_salt: {:?}",
-                request
-            );
-            leading_zero_requests.push(request.clone());
-            continue;
-        }
-        while !de_escrow_request(request, "http://client2:3000")
+          while !de_escrow_request(request, "http://client2:3000")
             .await
             .unwrap()
         {
@@ -924,24 +915,6 @@ pub async fn run_tests(
         }
     }
     info!("Successfully withdrew other tokens");
-
-    // Now process the saved requests with leading zero in withdraw_fund_salt
-    for request in &leading_zero_requests {
-        let mut success = false;
-        for _ in 0..5 { // Try up to 5 times
-            if de_escrow_request(request, "http://client2:3000").await.unwrap() {
-                info!("Successfully withdrew (leading zero salt): {:?}", request);
-                success = true;
-                break;
-            } else {
-                warn!("Not yet able to withdraw (leading zero salt): {:?}", request);
-                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-            }
-        }
-        if !success {
-            warn!("Failed to withdraw after retries (leading zero salt): {:?}", request);
-        }
-    }
 
     // get the final balance of all the addresses used. As these are all addresses funded by Anvil,
     // we can simple print those balances

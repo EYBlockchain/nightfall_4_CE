@@ -4,7 +4,7 @@ use crate::{
     ports::contracts::NightfallContract,
 };
 use lib::wallets::LocalWsClient;
-use log::{debug, error};
+use log::{debug, error, info};
 use nightfall_bindings::nightfall::Nightfall;
 use reqwest::StatusCode;
 use std::{error::Error, fmt::Debug};
@@ -45,10 +45,11 @@ pub async fn handle_de_escrow(data: DeEscrowDataReq) -> Result<impl Reply, warp:
         reject::custom(FailedDeEscrow)
     })?;
     let available = Nightfall::<LocalWsClient>::withdraw_available(withdraw_data).await;
+    dbg!(&available);
     match available {
         Ok(b) => {
             if b {
-                debug!("Withdraw is on chain, attempting to de-escrow funds");
+                info!("Withdraw is on chain, attempting to de-escrow funds");
                 Nightfall::<LocalWsClient>::de_escrow_funds(withdraw_data, token_type)
                     .await
                     .map_err(|e| {
@@ -58,7 +59,7 @@ pub async fn handle_de_escrow(data: DeEscrowDataReq) -> Result<impl Reply, warp:
 
                 Ok(StatusCode::OK)
             } else {
-                debug!("Not yet able to de-escrow funds");
+                info!("Not yet able to de-escrow funds");
                 Ok(StatusCode::NOT_FOUND)
             }
         }
