@@ -639,9 +639,10 @@ mod test {
     use ark_ff::Zero;
     use ark_std::{rand::Rng, UniformRand};
     use testcontainers::{
-        core::IntoContainerPort, runners::AsyncRunner, ContainerAsync, GenericImage,
+        core::{IntoContainerPort, WaitFor}, runners::AsyncRunner, ContainerAsync, GenericImage, ImageExt
     };
     use tokio::io::AsyncReadExt;
+    use std::time::Duration;
     use url::Host;
 
     /// makes a vector of n leaves with random values.
@@ -672,10 +673,13 @@ mod test {
     /// This function creates a mongo container and returns it
     async fn get_mongo() -> ContainerAsync<GenericImage> {
         GenericImage::new("mongo", "4.4.1-bionic")
-            .with_exposed_port(27017.udp())
+            .with_exposed_port(27017.tcp())
+            .with_wait_for(WaitFor::message_on_stdout("Waiting for connections"))
+            .with_startup_timeout(Duration::from_secs(120))
             .start()
             .await
             .unwrap()
+            //.expect("Failed to start MongoDB container")
     }
 
     /// This function is used to provide a database connection to the tests
