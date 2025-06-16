@@ -4293,6 +4293,7 @@ dependencies = [
  "jf-primitives",
  "jf-relation",
  "jf-utils",
+ "lib",
  "log",
  "nf-curves",
  "nightfall-bindings",
