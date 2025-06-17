@@ -358,6 +358,7 @@ pub enum NightfallRejection {
     CommitmentNotFound,
     ProposerError,
     RequestNotFound,
+    FailedDeEscrow,
 }
 
 impl std::fmt::Display for NightfallRejection {
@@ -372,6 +373,7 @@ impl std::fmt::Display for NightfallRejection {
             NightfallRejection::CommitmentNotFound => write!(f, "Commitment not found"),
             NightfallRejection::ProposerError => write!(f, "Failed to get list of Proposers"),
             NightfallRejection::RequestNotFound => write!(f, "No such request"),
+            NightfallRejection::FailedDeEscrow => write!(f, "Failed to de-escrow funds"),
         }
     }
 }
