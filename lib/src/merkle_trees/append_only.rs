@@ -197,48 +197,6 @@ mod test {
         leaves
     }
 
-    // fn get_db_connection_uri(host: Host, port: u16) -> String {
-    //     format!("mongodb://{}:{}", host, port)
-    // }
-
-    // /// This function creates a mongo container and returns it
-    // async fn get_mongo() -> ContainerAsync<GenericImage> {
-    //     GenericImage::new("mongo", "4.4.1-bionic")
-    //         .with_exposed_port(27017.tcp())
-    //         .with_wait_for(WaitFor::message_on_stdout("Waiting for connections"))
-    //         .with_startup_timeout(Duration::from_secs(120))
-    //         .start()
-    //         .await
-    //         .unwrap()
-    // }
-
-    // /// This function is used to provide a database connection to the tests
-    // async fn get_db_connection(container: &ContainerAsync<GenericImage>) -> mongodb::Client {
-    //     let host = container.get_host().await.unwrap();
-    //     let port = container.get_host_port_ipv4(27017).await.unwrap();
-    //     mongodb::Client::with_uri_str(&get_db_connection_uri(host, port))
-    //         .await
-    //         .expect("Could not create database connection")
-    // }
-
-    // #[allow(dead_code)]
-    // /// This function is used to print the stdout of a container for test debugging
-    // async fn print_stdout(container: &ContainerAsync<GenericImage>) {
-    //     let mut reader_stdout = container.stdout(false);
-    //     let mut dst = String::new();
-    //     let _ = reader_stdout.read_to_string(&mut dst).await;
-    //     println!("{}", dst);
-    // }
-
-    // #[allow(dead_code)]
-    // /// This function is used to print the stderr of a container for test debugging
-    // async fn print_stderr(container: &ContainerAsync<GenericImage>) {
-    //     let mut reader_stderr = container.stderr(false);
-    //     let mut dst = String::new();
-    //     let _ = reader_stderr.read_to_string(&mut dst).await;
-    //     println!("{}", dst);
-    // }
-
     #[tokio::test]
     async fn test_append_only_tree() {
         let mut rng = ark_std::test_rng();
