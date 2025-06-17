@@ -73,6 +73,8 @@ async fn handle_rejection(err: Rejection) -> Result<impl Reply, std::convert::In
             DatabaseError => Ok(reply::with_status("Database error or duplicate transaction", StatusCode::INTERNAL_SERVER_ERROR)),
             InvalidCommitmentKey => Ok(reply::with_status("Invalid commitment key", StatusCode::BAD_REQUEST)),
             CommitmentNotFound => Ok(reply::with_status("Commitment not found", StatusCode::NOT_FOUND)),
+            ProposerError => Ok(reply::with_status("Failed to get list of Proposers", StatusCode::SERVICE_UNAVAILABLE)),
+            RequestNotFound => Ok(reply::with_status("No such request", StatusCode::NOT_FOUND)),
         }
     } else {
         error!("unhandled rejection: {:?}", err);

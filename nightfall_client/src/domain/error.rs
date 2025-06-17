@@ -356,6 +356,8 @@ pub enum NightfallRejection {
     DatabaseError,
     InvalidCommitmentKey,
     CommitmentNotFound,
+    ProposerError,
+    RequestNotFound,
 }
 
 impl std::fmt::Display for NightfallRejection {
@@ -368,6 +370,8 @@ impl std::fmt::Display for NightfallRejection {
             NightfallRejection::DatabaseError => write!(f, "Database error or duplicate transaction"),
             NightfallRejection::InvalidCommitmentKey => write!(f, "Invalid commitment key"),
             NightfallRejection::CommitmentNotFound => write!(f, "Commitment not found"),
+            NightfallRejection::ProposerError => write!(f, "Failed to get list of Proposers"),
+            NightfallRejection::RequestNotFound => write!(f, "No such request"),
         }
     }
 }
