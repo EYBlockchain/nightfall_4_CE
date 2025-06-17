@@ -16,7 +16,9 @@ pub async fn handle_get_request_status(id: String) -> Result<impl Reply, warp::R
     match Uuid::parse_str(&id) {
         Ok(_) => {}
         Err(_) => {
-            return Err(warp::reject::custom(crate::domain::error::NightfallRejection::InvalidRequestId));
+            return Err(warp::reject::custom(
+                crate::domain::error::NightfallRejection::InvalidRequestId,
+            ));
         }
     };
     let db = get_db_connection().await;
@@ -30,7 +32,9 @@ pub async fn handle_get_request_status(id: String) -> Result<impl Reply, warp::R
             StatusCode::OK,
         ))
     } else {
-        Err(warp::reject::custom(crate::domain::error::NightfallRejection::RequestNotFound))
+        Err(warp::reject::custom(
+            crate::domain::error::NightfallRejection::RequestNotFound,
+        ))
     }
 }
 

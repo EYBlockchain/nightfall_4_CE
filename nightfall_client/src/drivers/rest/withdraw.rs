@@ -45,12 +45,16 @@ pub async fn handle_de_escrow(data: DeEscrowDataReq) -> Result<impl Reply, warp:
                 Ok(warp::reply::with_status("OK", StatusCode::OK))
             } else {
                 debug!("Not yet able to de-escrow funds");
-                Err(reject::custom(crate::domain::error::NightfallRejection::FailedDeEscrow))
+                Err(reject::custom(
+                    crate::domain::error::NightfallRejection::FailedDeEscrow,
+                ))
             }
         }
         Err(e) => {
             debug!("Nightfall contract error: {}", e);
-            Err(reject::custom(crate::domain::error::NightfallRejection::FailedDeEscrow))
+            Err(reject::custom(
+                crate::domain::error::NightfallRejection::FailedDeEscrow,
+            ))
         }
     }
 }

@@ -368,7 +368,9 @@ impl std::fmt::Display for NightfallRejection {
             NightfallRejection::InvalidTokenId => write!(f, "Invalid token id"),
             NightfallRejection::InvalidRequestId => write!(f, "Invalid request id"),
             NightfallRejection::QueueFull => write!(f, "Queue is full"),
-            NightfallRejection::DatabaseError => write!(f, "Database error or duplicate transaction"),
+            NightfallRejection::DatabaseError => {
+                write!(f, "Database error or duplicate transaction")
+            }
             NightfallRejection::InvalidCommitmentKey => write!(f, "Invalid commitment key"),
             NightfallRejection::CommitmentNotFound => write!(f, "Commitment not found"),
             NightfallRejection::ProposerError => write!(f, "Failed to get list of Proposers"),

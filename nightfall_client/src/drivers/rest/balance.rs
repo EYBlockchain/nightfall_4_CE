@@ -1,5 +1,8 @@
 use super::utils::to_nf_token_id_from_str;
-use crate::{domain::error::NightfallRejection, get_fee_token_id, initialisation::get_db_connection, ports::db::CommitmentDB};
+use crate::{
+    domain::error::NightfallRejection, get_fee_token_id, initialisation::get_db_connection,
+    ports::db::CommitmentDB,
+};
 use ark_ff::{BigInteger, PrimeField};
 use warp::{http::StatusCode, path, reply::Reply, Filter};
 /// Endpoint to get a token balance
