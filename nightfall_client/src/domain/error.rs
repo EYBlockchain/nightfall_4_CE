@@ -359,6 +359,7 @@ pub enum NightfallRejection {
     ProposerError,
     RequestNotFound,
     FailedDeEscrow,
+    SynchronisationUnavailable,
 }
 
 impl std::fmt::Display for NightfallRejection {
@@ -376,6 +377,7 @@ impl std::fmt::Display for NightfallRejection {
             NightfallRejection::ProposerError => write!(f, "Failed to get list of Proposers"),
             NightfallRejection::RequestNotFound => write!(f, "No such request"),
             NightfallRejection::FailedDeEscrow => write!(f, "Failed to de-escrow funds"),
+            NightfallRejection::SynchronisationUnavailable => write!(f, "Synchronisation service unavailable"),
         }
     }
 }

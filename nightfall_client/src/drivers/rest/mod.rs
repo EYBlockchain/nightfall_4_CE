@@ -100,6 +100,10 @@ async fn handle_rejection(err: Rejection) -> Result<impl Reply, std::convert::In
                 "Failed to de-escrow funds",
                 StatusCode::BAD_REQUEST,
             )),
+            SynchronisationUnavailable => Ok(reply::with_status(
+                "Synchronisation service unavailable",
+                StatusCode::SERVICE_UNAVAILABLE,
+            )),
         }
     } else {
         error!("unhandled rejection: {:?}", err);
