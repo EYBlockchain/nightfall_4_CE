@@ -136,14 +136,7 @@ async fn queue_request(
     let id = request_id.unwrap_or_default();
     // check if the id is a valid uuid
     if Uuid::parse_str(&id).is_err() {
-        return Ok(reply::with_header(
-            reply::with_status(
-                json(&"Invalid request id".to_string()),
-                StatusCode::BAD_REQUEST,
-            ),
-            "X-Request-ID",
-            id,
-        ));
+        return Err(warp::reject::custom(crate::domain::error::NightfallRejection::InvalidRequestId));
     };
 
     // add the request to the queue
@@ -151,14 +144,7 @@ async fn queue_request(
     let mut q = get_queue().await.write().await;
     // check if the queue is full
     if q.len() >= MAX_QUEUE_SIZE {
-        return Ok(reply::with_header(
-            reply::with_status(
-                json(&"Queue is full".to_string()),
-                StatusCode::SERVICE_UNAVAILABLE,
-            ),
-            "X-Request-ID",
-            id,
-        ));
+        return Err(warp::reject::custom(crate::domain::error::NightfallRejection::QueueFull));
     }
     debug!("got lock on queue");
     q.push_back(QueuedRequest {
@@ -170,14 +156,7 @@ async fn queue_request(
     // record the request as queued
     let db = get_db_connection().await;
     if db.store_request(&id, RequestStatus::Queued).await.is_none() {
-        return Ok(reply::with_header(
-            reply::with_status(
-                json(&"Database error or duplicate transaction".to_string()),
-                StatusCode::INTERNAL_SERVER_ERROR,
-            ),
-            "X-Request-ID",
-            id,
-        ));
+        return Err(warp::reject::custom(crate::domain::error::NightfallRejection::DatabaseError));
     }
     debug!("Stored request status in database");
 

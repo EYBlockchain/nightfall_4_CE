@@ -345,3 +345,29 @@ impl Display for SyncingError {
 }
 
 impl Error for SyncingError {}
+
+/// Custom rejection type for REST API errors
+#[derive(Debug)]
+pub enum NightfallRejection {
+    NoSuchToken,
+    InvalidTokenId,
+    InvalidRequestId,
+    QueueFull,
+    DatabaseError,
+}
+
+impl std::fmt::Display for NightfallRejection {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            NightfallRejection::NoSuchToken => write!(f, "No such token found"),
+            NightfallRejection::InvalidTokenId => write!(f, "Invalid token id"),
+            NightfallRejection::InvalidRequestId => write!(f, "Invalid request id"),
+            NightfallRejection::QueueFull => write!(f, "Queue is full"),
+            NightfallRejection::DatabaseError => write!(f, "Database error or duplicate transaction"),
+        }
+    }
+}
+
+impl std::error::Error for NightfallRejection {}
+
+impl warp::reject::Reject for NightfallRejection {}

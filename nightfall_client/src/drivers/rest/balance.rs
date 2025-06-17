@@ -1,5 +1,5 @@
 use super::utils::to_nf_token_id_from_str;
-use crate::{get_fee_token_id, initialisation::get_db_connection, ports::db::CommitmentDB};
+use crate::{domain::error::NightfallRejection, get_fee_token_id, initialisation::get_db_connection, ports::db::CommitmentDB};
 use ark_ff::{BigInteger, PrimeField};
 use warp::{http::StatusCode, path, reply::Reply, Filter};
 /// Endpoint to get a token balance
@@ -16,13 +16,9 @@ pub async fn handle_get_balance(
     erc_address: String,
     token_id: String,
 ) -> Result<impl Reply, warp::Rejection> {
-    // need to make the token ID little endian because that's what the to_nf_token_id_from_str function expects
     let nf_token_id = to_nf_token_id_from_str(&erc_address, &token_id);
-    // see if we can decode the input
     if let Ok(nf_token_id) = nf_token_id {
-        // search the commitment db for a preimage with the correct nf_token_id
         let db = get_db_connection().await;
-        // get the balance
         let balance = db.get_balance(&nf_token_id).await;
         if let Some(balance) = balance {
             Ok(warp::reply::with_status(
@@ -30,17 +26,10 @@ pub async fn handle_get_balance(
                 StatusCode::OK,
             ))
         } else {
-            // if we don't find a balance, return an 404 error
-            Ok(warp::reply::with_status(
-                "No such token".to_string(),
-                StatusCode::NOT_FOUND,
-            ))
+            Err(warp::reject::custom(NightfallRejection::NoSuchToken))
         }
     } else {
-        Ok(warp::reply::with_status(
-            "Invalid token id".to_string(),
-            StatusCode::BAD_REQUEST,
-        ))
+        Err(warp::reject::custom(NightfallRejection::InvalidTokenId))
     }
 }
 
@@ -65,10 +54,7 @@ pub async fn handle_get_fee_balance() -> Result<impl Reply, warp::Rejection> {
             StatusCode::OK,
         ))
     } else {
-        // if we don't find a balance, return an 404 error
-        Ok(warp::reply::with_status(
-            "No such token".to_string(),
-            StatusCode::NOT_FOUND,
-        ))
+        // if we don't find a balance, return a custom rejection
+        Err(warp::reject::custom(NightfallRejection::NoSuchToken))
     }
 }
