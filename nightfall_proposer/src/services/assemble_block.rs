@@ -398,14 +398,17 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::Duration;
     use nightfall_client::driven::plonk_prover::plonk_proof::PlonkProof;
     use testcontainers::{
-        core::IntoContainerPort, runners::AsyncRunner, ContainerAsync, GenericImage,
+        core::{IntoContainerPort, WaitFor}, runners::AsyncRunner, ContainerAsync, GenericImage, ImageExt
     };
 
     async fn get_mongo() -> ContainerAsync<GenericImage> {
         GenericImage::new("mongo", "4.4.1-bionic")
-            .with_exposed_port(27017_u16.udp())
+            .with_exposed_port(27017.tcp())
+            .with_wait_for(WaitFor::message_on_stdout("Waiting for connections"))
+            .with_startup_timeout(Duration::from_secs(120))
             .start()
             .await
             .unwrap()
