@@ -354,6 +354,8 @@ pub enum NightfallRejection {
     InvalidRequestId,
     QueueFull,
     DatabaseError,
+    InvalidCommitmentKey,
+    CommitmentNotFound,
 }
 
 impl std::fmt::Display for NightfallRejection {
@@ -364,6 +366,8 @@ impl std::fmt::Display for NightfallRejection {
             NightfallRejection::InvalidRequestId => write!(f, "Invalid request id"),
             NightfallRejection::QueueFull => write!(f, "Queue is full"),
             NightfallRejection::DatabaseError => write!(f, "Database error or duplicate transaction"),
+            NightfallRejection::InvalidCommitmentKey => write!(f, "Invalid commitment key"),
+            NightfallRejection::CommitmentNotFound => write!(f, "Commitment not found"),
         }
     }
 }

@@ -71,6 +71,8 @@ async fn handle_rejection(err: Rejection) -> Result<impl Reply, std::convert::In
             InvalidRequestId => Ok(reply::with_status("Invalid request id", StatusCode::BAD_REQUEST)),
             QueueFull => Ok(reply::with_status("Queue is full", StatusCode::SERVICE_UNAVAILABLE)),
             DatabaseError => Ok(reply::with_status("Database error or duplicate transaction", StatusCode::INTERNAL_SERVER_ERROR)),
+            InvalidCommitmentKey => Ok(reply::with_status("Invalid commitment key", StatusCode::BAD_REQUEST)),
+            CommitmentNotFound => Ok(reply::with_status("Commitment not found", StatusCode::NOT_FOUND)),
         }
     } else {
         error!("unhandled rejection: {:?}", err);
