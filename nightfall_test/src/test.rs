@@ -450,54 +450,52 @@ pub async fn get_latest_l2_block_number(responses: Arc<Mutex<Vec<Value>>>) -> Op
 
 /// This function waits until a Webhook response is received for every Request ID
 pub async fn wait_for_all_responses(
-    large_block_deposit_ids: &[String],
+    large_block_deposit_ids: &[Uuid],
     responses: Arc<Mutex<Vec<Value>>>,
-) -> Vec<String> {
+) -> Vec<(Uuid, String)> {
     // compare the response IDs with the request IDs
-    // if we find everything we need, we can break out of the loop and return the json data in the responses (ignoring the ID)
-    let response_data = loop {
-        // get a lock on the current response vectore
+    // if we find everything we need, we can break out of the loop and return the json data in the responses
+    let response_payloads = loop {
+        // get a lock on the current response vector
         let mut response_values = responses.lock().await;
         // destructure the vector to get the responses and the request IDs
         let response_payloads = response_values
             .iter()
             .map(|r| serde_json::from_value::<NotificationPayload>(r.clone()).unwrap())
-            .collect::<Vec<_>>();
-        let (response_data, response_ids): (Vec<_>, Vec<_>) = response_payloads
-            .iter()
-            .cloned()
             .filter_map(|r| match r {
                 NotificationPayload::TransactionEvent { uuid, response } => Some((
+                    serde_json::from_str::<Uuid>(&uuid).expect("Could not parse uuid"),
                     response,
-                    serde_json::from_str::<String>(&uuid).expect("Could not parse uuid"),
                 )),
                 _ => None,
             })
-            .unzip();
-        debug!("Response IDs: {:?}", response_ids);
-        debug!("Request IDs: {:?}", large_block_deposit_ids);
+            .collect::<Vec<_>>();
+
         info!(
             "Have {} IDs and {} processed client transactions",
             large_block_deposit_ids.len(),
-            response_ids.len()
+            response_payloads.len()
         );
         // check if the response IDs contain all the request IDs
         // we'll do a simple O(n^2) search for the request IDs in the responses as the vector is small
+        let response_ids: HashSet<Uuid> = response_payloads.iter().map(|(uuid, _)| *uuid).collect();
         let same = large_block_deposit_ids
             .iter()
             .all(|id| response_ids.contains(id));
         // if we find everything we need, we can break out of the loop and return the json data in the responses (ignoring the ID)
         if same {
             response_values.clear(); // clear the responses so we can reuse the vector
-            break response_data;
+            break response_payloads;
         }
         // if we get here, we haven't found everything we need yet
         drop(response_values); // free the mutex lock while we wait for more responses
         time::sleep(time::Duration::from_secs(10)).await;
     };
     info!("All expected responses from the clients' webhooks have been received");
-    debug!("{:#?}", response_data);
-    response_data
+    // sort the responses by the request ID (UUID)
+    let mut response_payloads = response_payloads;
+    response_payloads.sort_by_key(|(uuid, _)| *uuid);
+    response_payloads
 }
 
 /// this function returns a Future that resolves when all commitments in the slice are available on-chain
@@ -597,7 +595,7 @@ pub async fn create_nf3_deposit_transaction(
     token_type: TokenType,
     tx_details: TransactionDetails,
     deposit_fee: String,
-) -> Result<String, TestError> {
+) -> Result<Uuid, TestError> {
     let id = Uuid::new_v4().to_string();
     info!("Creating deposit transaction onchain {}", &id);
     let deposit_request = create_nf3_deposit_request(
@@ -630,7 +628,7 @@ pub async fn create_nf3_deposit_transaction(
         "Deposit transaction {} has been accepted by the client",
         returned_id
     );
-    Ok(returned_id)
+    Ok(Uuid::parse_str(&returned_id).unwrap())
 }
 
 pub async fn create_nf3_transfer_transaction(
@@ -639,7 +637,7 @@ pub async fn create_nf3_transfer_transaction(
     url: Url,
     token_type: TokenType,
     tx_details: TransactionDetails,
-) -> Result<String, TestError> {
+) -> Result<Uuid, TestError> {
     let id = Uuid::new_v4().to_string();
     info!("Creating transfer transaction offchain {}", &id);
     let transfer_request = create_nf3_transfer_request(
@@ -671,7 +669,7 @@ pub async fn create_nf3_transfer_transaction(
         "Transfer transaction {} has been accepted by the client",
         returned_id
     );
-    Ok(returned_id)
+    Ok(Uuid::parse_str(&returned_id).unwrap())
 }
 
 pub async fn create_nf3_withdraw_transaction(
@@ -680,7 +678,7 @@ pub async fn create_nf3_withdraw_transaction(
     token_type: TokenType,
     tx_details: TransactionDetails,
     recipient_address: String,
-) -> Result<(String, WithdrawDataReq), TestError> {
+) -> Result<(Uuid, WithdrawDataReq), TestError> {
     let id = Uuid::new_v4().to_string();
     info!("Creating withdraw transaction offchain {}", &id);
     let withdraw_request = create_nf3_withdraw_request(
@@ -730,7 +728,10 @@ pub async fn create_nf3_withdraw_transaction(
         "Withdraw transaction {} has been accepted by the client",
         returned_id
     );
-    Ok((returned_id, withdraw_data_request))
+    Ok((
+        Uuid::parse_str(&returned_id).unwrap(),
+        withdraw_data_request,
+    ))
 }
 
 pub async fn get_balance(
