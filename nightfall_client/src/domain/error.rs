@@ -348,7 +348,7 @@ impl Error for SyncingError {}
 
 /// Custom rejection type for REST API errors
 #[derive(Debug)]
-pub enum NightfallRejection {
+pub enum ClientRejection {
     NoSuchToken,
     InvalidTokenId,
     InvalidRequestId,
@@ -362,26 +362,28 @@ pub enum NightfallRejection {
     SynchronisationUnavailable,
 }
 
-impl std::fmt::Display for NightfallRejection {
+impl std::fmt::Display for ClientRejection {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            NightfallRejection::NoSuchToken => write!(f, "No such token found"),
-            NightfallRejection::InvalidTokenId => write!(f, "Invalid token id"),
-            NightfallRejection::InvalidRequestId => write!(f, "Invalid request id"),
-            NightfallRejection::QueueFull => write!(f, "Queue is full"),
-            NightfallRejection::DatabaseError => {
+            ClientRejection::NoSuchToken => write!(f, "No such token found"),
+            ClientRejection::InvalidTokenId => write!(f, "Invalid token id"),
+            ClientRejection::InvalidRequestId => write!(f, "Invalid request id"),
+            ClientRejection::QueueFull => write!(f, "Queue is full"),
+            ClientRejection::DatabaseError => {
                 write!(f, "Database error or duplicate transaction")
             }
-            NightfallRejection::InvalidCommitmentKey => write!(f, "Invalid commitment key"),
-            NightfallRejection::CommitmentNotFound => write!(f, "Commitment not found"),
-            NightfallRejection::ProposerError => write!(f, "Failed to get list of Proposers"),
-            NightfallRejection::RequestNotFound => write!(f, "No such request"),
-            NightfallRejection::FailedDeEscrow => write!(f, "Failed to de-escrow funds"),
-            NightfallRejection::SynchronisationUnavailable => write!(f, "Synchronisation service unavailable"),
+            ClientRejection::InvalidCommitmentKey => write!(f, "Invalid commitment key"),
+            ClientRejection::CommitmentNotFound => write!(f, "Commitment not found"),
+            ClientRejection::ProposerError => write!(f, "Failed to get list of Proposers"),
+            ClientRejection::RequestNotFound => write!(f, "No such request"),
+            ClientRejection::FailedDeEscrow => write!(f, "Failed to de-escrow funds"),
+            ClientRejection::SynchronisationUnavailable => {
+                write!(f, "Synchronisation service unavailable")
+            }
         }
     }
 }
 
-impl std::error::Error for NightfallRejection {}
+impl std::error::Error for ClientRejection {}
 
-impl warp::reject::Reject for NightfallRejection {}
+impl warp::reject::Reject for ClientRejection {}

@@ -137,7 +137,7 @@ async fn queue_request(
     // check if the id is a valid uuid
     if Uuid::parse_str(&id).is_err() {
         return Err(warp::reject::custom(
-            crate::domain::error::NightfallRejection::InvalidRequestId,
+            crate::domain::error::ClientRejection::InvalidRequestId,
         ));
     };
 
@@ -147,7 +147,7 @@ async fn queue_request(
     // check if the queue is full
     if q.len() >= MAX_QUEUE_SIZE {
         return Err(warp::reject::custom(
-            crate::domain::error::NightfallRejection::QueueFull,
+            crate::domain::error::ClientRejection::QueueFull,
         ));
     }
     debug!("got lock on queue");
@@ -161,7 +161,7 @@ async fn queue_request(
     let db = get_db_connection().await;
     if db.store_request(&id, RequestStatus::Queued).await.is_none() {
         return Err(warp::reject::custom(
-            crate::domain::error::NightfallRejection::DatabaseError,
+            crate::domain::error::ClientRejection::DatabaseError,
         ));
     }
     debug!("Stored request status in database");

@@ -63,8 +63,8 @@ where
 async fn handle_rejection(err: Rejection) -> Result<impl Reply, std::convert::Infallible> {
     if err.is_not_found() {
         Ok(reply::with_status("NOT_FOUND", StatusCode::NOT_FOUND))
-    } else if let Some(e) = err.find::<crate::domain::error::NightfallRejection>() {
-        use crate::domain::error::NightfallRejection::*;
+    } else if let Some(e) = err.find::<crate::domain::error::ClientRejection>() {
+        use crate::domain::error::ClientRejection::*;
         match e {
             NoSuchToken => Ok(reply::with_status("No such token", StatusCode::NOT_FOUND)),
             InvalidTokenId => Ok(reply::with_status(

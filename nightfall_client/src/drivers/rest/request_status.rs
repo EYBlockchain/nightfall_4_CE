@@ -17,7 +17,7 @@ pub async fn handle_get_request_status(id: String) -> Result<impl Reply, warp::R
         Ok(_) => {}
         Err(_) => {
             return Err(warp::reject::custom(
-                crate::domain::error::NightfallRejection::InvalidRequestId,
+                crate::domain::error::ClientRejection::InvalidRequestId,
             ));
         }
     };
@@ -33,7 +33,7 @@ pub async fn handle_get_request_status(id: String) -> Result<impl Reply, warp::R
         ))
     } else {
         Err(warp::reject::custom(
-            crate::domain::error::NightfallRejection::RequestNotFound,
+            crate::domain::error::ClientRejection::RequestNotFound,
         ))
     }
 }

@@ -1,6 +1,6 @@
 use super::utils::to_nf_token_id_from_str;
 use crate::{
-    domain::error::NightfallRejection, get_fee_token_id, initialisation::get_db_connection,
+    domain::error::ClientRejection, get_fee_token_id, initialisation::get_db_connection,
     ports::db::CommitmentDB,
 };
 use ark_ff::{BigInteger, PrimeField};
@@ -29,10 +29,10 @@ pub async fn handle_get_balance(
                 StatusCode::OK,
             ))
         } else {
-            Err(warp::reject::custom(NightfallRejection::NoSuchToken))
+            Err(warp::reject::custom(ClientRejection::NoSuchToken))
         }
     } else {
-        Err(warp::reject::custom(NightfallRejection::InvalidTokenId))
+        Err(warp::reject::custom(ClientRejection::InvalidTokenId))
     }
 }
 
@@ -58,6 +58,6 @@ pub async fn handle_get_fee_balance() -> Result<impl Reply, warp::Rejection> {
         ))
     } else {
         // if we don't find a balance, return a custom rejection
-        Err(warp::reject::custom(NightfallRejection::NoSuchToken))
+        Err(warp::reject::custom(ClientRejection::NoSuchToken))
     }
 }
