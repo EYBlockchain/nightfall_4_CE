@@ -19,6 +19,7 @@ ethers = { version = "2.0.14", features = ["ws"] }
 tokio = { version = "1.45.0", features = ["full"] }
 ethers-solc = "2.0.14"
 configuration = { path = "../configuration" }
+lib = { path = "../lib" }
 nightfall_test = { path = "../nightfall_test" }
 toml = "0.8.22"
 serde = "1.0.219"

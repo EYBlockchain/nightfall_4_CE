@@ -1,4 +1,4 @@
-use super::utils::{reverse_hex_string, to_nf_token_id_from_str};
+use super::utils::to_nf_token_id_from_str;
 use crate::{get_fee_token_id, initialisation::get_db_connection, ports::db::CommitmentDB};
 use ark_ff::{BigInteger, PrimeField};
 use warp::{http::StatusCode, path, reply::Reply, Filter};
@@ -17,7 +17,7 @@ pub async fn handle_get_balance(
     token_id: String,
 ) -> Result<impl Reply, warp::Rejection> {
     // need to make the token ID little endian because that's what the to_nf_token_id_from_str function expects
-    let nf_token_id = to_nf_token_id_from_str(&erc_address, &reverse_hex_string(&token_id));
+    let nf_token_id = to_nf_token_id_from_str(&erc_address, &token_id);
     // see if we can decode the input
     if let Ok(nf_token_id) = nf_token_id {
         // search the commitment db for a preimage with the correct nf_token_id

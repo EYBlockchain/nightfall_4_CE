@@ -1,8 +1,6 @@
 use crate::{
     domain::{
-        entities::{
-            CommitmentStatus, CompressedSecrets, HexConvertible, Preimage, RequestStatus, Salt,
-        },
+        entities::{CommitmentStatus, CompressedSecrets, Preimage, RequestStatus, Salt},
         error::EventHandlerError,
         notifications::NotificationPayload,
     },
@@ -31,7 +29,8 @@ use ethers::{
     types::{TxHash, H256, I256, U256},
 };
 use lib::{
-    blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
+    blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
+    initialisation::get_blockchain_client_connection,
 };
 use log::{debug, error, info, warn};
 use nightfall_bindings::nightfall::{
@@ -327,11 +326,8 @@ async fn process_propose_block_event<N: NightfallContract>(
             let nullifier = test_preimage
                 .nullifier_hash(&nullifier_key)
                 .map_err(|_| EventHandlerError::HashError)?;
-            let commitment_entry = CommitmentEntry::new(
-                test_preimage,
-                nullifier,
-                CommitmentStatus::Unspent,
-            );
+            let commitment_entry =
+                CommitmentEntry::new(test_preimage, nullifier, CommitmentStatus::Unspent);
             commitment_entries.push(commitment_entry);
         }
     }

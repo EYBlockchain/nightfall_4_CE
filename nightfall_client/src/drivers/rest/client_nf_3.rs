@@ -1,7 +1,7 @@
 use super::{
     client_operation::handle_client_operation,
     models::{NF3DepositRequest, NF3TransferRequest, NF3WithdrawRequest, NullifierKey},
-    utils::{reverse_hex_string, to_nf_token_id_from_str},
+    utils::to_nf_token_id_from_str,
 };
 use crate::{
     domain::{
@@ -22,8 +22,8 @@ use crate::{
 use crate::{
     domain::{
         entities::{
-            DepositSecret, ERCAddress, HexConvertible, Operation, OperationType, Preimage, Salt,
-            TokenType, Transport,
+            DepositSecret, ERCAddress, Operation, OperationType, Preimage, Salt, TokenType,
+            Transport,
         },
         notifications::NotificationPayload,
     },
@@ -50,7 +50,7 @@ use ark_serialize::CanonicalDeserialize;
 use ark_std::{rand::thread_rng, UniformRand};
 use configuration::addresses::get_addresses;
 use jf_primitives::poseidon::{FieldHasher, Poseidon};
-use lib::wallets::LocalWsClient;
+use lib::{hex_conversion::HexConvertible, wallets::LocalWsClient};
 use log::{debug, error, info, warn};
 use nf_curves::ed_on_bn254::{BabyJubjub, Fr as BJJScalar};
 use nightfall_bindings::{
@@ -396,11 +396,8 @@ pub async fn handle_deposit<N: NightfallContract>(
         .nullifier_hash(&nullifier_key)
         .expect("Could not hash commitment {}");
     let commitment_hash = preimage_value.hash().expect("Could not hash commitment");
-    let commitment_entry = CommitmentEntry::new(
-        preimage_value,
-        nullifier,
-        CommitmentStatus::PendingCreation,
-    );
+    let commitment_entry =
+        CommitmentEntry::new(preimage_value, nullifier, CommitmentStatus::PendingCreation);
 
     db.store_commitment(commitment_entry)
         .await
@@ -429,11 +426,8 @@ pub async fn handle_deposit<N: NightfallContract>(
             Err(e) => error!("{id} Failed to  map deposit fee commitment to request: {e}"),
         }
 
-        let commitment_entry = CommitmentEntry::new(
-            preimage_fee,
-            nullifier,
-            CommitmentStatus::PendingCreation,
-        );
+        let commitment_entry =
+            CommitmentEntry::new(preimage_fee, nullifier, CommitmentStatus::PendingCreation);
         // Store the fee commitment in the database, error if storage fails
         db.store_commitment(commitment_entry)
             .await
@@ -497,7 +491,7 @@ where
 
     // Convert the request into the relevant types.
     let nf_token_id =
-        to_nf_token_id_from_str(erc_address.as_str(), reverse_hex_string(token_id.as_str()).as_str()).map_err(|e| {
+        to_nf_token_id_from_str(erc_address.as_str(), token_id.as_str()).map_err(|e| {
             error!(
                 "{id} Error when retrieving the Nightfall token id from the erc address and token ID {}",
                 e
@@ -691,7 +685,7 @@ where
 
     // Convert the request into the relevant types.
     let nf_token_id =
-        to_nf_token_id_from_str(erc_address.as_str(), reverse_hex_string(token_id.as_str()).as_str()).map_err(|e| {
+        to_nf_token_id_from_str(erc_address.as_str(), token_id.as_str()).map_err(|e| {
             error!(
                 "{id} Error when retrieving the Nightfall token id from the erc address and token ID {}",e);
             TransactionHandlerError::CustomError(e.to_string())

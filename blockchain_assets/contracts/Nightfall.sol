@@ -264,7 +264,7 @@ contract Nightfall is
 
                     // Now hash over the full 128 bytes
                     key := keccak256(memPtr, 128)
-                }   
+                }
 
                 // the public data (data) here includes the recipient address. When the recipient attempts to
                 // withdraw the amount they are due, they will have to provide the same public data so that the
@@ -583,8 +583,8 @@ contract Nightfall is
     /// Function that can be called to see if funds are able to be de-escrowed following a withdraw transaction.
     function withdraw_processed(
         WithdrawData calldata data
-    ) public view returns (uint8) {   
+    ) public view returns (bool) {   
         bytes32 key = keccak256(abi.encode(data));
-        return withdrawalIncluded[key];
+        return withdrawalIncluded[key] == 1;
     }
 }

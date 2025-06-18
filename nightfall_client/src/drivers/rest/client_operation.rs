@@ -1,6 +1,6 @@
 use crate::{
     domain::{
-        entities::{ClientTransaction, CommitmentStatus, HexConvertible, Operation, RequestStatus},
+        entities::{ClientTransaction, CommitmentStatus, Operation, RequestStatus},
         error::TransactionHandlerError,
         notifications::NotificationPayload,
     },
@@ -25,7 +25,8 @@ use configuration::addresses::get_addresses;
 use ethers::types::TransactionReceipt;
 use futures::future::join_all;
 use lib::{
-    blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
+    blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
+    initialisation::get_blockchain_client_connection,
 };
 use log::{debug, error, info, warn};
 use nf_curves::ed_on_bn254::Fr as BJJScalar;
