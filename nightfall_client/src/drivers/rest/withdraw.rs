@@ -63,7 +63,7 @@ pub async fn handle_de_escrow(data: DeEscrowDataReq) -> Result<impl Reply, warp:
             }
         }
         Err(e) => {
-            error!("Nightfall contract error: {}", e);
+            debug!("Nightfall contract error: {}", e);
             Err(reject::custom(FailedDeEscrow))
         }
     }

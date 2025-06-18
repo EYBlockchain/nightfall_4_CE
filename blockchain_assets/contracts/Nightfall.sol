@@ -264,7 +264,7 @@ contract Nightfall is
 
                     // Now hash over the full 128 bytes
                     key := keccak256(memPtr, 128)
-                }   
+                }
 
                 // the public data (data) here includes the recipient address. When the recipient attempts to
                 // withdraw the amount they are due, they will have to provide the same public data so that the

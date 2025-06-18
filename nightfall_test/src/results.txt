@@ -1,0 +1,12 @@
+
+OK
+
+[2025-06-13T23:09:38Z INFO  nightfall_test::run_tests] Not yet able to withdraw funds DeEscrowDataReq { token_id: "0x00", erc_address: "9a676e781a523b5d0c0e43731313a708cb607508", recipient_address: "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266", value: "0x01", token_type: "0", withdraw_fund_salt: "0f71780ecb0ae9aaa59ebe2dbbf08bce14d3750574e253e5a2ddfaa1b0664c0f" }
+
+Not OK?
+
+[2025-06-13T17:35:28Z WARN  nightfall_test::run_tests] Ignoring request with leading zero in withdraw_fund_salt: DeEscrowDataReq { token_id: "0x01aa", erc_address: "0b306bf915c4d645ff596e518faf3f9669b97016", recipient_address: "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266", value: "0x00", token_type: "2", withdraw_fund_salt: "0f11fef111139e9a57a05c318e89cb70141551d16083f5bc6dfefb93ba4ea177" }
+
+
+Not OK
+
