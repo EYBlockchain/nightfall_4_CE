@@ -1,11 +1,12 @@
 use crate::driven::nightfall_client_transaction::process_nightfall_client_transaction;
+use crate::domain::error::ProposerRejection;
 use log::{error, info};
 use nightfall_client::{
     domain::entities::ClientTransaction,
     ports::proof::{Proof, ProvingEngine},
 };
 
-use warp::{hyper::StatusCode, path, reject, Filter};
+use warp::{hyper::StatusCode, path, Filter};
 
 pub fn client_transaction<P, E>(
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone
@@ -35,7 +36,7 @@ where
         Ok(_) => Ok(StatusCode::CREATED),
         Err(e) => {
             error!("Error processing client transaction: {}", e);
-            Err(reject::custom(e))
+            Err(warp::reject::custom(ProposerRejection::ClientTransactionFailed))
         }
     }
 }
