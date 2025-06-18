@@ -7,4 +7,6 @@ RUN apk update && apk add curl
 COPY ./configuration/trust/* /usr/local/share/ca-certificates/
 RUN chmod 644 /usr/local/share/ca-certificates/* && update-ca-certificates
 # Although a mining interval (block time) is set here, the tests will override it.
+#CMD ["anvil", "--base-fee", "58000000000", "--block-time", "5", --timestamp-increment 1]
+#CMD ["anvil", "--base-fee", "58000000000", "--block-time", "5", "--no-storage-caching", "--no-mining-determinism"]
 CMD ["anvil", "--base-fee", "58000000000", "--block-time", "5"]

@@ -180,7 +180,7 @@ impl<P: Proof + Send + Sync> SmartTrigger<P> {
                 }
             } as f32;
 
-         let block_size = match get_block_size() {
+        let block_size = match get_block_size() {
             Ok(size) => size as f32,
             Err(e) => {
                 log::warn!(

@@ -181,54 +181,1215 @@ pub async fn get_transactions_in_last_n_blocks(
 
 /// Function to create a chain reorg on the Anvil test rpc., optionally replaying new transactions to be included in the reorg.
 /// The replay boolean indicates whether to replay the transactions from the last 'depth' blocks or to leave them empty.
-pub async fn anvil_reorg(
+// pub async fn anvil_reorg(
+//     client: &reqwest::Client,
+//     url: &Url,
+//     depth: u64,
+//     replay: bool,
+//     interval: u32,
+// ) -> Result<(), TestError> {
+//     debug!(
+//         "Reorging the chain with depth {}, replaying blocks is set to {}",
+//         depth, replay
+//     );
+//     // before we do anything, we should turn mining off because if a block can be created while this function, the depth is ill-defined
+//     set_anvil_mining_interval(client, url, 0).await?;
+//     // next we'll get all the transactions that are in the last 'depth' worth of blocks, so that we can replay them
+//     let new_transactions = if replay {
+//         get_transactions_in_last_n_blocks(client, url, depth).await?
+//     } else {
+//         None
+//     };
+
+//     let new_transactions = if let Some(nt) = new_transactions {
+//         nt
+//     } else {
+//         // If no new transactions are provided, we'll provide an empty array.
+//         serde_json::json!([
+//                 // transactions go here
+//             ])
+//     };
+//     let payload = serde_json::json!({
+//         "jsonrpc": "2.0",
+//         "method": "anvil_reorg",
+//         "params": [depth, new_transactions ],
+//         "id": 1
+//     });
+
+//     let res = client
+//         .post(url.clone())
+//         .json(&payload)
+//         .send()
+//         .await
+//         .map_err(|e| TestError::new(e.to_string()))?;
+
+//     res.error_for_status_ref()
+//         .map_err(|e| TestError::new(e.to_string()))?;
+//     // reset the mining interval
+//     set_anvil_mining_interval(client, url, interval).await?;
+//     Ok(())
+// }
+use reqwest::Client;
+// use serde_json::Value;
+// use url::Url;
+// use tracing::debug;
+
+// use crate::utils::{set_anvil_mining_interval, get_transactions_in_last_n_blocks, TestError};
+
+/// Function to create a chain reorg on the Anvil test rpc,
+/// optionally replaying new transactions to be included in the reorg.
+/// Injects a dummy tx to ensure different block hashes after reorg.
+// pub async fn anvil_reorg(
+//     client: &Client,
+//     url: &Url,
+//     depth: u64,
+//     replay: bool,
+//     interval: u32,
+// ) -> Result<(), TestError> {
+//     debug!(
+//         "Reorging the chain with depth {}, replaying blocks is set to {}",
+//         depth, replay
+//     );
+
+//     // Turn off mining to control block production during reorg
+//     set_anvil_mining_interval(client, url, 0).await?;
+
+//     // Collect transactions from the last `depth` blocks
+//     let original_transactions = if replay {
+//         get_transactions_in_last_n_blocks(client, url, depth).await?
+//     } else {
+//         None
+//     };
+//      ark_std::println!("original_transactions: {:?}", original_transactions);
+
+//     // Prepare dummy tx to inject and ensure block hash differs
+//     use ark_std::rand;
+//     let dummy_tx = serde_json::json!({
+//     "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266", // default Anvil funded account
+//     "to": "0x000000000000000000000000000000000000beef",
+//     "value": "0x1",
+//     "gas": "0x5208",
+//     "gasPrice": "0x3b9aca00",
+//     "data": format!("0x{}", hex::encode(rand::random::<[u8; 8]>())),
+// });
+//   ark_std::println!("inset dummy tx");
+//     // Inject dummy tx into replay set or create one if none
+//     let new_transactions = if let Some(mut nt) = original_transactions {
+//         if let Some(tx_array) = nt.as_array_mut() {
+//             // tx_array.push(dummy_tx);
+//             tx_array.insert(0, dummy_tx);
+//         }
+//         nt
+//     } else {
+//         // Provide a single dummy transaction if no replay
+//         serde_json::json!([ dummy_tx ])
+//     };
+
+//     // Issue the actual reorg request to Anvil
+//     let payload = serde_json::json!({
+//         "jsonrpc": "2.0",
+//         "method": "anvil_reorg",
+//         "params": [depth, new_transactions],
+//         "id": 1
+//     });
+
+//     let res = client
+//         .post(url.clone())
+//         .json(&payload)
+//         .send()
+//         .await
+//         .map_err(|e| TestError::new(format!("Failed to send reorg payload: {}", e)))?;
+
+//     res.error_for_status_ref()
+//         .map_err(|e| TestError::new(format!("Reorg failed: {}", e)))?;
+
+//     // Restore mining interval to expected value
+//     set_anvil_mining_interval(client, url, interval).await?;
+
+//     Ok(())
+// }
+// pub async fn anvil_reorg2(
+//     client: &reqwest::Client,
+//     url: &Url,
+//     depth: u64,
+//     replay: bool,
+//     interval: u32,
+// ) -> Result<(), TestError> {
+//     tracing::warn!("Entered anvil_reorg2() function");
+
+//     use ark_std::println;
+//     use ark_std::rand;
+
+//     debug!(
+//         "Reorging the chain with depth {}, replaying blocks is set to {}",
+//         depth, replay
+//     );
+
+//     // Turn off mining to avoid accidental block production during the reorg process
+//     set_anvil_mining_interval(client, url, 0).await?;
+
+//     // Get transactions in last N blocks, if replay is requested
+//     let original_transactions = if replay {
+//         get_transactions_in_last_n_blocks(client, url, depth).await?
+//     } else {
+//         None
+//     };
+//     println!("original_transactions: {:?}", original_transactions);
+
+//     // Generate a dummy tx that ensures block hash changes
+//     // let dummy_tx = serde_json::json!({
+//     //     "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266", // Default Anvil unlocked account
+//     //     "to": "0x000000000000000000000000000000000000beef",
+//     //     "value": "0x1",
+//     //     "gas": "0x5208",
+//     //     "gasPrice": "0x3b9aca00",
+//     //     "data": format!("0x{}", hex::encode(rand::random::<[u8; 8]>())),
+//     // });
+//     use rand::Rng;
+//     use uuid::Uuid;
+//     let random_value = rand::thread_rng().gen_range(1u64..100_000);
+//     let random_to: [u8; 20] = rand::random();
+//     let random_to_address = format!("0x{}", hex::encode(random_to));
+//     let unique_data = Uuid::new_v4(); // 128 bits of randomness
+
+//     let dummy_tx = serde_json::json!({
+//         "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+//         "to": random_to_address, // More variation here ensures different state path
+//         "value": format!("0x{:x}", random_value), // Random ETH value (non-zero)
+//         "gas": "0x5208",
+//         "gasPrice": "0x3b9aca00",
+//         "data": format!("0x{}", hex::encode(unique_data.as_bytes())), // Unique calldata
+//     });
+//     println!("injecting dummy tx");
+
+//     // Submit dummy transaction to mempool
+//     let send_payload = serde_json::json!({
+//         "jsonrpc": "2.0",
+//         "method": "eth_sendTransaction",
+//         "params": [dummy_tx.clone()],
+//         "id": 100,
+//     });
+//     let send_resp = client
+//         .post(url.clone())
+//         .json(&send_payload)
+//         .send()
+//         .await
+//         .map_err(|e| TestError::new(format!("Failed to send dummy tx: {}", e)))?;
+
+//     if !send_resp.status().is_success() {
+//         return Err(TestError::new(format!(
+//             "Failed to inject dummy tx: {:?}",
+//             send_resp.text().await
+//         )));
+//     }
+//     println!("submit dummy tx");
+
+//     let increase_payload = serde_json::json!({
+//     "jsonrpc": "2.0",
+//     "method": "evm_increaseTime",
+//     "params": [50],
+//     "id": 99
+// });
+// client.post(url.clone()).json(&increase_payload).send().await.unwrap();
+
+//     // Mine a block to include dummy transaction
+//     let mine_payload = serde_json::json!({
+//         "jsonrpc": "2.0",
+//         "method": "evm_mine",
+//         "params": [],
+//         "id": 100,
+//     });
+//     let mine_resp = client
+//         .post(url.clone())
+//         .json(&mine_payload)
+//         .send()
+//         .await
+//         .map_err(|e| TestError::new(format!("Failed to mine block: {}", e)))?;
+
+//     if !mine_resp.status().is_success() {
+//         return Err(TestError::new(format!(
+//             "Failed to mine block after dummy tx: {:?}",
+//             mine_resp.text().await
+//         )));
+//     }
+//     println!("Mine a block to include dummy transaction");
+
+//     // Compose new transaction array: dummy first, then previous txs (if any)
+//     let new_transactions = if let Some(mut nt) = original_transactions {
+//         if let Some(tx_array) = nt.as_array_mut() {
+//             tx_array.insert(0, dummy_tx);
+//         }
+//         nt
+//     } else {
+//         serde_json::json!([dummy_tx])
+//     };
+
+//     // Submit the actual reorg request
+//     let payload = serde_json::json!({
+//         "jsonrpc": "2.0",
+//         "method": "anvil_reorg",
+//         "params": [depth, new_transactions],
+//         "id": 1
+//     });
+
+//     let res = client
+//         .post(url.clone())
+//         .json(&payload)
+//         .send()
+//         .await
+//         .map_err(|e| TestError::new(format!("Failed to send reorg payload: {}", e)))?;
+
+//     res.error_for_status_ref()
+//         .map_err(|e| TestError::new(format!("Reorg failed: {}", e)))?;
+//     println!("Submit the actual reorg request");
+
+//     // Resume normal mining interval
+//     set_anvil_mining_interval(client, url, interval).await?;
+//     ark_std::println!(
+//         "Final replay transactions including dummy: {:?}",
+//         new_transactions
+//     );
+
+//     println!("Finished reorg with depth {}", depth);
+//     Ok(())
+// }
+
+pub async fn anvil_reorg2(
     client: &reqwest::Client,
     url: &Url,
     depth: u64,
     replay: bool,
     interval: u32,
 ) -> Result<(), TestError> {
+    tracing::warn!("Entered anvil_reorg2() function");
+
+    use ark_std::{println, rand};
+    use rand::Rng;
+    use uuid::Uuid;
+
     debug!(
         "Reorging the chain with depth {}, replaying blocks is set to {}",
         depth, replay
     );
-    // before we do anything, we should turn mining off because if a block can be created while this function, the depth is ill-defined
+
+    // Step 1: Turn off auto mining
     set_anvil_mining_interval(client, url, 0).await?;
-    // next we'll get all the transactions that are in the last 'depth' worth of blocks, so that we can replay them
-    let new_transactions = if replay {
+
+    // Step 2: Get original transactions if replay is true
+    let original_transactions = if replay {
         get_transactions_in_last_n_blocks(client, url, depth).await?
     } else {
         None
     };
 
-    let new_transactions = if let Some(nt) = new_transactions {
-        nt
+    println!("original_transactions: {:?}", original_transactions);
+
+    // Step 3: Build new transactions (split them across N blocks)
+    let mut new_transactions_per_block = vec![];
+
+    if let Some(txns) = original_transactions {
+        let tx_array = txns.as_array().cloned().unwrap_or_default();
+
+        // Group txs into roughly equal slices per block
+        let chunk_size = std::cmp::max(1, tx_array.len() as u64 / depth) as usize;
+        let mut tx_chunks = tx_array.chunks(chunk_size);
+
+        for _ in 0..depth {
+            let mut chunk = tx_chunks.next().unwrap_or(&[]).to_vec();
+
+            // Add a random dummy tx to guarantee hash divergence
+            let random_value = rand::thread_rng().gen_range(1u64..100_000);
+            let random_to: [u8; 20] = rand::random();
+            let unique_data = Uuid::new_v4();
+
+            let dummy_tx = serde_json::json!({
+                "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+                "to": format!("0x{}", hex::encode(random_to)),
+                "value": format!("0x{:x}", random_value),
+                "gas": "0x5208",
+                "gasPrice": "0x3b9aca00",
+                "data": format!("0x{}", hex::encode(unique_data.as_bytes())),
+            });
+
+            chunk.insert(0, dummy_tx);
+            new_transactions_per_block.push(chunk);
+        }
     } else {
-        // If no new transactions are provided, we'll provide an empty array.
-        serde_json::json!([
-                // transactions go here
-            ])
-    };
-    let payload = serde_json::json!({
-        "jsonrpc": "2.0",
-        "method": "anvil_reorg",
-        "params": [depth, new_transactions ],
-        "id": 1
-    });
+        // Only dummy txs if no original txs
+        for _ in 0..depth {
+            let random_value = rand::thread_rng().gen_range(1u64..100_000);
+            let random_to: [u8; 20] = rand::random();
+            let unique_data = Uuid::new_v4();
 
-    let res = client
-        .post(url.clone())
-        .json(&payload)
-        .send()
-        .await
-        .map_err(|e| TestError::new(e.to_string()))?;
+            let dummy_tx = serde_json::json!({
+                "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+                "to": format!("0x{}", hex::encode(random_to)),
+                "value": format!("0x{:x}", random_value),
+                "gas": "0x5208",
+                "gasPrice": "0x3b9aca00",
+                "data": format!("0x{}", hex::encode(unique_data.as_bytes())),
+            });
 
-    res.error_for_status_ref()
-        .map_err(|e| TestError::new(e.to_string()))?;
-    // reset the mining interval
+            new_transactions_per_block.push(vec![dummy_tx]);
+        }
+    }
+
+    // Step 4: Inject transactions + mine block for each
+    for (i, tx_list) in new_transactions_per_block.iter().enumerate() {
+        for tx in tx_list {
+            let send_payload = serde_json::json!({
+                "jsonrpc": "2.0",
+                "method": "eth_sendTransaction",
+                "params": [tx.clone()],
+                "id": 100 + i,
+            });
+
+            let send_resp = client
+                .post(url.clone())
+                .json(&send_payload)
+                .send()
+                .await
+                .map_err(|e| TestError::new(format!("Failed to send tx: {}", e)))?;
+
+            if !send_resp.status().is_success() {
+                return Err(TestError::new(format!(
+                    "Failed to inject tx: {:?}",
+                    send_resp.text().await
+                )));
+            }
+        }
+
+        // Advance time to make sure timestamp is different
+        let increase_payload = serde_json::json!({
+            "jsonrpc": "2.0",
+            "method": "evm_increaseTime",
+            "params": [rand::thread_rng().gen_range(10..60)],
+            "id": 99
+        });
+
+        client
+            .post(url.clone())
+            .json(&increase_payload)
+            .send()
+            .await
+            .unwrap();
+
+        // Mine the block
+        let mine_payload = serde_json::json!({
+            "jsonrpc": "2.0",
+            "method": "evm_mine",
+            "params": [],
+            "id": 101
+        });
+
+        let mine_resp = client
+            .post(url.clone())
+            .json(&mine_payload)
+            .send()
+            .await
+            .map_err(|e| TestError::new(format!("Failed to mine block: {}", e)))?;
+
+        if !mine_resp.status().is_success() {
+            return Err(TestError::new(format!(
+                "Failed to mine block: {:?}",
+                mine_resp.text().await
+            )));
+        }
+
+        println!("Block {} mined with {} txs", i, tx_list.len());
+    }
+
+    // Step 5: Resume mining
     set_anvil_mining_interval(client, url, interval).await?;
+
+    println!("Finished reorg with depth {}", depth);
     Ok(())
 }
+/// Performs a full reorg by reverting to a snapshot, generating a new chain fork with same length but different blocks.
+/// Ensures that the L1 block containing the tx is replayed with a different hash.
+// pub async fn anvil_reorg3(
+//     client: &reqwest::Client,
+//     url: &Url,
+//     depth: u64,
+//     interval: u32,
+// ) -> Result<(), TestError> {
+//     use ark_std::{println, rand};
+//     use rand::Rng;
+//     use serde_json::json;
+//     use uuid::Uuid;
+
+//     // 1. Take snapshot
+//     let snapshot_payload = json!({
+//         "jsonrpc": "2.0",
+//         "method": "evm_snapshot",
+//         "params": [],
+//         "id": 1
+//     });
+//     let snapshot_resp = client
+//         .post(url.clone())
+//         .json(&snapshot_payload)
+//         .send()
+//         .await
+//         .unwrap();
+//     // let snapshot_id = snapshot_resp.json::<serde_json::Value>().await.unwrap().as_str().unwrap().to_string();
+//     let snapshot_json = snapshot_resp.json::<serde_json::Value>().await.unwrap();
+
+//     let snapshot_id = snapshot_json
+//         .get("result")
+//         .unwrap()
+//         .as_str()
+//         .unwrap()
+//         .to_string();
+
+//     println!("Snapshot taken with ID: {}", snapshot_id);
+
+//     // 2. Record current L1 block number and hash
+//     let latest_block_payload = json!({
+//         "jsonrpc": "2.0",
+//         "method": "eth_getBlockByNumber",
+//         "params": ["latest", false],
+//         "id": 2
+//     });
+//     let block_resp = client
+//         .post(url.clone())
+//         .json(&latest_block_payload)
+//         .send()
+//         .await
+//         .unwrap();
+//     let block = block_resp.json::<serde_json::Value>().await.unwrap();
+//     println!("Full block response: {:?}", block);
+//     let provider = get_blockchain_client_connection()
+//         .await
+//         .read()
+//         .await
+//         .get_client();
+//     let original_block_number = provider.get_block_number().await.unwrap();
+//     use ethers::types::BlockId;
+//     use ethers::types::BlockNumber;
+//     let block = provider
+//     .get_block(BlockId::Number(BlockNumber::Number(original_block_number)))
+//     .await
+//     .unwrap()
+//     .expect("Block not found");
+// let original_block_hash: H256 = block
+//     .hash
+//     .expect("Block is missing hash (maybe it's pending)");
+//     println!(
+//         "Original block number: {}, hash: {}",
+//         original_block_number, original_block_hash
+//     );
+
+//     // 3. Revert to snapshot
+//     let revert_payload = json!({
+//         "jsonrpc": "2.0",
+//         "method": "evm_revert",
+//         "params": [snapshot_id],
+//         "id": 3
+//     });
+//     client
+//         .post(url.clone())
+//         .json(&revert_payload)
+//         .send()
+//         .await
+//         .unwrap();
+
+//     // 4. Disable automine
+//     set_anvil_mining_interval(client, url, 0).await.unwrap();
+
+//     // 5. Replay depth blocks with changed txs
+//     for i in 0..depth {
+//         let dummy_tx = json!({
+//             "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+//             "to": format!("0x{}", hex::encode(rand::random::<[u8; 20]>())),
+//             "value": format!("0x{:x}", rand::thread_rng().gen_range(1u64..100_000)),
+//             "gas": "0x5208",
+//             "gasPrice": "0x3b9aca00",
+//             "data": format!("0x{}", hex::encode(Uuid::new_v4().as_bytes())),
+//         });
+
+//         let send_payload = json!({
+//             "jsonrpc": "2.0",
+//             "method": "eth_sendTransaction",
+//             "params": [dummy_tx],
+//             "id": 1000 + i,
+//         });
+//         client
+//             .post(url.clone())
+//             .json(&send_payload)
+//             .send()
+//             .await
+//             .unwrap();
+
+//         let time_offset = rand::thread_rng().gen_range(10..90);
+//         let time_payload = json!({
+//             "jsonrpc": "2.0",
+//             "method": "evm_increaseTime",
+//             "params": [time_offset],
+//             "id": 1100 + i,
+//         });
+//         client
+//             .post(url.clone())
+//             .json(&time_payload)
+//             .send()
+//             .await
+//             .unwrap();
+
+//         let mine_payload = json!({
+//             "jsonrpc": "2.0",
+//             "method": "evm_mine",
+//             "params": [],
+//             "id": 1200 + i
+//         });
+//         client
+//             .post(url.clone())
+//             .json(&mine_payload)
+//             .send()
+//             .await
+//             .unwrap();
+//         println!("Reorg block {} mined", i);
+
+//         let hash_check_payload = json!({
+//             "jsonrpc": "2.0",
+//             "method": "eth_getBlockByNumber",
+//             "params": [format!("0x{:x}", i), false],
+//             "id": 1300 + i
+//         });
+//         let resp = client
+//             .post(url.clone())
+//             .json(&hash_check_payload)
+//             .send()
+//             .await
+//             .unwrap();
+//         let blk = resp.json::<serde_json::Value>().await.unwrap();
+//         println!(
+//             "Block {} hash after reorg: {}",
+//             i,
+//             blk
+//         );
+//     }
+
+//     // 6. Re-enable mining
+//     set_anvil_mining_interval(client, url, interval)
+//         .await
+//         .unwrap();
+
+//     // 7. Fetch new block at original number
+//     let new_block_number_hex = format!("0x{:x}", original_block_number);
+//     let block_check_payload = json!({
+//         "jsonrpc": "2.0",
+//         "method": "eth_getBlockByNumber",
+//         "params": [new_block_number_hex, false],
+//         "id": 4000
+//     });
+//     let check_resp = client
+//     .post(url.clone())
+//     .json(&block_check_payload)
+//     .send()
+//     .await
+//     .expect("Failed to send eth_getBlockByNumber request");
+//     let new_block = check_resp
+//         .json::<serde_json::Value>()
+//         .await
+//         .unwrap()
+//         .clone();
+//      println!("new_block: {}", new_block);
+//         println!("new_block: {:?}", new_block);
+
+
+//     Ok(())
+// }
+// pub async fn anvil_reorg3(
+//     client: &reqwest::Client,
+//     url: &Url,
+//     interval: u32,
+// ) -> Result<(), TestError> {
+//     use ark_std::{println, rand};
+//     use rand::Rng;
+//     use serde_json::json;
+//     use uuid::Uuid;
+//     use ethers::types::{BlockId, BlockNumber, H256};
+
+//     // Step 1: Take snapshot
+//     let snapshot_payload = json!({
+//         "jsonrpc": "2.0",
+//         "method": "evm_snapshot",
+//         "params": [],
+//         "id": 1
+//     });
+//     let snapshot_resp = client.post(url.clone()).json(&snapshot_payload).send().await.unwrap();
+//     let snapshot_json = snapshot_resp.json::<serde_json::Value>().await.unwrap();
+//     let snapshot_id = snapshot_json
+//         .get("result")
+//         .expect("Missing result field in snapshot response")
+//         .as_str()
+//         .expect("Snapshot result not a string")
+//         .to_string();
+//     println!("Snapshot taken with ID: {}", snapshot_id);
+
+//     // Step 2: Record latest L1 block number and hash
+//     let provider = get_blockchain_client_connection()
+//         .await
+//         .read()
+//         .await
+//         .get_client();
+//     let original_block_number = provider.get_block_number().await.unwrap();
+//     let original_block = provider
+//         .get_block(BlockId::Number(BlockNumber::Number(original_block_number)))
+//         .await
+//         .unwrap()
+//         .expect("Block not found");
+//     let original_block_hash = original_block
+//         .hash
+//         .expect("Original block missing hash");
+
+//     println!(
+//         "Original block number: {}, hash: {}",
+//         original_block_number, original_block_hash
+//     );
+
+//     // Step 3: Revert to snapshot
+//     let revert_payload = json!({
+//         "jsonrpc": "2.0",
+//         "method": "evm_revert",
+//         "params": [snapshot_id],
+//         "id": 2
+//     });
+//     client.post(url.clone()).json(&revert_payload).send().await.unwrap();
+//     println!("Reverted to snapshot");
+
+//     // Step 4: Disable automine
+//     set_anvil_mining_interval(client, url, 0).await.unwrap();
+
+//     // Step 5: Replay N+1 blocks with dummy transactions
+//     let blocks_to_mine = original_block_number.as_u64() + 1;
+//     // for i in 0..blocks_to_mine {
+//     //     let dummy_tx = json!({
+//     //         "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+//     //         "to": format!("0x{}", hex::encode(rand::random::<[u8; 20]>())),
+//     //         "value": format!("0x{:x}", rand::thread_rng().gen_range(1u64..100_000)),
+//     //         "gas": "0x5208",
+//     //         "gasPrice": "0x3b9aca00",
+//     //         "data": format!("0x{}", hex::encode(Uuid::new_v4().as_bytes())),
+//     //     });
+
+//     //     let send_payload = json!({
+//     //         "jsonrpc": "2.0",
+//     //         "method": "eth_sendTransaction",
+//     //         "params": [dummy_tx],
+//     //         "id": 1000 + i,
+//     //     });
+//     //     client.post(url.clone()).json(&send_payload).send().await.unwrap();
+
+//     //     let time_offset = rand::thread_rng().gen_range(10..90);
+//     //     let time_payload = json!({
+//     //         "jsonrpc": "2.0",
+//     //         "method": "evm_increaseTime",
+//     //         "params": [time_offset],
+//     //         "id": 1100 + i,
+//     //     });
+//     //     client.post(url.clone()).json(&time_payload).send().await.unwrap();
+
+//     //     let mine_payload = json!({
+//     //         "jsonrpc": "2.0",
+//     //         "method": "evm_mine",
+//     //         "params": [],
+//     //         "id": 1200 + i
+//     //     });
+//     //     client.post(url.clone()).json(&mine_payload).send().await.unwrap();
+
+//     //     println!("Reorg block {} mined", i);
+//     // }
+// for i in 0..blocks_to_mine {
+//     for _ in 0..3 {
+//         let dummy_tx = json!({
+//             "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266", // default unlocked
+//             "to": format!("0x{}", hex::encode(rand::random::<[u8; 20]>())),
+//             "value": format!("0x{:x}", rand::thread_rng().gen_range(1u64..1_000_000)),
+//             "gas": "0x5208",
+//             "gasPrice": format!("0x{:x}", rand::thread_rng().gen_range(1_000_000_000u64..10_000_000_000)),
+//             "data": format!("0x{}", hex::encode(Uuid::new_v4().as_bytes())),
+//         });
+
+//         let send_payload = json!({
+//             "jsonrpc": "2.0",
+//             "method": "eth_sendTransaction",
+//             "params": [dummy_tx],
+//             "id": 1000 + i,
+//         });
+
+//         client.post(url.clone()).json(&send_payload).send().await.unwrap();
+//     }
+
+//     // Increase time + mine
+//     let time_offset = rand::thread_rng().gen_range(30..180);
+//     let time_payload = json!({
+//         "jsonrpc": "2.0",
+//         "method": "evm_increaseTime",
+//         "params": [time_offset],
+//         "id": 1100 + i,
+//     });
+//     client.post(url.clone()).json(&time_payload).send().await.unwrap();
+
+//     let mine_payload = json!({
+//         "jsonrpc": "2.0",
+//         "method": "evm_mine",
+//         "params": [],
+//         "id": 1200 + i
+//     });
+//     client.post(url.clone()).json(&mine_payload).send().await.unwrap();
+//     println!("Reorg block {} mined", i);
+// }
+
+//     // Step 6: Re-enable mining
+//     set_anvil_mining_interval(client, url, interval).await.unwrap();
+
+//     // Step 7: Fetch new block at original number and compare hash
+//     let new_block = provider
+//         .get_block(BlockId::Number(BlockNumber::Number(original_block_number)))
+//         .await
+//         .unwrap()
+//         .expect("New block not found after reorg");
+//     let new_block_hash = new_block.hash.expect("New block missing hash");
+
+//     println!(
+//         "New block number: {}, hash: {}",
+//         original_block_number, new_block_hash
+//     );
+
+//     if new_block_hash != original_block_hash {
+//         println!("Reorg succeeded: block hash changed");
+//     } else {
+//         println!("Reorg failed: block hash did not change");
+//     }
+
+//     Ok(())
+// }
+
+// pub async fn anvil_reorg3(
+//     client: &reqwest::Client,
+//     url: &Url,
+//     depth: u64,
+//     interval: u32,
+// ) -> Result<(), TestError> {
+//     use ark_std::{println, rand};
+//     use rand::Rng;
+//     use serde_json::json;
+//     use uuid::Uuid;
+//     use ethers::types::{BlockId, BlockNumber, H256};
+
+    
+
+//     // 2. Get block number & hash before reorg
+//     let provider = get_blockchain_client_connection()
+//         .await
+//         .read()
+//         .await
+//         .get_client();
+//     let original_block_number = provider.get_block_number().await.expect("msg: Failed to get block number");
+//     let block = provider
+//         .get_block(BlockId::Number(BlockNumber::Number(original_block_number)))
+//         .await.expect("msg: Block not found")
+//         .ok_or_else(|| TestError::new("Block not found".to_string()))?;
+//     let original_block_hash = block
+//         .hash
+//         .ok_or_else(|| TestError::new("Block has no hash".to_string()))?;
+
+//     println!(
+//         "Original block number: {}, hash: {}",
+//         original_block_number, original_block_hash
+//     );
+// // 1. Snapshot
+//     let snapshot_id = client
+//         .post(url.clone())
+//         .json(&json!({
+//             "jsonrpc": "2.0",
+//             "method": "evm_snapshot",
+//             "params": [],
+//             "id": 1
+//         }))
+//         .send()
+//         .await.expect("Missing result field in snapshot response1")
+//         .json::<serde_json::Value>()
+//         .await.expect("Missing result field in snapshot response2")
+//         .get("result")
+//         .and_then(|v| v.as_str())
+//         .ok_or_else(|| TestError::new("Missing snapshot ID".to_string()))?
+//         .to_string();
+
+//     println!("Snapshot taken with ID: {}", snapshot_id);
+//     // 3. Revert to snapshot
+//     client
+//         .post(url.clone())
+//         .json(&json!({
+//             "jsonrpc": "2.0",
+//             "method": "evm_revert",
+//             "params": [snapshot_id],
+//             "id": 3
+//         }))
+//         .send()
+//         .await.expect("msg: Failed to revert to snapshot");
+
+//     // 4. Disable automine
+//     set_anvil_mining_interval(client, url, 0).await?;
+
+//     // 5. Mine `depth` blocks with dummy txs and random time
+//     for i in 0..depth {
+//         for _ in 0..2 {
+//             let dummy_tx = json!({
+//                 "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+//                 "to": format!("0x{}", hex::encode(rand::random::<[u8; 20]>())),
+//                 "value": format!("0x{:x}", rand::thread_rng().gen_range(1u64..1_000_000)),
+//                 "gas": "0x5208",
+//                 "gasPrice": format!("0x{:x}", rand::thread_rng().gen_range(1_000_000_000u64..10_000_000_000)),
+//                 "data": format!("0x{}", hex::encode(Uuid::new_v4().as_bytes())),
+//             });
+
+//             client
+//                 .post(url.clone())
+//                 .json(&json!({
+//                     "jsonrpc": "2.0",
+//                     "method": "eth_sendTransaction",
+//                     "params": [dummy_tx],
+//                     "id": 1000 + i,
+//                 }))
+//                 .send()
+//                 .await.expect("msg: Failed to send transaction");
+//         }
+
+//         // Add randomness to timestamp
+//         let time_offset = rand::thread_rng().gen_range(30..180);
+//         client
+//             .post(url.clone())
+//             .json(&json!({
+//                 "jsonrpc": "2.0",
+//                 "method": "evm_increaseTime",
+//                 "params": [time_offset],
+//                 "id": 1100 + i,
+//             }))
+//             .send()
+//             .await.expect("msg: Failed to increase time");
+
+//         client
+//             .post(url.clone())
+//             .json(&json!({
+//                 "jsonrpc": "2.0",
+//                 "method": "evm_mine",
+//                 "params": [],
+//                 "id": 1200 + i
+//             }))
+//             .send()
+//             .await.expect("msg: Failed to mine block");
+
+//         println!("Reorg block {} mined", i);
+//     }
+
+//     // 6. Re-enable mining
+//     set_anvil_mining_interval(client, url, interval).await?;
+
+//     // 7. Compare block hash at original height
+//     let reorged_block = provider
+//         .get_block(BlockId::Number(BlockNumber::Number(original_block_number)))
+//         .await.expect("msg: Failed to get reorged block")
+//         .ok_or_else(|| TestError::new("Reorged block not found".to_string()))?;
+//     let new_block_hash = reorged_block
+//         .hash
+//         .ok_or_else(|| TestError::new("Reorged block has no hash".to_string()))?;
+
+//     println!(
+//         "New block hash at same height: {}",
+//         new_block_hash
+//     );
+
+//     assert_ne!(
+//         original_block_hash, new_block_hash,
+//         "Reorg did not produce a new block"
+//     );
+
+//     println!("Reorg succeeded: block hash changed");
+
+//     Ok(())
+// }
+
+use ark_std::{println, rand};
+use serde_json::{json};
+use ethers::types::{BlockId, BlockNumber};
+
+pub async fn anvil_reorg3(
+    client: &Client,
+    url: &Url,
+    depth: u64,
+    interval: u32,
+) -> Result<(), Box<dyn std::error::Error>> {
+    // 1. Take snapshot
+    let snapshot_payload = json!({
+        "jsonrpc": "2.0",
+        "method": "evm_snapshot",
+        "params": [],
+        "id": 1
+    });
+    let snapshot_resp = client.post(url.clone()).json(&snapshot_payload).send().await.expect("msg: Failed to take snapshot");
+    let snapshot_json = snapshot_resp.json::<Value>().await.expect("msg: Failed to take snapshot");
+    let snapshot_id = snapshot_json.get("result").unwrap().as_str().unwrap();
+
+    // 2. Record current L1 block number and hash
+    let provider = get_blockchain_client_connection().await.read().await.get_client();
+    let original_block_number = provider.get_block_number().await?;
+    let block = provider
+        .get_block(BlockId::Number(BlockNumber::Number(original_block_number)))
+        .await?
+        .expect("Block not found");
+    let original_block_hash = block.hash.expect("Block is missing hash");
+    println!(
+        "Original block number: {}, hash: {:?}",
+        original_block_number, original_block_hash
+    );
+
+    // 3. Revert to snapshot
+    let revert_payload = json!({
+        "jsonrpc": "2.0",
+        "method": "evm_revert",
+        "params": [snapshot_id],
+        "id": 3
+    });
+    client.post(url.clone()).json(&revert_payload).send().await.expect("msg: Failed to take snapshot");
+
+    // 4. Disable automine
+    set_anvil_mining_interval(client, url, 0).await.expect("msg: Failed to take snapshot");
+
+    // 5. Mine new blocks with dummy txs
+    for i in 0..depth {
+        let dummy_tx = json!({
+            "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+            "to": format!("0x{}", hex::encode(rand::random::<[u8; 20]>())),
+            "value": format!("0x{:x}", rand::thread_rng().gen_range(1u64..100_000)),
+            "gas": "0x5208",
+            "gasPrice": "0x3b9aca00",
+            "data": format!("0x{}", hex::encode(Uuid::new_v4().as_bytes())),
+        });
+
+        client
+            .post(url.clone())
+            .json(&json!({
+                "jsonrpc": "2.0",
+                "method": "eth_sendTransaction",
+                "params": [dummy_tx],
+                "id": 1000 + i,
+            }))
+            .send()
+            .await.expect("msg: Failed to take snapshot");
+
+        client
+            .post(url.clone())
+            .json(&json!({
+                "jsonrpc": "2.0",
+                "method": "evm_increaseTime",
+                "params": [rand::thread_rng().gen_range(10..90)],
+                "id": 1100 + i,
+            }))
+            .send()
+            .await.expect("msg: Failed to take snapshot");
+
+        client
+            .post(url.clone())
+            .json(&json!({
+                "jsonrpc": "2.0",
+                "method": "evm_mine",
+                "params": [],
+                "id": 1200 + i
+            }))
+            .send()
+            .await.expect("msg: Failed to take snapshot");
+        println!("Reorg block {} mined", i);
+    }
+
+    // 6. Re-enable mining
+    set_anvil_mining_interval(client, url, interval).await.expect("msg: Failed to take snapshot");
+
+    // 7. Compare block hash at original height
+    let new_block = provider
+        .get_block(BlockId::Number(BlockNumber::Number(original_block_number)))
+        .await
+        .expect("New block not found");
+    let new_block_hash = new_block.expect("New block not found at original height").hash.expect("New block has no hash");
+
+    println!(
+        "After reorg, block {} hash: {:?}",
+        original_block_number, new_block_hash
+    );
+
+    assert_ne!(
+        original_block_hash, new_block_hash,
+        "Reorg did not produce a new block"
+    );
+
+    Ok(())
+}
+
+
+
+
+// pub async fn anvil_reorg2(
+//     client: &reqwest::Client,
+//     url: &Url,
+//     depth: u64,
+//     replay: bool,
+//     interval: u32,
+// ) -> Result<(), TestError> {
+//     use ark_std::{println, rand};
+//     use rand::Rng;
+//     use uuid::Uuid;
+//     use tracing::{debug, warn};
+
+//     warn!("Entered anvil_reorg2() function");
+//     debug!(
+//         "Reorging the chain with depth {}, replaying blocks is set to {}",
+//         depth, replay
+//     );
+
+//     // Turn off mining to avoid accidental block production
+//     set_anvil_mining_interval(client, url, 0).await?;
+
+//     // Query current block number
+//     let provider = get_blockchain_client_connection()
+//         .await
+//         .read()
+//         .await
+//         .get_client();
+
+//     let current_block_number = provider.get_block_number().await.unwrap();
+//     let fork_point = current_block_number
+//         .checked_sub(depth.into())
+//         .ok_or_else(|| TestError::new("Depth too large: cannot rewind past genesis".to_string()))?;
+
+//     // Rewind Anvil to the fork point (this truncates the chain)
+//     let rewind_payload = serde_json::json!({
+//         "jsonrpc": "2.0",
+//         "method": "anvil_setHead",
+//         "params": [format!("0x{:x}", fork_point)],
+//         "id": 55,
+//     });
+//     client.post(url.clone()).json(&rewind_payload).send().await.map_err(|e| {
+//         TestError::new(format!("Failed to rewind with anvil_setHead: {}", e))
+//     })?;
+
+//     // Get previous transactions if replaying
+//     let original_transactions = if replay {
+//         get_transactions_in_last_n_blocks(client, url, depth).await?
+//     } else {
+//         None
+//     };
+//     println!("original_transactions: {:?}", original_transactions);
+
+//     // Create unique dummy tx
+//     let random_value = rand::thread_rng().gen_range(1u64..100_000);
+//     let random_to: [u8; 20] = rand::random();
+//     let random_to_address = format!("0x{}", hex::encode(random_to));
+//     let unique_data = Uuid::new_v4();
+
+//     let dummy_tx = serde_json::json!({
+//         "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+//         "to": random_to_address,
+//         "value": format!("0x{:x}", random_value),
+//         "gas": "0x5208",
+//         "gasPrice": "0x3b9aca00",
+//         "data": format!("0x{}", hex::encode(unique_data.as_bytes())),
+//     });
+
+//     println!("Injecting dummy tx...");
+
+//     let send_payload = serde_json::json!({
+//         "jsonrpc": "2.0",
+//         "method": "eth_sendTransaction",
+//         "params": [dummy_tx.clone()],
+//         "id": 100,
+//     });
+
+//     let send_resp = client
+//         .post(url.clone())
+//         .json(&send_payload)
+//         .send()
+//         .await
+//         .map_err(|e| TestError::new(format!("Failed to send dummy tx: {}", e)))?;
+
+//     if !send_resp.status().is_success() {
+//         return Err(TestError::new(format!(
+//             "Failed to inject dummy tx: {:?}",
+//             send_resp.text().await
+//         )));
+//     }
+
+//     println!("Submitted dummy tx");
+
+//     // Advance time to avoid duplicated timestamps
+//     let increase_payload = serde_json::json!({
+//         "jsonrpc": "2.0",
+//         "method": "evm_increaseTime",
+//         "params": [50],
+//         "id": 99
+//     });
+//     client.post(url.clone()).json(&increase_payload).send().await.unwrap();
+
+//     // Mine a block to include dummy tx
+//     let mine_payload = serde_json::json!({
+//         "jsonrpc": "2.0",
+//         "method": "evm_mine",
+//         "params": [],
+//         "id": 101
+//     });
+
+//     let mine_resp = client
+//         .post(url.clone())
+//         .json(&mine_payload)
+//         .send()
+//         .await
+//         .map_err(|e| TestError::new(format!("Failed to mine block: {}", e)))?;
+
+//     if !mine_resp.status().is_success() {
+//         return Err(TestError::new(format!(
+//             "Failed to mine block after dummy tx: {:?}",
+//             mine_resp.text().await
+//         )));
+//     }
+
+//     println!("Mined block with dummy tx");
+
+//     // Compose transactions: dummy first + original txs
+//     let new_transactions = if let Some(mut nt) = original_transactions {
+//         if let Some(tx_array) = nt.as_array_mut() {
+//             tx_array.insert(0, dummy_tx);
+//         }
+//         nt
+//     } else {
+//         serde_json::json!([dummy_tx])
+//     };
+
+//     // Call `anvil_reorg` — NOTE: this is optional now since `setHead` + mining has already forked
+//     // You could skip this if you're mining your forked blocks manually
+//     let payload = serde_json::json!({
+//         "jsonrpc": "2.0",
+//         "method": "anvil_reorg",
+//         "params": [depth, new_transactions],
+//         "id": 1
+//     });
+
+//     let res = client
+//         .post(url.clone())
+//         .json(&payload)
+//         .send()
+//         .await
+//         .map_err(|e| TestError::new(format!("Failed to send reorg payload: {}", e)))?;
+
+//     res.error_for_status_ref()
+//         .map_err(|e| TestError::new(format!("Reorg failed: {}", e)))?;
+
+//     println!("Submitted `anvil_reorg` request");
+
+//     // Resume mining
+//     set_anvil_mining_interval(client, url, interval).await?;
+
+//     println!("Finished reorg at fork point block {}", fork_point);
+//     Ok(())
+// }
 
 pub async fn get_erc20_balance(http_client: &reqwest::Client, url: Url) -> i64 {
     let url = url.join("v1/balance/").unwrap();
@@ -522,21 +1683,19 @@ pub async fn get_l1_block_hash_of_layer2_block(
     let block_topic = H256::from_uint(&block_number.into_raw());
     ark_std::println!("block_topic: {}", block_topic);
 
-
     // This is keccak256("BlockProposed(int256)")
-        let latest_block = client
-        .get_block_number()
-        .await
-        .map_err(|e| NightfallContractError::ProviderError(format!("get_block_number error: {}", e)))?;
+    let latest_block = client.get_block_number().await.map_err(|e| {
+        NightfallContractError::ProviderError(format!("get_block_number error: {}", e))
+    })?;
 
     let event_sig = H256::from(keccak256("BlockProposed(int256)"));
-        let filter = Filter::new()
+    let filter = Filter::new()
         .address(nightfall_address)
         .from_block(0u64)
         .to_block(latest_block)
         .topic0(event_sig)
         // .event("BlockProposed(int256)");
-    .topic1(block_topic);
+        .topic1(block_topic);
     ark_std::println!("filter: {:?}", filter);
 
     let logs = client
@@ -544,10 +1703,18 @@ pub async fn get_l1_block_hash_of_layer2_block(
         .await
         .map_err(|e| NightfallContractError::ProviderError(format!("Provider error: {}", e)))?;
     ark_std::println!("logs: {:?}", logs);
-// let logs2 = client.get_logs(&Filter::new().from_block(0u64).to_block(latest_block).address(nightfall_address)).await.unwrap();
-// for log in logs2 {
-//     println!("Log topics2: {:?}", log.topics);
-// }
+    let logs2 = client
+        .get_logs(
+            &Filter::new()
+                .from_block(0u64)
+                .to_block(latest_block)
+                .address(nightfall_address),
+        )
+        .await
+        .unwrap();
+    for log in logs2 {
+        println!("Log topics2: {:?}", log.topics);
+    }
 
     // get the first log, as we only check first l1 block which contains the block number
     let log = logs
@@ -573,7 +1740,6 @@ pub async fn get_l1_block_hash_of_layer2_block(
             "Transaction does not have a block hash (possibly pending)".to_string(),
         )
     })?;
-
 
     ark_std::println!(
         "L2 block {} was submitted in L1 block {} with L1 block hash : {}",
@@ -1292,7 +2458,7 @@ mod tests {
         // simulate a reorg of depth 1
         let url = Url::parse(&endpoint).unwrap();
         let client = Client::new();
-        anvil_reorg(&client, &url, 1, false, 5).await.unwrap();
+        anvil_reorg2(&client, &url, 1, false, 5).await.unwrap();
         // Check the block number after the reorg, it should not have changed because the reorged chain has the same depth (a property of Anvil)
         let new_block_number = provider.get_block_number().await.unwrap();
         assert_eq!(new_block_number, ethers::types::U64::from(4));
@@ -1382,7 +2548,7 @@ mod tests {
         let url = Url::parse(&endpoint).unwrap();
         ark_std::println!("url: {:?}", url);
         let client = Client::new();
-        anvil_reorg(&client, &url, 1, true, 5).await.unwrap();
+        anvil_reorg2(&client, &url, 1, true, 5).await.unwrap();
 
         // Check the block number after the reorg, it should not have changed because the reorged chain has the same depth (a property of Anvil)
         let new_block_number = provider.get_block_number().await.unwrap();

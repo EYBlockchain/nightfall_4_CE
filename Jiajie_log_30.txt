@@ -1,0 +1,3296 @@
+Attaching to anvil, nf4_client, nf4_client2, nf4_configuration, nf4_db_client, nf4_db_client2, nf4_db_proposer, nf4_deployer, nf4_proposer, nf4_test
+anvil              | 
+anvil              | 
+anvil              |                              _   _
+anvil              |                             (_) | |
+anvil              |       __ _   _ __   __   __  _  | |
+anvil              |      / _` | | '_ \  \ \ / / | | | |
+anvil              |     | (_| | | | | |  \ V /  | | | |
+anvil              |      \__,_| |_| |_|   \_/   |_| |_|
+anvil              | 
+anvil              |     0.3.0 (5a8bd89 2025-04-09T10:57:16.842789516Z)
+anvil              |     https://github.com/foundry-rs/foundry
+anvil              | 
+anvil              | Available Accounts
+anvil              | ==================
+anvil              | 
+anvil              | (0) 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 (10000.000000000000000000 ETH)
+anvil              | (1) 0x70997970C51812dc3A010C7d01b50e0d17dc79C8 (10000.000000000000000000 ETH)
+anvil              | (2) 0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC (10000.000000000000000000 ETH)
+anvil              | (3) 0x90F79bf6EB2c4f870365E785982E1f101E93b906 (10000.000000000000000000 ETH)
+anvil              | (4) 0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65 (10000.000000000000000000 ETH)
+anvil              | (5) 0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc (10000.000000000000000000 ETH)
+anvil              | (6) 0x976EA74026E726554dB657fA54763abd0C3a0aa9 (10000.000000000000000000 ETH)
+anvil              | (7) 0x14dC79964da2C08b23698B3D3cc7Ca32193d9955 (10000.000000000000000000 ETH)
+anvil              | (8) 0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f (10000.000000000000000000 ETH)
+anvil              | (9) 0xa0Ee7A142d267C1f36714E4a8F75612F20a79720 (10000.000000000000000000 ETH)
+anvil              | 
+anvil              | Private Keys
+anvil              | ==================
+anvil              | 
+anvil              | (0) 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+anvil              | (1) 0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d
+anvil              | (2) 0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a
+anvil              | (3) 0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6
+anvil              | (4) 0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a
+anvil              | (5) 0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba
+anvil              | (6) 0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e
+anvil              | (7) 0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356
+anvil              | (8) 0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97
+anvil              | (9) 0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6
+anvil              | 
+anvil              | Wallet
+anvil              | ==================
+anvil              | Mnemonic:          test test test test test test test test test test test junk
+anvil              | Derivation path:   m/44'/60'/0'/0/
+anvil              | 
+anvil              | 
+anvil              | Chain ID
+anvil              | ==================
+anvil              | 
+anvil              | 31337
+anvil              | 
+anvil              | Base Fee
+anvil              | ==================
+anvil              | 
+anvil              | 58000000000
+anvil              | 
+anvil              | Gas Limit
+anvil              | ==================
+anvil              | 
+anvil              | 30000000
+anvil              | 
+anvil              | Genesis Timestamp
+anvil              | ==================
+anvil              | 
+anvil              | 1750195957
+anvil              | 
+anvil              | Listening on 0.0.0.0:8545
+nf4_configuration  | 2025/06/17 21:32:37 [notice] 1#1: using the "epoll" event method
+nf4_configuration  | 2025/06/17 21:32:37 [notice] 1#1: nginx/1.27.5
+nf4_configuration  | 2025/06/17 21:32:37 [notice] 1#1: built by gcc 12.2.0 (Debian 12.2.0-14) 
+nf4_configuration  | 2025/06/17 21:32:37 [notice] 1#1: OS: Linux 6.10.14-linuxkit
+nf4_configuration  | 2025/06/17 21:32:37 [notice] 1#1: getrlimit(RLIMIT_NOFILE): 1048576:1048576
+nf4_configuration  | 2025/06/17 21:32:37 [notice] 1#1: start worker processes
+nf4_configuration  | 2025/06/17 21:32:37 [notice] 1#1: start worker process 28
+nf4_configuration  | 2025/06/17 21:32:37 [notice] 1#1: start worker process 29
+nf4_configuration  | 2025/06/17 21:32:37 [notice] 1#1: start worker process 30
+nf4_configuration  | 2025/06/17 21:32:37 [notice] 1#1: start worker process 31
+nf4_configuration  | 2025/06/17 21:32:37 [notice] 1#1: start worker process 32
+nf4_configuration  | 2025/06/17 21:32:37 [notice] 1#1: start worker process 33
+nf4_configuration  | 2025/06/17 21:32:37 [notice] 1#1: start worker process 34
+anvil              | 
+anvil              |     Block Number: 1
+anvil              |     Block Hash: 0xe85f29076851fb2c9e186eb2f315273b154a5da35f56069ff68457e8cd2dca1e
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:32:42 +0000"
+anvil              | 
+anvil              | 
+anvil              |     Block Number: 2
+anvil              |     Block Hash: 0x062596cd2fa301b1e911fafd7f789e48818d32abb4fdf781cbbf556d749411a0
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:32:47 +0000"
+anvil              | 
+nf4_deployer       | [0m[38;5;8m[[0m2025-06-17T21:32:47Z [0m[32mINFO [0m nightfall_deployer[0m[38;5;8m][0m Deployer has started
+nf4_deployer       | [0m[38;5;8m[[0m2025-06-17T21:32:47Z [0m[32mINFO [0m nightfall_deployer[0m[38;5;8m][0m Deploying contracts
+anvil              | eth_getTransactionCount
+anvil              | 
+anvil              |     Block Number: 3
+anvil              |     Block Hash: 0x554b63e909ebafffba69a03406b2f6b9a86b6262e124585bb266a761e29f4ed2
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:32:52 +0000"
+anvil              | 
+anvil              | eth_getCode
+anvil              | eth_blockNumber
+anvil              | eth_gasPrice
+anvil              | eth_chainId
+anvil              | eth_getBlockByNumber
+anvil              | eth_blockNumber
+anvil              | eth_gasPrice
+anvil              | eth_getBlockByNumber
+anvil              | eth_chainId
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_chainId
+anvil              | eth_chainId
+anvil              | eth_blockNumber
+anvil              | eth_gasPrice
+anvil              | eth_getBlockByNumber
+anvil              | eth_chainId
+anvil              | eth_chainId
+anvil              | eth_feeHistory
+anvil              | eth_feeHistory
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_blockNumber
+anvil              | eth_getBlockByNumber
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_blockNumber
+anvil              | 
+anvil              |     Transaction: 0x7ae4c974564af261a63dd8e8155fe933cea108e2b6885338b6e5762bded0b74d
+anvil              |     Contract created: 0x5FbDB2315678afecb367f032d93F642f64180aa3
+anvil              |     Gas used: 123198
+anvil              | 
+anvil              |     Transaction: 0x4947de27ae6f260e2197351d0dd3f9cfa18ff2b3ad3036683e90ccd5bcd2cce3
+anvil              |     Contract created: 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+anvil              |     Gas used: 273646
+anvil              | 
+anvil              |     Transaction: 0xe98b17f6b9dd19514cc555ab1d65c9426f1d9b71285aace4de2bf4b7a51bc776
+anvil              |     Contract created: 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0
+anvil              |     Gas used: 4914262
+anvil              | 
+anvil              |     Transaction: 0x93c9c862000055ec73c598d4c32b8170ded0930a605f7f20ec42c78c14d65b42
+anvil              |     Contract created: 0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9
+anvil              |     Gas used: 5123258
+anvil              | 
+anvil              |     Transaction: 0xecabe4eaec4462d2140380b3258b2708e227eb8e65c74a02c4c75a797927f138
+anvil              |     Contract created: 0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9
+anvil              |     Gas used: 7617779
+anvil              | 
+anvil              |     Transaction: 0x9ea556e34da7eee33539aa5eba1ce6775f06d0ac9deb1376329c23bc9d05b146
+anvil              |     Contract created: 0x5FC8d32690cc91D4c39d9d3abcBD16989F875707
+anvil              |     Gas used: 9311972
+anvil              | 
+anvil              |     Transaction: 0xf3b3897709952467153e53efb490e1ce980acf607d870bce3d204b02e750e0a5
+anvil              |     Gas used: 9766875
+anvil              | 
+anvil              |     Transaction: 0xf09ee082b748b6fb0ca6e2006485090cea7482000420eafbde13a95ebdf18db5
+anvil              |     Gas used: 9790876
+anvil              | 
+anvil              |     Transaction: 0xc1af78eb118a189a4c67947576dded252c6988c1da25063841c646d881b3681b
+anvil              |     Gas used: 9904156
+anvil              | 
+anvil              |     Transaction: 0x0762a61f484e2dd6c57ad2bb8da0be11e450d416d32a981ebe865204cbdba611
+anvil              |     Gas used: 9994914
+anvil              | 
+anvil              |     Transaction: 0x2866db3084aecc28db1d1d624ceb7a182117f571353c5f29f916fed533ca1d5c
+anvil              |     Gas used: 11259614
+anvil              | 
+anvil              |     Transaction: 0x2e9c8386e9d0ce6499f2f7a07ae7b4b678ae6ed68e58dd55db3c69f4ef3a85a5
+anvil              |     Gas used: 11288437
+anvil              | 
+anvil              |     Transaction: 0x8a8486ffca02acae0cd54e88e0e52cdae68d5c335a3b259b6ea29c0250903f22
+anvil              |     Gas used: 11314660
+anvil              | 
+anvil              |     Transaction: 0x4cf7388e7e1bf8ec30bf8379c3994f887a21189f9c9bc60409856103d53e34ef
+anvil              |     Gas used: 11340840
+anvil              | 
+anvil              |     Transaction: 0x2a9d6b94e5715b4842f7fc125a4aa9c228064909ae881f862ae9509dfc2db912
+anvil              |     Gas used: 11386897
+anvil              | 
+anvil              |     Transaction: 0xad2a02a76d1691a4674910994a1615b091ab971cdb981247e5e3d7b68de9569f
+anvil              |     Gas used: 11432959
+anvil              | 
+anvil              |     Block Number: 4
+anvil              |     Block Hash: 0x4f30e0c05e460349526aa8e399ec785537b1bbaef9e0d41f3651945c56e51e5d
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:32:57 +0000"
+anvil              | 
+anvil              | eth_getTransactionReceipt
+anvil              | eth_blockNumber
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getBlockByNumber
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+nf4_deployer       | [0m[38;5;8m[[0m2025-06-17T21:32:58Z [0m[32mINFO [0m nightfall_deployer::deployment[0m[38;5;8m][0m Command 'forge ["script", "Deployer", "--fork-url", "ws://anvil:8545", "--broadcast", "--force"]' executed successfully: Compiling 71 files with Solc 0.8.29
+nf4_deployer       |     installing solc version "0.8.29"
+nf4_deployer       |     Successfully installed solc 0.8.29
+nf4_deployer       |     Solc 0.8.29 finished in 5.25s
+nf4_deployer       |     Compiler run successful!
+nf4_deployer       |     Script ran successfully.
+nf4_deployer       |     
+nf4_deployer       |     ## Setting up 1 EVM.
+nf4_deployer       |     
+nf4_deployer       |     ==========================
+nf4_deployer       |     
+nf4_deployer       |     Chain 31337
+nf4_deployer       |     
+nf4_deployer       |     Estimated gas price: 88.812500001 gwei
+nf4_deployer       |     
+nf4_deployer       |     Estimated total gas used for script: 15040857
+nf4_deployer       |     
+nf4_deployer       |     Estimated amount required: 1.335816112327540857 ETH
+nf4_deployer       |     
+nf4_deployer       |     ==========================
+nf4_deployer       |     
+nf4_deployer       |     
+nf4_deployer       |     ==========================
+nf4_deployer       |     
+nf4_deployer       |     ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+nf4_deployer       |     
+nf4_deployer       |     Transactions saved to: /app/blockchain_assets/logs/deployer.s.sol/31337/run-latest.json
+nf4_deployer       |     
+nf4_deployer       |     Sensitive values saved to: /app/blockchain_assets/cache/deployer.s.sol/31337/run-latest.json
+nf4_deployer       |     
+nf4_deployer       |     
+nf4_configuration  | 172.18.0.7 - - [17/Jun/2025:21:32:58 +0000] "PUT /configuration/toml/addresses.toml HTTP/1.1" 204 0 "-" "-" "-"
+[Knf4_deployer exited with code 0
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:32:59Z [0m[32mINFO [0m nightfall_proposer[0m[38;5;8m][0m Dropping database: nightfall
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:32:59Z [0m[32mINFO [0m nightfall_proposer[0m[38;5;8m][0m Using MockProver
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:32:59Z [0m[32mINFO [0m nightfall_proposer::drivers::blockchain::nightfall_event_listener[0m[38;5;8m][0m Proposer event listener (attempt 1)...
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:32:59Z [0m[32mINFO [0m nightfall_proposer[0m[38;5;8m][0m Starting warp server, block assembler and event_handler threads
+nf4_configuration  | 172.18.0.7 - - [17/Jun/2025:21:32:59 +0000] "GET /configuration/toml/addresses.toml HTTP/1.1" 200 168 "-" "-" "-"
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:32:59Z [0m[32mINFO [0m lib::wallets[0m[38;5;8m][0m Created wallet with address: 0xa0ee7a142d267c1f36714e4a8f75612f20a79720
+anvil              | eth_getLogs
+anvil              | eth_call
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:32:59Z [0m[32mINFO [0m nightfall_proposer::drivers::blockchain::block_assembly[0m[38;5;8m][0m We are the current proposer. Awaiting trigger...
+anvil              | eth_call
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:32:59Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 0s, remaining: 120s, will wait for more txs or until timeout (120s).
+anvil              | eth_call
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:32:59Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 0s, remaining: 120s, will wait for more txs or until timeout (120s).
+anvil              | 
+anvil              |     Block Number: 5
+anvil              |     Block Hash: 0x68f56b4c636e511bb16049dd9176efacf003ac2a229e968b77036ebd6c944669
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:33:02 +0000"
+anvil              | 
+anvil              | eth_call
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:33:04Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 5s, remaining: 115s, will wait for more txs or until timeout (120s).
+nf4_client2        | process_queue
+nf4_client         | process_queue
+nf4_client         | [0m[38;5;8m[[0m2025-06-17T21:33:04Z [0m[32mINFO [0m nightfall_client[0m[38;5;8m][0m Starting warp server, request queue, and event_handler threads
+nf4_client2        | [0m[38;5;8m[[0m2025-06-17T21:33:04Z [0m[32mINFO [0m nightfall_client[0m[38;5;8m][0m Starting warp server, request queue, and event_handler threads
+nf4_client2        | [0m[38;5;8m[[0m2025-06-17T21:33:04Z [0m[32mINFO [0m nightfall_client::drivers::blockchain::nightfall_event_listener[0m[38;5;8m][0m Client event listener (attempt 1)...
+nf4_client         | [0m[38;5;8m[[0m2025-06-17T21:33:04Z [0m[32mINFO [0m nightfall_client::drivers::blockchain::nightfall_event_listener[0m[38;5;8m][0m Client event listener (attempt 1)...
+nf4_client2        | [0m[38;5;8m[[0m2025-06-17T21:33:04Z [0m[32mINFO [0m lib::wallets[0m[38;5;8m][0m Created wallet with address: 0x976ea74026e726554db657fa54763abd0c3a0aa9
+nf4_client         | [0m[38;5;8m[[0m2025-06-17T21:33:04Z [0m[32mINFO [0m lib::wallets[0m[38;5;8m][0m Created wallet with address: 0x23618e81e3f5cdf7f54c3d65f7fbc0abf5b21e8f
+nf4_configuration  | 172.18.0.8 - - [17/Jun/2025:21:33:04 +0000] "GET /configuration/toml/addresses.toml HTTP/1.1" 200 168 "-" "-" "-"
+nf4_configuration  | 172.18.0.9 - - [17/Jun/2025:21:33:04 +0000] "GET /configuration/toml/addresses.toml HTTP/1.1" 200 168 "-" "-" "-"
+nf4_client         | [0m[38;5;8m[[0m2025-06-17T21:33:05Z [0m[32mINFO [0m nightfall_client::drivers::blockchain::nightfall_event_listener[0m[38;5;8m][0m Listening for events on the Nightfall contract at address: 0xdc64…f6c9
+nf4_client2        | [0m[38;5;8m[[0m2025-06-17T21:33:05Z [0m[32mINFO [0m nightfall_client::drivers::blockchain::nightfall_event_listener[0m[38;5;8m][0m Listening for events on the Nightfall contract at address: 0xdc64…f6c9
+nf4_client2        | Events from block 0: Event { filter: Filter { block_option: Range { from_block: Some(Number(0)), to_block: None }, address: Some(Value(0xdc64a140aa3e981100a9beca4e685f962f0cf6c9)), topics: [None, None, None, None] }, provider: SignerMiddleware { inner: Provider { inner: Ws { .. }, ens: None, interval: None, from: None, _node_client: Mutex { is_locked: false, has_waiters: false } }, signer: Wallet { address: 0x976ea74026e726554db657fa54763abd0c3a0aa9, chain_Id: 31337 }, address: 0x976ea74026e726554db657fa54763abd0c3a0aa9 }, datatype: PhantomData<nightfall_bindings::nightfall::nightfall::NightfallEvents>, _m: PhantomData<ethers_middleware::signer::SignerMiddleware<ethers_providers::rpc::provider::Provider<ethers_providers::rpc::transports::ws::WsClient>, ethers_signers::wallet::Wallet<ecdsa::signing::SigningKey<k256::Secp256k1>>>> }
+nf4_client         | Events from block 0: Event { filter: Filter { block_option: Range { from_block: Some(Number(0)), to_block: None }, address: Some(Value(0xdc64a140aa3e981100a9beca4e685f962f0cf6c9)), topics: [None, None, None, None] }, provider: SignerMiddleware { inner: Provider { inner: Ws { .. }, ens: None, interval: None, from: None, _node_client: Mutex { is_locked: false, has_waiters: false } }, signer: Wallet { address: 0x23618e81e3f5cdf7f54c3d65f7fbc0abf5b21e8f, chain_Id: 31337 }, address: 0x23618e81e3f5cdf7f54c3d65f7fbc0abf5b21e8f }, datatype: PhantomData<nightfall_bindings::nightfall::nightfall::NightfallEvents>, _m: PhantomData<ethers_middleware::signer::SignerMiddleware<ethers_providers::rpc::provider::Provider<ethers_providers::rpc::transports::ws::WsClient>, ethers_signers::wallet::Wallet<ecdsa::signing::SigningKey<k256::Secp256k1>>>> }
+anvil              | eth_getLogs
+anvil              | eth_getLogs
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | 
+anvil              |     Block Number: 6
+anvil              |     Block Hash: 0xc7444c8797ecefc6154b5857c27e089c4f3804095a03fce73f3a93b950a0d277
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:33:07 +0000"
+anvil              | 
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:33:09Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 10s, remaining: 110s, will wait for more txs or until timeout (120s).
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_test           | [0m[38;5;8m[[0m2025-06-17T21:33:10Z [0m[32mINFO [0m nightfall_test[0m[38;5;8m][0m Starting webhook server...
+nf4_test           | [0m[38;5;8m[[0m2025-06-17T21:33:10Z [0m[32mINFO [0m nightfall_test[0m[38;5;8m][0m Running tests...
+nf4_test           | [0m[38;5;8m[[0m2025-06-17T21:33:10Z [0m[32mINFO [0m nightfall_test[0m[38;5;8m][0m Starting queue polling...
+nf4_test           | [0m[38;5;8m[[0m2025-06-17T21:33:10Z [0m[32mINFO [0m nightfall_test::run_tests[0m[38;5;8m][0m Running tests on nightall_client http:// interface
+anvil              | evm_setAutomine
+anvil              | evm_setIntervalMining
+nf4_test           | [0m[38;5;8m[[0m2025-06-17T21:33:10Z [0m[32mINFO [0m nightfall_test::run_tests[0m[38;5;8m][0m * zkp keys created
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_test           | [0m[38;5;8m[[0m2025-06-17T21:33:11Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Command 'forge ["install"]' executed successfully: Updating dependencies in /app/blockchain_assets/solidity_lib
+nf4_test           |     
+anvil              | eth_getTransactionCount
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:33:14Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 15s, remaining: 105s, will wait for more txs or until timeout (120s).
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | 
+anvil              |     Block Number: 7
+anvil              |     Block Hash: 0x521817946227ce97b1d0ef11c8f6ab7cacfba7848a7e34b60b1e6f35185c5f8c
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:33:15 +0000"
+anvil              | 
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_getCode
+anvil              | eth_blockNumber
+anvil              | eth_gasPrice
+anvil              | eth_chainId
+anvil              | eth_getBlockByNumber
+anvil              | eth_blockNumber
+anvil              | eth_gasPrice
+anvil              | eth_getBlockByNumber
+anvil              | eth_chainId
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_chainId
+anvil              | eth_chainId
+anvil              | eth_blockNumber
+anvil              | eth_gasPrice
+anvil              | eth_getBlockByNumber
+anvil              | eth_chainId
+anvil              | eth_chainId
+anvil              | eth_feeHistory
+anvil              | eth_feeHistory
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_blockNumber
+anvil              | eth_getBlockByNumber
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_blockNumber
+anvil              | eth_call
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:33:19Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 20s, remaining: 100s, will wait for more txs or until timeout (120s).
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | 
+anvil              |     Transaction: 0xf80990d15196811b9ccb872e0abe4cac0ea2283c19810200ffbe6e2eb054af71
+anvil              |     Contract created: 0x959922bE3CAee4b8Cd9a407cc3ac1C251C2007B1
+anvil              |     Gas used: 587280
+anvil              | 
+anvil              |     Transaction: 0xe1e96feec33d6c6b1587ac1b276f9f6fdb57db0ff126a6098699ae7d208ab956
+anvil              |     Contract created: 0x9A9f2CCfdE556A7E9Ff0848998Aa4a0CFD8863AE
+anvil              |     Gas used: 1590543
+anvil              | 
+anvil              |     Transaction: 0xa4defca61d52790d72d7290e1093b2ee056ce35bd824147fc3f25e95c931448f
+anvil              |     Contract created: 0x68B1D87F95878fE05B998F19b66F4baba5De1aed
+anvil              |     Gas used: 2680248
+anvil              | 
+anvil              |     Transaction: 0x1baeba74113f2b534cccb43c65609dc69c18a28492c8143a6f3f69f65fb420de
+anvil              |     Contract created: 0x3Aa5ebB10DC797CAC828524e59A333d0A371443c
+anvil              |     Gas used: 5877484
+anvil              | 
+anvil              |     Block Number: 8
+anvil              |     Block Hash: 0x74db3eefc3da26726c1e16db06f52e4428b7e570f440c8c130d66d07f68f6543
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:33:20 +0000"
+anvil              | 
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_blockNumber
+anvil              | eth_getBlockByNumber
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_test           | [0m[38;5;8m[[0m2025-06-17T21:33:21Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Command 'forge ["script", "MockDeployer", "--fork-url", "ws://anvil:8545", "--broadcast", "--force"]' executed successfully: Compiling 71 files with Solc 0.8.29
+nf4_test           |     installing solc version "0.8.29"
+nf4_test           |     Successfully installed solc 0.8.29
+nf4_test           |     Solc 0.8.29 finished in 4.68s
+nf4_test           |     Compiler run successful!
+nf4_test           |     Script ran successfully.
+nf4_test           |     
+nf4_test           |     ## Setting up 1 EVM.
+nf4_test           |     
+nf4_test           |     ==========================
+nf4_test           |     
+nf4_test           |     Chain 31337
+nf4_test           |     
+nf4_test           |     Estimated gas price: 57.728854897 gwei
+nf4_test           |     
+nf4_test           |     Estimated total gas used for script: 7640727
+nf4_test           |     
+nf4_test           |     Estimated amount required: 0.441090420290590119 ETH
+nf4_test           |     
+nf4_test           |     ==========================
+nf4_test           |     
+nf4_test           |     
+nf4_test           |     ==========================
+nf4_test           |     
+nf4_test           |     ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+nf4_test           |     
+nf4_test           |     Transactions saved to: /app/blockchain_assets/logs/mock_deployment.s.sol/31337/run-latest.json
+nf4_test           |     
+nf4_test           |     Sensitive values saved to: /app/blockchain_assets/cache/mock_deployment.s.sol/31337/run-latest.json
+nf4_test           |     
+nf4_test           |     
+nf4_test           | [0m[38;5;8m[[0m2025-06-17T21:33:21Z [0m[32mINFO [0m nightfall_test::run_tests[0m[38;5;8m][0m * contract addresses obtained
+nf4_test           | [0m[38;5;8m[[0m2025-06-17T21:33:21Z [0m[32mINFO [0m nightfall_test::run_tests[0m[38;5;8m][0m Validating Client's certificate
+nf4_client         | [0m[38;5;8m[[0m2025-06-17T21:33:21Z [0m[32mINFO [0m lib::validate_certificate[0m[38;5;8m][0m Receiving certificate validation file: certificate.der
+nf4_client         | [0m[38;5;8m[[0m2025-06-17T21:33:21Z [0m[32mINFO [0m lib::validate_certificate[0m[38;5;8m][0m Receiving certificate validation file: certificate.priv_key
+anvil              | eth_call
+anvil              | eth_call
+anvil              | eth_getTransactionCount
+anvil              | eth_getBlockByNumber
+anvil              | eth_feeHistory
+anvil              | eth_estimateGas
+anvil              | eth_sendRawTransaction
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:33:24Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 25s, remaining: 95s, will wait for more txs or until timeout (120s).
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | 
+anvil              |     Transaction: 0x9119c02815f7fb7aef50abe2a4f5cfd449155f8907b21c8aebab8af93282e408
+anvil              |     Gas used: 1151276
+anvil              | 
+anvil              |     Block Number: 9
+anvil              |     Block Hash: 0x40213c26061f2048249d8a5f2c9a7372b9c10cb09c4dc415765ed1af50c8d777
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:33:25 +0000"
+anvil              | 
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_getTransactionByHash
+anvil              | eth_getTransactionReceipt
+nf4_test           | [0m[38;5;8m[[0m2025-06-17T21:33:28Z [0m[32mINFO [0m nightfall_test::run_tests[0m[38;5;8m][0m Validating Client Two's certificate
+nf4_client2        | [0m[38;5;8m[[0m2025-06-17T21:33:28Z [0m[32mINFO [0m lib::validate_certificate[0m[38;5;8m][0m Receiving certificate validation file: certificate.der
+nf4_client2        | [0m[38;5;8m[[0m2025-06-17T21:33:28Z [0m[32mINFO [0m lib::validate_certificate[0m[38;5;8m][0m Receiving certificate validation file: certificate.priv_key
+anvil              | eth_call
+anvil              | eth_call
+anvil              | eth_getTransactionCount
+anvil              | eth_getBlockByNumber
+anvil              | eth_feeHistory
+anvil              | eth_estimateGas
+anvil              | eth_sendRawTransaction
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:33:29Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 30s, remaining: 90s, will wait for more txs or until timeout (120s).
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | 
+anvil              |     Transaction: 0x7ede8e6ce2a1740432406ca2bcc0176479f3e45345c9321815970138a4d41300
+anvil              |     Gas used: 1151276
+anvil              | 
+anvil              |     Block Number: 10
+anvil              |     Block Hash: 0xf0c276269efd2330e5fc792035f4d2f89bd71f513bcc52ebf29723bbad7ebe68
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:33:30 +0000"
+anvil              | 
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:33:34Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 35s, remaining: 85s, will wait for more txs or until timeout (120s).
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_getTransactionByHash
+anvil              | eth_getTransactionReceipt
+nf4_test           | [0m[38;5;8m[[0m2025-06-17T21:33:35Z [0m[32mINFO [0m nightfall_test::run_tests[0m[38;5;8m][0m Validating Proposer's certificate
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:33:35Z [0m[32mINFO [0m lib::wallets[0m[38;5;8m][0m Created wallet with address: 0xa0ee7a142d267c1f36714e4a8f75612f20a79720
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:33:35Z [0m[32mINFO [0m lib::validate_certificate[0m[38;5;8m][0m Receiving certificate validation file: certificate.der
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:33:35Z [0m[32mINFO [0m lib::validate_certificate[0m[38;5;8m][0m Receiving certificate validation file: certificate.priv_key
+anvil              | eth_call
+anvil              | 
+anvil              |     Block Number: 11
+anvil              |     Block Hash: 0xdf09cf90a8f3ab2f1fae6e1fc8781f90e310d916a4787a86f40071ad76856d5b
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:33:35 +0000"
+anvil              | 
+anvil              | eth_call
+anvil              | eth_getTransactionCount
+anvil              | eth_getBlockByNumber
+anvil              | eth_feeHistory
+anvil              | eth_estimateGas
+anvil              | eth_sendRawTransaction
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:33:39Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 40s, remaining: 80s, will wait for more txs or until timeout (120s).
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | 
+anvil              |     Transaction: 0xc42bfbf39fc3b71e541bbf5460ccf1f71c7a70ca48419950421620d722978103
+anvil              |     Gas used: 1151300
+anvil              | 
+anvil              |     Block Number: 12
+anvil              |     Block Hash: 0x2ad98dfea048a8aaa15740ef177670c7a5c63146355975f19da43bd4331a9c79
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:33:40 +0000"
+anvil              | 
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_getTransactionByHash
+anvil              | eth_getTransactionReceipt
+nf4_test           | [0m[38;5;8m[[0m2025-06-17T21:33:42Z [0m[32mINFO [0m nightfall_test::run_tests[0m[38;5;8m][0m Commencing tests using the client_nf_3 API
+nf4_test           | [0m[38;5;8m[[0m2025-06-17T21:33:42Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Creating deposit transaction onchain b470b7c0-1cb9-47bf-9e67-7684d63338d8
+nf4_test           | [0m[38;5;8m[[0m2025-06-17T21:33:42Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Deposit transaction b470b7c0-1cb9-47bf-9e67-7684d63338d8 has been accepted by the client
+nf4_test           | [0m[38;5;8m[[0m2025-06-17T21:33:42Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Have 1 IDs and 0 processed client transactions
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | [0m[38;5;8m[[0m2025-06-17T21:33:43Z [0m[32mINFO [0m nightfall_client::driven::queue[0m[38;5;8m][0m Processing request: b470b7c0-1cb9-47bf-9e67-7684d63338d8
+nf4_client         | [0m[38;5;8m[[0m2025-06-17T21:33:43Z [0m[32mINFO [0m nightfall_client::drivers::rest::client_nf_3[0m[38;5;8m][0m Deposit raw request: NF3DepositRequest { erc_address: "959922be3caee4b8cd9a407cc3ac1c251c2007b1", token_id: "0x00", token_type: "0", value: "0x01", fee: "0x00", deposit_fee: "0x00", secret_preimage_one: None, secret_preimage_two: None, secret_preimage_three: None }
+nf4_client         | [0m[38;5;8m[[0m2025-06-17T21:33:43Z [0m[32mINFO [0m nightfall_client::drivers::rest::client_nf_3[0m[38;5;8m][0m b470b7c0-1cb9-47bf-9e67-7684d63338d8 No secret preimage found for deposit request, generating
+nf4_client         | [0m[38;5;8m[[0m2025-06-17T21:33:43Z [0m[32mINFO [0m nightfall_client::services::client_operation[0m[38;5;8m][0m b470b7c0-1cb9-47bf-9e67-7684d63338d8 Setting transfer approval
+anvil              | eth_getTransactionCount
+anvil              | eth_getBlockByNumber
+anvil              | eth_feeHistory
+anvil              | eth_estimateGas
+anvil              | eth_sendRawTransaction
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:33:44Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 45s, remaining: 75s, will wait for more txs or until timeout (120s).
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | 
+anvil              |     Transaction: 0x50ed201c319316438d77eb2fe9c31342a454e6db66203aeed94873310d2a0e2b
+anvil              |     Gas used: 46294
+anvil              | 
+anvil              |     Block Number: 13
+anvil              |     Block Hash: 0xeb070d80621f5dee761f128e1817379f6c0ccf578c92992d6289f4f790c5593f
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:33:45 +0000"
+anvil              | 
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:33:49Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 50s, remaining: 70s, will wait for more txs or until timeout (120s).
+anvil              | eth_getTransactionByHash
+anvil              | eth_getTransactionReceipt
+nf4_client         | [0m[38;5;8m[[0m2025-06-17T21:33:50Z [0m[32mINFO [0m nightfall_client::services::client_operation[0m[38;5;8m][0m b470b7c0-1cb9-47bf-9e67-7684d63338d8 Escrowing funds
+anvil              | eth_getTransactionCount
+anvil              | eth_getBlockByNumber
+anvil              | eth_feeHistory
+anvil              | eth_estimateGas
+anvil              | eth_sendRawTransaction
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | 
+anvil              |     Transaction: 0xba035e4376cb3df78fea94789af768bd040b228b9a3421f1ae5b6b94164bd822
+anvil              |     Gas used: 132888
+anvil              | 
+anvil              |     Block Number: 14
+anvil              |     Block Hash: 0x9622ba4dd1899c0066e429ef09f673042091b837bf33098db5453dee879ba3da
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:33:50 +0000"
+anvil              | 
+nf4_client         | [0m[38;5;8m[[0m2025-06-17T21:33:50Z [0m[32mINFO [0m nightfall_client::driven::event_handlers::nightfall_event[0m[38;5;8m][0m Received DepositEscrowed event
+nf4_client2        | [0m[38;5;8m[[0m2025-06-17T21:33:50Z [0m[32mINFO [0m nightfall_client::driven::event_handlers::nightfall_event[0m[38;5;8m][0m Received DepositEscrowed event
+nf4_client         | [0m[38;5;8m[[0m2025-06-17T21:33:50Z [0m[32mINFO [0m nightfall_client::driven::event_handlers::nightfall_event[0m[38;5;8m][0m Client: Decoded DepositEscrowed event from transaction 0xba03…d822, Deposit Transaction with nf_slot_id 1860704793037435099984448690706731033789626103475805635229108561498160100688, value 1, is now on-chain
+nf4_client2        | [0m[38;5;8m[[0m2025-06-17T21:33:50Z [0m[32mINFO [0m nightfall_client::driven::event_handlers::nightfall_event[0m[38;5;8m][0m Client: Decoded DepositEscrowed event from transaction 0xba03…d822, Deposit Transaction with nf_slot_id 1860704793037435099984448690706731033789626103475805635229108561498160100688, value 1, is now on-chain
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:33:50Z [0m[32mINFO [0m nightfall_proposer::driven::nightfall_event[0m[38;5;8m][0m Received DepositEscrowed event
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:33:50Z [0m[32mINFO [0m nightfall_proposer::driven::nightfall_event[0m[38;5;8m][0m Proposer: Decoded DepositEscrowed event from transaction 0xba03…d822, Deposit Transaction with nf_slot_id 1860704793037435099984448690706731033789626103475805635229108561498160100688, value 1, is now on-chain
+anvil              | eth_getTransactionByHash
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:33:50Z [0m[32mINFO [0m nightfall_proposer::driven::nightfall_client_transaction[0m[38;5;8m][0m Deposit Transaction is valid, storing in database
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_test           | [0m[38;5;8m[[0m2025-06-17T21:33:52Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Have 1 IDs and 0 processed client transactions
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:33:54Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 55s, remaining: 65s, will wait for more txs or until timeout (120s).
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | 
+anvil              |     Block Number: 15
+anvil              |     Block Hash: 0x35e1046ec6525f8c218583640898d25085f0726b36e754a9c4690e338c4694cb
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:33:55 +0000"
+anvil              | 
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_getTransactionByHash
+anvil              | eth_getTransactionReceipt
+nf4_client         | [0m[38;5;8m[[0m2025-06-17T21:33:57Z [0m[32mINFO [0m nightfall_client::driven::contract_functions::nightfall_contract[0m[38;5;8m][0m Gas used in escrow funds: Some(132888)
+nf4_client         | [0m[38;5;8m[[0m2025-06-17T21:33:57Z [0m[32mINFO [0m nightfall_client::driven::queue[0m[38;5;8m][0m Request b470b7c0-1cb9-47bf-9e67-7684d63338d8 processed successfully: 
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:33:59Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 60s, remaining: 60s, will wait for more txs or until timeout (120s).
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | 
+anvil              |     Block Number: 16
+anvil              |     Block Hash: 0x01cd86cd9ab77b4d6c2ca110a57cf91465d76c1140abd0aa8442336efaea7890
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:34:00 +0000"
+anvil              | 
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_test           | [0m[38;5;8m[[0m2025-06-17T21:34:02Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Have 1 IDs and 1 processed client transactions
+nf4_test           | [0m[38;5;8m[[0m2025-06-17T21:34:02Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m All expected responses from the clients' webhooks have been received
+nf4_test           | [0m[38;5;8m[[0m2025-06-17T21:34:02Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Waiting for commitments to appear on-chain
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:34:04Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 65s, remaining: 55s, will wait for more txs or until timeout (120s).
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | 
+anvil              |     Block Number: 17
+anvil              |     Block Hash: 0x43b48e277766ed9672f24d418448b0d6879cdc25ec2f27341a2f56368bb06719
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:34:05 +0000"
+anvil              | 
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:34:09Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 70s, remaining: 50s, will wait for more txs or until timeout (120s).
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | 
+anvil              |     Block Number: 18
+anvil              |     Block Hash: 0x459e84479a627df207a6a38d2c45a449061720b7f669d4a8d477a3ac51ac0853
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:34:10 +0000"
+anvil              | 
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:34:14Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 75s, remaining: 45s, will wait for more txs or until timeout (120s).
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | 
+anvil              |     Block Number: 19
+anvil              |     Block Hash: 0x9ac4b7a909a1117046df56702df581ae3ab05045540a988c2e9a57047504cd0b
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:34:15 +0000"
+anvil              | 
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:34:19Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 80s, remaining: 40s, will wait for more txs or until timeout (120s).
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | 
+anvil              |     Block Number: 20
+anvil              |     Block Hash: 0x7e41c96f890c72b5c502c6a502274463df547c6930d16eecb91974a79219624c
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:34:20 +0000"
+anvil              | 
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:34:24Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 85s, remaining: 35s, will wait for more txs or until timeout (120s).
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | 
+anvil              |     Block Number: 21
+anvil              |     Block Hash: 0x5ff954af87c12fd9b12981a1af69af73a663641688565a68d648ba4a8533d49c
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:34:25 +0000"
+anvil              | 
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:34:29Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 90s, remaining: 30s, will wait for more txs or until timeout (120s).
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | 
+anvil              |     Block Number: 22
+anvil              |     Block Hash: 0x1b85cd30931f96431a63c083daf60a93cdb83289f9f23a1c9dc529767abd13e8
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:34:30 +0000"
+anvil              | 
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:34:34Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 95s, remaining: 25s, will wait for more txs or until timeout (120s).
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | 
+anvil              |     Block Number: 23
+anvil              |     Block Hash: 0x2aa88aee7507856b2c8c9833bbf72d761cb90e0d0c50dc59d891464ae1dee778
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:34:35 +0000"
+anvil              | 
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:34:39Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 100s, remaining: 20s, will wait for more txs or until timeout (120s).
+anvil              | 
+anvil              |     Block Number: 24
+anvil              |     Block Hash: 0xd312cd8ed9042ac9273979081fe2ae54fd1307fe2b119b72af3a95785c62349e
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:34:40 +0000"
+anvil              | 
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:34:44Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 105s, remaining: 15s, will wait for more txs or until timeout (120s).
+anvil              | 
+anvil              |     Block Number: 25
+anvil              |     Block Hash: 0x72fa851d04a393737931dc430552a31b1a232131bc9c0b926604a37702490a96
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:34:45 +0000"
+anvil              | 
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:34:49Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 110s, remaining: 10s, will wait for more txs or until timeout (120s).
+anvil              | 
+anvil              |     Block Number: 26
+anvil              |     Block Hash: 0x162a38013ad4db7a5b504ff6ef4e6f6eccdb6cd7c131972651f1db725a9fdac6
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:34:50 +0000"
+anvil              | 
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:34:54Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 115s, remaining: 5s, will wait for more txs or until timeout (120s).
+anvil              | 
+anvil              |     Block Number: 27
+anvil              |     Block Hash: 0x33957494d105097013f757c72c55b37ac70ac1455fbae39c2ecda51af8d52e21
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:34:55 +0000"
+anvil              | 
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+anvil              | eth_call
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:34:59Z [0m[32mINFO [0m nightfall_proposer::services::assemble_block[0m[38;5;8m][0m Starting block assembly process
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:34:59Z [0m[32mINFO [0m nightfall_proposer::services::assemble_block[0m[38;5;8m][0m Getting DB connection
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:34:59Z [0m[32mINFO [0m nightfall_proposer::services::assemble_block[0m[38;5;8m][0m Preparing block data
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:34:59Z [0m[32mINFO [0m nightfall_proposer::services::assemble_block[0m[38;5;8m][0m Found 1 deposits in mempool
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:34:59Z [0m[32mINFO [0m nightfall_proposer::services::assemble_block[0m[38;5;8m][0m Found 0 client transactions in mempool
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:34:59Z [0m[32mINFO [0m nightfall_proposer::services::assemble_block[0m[38;5;8m][0m Block data prepared successfully
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:34:59Z [0m[32mINFO [0m nightfall_proposer::services::assemble_block[0m[38;5;8m][0m This block has 1 deposit(s), 0 transfer(s), and 0 withdrawal(s)
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:34:59Z [0m[32mINFO [0m nightfall_proposer::services::assemble_block[0m[38;5;8m][0m Creating deposit proof for a group of 4 deposits
+anvil              | 
+anvil              |     Block Number: 28
+anvil              |     Block Hash: 0x64f9de3806399c0edca4ca8842c5fb387dd4d04fff06b7ac36c35df11aa9ab67
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:35:00 +0000"
+anvil              | 
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_configuration  | 172.18.0.7 - - [17/Jun/2025:21:35:03 +0000] "GET /deposit_proving_key HTTP/1.1" 200 243271267 "-" "-" "-"
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | 
+anvil              |     Block Number: 29
+anvil              |     Block Hash: 0x91137757eb159f9b0082f7faab0ae4c86b52ba2703118a1b420d1ea55772a723
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:35:05 +0000"
+anvil              | 
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+anvil              | 
+anvil              |     Block Number: 30
+anvil              |     Block Hash: 0xcf5ea4fa69dd253bd7b799108aabbc632a3d3ff1a7e7da8297066b2783c16d03
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:35:10 +0000"
+anvil              | 
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | 
+anvil              |     Block Number: 31
+anvil              |     Block Hash: 0xf48cb02dc08f60465473423ae85489beb823edab8f7a6da70e99a6263ecddaf5
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:35:15 +0000"
+anvil              | 
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | 
+anvil              |     Block Number: 32
+anvil              |     Block Hash: 0x0e9b049b003ebdb0237c90e731fc9d9c50405476b84e7f73bdb7e066c751fd62
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:35:20 +0000"
+anvil              | 
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | 
+anvil              |     Block Number: 33
+anvil              |     Block Hash: 0x4aaa95f70ff94b22697c38ecf337fb87a4140657852f03abe5810c1b32f8f7cf
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:35:25 +0000"
+anvil              | 
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | 
+anvil              |     Block Number: 34
+anvil              |     Block Hash: 0xf857d0e2ebc3115637a39eb048032c07a5c261139e2035a8b38c807e4e930895
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:35:30 +0000"
+anvil              | 
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | 
+anvil              |     Block Number: 35
+anvil              |     Block Hash: 0x895b5e59fef589a01687671c30906c6dc47ce3b69ca9075d90cee7450130cfda
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:35:35 +0000"
+anvil              | 
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | 
+anvil              |     Block Number: 36
+anvil              |     Block Hash: 0xa7680a7a06433090dad9382dfcc6e778689e38c8c1432a655adfb817b05c4a14
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:35:40 +0000"
+anvil              | 
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | 
+anvil              |     Block Number: 37
+anvil              |     Block Hash: 0xdf7cca9bde55699b27ba6766fbede701e97f4626c9cc95c233244bb224730419
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:35:45 +0000"
+anvil              | 
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | 
+anvil              |     Block Number: 38
+anvil              |     Block Hash: 0x9a3dcaccbf11822dc8d5137715870ef9339a60689e2eae3c8cd8ea625c67057a
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:35:50 +0000"
+anvil              | 
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | 
+anvil              |     Block Number: 39
+anvil              |     Block Hash: 0xb1d6284a55e881b1da83d86912280aa55de6d8030c0c2a21039d5258cc11c89f
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:35:55 +0000"
+anvil              | 
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | 
+anvil              |     Block Number: 40
+anvil              |     Block Hash: 0xa7cbe60696fc9fa3b7ad03279b91a194ec01fce2ae9c0926fe429e65da254dcb
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:36:00 +0000"
+anvil              | 
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:36:02Z [0m[32mINFO [0m nightfall_proposer::services::assemble_block[0m[38;5;8m][0m Generated 1 deposit proofs
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:36:02Z [0m[32mINFO [0m nightfall_proposer::services::assemble_block[0m[38;5;8m][0m Current transaction count: 1, block size: 64
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:36:02Z [0m[32mINFO [0m nightfall_proposer::services::assemble_block[0m[38;5;8m][0m Adding 63 default deposit proofs to fill block
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | 
+anvil              |     Block Number: 41
+anvil              |     Block Hash: 0x8abec8f40a06d256ad3d8c7fb2129bd0e951a2b5bbab2f577865612afcb1c867
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:36:05 +0000"
+anvil              | 
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | 
+anvil              |     Block Number: 42
+anvil              |     Block Hash: 0x46fb1aea3658456aa97bf09af10c57d37ee70639f16a7a3e1a8b2dbbfea37ed2
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:36:10 +0000"
+anvil              | 
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | 
+anvil              |     Block Number: 43
+anvil              |     Block Hash: 0x1d8ccd042b1dd6566ae7779b16ce9961a38ef6e0cfc7368913448af25aa40613
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:36:15 +0000"
+anvil              | 
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | 
+anvil              |     Block Number: 44
+anvil              |     Block Hash: 0x844ad65b590b48815af196b1f7bbb9879bd268c0ba3f56add32cfe1183c2a986
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:36:20 +0000"
+anvil              | 
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | 
+anvil              |     Block Number: 45
+anvil              |     Block Hash: 0xa017c182a23d68abfe8e6971d12cab918fa8ac70da3351ca621867ef601ea42b
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:36:25 +0000"
+anvil              | 
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | 
+anvil              |     Block Number: 46
+anvil              |     Block Hash: 0x56d068104ac3ee7fd7073097fec575c9cb32030027162d8055f8edad8797f606
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:36:30 +0000"
+anvil              | 
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | 
+anvil              |     Block Number: 47
+anvil              |     Block Hash: 0x7763f20eaf6fee97860d28cf653e135d7168c725a4419987e39cdafa955847d6
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:36:35 +0000"
+anvil              | 
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | 
+anvil              |     Block Number: 48
+anvil              |     Block Hash: 0x11940789aafa9f319a9d95985c8671f26482dc8fe43d0bf5f2c74c730c2abd0c
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:36:40 +0000"
+anvil              | 
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:36:41Z [0m[32mINFO [0m nightfall_proposer::services::assemble_block[0m[38;5;8m][0m Computing block
+nf4_configuration  | 172.18.0.7 - - [17/Jun/2025:21:36:41 +0000] "GET /proving_key HTTP/1.1" 200 30410339 "-" "-" "-"
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+anvil              | 
+anvil              |     Block Number: 49
+anvil              |     Block Hash: 0x4f603ed1a9004ef87327c29533461c3406477c43b0bf36fcac78f87212a1a0c2
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:36:45 +0000"
+anvil              | 
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:36:45Z [0m[32mINFO [0m nightfall_proposer::services::assemble_block[0m[38;5;8m][0m Block computation took: 4 s
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:36:45Z [0m[32mINFO [0m nightfall_proposer::drivers::blockchain::block_assembly[0m[38;5;8m][0m *Proposing block*
+anvil              | eth_getTransactionCount
+anvil              | eth_getBlockByNumber
+anvil              | eth_feeHistory
+anvil              | eth_estimateGas
+anvil              | eth_sendRawTransaction
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client         | Expected block number: 0, Current block number: 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 0, Current block number: 0
+anvil              | 
+anvil              |     Transaction: 0x36e63bca71f644656fd724aaf3e4d1aed5f5013dac6aeb99a231c33f72f84101
+anvil              |     Gas used: 548035
+anvil              | 
+anvil              |     Block Number: 50
+anvil              |     Block Hash: 0xff879cc345cef7ee3358482acf021e917e926debb238f5b06872c36a791877ee
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:36:50 +0000"
+anvil              | 
+anvil              | eth_getTransactionByHash
+nf4_client         | [0m[38;5;8m[[0m2025-06-17T21:36:50Z [0m[32mINFO [0m nightfall_client::driven::event_handlers::nightfall_event[0m[38;5;8m][0m Detected a new block has been proposed
+nf4_client2        | [0m[38;5;8m[[0m2025-06-17T21:36:50Z [0m[32mINFO [0m nightfall_client::driven::event_handlers::nightfall_event[0m[38;5;8m][0m Detected a new block has been proposed
+anvil              | eth_getTransactionByHash
+anvil              | eth_getTransactionByHash
+anvil              | eth_getTransactionByHash
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:36:50Z [0m[32mINFO [0m nightfall_proposer::driven::nightfall_event[0m[38;5;8m][0m Decoded Proposed block call from transaction 0x36e63bca71f644656fd724aaf3e4d1aed5f5013dac6aeb99a231c33f72f84101
+nf4_client2        | [0m[38;5;8m[[0m2025-06-17T21:36:50Z [0m[32mINFO [0m nightfall_client::driven::event_handlers::nightfall_event[0m[38;5;8m][0m Processing a block proposed event
+nf4_client2        | [0m[38;5;8m[[0m2025-06-17T21:36:50Z [0m[32mINFO [0m nightfall_client::driven::event_handlers::nightfall_event[0m[38;5;8m][0m Decoded Proposed block call from transaction 0x36e6…4101, Layer 2 block number 0 is now on-chain
+nf4_client         | [0m[38;5;8m[[0m2025-06-17T21:36:50Z [0m[32mINFO [0m nightfall_client::driven::event_handlers::nightfall_event[0m[38;5;8m][0m Processing a block proposed event
+nf4_client         | [0m[38;5;8m[[0m2025-06-17T21:36:50Z [0m[32mINFO [0m nightfall_client::driven::event_handlers::nightfall_event[0m[38;5;8m][0m Decoded Proposed block call from transaction 0x36e6…4101, Layer 2 block number 0 is now on-chain
+anvil              | eth_getTransactionByHash
+anvil              | eth_getTransactionByHash
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Current block number is 1, delta is 0
+nf4_client2        | Current block number is 1, delta is 0
+anvil              | eth_call
+nf4_client2        | Expected block number: 1, Current block number: 1
+anvil              | eth_call
+nf4_client         | Expected block number: 1, Current block number: 1
+anvil              | eth_getTransactionByHash
+anvil              | eth_getTransactionReceipt
+anvil              | eth_call
+anvil              | eth_call
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:36:52Z [0m[32mINFO [0m nightfall_proposer::driven::nightfall_contract[0m[38;5;8m][0m Received receipt for submitted block with hash: 0x36e6…4101, gas used was: 548035
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:36:52Z [0m[32mINFO [0m nightfall_proposer::drivers::blockchain::block_assembly[0m[38;5;8m][0m Block proposed successfully
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:36:52Z [0m[32mINFO [0m nightfall_proposer::drivers::blockchain::block_assembly[0m[38;5;8m][0m We are the current proposer. Awaiting trigger...
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:36:52Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 0s, remaining: 120s, will wait for more txs or until timeout (120s).
+anvil              | eth_call
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:36:52Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 0s, remaining: 120s, will wait for more txs or until timeout (120s).
+anvil              | eth_call
+nf4_client2        | Expected block number: 1, Current block number: 1
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 1, Current block number: 1
+nf4_client2        | Expected block number: 1, Current block number: 1
+anvil              | eth_call
+nf4_client         | Expected block number: 1, Current block number: 1
+anvil              | eth_call
+anvil              | eth_call
+nf4_client2        | Expected block number: 1, Current block number: 1
+anvil              | eth_call
+nf4_client         | Expected block number: 1, Current block number: 1
+anvil              | 
+anvil              |     Block Number: 51
+anvil              |     Block Hash: 0x6807015016d790c107e97323f09a9f7efdf56cdb73098e7342c36098ce453f7a
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:36:55 +0000"
+anvil              | 
+anvil              | eth_call
+nf4_client2        | Expected block number: 1, Current block number: 1
+anvil              | eth_call
+nf4_client         | Expected block number: 1, Current block number: 1
+anvil              | eth_call
+nf4_client2        | Expected block number: 1, Current block number: 1
+anvil              | eth_call
+nf4_client         | Expected block number: 1, Current block number: 1
+anvil              | eth_call
+nf4_proposer       | [0m[38;5;8m[[0m2025-06-17T21:36:57Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 5s, remaining: 115s, will wait for more txs or until timeout (120s).
+anvil              | eth_call
+nf4_client2        | Expected block number: 1, Current block number: 1
+anvil              | eth_call
+nf4_client         | Expected block number: 1, Current block number: 1
+nf4_test           | [0m[38;5;8m[[0m2025-06-17T21:36:58Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Commitments are now on-chain
+nf4_test           | [0m[38;5;8m[[0m2025-06-17T21:36:58Z [0m[32mINFO [0m nightfall_test::run_tests[0m[38;5;8m][0m Deposit commitments for client 1 are now on-chain
+nf4_test           | [0m[38;5;8m[[0m2025-06-17T21:36:58Z [0m[32mINFO [0m lib::wallets[0m[38;5;8m][0m Created wallet with address: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+nf4_configuration  | 172.18.0.250 - - [17/Jun/2025:21:36:58 +0000] "GET /configuration/toml/addresses.toml HTTP/1.1" 200 168 "-" "-" "-"
+anvil              | eth_call
+nf4_test           | Current layer 2 block number: 1
+nf4_test           | nightfall_address: 0xdc64…f6c9
+nf4_test           | block_topic: 0x0000…0000
+anvil              | eth_blockNumber
+nf4_test           | filter: Filter { block_option: Range { from_block: Some(Number(0)), to_block: Some(Number(51)) }, address: Some(Value(0xdc64a140aa3e981100a9beca4e685f962f0cf6c9)), topics: [Some(Value(Some(0x46bf148827a74eb5c7ca85b1051331f7e07c6b512300580c47bf1dd646c1d895))), Some(Value(Some(0x0000000000000000000000000000000000000000000000000000000000000000))), None, None] }
+anvil              | eth_getLogs
+nf4_test           | logs: [Log { address: 0xdc64a140aa3e981100a9beca4e685f962f0cf6c9, topics: [0x46bf148827a74eb5c7ca85b1051331f7e07c6b512300580c47bf1dd646c1d895, 0x0000000000000000000000000000000000000000000000000000000000000000], data: Bytes(0x), block_hash: Some(0xff879cc345cef7ee3358482acf021e917e926debb238f5b06872c36a791877ee), block_number: Some(50), transaction_hash: Some(0x36e63bca71f644656fd724aaf3e4d1aed5f5013dac6aeb99a231c33f72f84101), transaction_index: Some(0), log_index: Some(0), transaction_log_index: None, log_type: None, removed: Some(false) }]
+anvil              | eth_getLogs
+nf4_test           | Log topics2: [0x354729b3585ac9518a7659e8b3323389f148a753e8c3c5d8c01bfe09bc009340]
+nf4_test           | Log topics2: [0x46bf148827a74eb5c7ca85b1051331f7e07c6b512300580c47bf1dd646c1d895, 0x0000000000000000000000000000000000000000000000000000000000000000]
+nf4_test           | log: Log { address: 0xdc64a140aa3e981100a9beca4e685f962f0cf6c9, topics: [0x46bf148827a74eb5c7ca85b1051331f7e07c6b512300580c47bf1dd646c1d895, 0x0000000000000000000000000000000000000000000000000000000000000000], data: Bytes(0x), block_hash: Some(0xff879cc345cef7ee3358482acf021e917e926debb238f5b06872c36a791877ee), block_number: Some(50), transaction_hash: Some(0x36e63bca71f644656fd724aaf3e4d1aed5f5013dac6aeb99a231c33f72f84101), transaction_index: Some(0), log_index: Some(0), transaction_log_index: None, log_type: None, removed: Some(false) }
+nf4_test           | tx_hash: 0x36e63bca71f644656fd724aaf3e4d1aed5f5013dac6aeb99a231c33f72f84101
+anvil              | eth_getTransactionByHash
+nf4_test           | L2 block 0 was submitted in L1 block 50 with L1 block hash : 0xff87…77ee
+nf4_test           | l1_block_hash before reorg: 0xff87…77ee
+anvil              | eth_getBlockByHash
+nf4_test           | Before block: Some(Block { hash: Some(0xff879cc345cef7ee3358482acf021e917e926debb238f5b06872c36a791877ee), parent_hash: 0x4f603ed1a9004ef87327c29533461c3406477c43b0bf36fcac78f87212a1a0c2, uncles_hash: 0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347, author: Some(0x0000000000000000000000000000000000000000), state_root: 0x5bed0d7712daca28a4a2befc959b6ee144336576379f5e7ac68e03469e239e01, transactions_root: 0x8a46de553965a37466d2ec2092b12d7cb0d51d280b555524c9bd09827a146afb, receipts_root: 0x296cea4e5fafc56b625b3f29b47bcd463dfc3218a6e6d4b50ea95833f016f408, number: Some(50), gas_used: 548035, gas_limit: 30000000, extra_data: Bytes(0x), logs_bloom: Some(0x00000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000020000000000400000002800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000020000000000000000020000000000000000000000000000000000000000001000000000100000000000000), timestamp: 1750196210, difficulty: 0, total_difficulty: Some(0), seal_fields: [], uncles: [], transactions: [0x36e63bca71f644656fd724aaf3e4d1aed5f5013dac6aeb99a231c33f72f84101], size: Some(27909), mix_hash: Some(0x0000000000000000000000000000000000000000000000000000000000000000), nonce: Some(0x0000000000000000), base_fee_per_gas: Some(101230619), blob_gas_used: Some(0), excess_blob_gas: Some(0), withdrawals_root: Some(0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421), withdrawals: Some([]), parent_beacon_block_root: Some(0x0000000000000000000000000000000000000000000000000000000000000000), other: OtherFields { inner: {} } })
+nf4_test           | Anvil block history:
+anvil              | eth_blockNumber
+nf4_test           | Latest block number: 51
+nf4_test           | Inspecting blocks from 0 to 51
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 0
+nf4_test           | Timestamp: 1750195957
+nf4_test           | Block Hash: 0x749c16180698ac990d3ced0ddf2d13db992a8b1434d1db99da6216df2a3d8652
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 1
+nf4_test           | Timestamp: 1750195962
+nf4_test           | Block Hash: 0xe85f29076851fb2c9e186eb2f315273b154a5da35f56069ff68457e8cd2dca1e
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 2
+anvil              | eth_getBlockByNumber
+nf4_test           | Timestamp: 1750195967
+nf4_test           | Block Hash: 0x062596cd2fa301b1e911fafd7f789e48818d32abb4fdf781cbbf556d749411a0
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 3
+nf4_test           | Timestamp: 1750195972
+nf4_test           | Block Hash: 0x554b63e909ebafffba69a03406b2f6b9a86b6262e124585bb266a761e29f4ed2
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 4
+nf4_test           | Timestamp: 1750195977
+nf4_test           | Block Hash: 0x4f30e0c05e460349526aa8e399ec785537b1bbaef9e0d41f3651945c56e51e5d
+nf4_test           | Tx Hashes: [0x7ae4c974564af261a63dd8e8155fe933cea108e2b6885338b6e5762bded0b74d, 0x4947de27ae6f260e2197351d0dd3f9cfa18ff2b3ad3036683e90ccd5bcd2cce3, 0xe98b17f6b9dd19514cc555ab1d65c9426f1d9b71285aace4de2bf4b7a51bc776, 0x93c9c862000055ec73c598d4c32b8170ded0930a605f7f20ec42c78c14d65b42, 0xecabe4eaec4462d2140380b3258b2708e227eb8e65c74a02c4c75a797927f138, 0x9ea556e34da7eee33539aa5eba1ce6775f06d0ac9deb1376329c23bc9d05b146, 0xf3b3897709952467153e53efb490e1ce980acf607d870bce3d204b02e750e0a5, 0xf09ee082b748b6fb0ca6e2006485090cea7482000420eafbde13a95ebdf18db5, 0xc1af78eb118a189a4c67947576dded252c6988c1da25063841c646d881b3681b, 0x0762a61f484e2dd6c57ad2bb8da0be11e450d416d32a981ebe865204cbdba611, 0x2866db3084aecc28db1d1d624ceb7a182117f571353c5f29f916fed533ca1d5c, 0x2e9c8386e9d0ce6499f2f7a07ae7b4b678ae6ed68e58dd55db3c69f4ef3a85a5, 0x8a8486ffca02acae0cd54e88e0e52cdae68d5c335a3b259b6ea29c0250903f22, 0x4cf7388e7e1bf8ec30bf8379c3994f887a21189f9c9bc60409856103d53e34ef, 0x2a9d6b94e5715b4842f7fc125a4aa9c228064909ae881f862ae9509dfc2db912, 0xad2a02a76d1691a4674910994a1615b091ab971cdb981247e5e3d7b68de9569f]
+nf4_test           | 
+nf4_test           | Block Number: 5
+nf4_test           | Timestamp: 1750195982
+nf4_test           | Block Hash: 0x68f56b4c636e511bb16049dd9176efacf003ac2a229e968b77036ebd6c944669
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 6
+nf4_test           | Timestamp: 1750195987
+nf4_test           | Block Hash: 0xc7444c8797ecefc6154b5857c27e089c4f3804095a03fce73f3a93b950a0d277
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 7
+nf4_test           | Timestamp: 1750195995
+nf4_test           | Block Hash: 0x521817946227ce97b1d0ef11c8f6ab7cacfba7848a7e34b60b1e6f35185c5f8c
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 8
+nf4_test           | Timestamp: 1750196000
+nf4_test           | Block Hash: 0x74db3eefc3da26726c1e16db06f52e4428b7e570f440c8c130d66d07f68f6543
+nf4_test           | Tx Hashes: [0xf80990d15196811b9ccb872e0abe4cac0ea2283c19810200ffbe6e2eb054af71, 0xe1e96feec33d6c6b1587ac1b276f9f6fdb57db0ff126a6098699ae7d208ab956, 0xa4defca61d52790d72d7290e1093b2ee056ce35bd824147fc3f25e95c931448f, 0x1baeba74113f2b534cccb43c65609dc69c18a28492c8143a6f3f69f65fb420de]
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 9
+nf4_test           | Timestamp: 1750196005
+nf4_test           | Block Hash: 0x40213c26061f2048249d8a5f2c9a7372b9c10cb09c4dc415765ed1af50c8d777
+nf4_test           | Tx Hashes: [0x9119c02815f7fb7aef50abe2a4f5cfd449155f8907b21c8aebab8af93282e408]
+nf4_test           | 
+nf4_test           | Block Number: 10
+nf4_test           | Timestamp: 1750196010
+nf4_test           | Block Hash: 0xf0c276269efd2330e5fc792035f4d2f89bd71f513bcc52ebf29723bbad7ebe68
+nf4_test           | Tx Hashes: [0x7ede8e6ce2a1740432406ca2bcc0176479f3e45345c9321815970138a4d41300]
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 11
+nf4_test           | Timestamp: 1750196015
+nf4_test           | Block Hash: 0xdf09cf90a8f3ab2f1fae6e1fc8781f90e310d916a4787a86f40071ad76856d5b
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 12
+nf4_test           | Timestamp: 1750196020
+nf4_test           | Block Hash: 0x2ad98dfea048a8aaa15740ef177670c7a5c63146355975f19da43bd4331a9c79
+nf4_test           | Tx Hashes: [0xc42bfbf39fc3b71e541bbf5460ccf1f71c7a70ca48419950421620d722978103]
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 13
+nf4_test           | Timestamp: 1750196025
+nf4_test           | Block Hash: 0xeb070d80621f5dee761f128e1817379f6c0ccf578c92992d6289f4f790c5593f
+nf4_test           | Tx Hashes: [0x50ed201c319316438d77eb2fe9c31342a454e6db66203aeed94873310d2a0e2b]
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 14
+nf4_test           | Timestamp: 1750196030
+nf4_test           | Block Hash: 0x9622ba4dd1899c0066e429ef09f673042091b837bf33098db5453dee879ba3da
+nf4_test           | Tx Hashes: [0xba035e4376cb3df78fea94789af768bd040b228b9a3421f1ae5b6b94164bd822]
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 15
+nf4_test           | Timestamp: 1750196035
+nf4_test           | Block Hash: 0x35e1046ec6525f8c218583640898d25085f0726b36e754a9c4690e338c4694cb
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 16
+nf4_test           | Timestamp: 1750196040
+nf4_test           | Block Hash: 0x01cd86cd9ab77b4d6c2ca110a57cf91465d76c1140abd0aa8442336efaea7890
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 17
+nf4_test           | Timestamp: 1750196045
+nf4_test           | Block Hash: 0x43b48e277766ed9672f24d418448b0d6879cdc25ec2f27341a2f56368bb06719
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 18
+nf4_test           | Timestamp: 1750196050
+nf4_test           | Block Hash: 0x459e84479a627df207a6a38d2c45a449061720b7f669d4a8d477a3ac51ac0853
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 19
+nf4_test           | Timestamp: 1750196055
+nf4_test           | Block Hash: 0x9ac4b7a909a1117046df56702df581ae3ab05045540a988c2e9a57047504cd0b
+anvil              | eth_getBlockByNumber
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 20
+nf4_test           | Timestamp: 1750196060
+nf4_test           | Block Hash: 0x7e41c96f890c72b5c502c6a502274463df547c6930d16eecb91974a79219624c
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 21
+nf4_test           | Timestamp: 1750196065
+nf4_test           | Block Hash: 0x5ff954af87c12fd9b12981a1af69af73a663641688565a68d648ba4a8533d49c
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 22
+nf4_test           | Timestamp: 1750196070
+nf4_test           | Block Hash: 0x1b85cd30931f96431a63c083daf60a93cdb83289f9f23a1c9dc529767abd13e8
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 23
+nf4_test           | Timestamp: 1750196075
+nf4_test           | Block Hash: 0x2aa88aee7507856b2c8c9833bbf72d761cb90e0d0c50dc59d891464ae1dee778
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 24
+nf4_test           | Timestamp: 1750196080
+nf4_test           | Block Hash: 0xd312cd8ed9042ac9273979081fe2ae54fd1307fe2b119b72af3a95785c62349e
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 25
+nf4_test           | Timestamp: 1750196085
+nf4_test           | Block Hash: 0x72fa851d04a393737931dc430552a31b1a232131bc9c0b926604a37702490a96
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 26
+nf4_test           | Timestamp: 1750196090
+nf4_test           | Block Hash: 0x162a38013ad4db7a5b504ff6ef4e6f6eccdb6cd7c131972651f1db725a9fdac6
+anvil              | eth_getBlockByNumber
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 27
+nf4_test           | Timestamp: 1750196095
+nf4_test           | Block Hash: 0x33957494d105097013f757c72c55b37ac70ac1455fbae39c2ecda51af8d52e21
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 28
+nf4_test           | Timestamp: 1750196100
+nf4_test           | Block Hash: 0x64f9de3806399c0edca4ca8842c5fb387dd4d04fff06b7ac36c35df11aa9ab67
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 29
+nf4_test           | Timestamp: 1750196105
+nf4_test           | Block Hash: 0x91137757eb159f9b0082f7faab0ae4c86b52ba2703118a1b420d1ea55772a723
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 30
+nf4_test           | Timestamp: 1750196110
+nf4_test           | Block Hash: 0xcf5ea4fa69dd253bd7b799108aabbc632a3d3ff1a7e7da8297066b2783c16d03
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 31
+nf4_test           | Timestamp: 1750196115
+nf4_test           | Block Hash: 0xf48cb02dc08f60465473423ae85489beb823edab8f7a6da70e99a6263ecddaf5
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 32
+nf4_test           | Timestamp: 1750196120
+nf4_test           | Block Hash: 0x0e9b049b003ebdb0237c90e731fc9d9c50405476b84e7f73bdb7e066c751fd62
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 33
+nf4_test           | Timestamp: 1750196125
+nf4_test           | Block Hash: 0x4aaa95f70ff94b22697c38ecf337fb87a4140657852f03abe5810c1b32f8f7cf
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 34
+nf4_test           | Timestamp: 1750196130
+nf4_test           | Block Hash: 0xf857d0e2ebc3115637a39eb048032c07a5c261139e2035a8b38c807e4e930895
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 35
+nf4_test           | Timestamp: 1750196135
+nf4_test           | Block Hash: 0x895b5e59fef589a01687671c30906c6dc47ce3b69ca9075d90cee7450130cfda
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 36
+nf4_test           | Timestamp: 1750196140
+nf4_test           | Block Hash: 0xa7680a7a06433090dad9382dfcc6e778689e38c8c1432a655adfb817b05c4a14
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 37
+nf4_test           | Timestamp: 1750196145
+nf4_test           | Block Hash: 0xdf7cca9bde55699b27ba6766fbede701e97f4626c9cc95c233244bb224730419
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 38
+nf4_test           | Timestamp: 1750196150
+nf4_test           | Block Hash: 0x9a3dcaccbf11822dc8d5137715870ef9339a60689e2eae3c8cd8ea625c67057a
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 39
+nf4_test           | Timestamp: 1750196155
+nf4_test           | Block Hash: 0xb1d6284a55e881b1da83d86912280aa55de6d8030c0c2a21039d5258cc11c89f
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 40
+nf4_test           | Timestamp: 1750196160
+nf4_test           | Block Hash: 0xa7cbe60696fc9fa3b7ad03279b91a194ec01fce2ae9c0926fe429e65da254dcb
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 41
+nf4_test           | Timestamp: 1750196165
+nf4_test           | Block Hash: 0x8abec8f40a06d256ad3d8c7fb2129bd0e951a2b5bbab2f577865612afcb1c867
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 42
+nf4_test           | Timestamp: 1750196170
+nf4_test           | Block Hash: 0x46fb1aea3658456aa97bf09af10c57d37ee70639f16a7a3e1a8b2dbbfea37ed2
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 43
+nf4_test           | Timestamp: 1750196175
+anvil              | eth_getBlockByNumber
+nf4_test           | Block Hash: 0x1d8ccd042b1dd6566ae7779b16ce9961a38ef6e0cfc7368913448af25aa40613
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 44
+nf4_test           | Timestamp: 1750196180
+nf4_test           | Block Hash: 0x844ad65b590b48815af196b1f7bbb9879bd268c0ba3f56add32cfe1183c2a986
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 45
+nf4_test           | Timestamp: 1750196185
+nf4_test           | Block Hash: 0xa017c182a23d68abfe8e6971d12cab918fa8ac70da3351ca621867ef601ea42b
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 46
+nf4_test           | Timestamp: 1750196190
+nf4_test           | Block Hash: 0x56d068104ac3ee7fd7073097fec575c9cb32030027162d8055f8edad8797f606
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 47
+nf4_test           | Timestamp: 1750196195
+nf4_test           | Block Hash: 0x7763f20eaf6fee97860d28cf653e135d7168c725a4419987e39cdafa955847d6
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 48
+nf4_test           | Timestamp: 1750196200
+nf4_test           | Block Hash: 0x11940789aafa9f319a9d95985c8671f26482dc8fe43d0bf5f2c74c730c2abd0c
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 49
+nf4_test           | Timestamp: 1750196205
+nf4_test           | Block Hash: 0x4f603ed1a9004ef87327c29533461c3406477c43b0bf36fcac78f87212a1a0c2
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 50
+nf4_test           | Timestamp: 1750196210
+nf4_test           | Block Hash: 0xff879cc345cef7ee3358482acf021e917e926debb238f5b06872c36a791877ee
+nf4_test           | Tx Hashes: [0x36e63bca71f644656fd724aaf3e4d1aed5f5013dac6aeb99a231c33f72f84101]
+nf4_test           | 
+nf4_test           | Block Number: 51
+nf4_test           | Timestamp: 1750196215
+nf4_test           | Block Hash: 0x6807015016d790c107e97323f09a9f7efdf56cdb73098e7342c36098ce453f7a
+nf4_test           | Tx Hashes: []
+nf4_test           | Starting Reorg
+anvil              | evm_snapshot
+nf4_test           | Snapshot taken with ID: 0x0
+anvil              | eth_blockNumber
+anvil              | eth_getBlockByNumber
+nf4_test           | Original block number: 51, hash: 0x6807…3f7a
+anvil              | evm_revert
+nf4_test           | Reverted to snapshot
+anvil              | evm_setAutomine
+anvil              | evm_setIntervalMining
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 52
+anvil              |     Block Hash: 0x0799f8c60536ac3c65ceda11364154303b59c7c47ca84bc5ad939f24e8af85b1
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:37:07 +0000"
+anvil              | 
+nf4_test           | Reorg block 0 mined
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 53
+anvil              |     Block Hash: 0xca48c15900b657603876056a24f1995f20678ca18d0a531488a8efee7af14691
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:38:20 +0000"
+anvil              | 
+nf4_test           | Reorg block 1 mined
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 54
+anvil              |     Block Hash: 0x1957f45c8bce283780f33b24d4a480bb59e79e98322af22771f42fe5277ad6e0
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:39:39 +0000"
+anvil              | 
+nf4_test           | Reorg block 2 mined
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 55
+anvil              |     Block Hash: 0xf1f6960daabde29ca3f10dbac825f982e7a9603fa4f0b81b600152acf35e0823
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:40:31 +0000"
+anvil              | 
+nf4_test           | Reorg block 3 mined
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 56
+anvil              |     Block Hash: 0xb39f2a2764d1ff3d748e6d95b5170551d97cdaf67258d7d37d6f3f3a804e93a1
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:40:55 +0000"
+anvil              | 
+nf4_test           | Reorg block 4 mined
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 57
+anvil              |     Block Hash: 0xc82b8a9676294ad4e4a590f8fbb49851ae165c0fcc3a2f7d0bec9ed4a3d0a856
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:41:11 +0000"
+anvil              | 
+nf4_test           | Reorg block 5 mined
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 58
+anvil              |     Block Hash: 0x9e8992c6915d1d1a3f15b12ed80df2f146056c580e558a66cb8083d93d2d5b43
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:41:42 +0000"
+anvil              | 
+anvil              | eth_sendTransaction
+nf4_test           | Reorg block 6 mined
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 59
+anvil              |     Block Hash: 0x9d134c910e69d2c117d9e0c700dc399c28e32e11827f0cd0421eae6a14aba53e
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:42:10 +0000"
+anvil              | 
+nf4_test           | Reorg block 7 mined
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 60
+anvil              |     Block Hash: 0xefec91230377f0a66bad28ce8b1e6b7734a8828b1a92b5aa3cf40726373e408c
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:42:44 +0000"
+anvil              | 
+nf4_test           | Reorg block 8 mined
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 61
+anvil              |     Block Hash: 0x6cca806102a069e9cc558fa9be4b815962a9948c6e69a37b2b8db59adeaaa022
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:43:54 +0000"
+anvil              | 
+nf4_test           | Reorg block 9 mined
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 62
+anvil              |     Block Hash: 0xf06a59ba3659ed1056dc6b72380e24f4eff7bc90b892b4d9542e3c3351794ec3
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:44:20 +0000"
+anvil              | 
+nf4_test           | Reorg block 10 mined
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+nf4_test           | Reorg block 11 mined
+anvil              | 
+anvil              |     Block Number: 63
+anvil              |     Block Hash: 0x9e81c26fb335baeedceb6db0ea02e8383e30f1f2ad8029b9b9df0034471259ff
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:45:41 +0000"
+anvil              | 
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 64
+anvil              |     Block Hash: 0x79089140d00f062be57b472297b18ab65f9ca2998d7ec7b6766f2b1ab5751967
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:46:57 +0000"
+anvil              | 
+nf4_test           | Reorg block 12 mined
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 65
+anvil              |     Block Hash: 0x6e810c58b8850b7227af3821a14e21130451e9aad8d1e8e8e75d9f8deb2d9c03
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:47:34 +0000"
+anvil              | 
+nf4_test           | Reorg block 13 mined
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 66
+anvil              |     Block Hash: 0xd1010b07efabdd584fff5a2f7a25a56ced933583304ff82208c2f55994245f15
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:48:41 +0000"
+anvil              | 
+nf4_test           | Reorg block 14 mined
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 67
+anvil              |     Block Hash: 0x228558f34fc51033ac40f35b341f961ae1deac19d4a5b6b7b7a1ade3908ff9d6
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:50:02 +0000"
+anvil              | 
+nf4_test           | Reorg block 15 mined
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 68
+anvil              |     Block Hash: 0x773059dc3c983b29cb60a3b78545d13a98b74bafba617ee2bacf0180fc5ec64d
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:50:27 +0000"
+anvil              | 
+nf4_test           | Reorg block 16 mined
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 69
+anvil              |     Block Hash: 0x0b49714f01d0a78df81e60be81653320abd9a597145e8105d7acccec8fd0b3d5
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:50:44 +0000"
+anvil              | 
+nf4_test           | Reorg block 17 mined
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 70
+anvil              |     Block Hash: 0x3c1d4ea959a90145aebf37450ecb4fefa3e688a9c95789ee9c5c4724e53d9e8e
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:52:10 +0000"
+anvil              | 
+nf4_test           | Reorg block 18 mined
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 71
+anvil              |     Block Hash: 0xec29083845baedcba102201fd0149e613639b2ea02c7c5b61e3496c74b9dee05
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:52:29 +0000"
+anvil              | 
+nf4_test           | Reorg block 19 mined
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 72
+anvil              |     Block Hash: 0x37f9a75a01f7139adf1dfb5d6bf9c2c901bff28d9a730f8d8c49da438d31b24e
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:52:54 +0000"
+anvil              | 
+nf4_test           | Reorg block 20 mined
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 73
+anvil              |     Block Hash: 0x51075b858a0faba0e9a3d997fdd250d2f6a627b24d3f0dc2ccb2929f983a6816
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:53:44 +0000"
+anvil              | 
+anvil              | eth_sendTransaction
+nf4_test           | Reorg block 21 mined
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 74
+anvil              |     Block Hash: 0x6a35c47af40a4858be28963f9104389b5e7d5f5cace3194c56643dafa3ae9dd8
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:54:00 +0000"
+anvil              | 
+nf4_test           | Reorg block 22 mined
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 75
+anvil              |     Block Hash: 0x948ad44e04e599560f6a0d50d6f5cc669f9131fd998484b643ff8d9df8d1cf3e
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:55:23 +0000"
+anvil              | 
+nf4_test           | Reorg block 23 mined
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 76
+anvil              |     Block Hash: 0x4289448781e80075e6394409a94edd1016d7c9687ef315da81f8e37c0900381e
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:56:37 +0000"
+anvil              | 
+nf4_test           | Reorg block 24 mined
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 77
+anvil              |     Block Hash: 0x3419590760da914195ef44181fc74b6ecf910892d36beea096f3efb9480897ee
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:58:06 +0000"
+anvil              | 
+nf4_test           | Reorg block 25 mined
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 78
+anvil              |     Block Hash: 0xfe432123f9e3b14e2376e8669449a9e10146e6b36827c5d6f16a68ca30ab377d
+anvil              |     Block Time: "Tue, 17 Jun 2025 21:59:29 +0000"
+anvil              | 
+anvil              | eth_sendTransaction
+nf4_test           | Reorg block 26 mined
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 79
+anvil              |     Block Hash: 0x7ad060405880fbc860c56f1ac3754a40f4f825d0c6592b0f28a89a83968c08ea
+anvil              |     Block Time: "Tue, 17 Jun 2025 22:00:17 +0000"
+anvil              | 
+nf4_test           | Reorg block 27 mined
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 80
+anvil              |     Block Hash: 0x686f9ed0ba31db452f2dd2bf491e607c16d904ee687da3ee0e63b787086f59bf
+anvil              |     Block Time: "Tue, 17 Jun 2025 22:00:29 +0000"
+anvil              | 
+nf4_test           | Reorg block 28 mined
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 81
+anvil              |     Block Hash: 0x10e27836b54dd32d35f7d7b92a1e1169edf7e593df95326269c1578c401ba2d0
+anvil              |     Block Time: "Tue, 17 Jun 2025 22:01:22 +0000"
+anvil              | 
+nf4_test           | Reorg block 29 mined
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 82
+anvil              |     Block Hash: 0xb7970f0e8aa7e7042916cd4209122b75092698fb18939fee358b3c63f7d2ee10
+anvil              |     Block Time: "Tue, 17 Jun 2025 22:01:38 +0000"
+anvil              | 
+nf4_test           | Reorg block 30 mined
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 83
+anvil              |     Block Hash: 0xe8671cb1858872184fb4e6bb7bfd5264efa3a1b519f085aad34d9f5bf109f17f
+anvil              |     Block Time: "Tue, 17 Jun 2025 22:02:48 +0000"
+anvil              | 
+nf4_test           | Reorg block 31 mined
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 84
+anvil              |     Block Hash: 0xb393a1247a8bec555094c2741de4a328cfe9b7f334c2ebb41f274fc995038aad
+anvil              |     Block Time: "Tue, 17 Jun 2025 22:03:39 +0000"
+anvil              | 
+anvil              | eth_sendTransaction
+nf4_test           | Reorg block 32 mined
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 85
+anvil              |     Block Hash: 0x264c22f92f4ea77c09cbb4f3dc5b28c136eb90f05ce307bc723b2a8e0d50a277
+anvil              |     Block Time: "Tue, 17 Jun 2025 22:03:56 +0000"
+anvil              | 
+nf4_test           | Reorg block 33 mined
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 86
+anvil              |     Block Hash: 0x51838d4c08af7804969931d45e4ec0e7b3c0fb88e210ca2599c4c2bf24b0fd0e
+anvil              |     Block Time: "Tue, 17 Jun 2025 22:04:16 +0000"
+anvil              | 
+nf4_test           | Reorg block 34 mined
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 87
+anvil              |     Block Hash: 0x4f4d7604e32655683b535e572a59765663ae3b48ed3d40ef554626b91f707341
+anvil              |     Block Time: "Tue, 17 Jun 2025 22:05:27 +0000"
+anvil              | 
+nf4_test           | Reorg block 35 mined
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 88
+anvil              |     Block Hash: 0x6c2bbe9b8fed6ae3030d2965754a922daaac7cabbd20eed50623ba6e6882b16b
+anvil              |     Block Time: "Tue, 17 Jun 2025 22:05:45 +0000"
+anvil              | 
+nf4_test           | Reorg block 36 mined
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 89
+anvil              |     Block Hash: 0xedc512c0893c190c0c8ed67560cd35b9b63ec8931ac9de127b9e73b20ca4e44c
+anvil              |     Block Time: "Tue, 17 Jun 2025 22:06:11 +0000"
+anvil              | 
+nf4_test           | Reorg block 37 mined
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 90
+anvil              |     Block Hash: 0x2ea5dfc3578cf8f9bc6eb8daa8f9cc0a6abf0e6072a117ab570ebaebb97a3a68
+anvil              |     Block Time: "Tue, 17 Jun 2025 22:07:32 +0000"
+anvil              | 
+nf4_test           | Reorg block 38 mined
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 91
+anvil              |     Block Hash: 0x7b561269a3c32858437a285d93f98c3d0643387d8aa59f0180f24354e5998674
+anvil              |     Block Time: "Tue, 17 Jun 2025 22:07:58 +0000"
+anvil              | 
+nf4_test           | Reorg block 39 mined
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 92
+anvil              |     Block Hash: 0x35d615299d9eff5b8218f4604706469114262498eafde6b7855f9f31b1e38cb8
+anvil              |     Block Time: "Tue, 17 Jun 2025 22:08:18 +0000"
+anvil              | 
+nf4_test           | Reorg block 40 mined
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 93
+anvil              |     Block Hash: 0xdc041cdf955c7b706dfb69f14f02cd3d3c04b5ad3b7dd0bec19ad1baaf16f9eb
+anvil              |     Block Time: "Tue, 17 Jun 2025 22:08:58 +0000"
+anvil              | 
+nf4_test           | Reorg block 41 mined
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 94
+anvil              |     Block Hash: 0x8135e4fd97031b14dcb458e21274277444c9ba051f32b5834f7e7d0511211761
+anvil              |     Block Time: "Tue, 17 Jun 2025 22:10:26 +0000"
+anvil              | 
+nf4_test           | Reorg block 42 mined
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 95
+anvil              |     Block Hash: 0x31cbfb38a3cc06941a813dbc7a30253a0eb1212137d35f24b69575d952e7e851
+anvil              |     Block Time: "Tue, 17 Jun 2025 22:11:15 +0000"
+anvil              | 
+anvil              | eth_sendTransaction
+nf4_test           | Reorg block 43 mined
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 96
+anvil              |     Block Hash: 0x092b4bf4e96f19c6a88bde821bae287e5164f86ac35195e43433c1720b7f520f
+anvil              |     Block Time: "Tue, 17 Jun 2025 22:12:41 +0000"
+anvil              | 
+nf4_test           | Reorg block 44 mined
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 97
+anvil              |     Block Hash: 0x6adb2945faf3473ceb44bc955e47cbc2d4b19f5abb1af6e089dbc9247fecbb42
+anvil              |     Block Time: "Tue, 17 Jun 2025 22:12:53 +0000"
+anvil              | 
+nf4_test           | Reorg block 45 mined
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 98
+anvil              |     Block Hash: 0xa9c4d8293c1e40815971413fb0a026d084a4798f8f65d666ee3b53a3dee4822a
+anvil              |     Block Time: "Tue, 17 Jun 2025 22:13:59 +0000"
+anvil              | 
+nf4_test           | Reorg block 46 mined
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 99
+anvil              |     Block Hash: 0x4eb9abf2910fdd0cd6b2a9c3ece984a487d4ca7a9afd7a6d5a62b1a5488cb132
+anvil              |     Block Time: "Tue, 17 Jun 2025 22:15:04 +0000"
+anvil              | 
+nf4_test           | Reorg block 47 mined
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 100
+anvil              |     Block Hash: 0x8e90a6bc16a0301bc5a23ad8360915131037349c5102cf97cf9bec14f28883b7
+anvil              |     Block Time: "Tue, 17 Jun 2025 22:15:54 +0000"
+anvil              | 
+nf4_test           | Reorg block 48 mined
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 101
+anvil              |     Block Hash: 0xc4fffa0f88f39a7e807635832cf635698a1568ed5b190d3fc903a27542991e39
+anvil              |     Block Time: "Tue, 17 Jun 2025 22:16:42 +0000"
+anvil              | 
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+nf4_test           | Reorg block 49 mined
+nf4_test           | Reorg block 50 mined
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 102
+anvil              |     Block Hash: 0x0cf98a82012143369bf5b4b099d30a3dedc6b489d24469c2b8ff4a240d8da4af
+anvil              |     Block Time: "Tue, 17 Jun 2025 22:17:15 +0000"
+anvil              | 
+anvil              | eth_sendTransaction
+anvil              | evm_increaseTime
+anvil              | evm_mine
+anvil              | 
+anvil              |     Block Number: 103
+anvil              |     Block Hash: 0x88bd6afa9d6b7426e785158abb068d663ff9ce3046d270a611b3fb40f575d29f
+anvil              |     Block Time: "Tue, 17 Jun 2025 22:17:50 +0000"
+anvil              | 
+nf4_test           | Reorg block 51 mined
+anvil              | evm_setAutomine
+anvil              | evm_setIntervalMining
+anvil              | eth_getBlockByNumber
+nf4_test           | New block number: 51, hash: 0x6807…3f7a
+nf4_test           | Reorg failed: block hash did not change
+nf4_test           | Finished Reorg
+nf4_test           | nightfall_address: 0xdc64…f6c9
+nf4_test           | block_topic: 0x0000…0000
+anvil              | eth_blockNumber
+nf4_test           | filter: Filter { block_option: Range { from_block: Some(Number(0)), to_block: Some(Number(103)) }, address: Some(Value(0xdc64a140aa3e981100a9beca4e685f962f0cf6c9)), topics: [Some(Value(Some(0x46bf148827a74eb5c7ca85b1051331f7e07c6b512300580c47bf1dd646c1d895))), Some(Value(Some(0x0000000000000000000000000000000000000000000000000000000000000000))), None, None] }
+anvil              | eth_getLogs
+nf4_test           | logs: [Log { address: 0xdc64a140aa3e981100a9beca4e685f962f0cf6c9, topics: [0x46bf148827a74eb5c7ca85b1051331f7e07c6b512300580c47bf1dd646c1d895, 0x0000000000000000000000000000000000000000000000000000000000000000], data: Bytes(0x), block_hash: Some(0xff879cc345cef7ee3358482acf021e917e926debb238f5b06872c36a791877ee), block_number: Some(50), transaction_hash: Some(0x36e63bca71f644656fd724aaf3e4d1aed5f5013dac6aeb99a231c33f72f84101), transaction_index: Some(0), log_index: Some(0), transaction_log_index: None, log_type: None, removed: Some(false) }]
+anvil              | eth_getLogs
+nf4_test           | Log topics2: [0x354729b3585ac9518a7659e8b3323389f148a753e8c3c5d8c01bfe09bc009340]
+nf4_test           | Log topics2: [0x46bf148827a74eb5c7ca85b1051331f7e07c6b512300580c47bf1dd646c1d895, 0x0000000000000000000000000000000000000000000000000000000000000000]
+nf4_test           | log: Log { address: 0xdc64a140aa3e981100a9beca4e685f962f0cf6c9, topics: [0x46bf148827a74eb5c7ca85b1051331f7e07c6b512300580c47bf1dd646c1d895, 0x0000000000000000000000000000000000000000000000000000000000000000], data: Bytes(0x), block_hash: Some(0xff879cc345cef7ee3358482acf021e917e926debb238f5b06872c36a791877ee), block_number: Some(50), transaction_hash: Some(0x36e63bca71f644656fd724aaf3e4d1aed5f5013dac6aeb99a231c33f72f84101), transaction_index: Some(0), log_index: Some(0), transaction_log_index: None, log_type: None, removed: Some(false) }
+nf4_test           | tx_hash: 0x36e63bca71f644656fd724aaf3e4d1aed5f5013dac6aeb99a231c33f72f84101
+anvil              | eth_getTransactionByHash
+nf4_test           | L2 block 0 was submitted in L1 block 50 with L1 block hash : 0xff87…77ee
+nf4_test           | l1_block_hash after reorg: 0xff87…77ee
+anvil              | eth_getBlockByHash
+nf4_test           | After block: Some(Block { hash: Some(0xff879cc345cef7ee3358482acf021e917e926debb238f5b06872c36a791877ee), parent_hash: 0x4f603ed1a9004ef87327c29533461c3406477c43b0bf36fcac78f87212a1a0c2, uncles_hash: 0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347, author: Some(0x0000000000000000000000000000000000000000), state_root: 0x5bed0d7712daca28a4a2befc959b6ee144336576379f5e7ac68e03469e239e01, transactions_root: 0x8a46de553965a37466d2ec2092b12d7cb0d51d280b555524c9bd09827a146afb, receipts_root: 0x296cea4e5fafc56b625b3f29b47bcd463dfc3218a6e6d4b50ea95833f016f408, number: Some(50), gas_used: 548035, gas_limit: 30000000, extra_data: Bytes(0x), logs_bloom: Some(0x00000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000020000000000400000002800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000020000000000000000020000000000000000000000000000000000000000001000000000100000000000000), timestamp: 1750196210, difficulty: 0, total_difficulty: Some(0), seal_fields: [], uncles: [], transactions: [0x36e63bca71f644656fd724aaf3e4d1aed5f5013dac6aeb99a231c33f72f84101], size: Some(27909), mix_hash: Some(0x0000000000000000000000000000000000000000000000000000000000000000), nonce: Some(0x0000000000000000), base_fee_per_gas: Some(101230619), blob_gas_used: Some(0), excess_blob_gas: Some(0), withdrawals_root: Some(0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421), withdrawals: Some([]), parent_beacon_block_root: Some(0x0000000000000000000000000000000000000000000000000000000000000000), other: OtherFields { inner: {} } })
+nf4_test           | Anvil block history:
+anvil              | eth_blockNumber
+nf4_test           | Latest block number: 103
+nf4_test           | Inspecting blocks from 0 to 103
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 0
+anvil              | eth_getBlockByNumber
+nf4_test           | Timestamp: 1750195957
+nf4_test           | Block Hash: 0x749c16180698ac990d3ced0ddf2d13db992a8b1434d1db99da6216df2a3d8652
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 1
+nf4_test           | Timestamp: 1750195962
+nf4_test           | Block Hash: 0xe85f29076851fb2c9e186eb2f315273b154a5da35f56069ff68457e8cd2dca1e
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 2
+nf4_test           | Timestamp: 1750195967
+nf4_test           | Block Hash: 0x062596cd2fa301b1e911fafd7f789e48818d32abb4fdf781cbbf556d749411a0
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 3
+nf4_test           | Timestamp: 1750195972
+nf4_test           | Block Hash: 0x554b63e909ebafffba69a03406b2f6b9a86b6262e124585bb266a761e29f4ed2
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 4
+nf4_test           | Timestamp: 1750195977
+nf4_test           | Block Hash: 0x4f30e0c05e460349526aa8e399ec785537b1bbaef9e0d41f3651945c56e51e5d
+nf4_test           | Tx Hashes: [0x7ae4c974564af261a63dd8e8155fe933cea108e2b6885338b6e5762bded0b74d, 0x4947de27ae6f260e2197351d0dd3f9cfa18ff2b3ad3036683e90ccd5bcd2cce3, 0xe98b17f6b9dd19514cc555ab1d65c9426f1d9b71285aace4de2bf4b7a51bc776, 0x93c9c862000055ec73c598d4c32b8170ded0930a605f7f20ec42c78c14d65b42, 0xecabe4eaec4462d2140380b3258b2708e227eb8e65c74a02c4c75a797927f138, 0x9ea556e34da7eee33539aa5eba1ce6775f06d0ac9deb1376329c23bc9d05b146, 0xf3b3897709952467153e53efb490e1ce980acf607d870bce3d204b02e750e0a5, 0xf09ee082b748b6fb0ca6e2006485090cea7482000420eafbde13a95ebdf18db5, 0xc1af78eb118a189a4c67947576dded252c6988c1da25063841c646d881b3681b, 0x0762a61f484e2dd6c57ad2bb8da0be11e450d416d32a981ebe865204cbdba611, 0x2866db3084aecc28db1d1d624ceb7a182117f571353c5f29f916fed533ca1d5c, 0x2e9c8386e9d0ce6499f2f7a07ae7b4b678ae6ed68e58dd55db3c69f4ef3a85a5, 0x8a8486ffca02acae0cd54e88e0e52cdae68d5c335a3b259b6ea29c0250903f22, 0x4cf7388e7e1bf8ec30bf8379c3994f887a21189f9c9bc60409856103d53e34ef, 0x2a9d6b94e5715b4842f7fc125a4aa9c228064909ae881f862ae9509dfc2db912, 0xad2a02a76d1691a4674910994a1615b091ab971cdb981247e5e3d7b68de9569f]
+nf4_test           | 
+nf4_test           | Block Number: 5
+nf4_test           | Timestamp: 1750195982
+nf4_test           | Block Hash: 0x68f56b4c636e511bb16049dd9176efacf003ac2a229e968b77036ebd6c944669
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 6
+nf4_test           | Timestamp: 1750195987
+nf4_test           | Block Hash: 0xc7444c8797ecefc6154b5857c27e089c4f3804095a03fce73f3a93b950a0d277
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 7
+nf4_test           | Timestamp: 1750195995
+nf4_test           | Block Hash: 0x521817946227ce97b1d0ef11c8f6ab7cacfba7848a7e34b60b1e6f35185c5f8c
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 8
+nf4_test           | Timestamp: 1750196000
+nf4_test           | Block Hash: 0x74db3eefc3da26726c1e16db06f52e4428b7e570f440c8c130d66d07f68f6543
+nf4_test           | Tx Hashes: [0xf80990d15196811b9ccb872e0abe4cac0ea2283c19810200ffbe6e2eb054af71, 0xe1e96feec33d6c6b1587ac1b276f9f6fdb57db0ff126a6098699ae7d208ab956, 0xa4defca61d52790d72d7290e1093b2ee056ce35bd824147fc3f25e95c931448f, 0x1baeba74113f2b534cccb43c65609dc69c18a28492c8143a6f3f69f65fb420de]
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 9
+nf4_test           | Timestamp: 1750196005
+nf4_test           | Block Hash: 0x40213c26061f2048249d8a5f2c9a7372b9c10cb09c4dc415765ed1af50c8d777
+nf4_test           | Tx Hashes: [0x9119c02815f7fb7aef50abe2a4f5cfd449155f8907b21c8aebab8af93282e408]
+nf4_test           | 
+nf4_test           | Block Number: 10
+nf4_test           | Timestamp: 1750196010
+nf4_test           | Block Hash: 0xf0c276269efd2330e5fc792035f4d2f89bd71f513bcc52ebf29723bbad7ebe68
+anvil              | eth_getBlockByNumber
+nf4_test           | Tx Hashes: [0x7ede8e6ce2a1740432406ca2bcc0176479f3e45345c9321815970138a4d41300]
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 11
+nf4_test           | Timestamp: 1750196015
+nf4_test           | Block Hash: 0xdf09cf90a8f3ab2f1fae6e1fc8781f90e310d916a4787a86f40071ad76856d5b
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 12
+nf4_test           | Timestamp: 1750196020
+nf4_test           | Block Hash: 0x2ad98dfea048a8aaa15740ef177670c7a5c63146355975f19da43bd4331a9c79
+nf4_test           | Tx Hashes: [0xc42bfbf39fc3b71e541bbf5460ccf1f71c7a70ca48419950421620d722978103]
+nf4_test           | 
+nf4_test           | Block Number: 13
+nf4_test           | Timestamp: 1750196025
+nf4_test           | Block Hash: 0xeb070d80621f5dee761f128e1817379f6c0ccf578c92992d6289f4f790c5593f
+nf4_test           | Tx Hashes: [0x50ed201c319316438d77eb2fe9c31342a454e6db66203aeed94873310d2a0e2b]
+nf4_test           | 
+nf4_test           | Block Number: 14
+nf4_test           | Timestamp: 1750196030
+nf4_test           | Block Hash: 0x9622ba4dd1899c0066e429ef09f673042091b837bf33098db5453dee879ba3da
+nf4_test           | Tx Hashes: [0xba035e4376cb3df78fea94789af768bd040b228b9a3421f1ae5b6b94164bd822]
+nf4_test           | 
+nf4_test           | Block Number: 15
+nf4_test           | Timestamp: 1750196035
+nf4_test           | Block Hash: 0x35e1046ec6525f8c218583640898d25085f0726b36e754a9c4690e338c4694cb
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 16
+nf4_test           | Timestamp: 1750196040
+nf4_test           | Block Hash: 0x01cd86cd9ab77b4d6c2ca110a57cf91465d76c1140abd0aa8442336efaea7890
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 17
+nf4_test           | Timestamp: 1750196045
+nf4_test           | Block Hash: 0x43b48e277766ed9672f24d418448b0d6879cdc25ec2f27341a2f56368bb06719
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 18
+nf4_test           | Timestamp: 1750196050
+nf4_test           | Block Hash: 0x459e84479a627df207a6a38d2c45a449061720b7f669d4a8d477a3ac51ac0853
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 19
+nf4_test           | Timestamp: 1750196055
+nf4_test           | Block Hash: 0x9ac4b7a909a1117046df56702df581ae3ab05045540a988c2e9a57047504cd0b
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 20
+nf4_test           | Timestamp: 1750196060
+nf4_test           | Block Hash: 0x7e41c96f890c72b5c502c6a502274463df547c6930d16eecb91974a79219624c
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 21
+anvil              | eth_getBlockByNumber
+nf4_test           | Timestamp: 1750196065
+nf4_test           | Block Hash: 0x5ff954af87c12fd9b12981a1af69af73a663641688565a68d648ba4a8533d49c
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 22
+nf4_test           | Timestamp: 1750196070
+nf4_test           | Block Hash: 0x1b85cd30931f96431a63c083daf60a93cdb83289f9f23a1c9dc529767abd13e8
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 23
+nf4_test           | Timestamp: 1750196075
+nf4_test           | Block Hash: 0x2aa88aee7507856b2c8c9833bbf72d761cb90e0d0c50dc59d891464ae1dee778
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 24
+nf4_test           | Timestamp: 1750196080
+nf4_test           | Block Hash: 0xd312cd8ed9042ac9273979081fe2ae54fd1307fe2b119b72af3a95785c62349e
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+anvil              | eth_getBlockByNumber
+nf4_test           | Block Number: 25
+nf4_test           | Timestamp: 1750196085
+nf4_test           | Block Hash: 0x72fa851d04a393737931dc430552a31b1a232131bc9c0b926604a37702490a96
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 26
+nf4_test           | Timestamp: 1750196090
+nf4_test           | Block Hash: 0x162a38013ad4db7a5b504ff6ef4e6f6eccdb6cd7c131972651f1db725a9fdac6
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 27
+nf4_test           | Timestamp: 1750196095
+nf4_test           | Block Hash: 0x33957494d105097013f757c72c55b37ac70ac1455fbae39c2ecda51af8d52e21
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+anvil              | eth_getBlockByNumber
+nf4_test           | Block Number: 28
+nf4_test           | Timestamp: 1750196100
+nf4_test           | Block Hash: 0x64f9de3806399c0edca4ca8842c5fb387dd4d04fff06b7ac36c35df11aa9ab67
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 29
+nf4_test           | Timestamp: 1750196105
+nf4_test           | Block Hash: 0x91137757eb159f9b0082f7faab0ae4c86b52ba2703118a1b420d1ea55772a723
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 30
+nf4_test           | Timestamp: 1750196110
+nf4_test           | Block Hash: 0xcf5ea4fa69dd253bd7b799108aabbc632a3d3ff1a7e7da8297066b2783c16d03
+anvil              | eth_getBlockByNumber
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 31
+nf4_test           | Timestamp: 1750196115
+nf4_test           | Block Hash: 0xf48cb02dc08f60465473423ae85489beb823edab8f7a6da70e99a6263ecddaf5
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 32
+nf4_test           | Timestamp: 1750196120
+nf4_test           | Block Hash: 0x0e9b049b003ebdb0237c90e731fc9d9c50405476b84e7f73bdb7e066c751fd62
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 33
+nf4_test           | Timestamp: 1750196125
+nf4_test           | Block Hash: 0x4aaa95f70ff94b22697c38ecf337fb87a4140657852f03abe5810c1b32f8f7cf
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 34
+nf4_test           | Timestamp: 1750196130
+nf4_test           | Block Hash: 0xf857d0e2ebc3115637a39eb048032c07a5c261139e2035a8b38c807e4e930895
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+anvil              | eth_getBlockByNumber
+nf4_test           | Block Number: 35
+nf4_test           | Timestamp: 1750196135
+nf4_test           | Block Hash: 0x895b5e59fef589a01687671c30906c6dc47ce3b69ca9075d90cee7450130cfda
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 36
+nf4_test           | Timestamp: 1750196140
+nf4_test           | Block Hash: 0xa7680a7a06433090dad9382dfcc6e778689e38c8c1432a655adfb817b05c4a14
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 37
+nf4_test           | Timestamp: 1750196145
+nf4_test           | Block Hash: 0xdf7cca9bde55699b27ba6766fbede701e97f4626c9cc95c233244bb224730419
+anvil              | eth_getBlockByNumber
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 38
+nf4_test           | Timestamp: 1750196150
+nf4_test           | Block Hash: 0x9a3dcaccbf11822dc8d5137715870ef9339a60689e2eae3c8cd8ea625c67057a
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+anvil              | eth_getBlockByNumber
+nf4_test           | Block Number: 39
+nf4_test           | Timestamp: 1750196155
+nf4_test           | Block Hash: 0xb1d6284a55e881b1da83d86912280aa55de6d8030c0c2a21039d5258cc11c89f
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 40
+nf4_test           | Timestamp: 1750196160
+nf4_test           | Block Hash: 0xa7cbe60696fc9fa3b7ad03279b91a194ec01fce2ae9c0926fe429e65da254dcb
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 41
+nf4_test           | Timestamp: 1750196165
+nf4_test           | Block Hash: 0x8abec8f40a06d256ad3d8c7fb2129bd0e951a2b5bbab2f577865612afcb1c867
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 42
+nf4_test           | Timestamp: 1750196170
+anvil              | eth_getBlockByNumber
+nf4_test           | Block Hash: 0x46fb1aea3658456aa97bf09af10c57d37ee70639f16a7a3e1a8b2dbbfea37ed2
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 43
+nf4_test           | Timestamp: 1750196175
+nf4_test           | Block Hash: 0x1d8ccd042b1dd6566ae7779b16ce9961a38ef6e0cfc7368913448af25aa40613
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 44
+nf4_test           | Timestamp: 1750196180
+nf4_test           | Block Hash: 0x844ad65b590b48815af196b1f7bbb9879bd268c0ba3f56add32cfe1183c2a986
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 45
+nf4_test           | Timestamp: 1750196185
+nf4_test           | Block Hash: 0xa017c182a23d68abfe8e6971d12cab918fa8ac70da3351ca621867ef601ea42b
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 46
+nf4_test           | Timestamp: 1750196190
+nf4_test           | Block Hash: 0x56d068104ac3ee7fd7073097fec575c9cb32030027162d8055f8edad8797f606
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 47
+nf4_test           | Timestamp: 1750196195
+nf4_test           | Block Hash: 0x7763f20eaf6fee97860d28cf653e135d7168c725a4419987e39cdafa955847d6
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 48
+nf4_test           | Timestamp: 1750196200
+nf4_test           | Block Hash: 0x11940789aafa9f319a9d95985c8671f26482dc8fe43d0bf5f2c74c730c2abd0c
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 49
+nf4_test           | Timestamp: 1750196205
+nf4_test           | Block Hash: 0x4f603ed1a9004ef87327c29533461c3406477c43b0bf36fcac78f87212a1a0c2
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 50
+nf4_test           | Timestamp: 1750196210
+nf4_test           | Block Hash: 0xff879cc345cef7ee3358482acf021e917e926debb238f5b06872c36a791877ee
+nf4_test           | Tx Hashes: [0x36e63bca71f644656fd724aaf3e4d1aed5f5013dac6aeb99a231c33f72f84101]
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 51
+nf4_test           | Timestamp: 1750196215
+nf4_test           | Block Hash: 0x6807015016d790c107e97323f09a9f7efdf56cdb73098e7342c36098ce453f7a
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 52
+nf4_test           | Timestamp: 1750196227
+nf4_test           | Block Hash: 0x0799f8c60536ac3c65ceda11364154303b59c7c47ca84bc5ad939f24e8af85b1
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 53
+nf4_test           | Timestamp: 1750196300
+nf4_test           | Block Hash: 0xca48c15900b657603876056a24f1995f20678ca18d0a531488a8efee7af14691
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 54
+nf4_test           | Timestamp: 1750196379
+nf4_test           | Block Hash: 0x1957f45c8bce283780f33b24d4a480bb59e79e98322af22771f42fe5277ad6e0
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 55
+nf4_test           | Timestamp: 1750196431
+nf4_test           | Block Hash: 0xf1f6960daabde29ca3f10dbac825f982e7a9603fa4f0b81b600152acf35e0823
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 56
+nf4_test           | Timestamp: 1750196455
+nf4_test           | Block Hash: 0xb39f2a2764d1ff3d748e6d95b5170551d97cdaf67258d7d37d6f3f3a804e93a1
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 57
+nf4_test           | Timestamp: 1750196471
+nf4_test           | Block Hash: 0xc82b8a9676294ad4e4a590f8fbb49851ae165c0fcc3a2f7d0bec9ed4a3d0a856
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 58
+nf4_test           | Timestamp: 1750196502
+nf4_test           | Block Hash: 0x9e8992c6915d1d1a3f15b12ed80df2f146056c580e558a66cb8083d93d2d5b43
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 59
+nf4_test           | Timestamp: 1750196530
+nf4_test           | Block Hash: 0x9d134c910e69d2c117d9e0c700dc399c28e32e11827f0cd0421eae6a14aba53e
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 60
+nf4_test           | Timestamp: 1750196564
+nf4_test           | Block Hash: 0xefec91230377f0a66bad28ce8b1e6b7734a8828b1a92b5aa3cf40726373e408c
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 61
+nf4_test           | Timestamp: 1750196634
+nf4_test           | Block Hash: 0x6cca806102a069e9cc558fa9be4b815962a9948c6e69a37b2b8db59adeaaa022
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 62
+nf4_test           | Timestamp: 1750196660
+nf4_test           | Block Hash: 0xf06a59ba3659ed1056dc6b72380e24f4eff7bc90b892b4d9542e3c3351794ec3
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 63
+nf4_test           | Timestamp: 1750196741
+nf4_test           | Block Hash: 0x9e81c26fb335baeedceb6db0ea02e8383e30f1f2ad8029b9b9df0034471259ff
+anvil              | eth_getBlockByNumber
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+anvil              | eth_getBlockByNumber
+nf4_test           | Block Number: 64
+nf4_test           | Timestamp: 1750196817
+nf4_test           | Block Hash: 0x79089140d00f062be57b472297b18ab65f9ca2998d7ec7b6766f2b1ab5751967
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 65
+nf4_test           | Timestamp: 1750196854
+nf4_test           | Block Hash: 0x6e810c58b8850b7227af3821a14e21130451e9aad8d1e8e8e75d9f8deb2d9c03
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 66
+nf4_test           | Timestamp: 1750196921
+nf4_test           | Block Hash: 0xd1010b07efabdd584fff5a2f7a25a56ced933583304ff82208c2f55994245f15
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 67
+nf4_test           | Timestamp: 1750197002
+nf4_test           | Block Hash: 0x228558f34fc51033ac40f35b341f961ae1deac19d4a5b6b7b7a1ade3908ff9d6
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 68
+nf4_test           | Timestamp: 1750197027
+nf4_test           | Block Hash: 0x773059dc3c983b29cb60a3b78545d13a98b74bafba617ee2bacf0180fc5ec64d
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 69
+nf4_test           | Timestamp: 1750197044
+nf4_test           | Block Hash: 0x0b49714f01d0a78df81e60be81653320abd9a597145e8105d7acccec8fd0b3d5
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 70
+nf4_test           | Timestamp: 1750197130
+nf4_test           | Block Hash: 0x3c1d4ea959a90145aebf37450ecb4fefa3e688a9c95789ee9c5c4724e53d9e8e
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 71
+nf4_test           | Timestamp: 1750197149
+nf4_test           | Block Hash: 0xec29083845baedcba102201fd0149e613639b2ea02c7c5b61e3496c74b9dee05
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 72
+nf4_test           | Timestamp: 1750197174
+nf4_test           | Block Hash: 0x37f9a75a01f7139adf1dfb5d6bf9c2c901bff28d9a730f8d8c49da438d31b24e
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 73
+anvil              | eth_getBlockByNumber
+nf4_test           | Timestamp: 1750197224
+nf4_test           | Block Hash: 0x51075b858a0faba0e9a3d997fdd250d2f6a627b24d3f0dc2ccb2929f983a6816
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 74
+nf4_test           | Timestamp: 1750197240
+nf4_test           | Block Hash: 0x6a35c47af40a4858be28963f9104389b5e7d5f5cace3194c56643dafa3ae9dd8
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 75
+nf4_test           | Timestamp: 1750197323
+nf4_test           | Block Hash: 0x948ad44e04e599560f6a0d50d6f5cc669f9131fd998484b643ff8d9df8d1cf3e
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 76
+nf4_test           | Timestamp: 1750197397
+nf4_test           | Block Hash: 0x4289448781e80075e6394409a94edd1016d7c9687ef315da81f8e37c0900381e
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 77
+nf4_test           | Timestamp: 1750197486
+nf4_test           | Block Hash: 0x3419590760da914195ef44181fc74b6ecf910892d36beea096f3efb9480897ee
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 78
+nf4_test           | Timestamp: 1750197569
+nf4_test           | Block Hash: 0xfe432123f9e3b14e2376e8669449a9e10146e6b36827c5d6f16a68ca30ab377d
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 79
+nf4_test           | Timestamp: 1750197617
+nf4_test           | Block Hash: 0x7ad060405880fbc860c56f1ac3754a40f4f825d0c6592b0f28a89a83968c08ea
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 80
+nf4_test           | Timestamp: 1750197629
+nf4_test           | Block Hash: 0x686f9ed0ba31db452f2dd2bf491e607c16d904ee687da3ee0e63b787086f59bf
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+anvil              | eth_getBlockByNumber
+nf4_test           | Block Number: 81
+nf4_test           | Timestamp: 1750197682
+nf4_test           | Block Hash: 0x10e27836b54dd32d35f7d7b92a1e1169edf7e593df95326269c1578c401ba2d0
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 82
+nf4_test           | Timestamp: 1750197698
+nf4_test           | Block Hash: 0xb7970f0e8aa7e7042916cd4209122b75092698fb18939fee358b3c63f7d2ee10
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 83
+nf4_test           | Timestamp: 1750197768
+nf4_test           | Block Hash: 0xe8671cb1858872184fb4e6bb7bfd5264efa3a1b519f085aad34d9f5bf109f17f
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 84
+nf4_test           | Timestamp: 1750197819
+nf4_test           | Block Hash: 0xb393a1247a8bec555094c2741de4a328cfe9b7f334c2ebb41f274fc995038aad
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 85
+nf4_test           | Timestamp: 1750197836
+nf4_test           | Block Hash: 0x264c22f92f4ea77c09cbb4f3dc5b28c136eb90f05ce307bc723b2a8e0d50a277
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 86
+nf4_test           | Timestamp: 1750197856
+nf4_test           | Block Hash: 0x51838d4c08af7804969931d45e4ec0e7b3c0fb88e210ca2599c4c2bf24b0fd0e
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+anvil              | eth_getBlockByNumber
+nf4_test           | Block Number: 87
+nf4_test           | Timestamp: 1750197927
+nf4_test           | Block Hash: 0x4f4d7604e32655683b535e572a59765663ae3b48ed3d40ef554626b91f707341
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 88
+nf4_test           | Timestamp: 1750197945
+nf4_test           | Block Hash: 0x6c2bbe9b8fed6ae3030d2965754a922daaac7cabbd20eed50623ba6e6882b16b
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 89
+nf4_test           | Timestamp: 1750197971
+nf4_test           | Block Hash: 0xedc512c0893c190c0c8ed67560cd35b9b63ec8931ac9de127b9e73b20ca4e44c
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+anvil              | eth_getBlockByNumber
+nf4_test           | Block Number: 90
+nf4_test           | Timestamp: 1750198052
+nf4_test           | Block Hash: 0x2ea5dfc3578cf8f9bc6eb8daa8f9cc0a6abf0e6072a117ab570ebaebb97a3a68
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 91
+nf4_test           | Timestamp: 1750198078
+nf4_test           | Block Hash: 0x7b561269a3c32858437a285d93f98c3d0643387d8aa59f0180f24354e5998674
+anvil              | eth_getBlockByNumber
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 92
+nf4_test           | Timestamp: 1750198098
+nf4_test           | Block Hash: 0x35d615299d9eff5b8218f4604706469114262498eafde6b7855f9f31b1e38cb8
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 93
+nf4_test           | Timestamp: 1750198138
+nf4_test           | Block Hash: 0xdc041cdf955c7b706dfb69f14f02cd3d3c04b5ad3b7dd0bec19ad1baaf16f9eb
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 94
+nf4_test           | Timestamp: 1750198226
+nf4_test           | Block Hash: 0x8135e4fd97031b14dcb458e21274277444c9ba051f32b5834f7e7d0511211761
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 95
+nf4_test           | Timestamp: 1750198275
+nf4_test           | Block Hash: 0x31cbfb38a3cc06941a813dbc7a30253a0eb1212137d35f24b69575d952e7e851
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 96
+nf4_test           | Timestamp: 1750198361
+nf4_test           | Block Hash: 0x092b4bf4e96f19c6a88bde821bae287e5164f86ac35195e43433c1720b7f520f
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 97
+nf4_test           | Timestamp: 1750198373
+nf4_test           | Block Hash: 0x6adb2945faf3473ceb44bc955e47cbc2d4b19f5abb1af6e089dbc9247fecbb42
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 98
+nf4_test           | Timestamp: 1750198439
+nf4_test           | Block Hash: 0xa9c4d8293c1e40815971413fb0a026d084a4798f8f65d666ee3b53a3dee4822a
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 99
+nf4_test           | Timestamp: 1750198504
+nf4_test           | Block Hash: 0x4eb9abf2910fdd0cd6b2a9c3ece984a487d4ca7a9afd7a6d5a62b1a5488cb132
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 100
+nf4_test           | Timestamp: 1750198554
+nf4_test           | Block Hash: 0x8e90a6bc16a0301bc5a23ad8360915131037349c5102cf97cf9bec14f28883b7
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 101
+nf4_test           | Timestamp: 1750198602
+nf4_test           | Block Hash: 0xc4fffa0f88f39a7e807635832cf635698a1568ed5b190d3fc903a27542991e39
+nf4_test           | Tx Hashes: []
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+nf4_test           | 
+nf4_test           | Block Number: 102
+nf4_test           | Timestamp: 1750198635
+nf4_test           | Block Hash: 0x0cf98a82012143369bf5b4b099d30a3dedc6b489d24469c2b8ff4a240d8da4af
+nf4_test           | Tx Hashes: []
+nf4_test           | 
+nf4_test           | Block Number: 103
+nf4_test           | Timestamp: 1750198670
+nf4_test           | Block Hash: 0x88bd6afa9d6b7426e785158abb068d663ff9ce3046d270a611b3fb40f575d29f
+nf4_test           | Tx Hashes: []
+nf4_test           | [0m[38;5;8m[[0m2025-06-17T21:36:58Z [0m[1m[31mERROR[0m panic[0m[38;5;8m][0m thread 'tokio-runtime-worker' panicked at 'assertion `left != right` failed: Reorg did not produce a new block
+nf4_test           |       left: 0xff879cc345cef7ee3358482acf021e917e926debb238f5b06872c36a791877ee
+nf4_test           |      right: 0xff879cc345cef7ee3358482acf021e917e926debb238f5b06872c36a791877ee': /app/nightfall_test/src/run_tests.rs:546
+nf4_test           | [0m[38;5;8m[[0m2025-06-17T21:36:58Z [0m[1m[31mERROR[0m nightfall_test[0m[38;5;8m][0m Nightfall tests failed with error: JoinError::Panic(Id(9), "assertion `left != right` failed: Reorg did not produce a new block\n  left: 0xff879cc345cef7ee3358482acf021e917e926debb238f5b06872c36a791877ee\n right: 0xff879cc345cef7ee3358482acf021e917e926debb238f5b06872c36a791877ee", ...)
+nf4_test           | Error: JoinError::Panic(Id(9), "assertion `left != right` failed: Reorg did not produce a new block\n  left: 0xff879cc345cef7ee3358482acf021e917e926debb238f5b06872c36a791877ee\n right: 0xff879cc345cef7ee3358482acf021e917e926debb238f5b06872c36a791877ee", ...)
+[Knf4_test exited with code 1
+nf4_client2        | Expected block number: 1, Current block number: 1
+anvil              | eth_call
+anvil              | eth_call
+nf4_client         | Expected block number: 1, Current block number: 1
+nf4_client2        | Expected block number: 1, Current block number: 1
+anvil              | eth_call
+nf4_client         | Expected block number: 1, Current block number: 1
+anvil              | eth_call

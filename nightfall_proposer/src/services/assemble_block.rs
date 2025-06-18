@@ -11,6 +11,7 @@ use crate::{
 use ark_bn254::Fr as Fr254;
 use ark_std::{collections::HashSet, Zero};
 use bson::doc;
+use configuration::settings::get_settings;
 use jf_primitives::poseidon::{FieldHasher, Poseidon};
 use lib::blockchain_client::BlockchainClientConnection;
 use log::{info, warn};
@@ -21,7 +22,6 @@ use nightfall_client::{
 };
 use std::{cmp::Reverse, env};
 use tokio::time::Instant;
-use configuration::settings::get_settings;
 
 // Define a type alias for better readability
 type ALLTransactionData<P> = (

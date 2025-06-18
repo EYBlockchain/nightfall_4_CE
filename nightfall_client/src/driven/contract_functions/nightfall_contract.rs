@@ -221,27 +221,26 @@ impl<M> NightfallContract for Nightfall<M> {
             .await
             .get_client();
         let nightfall_address = get_addresses().nightfall();
-            let block_topic = H256::from_uint(&block_number.into_raw());
+        let block_topic = H256::from_uint(&block_number.into_raw());
 
         // let block_topic = H256::from_uint(&block_number.into_raw());
         // let filter = Filter::new()
         //     .address(nightfall_address)
         //     .event("BlockProposed(int256)")
         //     .topic1(block_topic);
-        let latest_block = client
-        .get_block_number()
-        .await
-        .map_err(|e| NightfallContractError::ProviderError(format!("get_block_number error: {}", e)))?;
+        let latest_block = client.get_block_number().await.map_err(|e| {
+            NightfallContractError::ProviderError(format!("get_block_number error: {}", e))
+        })?;
 
-    let event_sig = H256::from(keccak256("BlockProposed(int256)"));
+        let event_sig = H256::from(keccak256("BlockProposed(int256)"));
         let filter = Filter::new()
-        .address(nightfall_address)
-        .from_block(0u64)
-        .to_block(latest_block)
-        .topic0(event_sig)
-        // .event("BlockProposed(int256)");
-    .topic1(block_topic);
-    ark_std::println!("filter: {:?}", filter);
+            .address(nightfall_address)
+            .from_block(0u64)
+            .to_block(latest_block)
+            .topic0(event_sig)
+            // .event("BlockProposed(int256)");
+            .topic1(block_topic);
+        ark_std::println!("filter: {:?}", filter);
 
         let logs = client
             .get_logs(&filter)

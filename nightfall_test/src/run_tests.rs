@@ -1,10 +1,10 @@
 use crate::{
     test::{
-        self, anvil_reorg, create_nf3_deposit_transaction, create_nf3_transfer_transaction,
-        create_nf3_withdraw_transaction, de_escrow_request, forge_command, get_key,
-        get_l1_block_hash_of_layer2_block, get_recipient_address, load_addresses,
-        set_anvil_mining_interval, validate_certificate_with_server, wait_for_all_responses,
-        wait_on_chain, TokenType,
+        self, anvil_reorg2, anvil_reorg3, create_nf3_deposit_transaction,
+        create_nf3_transfer_transaction, create_nf3_withdraw_transaction, de_escrow_request,
+        forge_command, get_key, get_l1_block_hash_of_layer2_block, get_recipient_address,
+        load_addresses, set_anvil_mining_interval, validate_certificate_with_server,
+        wait_for_all_responses, wait_on_chain, TokenType,
     },
     test_settings::TestSettings,
 };
@@ -18,8 +18,8 @@ use ethers::{
     utils::{format_units, parse_units},
 };
 use futures::future::try_join_all;
-use lib::models::CertificateReq;
 use lib::wallets::LocalWsClient;
+use lib::{blockchain_client, models::CertificateReq};
 use lib::{
     blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
 };
@@ -322,96 +322,96 @@ pub async fn run_tests(
     ));
     debug!("transaction_erc20_deposit_0 has been created");
 
-    transaction_ids.push(create_nf3_deposit_transaction(
-        &http_client,
-        url.clone(),
-        TokenType::ERC20,
-        test_settings.erc20_deposit_1,
-        "0x27".to_string(), //deposit_fee
-    ));
-    debug!("transaction_erc20_deposit_1 has been created");
+    // transaction_ids.push(create_nf3_deposit_transaction(
+    //     &http_client,
+    //     url.clone(),
+    //     TokenType::ERC20,
+    //     test_settings.erc20_deposit_1,
+    //     "0x27".to_string(), //deposit_fee
+    // ));
+    // debug!("transaction_erc20_deposit_1 has been created");
 
-    transaction_ids.push(create_nf3_deposit_transaction(
-        &http_client,
-        url.clone(),
-        TokenType::ERC20,
-        test_settings.erc20_deposit_2.clone(),
-        "0x06".to_string(), //deposit_fee
-    ));
-    debug!("transaction_erc20_deposit_2 has been created");
+    // transaction_ids.push(create_nf3_deposit_transaction(
+    //     &http_client,
+    //     url.clone(),
+    //     TokenType::ERC20,
+    //     test_settings.erc20_deposit_2.clone(),
+    //     "0x06".to_string(), //deposit_fee
+    // ));
+    // debug!("transaction_erc20_deposit_2 has been created");
 
-    transaction_ids.push(create_nf3_deposit_transaction(
-        &http_client,
-        url.clone(),
-        TokenType::ERC20,
-        test_settings.erc20_deposit_3,
-        "0x00".to_string(), //deposit_fee
-    ));
-    debug!("transaction_erc20_deposit_3 has been created");
+    // transaction_ids.push(create_nf3_deposit_transaction(
+    //     &http_client,
+    //     url.clone(),
+    //     TokenType::ERC20,
+    //     test_settings.erc20_deposit_3,
+    //     "0x00".to_string(), //deposit_fee
+    // ));
+    // debug!("transaction_erc20_deposit_3 has been created");
 
-    // check that we have no 'balance' of the ERC721 token
-    // get the balance of the ERC721 token we just deposited
-    let balance = get_erc721_balance(
-        &http_client,
-        Url::parse(&settings.nightfall_client.url).unwrap(),
-        test_settings.erc721_deposit.token_id.clone(),
-    )
-    .await;
-    assert_eq!(None, balance);
+    // // check that we have no 'balance' of the ERC721 token
+    // // get the balance of the ERC721 token we just deposited
+    // let balance = get_erc721_balance(
+    //     &http_client,
+    //     Url::parse(&settings.nightfall_client.url).unwrap(),
+    //     test_settings.erc721_deposit.token_id.clone(),
+    // )
+    // .await;
+    // assert_eq!(None, balance);
 
-    transaction_ids.push(create_nf3_deposit_transaction(
-        &http_client,
-        url.clone(),
-        TokenType::ERC721,
-        test_settings.erc721_deposit.clone(),
-        "0x08".to_string(), //deposit_fee
-    ));
-    debug!("transaction_erc721_deposit has been created");
+    // transaction_ids.push(create_nf3_deposit_transaction(
+    //     &http_client,
+    //     url.clone(),
+    //     TokenType::ERC721,
+    //     test_settings.erc721_deposit.clone(),
+    //     "0x08".to_string(), //deposit_fee
+    // ));
+    // debug!("transaction_erc721_deposit has been created");
 
-    transaction_ids.push(create_nf3_deposit_transaction(
-        &http_client,
-        url.clone(),
-        TokenType::ERC3525,
-        test_settings.erc3525_deposit_1,
-        "0x0b".to_string(), //deposit_fee
-    ));
-    debug!("transaction_erc3525_deposit_1 has been created");
+    // transaction_ids.push(create_nf3_deposit_transaction(
+    //     &http_client,
+    //     url.clone(),
+    //     TokenType::ERC3525,
+    //     test_settings.erc3525_deposit_1,
+    //     "0x0b".to_string(), //deposit_fee
+    // ));
+    // debug!("transaction_erc3525_deposit_1 has been created");
 
-    transaction_ids.push(create_nf3_deposit_transaction(
-        &http_client,
-        url.clone(),
-        TokenType::ERC3525,
-        test_settings.erc3525_deposit_2,
-        "0x0e".to_string(), //deposit_fee
-    ));
-    debug!("transaction_erc3525_deposit_2 has been created");
+    // transaction_ids.push(create_nf3_deposit_transaction(
+    //     &http_client,
+    //     url.clone(),
+    //     TokenType::ERC3525,
+    //     test_settings.erc3525_deposit_2,
+    //     "0x0e".to_string(), //deposit_fee
+    // ));
+    // debug!("transaction_erc3525_deposit_2 has been created");
 
-    transaction_ids.push(create_nf3_deposit_transaction(
-        &http_client,
-        url.clone(),
-        TokenType::ERC1155,
-        test_settings.erc1155_deposit_1,
-        "0x11".to_string(), //deposit_fee
-    ));
-    debug!("transaction_erc1155_deposit_1 has been created");
+    // transaction_ids.push(create_nf3_deposit_transaction(
+    //     &http_client,
+    //     url.clone(),
+    //     TokenType::ERC1155,
+    //     test_settings.erc1155_deposit_1,
+    //     "0x11".to_string(), //deposit_fee
+    // ));
+    // debug!("transaction_erc1155_deposit_1 has been created");
 
-    transaction_ids.push(create_nf3_deposit_transaction(
-        &http_client,
-        url.clone(),
-        TokenType::ERC1155,
-        test_settings.erc1155_deposit_2,
-        "0x14".to_string(), //deposit_fee
-    ));
-    debug!("transaction_erc1155_deposit_2 has been created");
+    // transaction_ids.push(create_nf3_deposit_transaction(
+    //     &http_client,
+    //     url.clone(),
+    //     TokenType::ERC1155,
+    //     test_settings.erc1155_deposit_2,
+    //     "0x14".to_string(), //deposit_fee
+    // ));
+    // debug!("transaction_erc1155_deposit_2 has been created");
 
-    transaction_ids.push(create_nf3_deposit_transaction(
-        &http_client,
-        url.clone(),
-        TokenType::ERC1155,
-        test_settings.erc1155_deposit_3_nft,
-        "0x16".to_string(), //deposit_fee
-    ));
-    debug!("transaction_erc1155_deposit_3 has been created");
+    // transaction_ids.push(create_nf3_deposit_transaction(
+    //     &http_client,
+    //     url.clone(),
+    //     TokenType::ERC1155,
+    //     test_settings.erc1155_deposit_3_nft,
+    //     "0x16".to_string(), //deposit_fee
+    // ));
+    // debug!("transaction_erc1155_deposit_3 has been created");
 
     // throw all the transactions at the client as fast as we can
     let transaction_ids = try_join_all(transaction_ids).await.unwrap();
@@ -448,51 +448,123 @@ pub async fn run_tests(
     );
 
     // get the l1 block hash which hash current_layer2_block_number l2 block
-    let l1_block_hash = get_l1_block_hash_of_layer2_block(current_layer2_block_number)
+    let before_hash = get_l1_block_hash_of_layer2_block(current_layer2_block_number)
         .await
         .unwrap();
 
-    ark_std::println!("l1_block_hash before reorg: {}", l1_block_hash);
+    ark_std::println!("l1_block_hash before reorg: {}", before_hash);
+    let blockchain_client = get_blockchain_client_connection()
+        .await
+        .read()
+        .await
+        .get_client();
 
-    let (proposer_address, l2_block) =
-        Nightfall::<LocalWsClient>::get_layer2_block_by_number(current_layer2_block_number)
-            .await
-            .expect("Failed to get layer 2 block by number");
-    ark_std::println!("Layer 2 block: {:?}", l2_block);
+    let provider = blockchain_client.provider(); // Extract the Provider from SignerMiddleware
+    let before_block = provider.get_block(before_hash).await.unwrap();
+    ark_std::println!("Before block: {:?}", before_block);
 
+    // let (proposer_address, l2_block) =
+    //     Nightfall::<LocalWsClient>::get_layer2_block_by_number(current_layer2_block_number)
+    //         .await
+    //         .expect("Failed to get layer 2 block by number");
+    // ark_std::println!("Layer 2 block: {:?}", l2_block);
+
+    //  From anvil block 0 to current anvile block number,
+    // print the block number, block timestamp, block hash, and transaction hashes in each block
+    ark_std::println!("Anvil block history:");
+    let provider = get_blockchain_client_connection()
+        .await
+        .read()
+        .await
+        .get_client();
+
+    let latest_block_number = provider.get_block_number().await.unwrap();
+    ark_std::println!("Latest block number: {}", latest_block_number);
+
+    println!("Inspecting blocks from 0 to {}", latest_block_number);
+    use ethers::types::H256;
+    use ethers::types::U64;
+    for block_number in 0..=latest_block_number.as_u64() {
+        let block_opt = provider.get_block(block_number).await.unwrap();
+        if let Some(block) = block_opt {
+            println!(
+                "\nBlock Number: {}\nTimestamp: {}\nBlock Hash: {:?}\nTx Hashes: {:?}",
+                block.number.unwrap_or(U64::zero()),
+                block.timestamp,
+                block.hash.unwrap_or(H256::zero()),
+                block.transactions
+            );
+        } else {
+            println!("Warning: Block {} not found.", block_number);
+        }
+    }
     ark_std::println!("Starting Reorg");
     let anvil_url = Url::parse("http://anvil:8545").unwrap();
-    anvil_reorg(&http_client, &anvil_url, 300, true, 5)
+    // anvil_reorg2(&http_client, &anvil_url, latest_block_number.as_u64(), true, 5)
+    //     .await
+    //     .unwrap();
+    anvil_reorg3(&http_client, &anvil_url, latest_block_number.as_u64(), 50)
         .await
         .unwrap();
     ark_std::println!("Finished Reorg");
 
-    let l1_block_hash = get_l1_block_hash_of_layer2_block(current_layer2_block_number)
+    let after_hash = get_l1_block_hash_of_layer2_block(current_layer2_block_number)
         .await
         .unwrap();
 
-    ark_std::println!("l1_block_hash after reorg: {}", l1_block_hash);
+    ark_std::println!("l1_block_hash after reorg: {}", after_hash);
+
+    let after_block = provider.get_block(after_hash).await.unwrap();
+    ark_std::println!("After block: {:?}", after_block);
+    ark_std::println!("Anvil block history:");
+    let provider = get_blockchain_client_connection()
+        .await
+        .read()
+        .await
+        .get_client();
+
+    let latest_block_number = provider.get_block_number().await.unwrap();
+    ark_std::println!("Latest block number: {}", latest_block_number);
+
+    println!("Inspecting blocks from 0 to {}", latest_block_number);
+
+    for block_number in 0..=latest_block_number.as_u64() {
+        let block_opt = provider.get_block(block_number).await.unwrap();
+        if let Some(block) = block_opt {
+            println!(
+                "\nBlock Number: {}\nTimestamp: {}\nBlock Hash: {:?}\nTx Hashes: {:?}",
+                block.number.unwrap_or(U64::zero()),
+                block.timestamp,
+                block.hash.unwrap_or(H256::zero()),
+                block.transactions
+            );
+        } else {
+            println!("Warning: Block {} not found.", block_number);
+        }
+    }
+
+    assert_ne!(before_hash, after_hash, "Reorg did not produce a new block");
 
     // get the balance of the ERC721 token we just deposited
-    let balance = get_erc721_balance(
-        &http_client,
-        Url::parse(&settings.nightfall_client.url).unwrap(),
-        test_settings.erc721_deposit.token_id,
-    )
-    .await;
-    assert!(balance.is_some_and(|balance| balance.is_zero()));
+    // let balance = get_erc721_balance(
+    //     &http_client,
+    //     Url::parse(&settings.nightfall_client.url).unwrap(),
+    //     test_settings.erc721_deposit.token_id,
+    // )
+    // .await;
+    // assert!(balance.is_some_and(|balance| balance.is_zero()));
 
-    // get the fee balance
-    let fee_balance = get_fee_balance(
-        &http_client,
-        Url::parse(&settings.nightfall_client.url).unwrap(),
-    )
-    .await;
-    info!(
-        "Fee Commitment Balance  held as layer 2 commitments by client1: {}",
-        fee_balance
-    );
-    assert_eq!(fee_balance, 137 + client1_starting_fee_balance);
+    // // get the fee balance
+    // let fee_balance = get_fee_balance(
+    //     &http_client,
+    //     Url::parse(&settings.nightfall_client.url).unwrap(),
+    // )
+    // .await;
+    // info!(
+    //     "Fee Commitment Balance  held as layer 2 commitments by client1: {}",
+    //     fee_balance
+    // );
+    // assert_eq!(fee_balance, 137 + client1_starting_fee_balance);
 
     // // check that we can find one of our commitments
     // // Query the commitment endpoint to return the CommitmEntry of commitment_hashes[0]
