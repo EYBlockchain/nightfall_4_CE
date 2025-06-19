@@ -1,12 +1,17 @@
-use crate::domain::entities::{HexConvertible, OnChainTransaction, SynchronisationPhase};
-use crate::domain::{entities::SynchronisationStatus, error::EventHandlerError};
-use crate::driven::db::mongo::{BlockStorageDB, StoredBlock};
-use crate::driven::event_handlers::nightfall_event::get_expected_layer2_blocknumber;
-use crate::drivers::blockchain::nightfall_event_listener::SynchronisationPhase::Synchronized;
-use crate::initialisation::get_db_connection;
-use crate::ports::contracts::NightfallContract;
-use crate::ports::trees::CommitmentTree;
-use crate::services::process_events::process_events;
+use crate::{
+    domain::{
+        entities::{
+            HexConvertible, OnChainTransaction, SynchronisationPhase, SynchronisationStatus,
+        },
+        error::EventHandlerError,
+    },
+    driven::db::mongo::{BlockStorageDB, StoredBlock},
+    driven::event_handlers::nightfall_event::get_expected_layer2_blocknumber,
+    drivers::blockchain::nightfall_event_listener::SynchronisationPhase::Synchronized,
+    initialisation::get_db_connection,
+    ports::{contracts::NightfallContract, trees::CommitmentTree},
+    services::process_events::process_events,
+};
 use ark_bn254::Fr as Fr254;
 use configuration::{addresses::get_addresses, settings::get_settings};
 use ethers::prelude::*;
@@ -17,8 +22,7 @@ use lib::{
 use log::{debug, warn};
 use mongodb::Client as MongoClient;
 use nightfall_bindings::nightfall::Nightfall;
-use std::panic;
-use std::time::Duration;
+use std::{panic, time::Duration};
 use tokio::time::sleep;
 
 /// This function starts the event handler. It will attempt to restart the event handler in case of errors
@@ -235,27 +239,27 @@ pub async fn get_synchronisation_status<N: NightfallContract>(
                     "Hash mismatch at block {}: expected {}, found {}",
                     expected_u64, expected_hash, stored_hash
                 );
-               return Ok(SynchronisationStatus::new(
+                return Ok(SynchronisationStatus::new(
                     SynchronisationPhase::Desynchronized,
                 ));
             }
             // If hashes match, fall through and return Synchronized
-        debug!(
-            "Block {} verified in local DB with matching hash.",
-            expected_u64
-        );
-        Ok(SynchronisationStatus::new(
-            SynchronisationPhase::Synchronized,
-        ))
+            debug!(
+                "Block {} verified in local DB with matching hash.",
+                expected_u64
+            );
+            Ok(SynchronisationStatus::new(
+                SynchronisationPhase::Synchronized,
+            ))
         }
         None => {
-        debug!(
-            "Block {} not found in local DB. Assuming client is still in sync.",
-            expected_u64
-        );
-        Ok(SynchronisationStatus::new(
-            SynchronisationPhase::Synchronized,
-        ))
-    }
+            debug!(
+                "Block {} not found in local DB. Assuming client is still in sync.",
+                expected_u64
+            );
+            Ok(SynchronisationStatus::new(
+                SynchronisationPhase::Synchronized,
+            ))
+        }
     }
 }

@@ -1,12 +1,7 @@
-use crate::driven::queue::get_queue;
-use crate::initialisation::get_db_connection;
-use crate::ports::db::RequestDB;
+use crate::{driven::queue::get_queue, initialisation::get_db_connection, ports::db::RequestDB};
 use log::debug;
 use uuid::Uuid;
-use warp::http::StatusCode;
-use warp::path;
-use warp::reply::Reply;
-use warp::Filter;
+use warp::{http::StatusCode, path, reply::Reply, Filter};
 
 /// This module provides an end point for querying the status of a request
 pub fn get_request_status(

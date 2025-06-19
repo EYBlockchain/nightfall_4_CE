@@ -8,8 +8,7 @@ pub mod validate_certificate;
 pub mod wallets;
 
 pub mod initialisation {
-    use crate::blockchain_client::BlockchainClientConnection;
-    use crate::wallets::LocalWsClient;
+    use crate::{blockchain_client::BlockchainClientConnection, wallets::LocalWsClient};
     use configuration::settings::get_settings;
     use tokio::sync::{OnceCell, RwLock};
 

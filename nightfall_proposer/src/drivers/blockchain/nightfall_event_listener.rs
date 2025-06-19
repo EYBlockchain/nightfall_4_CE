@@ -15,14 +15,18 @@ use lib::blockchain_client::BlockchainClientConnection;
 use log::{debug, warn};
 use mongodb::Client as MongoClient;
 use nightfall_bindings::nightfall::Nightfall;
-use nightfall_client::domain::entities::SynchronisationPhase::Desynchronized;
 use nightfall_client::{
-    domain::{entities::SynchronisationStatus, error::EventHandlerError},
+    domain::{
+        entities::{SynchronisationPhase::Desynchronized, SynchronisationStatus},
+        error::EventHandlerError,
+    },
     ports::proof::{Proof, ProvingEngine},
 };
 use std::time::Duration;
-use tokio::sync::{OnceCell, RwLock};
-use tokio::time::sleep;
+use tokio::{
+    sync::{OnceCell, RwLock},
+    time::sleep,
+};
 
 /// This function starts the event handler. It will attempt to restart the event handler in case of errors
 /// with an exponential backoff for a configurable number of attempts. If the event handler

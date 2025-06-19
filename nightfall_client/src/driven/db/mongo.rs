@@ -2,26 +2,31 @@ use ark_bn254::Fr as Fr254;
 use ark_ff::{BigInteger, PrimeField};
 use ark_serialize::CanonicalSerialize;
 use async_trait::async_trait;
-use ethers::abi::AbiEncode;
-use ethers::types::{H256, I256};
+use ethers::{
+    abi::AbiEncode,
+    types::{H256, I256},
+};
 use futures::TryStreamExt;
 use hex::encode;
-use jf_primitives::poseidon::{FieldHasher, Poseidon};
-use jf_primitives::trees::{Directions, PathElement};
-use log::{debug, error, info};
-use mongodb::error::{ErrorKind, WriteFailure::WriteError};
-use mongodb::{bson::doc, Client};
-use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
-use std::str;
-
-use crate::domain::entities::{
-    CommitmentStatus, Request, RequestCommitmentMapping, RequestStatus, WithdrawData,
+use jf_primitives::{
+    poseidon::{FieldHasher, Poseidon},
+    trees::{Directions, PathElement},
 };
-use crate::ports::db::{CommitmentDB, RequestCommitmentMappingDB, RequestDB, WithdrawalDB};
+use log::{debug, error, info};
+use mongodb::{
+    bson::doc,
+    error::{ErrorKind, WriteFailure::WriteError},
+    Client,
+};
+use serde::{Deserialize, Serialize};
+use std::{fmt::Debug, str};
+
 use crate::{
-    domain::entities::Preimage,
+    domain::entities::{
+        CommitmentStatus, Preimage, Request, RequestCommitmentMapping, RequestStatus, WithdrawData,
+    },
     driven::contract_functions::contract_type_conversions::FrBn254,
+    ports::db::{CommitmentDB, RequestCommitmentMappingDB, RequestDB, WithdrawalDB},
     ports::{commitments::Commitment, db::CommitmentEntryDB},
 };
 use ethers::types::H160;

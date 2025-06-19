@@ -5,35 +5,25 @@ use super::{
 };
 use crate::{
     domain::{
-        entities::{CommitmentStatus, RequestStatus},
+        entities::{
+            CommitmentStatus, DepositSecret, ERCAddress, HexConvertible, Operation, OperationType,
+            Preimage, RequestStatus, Salt, TokenType, Transport,
+        },
         error::TransactionHandlerError,
+        notifications::NotificationPayload,
     },
     driven::{
+        contract_functions::contract_type_conversions::FrBn254,
         db::mongo::CommitmentEntry,
         queue::{get_queue, QueuedRequest, TransactionRequest},
     },
-    get_zkp_keys,
-    ports::{
-        commitments::Nullifiable,
-        contracts::NightfallContract,
-        db::{RequestCommitmentMappingDB, RequestDB},
-    },
-};
-use crate::{
-    domain::{
-        entities::{
-            DepositSecret, ERCAddress, HexConvertible, Operation, OperationType, Preimage, Salt,
-            TokenType, Transport,
-        },
-        notifications::NotificationPayload,
-    },
-    driven::contract_functions::contract_type_conversions::FrBn254,
     drivers::derive_key::ZKPKeys,
-    get_fee_token_id,
+    get_fee_token_id, get_zkp_keys,
     initialisation::get_db_connection,
     ports::{
-        commitments::Commitment,
-        db::{CommitmentDB, CommitmentEntryDB},
+        commitments::{Commitment, Nullifiable},
+        contracts::NightfallContract,
+        db::{CommitmentDB, CommitmentEntryDB, RequestCommitmentMappingDB, RequestDB},
         keys::KeySpending,
         proof::{Proof, ProvingEngine},
     },

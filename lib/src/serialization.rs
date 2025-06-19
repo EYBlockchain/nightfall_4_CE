@@ -3,12 +3,10 @@ use ark_bn254::Fr;
 use ark_serialize::{
     CanonicalDeserialize, CanonicalSerialize, Compress, SerializationError, Validate,
 };
-use hex;
-use hex::encode;
+use hex::{self, encode};
 use mongodb::error::Error as MongoError;
 use serde::{ser::Serialize, Deserialize, Deserializer, Serializer};
-use std::fmt::Debug;
-use std::fmt::Write;
+use std::fmt::{Debug, Write};
 
 pub fn ark_se_bytes<S, A: CanonicalSerialize>(a: &A, s: S) -> Result<S::Ok, S::Error>
 where

@@ -1,11 +1,11 @@
 use crate::{
     domain::entities::{ClientTransactionWithMetaData, DepositDatawithFee, OnChainTransaction},
     initialisation::get_db_connection,
-    ports::db::TransactionsDB,
+    ports::{
+        db::TransactionsDB,
+        trees::{HistoricRootTree, NullifierTree},
+    },
 };
-
-use crate::ports::trees::HistoricRootTree;
-use crate::ports::trees::NullifierTree;
 use ark_std::Zero;
 use log::{error, info};
 use nightfall_client::{

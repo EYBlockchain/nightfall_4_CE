@@ -1,22 +1,22 @@
 use super::error::HexError;
-use crate::ports::secret_hash::SecretHash;
-use crate::ports::{
-    commitments::{Commitment, Nullifiable},
-    key_provider::KeyProvider,
-    proof::{Proof, PublicInputs},
+use crate::{
+    driven::contract_functions::contract_type_conversions::FrBn254,
+    ports::{
+        commitments::{Commitment, Nullifiable},
+        key_provider::KeyProvider,
+        proof::{Proof, PublicInputs},
+        secret_hash::SecretHash,
+    },
 };
 
 use ark_bn254::Fr as Fr254;
 use ark_ec::twisted_edwards::Affine as TEAffine;
 use lib::serialization::{ark_de_hex, ark_se_hex};
 
-use ark_ff::{BigInteger, BigInteger256};
-
-use ark_ff::PrimeField;
+use ark_ff::{BigInteger, BigInteger256, PrimeField};
 use ark_serialize::SerializationError;
 use ark_std::UniformRand;
 
-use crate::driven::contract_functions::contract_type_conversions::FrBn254;
 use jf_primitives::poseidon::{FieldHasher, Poseidon, PoseidonError};
 use log::{error, warn};
 use nf_curves::ed_on_bn254::{BabyJubjub, Fr as BJJScalar};
