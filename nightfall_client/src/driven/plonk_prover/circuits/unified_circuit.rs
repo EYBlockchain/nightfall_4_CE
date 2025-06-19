@@ -961,7 +961,7 @@ mod tests {
             poseidon
                 .hash(&[keys.nullifier_key, c.hash().unwrap()])
                 .unwrap()
-        });
+        }); 
 
         let expected_compressed_secrets: [Fr254; 5] = kemdem_encrypt::<true>(
             ephemeral_key,
@@ -1119,12 +1119,11 @@ mod tests {
                 &mut circuit_test_info.private_inputs,
             )
             .unwrap();
-
             circuit
                 .check_circuit_satisfiability(
                     Vec::from(&circuit_test_info.public_inputs).as_slice(),
                 )
-                .unwrap();
+              .unwrap();
 
             for (circuit_comm, expected_comm) in circuit_test_info
                 .public_inputs
