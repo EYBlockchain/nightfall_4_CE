@@ -19,6 +19,7 @@ use futures::future::try_join_all;
 use lib::{
     blockchain_client::BlockchainClientConnection,
     initialisation::get_blockchain_client_connection, models::CertificateReq,
+    hex_conversion::HexConvertible,
 };
 use log::{debug, info, warn};
 use nightfall_client::{
@@ -28,25 +29,6 @@ use nightfall_client::{
 use serde_json::Value;
 use std::fs;
 use test::{count_spent_commitments, get_erc20_balance, get_erc721_balance, get_fee_balance};
-use lib::{
-    blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
-};
-
-use crate::{
-    test::{
-        self, create_nf3_deposit_transaction, create_nf3_transfer_transaction,
-        create_nf3_withdraw_transaction, de_escrow_request, forge_command, get_key,
-        get_recipient_address, load_addresses, set_anvil_mining_interval,
-        validate_certificate_with_server, wait_for_all_responses, wait_on_chain, TokenType,
-    },
-    test_settings::TestSettings,
-};
-use ark_std::Zero;
-use ethers::{
-    providers::Middleware,
-    types::{TransactionReceipt, U256},
-    utils::{format_units, parse_units},
-};
 use url::Url;
 
 pub async fn run_tests(

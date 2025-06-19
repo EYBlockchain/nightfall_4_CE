@@ -1,7 +1,7 @@
 use crate::{
     domain::{
         entities::{
-            HexConvertible, OnChainTransaction, SynchronisationPhase, SynchronisationStatus,
+            OnChainTransaction, SynchronisationPhase, SynchronisationStatus,
         },
         error::EventHandlerError,
     },
@@ -18,6 +18,7 @@ use ethers::prelude::*;
 use futures::{future::BoxFuture, FutureExt};
 use lib::{
     blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
+    hex_conversion::HexConvertible,
 };
 use log::{debug, warn};
 use mongodb::Client as MongoClient;

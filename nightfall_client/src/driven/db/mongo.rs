@@ -1,11 +1,11 @@
 use ark_bn254::Fr as Fr254;
+use ark_ff::PrimeField;
 use async_trait::async_trait;
 use ethers::{
     abi::AbiEncode,
     types::{H256, I256},
 };
 use futures::TryStreamExt;
-use hex::encode;
 use jf_primitives::{
     poseidon::{FieldHasher, Poseidon},
     trees::{Directions, PathElement},

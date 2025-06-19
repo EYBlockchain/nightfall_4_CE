@@ -1,10 +1,8 @@
-use crate::hex_conversion::HexConvertible;
-use crate::merkle_trees::trees::MerkleTreeError;
+use crate::{hex_conversion::HexConvertible, merkle_trees::trees::MerkleTreeError};
 use ark_bn254::Fr;
 use ark_serialize::{
     CanonicalDeserialize, CanonicalSerialize, Compress, SerializationError, Validate,
 };
-use hex::{self, encode};
 use mongodb::error::Error as MongoError;
 use serde::{ser::Serialize, Deserialize, Deserializer, Serializer};
 use std::fmt::{Debug, Write};

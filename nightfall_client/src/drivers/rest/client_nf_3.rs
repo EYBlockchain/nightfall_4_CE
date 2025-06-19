@@ -6,7 +6,7 @@ use super::{
 use crate::{
     domain::{
         entities::{
-            CommitmentStatus, DepositSecret, ERCAddress, HexConvertible, Operation, OperationType,
+            CommitmentStatus, DepositSecret, ERCAddress, Operation, OperationType,
             Preimage, RequestStatus, Salt, TokenType, Transport,
         },
         error::TransactionHandlerError,
@@ -39,7 +39,7 @@ use ark_std::{rand::thread_rng, UniformRand};
 use configuration::addresses::get_addresses;
 use jf_primitives::poseidon::{FieldHasher, Poseidon};
 use lib::{hex_conversion::HexConvertible, wallets::LocalWsClient};
-use log::{debug, error, info, warn};
+use log::{debug, error, info};
 use nf_curves::ed_on_bn254::{BabyJubjub, Fr as BJJScalar};
 use nightfall_bindings::{
     ierc1155::IERC1155, ierc20::IERC20, ierc3525::IERC3525, ierc721::IERC721, nightfall::Nightfall,

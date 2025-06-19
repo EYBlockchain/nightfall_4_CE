@@ -20,12 +20,13 @@ use jf_primitives::{
 use lib::{
     blockchain_client::BlockchainClientConnection,
     initialisation::get_blockchain_client_connection, models::CertificateReq,
+    hex_conversion::HexConvertible,
 };
 use log::{debug, info};
 use nf_curves::ed_on_bn254::{BabyJubjub as BabyJubJub, Fr as BJJScalar};
 use nightfall_client::{
     domain::{
-        entities::{CommitmentStatus, DepositSecret, HexConvertible, Preimage, Salt},
+        entities::{CommitmentStatus, DepositSecret, Preimage, Salt},
         error::NightfallContractError,
         notifications::NotificationPayload,
     },

@@ -82,7 +82,7 @@ where
                     nullifier,
                     CommitmentStatus::PendingCreation,
                 );
-                commitment_entries.push(commitment_entry);                
+                commitment_entries.push(commitment_entry);
             }
         }
         if !commitment_entries.is_empty() {

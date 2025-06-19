@@ -1,4 +1,3 @@
-use super::error::HexError;
 use crate::{
     driven::contract_functions::contract_type_conversions::FrBn254,
     ports::{
@@ -8,15 +7,14 @@ use crate::{
         secret_hash::SecretHash,
     },
 };
-use lib::error::HexError;
-
 use ark_bn254::Fr as Fr254;
 use ark_ec::twisted_edwards::Affine as TEAffine;
-use lib::serialization::{ark_de_hex, ark_se_hex};
-use ark_ff::{BigInteger, BigInteger256, PrimeField};
 use ark_serialize::SerializationError;
 use ark_std::UniformRand;
-use lib::serialization::{ark_de_hex, ark_se_hex};
+use lib::{
+    error::HexError,
+    serialization::{ark_de_hex, ark_se_hex},
+};
 
 use jf_primitives::poseidon::{FieldHasher, Poseidon, PoseidonError};
 use lib::hex_conversion::HexConvertible;
