@@ -78,8 +78,14 @@ where
         let db = get_db_connection().await;
         let mut commitment_entries = vec![];
         for commitment in new_commitments.iter() {
+            let commitment_hash = commitment.hash().expect("Commitments must be hashable");
+            let commitment_hex = commitment_hash.to_hex_string();
+            // Add mapping between request and commitment
+            match db.add_mapping(id, &commitment_hex).await {
+                Ok(_) => debug!("{id} Mapped commitment to request"),
+                Err(e) => error!("{id} Failed to  map commitment to request: {e}"),
+            }
             if commitment.get_public_key() == zkp_public_key {
-                let commitment_hash = commitment.hash().expect("Commitments must be hashable");
                 let nullifier = commitment
                     .nullifier_hash(&nullifier_key)
                     .expect("Nullifiers must be hashable");
@@ -88,19 +94,14 @@ where
                     nullifier,
                     CommitmentStatus::PendingCreation,
                 );
-                commitment_entries.push(commitment_entry);
-
-                // Add mapping between request and commitment
-                let commitment_hex = commitment_hash.to_hex_string();
-                match db.add_mapping(id, &commitment_hex).await {
-                    Ok(_) => debug!("{id} Mapped commitment to request"),
-                    Err(e) => error!("{id} Failed to  map commitment to request: {e}"),
-                }
+                commitment_entries.push(commitment_entry);                
             }
         }
-        db.store_commitments(&commitment_entries, true)
-            .await
-            .ok_or(TransactionHandlerError::DatabaseError)?;
+        if !commitment_entries.is_empty() {
+            db.store_commitments(&commitment_entries, true)
+                .await
+                .ok_or(TransactionHandlerError::DatabaseError)?;
+        }
     }
     // we should now have a situation where:
     // new_commitments[0] is the token commitment
