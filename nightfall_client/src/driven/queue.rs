@@ -55,7 +55,6 @@ where
     E: ProvingEngine<P>,
     N: NightfallContract,
 {
-    ark_std::println!("process_queue");
     // register a notifier to publish to the webhook URL
     let mut publisher = DataPublisher::new();
     let webhook_url = &get_settings().nightfall_client.webhook_url;

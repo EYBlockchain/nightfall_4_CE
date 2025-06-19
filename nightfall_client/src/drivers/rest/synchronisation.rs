@@ -17,8 +17,6 @@ pub fn synchronisation<N: NightfallContract>(
 }
 
 pub async fn handle_synchronisation<N: NightfallContract>() -> Result<impl Reply, warp::Rejection> {
-    ark_std::println!("handle_synchronisation");
-
     match get_synchronisation_status::<N>().await {
         Ok(status) => Ok(reply::json(&status)),
         Err(_) => Err(warp::reject()),

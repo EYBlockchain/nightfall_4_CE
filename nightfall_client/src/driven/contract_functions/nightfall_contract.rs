@@ -222,11 +222,6 @@ impl<M> NightfallContract for Nightfall<M> {
         let nightfall_address = get_addresses().nightfall();
         let block_topic = H256::from_uint(&block_number.into_raw());
 
-        // let block_topic = H256::from_uint(&block_number.into_raw());
-        // let filter = Filter::new()
-        //     .address(nightfall_address)
-        //     .event("BlockProposed(int256)")
-        //     .topic1(block_topic);
         let latest_block = client.get_block_number().await.map_err(|e| {
             NightfallContractError::ProviderError(format!("get_block_number error: {}", e))
         })?;
@@ -237,9 +232,7 @@ impl<M> NightfallContract for Nightfall<M> {
             .from_block(0u64)
             .to_block(latest_block)
             .topic0(event_sig)
-            // .event("BlockProposed(int256)");
             .topic1(block_topic);
-        ark_std::println!("filter: {:?}", filter);
 
         let logs = client
             .get_logs(&filter)
@@ -255,8 +248,6 @@ impl<M> NightfallContract for Nightfall<M> {
                 "Log has no transaction hash".to_string(),
             )
         })?;
-        ark_std::println!("tx_hash of block {} is: {}", block_number, tx_hash);
-        // Step 5: Fetch transaction
         let tx = client
             .get_transaction(tx_hash)
             .await
@@ -268,7 +259,6 @@ impl<M> NightfallContract for Nightfall<M> {
         let sender_address = tx.from;
         debug!("Sender of transaction {} is {}", tx_hash, sender_address);
 
-        // Step 6: Decode calldata
         let decoded = NightfallCalls::decode(tx.input).map_err(|e| {
             NightfallContractError::AbiDecodeError(format!("ABI decode error: {:?}", e))
         })?;

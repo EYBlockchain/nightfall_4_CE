@@ -517,11 +517,8 @@ pub async fn get_l1_block_hash_of_layer2_block(
         .await
         .get_client();
     let nightfall_address = get_addresses().nightfall();
-    ark_std::println!("nightfall_address: {}", nightfall_address);
     let block_topic = H256::from_uint(&block_number.into_raw());
-    ark_std::println!("block_topic: {}", block_topic);
 
-    // This is keccak256("BlockProposed(int256)")
     let latest_block = client.get_block_number().await.map_err(|e| {
         NightfallContractError::ProviderError(format!("get_block_number error: {}", e))
     })?;
@@ -532,37 +529,20 @@ pub async fn get_l1_block_hash_of_layer2_block(
         .from_block(0u64)
         .to_block(latest_block)
         .topic0(event_sig)
-        // .event("BlockProposed(int256)");
         .topic1(block_topic);
-    ark_std::println!("filter: {:?}", filter);
 
     let logs = client
         .get_logs(&filter)
         .await
         .map_err(|e| NightfallContractError::ProviderError(format!("Provider error: {}", e)))?;
-    ark_std::println!("logs: {:?}", logs);
-    let logs2 = client
-        .get_logs(
-            &Filter::new()
-                .from_block(0u64)
-                .to_block(latest_block)
-                .address(nightfall_address),
-        )
-        .await
-        .unwrap();
-    for log in logs2 {
-        println!("Log topics2: {:?}", log.topics);
-    }
 
     // get the first log, as we only check first l1 block which contains the block number
     let log = logs
         .first()
         .ok_or_else(|| NightfallContractError::BlockNotFound(block_number.as_u64()))?;
-    ark_std::println!("log: {:?}", log);
     let tx_hash = log.transaction_hash.ok_or_else(|| {
         NightfallContractError::MissingTransactionHash("Log has no transaction hash".to_string())
     })?;
-    ark_std::println!("tx_hash: {:?}", tx_hash);
 
     // Fetch the full transaction to get block hash
     let tx = client
@@ -579,7 +559,7 @@ pub async fn get_l1_block_hash_of_layer2_block(
         )
     })?;
 
-    ark_std::println!(
+    debug!(
         "L2 block {} was submitted in L1 block {} with L1 block hash : {}",
         block_number,
         tx.block_number.unwrap_or_default(),
@@ -1383,7 +1363,6 @@ mod tests {
 
         // Simulate a reorg of depth 1 with replay = true
         let url = Url::parse(&endpoint).unwrap();
-        ark_std::println!("url: {:?}", url);
         let client = Client::new();
         anvil_reorg(&client, &url, 1, true, 5).await.unwrap();
 

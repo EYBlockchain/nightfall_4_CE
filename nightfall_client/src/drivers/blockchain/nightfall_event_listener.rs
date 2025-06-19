@@ -127,7 +127,6 @@ pub async fn restart_event_listener<N>(start_block: usize)
 where
     N: NightfallContract,
 {
-    ark_std::println!("restart_event_listener");
     // if we're restarting the event lister, we definitely shouldn't be in sync, so check that's the case
     let sync_state = get_synchronisation_status::<N>()
         .await
@@ -160,12 +159,6 @@ pub async fn get_synchronisation_status<N: NightfallContract>(
     let current_block_number = N::get_current_layer2_blocknumber()
         .await
         .map_err(|_| EventHandlerError::IOError("Could not read current block".to_string()))?;
-
-    ark_std::println!(
-        "Expected block number: {}, Current block number: {}",
-        *expected_block_number,
-        current_block_number
-    );
 
     if *expected_block_number < current_block_number {
         warn!(
