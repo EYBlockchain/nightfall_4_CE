@@ -40,6 +40,23 @@ For a deposit transaction, the user deposits a token with a specific `value` int
 2. **Transfer/Withdraw Transactions:**
 If `fee` is not zero, for transfer and withdraw transactions, `fee` will be deducted from the user's available `fee` commitments. If the user does not have enough `fee` commitments to cover the required amount, the transaction will fail. It is important to note that the circuit allows the use of a maximum of two fee commitments to pay the fee. If the user has only one fee commitment available to cover the required amount, a zero-value commitment will be created, as the circuit operates with a fixed number of commitments (two for value and two for fee).
 
+## Handling chain reorganisations
+
+If the layer 1 chain experiences a reorganisation, then there is the possibility that the layer 2 state, as stored in the Clients' and Proposers' Merkle trees, will not be consistent with the Layer 1 state. This can be corrected by resynchronising from the Genesis block, but in most cases that is not a preferable option, given the time it takes. Instead, Nightfall brings its layer 2 state into agreement with the blockchain through replaying.
+
+A chain reorganisation happens when two or more sets of nodes no longer agree on what the canonical chain looks like; there is a fork in the chain, with each set of nodes accepting a different chain segment as the truth. The consensus protocol will bring them back into agreement and one of the forks will become the new canonical chain, with the other chain segment being dropped.
+
+In such a circumstance, most blockchain nodes (and certainly Geth) will replay any transactions that were on the dropped chain segment, but are not on the canonical segment. Thus, eventually, all transactions will appear on-chain and none will be lost. Note that this does not necessarily mean that all replayed transactions will succeed; some may fail because of a mutually exclusive transaction on the canonical chain (for example, if two transactions, one on each fork, spend the same token).
+
+Nightfall makes use of the replay by applying two rules:
+
+1. It guarantees that there is never more than one proposer creating Layer 2 blocks at any time, even in the event of a fork. It does this by waiting for the `rotate_proposer` call to finalise before the new proposer submits any blocks (note, the new proposer can compute blocks, just not submit them, so this doesn't reduce throughput).
+2. The Client and Proposer will ignore layer 2 blocks that they've seen before.
+
+This means that when a chain reorg occurs, the Clients and Proposers see a new sequence of `BlockProposed` events arrive, as the blockchain node replays the lost transactions. These transactions will be in the correct order (guaranteed by the transaction nonce), and so the Client or Proposer just waits until they get a Layer 2 block that they haven't seen before, and then processes it. They will soon catch up with the blockchain's current state.
+
+This approach avoids the complexity of reverting the state of the Merkle trees in the event of a chain fork, and seems less complex than the other alternative of having Nightfall instances share layer 2 blocks directly using an 'instant finality' consensus mechanism.
+
 ## Local installation and testing
 
 Note that the NF_4 prover requires substantial compute resource (144 cores and 750GB ram) and therefore cannot be run on a laptop. It is possible to run the entire NF_4 application suite on a Macbook Pro for development purposes but, in this case, the prover is replaced with a mock prover and the verifier does no checks of the proof; it simply returns 'true'. The mock prover is the default situation. See the `Configuration` section for information on how to configure a real prover. Care must be exercised when deploying the application to production so that it is not deployed with a mock prover active!
@@ -118,7 +135,7 @@ Most of NF_4 is configured using a single file (`nightfall.toml`) in the project
 
 Do not confuse NF4_RUN_MODE, which selects the top-level section of `nightfall.toml` that will be used by the applications, and the docker compose `--profile`, which selects the containers that will be run (different profiles generally select different test containers, but they have wider applicability).
 
-Additonally, any configuration item can also be overridden via an enviroment variable by naming an environment variable `NF4_<name of variable in nightfall.toml>`. You do not need to include the main section name: that is taken from the environment variable `NF4_RUN_MODE`. It defaults to `development` if `NF4_RUN_MODE` is not set. Some configuration variables are in sub-categories, for example under `[development.nightfall_deployer]`. Use a double underscore to identify a variable within a sub-category (replacing the dot that would be used in the equivalent Rust struct). For example, the `log_level` variable in `nightfall.toml` that is under `[development]` under `[development.nightfall_deployer]` would be overridden by the environment variable `NF4_NIGHTFALL_DEPLOYER__LOG_LEVEL`, provided of course that `NF4_RUN_MODE` is set to `development` (or left unset).
+Additonally, any configuration item can also be overridden via an enviroment variable by naming an environment variable `NF4_<name of variable in nightfall.toml>`. You do not need to include the main section name: that is taken from the environment variable `NF4_RUN_MODE`. It defaults to `development` if `NF4_RUN_MODE` is not set. Some configuration variables are in sub-categories, for example under `[development.nightfall_deployer]`. Use a double __ to identify a variable within a sub-category (replacing the dot that would be used in the equivalent Rust struct). For example, the `log_level` variable in `nightfall.toml` that is under `[development]` under `[development.nightfall_deployer]` would be overridden by the environment variable `NF4_NIGHTFALL_DEPLOYER__LOG_LEVEL`, provided of course that `NF4_RUN_MODE` is set to `development` (or left unset).
 
 Finally, secret items, such as keys, do not appear in `nightfall.toml` (except for one signing key used for basic testing - which will be removed soon). Depending on the wallet type being used, keys should instead be set via environment variables, a key-store or an HSM. Test keys are currently provided via a `.env` file in the project root, using the LocalWallet type, that sets its keys as environment variables.
 NF_4 also supports the AzureWallet type, allowing keys to be securely stored in Azure Key Vault. To use this feature, you can register an NF_4 application in Azure App Registration and grant it access to the stored keys. When enabling this functionality, make sure to set the following environment variables:
@@ -682,3 +699,14 @@ Withdraws the stake of a de-registered proposer, actually, the amount withdrawn 
 ## Production deployment
 
 TBD once environment is confirmed
+
+## Appendix
+
+### Note on `VerifierKey.sol`
+
+There is a VerificationKey.sol contract in blockchain_assets/contracts i.e. the normal place for a Solidity contract. This contract's job is to put the verification key into memory, which it does via assembly code, directly placing the values into memory locations. This is to support the RollupVerifier contract, which also uses assembly code that expects to find a key in particular locations. VerificationKey.sol is only relevant for the full Rollup prover. Neither the Mock prover nor the unit tests reference it.
+VerificationKey.sol is never actually used directly. When the Deployer runs, it overwrites the contract file with a new one, which is similar in format, but contains the Rollup verification keys that have been computed during key generation. Note that this overwriting only happens when we are using a full rollup prover. This explains why VerificationKey.sol is not updated in Git, even though the keys change: the updated file is never seen by Git because we never push from a machine that is running a full rollup prover.
+The overwriting is an unusual approach. Normally one would have a static VerificationKey.sol which contains a function that lets us update the key on deployment. However, the current approach is taken because we want to control exactly how the key data is stored in memory so that we can benefit from the speed increase we get from assembly. Achieving this is much easier if all the key data is hard-coded. We therefore generate the code in Rust so that we can have hard-coded keys (in Solidity) that can be still changed (in Rust) at deployment if they need to be updated.
+The unit tests compute their own keys and use a test contract (test_contracts/TestVerifier.sol) which is kept separate from the 'production' contract. This seems sensible because we don't want the unit test to change the main contract as it's more a test of the key generation.
+Is there a better way? Probably not. It's the use of Assembly, which creates the requirement to store a large amount of key data in specific locations, that makes this a sensible approach in this case.
+We don't actually need VerificationKey.sol so it could be removed from the repository, in principle. However RollupVerifier.sol expects it to be there. Having a work around for that seems more trouble than keeping a 'placeholder' VerificationKey.sol.

@@ -1,6 +1,4 @@
 use ark_bn254::Fr as Fr254;
-use ark_ff::{BigInteger, PrimeField};
-use ark_serialize::CanonicalSerialize;
 use async_trait::async_trait;
 use ethers::{
     abi::AbiEncode,
@@ -12,6 +10,7 @@ use jf_primitives::{
     poseidon::{FieldHasher, Poseidon},
     trees::{Directions, PathElement},
 };
+use lib::hex_conversion::HexConvertible;
 use log::{debug, error, info};
 use mongodb::{
     bson::doc,
@@ -261,7 +260,12 @@ impl From<DBMembershipProof> for MembershipProof<Fr254> {
 pub struct CommitmentEntry {
     pub preimage: Preimage,
     pub status: CommitmentStatus,
-    #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
+
+    #[serde(
+        rename = "_id",
+        serialize_with = "ark_se_hex",
+        deserialize_with = "ark_de_hex"
+    )]
     pub key: Fr254,
     #[serde(
         serialize_with = "ark_se_hex",
@@ -300,7 +304,8 @@ impl Commitment for CommitmentEntry {
     }
 }
 impl CommitmentEntryDB for CommitmentEntry {
-    fn new(preimage: Preimage, key: Fr254, nullifier: Fr254, status: CommitmentStatus) -> Self {
+    fn new(preimage: Preimage, nullifier: Fr254, status: CommitmentStatus) -> Self {
+        let key = preimage.hash().expect("failed to hash preimage");
         Self {
             preimage,
             status,
@@ -397,12 +402,8 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
         Ok(result)
     }
     async fn get_available_commitments(&self, nf_token_id: Fr254) -> Option<Vec<CommitmentEntry>> {
-        let mut nf_token_id_serialised = Vec::new();
-        nf_token_id
-            .serialize_compressed(&mut nf_token_id_serialised)
-            .ok();
         let filter = doc! {
-            "preimage.nf_token_id": hex::encode(nf_token_id_serialised),
+            "preimage.nf_token_id": nf_token_id.to_hex_string(),
             "status": "Unspent"
         };
         let mut cursor = self
@@ -425,7 +426,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
     }
 
     async fn get_commitment(&self, k: &Fr254) -> Option<CommitmentEntry> {
-        let filter = doc! { "key": hex::encode(k.into_bigint().to_bytes_le()) };
+        let filter = doc! { "_id": k.to_hex_string() };
         self.database(DB)
             .collection::<CommitmentEntry>("commitments")
             .find_one(filter)
@@ -435,7 +436,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
 
     async fn get_balance(&self, nf_token_id: &Fr254) -> Option<Fr254> {
         let filter = doc! {
-            "preimage.nf_token_id": hex::encode(nf_token_id.into_bigint().to_bytes_le()),
+            "preimage.nf_token_id": nf_token_id.to_hex_string(),
             "status": "Unspent",
         };
         let mut cursor = self
@@ -460,9 +461,9 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
     async fn mark_commitments_pending_spend(&self, commitments: Vec<Fr254>) -> Option<()> {
         let commitment_str = commitments
             .into_iter()
-            .map(|c| hex::encode(c.into_bigint().to_bytes_le()))
+            .map(|c| c.to_hex_string())
             .collect::<Vec<_>>();
-        let filter = doc! { "key": { "$in": commitment_str }};
+        let filter = doc! { "_id": { "$in": commitment_str }};
         let update = doc! {"$set": { "status": "PendingSpend" }};
         self.database(DB)
             .collection::<CommitmentEntry>("commitments")
@@ -475,9 +476,9 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
     async fn mark_commitments_pending_creation(&self, commitments: Vec<Fr254>) -> Option<()> {
         let commitment_str = commitments
             .into_iter()
-            .map(|c| hex::encode(c.into_bigint().to_bytes_le()))
+            .map(|c| c.to_hex_string())
             .collect::<Vec<_>>();
-        let filter = doc! { "key": { "$in": commitment_str }};
+        let filter = doc! { "_id": { "$in": commitment_str }};
         let update = doc! {"$set": { "status": "PendingCreation" }};
         self.database(DB)
             .collection::<CommitmentEntry>("commitments")
@@ -492,7 +493,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
     async fn mark_commitments_spent(&self, nullifiers: Vec<Fr254>) -> Option<()> {
         let nullifiers_str = nullifiers
             .into_iter()
-            .map(|c| hex::encode(c.into_bigint().to_bytes_le()))
+            .map(|c| c.to_hex_string())
             .collect::<Vec<_>>();
         let filter = doc! { "nullifier": { "$in": nullifiers_str }};
         let update = doc! {"$set": { "status": "Spent"}};
@@ -512,11 +513,11 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
     ) -> Option<()> {
         let commitment_str = commitments
             .iter()
-            .map(|c| hex::encode(c.into_bigint().to_bytes_le()))
+            .map(|c| c.to_hex_string())
             .collect::<Vec<_>>();
         let l1_hash = l1_hash.map(|h| h.encode_hex());
         let l2_blocknumber = l2_blocknumber.map(|b| b.encode_hex());
-        let filter = doc! { "key": { "$in": commitment_str }};
+        let filter = doc! { "_id": { "$in": commitment_str }};
         let update = doc! {"$set": { "status": "Unspent", "layer_1_transaction_hash": l1_hash, "layer_2_block_number": l2_blocknumber }};
         self.database(DB)
             .collection::<CommitmentEntry>("commitments")
@@ -528,9 +529,8 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
 
     // we compute a nullifier for each spend commitment that we process.
     async fn add_nullifier(&self, key: &Fr254, nullifier: Fr254) -> Option<()> {
-        let filter = doc! { "key": hex::encode(key.into_bigint().to_bytes_le())};
-        let update =
-            doc! {"$set": { "nullifier": hex::encode(nullifier.into_bigint().to_bytes_le()) }};
+        let filter = doc! { "_id": key.to_hex_string() };
+        let update = doc! {"$set": { "nullifier": nullifier.to_hex_string() }};
 
         self.database(DB)
             .collection::<CommitmentEntry>("commitments")
@@ -561,7 +561,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
         }
     }
 
-    /// function to store multiple commitments in the database, optionally ignoring duplicate key errors
+    /// function to store multiple commitments in the database, optionally ignoring duplicate _id errors
     async fn store_commitments(
         &self,
         commitments: &[CommitmentEntry],
@@ -577,13 +577,13 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
             .await;
         match res {
             Ok(_) => Some(()),
-            // unpack the Mongo error and check if it's a duplicate key error. If so, behave according to dup_key_check
+            // unpack the Mongo error and check if it's a duplicate _id error. If so, behave according to dup_key_check
             Err(e) => {
                 match e.kind.as_ref() {
                     ErrorKind::Write(WriteError(write_error)) => {
                         if write_error.code == 11000 && !dup_key_check {
-                            println!("Duplicate key error: {:?}", write_error);
-                            // duplicate key error but we don't care
+                            println!("Duplicate _id error: {:?}", write_error);
+                            // duplicate _id error but we don't care
                             Some(())
                         } else {
                             None
@@ -665,11 +665,7 @@ impl WithdrawalDB<Fr254, PendingWithdrawal> for Client {
     }
 
     async fn remove_withdrawal(&mut self, key: Fr254) -> Option<()> {
-        let mut bytes = vec![];
-        key.serialize_compressed(&mut bytes).ok()?;
-
-        let hex_str = encode(&bytes);
-        let query = doc! {"key": hex_str};
+        let query = doc! {"key": key.to_hex_string()};
 
         let delete_count = self
             .database(DB)

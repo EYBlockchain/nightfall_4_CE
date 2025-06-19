@@ -3,9 +3,10 @@ use crate::{
     ports::db::{BlockStorageDB, HistoricRootsDB, TransactionsDB},
 };
 use ark_bn254::Fr as Fr254;
-use ark_ff::{BigInteger, PrimeField, Zero};
+use ark_ff::{PrimeField, Zero};
 use ethers::types::H160;
 use futures::TryStreamExt;
+use lib::hex_conversion::HexConvertible;
 use mongodb::bson::doc;
 use nightfall_client::{
     domain::{entities::ClientTransaction, error::ConversionError},
@@ -240,8 +241,8 @@ where
             .iter()
             .map(|d| {
                 doc! {
-                    "deposit_data.secret_hash": hex::encode(d.deposit_data.secret_hash.into_bigint().to_bytes_le()),
-                    "deposit_data.nf_slot_id": hex::encode(d.deposit_data.nf_slot_id.into_bigint().to_bytes_le()),
+                    "deposit_data.secret_hash": d.deposit_data.secret_hash.to_hex_string(),
+                    "deposit_data.nf_slot_id": d.deposit_data.nf_slot_id.to_hex_string(),
                 }
             })
             .collect();

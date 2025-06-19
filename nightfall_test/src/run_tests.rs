@@ -22,13 +22,31 @@ use lib::{
 };
 use log::{debug, info, warn};
 use nightfall_client::{
-    domain::entities::HexConvertible,
     driven::db::mongo::CommitmentEntry,
     drivers::rest::{client_nf_3::WithdrawResponse, models::DeEscrowDataReq},
 };
 use serde_json::Value;
 use std::fs;
 use test::{count_spent_commitments, get_erc20_balance, get_erc721_balance, get_fee_balance};
+use lib::{
+    blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
+};
+
+use crate::{
+    test::{
+        self, create_nf3_deposit_transaction, create_nf3_transfer_transaction,
+        create_nf3_withdraw_transaction, de_escrow_request, forge_command, get_key,
+        get_recipient_address, load_addresses, set_anvil_mining_interval,
+        validate_certificate_with_server, wait_for_all_responses, wait_on_chain, TokenType,
+    },
+    test_settings::TestSettings,
+};
+use ark_std::Zero;
+use ethers::{
+    providers::Middleware,
+    types::{TransactionReceipt, U256},
+    utils::{format_units, parse_units},
+};
 use url::Url;
 
 pub async fn run_tests(
@@ -81,29 +99,40 @@ pub async fn run_tests(
         .join("/v1/certification")
         .unwrap();
 
-    let client_cert =
+    let client_1_cert =
         fs::read("../blockchain_assets/test_contracts/X509/_certificates/user/user-1.der")
             .expect("Failed to read user-1 certificate");
-    let client_cert_private_key =
+    let client_1_cert_private_key =
         fs::read("../blockchain_assets/test_contracts/X509/_certificates/user/user-1.priv_key")
             .expect("Failed to read user priv_key");
 
-    let client_certificate_req = CertificateReq {
-        certificate: client_cert,
-        certificate_private_key: client_cert_private_key,
+    let client_1_certificate_req = CertificateReq {
+        certificate: client_1_cert,
+        certificate_private_key: client_1_cert_private_key,
     };
-    validate_certificate_with_server(&http_client, cert_url, client_certificate_req.clone())
+    validate_certificate_with_server(&http_client, cert_url, client_1_certificate_req.clone())
         .await
-        .expect("Certificate validation failed");
+        .expect("Client 1 Certificate validation failed");
 
     info!("Validating Client Two's certificate");
-    let cert_url = Url::parse("http://client2:3000")
+    let client_2_cert =
+        fs::read("../blockchain_assets/test_contracts/X509/_certificates/user/user-2.der")
+            .expect("Failed to read user-2 certificate");
+    let client_2_cert_private_key =
+        fs::read("../blockchain_assets/test_contracts/X509/_certificates/user/user-2.priv_key")
+            .expect("Failed to read user priv_key");
+
+    let client_2_certificate_req = CertificateReq {
+        certificate: client_2_cert,
+        certificate_private_key: client_2_cert_private_key,
+    };
+    let cert_2_url = Url::parse("http://client2:3000")
         .unwrap()
         .join("/v1/certification")
         .unwrap();
-    validate_certificate_with_server(&http_client, cert_url, client_certificate_req)
+    validate_certificate_with_server(&http_client, cert_2_url, client_2_certificate_req)
         .await
-        .expect("Certificate validation failed");
+        .expect("Client 2 Certificate validation failed");
 
     info!("Validating Proposer's certificate");
     //let http_client = reqwest::Client::new();
@@ -112,10 +141,10 @@ pub async fn run_tests(
         .join("/v1/certification")
         .unwrap();
     let proposer_cert =
-        fs::read("../blockchain_assets/test_contracts/X509/_certificates/user/user-2.der")
+        fs::read("../blockchain_assets/test_contracts/X509/_certificates/user/user-3.der")
             .expect("Failed to read proposer's certificate");
     let proposer_cert_private_key =
-        fs::read("../blockchain_assets/test_contracts/X509/_certificates/user/user-2.priv_key")
+        fs::read("../blockchain_assets/test_contracts/X509/_certificates/user/user-3.priv_key")
             .expect("Failed to read proposer's certificate priv_key");
     let proposer_certificate_req = CertificateReq {
         certificate: proposer_cert,
@@ -187,7 +216,7 @@ pub async fn run_tests(
             wait_for_all_responses(&large_block_deposit_ids, responses.clone())
                 .await
                 .into_iter()
-                .flat_map(|l| {
+                .flat_map(|(_, l)| {
                     serde_json::from_str::<Vec<String>>(&l).expect("Failed to parse response")
                 })
                 .map(|l| Fr254::from_hex_string(&l).unwrap())
@@ -243,7 +272,7 @@ pub async fn run_tests(
             wait_for_all_responses(&large_block_transfer_ids, responses.clone())
                 .await
                 .into_iter()
-                .map(|l| {
+                .map(|(_, l)| {
                     serde_json::from_str::<(Value, Option<TransactionReceipt>)>(&l)
                         .expect("Failed to parse response")
                 })
@@ -415,7 +444,9 @@ pub async fn run_tests(
     let commitment_hashes = wait_for_all_responses(&transaction_ids, responses.clone())
         .await
         .into_iter()
-        .flat_map(|l| serde_json::from_str::<Vec<String>>(&l).expect("Failed to parse response"))
+        .flat_map(|(_, l)| {
+            serde_json::from_str::<Vec<String>>(&l).expect("Failed to parse response")
+        })
         .map(|l| Fr254::from_hex_string(&l).unwrap())
         .collect::<Vec<_>>();
 
@@ -514,7 +545,9 @@ pub async fn run_tests(
     let commitment_hashes = wait_for_all_responses(&transaction_ids, responses.clone())
         .await
         .into_iter()
-        .flat_map(|l| serde_json::from_str::<Vec<String>>(&l).expect("Failed to parse response"))
+        .flat_map(|(_, l)| {
+            serde_json::from_str::<Vec<String>>(&l).expect("Failed to parse response")
+        })
         .map(|l| Fr254::from_hex_string(&l).unwrap())
         .collect::<Vec<_>>();
 
@@ -598,7 +631,7 @@ pub async fn run_tests(
     let transactions = wait_for_all_responses(&transaction_ids, responses.clone())
         .await
         .into_iter()
-        .map(|l| {
+        .map(|(_, l)| {
             serde_json::from_str::<(Value, Option<TransactionReceipt>)>(&l)
                 .expect("Failed to parse response")
         })
@@ -694,7 +727,7 @@ pub async fn run_tests(
     let transactions = wait_for_all_responses(&transaction_ids, responses.clone())
         .await
         .into_iter()
-        .map(|l| {
+        .map(|(_, l)| {
             serde_json::from_str::<(Value, Option<TransactionReceipt>)>(&l)
                 .expect("Failed to parse response")
         })
@@ -771,97 +804,71 @@ pub async fn run_tests(
     debug!("transaction_erc20_withdraw_2 has been created");
 
     // throw all the transactions at the client as fast as we can
-    let withdraw_data = try_join_all(withdraw_data).await.unwrap();
+    let mut withdraw_data = try_join_all(withdraw_data).await.unwrap();
+    // sort by Uuid
+    withdraw_data.sort_by_key(|(uuid, _)| *uuid);
 
-    // Extract the withdraw data and the ids as separate vectors
-    let (withdraw_ids, mut withdraw_payload): (Vec<_>, Vec<_>) =
-        withdraw_data.iter().cloned().unzip();
-
-    // wait for the responses to the withdraw requests to come back to the webhook server
-    let withdraw_responses = wait_for_all_responses(&withdraw_ids, responses.clone())
-        .await
-        .into_iter()
-        .map(|l| serde_json::from_str::<WithdrawResponse>(&l).expect("Failed to parse response"))
+    // create a vector of withdraw ids to wait for responses
+    let withdraw_ids = withdraw_data
+        .iter()
+        .map(|(uuid, _)| *uuid)
         .collect::<Vec<_>>();
 
-    //replace the empty withdraw_fund_salts in the withdraw_data with the salts from the withdraw_responses
-    let de_escrow_data_requests = withdraw_payload
-        .iter_mut()
-        .zip(withdraw_responses.into_iter())
-        .map(|(l, r)| {
-            l.withdraw_fund_salt = r.withdraw_fund_salt.clone();
-            DeEscrowDataReq {
-                token_id: l.token_id.clone(),
-                erc_address: l.erc_address.clone(),
-                recipient_address: l.recipient_address.clone(),
-                value: l.value.clone(),
-                token_type: l.token_type.clone(),
-                withdraw_fund_salt: l.withdraw_fund_salt.clone(),
-            }
+    // wait for the responses to the withdraw requests to come back to the webhook server
+    let withdraw_responses = wait_for_all_responses(&withdraw_ids, responses.clone()).await;
+
+    // convert the withdraw_responses into a vector of (Uuid, WithdrawResponse)
+    let withdraw_responses = withdraw_responses
+        .into_iter()
+        .map(|(u, l)| {
+            (
+                u,
+                serde_json::from_str::<WithdrawResponse>(&l).expect("Failed to parse response"),
+            )
         })
         .collect::<Vec<_>>();
 
-    let mut proceed = 0;
-    while proceed == 0 {
-        let result = de_escrow_request(&de_escrow_data_requests[0], "http://client2:3000").await;
-        match result {
-            Ok(b) => {
-                if b == 1 {
-                    info!("Withdrawing funds");
-                } else {
-                    info!("Not yet able to withdraw funds");
-                }
-                proceed = b;
-            }
-            Err(_) => {
-                info!("Could not yet withdraw funds");
-                proceed = 0;
-            }
-        }
-        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-    }
-    debug!("erc20_withdraw_0 has been withdrawn");
-
-    proceed = 0;
-
-    while proceed == 0 {
-        let result = de_escrow_request(&de_escrow_data_requests[1], "http://client2:3000").await;
-        match result {
-            Ok(b) => {
-                if b == 1 {
-                    info!("Withdrawing funds");
-                } else {
-                    info!("Not yet able to withdraw funds");
-                }
-                proceed = b;
-            }
-            Err(_) => {
-                info!("Could not yet withdraw funds");
-                proceed = 0;
-            }
-        }
-        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-    }
-    debug!("erc20_withdraw_1 has been withdrawn");
-
-    proceed = 0;
-
-    while proceed == 0 {
-        let result = de_escrow_request(&de_escrow_data_requests[2], "http://client2:3000").await;
-        match result {
-            Ok(_) => {
-                info!("Withdrawing funds");
-                proceed = 1;
-            }
-            Err(_) => {
-                info!("Could not yet withdraw funds");
-                proceed = 0;
-            }
-        }
-        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+    // we should have the same set of Uuids in the withdraw_responses as in the withdraw_data and they should be in the same order
+    for (i, response) in withdraw_responses.iter().enumerate() {
+        assert_eq!(
+            response.0, withdraw_data[i].0,
+            "{}th Withdraw response Uuid does not match withdraw data Uuid",
+            i
+        );
     }
 
+    //replace the empty withdraw_fund_salts in the withdraw_data with the salts from the withdraw_responses
+    for (i, response) in withdraw_responses.iter().enumerate() {
+        withdraw_data[i].1.withdraw_fund_salt = response.1.withdraw_fund_salt.clone();
+    }
+
+    // convert the withdraw_data into DeEscrowDataReq
+    let de_escrow_data_requests = withdraw_data
+        .into_iter()
+        .map(|(_, l)| DeEscrowDataReq {
+            token_id: l.token_id,
+            erc_address: l.erc_address,
+            recipient_address: l.recipient_address,
+            value: l.value,
+            token_type: l.token_type,
+            withdraw_fund_salt: l.withdraw_fund_salt,
+        })
+        .collect::<Vec<_>>();
+
+    // Wait until all ERC20 funds are available to withdraw
+    info!("Waiting for ERC20 funds to be available for withdrawal");
+    for request in &de_escrow_data_requests {
+        while !de_escrow_request(request, "http://client2:3000")
+            .await
+            .unwrap()
+        {
+            info!("Not yet able to withdraw funds {:?}", request);
+            tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+        }
+    }
     info!("Successfully withdrew ERC20 tokens");
+
+    //check the balance of the ERC20 tokens after the withdraws
     let balance = get_erc20_balance(&http_client, Url::parse("http://client2:3000").unwrap()).await;
     info!(
         "Balance of ERC20 tokens held as layer 2 commitments by client2: {}",
@@ -909,108 +916,69 @@ pub async fn run_tests(
     debug!("transaction_erc1155_withdraw_2 has been created");
 
     // throw all the transactions at the client as fast as we can
-    let withdraw_data = try_join_all(withdraw_data).await.unwrap();
+    let mut withdraw_data = try_join_all(withdraw_data).await.unwrap();
+    // sort by Uuid
+    withdraw_data.sort_by_key(|(uuid, _)| *uuid);
 
-    // Extract the withdraw data and the ids as separate vectors
-    let (withdraw_ids, mut withdraw_payload): (Vec<_>, Vec<_>) =
-        withdraw_data.iter().cloned().unzip();
-
-    // wait for the responses to the withdraw requests to come back to the webhook server
-    let withdraw_responses = wait_for_all_responses(&withdraw_ids, responses.clone())
-        .await
-        .into_iter()
-        .map(|l| serde_json::from_str::<WithdrawResponse>(&l).expect("Failed to parse response"))
+    // create a vector of withdraw ids to wait for responses
+    let withdraw_ids = withdraw_data
+        .iter()
+        .map(|(uuid, _)| *uuid)
         .collect::<Vec<_>>();
 
-    //replace the empty withdraw_fund_salts in the withdraw_data with the salts from the withdraw_responses
-    let de_escrow_data_requests = withdraw_payload
-        .iter_mut()
-        .zip(withdraw_responses.into_iter())
-        .map(|(l, r)| {
-            l.withdraw_fund_salt = r.withdraw_fund_salt.clone();
-            DeEscrowDataReq {
-                token_id: l.token_id.clone(),
-                erc_address: l.erc_address.clone(),
-                recipient_address: l.recipient_address.clone(),
-                value: l.value.clone(),
-                token_type: l.token_type.clone(),
-                withdraw_fund_salt: l.withdraw_fund_salt.clone(),
-            }
+    // wait for the responses to the withdraw requests to come back to the webhook server
+    let withdraw_responses = wait_for_all_responses(&withdraw_ids, responses.clone()).await;
+
+    // convert the withdraw_responses into a vector of (Uuid, WithdrawResponse)
+    let withdraw_responses = withdraw_responses
+        .into_iter()
+        .map(|(u, l)| {
+            (
+                u,
+                serde_json::from_str::<WithdrawResponse>(&l).expect("Failed to parse response"),
+            )
         })
         .collect::<Vec<_>>();
 
-    proceed = 0;
-
-    while proceed == 0 {
-        let result = de_escrow_request(&de_escrow_data_requests[0], "http://client2:3000").await;
-        match result {
-            Ok(_) => {
-                info!("Withdrawing funds");
-                proceed = 1;
-            }
-            Err(_) => {
-                info!("Could not yet withdraw funds");
-                proceed = 0;
-            }
-        }
-        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+    // we should have the same set of Uuids in the withdraw_responses as in the withdraw_data and they should be in the same order
+    for (i, response) in withdraw_responses.iter().enumerate() {
+        assert_eq!(
+            response.0, withdraw_data[i].0,
+            "{}th Withdraw response Uuid does not match withdraw data Uuid",
+            i
+        );
     }
 
-    proceed = 0;
-
-    info!("Successfully withdrew ERC721 tokens");
-
-    while proceed == 0 {
-        let result = de_escrow_request(&de_escrow_data_requests[1], "http://client2:3000").await;
-        match result {
-            Ok(_) => {
-                info!("Withdrawing funds");
-                proceed = 1;
-            }
-            Err(_) => {
-                info!("Could not yet withdraw funds");
-                proceed = 0;
-            }
-        }
-        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+    //replace the empty withdraw_fund_salts in the withdraw_data with the salts from the withdraw_responses
+    for (i, response) in withdraw_responses.iter().enumerate() {
+        withdraw_data[i].1.withdraw_fund_salt = response.1.withdraw_fund_salt.clone();
     }
 
-    proceed = 0;
+    // convert the withdraw_data into DeEscrowDataReq
+    let de_escrow_data_requests = withdraw_data
+        .into_iter()
+        .map(|(_, l)| DeEscrowDataReq {
+            token_id: l.token_id,
+            erc_address: l.erc_address,
+            recipient_address: l.recipient_address,
+            value: l.value,
+            token_type: l.token_type,
+            withdraw_fund_salt: l.withdraw_fund_salt,
+        })
+        .collect::<Vec<_>>();
 
-    info!("Successfully withdrew ERC3525 token");
-
-    while proceed == 0 {
-        let result = de_escrow_request(&de_escrow_data_requests[2], "http://client2:3000").await;
-        match result {
-            Ok(_) => {
-                info!("Withdrawing funds");
-                proceed = 1;
-            }
-            Err(_) => {
-                info!("Could not yet withdraw funds");
-                proceed = 0;
-            }
+    // Wait until all ERC721, ERC3525 and ERC1155 funds are available to withdraw
+    info!("Waiting for ERC721, ERC3525 and ERC1155 funds to be available for withdrawal");
+    for request in &de_escrow_data_requests {
+        while !de_escrow_request(request, "http://client2:3000")
+            .await
+            .unwrap()
+        {
+            info!("Not yet able to withdraw funds {:?}", request);
+            tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
         }
-        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
     }
-
-    proceed = 0;
-    while proceed == 0 {
-        let result = de_escrow_request(&de_escrow_data_requests[3], "http://client2:3000").await;
-        match result {
-            Ok(_) => {
-                info!("Withdrawing funds");
-                proceed = 1;
-            }
-            Err(_) => {
-                info!("Could not yet withdraw funds");
-                proceed = 0;
-            }
-        }
-        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-    }
-
-    info!("Successfully withdrew ERC1155 tokens");
+    info!("Successfully withdrew other tokens");
 
     // get the final balance of all the addresses used. As these are all addresses funded by Anvil,
     // we can simple print those balances

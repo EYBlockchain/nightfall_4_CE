@@ -4293,6 +4293,7 @@ dependencies = [
  "jf-primitives",
  "jf-relation",
  "jf-utils",
+ "lib",
  "log",
  "nf-curves",
  "nightfall-bindings",
@@ -4360,8 +4361,10 @@ name = "nightfall_sync_test"
 version = "0.1.0"
 dependencies = [
  "configuration",
+ "lib",
  "log",
  "nightfall_client",
+ "nightfall_test",
  "reqwest 0.12.15",
  "tokio",
 ]
@@ -4392,7 +4395,7 @@ dependencies = [
  "nightfall-bindings",
  "nightfall_client",
  "num-bigint",
- "reqwest 0.11.27",
+ "reqwest 0.12.15",
  "serde",
  "serde_json",
  "serial_test 3.2.0",
@@ -5517,7 +5520,6 @@ dependencies = [
  "js-sys",
  "log",
  "mime",
- "mime_guess",
  "native-tls",
  "once_cell",
  "percent-encoding",
@@ -5565,6 +5567,7 @@ dependencies = [
  "js-sys",
  "log",
  "mime",
+ "mime_guess",
  "native-tls",
  "once_cell",
  "percent-encoding",

@@ -249,6 +249,7 @@ async fn verify_enough_commitments(
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::domain::entities::CommitmentStatus;
     use ark_bn254::Fr as Fr254;
     use testcontainers::{
         core::IntoContainerPort, runners::AsyncRunner, ContainerAsync, GenericImage,
@@ -294,80 +295,91 @@ mod test {
             let commitments_collection = database.collection::<CommitmentEntry>("commitments");
 
             let commitments = vec![
-                CommitmentEntry {
-                    preimage: Preimage {
+                // Value commitments for nf_token_id: 1
+                CommitmentEntry::new(
+                    Preimage {
                         value: Fr254::from(1u64),
-                        nf_token_id: Fr254::from(1u64), // Value commitment
+                        nf_token_id: Fr254::from(1u64),
                         ..Default::default()
                     },
-                    ..Default::default()
-                },
-                CommitmentEntry {
-                    preimage: Preimage {
+                    Fr254::default(),
+                    CommitmentStatus::Unspent,
+                ),
+                CommitmentEntry::new(
+                    Preimage {
                         value: Fr254::from(2u64),
-                        nf_token_id: Fr254::from(1u64), // Value commitment
+                        nf_token_id: Fr254::from(1u64),
                         ..Default::default()
                     },
-                    ..Default::default()
-                },
-                CommitmentEntry {
-                    preimage: Preimage {
+                    Fr254::default(),
+                    CommitmentStatus::Unspent,
+                ),
+                CommitmentEntry::new(
+                    Preimage {
                         value: Fr254::from(3u64),
-                        nf_token_id: Fr254::from(1u64), // Value commitment
+                        nf_token_id: Fr254::from(1u64),
                         ..Default::default()
                     },
-                    ..Default::default()
-                },
-                CommitmentEntry {
-                    preimage: Preimage {
+                    Fr254::default(),
+                    CommitmentStatus::Unspent,
+                ),
+                CommitmentEntry::new(
+                    Preimage {
                         value: Fr254::from(4u64),
-                        nf_token_id: Fr254::from(1u64), // Value commitment
+                        nf_token_id: Fr254::from(1u64),
                         ..Default::default()
                     },
-                    ..Default::default()
-                },
-                CommitmentEntry {
-                    preimage: Preimage {
+                    Fr254::default(),
+                    CommitmentStatus::Unspent,
+                ),
+                // Fee commitments for nf_token_id: 2
+                CommitmentEntry::new(
+                    Preimage {
                         value: Fr254::from(1u64),
-                        nf_token_id: Fr254::from(2u64), // fee commitment
+                        nf_token_id: Fr254::from(2u64),
                         ..Default::default()
                     },
-                    ..Default::default()
-                },
-                CommitmentEntry {
-                    preimage: Preimage {
+                    Fr254::default(),
+                    CommitmentStatus::Unspent,
+                ),
+                CommitmentEntry::new(
+                    Preimage {
                         value: Fr254::from(2u64),
-                        nf_token_id: Fr254::from(2u64), // fee commitment
+                        nf_token_id: Fr254::from(2u64),
                         ..Default::default()
                     },
-                    ..Default::default()
-                },
-                CommitmentEntry {
-                    preimage: Preimage {
+                    Fr254::default(),
+                    CommitmentStatus::Unspent,
+                ),
+                CommitmentEntry::new(
+                    Preimage {
                         value: Fr254::from(5u64),
-                        nf_token_id: Fr254::from(2u64), // fee commitment
+                        nf_token_id: Fr254::from(2u64),
                         ..Default::default()
                     },
-                    ..Default::default()
-                },
-                CommitmentEntry {
-                    preimage: Preimage {
+                    Fr254::default(),
+                    CommitmentStatus::Unspent,
+                ),
+                CommitmentEntry::new(
+                    Preimage {
                         value: Fr254::from(3u64),
-                        nf_token_id: Fr254::from(2u64), // Fee commitment
+                        nf_token_id: Fr254::from(2u64),
                         ..Default::default()
                     },
-                    ..Default::default()
-                },
-                CommitmentEntry {
-                    preimage: Preimage {
+                    Fr254::default(),
+                    CommitmentStatus::Unspent,
+                ),
+                CommitmentEntry::new(
+                    Preimage {
                         value: Fr254::from(6u64),
-                        nf_token_id: Fr254::from(2u64), // Fee commitment
+                        nf_token_id: Fr254::from(2u64),
                         ..Default::default()
                     },
-                    ..Default::default()
-                },
+                    Fr254::default(),
+                    CommitmentStatus::Unspent,
+                ),
             ];
-
+            // Insert the commitments into the database
             commitments_collection
                 .insert_many(commitments)
                 .await
@@ -445,30 +457,33 @@ mod test {
             let commitments_collection = database.collection::<CommitmentEntry>("commitments");
 
             let commitments = vec![
-                CommitmentEntry {
-                    preimage: Preimage {
+                CommitmentEntry::new(
+                    Preimage {
                         value: Fr254::from(5u64),
                         nf_token_id: Fr254::from(1u64),
                         ..Default::default()
                     },
-                    ..Default::default()
-                },
-                CommitmentEntry {
-                    preimage: Preimage {
+                    Fr254::default(),
+                    CommitmentStatus::Unspent,
+                ),
+                CommitmentEntry::new(
+                    Preimage {
                         value: Fr254::from(6u64),
-                        nf_token_id: Fr254::from(1u64), // Value commitment
+                        nf_token_id: Fr254::from(1u64),
                         ..Default::default()
                     },
-                    ..Default::default()
-                },
-                CommitmentEntry {
-                    preimage: Preimage {
+                    Fr254::default(),
+                    CommitmentStatus::Unspent,
+                ),
+                CommitmentEntry::new(
+                    Preimage {
                         value: Fr254::from(7u64),
-                        nf_token_id: Fr254::from(1u64), // Value commitment
+                        nf_token_id: Fr254::from(1u64),
                         ..Default::default()
                     },
-                    ..Default::default()
-                },
+                    Fr254::default(),
+                    CommitmentStatus::Unspent,
+                ),
             ];
 
             commitments_collection
@@ -529,62 +544,69 @@ mod test {
                     },
                     ..Default::default()
                 },
-                CommitmentEntry {
-                    preimage: Preimage {
+                CommitmentEntry::new(
+                    Preimage {
                         value: Fr254::from(6u64),
-                        nf_token_id: Fr254::from(1u64), // Value commitment
+                        nf_token_id: Fr254::from(1u64),
                         ..Default::default()
                     },
-                    ..Default::default()
-                },
-                CommitmentEntry {
-                    preimage: Preimage {
+                    Fr254::default(),
+                    CommitmentStatus::Unspent,
+                ),
+                CommitmentEntry::new(
+                    Preimage {
                         value: Fr254::from(7u64),
-                        nf_token_id: Fr254::from(1u64), // Value commitment
+                        nf_token_id: Fr254::from(1u64),
                         ..Default::default()
                     },
-                    ..Default::default()
-                },
-                CommitmentEntry {
-                    preimage: Preimage {
+                    Fr254::default(),
+                    CommitmentStatus::Unspent,
+                ),
+                CommitmentEntry::new(
+                    Preimage {
                         value: Fr254::from(5u64),
                         nf_token_id: Fr254::from(2u64),
                         ..Default::default()
                     },
-                    ..Default::default()
-                },
-                CommitmentEntry {
-                    preimage: Preimage {
+                    Fr254::default(),
+                    CommitmentStatus::Unspent,
+                ),
+                CommitmentEntry::new(
+                    Preimage {
                         value: Fr254::from(6u64),
                         nf_token_id: Fr254::from(2u64),
                         ..Default::default()
                     },
-                    ..Default::default()
-                },
-                CommitmentEntry {
-                    preimage: Preimage {
+                    Fr254::default(),
+                    CommitmentStatus::Unspent,
+                ),
+                CommitmentEntry::new(
+                    Preimage {
                         value: Fr254::from(12u64),
                         nf_token_id: Fr254::from(2u64),
                         ..Default::default()
                     },
-                    ..Default::default()
-                },
-                CommitmentEntry {
-                    preimage: Preimage {
+                    Fr254::default(),
+                    CommitmentStatus::Unspent,
+                ),
+                CommitmentEntry::new(
+                    Preimage {
                         value: Fr254::from(2u64),
                         nf_token_id: Fr254::from(2u64),
                         ..Default::default()
                     },
-                    ..Default::default()
-                },
-                CommitmentEntry {
-                    preimage: Preimage {
+                    Fr254::default(),
+                    CommitmentStatus::Unspent,
+                ),
+                CommitmentEntry::new(
+                    Preimage {
                         value: Fr254::from(13u64),
                         nf_token_id: Fr254::from(2u64),
                         ..Default::default()
                     },
-                    ..Default::default()
-                },
+                    Fr254::default(),
+                    CommitmentStatus::Unspent,
+                ),
             ];
 
             commitments_collection
@@ -658,30 +680,33 @@ mod test {
             let commitments_collection = database.collection::<CommitmentEntry>("commitments");
 
             let commitments = vec![
-                CommitmentEntry {
-                    preimage: Preimage {
+                CommitmentEntry::new(
+                    Preimage {
                         value: Fr254::from(5u64),
                         nf_token_id: Fr254::from(1u64),
                         ..Default::default()
                     },
-                    ..Default::default()
-                },
-                CommitmentEntry {
-                    preimage: Preimage {
+                    Fr254::default(),
+                    CommitmentStatus::Unspent,
+                ),
+                CommitmentEntry::new(
+                    Preimage {
                         value: Fr254::from(6u64),
-                        nf_token_id: Fr254::from(1u64), // Value commitment
+                        nf_token_id: Fr254::from(1u64),
                         ..Default::default()
                     },
-                    ..Default::default()
-                },
-                CommitmentEntry {
-                    preimage: Preimage {
+                    Fr254::default(),
+                    CommitmentStatus::Unspent,
+                ),
+                CommitmentEntry::new(
+                    Preimage {
                         value: Fr254::from(7u64),
-                        nf_token_id: Fr254::from(1u64), // Value commitment
+                        nf_token_id: Fr254::from(1u64),
                         ..Default::default()
                     },
-                    ..Default::default()
-                },
+                    Fr254::default(),
+                    CommitmentStatus::Unspent,
+                ),
             ];
 
             commitments_collection
@@ -724,30 +749,33 @@ mod test {
             let commitments_collection = database.collection::<CommitmentEntry>("commitments");
 
             let commitments = vec![
-                CommitmentEntry {
-                    preimage: Preimage {
+                CommitmentEntry::new(
+                    Preimage {
                         value: Fr254::from(5u64),
                         nf_token_id: Fr254::from(1u64),
                         ..Default::default()
                     },
-                    ..Default::default()
-                },
-                CommitmentEntry {
-                    preimage: Preimage {
+                    Fr254::default(),
+                    CommitmentStatus::Unspent,
+                ),
+                CommitmentEntry::new(
+                    Preimage {
                         value: Fr254::from(6u64),
-                        nf_token_id: Fr254::from(1u64), // Value commitment
+                        nf_token_id: Fr254::from(1u64),
                         ..Default::default()
                     },
-                    ..Default::default()
-                },
-                CommitmentEntry {
-                    preimage: Preimage {
+                    Fr254::default(),
+                    CommitmentStatus::Unspent,
+                ),
+                CommitmentEntry::new(
+                    Preimage {
                         value: Fr254::from(7u64),
-                        nf_token_id: Fr254::from(1u64), // Value commitment
+                        nf_token_id: Fr254::from(1u64),
                         ..Default::default()
                     },
-                    ..Default::default()
-                },
+                    Fr254::default(),
+                    CommitmentStatus::Unspent,
+                ),
             ];
 
             commitments_collection

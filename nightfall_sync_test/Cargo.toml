@@ -6,6 +6,8 @@ edition.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+lib = { path = "../lib" }
+nightfall_test = { path = "../nightfall_test" }
 reqwest = { version = "0.12.15", features = ["json"] }
 tokio = { version = "1.45.0", features = ["full"] }
 configuration = { path = "../configuration" }
