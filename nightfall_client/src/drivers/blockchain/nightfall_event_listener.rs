@@ -235,27 +235,27 @@ pub async fn get_synchronisation_status<N: NightfallContract>(
                     "Hash mismatch at block {}: expected {}, found {}",
                     expected_u64, expected_hash, stored_hash
                 );
-                return Ok(SynchronisationStatus::new(
+               return Ok(SynchronisationStatus::new(
                     SynchronisationPhase::Desynchronized,
                 ));
-            } else {
-                debug!(
-                    "Block {} verified in local DB with matching hash.",
-                    expected_u64
-                );
-                return Ok(SynchronisationStatus::new(
-                    SynchronisationPhase::Synchronized,
-                ));
             }
+            // If hashes match, fall through and return Synchronized
+        debug!(
+            "Block {} verified in local DB with matching hash.",
+            expected_u64
+        );
+        Ok(SynchronisationStatus::new(
+            SynchronisationPhase::Synchronized,
+        ))
         }
         None => {
-            debug!(
-                "Block {} not found in local DB. Assuming client is still in sync.",
-                expected_u64
-            );
-            return Ok(SynchronisationStatus::new(
-                SynchronisationPhase::Synchronized,
-            ));
-        }
+        debug!(
+            "Block {} not found in local DB. Assuming client is still in sync.",
+            expected_u64
+        );
+        Ok(SynchronisationStatus::new(
+            SynchronisationPhase::Synchronized,
+        ))
+    }
     }
 }

@@ -28,9 +28,7 @@ use crate::{
         notifications::NotificationPayload,
     },
     driven::contract_functions::contract_type_conversions::FrBn254,
-    drivers::{
-        blockchain::nightfall_event_listener::get_synchronisation_status, derive_key::ZKPKeys,
-    },
+    drivers::derive_key::ZKPKeys,
     get_fee_token_id,
     initialisation::get_db_connection,
     ports::{
@@ -51,7 +49,7 @@ use ark_std::{rand::thread_rng, UniformRand};
 use configuration::addresses::get_addresses;
 use jf_primitives::poseidon::{FieldHasher, Poseidon};
 use lib::wallets::LocalWsClient;
-use log::{debug, error, info, warn};
+use log::{debug, error, info};
 use nf_curves::ed_on_bn254::{BabyJubjub, Fr as BJJScalar};
 use nightfall_bindings::{
     ierc1155::IERC1155, ierc20::IERC20, ierc3525::IERC3525, ierc721::IERC721, nightfall::Nightfall,

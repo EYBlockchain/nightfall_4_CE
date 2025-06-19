@@ -20,7 +20,7 @@ use nightfall_client::{
     driven::db::mongo::DB,
     ports::proof::{Proof, PublicInputs},
 };
-use std::{cmp::Reverse, env};
+use std::cmp::Reverse;
 use tokio::time::Instant;
 
 // Define a type alias for better readability

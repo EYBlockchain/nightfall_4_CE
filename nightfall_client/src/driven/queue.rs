@@ -1,24 +1,30 @@
-use std::time::Duration;
-
-use crate::domain::entities::RequestStatus;
-use crate::domain::entities::SynchronisationPhase::Desynchronized;
-use crate::domain::error::TransactionHandlerError;
-use crate::driven::notifier::webhook_notifier::WebhookNotifier;
-use crate::drivers::blockchain::nightfall_event_listener::{
-    get_synchronisation_status, restart_event_listener,
+use crate::{
+    domain::entities::{RequestStatus, SynchronisationPhase::Desynchronized},
+    driven::notifier::webhook_notifier::WebhookNotifier,
+    drivers::{
+        blockchain::nightfall_event_listener::{
+            get_synchronisation_status, restart_event_listener,
+        },
+        rest::{
+            client_nf_3::handle_request,
+            models::{NF3DepositRequest, NF3TransferRequest, NF3WithdrawRequest},
+        },
+    },
+    initialisation::get_db_connection,
+    ports::{
+        contracts::NightfallContract,
+        db::RequestDB,
+        proof::{Proof, ProvingEngine},
+    },
+    services::data_publisher::DataPublisher,
 };
-use crate::drivers::rest::client_nf_3::handle_request;
-use crate::drivers::rest::models::{NF3DepositRequest, NF3TransferRequest, NF3WithdrawRequest};
-use crate::initialisation::get_db_connection;
-use crate::ports::contracts::NightfallContract;
-use crate::ports::db::RequestDB;
-use crate::ports::proof::{Proof, ProvingEngine};
-use crate::services::data_publisher::DataPublisher;
 use configuration::settings::get_settings;
 use log::{debug, error, info, warn};
-use std::collections::VecDeque;
-use tokio::sync::{OnceCell, RwLock};
-use tokio::time::sleep;
+use std::{collections::VecDeque, time::Duration};
+use tokio::{
+    sync::{OnceCell, RwLock},
+    time::sleep,
+};
 /// This module implements a queue of received requests. Requests can be added to the queue
 /// asynchronously but are executed with a concurrency of 1.
 ///

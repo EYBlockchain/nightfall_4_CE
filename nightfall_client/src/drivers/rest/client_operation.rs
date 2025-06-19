@@ -5,10 +5,7 @@ use crate::{
         notifications::NotificationPayload,
     },
     driven::db::mongo::CommitmentEntry,
-    drivers::{
-        blockchain::nightfall_event_listener::get_synchronisation_status, derive_key::ZKPKeys,
-        rest::models::NullifierKey,
-    },
+    drivers::{derive_key::ZKPKeys, rest::models::NullifierKey},
     get_zkp_keys,
     initialisation::get_db_connection,
     ports::{

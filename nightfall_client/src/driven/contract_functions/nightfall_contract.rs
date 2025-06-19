@@ -21,7 +21,6 @@ use ethers::{
 use lib::{
     blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
 };
-use log::log;
 use log::{debug, info};
 use nightfall_bindings::{
     erc20_mock::ERC20MockErrors,
