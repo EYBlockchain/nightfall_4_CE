@@ -4,6 +4,7 @@ use crate::ports::{
     key_provider::KeyProvider,
     proof::{Proof, PublicInputs},
 };
+use ark_ff::BigInteger256;
 use lib::error::HexError;
 
 use ark_bn254::Fr as Fr254;
@@ -479,6 +480,14 @@ impl DepositSecret {
             preimage_three,
         }
     }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct TokenData {
+    #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
+    pub erc_address: Fr254,
+    #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
+    pub token_id: BigInteger256,
 }
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, Default, PartialEq)]
