@@ -595,6 +595,42 @@ Returns the status of a deposit/transfer or withdraw request when provided with 
 
 Note that internal failures of the client will cause the request state to be unreliable so the request status is not an alternative to error logs.
 
+***
+
+GET /v1/token/:nf_token_id
+
+```sh
+curl -i 'http://localhost:3000/v1/token/0x1234abcd...'
+```
+
+Returns: on success, a JSON object describing the token corresponding to the given Nightfall token ID. On error, returns `400 BAD REQUEST` if the token ID is invalid, or `404 NOT FOUND` if the token does not exist.
+
+This endpoint allows you to retrieve detailed information about a token using its Nightfall token ID. The token ID should be provided as a hexadecimal string in the URL path. This is useful if you want to Withdraw a token that someone has sent you but you don't know the Layer 1 contract address and Token ID.
+
+**Parameters:**
+
+- `nf_token_id`: The Nightfall token ID as a hex string (e.g., `0x1234abcd...`).
+
+**Response:**
+
+- `200 OK`: Returns a JSON object with token information, derived from the `TokenData` struct:
+    - `erc_address`: The ERC contract address for the token, as a hex string.
+    - `token_id`: The token ID (for ERC721/1155/3525), as a hex string.
+- `400 BAD REQUEST`: Returned if the provided token ID is not a valid field element.
+- `404 NOT FOUND`: Returned if no token exists for the given ID.
+
+**Example Response:**
+
+```json
+{
+  "erc_address": "0x6fcb6af7f7947f8480c36e8ffca0c66f6f2be32b",
+  "token_id": "0x00"
+}
+```
+
+Use this endpoint to look up metadata and contract details for any token registered in Nightfall, provided you know its Nightfall token ID.
+***
+
 ### Proposer APIs
 
 Note that most transactions will fail unless you have first had your x509 certificate validated on chain by the X509.sol contract. See the `X509 certificates` API for how to do that.

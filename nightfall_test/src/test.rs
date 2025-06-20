@@ -352,7 +352,7 @@ impl Display for TokenType {
 
 impl TokenType {
     /// Gets the relevant mock contract address for the token type
-    fn address(&self) -> String {
+    pub fn address(&self) -> String {
         match self {
             TokenType::ERC20 => hex::encode(TestSettings::retrieve_mock_addresses().erc20.0),
             TokenType::ERC721 => hex::encode(TestSettings::retrieve_mock_addresses().erc721.0),

@@ -428,6 +428,13 @@ contract Nightfall is
         return 0x009ce20b;
     }
 
+    // Function to the the ercAddress and tokenId of a token if the only information you have is the nfTokenId
+    // This is useful if someone transfers a Nightfall token to you and you want to know what the underlying token is.
+    function getTokenInfo(uint256 nfTokenId) external view returns (address ercAddress, uint256 tokenId) {
+        TokenIdValue memory tokenData = tokenIdMapping[nfTokenId];
+        return (tokenData.erc_address, tokenData.token_id);
+    }
+
     // Called by the client to remove their funds from escrow, once they've proved they're entitled to them
     // by submitting a Withdraw transaction that is then proved in a block. We used the compressed_secrets,
     // not because they're really required to prove ownership, but because they are different for every commitment
