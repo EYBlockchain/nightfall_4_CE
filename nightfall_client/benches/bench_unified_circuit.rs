@@ -162,7 +162,8 @@ fn build_valid_transfer_inputs() -> CircuitTestInfo {
 
     let token_id = Fr254::from_hex_string(&token_id_string).unwrap();
 
-    let withdraw_address_bytes: [u8; 20] = [rand::thread_rng().gen(); 20];
+    let mut withdraw_address_bytes: [u8; 20] = [0; 20]; 
+        rand::thread_rng().fill(&mut withdraw_address_bytes);
 
     let withdraw_address = Fr254::from_be_bytes_mod_order(&withdraw_address_bytes);
     // make a random Nightfall address, and create fee_token_id from it
