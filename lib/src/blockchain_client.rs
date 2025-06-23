@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use ethers::middleware::SignerMiddleware;
 use ethers::providers::{JsonRpcClient, Provider, PubsubClient};
-use ethers::types::{Address, U256};
+use alloy::primitives::{Address, U256};
 use serde::Deserialize;
 use std::marker::Sync;
 use std::sync::Arc;
