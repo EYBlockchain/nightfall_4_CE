@@ -1,6 +1,4 @@
 
-
-
 use testcontainers::{
     core::{IntoContainerPort, WaitFor}, runners::AsyncRunner, ContainerAsync, GenericImage, ImageExt
 };
@@ -31,8 +29,7 @@ pub async fn get_db_connection(container: &ContainerAsync<GenericImage>) -> mong
     let host = container.get_host().await.unwrap();
     let port = container.get_host_port_ipv4(27017).await.unwrap();
     let uri = get_db_connection_uri(host, port);
-    //let uri = format!("mongodb://{}:{}", host, port);
-
+   
     let mut attempts = 0;
     let client;
         loop {

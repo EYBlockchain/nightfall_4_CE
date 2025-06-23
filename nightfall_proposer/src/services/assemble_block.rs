@@ -398,29 +398,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Duration;
+    use lib::tests_utils::{get_db_connection, get_mongo};
     use nightfall_client::driven::plonk_prover::plonk_proof::PlonkProof;
-    use testcontainers::{
-        core::{IntoContainerPort, WaitFor}, runners::AsyncRunner, ContainerAsync, GenericImage, ImageExt
-    };
-
-    async fn get_mongo() -> ContainerAsync<GenericImage> {
-        GenericImage::new("mongo", "4.4.1-bionic")
-            .with_exposed_port(27017.tcp())
-            .with_wait_for(WaitFor::message_on_stdout("Waiting for connections"))
-            .with_startup_timeout(Duration::from_secs(120))
-            .start()
-            .await
-            .unwrap()
-    }
-
-    async fn get_db_connection(container: &ContainerAsync<GenericImage>) -> mongodb::Client {
-        let host = container.get_host().await.unwrap();
-        let port = container.get_host_port_ipv4(27017).await.unwrap();
-        mongodb::Client::with_uri_str(&format!("mongodb://{}:{}", host, port))
-            .await
-            .expect("Could not create database connection")
-    }
 
     #[tokio::test]
     async fn test_prepare_block_data_simple_case() {
