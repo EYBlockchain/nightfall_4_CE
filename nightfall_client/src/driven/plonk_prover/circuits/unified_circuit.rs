@@ -146,6 +146,7 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
         // Calculate new commitments
         let withdraw_flag = self.is_zero(withdraw_address)?;
         let withdraw_flag = self.logic_neg(withdraw_flag)?;
+        println!("DEBUG: withdraw_flag witnessed: {:?}", self.witness(withdraw_flag.into())?);
 
         let commitments = self.verify_commitments(
             fee_token_id,
@@ -192,6 +193,7 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
 
         // If we are withdrawing the recipient public key should be the neutral point.
         let is_neutral = self.is_neutral_point::<BabyJubjub>(&recipient_public_key)?;
+        println!("DEBUG: is_neutral witnessed: {:?}", self.witness(is_neutral.into())?);
         // We achieve this by using the withdraw flag and neutral point check.
 
         self.quad_poly_gate(
@@ -1114,17 +1116,26 @@ mod tests {
     fn test_withdraw() {
         for _ in 0..10 {
             let mut circuit_test_info = build_valid_withdraw_inputs();
+            println!("PublicInputs: {:?}", circuit_test_info.public_inputs);
             let circuit = unified_circuit_builder(
                 &mut circuit_test_info.public_inputs,
                 &mut circuit_test_info.private_inputs,
             )
             .unwrap();
 
-            circuit
+           match circuit
                 .check_circuit_satisfiability(
                     Vec::from(&circuit_test_info.public_inputs).as_slice(),
                 )
-                .unwrap();
+                {
+                    Ok(_) => println!("Circuit satisfiable ✅"),
+                    Err(e) => {
+                        println!("❌ Circuit NON satisfiable avec erreur: {:?}", e);
+                        println!("Inputs fautifs: {:?}", circuit_test_info.public_inputs);
+                        panic!("Erreur de circuit sur test_withdraw");
+                    }
+                }
+                //.unwrap();
 
             for (circuit_comm, expected_comm) in circuit_test_info
                 .public_inputs
