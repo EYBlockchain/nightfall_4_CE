@@ -252,11 +252,6 @@ mod test {
     use lib::tests_utils::{get_db_connection, get_mongo, get_db_connection_uri};
     use crate::domain::entities::CommitmentStatus;
     use ark_bn254::Fr as Fr254;
-    use testcontainers::{
-        core::{IntoContainerPort, WaitFor}, runners::AsyncRunner, ContainerAsync, GenericImage, ImageExt
-    };
-    use tokio::io::AsyncReadExt;
-    use std::time::Duration;
     use url::Host;
 
     #[tokio::test]
