@@ -144,7 +144,6 @@ mod tests {
     #[serial]
     fn test_config() {
         // set an NF4 environment variable and check the config picks it up
-        //let tmp = &env::var("NF4_SIGNING_KEY").unwrap_or_else(|_| "None".to_string());
         let tmp_signing_key = &env::var("NF4_SIGNING_KEY").unwrap_or_else(|_| "None".to_string());
         let tmp_run_mode = &env::var("NF4_RUN_MODE").unwrap_or_else(|_| "None".to_string());
         // Acknowledge Possible Risks: we're confident that the use of std::env::set_var is indeed safe in this context
@@ -164,8 +163,6 @@ mod tests {
         } else {
             env::set_var("NF4_SIGNING_KEY", tmp_signing_key)
         }
-        // let run_mode = env::var("NF4_RUN_MODE").unwrap_or_else(|_| "development".to_string());
-        // assert_eq!(s.run_mode, run_mode.as_str());
         if tmp_run_mode == "None" {
             env::remove_var("NF4_RUN_MODE");
         } else {
