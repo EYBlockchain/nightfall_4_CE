@@ -143,92 +143,116 @@ mod tests {
     #[test]
     #[serial]
     fn test_config() {
-        // set an NF4 environment variable and check the config picks it up
-        let tmp_signing_key = &env::var("NF4_SIGNING_KEY").unwrap_or_else(|_| "None".to_string());
-        let tmp_run_mode = &env::var("NF4_RUN_MODE").unwrap_or_else(|_| "None".to_string());
-        // Acknowledge Possible Risks: we're confident that the use of std::env::set_var is indeed safe in this context
-        unsafe {
-            env::set_var("NF4_SIGNING_KEY", "0x2a");
-        }
+        let tmp_signing_key = env::var("NF4_SIGNING_KEY").ok();
+        let tmp_run_mode = env::var("NF4_RUN_MODE").ok();
 
+        env::set_var("NF4_SIGNING_KEY", "0x2a");
         env::set_var("NF4_RUN_MODE", "development");
 
+        // Load settings *after* setting environment variables
         let s = Settings::new().unwrap();
-        assert_eq!(s.signing_key.as_str(), "0x2a");
-        assert_eq!(s.run_mode, "development");
-        
-        // clean up
-        if tmp_signing_key == "None" {
-            env::remove_var("NF4_SIGNING_KEY");
-        } else {
-            env::set_var("NF4_SIGNING_KEY", tmp_signing_key)
+
+        // Assert that the loaded settings match what we set
+        assert_eq!(
+            s.signing_key.as_str(),
+            "0x2a",
+            "The signing key should be overridden by the environment variable."
+        );
+        assert_eq!(
+            s.run_mode,
+            "development",
+            "The run mode should be set to development."
+        );
+
+        // Clean up environment variables using match for correct restoration
+        match tmp_signing_key {
+            Some(val) => env::set_var("NF4_SIGNING_KEY", val),
+            None => env::remove_var("NF4_SIGNING_KEY"),
         }
-        if tmp_run_mode == "None" {
-            env::remove_var("NF4_RUN_MODE");
-        } else {
-            env::set_var("NF4_RUN_MODE", tmp_run_mode);
+        match tmp_run_mode {
+            Some(val) => env::set_var("NF4_RUN_MODE", val),
+            None => env::remove_var("NF4_RUN_MODE"),
         }
     }
 
     #[test]
     #[serial]
     fn test_override() {
-        // override an nested NF4 environment variable and check the config picks it up
-        let tmp_db_url  = &env::var("NF4_NIGHTFALL_CLIENT__DB_URL").unwrap_or_else(|_| "None".to_string());
-        let tmp_run_mode = &env::var("NF4_RUN_MODE").unwrap_or_else(|_| "None".to_string());
+        let tmp_db_url = env::var("NF4_NIGHTFALL_CLIENT__DB_URL").ok();
+        let tmp_run_mode = env::var("NF4_RUN_MODE").ok();
+
+        // Set environment variables for the test
         env::set_var(
             "NF4_NIGHTFALL_CLIENT__DB_URL",
             "mongodb://nf4_db_client2:27017",
         );
+        // Crucially, set NF4_RUN_MODE before Settings::new()
         env::set_var("NF4_RUN_MODE", "development");
 
+        // Load settings *after* setting environment variables
         let s = Settings::new().unwrap();
+
+        // Assert that the loaded setting matches what we set
         assert_eq!(
             s.nightfall_client.db_url.as_str(),
-            "mongodb://nf4_db_client2:27017"
+            "mongodb://nf4_db_client2:27017",
+            "The DB URL should be overridden by the environment variable."
         );
-        // clean up
-        if tmp_db_url == "None" {
-            env::remove_var("NF4_NIGHTFALL_CLIENT__DB_URL");
-        } else {
-            env::set_var("NF4_NIGHTFALL_CLIENT__DB_URL", tmp_db_url)
+
+        assert_eq!(
+            s.run_mode,
+            "development",
+            "The run mode should be set to development."
+        );
+
+        // Clean up environment variables using match
+        match tmp_db_url {
+            Some(val) => env::set_var("NF4_NIGHTFALL_CLIENT__DB_URL", val),
+            None => env::remove_var("NF4_NIGHTFALL_CLIENT__DB_URL"),
         }
-        if tmp_run_mode == "None" {
-            env::remove_var("NF4_RUN_MODE");
-        } else {
-            env::set_var("NF4_RUN_MODE", tmp_run_mode);
+        match tmp_run_mode {
+            Some(val) => env::set_var("NF4_RUN_MODE", val),
+            None => env::remove_var("NF4_RUN_MODE"),
         }
     }
 
     #[test]
     #[serial]
     fn test_override_with_profile() {
-        // override an nested NF4 environment variable and check the config picks it up
-        let tmp_db_url = &env::var("NF4_NIGHTFALL_CLIENT__DB_URL").unwrap_or_else(|_| "None".to_string());
-        env::set_var(
-            "NF4_NIGHTFALL_CLIENT__DB_URL",
-            "mongodb://nf4_db_client2:27017",
-        );
+        // Backup original env vars
+        let tmp_db_url = env::var("NF4_NIGHTFALL_CLIENT__DB_URL").ok();
+        let tmp_run_mode = env::var("NF4_RUN_MODE").ok();
 
-        let tmp_run_mode = &env::var("NF4_RUN_MODE").unwrap_or_else(|_| "None".to_string());
+        // Set environment variables for the test
+        env::set_var("NF4_NIGHTFALL_CLIENT__DB_URL", "mongodb://nf4_db_client2:27017");
         env::set_var("NF4_RUN_MODE", "development");
 
+        // Load settings *after* setting environment variables
         let s = Settings::new().unwrap();
+
+        // Assert that the loaded setting matches what we set
         assert_eq!(
             s.nightfall_client.db_url.as_str(),
-            "mongodb://nf4_db_client2:27017"
+            "mongodb://nf4_db_client2:27017",
+            "The DB URL should be overridden by the environment variable for the 'development' profile."
         );
-        // clean up
-        if tmp_db_url == "None" {
-            env::remove_var("NF4_NIGHTFALL_CLIENT__DB_URL");
-        } else {
-            env::set_var("NF4_NIGHTFALL_CLIENT__DB_URL", tmp_db_url)
+
+        assert_eq!(
+            s.run_mode,
+            "development",
+            "The run mode should be set to development."
+        );
+
+        // Clean up environment variables to avoid affecting other tests
+        match tmp_db_url {
+            Some(val) => env::set_var("NF4_NIGHTFALL_CLIENT__DB_URL", val),
+            None => env::remove_var("NF4_NIGHTFALL_CLIENT__DB_URL"),
         }
 
-        if tmp_run_mode == "None" {
-            env::remove_var("NF4_RUN_MODE");
-        } else {
-            env::set_var("NF4_RUN_MODE", tmp_run_mode)
+        match tmp_run_mode {
+            Some(val) => env::set_var("NF4_RUN_MODE", val),
+            None => env::remove_var("NF4_RUN_MODE"),
         }
     }
+
 }
