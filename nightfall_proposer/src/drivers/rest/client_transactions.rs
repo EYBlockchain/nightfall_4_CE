@@ -1,5 +1,5 @@
-use crate::driven::nightfall_client_transaction::process_nightfall_client_transaction;
 use crate::domain::error::ProposerRejection;
+use crate::driven::nightfall_client_transaction::process_nightfall_client_transaction;
 use log::{error, info};
 use nightfall_client::{
     domain::entities::ClientTransaction,
@@ -36,7 +36,9 @@ where
         Ok(_) => Ok(StatusCode::CREATED),
         Err(e) => {
             error!("Error processing client transaction: {}", e);
-            Err(warp::reject::custom(ProposerRejection::ClientTransactionFailed))
+            Err(warp::reject::custom(
+                ProposerRejection::ClientTransactionFailed,
+            ))
         }
     }
 }

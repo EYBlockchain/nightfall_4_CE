@@ -8,7 +8,6 @@ use warp::{hyper::StatusCode, path, reply::Reply, Filter};
 use crate::{domain::error::ProposerRejection, initialisation::get_blockchain_client_connection};
 use lib::blockchain_client::BlockchainClientConnection;
 
-
 /// Get request for proposer rotation
 pub fn rotate_proposer() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone
 {
@@ -45,7 +44,9 @@ async fn handle_rotate_proposer() -> Result<impl Reply, warp::Rejection> {
             tx.await.map_err(|_| ProposerRejection::ProviderError)?;
             Ok(StatusCode::OK)
         }
-        Err(_e) => Err(warp::reject::custom(ProposerRejection::FailedToRotateProposer)),
+        Err(_e) => Err(warp::reject::custom(
+            ProposerRejection::FailedToRotateProposer,
+        )),
     }
 }
 
@@ -151,7 +152,9 @@ async fn handle_remove_proposer() -> Result<impl Reply, warp::Rejection> {
         Some(transaction) => info!("Removed proposer with address: {:?}", transaction.from),
         None => {
             warn!("Failed to remove proposer");
-            return Err(warp::reject::custom(ProposerRejection::FailedToRemoveProposer));
+            return Err(warp::reject::custom(
+                ProposerRejection::FailedToRemoveProposer,
+            ));
         }
     }
     Ok(StatusCode::OK)
@@ -189,7 +192,9 @@ async fn handle_withdraw(amount: u64) -> Result<impl Reply, warp::Rejection> {
         Some(transaction) => info!("Withdrew {} to address: {:?}", amount, transaction.from),
         None => {
             warn!("Failed to withdraw funds");
-            return Err(warp::reject::custom(ProposerRejection::FailedToWithdrawStake));
+            return Err(warp::reject::custom(
+                ProposerRejection::FailedToWithdrawStake,
+            ));
         }
     }
     Ok(StatusCode::OK)

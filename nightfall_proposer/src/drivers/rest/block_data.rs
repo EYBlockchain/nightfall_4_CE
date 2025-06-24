@@ -5,8 +5,8 @@ use warp::{
     Filter,
 };
 
-use crate::driven::nightfall_event::get_expected_layer2_blocknumber;
 use crate::domain::error::ProposerRejection;
+use crate::driven::nightfall_event::get_expected_layer2_blocknumber;
 
 /// GET request for a specific commitment by key
 pub fn get_block_data() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone
@@ -20,6 +20,8 @@ async fn handle_block_data() -> Result<impl Reply, warp::Rejection> {
     let result: Result<u64, _> = (*get_expected_layer2_blocknumber().await.read().await).try_into();
     match result {
         Ok(block_number) => Ok(reply::json(&block_number)),
-        Err(_) => Err(warp::reject::custom(ProposerRejection::BlockDataUnavailable)),
+        Err(_) => Err(warp::reject::custom(
+            ProposerRejection::BlockDataUnavailable,
+        )),
     }
 }

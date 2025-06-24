@@ -9,7 +9,11 @@ use nightfall_client::{
     ports::proof::{Proof, ProvingEngine},
 };
 use proposers::{add_proposer, remove_proposer, withdraw};
-use warp::{reject::Rejection, reply::{self, Reply}, Filter};
+use warp::{
+    reject::Rejection,
+    reply::{self, Reply},
+    Filter,
+};
 
 use crate::domain::error::ProposerRejection;
 
@@ -45,42 +49,30 @@ async fn handle_rejection(err: Rejection) -> Result<impl Reply, std::convert::In
                 "Block data unavailable",
                 warp::http::StatusCode::SERVICE_UNAVAILABLE,
             )),
-            ProposerRejection::ClientTransactionFailed => Ok(
-                reply::with_status(
-                    "Client transaction failed",
-                    warp::http::StatusCode::BAD_REQUEST,
-                )
-            ),
-            ProposerRejection::FailedToRotateProposer => Ok(
-                reply::with_status(
-                    "Failed to rotate proposer",
-                    warp::http::StatusCode::LOCKED,
-                )
-            ),
-            ProposerRejection::FailedToAddProposer => Ok(
-                reply::with_status(
-                    "Failed to add proposer",
-                    warp::http::StatusCode::BAD_REQUEST,
-                )
-            ),
-            ProposerRejection::FailedToRemoveProposer => Ok(
-                reply::with_status(
-                    "Failed to remove proposer",
-                    warp::http::StatusCode::BAD_REQUEST,
-                )
-            ),
-            ProposerRejection::FailedToWithdrawStake => Ok(
-                reply::with_status(
-                    "Failed to withdraw stake",
-                    warp::http::StatusCode::BAD_REQUEST,
-                )
-            ),
-            ProposerRejection::ProviderError => Ok(
-                reply::with_status(
-                    "Provider error",
-                    warp::http::StatusCode::SERVICE_UNAVAILABLE,
-                )
-            ),
+            ProposerRejection::ClientTransactionFailed => Ok(reply::with_status(
+                "Client transaction failed",
+                warp::http::StatusCode::BAD_REQUEST,
+            )),
+            ProposerRejection::FailedToRotateProposer => Ok(reply::with_status(
+                "Failed to rotate proposer",
+                warp::http::StatusCode::LOCKED,
+            )),
+            ProposerRejection::FailedToAddProposer => Ok(reply::with_status(
+                "Failed to add proposer",
+                warp::http::StatusCode::BAD_REQUEST,
+            )),
+            ProposerRejection::FailedToRemoveProposer => Ok(reply::with_status(
+                "Failed to remove proposer",
+                warp::http::StatusCode::BAD_REQUEST,
+            )),
+            ProposerRejection::FailedToWithdrawStake => Ok(reply::with_status(
+                "Failed to withdraw stake",
+                warp::http::StatusCode::BAD_REQUEST,
+            )),
+            ProposerRejection::ProviderError => Ok(reply::with_status(
+                "Provider error",
+                warp::http::StatusCode::SERVICE_UNAVAILABLE,
+            )),
         }
     } else {
         Ok(reply::with_status(
