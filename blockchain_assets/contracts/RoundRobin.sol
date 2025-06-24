@@ -238,7 +238,7 @@ contract RoundRobin is ProposerManager, Certified {
 
     // this returns true if the current proposer has been in place for ROTATION_BLOCKS
     function can_rotate() private view returns (bool) {
-        return block.number >= start_l1_block + ROTATION_BlOCKS + FINALIZATION_BLOCKS
+        return block.number >= start_l1_block + ROTATION_BlOCKS + FINALIZATION_BLOCKS;
     }
 
     // function to recover the stake after removing a proposer
