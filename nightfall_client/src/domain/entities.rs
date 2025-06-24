@@ -9,6 +9,7 @@ use crate::{
 };
 use ark_bn254::Fr as Fr254;
 use ark_ec::twisted_edwards::Affine as TEAffine;
+use ark_ff::BigInteger256;
 use ark_serialize::SerializationError;
 use ark_std::UniformRand;
 use lib::{
@@ -541,6 +542,14 @@ impl DepositSecret {
             preimage_three,
         }
     }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct TokenData {
+    #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
+    pub erc_address: Fr254,
+    #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
+    pub token_id: BigInteger256,
 }
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, Default, PartialEq)]

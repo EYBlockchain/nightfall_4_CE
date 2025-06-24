@@ -1,8 +1,6 @@
 use crate::{
     domain::{
-        entities::{
-            OnChainTransaction, SynchronisationPhase, SynchronisationStatus,
-        },
+        entities::{OnChainTransaction, SynchronisationPhase, SynchronisationStatus},
         error::EventHandlerError,
     },
     driven::db::mongo::{BlockStorageDB, StoredBlock},
@@ -17,8 +15,8 @@ use configuration::{addresses::get_addresses, settings::get_settings};
 use ethers::prelude::*;
 use futures::{future::BoxFuture, FutureExt};
 use lib::{
-    blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
-    hex_conversion::HexConvertible,
+    blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
+    initialisation::get_blockchain_client_connection,
 };
 use log::{debug, warn};
 use mongodb::Client as MongoClient;

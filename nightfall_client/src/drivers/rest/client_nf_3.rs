@@ -6,8 +6,8 @@ use super::{
 use crate::{
     domain::{
         entities::{
-            CommitmentStatus, DepositSecret, ERCAddress, Operation, OperationType,
-            Preimage, RequestStatus, Salt, TokenType, Transport,
+            CommitmentStatus, DepositSecret, ERCAddress, Operation, OperationType, Preimage,
+            RequestStatus, Salt, TokenType, Transport,
         },
         error::TransactionHandlerError,
         notifications::NotificationPayload,

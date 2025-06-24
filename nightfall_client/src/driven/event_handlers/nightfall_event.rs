@@ -1,8 +1,7 @@
 use crate::{
     domain::{
         entities::{
-            CommitmentStatus, CompressedSecrets, OnChainTransaction, Preimage,
-            RequestStatus, Salt,
+            CommitmentStatus, CompressedSecrets, OnChainTransaction, Preimage, RequestStatus, Salt,
         },
         error::EventHandlerError,
         notifications::NotificationPayload,

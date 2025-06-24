@@ -2,7 +2,7 @@
 //! These mainly include token contracts and the "Nightfall" contract.
 
 use crate::domain::{
-    entities::{DepositSecret, TokenType, WithdrawData},
+    entities::{DepositSecret, TokenData, TokenType, WithdrawData},
     error::{NightfallContractError, TokenContractError},
 };
 use ark_bn254::Fr as Fr254;
@@ -51,6 +51,11 @@ pub trait NightfallContract {
 
     fn get_current_layer2_blocknumber(
     ) -> impl Future<Output = Result<I256, NightfallContractError>> + Send;
+
+    /// Function to retrieve the ERC address and token_id given a Nightfall token id.
+    fn get_token_info(
+        nf_token_id: Fr254,
+    ) -> impl Future<Output = Result<TokenData, NightfallContractError>> + Send;
 
     fn get_layer2_block_by_number(
         block_number: I256,

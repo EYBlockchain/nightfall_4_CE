@@ -2,7 +2,7 @@
 use super::contract_type_conversions::{Addr, FrBn254, Uint256};
 use crate::{
     domain::{
-        entities::{DepositSecret, TokenType, WithdrawData},
+        entities::{DepositSecret, TokenData, TokenType, WithdrawData},
         error::NightfallContractError,
     },
     drivers::rest::utils::to_nf_token_id_from_solidity,
@@ -211,6 +211,28 @@ impl<M> NightfallContract for Nightfall<M> {
             .await
             .map_err(|_| NightfallContractError::TransactionError)
     }
+
+    async fn get_token_info(nf_token_id: Fr254) -> Result<TokenData, NightfallContractError> {
+        let client = get_blockchain_client_connection()
+            .await
+            .read()
+            .await
+            .get_client();
+
+        let contract = Nightfall::new(get_addresses().nightfall(), client);
+
+        let (erc_address, token_id) = contract
+            .get_token_info(Uint256::from(nf_token_id).into())
+            .call()
+            .await
+            .map_err(|_| NightfallContractError::TransactionError)?;
+
+        Ok(TokenData {
+            erc_address: FrBn254::from(erc_address).into(),
+            token_id: BigInteger256::from(Uint256(token_id)),
+        })
+    }
+
     // given a layer 2 block number, return the layer 2 block and the sender address
     async fn get_layer2_block_by_number(
         block_number: I256,

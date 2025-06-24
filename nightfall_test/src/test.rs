@@ -18,9 +18,8 @@ use jf_primitives::{
     trees::{Directions, MembershipProof, PathElement, TreeHasher},
 };
 use lib::{
-    blockchain_client::BlockchainClientConnection,
+    blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
     initialisation::get_blockchain_client_connection, models::CertificateReq,
-    hex_conversion::HexConvertible,
 };
 use log::{debug, info};
 use nf_curves::ed_on_bn254::{BabyJubjub as BabyJubJub, Fr as BJJScalar};
@@ -359,7 +358,7 @@ impl Display for TokenType {
 
 impl TokenType {
     /// Gets the relevant mock contract address for the token type
-    fn address(&self) -> String {
+    pub fn address(&self) -> String {
         match self {
             TokenType::ERC20 => hex::encode(TestSettings::retrieve_mock_addresses().erc20.0),
             TokenType::ERC721 => hex::encode(TestSettings::retrieve_mock_addresses().erc721.0),
