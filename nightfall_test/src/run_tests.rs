@@ -1,9 +1,11 @@
 use ark_bn254::Fr as Fr254;
+use ark_ff::BigInteger256;
 use configuration::settings::{get_settings, Settings};
 use futures::future::try_join_all;
 use lib::{hex_conversion::HexConvertible, models::CertificateReq};
 use log::{debug, info, warn};
 use nightfall_client::{
+    domain::entities::TokenData,
     driven::db::mongo::CommitmentEntry,
     drivers::rest::{client_nf_3::WithdrawResponse, models::DeEscrowDataReq},
 };
@@ -491,6 +493,35 @@ pub async fn run_tests(
     assert_eq!(
         commitment.key, commitment_hashes[0],
         "The commitment hashes should match"
+    );
+
+    // check that we can lookup the token id and the erc address of the first commitment
+    info!("Querying token info endpoint");
+    let token_info_url = Url::parse(&settings.nightfall_client.url)
+        .unwrap()
+        .join(&format!(
+            "v1/token/{}",
+            commitment.preimage.nf_token_id.to_hex_string()
+        ))
+        .unwrap();
+    let token_data = http_client
+        .get(token_info_url)
+        .send()
+        .await
+        .expect("Failed to query token info endpoint")
+        .json::<TokenData>()
+        .await
+        .expect("Failed to parse token info");
+    // this should be an erc20 token
+    assert_eq!(
+        token_data.erc_address.to_hex_string().trim_start_matches("00"),
+        TokenType::ERC20.address(),
+        "The erc address should match the ERC20 token address"
+    );
+    assert_eq!(
+        token_data.token_id,
+        BigInteger256::zero(),
+        "The token id should be 0x00"
     );
 
     info!("Making client2 fee commitments so that it can withdraw");
