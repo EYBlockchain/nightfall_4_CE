@@ -1,7 +1,8 @@
 use async_trait::async_trait;
 use alloy::signers::Signer;
-use ethers::providers::{JsonRpcClient, Provider, PubsubClient};
+use alloy::providers::Provider;
 use alloy::primitives::{Address, U256};
+use alloy::rpc::json_rpc::RpcObject;
 use alloy::transports::Transport;
 use serde::Deserialize;
 use std::marker::Sync;
@@ -17,7 +18,7 @@ use crate::error::BlockchainClientConnectionError;
 #[async_trait]
 pub trait BlockchainClientConnection: Clone + Send + Sync {
     type W: Signer + 'static;
-    type T: Transport + Clone + 'static;
+    type T:  Transport + RpcObject + 'static;
     type S: for<'a> Deserialize<'a>;
 
     async fn is_connected(&self) -> bool;
@@ -26,7 +27,7 @@ pub trait BlockchainClientConnection: Clone + Send + Sync {
 
     fn get_address(&self) -> Option<Address>;
 
-    fn get_client(&self) -> Arc<SignerMiddleware<Provider<Self::T>, Self::W>>
+    fn get_client(&self) -> Arc<dyn Provider<Self::T>>
     where
         Self: Sized;
 

@@ -9,6 +9,7 @@ use futures::stream::TryStreamExt;
 use log::{debug, error, info, trace, warn};
 use nightfall_bindings::x509::X509::{self, CertificateArgs};
 use reqwest::StatusCode;
+use x509_parser::nom::AsBytes;
 use std::{ffi::OsStr, io::Read, path::Path};
 use warp::{filters::multipart::FormData, path, reply::Reply, Buf, Filter};
 
