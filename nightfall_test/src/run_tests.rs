@@ -486,6 +486,7 @@ pub async fn run_tests(
         .json::<CommitmentEntry>()
         .await
         .expect("Failed to parse commitment entry");
+    ark_std::println!("Commitment: {:?}", commitment);
     assert_eq!(
         commitment.key, commitment_hashes[0],
         "The commitment hashes should match"
@@ -508,6 +509,23 @@ pub async fn run_tests(
         .json::<TokenData>()
         .await
         .expect("Failed to parse token info");
+    ark_std::println!("Token Data: {:?}", token_data);
+    ark_std::println!(
+        "TokenType::ERC20.address(): {}",
+        TokenType::ERC20.address()
+    );
+    ark_std::println!(
+        "TokenType::ERC721.address(): {}",
+        TokenType::ERC721.address()
+    );
+    ark_std::println!(
+        "TokenType::ERC1155.address(): {}",
+        TokenType::ERC1155.address()
+    );
+        ark_std::println!(
+        "TokenType::ERC3525.address(): {}",
+        TokenType::ERC3525.address()
+    );
     // this should be an erc20 token
     assert_eq!(
         token_data
