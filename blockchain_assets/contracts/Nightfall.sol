@@ -264,7 +264,7 @@ contract Nightfall is
 
                     // Now hash over the full 128 bytes
                     key := keccak256(memPtr, 128)
-                }   
+                }
 
                 // the public data (data) here includes the recipient address. When the recipient attempts to
                 // withdraw the amount they are due, they will have to provide the same public data so that the
@@ -426,6 +426,13 @@ contract Nightfall is
         bytes calldata
     ) external pure returns (bytes4) {
         return 0x009ce20b;
+    }
+
+    // Function to the the ercAddress and tokenId of a token if the only information you have is the nfTokenId
+    // This is useful if someone transfers a Nightfall token to you and you want to know what the underlying token is.
+    function getTokenInfo(uint256 nfTokenId) external view returns (address ercAddress, uint256 tokenId) {
+        TokenIdValue memory tokenData = tokenIdMapping[nfTokenId];
+        return (tokenData.erc_address, tokenData.token_id);
     }
 
     // Called by the client to remove their funds from escrow, once they've proved they're entitled to them

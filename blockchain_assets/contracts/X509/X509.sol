@@ -7,7 +7,6 @@ import './DerParser.sol';
 import './Allowlist.sol';
 import './X509Interface.sol';
 import './Sha.sol';
-import "forge-std/console2.sol";
 contract X509 is DERParser, Allowlist, Sha, X509Interface {
     uint256 constant SECONDS_PER_DAY = 24 * 60 * 60;
     int256 constant OFFSET19700101 = 2440588;
@@ -415,10 +414,6 @@ contract X509 is DERParser, Allowlist, Sha, X509Interface {
         uint256 expiry = checkDates(tlvs);
         RSAPublicKey memory certificatePublicKey = extractPublicKey(tlvs);
         bytes32 subjectKeyIdentifier = extractSubjectKeyIdentifier(tlvs);
-        console2.log(
-            'X509: Subject Key Identifier: %s',
-            uint256(subjectKeyIdentifier)
-        );
         require(
             !revokedKeys[subjectKeyIdentifier],
             'X509: The subject key of this certificate has been revoked'

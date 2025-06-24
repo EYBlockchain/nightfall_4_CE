@@ -1,9 +1,11 @@
 use ark_bn254::Fr as Fr254;
+use ark_ff::BigInteger256;
 use configuration::settings::{get_settings, Settings};
 use futures::future::try_join_all;
 use lib::{hex_conversion::HexConvertible, models::CertificateReq};
 use log::{debug, info, warn};
 use nightfall_client::{
+    domain::entities::TokenData,
     driven::db::mongo::CommitmentEntry,
     drivers::rest::{client_nf_3::WithdrawResponse, models::DeEscrowDataReq},
 };
@@ -199,7 +201,7 @@ pub async fn run_tests(
             wait_for_all_responses(&large_block_deposit_ids, responses.clone())
                 .await
                 .into_iter()
-                .flat_map(|l| {
+                .flat_map(|(_, l)| {
                     serde_json::from_str::<Vec<String>>(&l).expect("Failed to parse response")
                 })
                 .map(|l| Fr254::from_hex_string(&l).unwrap())
@@ -255,7 +257,7 @@ pub async fn run_tests(
             wait_for_all_responses(&large_block_transfer_ids, responses.clone())
                 .await
                 .into_iter()
-                .map(|l| {
+                .map(|(_, l)| {
                     serde_json::from_str::<(Value, Option<TransactionReceipt>)>(&l)
                         .expect("Failed to parse response")
                 })
@@ -427,7 +429,9 @@ pub async fn run_tests(
     let commitment_hashes = wait_for_all_responses(&transaction_ids, responses.clone())
         .await
         .into_iter()
-        .flat_map(|l| serde_json::from_str::<Vec<String>>(&l).expect("Failed to parse response"))
+        .flat_map(|(_, l)| {
+            serde_json::from_str::<Vec<String>>(&l).expect("Failed to parse response")
+        })
         .map(|l| Fr254::from_hex_string(&l).unwrap())
         .collect::<Vec<_>>();
 
@@ -489,6 +493,35 @@ pub async fn run_tests(
         "The commitment hashes should match"
     );
 
+    // check that we can lookup the token id and the erc address of the first commitment
+    info!("Querying token info endpoint");
+    let token_info_url = Url::parse(&settings.nightfall_client.url)
+        .unwrap()
+        .join(&format!(
+            "v1/token/{}",
+            commitment.preimage.nf_token_id.to_hex_string()
+        ))
+        .unwrap();
+    let token_data = http_client
+        .get(token_info_url)
+        .send()
+        .await
+        .expect("Failed to query token info endpoint")
+        .json::<TokenData>()
+        .await
+        .expect("Failed to parse token info");
+    // this should be an erc20 token
+    assert_eq!(
+        token_data.erc_address.to_hex_string().trim_start_matches("00"),
+        TokenType::ERC20.address(),
+        "The erc address should match the ERC20 token address"
+    );
+    assert_eq!(
+        token_data.token_id,
+        BigInteger256::zero(),
+        "The token id should be 0x00"
+    );
+
     info!("Making client2 fee commitments so that it can withdraw");
     // give client 2 some deposit fee commitments so that it can transact
     // we need up to seven commitments because we'll want to do up to seven withdraws in
@@ -526,7 +559,9 @@ pub async fn run_tests(
     let commitment_hashes = wait_for_all_responses(&transaction_ids, responses.clone())
         .await
         .into_iter()
-        .flat_map(|l| serde_json::from_str::<Vec<String>>(&l).expect("Failed to parse response"))
+        .flat_map(|(_, l)| {
+            serde_json::from_str::<Vec<String>>(&l).expect("Failed to parse response")
+        })
         .map(|l| Fr254::from_hex_string(&l).unwrap())
         .collect::<Vec<_>>();
 
@@ -610,7 +645,7 @@ pub async fn run_tests(
     let transactions = wait_for_all_responses(&transaction_ids, responses.clone())
         .await
         .into_iter()
-        .map(|l| {
+        .map(|(_, l)| {
             serde_json::from_str::<(Value, Option<TransactionReceipt>)>(&l)
                 .expect("Failed to parse response")
         })
@@ -706,7 +741,7 @@ pub async fn run_tests(
     let transactions = wait_for_all_responses(&transaction_ids, responses.clone())
         .await
         .into_iter()
-        .map(|l| {
+        .map(|(_, l)| {
             serde_json::from_str::<(Value, Option<TransactionReceipt>)>(&l)
                 .expect("Failed to parse response")
         })
@@ -782,40 +817,64 @@ pub async fn run_tests(
     debug!("transaction_erc20_withdraw_2 has been created");
 
     // throw all the transactions at the client as fast as we can
-    let withdraw_data = try_join_all(withdraw_data).await.unwrap();
+    let mut withdraw_data = try_join_all(withdraw_data).await.unwrap();
+    // sort by Uuid
+    withdraw_data.sort_by_key(|(uuid, _)| *uuid);
 
-    // Extract the withdraw data and the ids as separate vectors
-    let (withdraw_ids, mut withdraw_payload): (Vec<_>, Vec<_>) =
-        withdraw_data.iter().cloned().unzip();
-
-    // wait for the responses to the withdraw requests to come back to the webhook server
-    let withdraw_responses = wait_for_all_responses(&withdraw_ids, responses.clone())
-        .await
-        .into_iter()
-        .map(|l| serde_json::from_str::<WithdrawResponse>(&l).expect("Failed to parse response"))
+    // create a vector of withdraw ids to wait for responses
+    let withdraw_ids = withdraw_data
+        .iter()
+        .map(|(uuid, _)| *uuid)
         .collect::<Vec<_>>();
 
+    // wait for the responses to the withdraw requests to come back to the webhook server
+    let withdraw_responses = wait_for_all_responses(&withdraw_ids, responses.clone()).await;
+
+    // convert the withdraw_responses into a vector of (Uuid, WithdrawResponse)
+    let withdraw_responses = withdraw_responses
+        .into_iter()
+        .map(|(u, l)| {
+            (
+                u,
+                serde_json::from_str::<WithdrawResponse>(&l).expect("Failed to parse response"),
+            )
+        })
+        .collect::<Vec<_>>();
+
+    // we should have the same set of Uuids in the withdraw_responses as in the withdraw_data and they should be in the same order
+    for (i, response) in withdraw_responses.iter().enumerate() {
+        assert_eq!(
+            response.0, withdraw_data[i].0,
+            "{}th Withdraw response Uuid does not match withdraw data Uuid",
+            i
+        );
+    }
+
     //replace the empty withdraw_fund_salts in the withdraw_data with the salts from the withdraw_responses
-    let de_escrow_data_requests = withdraw_payload
-        .iter_mut()
-        .zip(withdraw_responses.into_iter())
-        .map(|(l, r)| {
-            l.withdraw_fund_salt = r.withdraw_fund_salt.clone();
-            DeEscrowDataReq {
-                token_id: l.token_id.clone(),
-                erc_address: l.erc_address.clone(),
-                recipient_address: l.recipient_address.clone(),
-                value: l.value.clone(),
-                token_type: l.token_type.clone(),
-                withdraw_fund_salt: l.withdraw_fund_salt.clone(),
-            }
+    for (i, response) in withdraw_responses.iter().enumerate() {
+        withdraw_data[i].1.withdraw_fund_salt = response.1.withdraw_fund_salt.clone();
+    }
+
+    // convert the withdraw_data into DeEscrowDataReq
+    let de_escrow_data_requests = withdraw_data
+        .into_iter()
+        .map(|(_, l)| DeEscrowDataReq {
+            token_id: l.token_id,
+            erc_address: l.erc_address,
+            recipient_address: l.recipient_address,
+            value: l.value,
+            token_type: l.token_type,
+            withdraw_fund_salt: l.withdraw_fund_salt,
         })
         .collect::<Vec<_>>();
 
     // Wait until all ERC20 funds are available to withdraw
     info!("Waiting for ERC20 funds to be available for withdrawal");
     for request in &de_escrow_data_requests {
-        while !de_escrow_request(request, "http://client2:3000").await.unwrap() {
+        while !de_escrow_request(request, "http://client2:3000")
+            .await
+            .unwrap()
+        {
             info!("Not yet able to withdraw funds {:?}", request);
             tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
         }
@@ -870,40 +929,64 @@ pub async fn run_tests(
     debug!("transaction_erc1155_withdraw_2 has been created");
 
     // throw all the transactions at the client as fast as we can
-    let withdraw_data = try_join_all(withdraw_data).await.unwrap();
+    let mut withdraw_data = try_join_all(withdraw_data).await.unwrap();
+    // sort by Uuid
+    withdraw_data.sort_by_key(|(uuid, _)| *uuid);
 
-    // Extract the withdraw data and the ids as separate vectors
-    let (withdraw_ids, mut withdraw_payload): (Vec<_>, Vec<_>) =
-        withdraw_data.iter().cloned().unzip();
-
-    // wait for the responses to the withdraw requests to come back to the webhook server
-    let withdraw_responses = wait_for_all_responses(&withdraw_ids, responses.clone())
-        .await
-        .into_iter()
-        .map(|l| serde_json::from_str::<WithdrawResponse>(&l).expect("Failed to parse response"))
+    // create a vector of withdraw ids to wait for responses
+    let withdraw_ids = withdraw_data
+        .iter()
+        .map(|(uuid, _)| *uuid)
         .collect::<Vec<_>>();
 
+    // wait for the responses to the withdraw requests to come back to the webhook server
+    let withdraw_responses = wait_for_all_responses(&withdraw_ids, responses.clone()).await;
+
+    // convert the withdraw_responses into a vector of (Uuid, WithdrawResponse)
+    let withdraw_responses = withdraw_responses
+        .into_iter()
+        .map(|(u, l)| {
+            (
+                u,
+                serde_json::from_str::<WithdrawResponse>(&l).expect("Failed to parse response"),
+            )
+        })
+        .collect::<Vec<_>>();
+
+    // we should have the same set of Uuids in the withdraw_responses as in the withdraw_data and they should be in the same order
+    for (i, response) in withdraw_responses.iter().enumerate() {
+        assert_eq!(
+            response.0, withdraw_data[i].0,
+            "{}th Withdraw response Uuid does not match withdraw data Uuid",
+            i
+        );
+    }
+
     //replace the empty withdraw_fund_salts in the withdraw_data with the salts from the withdraw_responses
-    let de_escrow_data_requests = withdraw_payload
-        .iter_mut()
-        .zip(withdraw_responses.into_iter())
-        .map(|(l, r)| {
-            l.withdraw_fund_salt = r.withdraw_fund_salt.clone();
-            DeEscrowDataReq {
-                token_id: l.token_id.clone(),
-                erc_address: l.erc_address.clone(),
-                recipient_address: l.recipient_address.clone(),
-                value: l.value.clone(),
-                token_type: l.token_type.clone(),
-                withdraw_fund_salt: l.withdraw_fund_salt.clone(),
-            }
+    for (i, response) in withdraw_responses.iter().enumerate() {
+        withdraw_data[i].1.withdraw_fund_salt = response.1.withdraw_fund_salt.clone();
+    }
+
+    // convert the withdraw_data into DeEscrowDataReq
+    let de_escrow_data_requests = withdraw_data
+        .into_iter()
+        .map(|(_, l)| DeEscrowDataReq {
+            token_id: l.token_id,
+            erc_address: l.erc_address,
+            recipient_address: l.recipient_address,
+            value: l.value,
+            token_type: l.token_type,
+            withdraw_fund_salt: l.withdraw_fund_salt,
         })
         .collect::<Vec<_>>();
 
     // Wait until all ERC721, ERC3525 and ERC1155 funds are available to withdraw
     info!("Waiting for ERC721, ERC3525 and ERC1155 funds to be available for withdrawal");
     for request in &de_escrow_data_requests {
-        while !de_escrow_request(request, "http://client2:3000").await.unwrap() {
+        while !de_escrow_request(request, "http://client2:3000")
+            .await
+            .unwrap()
+        {
             info!("Not yet able to withdraw funds {:?}", request);
             tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
         }
