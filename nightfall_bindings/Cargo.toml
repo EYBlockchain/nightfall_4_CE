@@ -4,4 +4,4 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-alloy = { version = "0.13.0", features = ["sol-types", "contract"] }
+alloy = { git = "https://github.com/alloy-rs/alloy", rev = "8337e7d593e05381ca0836e19efa1978a53bb695", features = ["sol-types", "contract"] }

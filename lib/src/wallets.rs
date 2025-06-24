@@ -50,14 +50,17 @@ impl AzureWallet {
 }
 
 #[derive(Clone)]
-pub struct LocalWsClient {
-    provider: Arc<dyn Provider<Ws>>,
+pub struct LocalWsClient<P: Provider> {
+    provider: P,
     signer: EthereumWallet,
     chain_id: u64,
 }
 
 #[async_trait]
-impl BlockchainClientConnection for LocalWsClient {
+impl<P> BlockchainClientConnection for LocalWsClient<P>
+where
+    P: Provider + Clone,
+{
     type W = LocalWallet;
     type T = Ws;
     type S = configuration::settings::Settings;
@@ -68,12 +71,13 @@ impl BlockchainClientConnection for LocalWsClient {
         chain_id: u64,
     ) -> Result<Self, BlockchainClientConnectionError> {
         let provider = ProviderBuilder::new()
-            .on_ws(url)
+            .wallet(wallet.clone())
+            .connect(url.as_str())
             .await
-            .map_err(|e| BlockchainClientConnectionError::ProviderError(e.to_string()))?;
+            .map_err(BlockchainClientConnectionError::TransportError)?;
 
         Ok(Self {
-            provider: Arc::new(provider),
+            provider: provider.clone(),
             signer: EthereumWallet::from(wallet),
             chain_id,
         })
@@ -124,12 +128,12 @@ impl BlockchainClientConnection for LocalWsClient {
         debug!("And chain id: {}", settings.network.chain_id);
         debug!("And Ethereum client url: {}", settings.ethereum_client_url);
         // get the provider
-        let provider = ProviderBuilder::new().connect(settings.ethereum_client_url.as_str())
+        let provider = ProviderBuilder::new().wallet(wallet).connect(settings.ethereum_client_url.as_str())
         .await
-        .map_err(|e| BlockchainClientConnectionError::ProviderError(e.to_string()))?;
+        .map_err(|e| BlockchainClientConnectionError::TransportError(e))?;
 
         Ok(Self {
-            provider: Arc::new(provider),
+            provider: provider,
             signer: EthereumWallet::from(wallet),
             chain_id: settings.network.chain_id,
         })

@@ -14,7 +14,7 @@ dotenv = "0.15.0"
 x509-parser = "0.16.0"
 openssl = "0.10.72"
 k256 = "0.13.4"
-alloy = { version = "0.13.0", features = ["transport-ws", "json-rpc"] }
+alloy = { version = "0.13.0", features = ["transport-ws", "json-rpc", "serde"] }
 tokio = { version = "1.45.0", features = ["full"] }
 configuration = { path = "../configuration" }
 toml = "0.8.22"
