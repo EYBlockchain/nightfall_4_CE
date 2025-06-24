@@ -2,14 +2,13 @@ use crate::blockchain_client::BlockchainClientConnection;
 use crate::error::BlockchainClientConnectionError;
 use async_trait::async_trait;
 use azure_security_keyvault::SecretClient;
-use ethers::core::k256::ecdsa::SigningKey;
-use ethers::providers::Middleware;
-use ethers::types::U256;
-use ethers::{
-    middleware::SignerMiddleware,
-    providers::{Provider, Ws},
-    signers::{LocalWallet, Signer, Wallet},
-};
+use k256::ecdsa::SigningKey;
+use alloy::primitives::{U256, Address};
+use alloy::providers::{ProviderBuilder, Provider};
+use alloy::network::EthereumWallet;
+use alloy::signers::local::{PrivateKeySigner as LocalWallet, LocalSigner as Wallet};
+use alloy::signers::Signer;
+use alloy::transports::ws::WsConnect as Ws;
 use log::{debug, info};
 use std::error::Error;
 use std::sync::Arc;
@@ -50,7 +49,11 @@ impl AzureWallet {
 }
 
 #[derive(Clone)]
-pub struct LocalWsClient(Arc<SignerMiddleware<Provider<Ws>, Wallet<SigningKey>>>);
+pub struct LocalWsClient {
+    provider: Arc<dyn Provider<Ws>>,
+    signer: EthereumWallet,
+    chain_id: u64,
+}
 
 #[async_trait]
 impl BlockchainClientConnection for LocalWsClient {
@@ -63,11 +66,16 @@ impl BlockchainClientConnection for LocalWsClient {
         wallet: Self::W,
         chain_id: u64,
     ) -> Result<Self, BlockchainClientConnectionError> {
-        let provider = Provider::<Self::T>::connect(url)
+        let provider = ProviderBuilder::new()
+            .on_ws(url)
             .await
             .map_err(BlockchainClientConnectionError::ProviderError)?;
-        let client = SignerMiddleware::new(provider, wallet.with_chain_id(chain_id));
-        Ok(Self(Arc::new(client)))
+
+        Ok(Self {
+            provider: Arc::new(provider),
+            signer: EthereumWallet::from(wallet),
+            chain_id,
+        })
     }
 
     async fn is_connected(&self) -> bool {
@@ -79,12 +87,12 @@ impl BlockchainClientConnection for LocalWsClient {
         self.get_client().get_balance(address, None).await.ok()
     }
 
-    fn get_address(&self) -> Option<ethers::types::Address> {
+    fn get_address(&self) -> Option<Address> {
         Some(self.get_client().address())
     }
 
-    fn get_client(&self) -> Arc<SignerMiddleware<Provider<Self::T>, Self::W>> {
-        self.0.clone()
+    fn get_client(&self) -> Arc<Provider<Self::T>> {
+        self.provider.clone()
     }
 
     async fn try_from_settings(settings: &Self::S) -> Result<Self, BlockchainClientConnectionError>
@@ -94,10 +102,10 @@ impl BlockchainClientConnection for LocalWsClient {
         // get the wallet.
         let wallet = match settings.nightfall_client.wallet_type.as_str() {
             // a local wallet has the private key read into the settings from an environment variable NF4_SIGNING_KEY
-            "local" => settings
-                .signing_key
-                .parse::<LocalWallet>()
-                .map_err(BlockchainClientConnectionError::WalletError)?,
+            "local" => {
+                LocalWallet::from_string(&settings.signing_key)
+                .map_err(BlockchainClientConnectionError::WalletError)?
+            },
             "azure" => {
                 let azure_wallet =
                     AzureWallet::new(&settings.azure_vault_url, &settings.azure_key_name).await?;
@@ -115,13 +123,15 @@ impl BlockchainClientConnection for LocalWsClient {
         debug!("And chain id: {}", settings.network.chain_id);
         debug!("And Ethereum client url: {}", settings.ethereum_client_url);
         // get the provider
-        let provider = Provider::<Ws>::connect(&settings.ethereum_client_url)
+        let provider = ProviderBuilder::new()
+            .on_ws(&settings.ethereum_client_url)
             .await
             .map_err(BlockchainClientConnectionError::ProviderError)?;
-        // get the client
-        let client =
-            SignerMiddleware::new(provider, wallet.with_chain_id(settings.network.chain_id));
-        let client = Arc::new(client);
-        Ok(Self(client))
+
+        Ok(Self {
+            provider: Arc::new(provider),
+            signer: EthereumWallet::from(wallet),
+            chain_id: settings.network.chain_id,
+        })
     }
 }

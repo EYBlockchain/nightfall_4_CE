@@ -1,4 +1,6 @@
-use ethers::{providers::ProviderError, signers::WalletError};
+
+use alloy::signers::local::LocalSignerError as WalletError;
+use alloy::rpc::json_rpc::RpcError;
 use std::{
     error::Error,
     fmt::{self, Debug, Display},
@@ -31,7 +33,8 @@ impl Reject for CertificateVerificationError {}
 /// Errors that can be throw when working with a blockchain client connector
 #[derive(Debug)]
 pub enum BlockchainClientConnectionError {
-    ProviderError(ProviderError),
+    RpcError(RpcError<String>),
+    ProviderError(String),
     WalletError(WalletError),
     AzureError(Box<dyn Error + Send + Sync>),
 }
@@ -39,6 +42,7 @@ pub enum BlockchainClientConnectionError {
 impl Display for BlockchainClientConnectionError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
+            BlockchainClientConnectionError::RpcError(e) => write!(f, "RPC error: {}", e),
             BlockchainClientConnectionError::ProviderError(e) => write!(f, "Provider error: {}", e),
             BlockchainClientConnectionError::WalletError(e) => write!(f, "Wallet error: {}", e),
             BlockchainClientConnectionError::AzureError(e) => write!(f, "Azure error: {}", e),
@@ -48,9 +52,14 @@ impl Display for BlockchainClientConnectionError {
 
 impl Error for BlockchainClientConnectionError {}
 
-impl From<ProviderError> for BlockchainClientConnectionError {
-    fn from(e: ProviderError) -> Self {
+impl From<String> for BlockchainClientConnectionError {
+    fn from(e: String) -> Self {
         BlockchainClientConnectionError::ProviderError(e)
+    }
+}
+impl From<RpcError<String>> for BlockchainClientConnectionError {
+    fn from(e: RpcError<String>) -> Self {
+        BlockchainClientConnectionError::RpcError(e)
     }
 }
 

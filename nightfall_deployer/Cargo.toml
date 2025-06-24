@@ -15,7 +15,7 @@ jf-utils = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", featu
 ] }
 itertools = "0.10.5"
 dotenv = "0.15.0"
-ethers = { version = "2.0.14", features = ["ws"] }
+alloy = { version = "0.13.0", features = ["transport-ws"] }
 tokio = { version = "1.45.0", features = ["full"] }
 ethers-solc = "2.0.14"
 configuration = { path = "../configuration" }

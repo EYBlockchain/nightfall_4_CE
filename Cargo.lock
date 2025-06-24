@@ -98,6 +98,7 @@ dependencies = [
  "alloy-core",
  "alloy-eips",
  "alloy-genesis",
+ "alloy-json-rpc",
  "alloy-network",
  "alloy-provider",
  "alloy-pubsub",
@@ -4661,6 +4662,7 @@ dependencies = [
  "jf-plonk",
  "jf-primitives",
  "jf-relation",
+ "k256 0.13.4",
  "log",
  "mongodb",
  "nf-curves",
@@ -5041,8 +5043,7 @@ dependencies = [
 name = "nightfall-bindings"
 version = "0.1.0"
 dependencies = [
- "ethers",
- "serde",
+ "alloy",
 ]
 
 [[package]]
@@ -5105,6 +5106,7 @@ dependencies = [
 name = "nightfall_deployer"
 version = "0.1.0"
 dependencies = [
+ "alloy",
  "ark-bn254",
  "ark-ec",
  "ark-ff 0.4.2",
@@ -5113,7 +5115,6 @@ dependencies = [
  "ark-std 0.4.0",
  "configuration",
  "dotenv",
- "ethers",
  "ethers-solc",
  "itertools 0.10.5",
  "jf-plonk",

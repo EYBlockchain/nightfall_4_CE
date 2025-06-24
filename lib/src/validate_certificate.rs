@@ -4,10 +4,10 @@ use crate::{
     initialisation::get_blockchain_client_connection,
 };
 use configuration::addresses::get_addresses;
-use ethers::types::{Address, H160, U256};
+use alloy::primitives::{Address, U256};
 use futures::stream::TryStreamExt;
 use log::{debug, error, info, trace, warn};
-use nightfall_bindings::x509::{CertificateArgs, X509};
+use nightfall_bindings::x509::X509::{self, CertificateArgs};
 use reqwest::StatusCode;
 use std::{ffi::OsStr, io::Read, path::Path};
 use warp::{filters::multipart::FormData, path, reply::Reply, Buf, Filter};
@@ -134,17 +134,17 @@ async fn validate_certificate(
     let x509_instance = X509::new(x509_contract_address, blockchain_client.clone());
 
     let number_of_tlvs: U256 = x509_instance
-        .compute_number_of_tlvs(certificate.clone().into(), U256::zero())
+        .compute_number_of_tlvs(certificate.clone().into(), U256::ZERO)
         .call()
         .await?;
 
     let certificate_args = CertificateArgs {
         certificate: certificate.clone().into(),
-        tlv_length: number_of_tlvs,
-        address_signature: ethereum_address_signature.into(),
-        is_end_user,
-        check_only,
-        oid_group: oid_group.into(),
+        tlvLength: number_of_tlvs,
+        addressSignature: ethereum_address_signature.into(),
+        isEndUser: is_end_user,
+        checkOnly: check_only,
+        oidGroup: U256::from(oid_group),
         addr: sender_address,
     };
 
@@ -175,7 +175,7 @@ use std::error::Error;
 /// Sign an Ethereum address using an RSA private key
 pub fn sign_ethereum_address(
     der_private_key: &[u8],
-    address: &H160,
+    address: &Address,
 ) -> Result<Vec<u8>, Box<dyn Error>> {
     // Create an RSA object from the DER-encoded private key
     let private_key = Rsa::private_key_from_der(der_private_key)?;
@@ -197,7 +197,7 @@ pub fn sign_ethereum_address(
 #[allow(dead_code)]
 fn verify_ethereum_address_signature(
     pkey: &PKey<openssl::pkey::Public>,
-    address: &H160,
+    address: &Address,
     signature: &[u8],
 ) -> Result<bool, Box<dyn Error>> {
     // Create a Verifier object for SHA-256
@@ -228,7 +228,7 @@ mod tests {
             .unwrap()
             .try_into()
             .unwrap();
-        let address = H160::from(address_bytes);
+        let address = Address::from(address_bytes);
         let signature =
             sign_ethereum_address(der_private_key, &address).expect("Failed to sign address");
         // print signature in hex format

@@ -25,7 +25,8 @@ fn main() {
         "nightfall-bindings",
         "--skip-cargo-toml",
         "--overwrite",
-        "--ethers",
+        "--alloy-version",
+        "8337e7d593e05381ca0836e19efa1978a53bb695",
     ]);
 }
 
