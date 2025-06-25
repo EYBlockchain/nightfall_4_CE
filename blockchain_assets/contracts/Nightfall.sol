@@ -141,6 +141,8 @@ contract Nightfall is
         }
         feeId = computedFeeId;
         owner = msg.sender;
+        // nfTokenId for fee commitmemt is keccak256(abi.encode(address(this), 0))
+        tokenIdMapping[feeId] = TokenIdValue(address(this), 0);
     }
 
     function set_x509_address(address x509_address) external onlyOwner {
@@ -385,8 +387,6 @@ contract Nightfall is
                 "Funds have already been escrowed for this fee Deposit"
             );
             feeBinding[depositFeeKey] = DepositFeeState(fee, 1, 0);
-            // nfTokenId for fee commitmemt is keccak256(abi.encode(address(this), 0))
-            tokenIdMapping[feeId] = TokenIdValue(address(this), 0);
             emit DepositEscrowed(feeId, depositFee);
         }
     }

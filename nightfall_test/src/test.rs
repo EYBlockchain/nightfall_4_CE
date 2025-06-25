@@ -475,28 +475,43 @@ pub async fn verify_deposit_commitments(
         let actual_erc = entry.token_data.erc_address.to_hex_string();
         let actual_token_id = entry.token_data.token_id.to_hex_string();
 
-        ark_std::println!("Checking UUID: {}", entry.uuid);
-        ark_std::println!(" - ERC: actual = {}", actual_erc);
-        ark_std::println!(" - TokenID: actual = {}", actual_token_id);
-
-        for (expected_erc, expected_token_id) in expected_entries {
-            ark_std::println!(
-                " - Trying match with expected ERC: {} and TokenID: {}",
-                expected_erc,
-                expected_token_id
-            );
+        let actual_erc_clean = actual_erc
+            .trim_start_matches("0x")
+            .trim_start_matches('0')
+            .to_lowercase();
+        let actual_token_id_clean = {
+            let s = actual_token_id
+                .trim_start_matches("0x")
+                .trim_start_matches('0');
+            if s.is_empty() {
+                "0"
+            } else {
+                s
+            }
         }
+        .to_lowercase();
 
-        let actual_erc_clean = actual_erc.trim_start_matches('0').to_lowercase();
-        let actual_token_id_clean = actual_token_id.trim_start_matches('0').to_lowercase();
+        ark_std::println!("Checking UUID: {}", entry.uuid);
+        ark_std::println!(" - ERC: actual = {}", actual_erc_clean);
+        ark_std::println!(" - TokenID: actual = {}", actual_token_id_clean);
 
         let mut match_found = false;
         for (expected_erc, expected_token_id) in expected_entries {
-            let expected_erc_clean = expected_erc.trim_start_matches('0').to_lowercase();
-            let expected_token_id_clean = expected_token_id
+            let expected_erc_clean = expected_erc
                 .trim_start_matches("0x")
                 .trim_start_matches('0')
                 .to_lowercase();
+            let expected_token_id_clean = {
+                let s = expected_token_id
+                    .trim_start_matches("0x")
+                    .trim_start_matches('0');
+                if s.is_empty() {
+                    "0"
+                } else {
+                    s
+                }
+            }
+            .to_lowercase();
 
             ark_std::println!(
                 " - Trying match with expected ERC: {} and TokenID: {}",
@@ -511,11 +526,13 @@ pub async fn verify_deposit_commitments(
                 break;
             }
         }
-
         assert!(
             match_found,
-            "No matching expected token data found for UUID: {}",
-            entry.uuid
+            "No matching expected token data found for UUID: {}\nActual ERC: {}\nActual TokenID: {}\nExpected entries: {:?}",
+            entry.uuid,
+            actual_erc_clean,
+            actual_token_id_clean,
+            expected_entries
         );
     }
 
@@ -861,14 +878,11 @@ pub async fn create_nf3_deposit_transaction(
     let is_fee_nonzero = deposit_fee != "0" && deposit_fee != "0x0" && deposit_fee != "0x00";
     if is_fee_nonzero {
         deposit_data.push(DepositDataReq {
-            erc_address: get_addresses().nightfall().to_string(),
+            erc_address: format!("0x{}",hex::encode(get_addresses().nightfall())),
             token_id: "0x00".to_string(), // The "dummy" ID used for fee tokens
         });
     }
-    // let deposit_data_request = DepositDataReq {
-    //     erc_address: token_type.address(),
-    //     token_id: tx_details.token_id.clone(),
-    // };
+    ark_std::println!("get_addresses().nightfall().to_string(): {}", format!("0x{}",hex::encode(get_addresses().nightfall())));
     Ok((Uuid::parse_str(&returned_id).unwrap(), deposit_data))
 }
 
