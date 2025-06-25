@@ -293,7 +293,6 @@ impl<M> NightfallContract for Nightfall<M> {
                     "Successfully decoded block {} from tx {}",
                     block_number, tx_hash
                 );
-                ark_std::println!("Decoded call.blk: {:?}", call.blk);
                 Ok((sender_address, call.blk))
             }
             _ => Err(NightfallContractError::DecodedCallError(

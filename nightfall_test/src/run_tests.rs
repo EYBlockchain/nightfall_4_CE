@@ -3,13 +3,12 @@ use crate::{
         self, create_nf3_deposit_transaction, create_nf3_transfer_transaction,
         create_nf3_withdraw_transaction, de_escrow_request, forge_command, get_key,
         get_recipient_address, load_addresses, set_anvil_mining_interval,
-        validate_certificate_with_server, verify_deposit_commitments, wait_for_all_responses,
-        wait_on_chain, TokenType,
+        validate_certificate_with_server, verify_deposit_commitments_nf_token_id,
+        wait_for_all_responses, wait_on_chain, TokenType,
     },
     test_settings::TestSettings,
 };
 use ark_bn254::Fr as Fr254;
-use ark_ff::BigInteger256;
 use ark_std::{collections::HashMap, Zero};
 use configuration::settings::{get_settings, Settings};
 use ethers::{
@@ -23,11 +22,7 @@ use lib::{
     initialisation::get_blockchain_client_connection, models::CertificateReq,
 };
 use log::{debug, info, warn};
-use nightfall_client::{
-    domain::entities::TokenData,
-    driven::db::mongo::CommitmentEntry,
-    drivers::rest::{client_nf_3::WithdrawResponse, models::DeEscrowDataReq},
-};
+use nightfall_client::drivers::rest::{client_nf_3::WithdrawResponse, models::DeEscrowDataReq};
 use serde_json::Value;
 use std::fs;
 use test::{count_spent_commitments, get_erc20_balance, get_erc721_balance, get_fee_balance};
@@ -430,7 +425,6 @@ pub async fn run_tests(
     let mut transaction_data = try_join_all(deposit_requests).await.unwrap();
     // sort by Uuid
     transaction_data.sort_by_key(|(uuid, _)| *uuid);
-    ark_std::print!("Transaction data: {:?}", transaction_data);
 
     //  Extract UUIDs and store expected token info for verification
     let transaction_ids: Vec<Uuid> = transaction_data.iter().map(|(uuid, _)| *uuid).collect();
@@ -465,7 +459,6 @@ pub async fn run_tests(
         })
         .map(|l| Fr254::from_hex_string(&l).unwrap())
         .collect::<Vec<_>>();
-    ark_std::print!("Commitment hashes: {:?}", commitment_hashes);
     // Wait for commitments to appear
     let resume_url = Url::parse(&settings.nightfall_proposer.url)
         .unwrap()
@@ -501,7 +494,7 @@ pub async fn run_tests(
         fee_balance
     );
     assert_eq!(fee_balance, 137 + client1_starting_fee_balance);
-    // call verify_deposit_commitments
+    // call verify_deposit_commitments_nf_token_id
     info!("Verifying deposit commitments");
 
     // check that we can find one of our commitments
@@ -520,7 +513,7 @@ pub async fn run_tests(
             (*uuid, commitments)
         })
         .collect();
-    verify_deposit_commitments(
+    verify_deposit_commitments_nf_token_id(
         &http_client,
         &uuid_to_commitments,
         &expected_token_data,

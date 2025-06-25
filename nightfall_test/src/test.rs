@@ -380,11 +380,9 @@ type UuidCommitment = (Uuid, Fr254);
 #[derive(Debug)]
 struct CommitmentValidationData {
     uuid: Uuid,
-    cm_hash: Fr254,
-    commitment: CommitmentEntry,
     token_data: TokenData,
 }
-pub async fn verify_deposit_commitments(
+pub async fn verify_deposit_commitments_nf_token_id(
     http_client: &reqwest::Client,
     uuid_to_commitments: &HashMap<Uuid, Vec<Fr254>>,
     expected_token_data: &HashMap<Uuid, Vec<(String, String)>>,
@@ -404,11 +402,6 @@ pub async fn verify_deposit_commitments(
             .unwrap()
             .join(&format!("v1/commitment/{}", cm_hash.to_hex_string()))
             .unwrap();
-        ark_std::println!("Fetching commitment for hash: {}", cm_hash);
-        ark_std::println!(
-            "Fetching commitment for hash.to_hex_string: {}",
-            cm_hash.to_hex_string()
-        );
 
         async move {
             let commitment: CommitmentEntry = client
@@ -424,7 +417,6 @@ pub async fn verify_deposit_commitments(
     });
 
     let commitments: Vec<CommitmentEntry> = futures::future::join_all(commitment_futures).await;
-    ark_std::println!("commitments: {:?}", commitments);
 
     // Stage 2: Fetch token data for all commitments
     let token_futures = commitments.iter().map(|c| {
@@ -454,18 +446,16 @@ pub async fn verify_deposit_commitments(
 
     // Stage 3: Zip all into CommitmentValidationData
     let validation_data: Vec<CommitmentValidationData> = all_pairs
-        .into_iter()
-        .zip(commitments.into_iter())
-        .zip(token_data_list.into_iter())
-        .map(
-            |(((uuid, cm_hash), commitment), token_data)| CommitmentValidationData {
-                uuid,
-                cm_hash,
-                commitment,
-                token_data,
-            },
-        )
-        .collect();
+    .into_iter()
+    .zip(commitments.into_iter())
+    .zip(token_data_list.into_iter())
+    .map(
+        |(((uuid, _cm_hash), _commitment), token_data)| CommitmentValidationData {
+            uuid,
+            token_data,
+        },
+    )
+    .collect();
 
     // Stage 4: Verify all entries
     for entry in validation_data {
@@ -491,10 +481,6 @@ pub async fn verify_deposit_commitments(
         }
         .to_lowercase();
 
-        ark_std::println!("Checking UUID: {}", entry.uuid);
-        ark_std::println!(" - ERC: actual = {}", actual_erc_clean);
-        ark_std::println!(" - TokenID: actual = {}", actual_token_id_clean);
-
         let mut match_found = false;
         for (expected_erc, expected_token_id) in expected_entries {
             let expected_erc_clean = expected_erc
@@ -512,12 +498,6 @@ pub async fn verify_deposit_commitments(
                 }
             }
             .to_lowercase();
-
-            ark_std::println!(
-                " - Trying match with expected ERC: {} and TokenID: {}",
-                expected_erc_clean,
-                expected_token_id_clean
-            );
 
             if actual_erc_clean == expected_erc_clean
                 && actual_token_id_clean == expected_token_id_clean
@@ -878,11 +858,10 @@ pub async fn create_nf3_deposit_transaction(
     let is_fee_nonzero = deposit_fee != "0" && deposit_fee != "0x0" && deposit_fee != "0x00";
     if is_fee_nonzero {
         deposit_data.push(DepositDataReq {
-            erc_address: format!("0x{}",hex::encode(get_addresses().nightfall())),
+            erc_address: format!("0x{}", hex::encode(get_addresses().nightfall())),
             token_id: "0x00".to_string(), // The "dummy" ID used for fee tokens
         });
     }
-    ark_std::println!("get_addresses().nightfall().to_string(): {}", format!("0x{}",hex::encode(get_addresses().nightfall())));
     Ok((Uuid::parse_str(&returned_id).unwrap(), deposit_data))
 }
 

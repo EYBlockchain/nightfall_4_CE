@@ -94,7 +94,6 @@ pub async fn listen_for_events<N: NightfallContract>(
         get_addresses().nightfall()
     );
     let events = nightfall_instance.events().from_block(start_block);
-    ark_std::println!("Events from block 0: {:?}", events);
     let mut stream = events
         .subscribe_with_meta()
         .await

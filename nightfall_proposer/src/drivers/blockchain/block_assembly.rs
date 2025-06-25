@@ -209,7 +209,6 @@ where
                 }
             },
         };
-        // ark_std::println!("Assembled block: {:?}", block);
 
         // Step 6: Propose the block on-chain
         // send the block to the blockchain by calling Nighfall.sol's proposeBlock function
