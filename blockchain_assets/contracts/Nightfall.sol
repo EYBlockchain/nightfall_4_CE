@@ -388,7 +388,9 @@ contract Nightfall is
             );
             feeBinding[depositFeeKey] = DepositFeeState(fee, 1, 0);
             // nfTokenId for fee commitmemt is keccak256(abi.encode(address(this), 0))
-            tokenIdMapping[nfTokenId] = TokenIdValue(address(this), 0);
+            tokenIdMapping[feeId] = TokenIdValue(address(this), 0);
+            console2.log("Escrowed fee for nfTokenId:", feeId);
+            console2.log("address(this):", address(this));
             emit DepositEscrowed(feeId, depositFee);
         }
     }
