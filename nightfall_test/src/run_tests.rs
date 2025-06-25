@@ -1,12 +1,16 @@
 use crate::{
     test::{
-        self, create_nf3_deposit_transaction, create_nf3_transfer_transaction, create_nf3_withdraw_transaction, de_escrow_request, forge_command, get_key, get_recipient_address, load_addresses, set_anvil_mining_interval, validate_certificate_with_server, verify_deposit_commitments, wait_for_all_responses, wait_on_chain, TokenType
+        self, create_nf3_deposit_transaction, create_nf3_transfer_transaction,
+        create_nf3_withdraw_transaction, de_escrow_request, forge_command, get_key,
+        get_recipient_address, load_addresses, set_anvil_mining_interval,
+        validate_certificate_with_server, verify_deposit_commitments, wait_for_all_responses,
+        wait_on_chain, TokenType,
     },
     test_settings::TestSettings,
 };
 use ark_bn254::Fr as Fr254;
 use ark_ff::BigInteger256;
-use ark_std::{Zero, collections::HashMap};
+use ark_std::{collections::HashMap, Zero};
 use configuration::settings::{get_settings, Settings};
 use ethers::{
     providers::Middleware,
@@ -25,10 +29,10 @@ use nightfall_client::{
     drivers::rest::{client_nf_3::WithdrawResponse, models::DeEscrowDataReq},
 };
 use serde_json::Value;
-use uuid::Uuid;
 use std::fs;
 use test::{count_spent_commitments, get_erc20_balance, get_erc721_balance, get_fee_balance};
 use url::Url;
+use uuid::Uuid;
 
 pub async fn run_tests(
     responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_json::Value>>>,
@@ -191,9 +195,9 @@ pub async fn run_tests(
         // throw all the transactions at the client as fast as we can
         let large_block_deposit_ids = try_join_all(large_block_deposit_ids).await.unwrap();
         let large_block_deposit_ids = large_block_deposit_ids
-        .iter()
-        .map(|(uuid, _)| *uuid)
-        .collect::<Vec<_>>();
+            .iter()
+            .map(|(uuid, _)| *uuid)
+            .collect::<Vec<_>>();
 
         // wait for all the responses to come back and convert the json responses to a vector of Fr254 commitments
         info!("Waiting for deposit responses");
@@ -431,36 +435,37 @@ pub async fn run_tests(
     //  Extract UUIDs and store expected token info for verification
     let transaction_ids: Vec<Uuid> = transaction_data.iter().map(|(uuid, _)| *uuid).collect();
     // Build a lookup for later token validation
- 
+
     let mut expected_token_data: HashMap<Uuid, Vec<(String, String)>> = HashMap::new();
     for (uuid, deposit_infos) in transaction_data.iter() {
         for info in deposit_infos {
-        expected_token_data
-            .entry(*uuid)
-            .or_default()
-            .push((info.erc_address.clone(), info.token_id.clone()));
+            expected_token_data
+                .entry(*uuid)
+                .or_default()
+                .push((info.erc_address.clone(), info.token_id.clone()));
+        }
     }
-}
 
     // Wait for webhook responses
     let responses_by_uuid = wait_for_all_responses(&transaction_ids, responses.clone()).await;
     // Sanity check: ensure matching UUID order
     for (i, response) in responses_by_uuid.clone().iter().enumerate() {
         assert_eq!(
-        response.0, transaction_data[i].0,
-        "{}th Deposit response Uuid does not match deposit data Uuid",
-        i
+            response.0, transaction_data[i].0,
+            "{}th Deposit response Uuid does not match deposit data Uuid",
+            i
         );
     }
     // Extract commitment hashes
-    let commitment_hashes = responses_by_uuid.clone()
-    .into_iter()
-    .flat_map(|(_, l)| {
-        serde_json::from_str::<Vec<String>>(&l).expect("Failed to parse response")
-    })
-    .map(|l| Fr254::from_hex_string(&l).unwrap())
-    .collect::<Vec<_>>();
-ark_std::print!("Commitment hashes: {:?}", commitment_hashes);
+    let commitment_hashes = responses_by_uuid
+        .clone()
+        .into_iter()
+        .flat_map(|(_, l)| {
+            serde_json::from_str::<Vec<String>>(&l).expect("Failed to parse response")
+        })
+        .map(|l| Fr254::from_hex_string(&l).unwrap())
+        .collect::<Vec<_>>();
+    ark_std::print!("Commitment hashes: {:?}", commitment_hashes);
     // Wait for commitments to appear
     let resume_url = Url::parse(&settings.nightfall_proposer.url)
         .unwrap()
@@ -503,23 +508,25 @@ ark_std::print!("Commitment hashes: {:?}", commitment_hashes);
     // Query the commitment endpoint to return the CommitmEntry of commitment_hashes[0]
     info!("Querying commitment endpoint");
     // Cache for token info lookup
-    let uuid_to_commitments: HashMap<Uuid, Vec<Fr254>> = responses_by_uuid.clone()
-    .iter()
-    .map(|(uuid, l)| {
-        let commitments: Vec<Fr254> = serde_json::from_str::<Vec<String>>(l)
-            .expect("Failed to parse commitment response")
-            .into_iter()
-            .map(|s| Fr254::from_hex_string(&s).unwrap())
-            .collect();
-        (*uuid, commitments)
-    })
-    .collect();
-    verify_deposit_commitments (
+    let uuid_to_commitments: HashMap<Uuid, Vec<Fr254>> = responses_by_uuid
+        .clone()
+        .iter()
+        .map(|(uuid, l)| {
+            let commitments: Vec<Fr254> = serde_json::from_str::<Vec<String>>(l)
+                .expect("Failed to parse commitment response")
+                .into_iter()
+                .map(|s| Fr254::from_hex_string(&s).unwrap())
+                .collect();
+            (*uuid, commitments)
+        })
+        .collect();
+    verify_deposit_commitments(
         &http_client,
         &uuid_to_commitments,
         &expected_token_data,
         &settings,
-    ).await;
+    )
+    .await;
 
     info!("Making client2 fee commitments so that it can withdraw");
     // give client 2 some deposit fee commitments so that it can transact

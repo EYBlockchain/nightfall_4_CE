@@ -12,8 +12,6 @@ import {IERC3525Receiver} from "@erc-3525/contracts/IERC3525Receiver.sol";
 import "./ProposerManager.sol";
 import "./X509/Certified.sol";
 import "./X509/X509.sol";
-import "forge-std/console2.sol";
-
 
 pragma solidity ^0.8.20;
 
@@ -389,8 +387,6 @@ contract Nightfall is
             feeBinding[depositFeeKey] = DepositFeeState(fee, 1, 0);
             // nfTokenId for fee commitmemt is keccak256(abi.encode(address(this), 0))
             tokenIdMapping[feeId] = TokenIdValue(address(this), 0);
-            console2.log("Escrowed fee for nfTokenId:", feeId);
-            console2.log("address(this):", address(this));
             emit DepositEscrowed(feeId, depositFee);
         }
     }
@@ -438,9 +434,6 @@ contract Nightfall is
     // This is useful if someone transfers a Nightfall token to you and you want to know what the underlying token is.
     function getTokenInfo(uint256 nfTokenId) external view returns (address ercAddress, uint256 tokenId) {
         TokenIdValue memory tokenData = tokenIdMapping[nfTokenId];
-        console2.log("in nightfall contract getTokenInfo called with nfTokenId:", nfTokenId);
-        console2.log("ercAddress:", tokenData.erc_address);
-        console2.log("tokenId:", tokenData.token_id);
         return (tokenData.erc_address, tokenData.token_id);
     }
 

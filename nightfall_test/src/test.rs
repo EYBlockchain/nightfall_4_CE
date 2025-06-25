@@ -1,7 +1,7 @@
 use ark_bn254::Fr as Fr254;
 use ark_ec::twisted_edwards::Affine as TEAffine;
 use ark_ff::{BigInteger, PrimeField};
-use ark_std::{rand::Rng, test_rng, UniformRand, collections::HashMap};
+use ark_std::{collections::HashMap, rand::Rng, test_rng, UniformRand};
 use configuration::{
     addresses::{get_addresses, Addresses, AddressesError, Sources},
     settings::Settings,
@@ -328,7 +328,7 @@ pub struct TransactionDetails {
 #[derive(Debug, Clone)]
 /// Struct used for the deposit request
 pub struct DepositDataReq {
-    pub erc_address: String,     
+    pub erc_address: String,
     pub token_id: String,
 }
 /// Struct used for the four token types supported by Nightfall 4
@@ -405,7 +405,10 @@ pub async fn verify_deposit_commitments(
             .join(&format!("v1/commitment/{}", cm_hash.to_hex_string()))
             .unwrap();
         ark_std::println!("Fetching commitment for hash: {}", cm_hash);
-        ark_std::println!("Fetching commitment for hash.to_hex_string: {}", cm_hash.to_hex_string());
+        ark_std::println!(
+            "Fetching commitment for hash.to_hex_string: {}",
+            cm_hash.to_hex_string()
+        );
 
         async move {
             let commitment: CommitmentEntry = client
@@ -421,15 +424,17 @@ pub async fn verify_deposit_commitments(
     });
 
     let commitments: Vec<CommitmentEntry> = futures::future::join_all(commitment_futures).await;
-            ark_std::println!("commitments: {:?}", commitments);
-
+    ark_std::println!("commitments: {:?}", commitments);
 
     // Stage 2: Fetch token data for all commitments
     let token_futures = commitments.iter().map(|c| {
         let client = http_client.clone();
         let url = Url::parse(&settings.nightfall_client.url)
             .unwrap()
-            .join(&format!("v1/token/{}", c.preimage.nf_token_id.to_hex_string()))
+            .join(&format!(
+                "v1/token/{}",
+                c.preimage.nf_token_id.to_hex_string()
+            ))
             .unwrap();
 
         async move {
@@ -452,12 +457,14 @@ pub async fn verify_deposit_commitments(
         .into_iter()
         .zip(commitments.into_iter())
         .zip(token_data_list.into_iter())
-        .map(|(((uuid, cm_hash), commitment), token_data)| CommitmentValidationData {
-            uuid,
-            cm_hash,
-            commitment,
-            token_data,
-        })
+        .map(
+            |(((uuid, cm_hash), commitment), token_data)| CommitmentValidationData {
+                uuid,
+                cm_hash,
+                commitment,
+                token_data,
+            },
+        )
         .collect();
 
     // Stage 4: Verify all entries
@@ -473,8 +480,43 @@ pub async fn verify_deposit_commitments(
         ark_std::println!(" - TokenID: actual = {}", actual_token_id);
 
         for (expected_erc, expected_token_id) in expected_entries {
-            ark_std::println!(" - Trying match with expected ERC: {} and TokenID: {}", expected_erc, expected_token_id);
+            ark_std::println!(
+                " - Trying match with expected ERC: {} and TokenID: {}",
+                expected_erc,
+                expected_token_id
+            );
         }
+
+        let actual_erc_clean = actual_erc.trim_start_matches('0').to_lowercase();
+        let actual_token_id_clean = actual_token_id.trim_start_matches('0').to_lowercase();
+
+        let mut match_found = false;
+        for (expected_erc, expected_token_id) in expected_entries {
+            let expected_erc_clean = expected_erc.trim_start_matches('0').to_lowercase();
+            let expected_token_id_clean = expected_token_id
+                .trim_start_matches("0x")
+                .trim_start_matches('0')
+                .to_lowercase();
+
+            ark_std::println!(
+                " - Trying match with expected ERC: {} and TokenID: {}",
+                expected_erc_clean,
+                expected_token_id_clean
+            );
+
+            if actual_erc_clean == expected_erc_clean
+                && actual_token_id_clean == expected_token_id_clean
+            {
+                match_found = true;
+                break;
+            }
+        }
+
+        assert!(
+            match_found,
+            "No matching expected token data found for UUID: {}",
+            entry.uuid
+        );
     }
 
     info!("All token data matched successfully.");
@@ -597,9 +639,7 @@ pub async fn wait_for_all_responses(
         // check if the response IDs contain all the request IDs
         // we'll do a simple O(n^2) search for the request IDs in the responses as the vector is small
         let response_ids: HashSet<Uuid> = response_payloads.iter().map(|(uuid, _)| *uuid).collect();
-        let same = request_ids
-            .iter()
-            .all(|id| response_ids.contains(id));
+        let same = request_ids.iter().all(|id| response_ids.contains(id));
         // if we find everything we need, we can break out of the loop and return the json data in the responses (ignoring the ID)
         if same {
             response_values.clear(); // clear the responses so we can reuse the vector
@@ -776,7 +816,7 @@ pub async fn create_nf3_deposit_transaction(
     token_type: TokenType,
     tx_details: TransactionDetails,
     deposit_fee: String,
-) -> Result<(Uuid,Vec<DepositDataReq>), TestError> {
+) -> Result<(Uuid, Vec<DepositDataReq>), TestError> {
     let id = Uuid::new_v4().to_string();
     info!("Creating deposit transaction onchain {}", &id);
     let deposit_request = create_nf3_deposit_request(
@@ -829,10 +869,7 @@ pub async fn create_nf3_deposit_transaction(
     //     erc_address: token_type.address(),
     //     token_id: tx_details.token_id.clone(),
     // };
-    Ok((
-        Uuid::parse_str(&returned_id).unwrap(),
-        deposit_data,
-    ))
+    Ok((Uuid::parse_str(&returned_id).unwrap(), deposit_data))
 }
 
 pub async fn create_nf3_transfer_transaction(
