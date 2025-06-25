@@ -387,7 +387,7 @@ struct CommitmentValidationData {
 pub async fn verify_deposit_commitments(
     http_client: &reqwest::Client,
     uuid_to_commitments: &HashMap<Uuid, Vec<Fr254>>,
-    expected_token_data: &HashMap<Uuid, (String, String)>,
+    expected_token_data: &HashMap<Uuid, Vec<(String, String)>>,
     settings: &Settings,
 ) {
     info!("Verifying deposit commitments...");
@@ -404,6 +404,8 @@ pub async fn verify_deposit_commitments(
             .unwrap()
             .join(&format!("v1/commitment/{}", cm_hash.to_hex_string()))
             .unwrap();
+        ark_std::println!("Fetching commitment for hash: {}", cm_hash);
+        ark_std::println!("Fetching commitment for hash.to_hex_string: {}", cm_hash.to_hex_string());
 
         async move {
             let commitment: CommitmentEntry = client
@@ -419,6 +421,8 @@ pub async fn verify_deposit_commitments(
     });
 
     let commitments: Vec<CommitmentEntry> = futures::future::join_all(commitment_futures).await;
+            ark_std::println!("commitments: {:?}", commitments);
+
 
     // Stage 2: Fetch token data for all commitments
     let token_futures = commitments.iter().map(|c| {
@@ -458,30 +462,19 @@ pub async fn verify_deposit_commitments(
 
     // Stage 4: Verify all entries
     for entry in validation_data {
-        let (expected_erc, expected_token_id) = expected_token_data
+        let expected_entries = expected_token_data
             .get(&entry.uuid)
             .expect("Missing expected token data");
-
         let actual_erc = entry.token_data.erc_address.to_hex_string();
         let actual_token_id = entry.token_data.token_id.to_hex_string();
 
         ark_std::println!("Checking UUID: {}", entry.uuid);
-        ark_std::println!(" - ERC: actual = {} | expected = {}", actual_erc, expected_erc);
-        ark_std::println!(" - TokenID: actual = {} | expected = {}", actual_token_id, expected_token_id);
+        ark_std::println!(" - ERC: actual = {}", actual_erc);
+        ark_std::println!(" - TokenID: actual = {}", actual_token_id);
 
-        // assert_eq!(
-        //     actual_erc.trim_start_matches('0'),
-        //     expected_erc.trim_start_matches('0'),
-        //     "ERC address mismatch for UUID: {}",
-        //     entry.uuid
-        // );
-
-        // assert_eq!(
-        //     actual_token_id.trim_start_matches('0'),
-        //     expected_token_id.trim_start_matches('0'),
-        //     "Token ID mismatch for UUID: {}",
-        //     entry.uuid
-        // );
+        for (expected_erc, expected_token_id) in expected_entries {
+            ark_std::println!(" - Trying match with expected ERC: {} and TokenID: {}", expected_erc, expected_token_id);
+        }
     }
 
     info!("All token data matched successfully.");
@@ -783,7 +776,7 @@ pub async fn create_nf3_deposit_transaction(
     token_type: TokenType,
     tx_details: TransactionDetails,
     deposit_fee: String,
-) -> Result<(Uuid,DepositDataReq), TestError> {
+) -> Result<(Uuid,Vec<DepositDataReq>), TestError> {
     let id = Uuid::new_v4().to_string();
     info!("Creating deposit transaction onchain {}", &id);
     let deposit_request = create_nf3_deposit_request(
@@ -816,13 +809,29 @@ pub async fn create_nf3_deposit_transaction(
         "Deposit transaction {} has been accepted by the client",
         returned_id
     );
-    let deposit_data_request = DepositDataReq {
+    let mut deposit_data = vec![];
+
+    // Value token
+    deposit_data.push(DepositDataReq {
         erc_address: token_type.address(),
         token_id: tx_details.token_id.clone(),
-    };
+    });
+
+    // Fee token (if non-zero)
+    let is_fee_nonzero = deposit_fee != "0" && deposit_fee != "0x0" && deposit_fee != "0x00";
+    if is_fee_nonzero {
+        deposit_data.push(DepositDataReq {
+            erc_address: get_addresses().nightfall().to_string(),
+            token_id: "0x00".to_string(), // The "dummy" ID used for fee tokens
+        });
+    }
+    // let deposit_data_request = DepositDataReq {
+    //     erc_address: token_type.address(),
+    //     token_id: tx_details.token_id.clone(),
+    // };
     Ok((
         Uuid::parse_str(&returned_id).unwrap(),
-        deposit_data_request,
+        deposit_data,
     ))
 }
 

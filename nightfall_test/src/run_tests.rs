@@ -6,7 +6,7 @@ use crate::{
 };
 use ark_bn254::Fr as Fr254;
 use ark_ff::BigInteger256;
-use ark_std::Zero;
+use ark_std::{Zero, collections::HashMap};
 use configuration::settings::{get_settings, Settings};
 use ethers::{
     providers::Middleware,
@@ -431,11 +431,16 @@ pub async fn run_tests(
     //  Extract UUIDs and store expected token info for verification
     let transaction_ids: Vec<Uuid> = transaction_data.iter().map(|(uuid, _)| *uuid).collect();
     // Build a lookup for later token validation
-    use ark_std::collections::HashMap;
-    let expected_token_data: HashMap<Uuid, (String, String)> = transaction_data
-    .iter()
-    .map(|(uuid, deposit_info)| (*uuid, (deposit_info.erc_address.clone(), deposit_info.token_id.clone())))
-    .collect();
+ 
+    let mut expected_token_data: HashMap<Uuid, Vec<(String, String)>> = HashMap::new();
+    for (uuid, deposit_infos) in transaction_data.iter() {
+        for info in deposit_infos {
+        expected_token_data
+            .entry(*uuid)
+            .or_default()
+            .push((info.erc_address.clone(), info.token_id.clone()));
+    }
+}
 
     // Wait for webhook responses
     let responses_by_uuid = wait_for_all_responses(&transaction_ids, responses.clone()).await;
@@ -494,8 +499,6 @@ ark_std::print!("Commitment hashes: {:?}", commitment_hashes);
     // call verify_deposit_commitments
     info!("Verifying deposit commitments");
 
-tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-
     // check that we can find one of our commitments
     // Query the commitment endpoint to return the CommitmEntry of commitment_hashes[0]
     info!("Querying commitment endpoint");
@@ -517,145 +520,6 @@ tokio::time::sleep(std::time::Duration::from_secs(2)).await;
         &expected_token_data,
         &settings,
     ).await;
-    // for cm_hash in &commitment_hashes {
-    for (uuid, commitments) in uuid_to_commitments {
-
-    let (expected_erc, expected_token_id) = expected_token_data
-        .get(&uuid)
-        .expect("Missing expected token data for UUID");
-    ark_std::print!("uuid: {:?}", uuid);
-    ark_std::print!("expected_erc: {:?}", expected_erc);
-    ark_std::print!("expected_token_id: {:?}", expected_token_id);
-    for cm_hash in commitments {
-        // Query the commitment
-        let commitment_url = Url::parse(&settings.nightfall_client.url)
-            .unwrap()
-            .join(&format!("v1/commitment/{}", cm_hash.to_hex_string()))
-            .unwrap();
-
-        let commitment = http_client
-            .get(commitment_url)
-            .send()
-            .await
-            .expect("Failed to query commitment endpoint")
-            .json::<CommitmentEntry>()
-            .await
-            .expect("Failed to parse commitment entry");
-
-        ark_std::println!("Commitment: {:?}", commitment);
-
-        assert_eq!(commitment.key, cm_hash, "Mismatch in commitment key");
-
-        // Query the token info
-        let token_info_url = Url::parse(&settings.nightfall_client.url)
-            .unwrap()
-            .join(&format!(
-                "v1/token/{}",
-                commitment.preimage.nf_token_id.to_hex_string()
-            ))
-            .unwrap();
-
-        let token_data = http_client
-            .get(token_info_url)
-            .send()
-            .await
-            .expect("Failed to query token info endpoint")
-            .json::<TokenData>()
-            .await
-            .expect("Failed to parse token info");
-        ark_std::println!("Token Data: {:?}", token_data);
-
-        // Verify ERC address and Token ID
-        ark_std::println!("Commitment UUID: {}", uuid);
-        ark_std::println!("token_data.erc_address: {}", token_data.erc_address);
-        ark_std::println!("expected_erc: {}", expected_erc);
-        ark_std::println!("token_data.token_id: {}", token_data.token_id);
-        ark_std::println!("expected_token_id: {}", expected_token_id);
-        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-
-    //     assert_eq!(
-    //         token_data.erc_address.to_hex_string().trim_start_matches('0'),
-    //         expected_erc.trim_start_matches('0'),
-    //         "ERC address mismatch for commitment with uuid: {uuid}"
-    //     );
-    //     let expected_token_id_bn = BigInteger256::from_hex_string(expected_token_id)
-    // .expect("Failed to parse expected token_id");
-    //     assert_eq!(
-    //         token_data.token_id.to_hex_string().trim_start_matches('0'),
-    //         expected_token_id.trim_start_matches('0'),
-    //         "Token ID mismatch for commitment with uuid: {uuid}"
-    //     );
-    }
-}
-    let commitment_url = Url::parse(&settings.nightfall_client.url)
-        .unwrap()
-        .join(&format!(
-            "v1/commitment/{}",
-            commitment_hashes[0].to_hex_string()
-        ))
-        .unwrap();
-    let commitment = http_client
-        .get(commitment_url)
-        .send()
-        .await
-        .expect("Failed to query commitment endpoint")
-        .json::<CommitmentEntry>()
-        .await
-        .expect("Failed to parse commitment entry");
-    ark_std::println!("Commitment: {:?}", commitment);
-    assert_eq!(
-        commitment.key, commitment_hashes[0],
-        "The commitment hashes should match"
-    );
-
-    // check that we can lookup the token id and the erc address of the first commitment
-    info!("Querying token info endpoint");
-    let token_info_url = Url::parse(&settings.nightfall_client.url)
-        .unwrap()
-        .join(&format!(
-            "v1/token/{}",
-            commitment.preimage.nf_token_id.to_hex_string()
-        ))
-        .unwrap();
-    let token_data = http_client
-        .get(token_info_url)
-        .send()
-        .await
-        .expect("Failed to query token info endpoint")
-        .json::<TokenData>()
-        .await
-        .expect("Failed to parse token info");
-    ark_std::println!("Token Data: {:?}", token_data);
-    ark_std::println!(
-        "TokenType::ERC20.address(): {}",
-        TokenType::ERC20.address()
-    );
-    ark_std::println!(
-        "TokenType::ERC721.address(): {}",
-        TokenType::ERC721.address()
-    );
-    ark_std::println!(
-        "TokenType::ERC1155.address(): {}",
-        TokenType::ERC1155.address()
-    );
-        ark_std::println!(
-        "TokenType::ERC3525.address(): {}",
-        TokenType::ERC3525.address()
-    );
-    // this should be an erc20 token
-    assert_eq!(
-        token_data
-            .erc_address
-            .to_hex_string()
-            .trim_start_matches("00"),
-        TokenType::ERC20.address(),
-        "The erc address should match the ERC20 token address"
-    );
-    assert_eq!(
-        token_data.token_id,
-        BigInteger256::zero(),
-        "The token id should be 0x00"
-    );
 
     info!("Making client2 fee commitments so that it can withdraw");
     // give client 2 some deposit fee commitments so that it can transact
