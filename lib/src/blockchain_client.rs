@@ -18,7 +18,7 @@ use crate::error::BlockchainClientConnectionError;
 #[async_trait]
 pub trait BlockchainClientConnection: Clone + Send + Sync {
     type W: Signer + 'static;
-    type T:  Transport + RpcObject + 'static;
+    type T:  Transport  + 'static;
     type S: for<'a> Deserialize<'a>;
 
     async fn is_connected(&self) -> bool;
@@ -27,7 +27,11 @@ pub trait BlockchainClientConnection: Clone + Send + Sync {
 
     fn get_address(&self) -> Option<Address>;
 
-    fn get_client(&self) -> Arc<dyn Provider<Self::T>>
+    fn get_provider(&self) -> Arc<Provider<Self::Transport>>
+    where
+        Self: Sized;
+
+    fn get_signer(&self) -> EthereumSigner<Self::Signer>
     where
         Self: Sized;
 
