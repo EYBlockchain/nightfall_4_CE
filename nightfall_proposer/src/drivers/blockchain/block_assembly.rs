@@ -12,7 +12,7 @@ use ethers::providers::{Middleware, Provider, ProviderError, Ws};
 use ethers::types::H256;
 use ethers::types::{BlockId, BlockNumber};
 use jf_plonk::errors::PlonkError;
-use lib::{blockchain_client::BlockchainClientConnection};
+use lib::blockchain_client::BlockchainClientConnection;
 use log::{debug, error, info, warn};
 use nightfall_bindings::round_robin::{ProposerRotatedFilter, RoundRobin};
 use nightfall_client::{
