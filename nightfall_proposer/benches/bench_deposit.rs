@@ -54,7 +54,6 @@ fn benchmark_deposit_circuit(c: &mut Criterion) {
     circuit.finalize_for_arithmetization().unwrap();
 
     let srs_size = circuit.srs_size().unwrap();
-    ark_std::println!("SRS size: {}", srs_size);
 
     let srs = FFTPlonk::<UnivariateKzgPCS<Bn254>>::universal_setup_for_testing(srs_size, &mut rng)
         .unwrap();

@@ -1,12 +1,11 @@
-use log::trace;
-use warp::{hyper::StatusCode, path, reject, reply, Filter, Reply};
-
-use crate::driven::db::mongo::CommitmentEntry;
-use crate::initialisation::get_db_connection;
-use crate::ports::db::CommitmentDB;
+use crate::{
+    driven::db::mongo::CommitmentEntry, initialisation::get_db_connection, ports::db::CommitmentDB,
+};
 use ark_bn254::Fr as Fr254;
 use lib::hex_conversion::HexConvertible;
+use log::trace;
 use std::fmt::Debug;
+use warp::{hyper::StatusCode, path, reject, reply, Filter, Reply};
 
 #[derive(Debug)]
 pub enum CommitmentError {

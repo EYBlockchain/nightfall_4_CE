@@ -1,25 +1,23 @@
-use crate::settings::ContractAddresses;
-use crate::settings::Settings;
+use crate::settings::{ContractAddresses, Settings};
 
 use ethers::types::Address;
 
-use figment::providers::Format;
-use figment::providers::Toml;
-use figment::Figment;
+use figment::{
+    providers::{Format, Toml},
+    Figment,
+};
 use log::warn;
-use reqwest::blocking;
-use reqwest::StatusCode;
+use reqwest::{blocking, StatusCode};
 use serde::{Deserialize, Serialize};
-use std::error::Error;
-use std::fmt;
-use std::fs;
-use std::io::Read;
-use std::path::Path;
-use std::path::PathBuf;
-use std::sync::OnceLock;
+use std::{
+    error::Error,
+    fmt, fs,
+    io::Read,
+    path::{Path, PathBuf},
+    sync::OnceLock,
+};
 use toml;
 use url::Url;
-
 // rather than pass around what are effectively constant values, let's use the lazy_static crate to
 // create a global variable that can be used to consume contract addresses from anywhere in the code.
 pub fn get_addresses() -> &'static Addresses {
