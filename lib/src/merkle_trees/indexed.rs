@@ -1,8 +1,7 @@
 use super::trees::{
     IndexedLeaf, IndexedLeaves, IndexedTree, MerkleTreeError, MutableTree, TreeMetadata,
 };
-use crate::merkle_trees::trees::ToStringRep;
-use crate::serialization::serialize_to_padded_hex;
+use crate::{merkle_trees::trees::ToStringRep, serialization::serialize_to_padded_hex};
 use ark_ff::PrimeField;
 use futures::{future::join_all, TryStreamExt};
 use jf_primitives::{

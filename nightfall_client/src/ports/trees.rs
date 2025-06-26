@@ -1,8 +1,11 @@
 //! This module contains the interfaces for the three Merkle Trees a Proposer works with.
 
+use ark_bn254::Fr as Fr254;
 use ark_ff::PrimeField;
+use configuration::settings::get_settings;
 use jf_primitives::{poseidon::PoseidonParams, trees::MembershipProof};
-use lib::merkle_trees::trees::MutableTree;
+use lib::merkle_trees::trees::{MerkleTreeError, MutableTree};
+use mongodb::Client;
 
 /// Trait defining the functionality of a commitment tree.
 #[async_trait::async_trait]
@@ -34,4 +37,22 @@ where
     ) -> Result<MembershipProof<F>, <Self as CommitmentTree<F>>::Error>;
 
     async fn get_root(&self) -> Result<F, <Self as CommitmentTree<F>>::Error>;
+
+    /// reset the tree
+    async fn reset_tree(&self) -> Result<(), <Self as CommitmentTree<F>>::Error>
+    where
+        Self: MutableTree<F, Error = MerkleTreeError<mongodb::error::Error>>,
+    {
+        let _ = <Self as MutableTree<F>>::reset_mutable_tree(self, Self::TREE_NAME).await;
+        // select the proposer to use
+        let uri = &get_settings().nightfall_proposer.db_url;
+        let client = Client::with_uri_str(uri)
+            .await
+            .expect("Could not create database connection");
+        // it's not enough just to connect to a database, we need to initialise some trees in it
+        <Client as CommitmentTree<Fr254>>::new_commitment_tree(&client, 29, 3)
+            .await
+            .expect("Could not create commitment tree");
+        Ok(())
+    }
 }

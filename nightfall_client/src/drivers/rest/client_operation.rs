@@ -5,10 +5,7 @@ use crate::{
         notifications::NotificationPayload,
     },
     driven::db::mongo::CommitmentEntry,
-    drivers::{
-        blockchain::nightfall_event_listener::get_synchronisation_status, derive_key::ZKPKeys,
-        rest::models::NullifierKey,
-    },
+    drivers::{derive_key::ZKPKeys, rest::models::NullifierKey},
     get_zkp_keys,
     initialisation::get_db_connection,
     ports::{
@@ -54,15 +51,6 @@ where
 {
     debug!("{id} Handling client operation: {:?}", operation);
 
-    let sync_state = get_synchronisation_status::<N>()
-        .await
-        .map_err(|e| TransactionHandlerError::CustomError(e.to_string()))?
-        .is_synchronised();
-    if !sync_state {
-        warn!("{id} Rejecting request - Proposer is not synchronised with the blockchain");
-        return Err(TransactionHandlerError::ClientNotSynchronized);
-    }
-
     // get the zkp keys from the global state. They will have been created when the keys were requested using a mnemonic
     let ZKPKeys {
         zkp_private_key,
@@ -94,7 +82,7 @@ where
                     nullifier,
                     CommitmentStatus::PendingCreation,
                 );
-                commitment_entries.push(commitment_entry);                
+                commitment_entries.push(commitment_entry);
             }
         }
         if !commitment_entries.is_empty() {

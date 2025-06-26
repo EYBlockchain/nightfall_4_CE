@@ -202,6 +202,16 @@ async fn process_propose_block_event<N: NightfallContract>(
         ));
     }
 
+    // check if we're ahead of the event, this means we've already seen it and we shouldn't process it again
+    // This could happen if we've missed some blocks and we're re-synchronising
+    if *expected_onchain_block_number > layer_2_block_number_in_event {
+        warn!(
+            "Already processed layer 2 block {} - skipping",
+            layer_2_block_number_in_event
+        );
+        return Ok(());
+    }
+
     // if expected_onchain_block_number == layer_2_block_number, we need to check if the block hash is the same
     // if it's not, then we need to re-synchronise.
     // what can cause this situation?

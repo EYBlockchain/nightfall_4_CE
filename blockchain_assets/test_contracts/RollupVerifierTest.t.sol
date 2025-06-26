@@ -22,8 +22,8 @@ contract RollupVerifierTest is Test {
 
         bytes32 pi_1 = bytes32(uint256(4));
         bytes32 pi_2 = bytes32(uint256(11));
-        bytes32 pi_3 = bytes32(uint256(117));
-        bytes32 pi_4 = bytes32(uint256(4));
+        bytes32 pi_3 = bytes32(uint256(11227));
+        bytes32 pi_4 = bytes32(uint256(44));
 
         inputs.push(pi_1);
         inputs.push(pi_2);

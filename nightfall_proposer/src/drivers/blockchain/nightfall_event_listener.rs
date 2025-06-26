@@ -16,12 +16,17 @@ use log::{debug, warn};
 use mongodb::Client as MongoClient;
 use nightfall_bindings::nightfall::Nightfall;
 use nightfall_client::{
-    domain::{entities::SynchronisationStatus, error::EventHandlerError},
+    domain::{
+        entities::{SynchronisationPhase::Desynchronized, SynchronisationStatus},
+        error::EventHandlerError,
+    },
     ports::proof::{Proof, ProvingEngine},
 };
 use std::time::Duration;
-use tokio::sync::{OnceCell, RwLock};
-use tokio::time::sleep;
+use tokio::{
+    sync::{OnceCell, RwLock},
+    time::sleep,
+};
 
 /// This function starts the event handler. It will attempt to restart the event handler in case of errors
 /// with an exponential backoff for a configurable number of attempts. If the event handler
@@ -158,7 +163,6 @@ where
     // with the blockchain. We should probably do this in a more elegant way, but this works for now
     // and we can improve it later
     {
-        // let db = &mut get_db_connection().await.write().await;
         let db = get_db_connection().await;
         let _ = <MongoClient as CommitmentTree<Fr254>>::reset_tree(db).await;
         let _ = <MongoClient as HistoricRootTree<Fr254>>::reset_tree(db).await;
@@ -188,6 +192,6 @@ where
 pub async fn get_synchronisation_status() -> &'static RwLock<SynchronisationStatus> {
     static SYNCHRONISATION_STATUS: OnceCell<RwLock<SynchronisationStatus>> = OnceCell::const_new();
     SYNCHRONISATION_STATUS
-        .get_or_init(|| async { RwLock::new(SynchronisationStatus::new(false)) })
+        .get_or_init(|| async { RwLock::new(SynchronisationStatus::new(Desynchronized)) })
         .await
 }
