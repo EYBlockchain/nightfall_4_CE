@@ -4401,6 +4401,7 @@ dependencies = [
  "serial_test 3.2.0",
  "sha2 0.10.9",
  "tokio",
+ "tracing",
  "url",
  "uuid 1.16.0",
  "warp",
