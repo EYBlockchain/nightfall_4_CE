@@ -446,16 +446,16 @@ pub async fn verify_deposit_commitments_nf_token_id(
 
     // Stage 3: Zip all into CommitmentValidationData
     let validation_data: Vec<CommitmentValidationData> = all_pairs
-    .into_iter()
-    .zip(commitments.into_iter())
-    .zip(token_data_list.into_iter())
-    .map(
-        |(((uuid, _cm_hash), _commitment), token_data)| CommitmentValidationData {
-            uuid,
-            token_data,
-        },
-    )
-    .collect();
+        .into_iter()
+        .zip(commitments.into_iter())
+        .zip(token_data_list.into_iter())
+        .map(
+            |(((uuid, _cm_hash), _commitment), token_data)| CommitmentValidationData {
+                uuid,
+                token_data,
+            },
+        )
+        .collect();
 
     // Stage 4: Verify all entries
     for entry in validation_data {
