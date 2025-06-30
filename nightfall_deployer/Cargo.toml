@@ -15,9 +15,10 @@ jf-utils = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", featu
 ] }
 itertools = "0.10.5"
 dotenv = "0.15.0"
-alloy = { version = "0.13.0", features = ["transport-ws"] }
+alloy = { version = "0.13.0", features = ["full"] }
 tokio = { version = "1.45.0", features = ["full"] }
 ethers-solc = "2.0.14"
+serde_json = "1.0.140"
 configuration = { path = "../configuration" }
 nightfall_test = { path = "../nightfall_test" }
 toml = "0.8.22"
