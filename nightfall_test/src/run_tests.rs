@@ -20,7 +20,7 @@ use lib::{
 use crate::{
     test::{
         self, create_nf3_deposit_transaction, create_nf3_transfer_transaction,
-        create_nf3_withdraw_transaction, de_escrow_request, forge_command, get_key,
+        create_nf3_withdraw_transaction, de_escrow_request, get_key,
         get_recipient_address, load_addresses, set_anvil_mining_interval,
         validate_certificate_with_server, wait_for_all_responses, wait_on_chain, TokenType,
     },
@@ -64,18 +64,20 @@ pub async fn run_tests(
     let zkp_key2 = get_key(url, &key_request2).await.unwrap();
     info!("* zkp keys created");
 
-    forge_command(&["install"]);
-    forge_command(&[
-        "script",
-        "MockDeployer",
-        "--fork-url",
-        &settings.ethereum_client_url,
-        "--broadcast",
-        "--force",
-    ]);
+    // forge_command(&["install"]);
+    // forge_command(&[
+    //     "script",
+    //     "MockDeployer",
+    //     "--fork-url",
+    //     &settings.ethereum_client_url,
+    //     "--broadcast",
+    //     "--force",
+    // ]);
 
     let _ = load_addresses(&settings).unwrap();
     info!("* contract addresses obtained");
+
+    info!("ERC20 Mock address: {}", TokenType::ERC20.address());
 
     // Validate the certificate with the server before proceeding
     info!("Validating Client's certificate");

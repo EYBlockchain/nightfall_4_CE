@@ -1,0 +1,6 @@
+[config]
+url = "http://localhost:3000"
+mnemonic = "test"
+erc_address = "0x9a676e781a523b5d0c0e43731313a708cb607508"
+
+

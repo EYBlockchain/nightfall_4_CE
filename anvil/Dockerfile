@@ -7,4 +7,12 @@ RUN apk update && apk add curl
 COPY ./configuration/trust/* /usr/local/share/ca-certificates/
 RUN chmod 644 /usr/local/share/ca-certificates/* && update-ca-certificates
 # Although a mining interval (block time) is set here, the tests will override it.
+
+# Copy entrypoint script
+COPY ./anvil/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Set entrypoint
+ENTRYPOINT ["/entrypoint.sh"]
+
 CMD ["anvil", "--base-fee", "58000000000", "--block-time", "5"]
