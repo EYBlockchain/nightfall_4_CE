@@ -29,6 +29,7 @@ contract RoundRobin is ProposerManager, Certified {
     uint public immutable COOLDOWN_BLOCKS; 
     uint public immutable ROTATION_BlOCKS;
     uint public escrow = 0;
+    uint public constant FINALIZATION_BLOCKS = 64; // number of blocks to wait before finalizing a rotation
     Nightfall private nightfall;
 
     // instance of the certified contract
@@ -108,6 +109,7 @@ contract RoundRobin is ProposerManager, Certified {
         current = proposers[current.next_addr];
         start_l1_block = block.number;
         start_l2_block = nightfall.layer2_block_number();
+        emit ProposerRotated(current);
     }
 
     function add_proposer(
@@ -236,7 +238,7 @@ contract RoundRobin is ProposerManager, Certified {
 
     // this returns true if the current proposer has been in place for ROTATION_BLOCKS
     function can_rotate() private view returns (bool) {
-        return block.number >= start_l1_block + ROTATION_BlOCKS;
+        return block.number >= start_l1_block + ROTATION_BlOCKS + FINALIZATION_BLOCKS;
     }
 
     // function to recover the stake after removing a proposer

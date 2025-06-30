@@ -1,7 +1,7 @@
-use crate::drivers::rest::block_data::get_block_data;
-use crate::drivers::rest::client_transactions::client_transaction;
-use crate::drivers::rest::proposers::rotate_proposer;
-use crate::drivers::rest::synchronisation::synchronisation;
+use crate::drivers::rest::{
+    block_data::get_block_data, client_transactions::client_transaction,
+    proposers::rotate_proposer, synchronisation::synchronisation,
+};
 use block_assembly::{pause_block_assembly, resume_block_assembly};
 use lib::validate_certificate::certification_validation_request;
 use nightfall_client::{

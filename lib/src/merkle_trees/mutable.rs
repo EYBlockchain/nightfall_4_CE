@@ -1,10 +1,9 @@
 use super::trees::{
     helper_functions::make_complete_tree, MerkleTreeError, MutableTree, TreeMetadata,
 };
-use crate::serialization::serialize_to_padded_hex;
 use crate::{
     merkle_trees::trees::ToStringRep,
-    serialization::{deserialize_fr_padded, serialize_fr_padded},
+    serialization::{deserialize_fr_padded, serialize_fr_padded, serialize_to_padded_hex},
 };
 use ark_ff::PrimeField;
 use futures::{future::join_all, TryStreamExt};

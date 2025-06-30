@@ -94,10 +94,12 @@ pub fn get_deposit_proving_key() -> &'static Arc<ProvingKey<UnivariateKzgPCS<Bn2
 pub mod initialisation {
 
     use super::driven::block_assembler::SmartTrigger;
-    use crate::ports::block_assembly_trigger::BlockAssemblyTrigger;
     use crate::{
         driven::block_assembler::BlockAssemblyStatus,
-        ports::trees::{CommitmentTree, HistoricRootTree, NullifierTree},
+        ports::{
+            block_assembly_trigger::BlockAssemblyTrigger,
+            trees::{CommitmentTree, HistoricRootTree, NullifierTree},
+        },
     };
     use ark_bn254::Fr as Fr254;
     use ark_std::sync::Arc;

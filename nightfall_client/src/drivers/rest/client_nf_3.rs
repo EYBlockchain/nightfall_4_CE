@@ -5,37 +5,25 @@ use super::{
 };
 use crate::{
     domain::{
-        entities::{CommitmentStatus, RequestStatus},
+        entities::{
+            CommitmentStatus, DepositSecret, ERCAddress, Operation, OperationType, Preimage,
+            RequestStatus, Salt, TokenType, Transport,
+        },
         error::TransactionHandlerError,
+        notifications::NotificationPayload,
     },
     driven::{
+        contract_functions::contract_type_conversions::FrBn254,
         db::mongo::CommitmentEntry,
         queue::{get_queue, QueuedRequest, TransactionRequest},
     },
-    get_zkp_keys,
-    ports::{
-        commitments::Nullifiable,
-        contracts::NightfallContract,
-        db::{RequestCommitmentMappingDB, RequestDB},
-    },
-};
-use crate::{
-    domain::{
-        entities::{
-            DepositSecret, ERCAddress, Operation, OperationType, Preimage, Salt, TokenType,
-            Transport,
-        },
-        notifications::NotificationPayload,
-    },
-    driven::contract_functions::contract_type_conversions::FrBn254,
-    drivers::{
-        blockchain::nightfall_event_listener::get_synchronisation_status, derive_key::ZKPKeys,
-    },
-    get_fee_token_id,
+    drivers::derive_key::ZKPKeys,
+    get_fee_token_id, get_zkp_keys,
     initialisation::get_db_connection,
     ports::{
-        commitments::Commitment,
-        db::{CommitmentDB, CommitmentEntryDB},
+        commitments::{Commitment, Nullifiable},
+        contracts::NightfallContract,
+        db::{CommitmentDB, CommitmentEntryDB, RequestCommitmentMappingDB, RequestDB},
         keys::KeySpending,
         proof::{Proof, ProvingEngine},
     },
@@ -51,7 +39,7 @@ use ark_std::{rand::thread_rng, UniformRand};
 use configuration::addresses::get_addresses;
 use jf_primitives::poseidon::{FieldHasher, Poseidon};
 use lib::{hex_conversion::HexConvertible, wallets::LocalWsClient};
-use log::{debug, error, info, warn};
+use log::{debug, error, info};
 use nf_curves::ed_on_bn254::{BabyJubjub, Fr as BJJScalar};
 use nightfall_bindings::{
     ierc1155::IERC1155, ierc20::IERC20, ierc3525::IERC3525, ierc721::IERC721, nightfall::Nightfall,
@@ -138,7 +126,7 @@ async fn queue_withdraw_request(
     queue_request(transaction_request, request_id).await
 }
 
-/// function to queue the transfer requests. This function queues all types of transaction request
+/// This function queues all types of transaction request
 async fn queue_request(
     transaction_request: TransactionRequest,
     request_id: Option<String>,
@@ -233,15 +221,6 @@ pub async fn handle_deposit<N: NightfallContract>(
     req: NF3DepositRequest,
     id: &str,
 ) -> Result<NotificationPayload, TransactionHandlerError> {
-    let sync_state = get_synchronisation_status::<N>()
-        .await
-        .map_err(|e| TransactionHandlerError::CustomError(e.to_string()))?
-        .is_synchronised();
-    if !sync_state {
-        warn!("{id} Rejecting request - Client is not synchronised with the blockchain");
-        return Err(TransactionHandlerError::ClientNotSynchronized);
-    }
-
     info!("Deposit raw request: {:?}", req);
 
     // We convert the request into values
