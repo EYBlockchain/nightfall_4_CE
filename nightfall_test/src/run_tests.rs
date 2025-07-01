@@ -1,10 +1,9 @@
 use crate::{
     test::{
         self, create_nf3_deposit_transaction, create_nf3_transfer_transaction,
-        create_nf3_withdraw_transaction, de_escrow_request, get_key,
-        get_recipient_address, load_addresses, set_anvil_mining_interval,
-        validate_certificate_with_server, verify_deposit_commitments_nf_token_id,
-        wait_for_all_responses, wait_on_chain, TokenType,
+        create_nf3_withdraw_transaction, de_escrow_request, get_key, get_recipient_address,
+        load_addresses, set_anvil_mining_interval, validate_certificate_with_server,
+        verify_deposit_commitments_nf_token_id, wait_for_all_responses, wait_on_chain, TokenType,
     },
     test_settings::TestSettings,
 };

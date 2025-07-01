@@ -7,7 +7,7 @@ pub use certified::*;
     clippy::upper_case_acronyms,
     clippy::type_complexity,
     dead_code,
-    non_camel_case_types,
+    non_camel_case_types
 )]
 pub mod certified {
     #[allow(deprecated)]
@@ -26,9 +26,7 @@ pub mod certified {
                         name: ::std::borrow::ToOwned::to_owned("_sanctionsList"),
                         kind: ::ethers::core::abi::ethabi::ParamType::Address,
                         internal_type: ::core::option::Option::Some(
-                            ::std::borrow::ToOwned::to_owned(
-                                "contract SanctionsListInterface",
-                            ),
+                            ::std::borrow::ToOwned::to_owned("contract SanctionsListInterface",),
                         ),
                     },
                 ],
@@ -36,52 +34,44 @@ pub mod certified {
             functions: ::core::convert::From::from([
                 (
                     ::std::borrow::ToOwned::to_owned("owner"),
-                    ::std::vec![
-                        ::ethers::core::abi::ethabi::Function {
-                            name: ::std::borrow::ToOwned::to_owned("owner"),
-                            inputs: ::std::vec![],
-                            outputs: ::std::vec![
-                                ::ethers::core::abi::ethabi::Param {
-                                    name: ::std::string::String::new(),
-                                    kind: ::ethers::core::abi::ethabi::ParamType::Address,
-                                    internal_type: ::core::option::Option::Some(
-                                        ::std::borrow::ToOwned::to_owned("address"),
-                                    ),
-                                },
-                            ],
-                            constant: ::core::option::Option::None,
-                            state_mutability: ::ethers::core::abi::ethabi::StateMutability::View,
-                        },
-                    ],
+                    ::std::vec![::ethers::core::abi::ethabi::Function {
+                        name: ::std::borrow::ToOwned::to_owned("owner"),
+                        inputs: ::std::vec![],
+                        outputs: ::std::vec![::ethers::core::abi::ethabi::Param {
+                            name: ::std::string::String::new(),
+                            kind: ::ethers::core::abi::ethabi::ParamType::Address,
+                            internal_type: ::core::option::Option::Some(
+                                ::std::borrow::ToOwned::to_owned("address"),
+                            ),
+                        },],
+                        constant: ::core::option::Option::None,
+                        state_mutability: ::ethers::core::abi::ethabi::StateMutability::View,
+                    },],
                 ),
                 (
                     ::std::borrow::ToOwned::to_owned("setAuthorities"),
-                    ::std::vec![
-                        ::ethers::core::abi::ethabi::Function {
-                            name: ::std::borrow::ToOwned::to_owned("setAuthorities"),
-                            inputs: ::std::vec![
-                                ::ethers::core::abi::ethabi::Param {
-                                    name: ::std::borrow::ToOwned::to_owned(
-                                        "sanctionsListAddress",
-                                    ),
-                                    kind: ::ethers::core::abi::ethabi::ParamType::Address,
-                                    internal_type: ::core::option::Option::Some(
-                                        ::std::borrow::ToOwned::to_owned("address"),
-                                    ),
-                                },
-                                ::ethers::core::abi::ethabi::Param {
-                                    name: ::std::borrow::ToOwned::to_owned("x509Address"),
-                                    kind: ::ethers::core::abi::ethabi::ParamType::Address,
-                                    internal_type: ::core::option::Option::Some(
-                                        ::std::borrow::ToOwned::to_owned("address"),
-                                    ),
-                                },
-                            ],
-                            outputs: ::std::vec![],
-                            constant: ::core::option::Option::None,
-                            state_mutability: ::ethers::core::abi::ethabi::StateMutability::NonPayable,
-                        },
-                    ],
+                    ::std::vec![::ethers::core::abi::ethabi::Function {
+                        name: ::std::borrow::ToOwned::to_owned("setAuthorities"),
+                        inputs: ::std::vec![
+                            ::ethers::core::abi::ethabi::Param {
+                                name: ::std::borrow::ToOwned::to_owned("sanctionsListAddress",),
+                                kind: ::ethers::core::abi::ethabi::ParamType::Address,
+                                internal_type: ::core::option::Option::Some(
+                                    ::std::borrow::ToOwned::to_owned("address"),
+                                ),
+                            },
+                            ::ethers::core::abi::ethabi::Param {
+                                name: ::std::borrow::ToOwned::to_owned("x509Address"),
+                                kind: ::ethers::core::abi::ethabi::ParamType::Address,
+                                internal_type: ::core::option::Option::Some(
+                                    ::std::borrow::ToOwned::to_owned("address"),
+                                ),
+                            },
+                        ],
+                        outputs: ::std::vec![],
+                        constant: ::core::option::Option::None,
+                        state_mutability: ::ethers::core::abi::ethabi::StateMutability::NonPayable,
+                    },],
                 ),
             ]),
             events: ::std::collections::BTreeMap::new(),
@@ -91,21 +81,18 @@ pub mod certified {
         }
     }
     ///The parsed JSON ABI of the contract.
-    pub static CERTIFIED_ABI: ::ethers::contract::Lazy<::ethers::core::abi::Abi> = ::ethers::contract::Lazy::new(
-        __abi,
-    );
+    pub static CERTIFIED_ABI: ::ethers::contract::Lazy<::ethers::core::abi::Abi> =
+        ::ethers::contract::Lazy::new(__abi);
     #[rustfmt::skip]
     const __BYTECODE: &[u8] = b"`\x80`@R4\x80\x15`\x0EW__\xFD[P`@Qa\x02L8\x03\x80a\x02L\x839\x81\x01`@\x81\x90R`+\x91`\x80V[_\x80T`\x01`\x01`\xA0\x1B\x03\x93\x84\x16`\x01`\x01`\xA0\x1B\x03\x19\x91\x82\x16\x17\x90\x91U`\x01\x80T\x92\x90\x93\x16\x91\x81\x16\x91\x90\x91\x17\x90\x91U`\x02\x80T\x90\x91\x163\x17\x90U`\xB3V[`\x01`\x01`\xA0\x1B\x03\x81\x16\x81\x14`}W__\xFD[PV[__`@\x83\x85\x03\x12\x15`\x90W__\xFD[\x82Q`\x99\x81`jV[` \x84\x01Q\x90\x92P`\xA8\x81`jV[\x80\x91PP\x92P\x92\x90PV[a\x01\x8C\x80a\0\xC0_9_\xF3\xFE`\x80`@R4\x80\x15a\0\x0FW__\xFD[P`\x046\x10a\x004W_5`\xE0\x1C\x80cJ\x8A@s\x14a\08W\x80c\x8D\xA5\xCB[\x14a\0MW[__\xFD[a\0Ka\0F6`\x04a\x01%V[a\0|V[\0[`\x02Ta\0`\x90`\x01`\x01`\xA0\x1B\x03\x16\x81V[`@Q`\x01`\x01`\xA0\x1B\x03\x90\x91\x16\x81R` \x01`@Q\x80\x91\x03\x90\xF3[`\x02T`\x01`\x01`\xA0\x1B\x03\x163\x14a\0\xDAW`@QbF\x1B\xCD`\xE5\x1B\x81R` `\x04\x82\x01R`\x17`$\x82\x01R\x7FCaller is not the owner\0\0\0\0\0\0\0\0\0`D\x82\x01R`d\x01`@Q\x80\x91\x03\x90\xFD[_\x80T`\x01`\x01`\xA0\x1B\x03\x92\x83\x16`\x01`\x01`\xA0\x1B\x03\x19\x91\x82\x16\x17\x90\x91U`\x01\x80T\x93\x90\x92\x16\x92\x16\x91\x90\x91\x17\x90UV[\x805`\x01`\x01`\xA0\x1B\x03\x81\x16\x81\x14a\x01 W__\xFD[\x91\x90PV[__`@\x83\x85\x03\x12\x15a\x016W__\xFD[a\x01?\x83a\x01\nV[\x91Pa\x01M` \x84\x01a\x01\nV[\x90P\x92P\x92\x90PV\xFE\xA2dipfsX\"\x12 \xE0\xA8\x9E\xAC\xEFLT\xE1V\x88\xD1D\x05\xB7~\xCD\x8D\xC1C\xCA\xD5\xAB\xF7B\xFB( O2Sb\xA5dsolcC\0\x08\x1C\x003";
     /// The bytecode of the contract.
-    pub static CERTIFIED_BYTECODE: ::ethers::core::types::Bytes = ::ethers::core::types::Bytes::from_static(
-        __BYTECODE,
-    );
+    pub static CERTIFIED_BYTECODE: ::ethers::core::types::Bytes =
+        ::ethers::core::types::Bytes::from_static(__BYTECODE);
     #[rustfmt::skip]
     const __DEPLOYED_BYTECODE: &[u8] = b"`\x80`@R4\x80\x15a\0\x0FW__\xFD[P`\x046\x10a\x004W_5`\xE0\x1C\x80cJ\x8A@s\x14a\08W\x80c\x8D\xA5\xCB[\x14a\0MW[__\xFD[a\0Ka\0F6`\x04a\x01%V[a\0|V[\0[`\x02Ta\0`\x90`\x01`\x01`\xA0\x1B\x03\x16\x81V[`@Q`\x01`\x01`\xA0\x1B\x03\x90\x91\x16\x81R` \x01`@Q\x80\x91\x03\x90\xF3[`\x02T`\x01`\x01`\xA0\x1B\x03\x163\x14a\0\xDAW`@QbF\x1B\xCD`\xE5\x1B\x81R` `\x04\x82\x01R`\x17`$\x82\x01R\x7FCaller is not the owner\0\0\0\0\0\0\0\0\0`D\x82\x01R`d\x01`@Q\x80\x91\x03\x90\xFD[_\x80T`\x01`\x01`\xA0\x1B\x03\x92\x83\x16`\x01`\x01`\xA0\x1B\x03\x19\x91\x82\x16\x17\x90\x91U`\x01\x80T\x93\x90\x92\x16\x92\x16\x91\x90\x91\x17\x90UV[\x805`\x01`\x01`\xA0\x1B\x03\x81\x16\x81\x14a\x01 W__\xFD[\x91\x90PV[__`@\x83\x85\x03\x12\x15a\x016W__\xFD[a\x01?\x83a\x01\nV[\x91Pa\x01M` \x84\x01a\x01\nV[\x90P\x92P\x92\x90PV\xFE\xA2dipfsX\"\x12 \xE0\xA8\x9E\xAC\xEFLT\xE1V\x88\xD1D\x05\xB7~\xCD\x8D\xC1C\xCA\xD5\xAB\xF7B\xFB( O2Sb\xA5dsolcC\0\x08\x1C\x003";
     /// The deployed bytecode of the contract.
-    pub static CERTIFIED_DEPLOYED_BYTECODE: ::ethers::core::types::Bytes = ::ethers::core::types::Bytes::from_static(
-        __DEPLOYED_BYTECODE,
-    );
+    pub static CERTIFIED_DEPLOYED_BYTECODE: ::ethers::core::types::Bytes =
+        ::ethers::core::types::Bytes::from_static(__DEPLOYED_BYTECODE);
     pub struct Certified<M>(::ethers::contract::Contract<M>);
     impl<M> ::core::clone::Clone for Certified<M> {
         fn clone(&self) -> Self {
@@ -125,7 +112,9 @@ pub mod certified {
     }
     impl<M> ::core::fmt::Debug for Certified<M> {
         fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-            f.debug_tuple(::core::stringify!(Certified)).field(&self.address()).finish()
+            f.debug_tuple(::core::stringify!(Certified))
+                .field(&self.address())
+                .finish()
         }
     }
     impl<M: ::ethers::providers::Middleware> Certified<M> {
@@ -135,13 +124,11 @@ pub mod certified {
             address: T,
             client: ::std::sync::Arc<M>,
         ) -> Self {
-            Self(
-                ::ethers::contract::Contract::new(
-                    address.into(),
-                    CERTIFIED_ABI.clone(),
-                    client,
-                ),
-            )
+            Self(::ethers::contract::Contract::new(
+                address.into(),
+                CERTIFIED_ABI.clone(),
+                client,
+            ))
         }
         /// Constructs the general purpose `Deployer` instance based on the provided constructor arguments and sends it.
         /// Returns a new instance of a deployer that returns an instance of this contract after sending the transaction
@@ -185,10 +172,7 @@ pub mod certified {
         ///Calls the contract's `owner` (0x8da5cb5b) function
         pub fn owner(
             &self,
-        ) -> ::ethers::contract::builders::ContractCall<
-            M,
-            ::ethers::core::types::Address,
-        > {
+        ) -> ::ethers::contract::builders::ContractCall<M, ::ethers::core::types::Address> {
             self.0
                 .method_hash([141, 165, 203, 91], ())
                 .expect("method not found (this should never happen)")
@@ -204,8 +188,7 @@ pub mod certified {
                 .expect("method not found (this should never happen)")
         }
     }
-    impl<M: ::ethers::providers::Middleware> From<::ethers::contract::Contract<M>>
-    for Certified<M> {
+    impl<M: ::ethers::providers::Middleware> From<::ethers::contract::Contract<M>> for Certified<M> {
         fn from(contract: ::ethers::contract::Contract<M>) -> Self {
             Self::new(contract.address(), contract.client())
         }
@@ -221,7 +204,7 @@ pub mod certified {
         Debug,
         PartialEq,
         Eq,
-        Hash
+        Hash,
     )]
     #[ethcall(name = "owner", abi = "owner()")]
     pub struct OwnerCall;
@@ -236,7 +219,7 @@ pub mod certified {
         Debug,
         PartialEq,
         Eq,
-        Hash
+        Hash,
     )]
     #[ethcall(name = "setAuthorities", abi = "setAuthorities(address,address)")]
     pub struct SetAuthoritiesCall {
@@ -252,7 +235,7 @@ pub mod certified {
         Debug,
         PartialEq,
         Eq,
-        Hash
+        Hash,
     )]
     pub enum CertifiedCalls {
         Owner(OwnerCall),
@@ -263,14 +246,12 @@ pub mod certified {
             data: impl AsRef<[u8]>,
         ) -> ::core::result::Result<Self, ::ethers::core::abi::AbiError> {
             let data = data.as_ref();
-            if let Ok(decoded) = <OwnerCall as ::ethers::core::abi::AbiDecode>::decode(
-                data,
-            ) {
+            if let Ok(decoded) = <OwnerCall as ::ethers::core::abi::AbiDecode>::decode(data) {
                 return Ok(Self::Owner(decoded));
             }
-            if let Ok(decoded) = <SetAuthoritiesCall as ::ethers::core::abi::AbiDecode>::decode(
-                data,
-            ) {
+            if let Ok(decoded) =
+                <SetAuthoritiesCall as ::ethers::core::abi::AbiDecode>::decode(data)
+            {
                 return Ok(Self::SetAuthorities(decoded));
             }
             Err(::ethers::core::abi::Error::InvalidData.into())
@@ -280,9 +261,7 @@ pub mod certified {
         fn encode(self) -> Vec<u8> {
             match self {
                 Self::Owner(element) => ::ethers::core::abi::AbiEncode::encode(element),
-                Self::SetAuthorities(element) => {
-                    ::ethers::core::abi::AbiEncode::encode(element)
-                }
+                Self::SetAuthorities(element) => ::ethers::core::abi::AbiEncode::encode(element),
             }
         }
     }
@@ -315,7 +294,7 @@ pub mod certified {
         Debug,
         PartialEq,
         Eq,
-        Hash
+        Hash,
     )]
     pub struct OwnerReturn(pub ::ethers::core::types::Address);
 }
