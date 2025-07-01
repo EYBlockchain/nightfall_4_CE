@@ -472,11 +472,15 @@ services:
       timeout: 90s
       retries: 10
       start_period: 0s
+    volumes:
+      - ./blockchain_assets/logs:/blockchain_assets/logs # to be able to see deployed contract addresses locally
     networks:
       - nightfall_network
     ports:
       - "8545:8545" 
-    
+    environment:
+      - NF4_SIGNING_KEY=${DEPLOYER_SIGNING_KEY}
+
   test:
     container_name: nf4_test
     stop_grace_period: 3s
