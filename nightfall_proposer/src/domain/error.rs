@@ -33,3 +33,32 @@ impl<E: Display> Display for MerkleTreeError<E> {
         }
     }
 }
+
+#[derive(Debug)]
+pub enum ProposerRejection {
+    BlockDataUnavailable,
+    ClientTransactionFailed,
+    FailedToRotateProposer,
+    FailedToAddProposer,
+    FailedToRemoveProposer,
+    FailedToWithdrawStake,
+    ProviderError,
+}
+
+impl std::fmt::Display for ProposerRejection {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ProposerRejection::BlockDataUnavailable => write!(f, "Block data unavailable"),
+            ProposerRejection::ClientTransactionFailed => write!(f, "Client transaction failed"),
+            ProposerRejection::FailedToRotateProposer => write!(f, "Failed to rotate proposer"),
+            ProposerRejection::FailedToAddProposer => write!(f, "Failed to add proposer"),
+            ProposerRejection::FailedToRemoveProposer => write!(f, "Failed to remove proposer"),
+            ProposerRejection::FailedToWithdrawStake => write!(f, "Failed to withdraw stake"),
+            ProposerRejection::ProviderError => write!(f, "Provider error"),
+        }
+    }
+}
+
+impl std::error::Error for ProposerRejection {}
+
+impl warp::reject::Reject for ProposerRejection {}

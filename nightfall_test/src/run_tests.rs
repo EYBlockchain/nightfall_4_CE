@@ -25,7 +25,9 @@ use log::{debug, info, warn};
 use nightfall_client::drivers::rest::{client_nf_3::WithdrawResponse, models::DeEscrowDataReq};
 use serde_json::Value;
 use std::fs;
-use test::{anvil_reorg, count_spent_commitments, get_erc20_balance, get_erc721_balance, get_fee_balance};
+use test::{
+    anvil_reorg, count_spent_commitments, get_erc20_balance, get_erc721_balance, get_fee_balance,
+};
 use url::Url;
 use uuid::Uuid;
 
@@ -655,19 +657,19 @@ pub async fn run_tests(
         .map(|l| l.0)
         .collect::<Vec<_>>();
 
-        info!("Starting chain reorg, {} blocks reorged", 200);
+    info!("Starting chain reorg, {} blocks reorged", 200);
 
-        anvil_reorg(
-            &http_client,
-            &Url::parse("http://anvil:8545").unwrap(),
-            200,
-            true,
-            5,
-        )
-        .await
-        .unwrap();
-    
-        info!("====== Chain reorg completed =========");
+    anvil_reorg(
+        &http_client,
+        &Url::parse("http://anvil:8545").unwrap(),
+        200,
+        true,
+        5,
+    )
+    .await
+    .unwrap();
+
+    info!("====== Chain reorg completed =========");
 
     // compute the commmitments for the transactions
     let commitment_hashes = transactions
