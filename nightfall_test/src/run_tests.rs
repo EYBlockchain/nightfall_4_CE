@@ -20,9 +20,9 @@ use lib::{
 use crate::{
     test::{
         self, create_nf3_deposit_transaction, create_nf3_transfer_transaction,
-        create_nf3_withdraw_transaction, de_escrow_request, get_key,
-        get_recipient_address, load_addresses, set_anvil_mining_interval,
-        validate_certificate_with_server, wait_for_all_responses, wait_on_chain, TokenType,
+        create_nf3_withdraw_transaction, de_escrow_request, get_key, get_recipient_address,
+        load_addresses, set_anvil_mining_interval, validate_certificate_with_server,
+        wait_for_all_responses, wait_on_chain, TokenType,
     },
     test_settings::TestSettings,
 };
@@ -428,13 +428,23 @@ pub async fn run_tests(
     let transaction_ids = try_join_all(transaction_ids).await.unwrap();
 
     // wait for the responses to the deposit requests to come back to the webhook server
-    let commitment_hashes = wait_for_all_responses(&transaction_ids, responses.clone())
+    let deposit_responses = wait_for_all_responses(&transaction_ids, responses.clone())
         .await
         .into_iter()
-        .flat_map(|(_, l)| {
-            serde_json::from_str::<Vec<String>>(&l).expect("Failed to parse response")
+        .map(|(u, l)| {
+            (
+                u,
+                serde_json::from_str::<Vec<String>>(&l)
+                    .expect(&format!("Failed to parse response {}", &l)),
+            )
         })
-        .map(|l| Fr254::from_hex_string(&l).unwrap())
+        .collect::<Vec<_>>();
+
+    // extract the commitment hashes from the responses
+    let commitment_hashes = deposit_responses
+        .iter()
+        .flat_map(|(_, l)| l)
+        .map(|l| Fr254::from_hex_string(l).unwrap())
         .collect::<Vec<_>>();
 
     let resume_url = Url::parse(&settings.nightfall_proposer.url)
@@ -473,13 +483,20 @@ pub async fn run_tests(
     assert_eq!(fee_balance, 137 + client1_starting_fee_balance);
 
     // check that we can find one of our commitments
-    // Query the commitment endpoint to return the CommitmEntry of commitment_hashes[0]
+    // Query the commitment endpoint to return the CommitmEntry of the first ERC20 deposit
+    // Find the value commitment in deposit_responses with uuid matching transaction_ids[0] and get its first element
+    let commitment_hash = deposit_responses
+        .iter()
+        .find(|(uuid, _)| *uuid == transaction_ids[0])
+        .and_then(|(_, vec)| vec.get(0))
+        .map(|s| Fr254::from_hex_string(s).unwrap())
+        .expect("Could not find commitment hash for matching uuid");
     info!("Querying commitment endpoint");
     let commitment_url = Url::parse(&settings.nightfall_client.url)
         .unwrap()
         .join(&format!(
             "v1/commitment/{}",
-            commitment_hashes[0].to_hex_string()
+            commitment_hash.to_hex_string()
         ))
         .unwrap();
     let commitment = http_client
@@ -491,7 +508,7 @@ pub async fn run_tests(
         .await
         .expect("Failed to parse commitment entry");
     assert_eq!(
-        commitment.key, commitment_hashes[0],
+        commitment.key, commitment_hash,
         "The commitment hashes should match"
     );
 
@@ -514,7 +531,10 @@ pub async fn run_tests(
         .expect("Failed to parse token info");
     // this should be an erc20 token
     assert_eq!(
-        token_data.erc_address.to_hex_string().trim_start_matches("00"),
+        token_data
+            .erc_address
+            .to_hex_string()
+            .trim_start_matches("00"),
         TokenType::ERC20.address(),
         "The erc address should match the ERC20 token address"
     );

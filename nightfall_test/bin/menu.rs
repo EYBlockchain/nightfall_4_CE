@@ -1,18 +1,19 @@
+use ark_std::rand;
+use bip32::{DerivationPath, Mnemonic};
+use inquire::Select;
+use inquire::Text;
+use lib::hex_conversion::HexConvertible;
+use nightfall_client::drivers::derive_key::ZKPKeys;
+use nightfall_client::drivers::rest::models::{
+    NF3DepositRequest, NF3RecipientData, NF3TransferRequest, NF3WithdrawRequest,
+};
+use reqwest::Client;
+use serde::Deserialize;
 use std::error::Error;
 use std::fs;
 use std::path::Path;
-use ark_std::rand;
-use lib::hex_conversion::HexConvertible;
-use nightfall_client::drivers::derive_key::ZKPKeys;
-use serde::Deserialize;
 use url::Url;
-use bip32::{Mnemonic, DerivationPath};
-use inquire::Select;
-use inquire::Text;
-use nightfall_client::drivers::rest::models::{NF3DepositRequest, NF3TransferRequest, NF3RecipientData, NF3WithdrawRequest};
 use uuid::Uuid;
-use reqwest::Client;
-
 
 const CONFIG_PATH: &str = "nightfall_test/bin/config.toml";
 
@@ -25,12 +26,20 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let (url, mnemonic, erc_address) = load_config(CONFIG_PATH);
 
     // Derive ZKP keys from the mnemonic and a standard derivation path
-    let derivation_path = "m/44'/60'/0'/0/0".parse::<DerivationPath>().expect("Invalid derivation path");
+    let derivation_path = "m/44'/60'/0'/0/0"
+        .parse::<DerivationPath>()
+        .expect("Invalid derivation path");
     let zkp_keys = ZKPKeys::derive_from_mnemonic(&mnemonic, &derivation_path)
         .expect("Failed to derive ZKP keys from mnemonic");
     // Print the ZkP compressed public key
-    println!("Your layer 2 address is: {}", zkp_keys.compressed_public_key().expect("Failed to get compressed public key").to_hex_string());
-    
+    println!(
+        "Your layer 2 address is: {}",
+        zkp_keys
+            .compressed_public_key()
+            .expect("Failed to get compressed public key")
+            .to_hex_string()
+    );
+
     // check for client connectivity
     if !check_client_connection(&url).await {
         return Err(format!("Error: Client is not reachable at {}", url).into());
@@ -45,7 +54,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             "Get L2 balance" => {
                 let balance = get_l2_balance(&url, &erc_address).await;
                 println!("Balance: {}", balance);
-            },
+            }
             "Get L1 balance" => get_l1_balance(),
             "Deposit" => deposit(&url, &erc_address).await,
             "Transfer" => transfer(&url, &erc_address).await,
@@ -53,15 +62,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
             "Exit" => {
                 println!("Exiting the Nightfall Client UI.");
                 break;
-            },
+            }
             _ => unreachable!(),
         }
     }
     Ok(())
 }
-
-
-
 
 fn load_config<P: AsRef<Path>>(path: P) -> (Url, Mnemonic, String) {
     #[derive(Deserialize)]
@@ -91,8 +97,6 @@ fn load_config<P: AsRef<Path>>(path: P) -> (Url, Mnemonic, String) {
     (url, mnemonic, erc_address)
 }
 
-
-
 fn get_actions() -> Result<String, inquire::InquireError> {
     let options = vec![
         "Get L2 balance",
@@ -102,8 +106,7 @@ fn get_actions() -> Result<String, inquire::InquireError> {
         "Withdraw",
         "Exit",
     ];
-    let ans = Select::new("Choose an action:", options)
-        .prompt()?;
+    let ans = Select::new("Choose an action:", options).prompt()?;
     Ok(ans.to_string())
 }
 
@@ -124,10 +127,19 @@ async fn get_l2_balance(url: &url::Url, default_erc_address: &str) -> i64 {
     let path = format!("/v1/balance/{}/{}", erc_address, token_id);
     balance_url.set_path(&path); // Clear any existing path
     let client = reqwest::Client::new();
-    let resp = client.get(balance_url).send().await.expect("Failed to send request");
+    let resp = client
+        .get(balance_url)
+        .send()
+        .await
+        .expect("Failed to send request");
     if resp.status().is_success() {
-        i64::from_hex_string(resp.text().await.expect("Failed to read response body").trim_start_matches("00"))
-            .expect("Failed to parse balance as i64")
+        i64::from_hex_string(
+            resp.text()
+                .await
+                .expect("Failed to read response body")
+                .trim_start_matches("00"),
+        )
+        .expect("Failed to parse balance as i64")
     } else {
         0 // Return 0 if the request fails
     }
@@ -311,8 +323,6 @@ fn prompt_nf3_withdraw_request(default_erc_address: &str) -> NF3WithdrawRequest 
         recipient_address,
         fee,
     }
-
-    
 }
 
 async fn check_client_connection(base_url: &Url) -> bool {
@@ -323,6 +333,3 @@ async fn check_client_connection(base_url: &Url) -> bool {
         Err(_) => false,
     }
 }
-
-
-
