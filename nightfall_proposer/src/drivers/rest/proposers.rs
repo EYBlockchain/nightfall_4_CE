@@ -1,48 +1,12 @@
 use configuration::{addresses::get_addresses, settings::get_settings};
-use ethers::{providers::ProviderError, types::U256};
+use ethers::types::U256;
 use log::{info, warn};
 use nightfall_bindings::round_robin::RoundRobin;
 /// APIs for managing proposers
-use warp::{hyper::StatusCode, path, reject::Reject, reply::Reply, Filter};
+use warp::{hyper::StatusCode, path, reply::Reply, Filter};
 
-use crate::initialisation::get_blockchain_client_connection;
+use crate::{domain::error::ProposerRejection, initialisation::get_blockchain_client_connection};
 use lib::blockchain_client::BlockchainClientConnection;
-
-/// Error type for proposer rotation
-#[derive(Debug)]
-pub enum ProposerError {
-    FailedToRotateProposer,
-    FailedToAddProposer,
-    FailedToRemoveProposer,
-    FailedToWithdrawStake,
-    ProviderError(ProviderError),
-}
-
-impl std::fmt::Display for ProposerError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ProposerError::FailedToRotateProposer => {
-                write!(f, "Failed to rotate proposer")
-            }
-            ProposerError::ProviderError(_) => {
-                write!(f, "Provider error")
-            }
-            ProposerError::FailedToRemoveProposer => {
-                write!(f, "Failed to remove proposer")
-            }
-            ProposerError::FailedToWithdrawStake => {
-                write!(f, "Failed to withdraw stake")
-            }
-            ProposerError::FailedToAddProposer => {
-                write!(f, "Failed to add proposer")
-            }
-        }
-    }
-}
-
-impl std::error::Error for ProposerError {}
-
-impl Reject for ProposerError {}
 
 /// Get request for proposer rotation
 pub fn rotate_proposer() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone
@@ -68,8 +32,8 @@ async fn handle_rotate_proposer() -> Result<impl Reply, warp::Rejection> {
                 warn!("Rotation requested, but only one active proposer; rotation will have no effect.");
             }
         }
-        Err(e) => {
-            warn!("Failed to fetch proposer count before rotation: {:?}", e);
+        Err(_e) => {
+            warn!("Failed to fetch proposer count before rotation");
         }
     }
     // rotate the proposer
@@ -77,10 +41,12 @@ async fn handle_rotate_proposer() -> Result<impl Reply, warp::Rejection> {
     let tx_result = tx_call.send().await;
     match tx_result {
         Ok(tx) => {
-            tx.await.map_err(ProposerError::ProviderError)?;
+            tx.await.map_err(|_| ProposerRejection::ProviderError)?;
             Ok(StatusCode::OK)
         }
-        Err(_e) => Ok(StatusCode::LOCKED),
+        Err(_e) => Err(warp::reject::custom(
+            ProposerRejection::FailedToRotateProposer,
+        )),
     }
 }
 
@@ -107,17 +73,17 @@ async fn handle_add_proposer(url: String) -> Result<impl Reply, warp::Rejection>
         .value(get_settings().nightfall_deployer.proposer_stake)
         .send()
         .await
-        .map_err(|e| {
-            warn!("{}", e);
-            ProposerError::FailedToAddProposer
+        .map_err(|_e| {
+            warn!("Failed to add proposer");
+            ProposerRejection::FailedToAddProposer
         })?
         .await
-        .map_err(ProposerError::ProviderError)?;
+        .map_err(|_| ProposerRejection::ProviderError)?;
     match tx {
         Some(transaction) => info!("Registered proposer with address: {:?}", transaction.from),
         None => {
             warn!("Failed to add proposer");
-            return Err(warp::reject::custom(ProposerError::FailedToAddProposer));
+            return Err(warp::reject::custom(ProposerRejection::FailedToAddProposer));
         }
     }
     Ok(StatusCode::OK)
@@ -176,17 +142,19 @@ async fn handle_remove_proposer() -> Result<impl Reply, warp::Rejection> {
         .remove_proposer()
         .send()
         .await
-        .map_err(|e| {
-            warn!("{}", e);
-            ProposerError::FailedToRemoveProposer
+        .map_err(|_e| {
+            warn!("Failed to remove proposer");
+            ProposerRejection::FailedToRemoveProposer
         })?
         .await
-        .map_err(ProposerError::ProviderError)?;
+        .map_err(|_| ProposerRejection::ProviderError)?;
     match tx {
         Some(transaction) => info!("Removed proposer with address: {:?}", transaction.from),
         None => {
             warn!("Failed to remove proposer");
-            return Err(warp::reject::custom(ProposerError::FailedToRemoveProposer));
+            return Err(warp::reject::custom(
+                ProposerRejection::FailedToRemoveProposer,
+            ));
         }
     }
     Ok(StatusCode::OK)
@@ -214,17 +182,19 @@ async fn handle_withdraw(amount: u64) -> Result<impl Reply, warp::Rejection> {
         .withdraw(amount.into())
         .send()
         .await
-        .map_err(|e| {
-            warn!("{}", e);
-            ProposerError::FailedToWithdrawStake
+        .map_err(|_e| {
+            warn!("Failed to withdraw stake");
+            ProposerRejection::FailedToWithdrawStake
         })?
         .await
-        .map_err(ProposerError::ProviderError)?;
+        .map_err(|_| ProposerRejection::ProviderError)?;
     match tx {
         Some(transaction) => info!("Withdrew {} to address: {:?}", amount, transaction.from),
         None => {
             warn!("Failed to withdraw funds");
-            return Err(warp::reject::custom(ProposerError::FailedToWithdrawStake));
+            return Err(warp::reject::custom(
+                ProposerRejection::FailedToWithdrawStake,
+            ));
         }
     }
     Ok(StatusCode::OK)
