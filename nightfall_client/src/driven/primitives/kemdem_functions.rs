@@ -105,7 +105,6 @@ pub fn kemdem_decrypt(
 #[cfg(test)]
 mod tests {
     use super::*;
-    // use crate::drivers::derive_key::{GENERATOR_X, GENERATOR_Y};
     use ark_ff::UniformRand;
     use ark_std::test_rng;
     use nf_curves::ed_on_bn254::{GENERATOR_X, GENERATOR_Y};

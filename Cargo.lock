@@ -4505,6 +4505,7 @@ dependencies = [
  "sha2 0.10.9",
  "tokio",
  "toml 0.8.22",
+ "tracing",
  "url",
  "uuid 1.16.0",
  "warp",

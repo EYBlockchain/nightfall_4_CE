@@ -2,7 +2,7 @@
 set -e
 
 # Start anvil in the background
-anvil --base-fee 58000000000 --block-time 5 &
+anvil --base-fee 58000000000 --block-time 5 --silent &
 ANVIL_PID=$!
 
 # Wait for anvil to be ready (JSON-RPC POST)

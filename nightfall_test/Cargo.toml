@@ -9,6 +9,7 @@ name = "menu"
 path = "bin/menu.rs"
 
 [dependencies]
+tracing = "0.1.41"
 dotenv = "0.15.0"
 nightfall_client = { path = "../nightfall_client" }
 configuration = { path = "../configuration" }

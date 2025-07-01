@@ -1,38 +1,35 @@
-use ark_bn254::Fr as Fr254;
-use ark_ff::BigInteger256;
-use configuration::settings::{get_settings, Settings};
-use futures::future::try_join_all;
-use lib::{hex_conversion::HexConvertible, models::CertificateReq};
-use log::{debug, info, warn};
-use nightfall_client::{
-    domain::entities::TokenData,
-    driven::db::mongo::CommitmentEntry,
-    drivers::rest::{client_nf_3::WithdrawResponse, models::DeEscrowDataReq},
-};
-use serde_json::Value;
-use std::fs;
-use test::{count_spent_commitments, get_erc20_balance, get_erc721_balance, get_fee_balance};
-
-use lib::{
-    blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
-};
-
 use crate::{
     test::{
         self, create_nf3_deposit_transaction, create_nf3_transfer_transaction,
-        create_nf3_withdraw_transaction, de_escrow_request, get_key, get_recipient_address,
-        load_addresses, set_anvil_mining_interval, validate_certificate_with_server,
+        create_nf3_withdraw_transaction, de_escrow_request, get_key,
+        get_recipient_address, load_addresses, set_anvil_mining_interval,
+        validate_certificate_with_server, verify_deposit_commitments_nf_token_id,
         wait_for_all_responses, wait_on_chain, TokenType,
     },
     test_settings::TestSettings,
 };
-use ark_std::Zero;
+use ark_bn254::Fr as Fr254;
+use ark_std::{collections::HashMap, Zero};
+use configuration::settings::{get_settings, Settings};
 use ethers::{
     providers::Middleware,
     types::{TransactionReceipt, U256},
     utils::{format_units, parse_units},
 };
+use futures::future::try_join_all;
+use lib::{
+    blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
+    initialisation::get_blockchain_client_connection, models::CertificateReq,
+};
+use log::{debug, info, warn};
+use nightfall_client::drivers::rest::{client_nf_3::WithdrawResponse, models::DeEscrowDataReq};
+use serde_json::Value;
+use std::fs;
+use test::{
+    anvil_reorg, count_spent_commitments, get_erc20_balance, get_erc721_balance, get_fee_balance,
+};
 use url::Url;
+use uuid::Uuid;
 
 pub async fn run_tests(
     responses: std::sync::Arc<tokio::sync::Mutex<Vec<serde_json::Value>>>,
@@ -76,8 +73,6 @@ pub async fn run_tests(
 
     let _ = load_addresses(&settings).unwrap();
     info!("* contract addresses obtained");
-
-    info!("ERC20 Mock address: {}", TokenType::ERC20.address());
 
     // Validate the certificate with the server before proceeding
     info!("Validating Client's certificate");
@@ -196,6 +191,10 @@ pub async fn run_tests(
 
         // throw all the transactions at the client as fast as we can
         let large_block_deposit_ids = try_join_all(large_block_deposit_ids).await.unwrap();
+        let large_block_deposit_ids = large_block_deposit_ids
+            .iter()
+            .map(|(uuid, _)| *uuid)
+            .collect::<Vec<_>>();
 
         // wait for all the responses to come back and convert the json responses to a vector of Fr254 commitments
         info!("Waiting for deposit responses");
@@ -322,9 +321,9 @@ pub async fn run_tests(
         .unwrap();
 
     // this vector stores all the deposit ids that we get back from out requests.
-    let mut transaction_ids = vec![];
+    let mut deposit_requests = vec![];
 
-    transaction_ids.push(create_nf3_deposit_transaction(
+    deposit_requests.push(create_nf3_deposit_transaction(
         &http_client,
         url.clone(),
         TokenType::ERC20,
@@ -333,7 +332,7 @@ pub async fn run_tests(
     ));
     debug!("transaction_erc20_deposit_0 has been created");
 
-    transaction_ids.push(create_nf3_deposit_transaction(
+    deposit_requests.push(create_nf3_deposit_transaction(
         &http_client,
         url.clone(),
         TokenType::ERC20,
@@ -342,7 +341,7 @@ pub async fn run_tests(
     ));
     debug!("transaction_erc20_deposit_1 has been created");
 
-    transaction_ids.push(create_nf3_deposit_transaction(
+    deposit_requests.push(create_nf3_deposit_transaction(
         &http_client,
         url.clone(),
         TokenType::ERC20,
@@ -351,7 +350,7 @@ pub async fn run_tests(
     ));
     debug!("transaction_erc20_deposit_2 has been created");
 
-    transaction_ids.push(create_nf3_deposit_transaction(
+    deposit_requests.push(create_nf3_deposit_transaction(
         &http_client,
         url.clone(),
         TokenType::ERC20,
@@ -370,7 +369,7 @@ pub async fn run_tests(
     .await;
     assert_eq!(None, balance);
 
-    transaction_ids.push(create_nf3_deposit_transaction(
+    deposit_requests.push(create_nf3_deposit_transaction(
         &http_client,
         url.clone(),
         TokenType::ERC721,
@@ -379,7 +378,7 @@ pub async fn run_tests(
     ));
     debug!("transaction_erc721_deposit has been created");
 
-    transaction_ids.push(create_nf3_deposit_transaction(
+    deposit_requests.push(create_nf3_deposit_transaction(
         &http_client,
         url.clone(),
         TokenType::ERC3525,
@@ -388,7 +387,7 @@ pub async fn run_tests(
     ));
     debug!("transaction_erc3525_deposit_1 has been created");
 
-    transaction_ids.push(create_nf3_deposit_transaction(
+    deposit_requests.push(create_nf3_deposit_transaction(
         &http_client,
         url.clone(),
         TokenType::ERC3525,
@@ -397,7 +396,7 @@ pub async fn run_tests(
     ));
     debug!("transaction_erc3525_deposit_2 has been created");
 
-    transaction_ids.push(create_nf3_deposit_transaction(
+    deposit_requests.push(create_nf3_deposit_transaction(
         &http_client,
         url.clone(),
         TokenType::ERC1155,
@@ -406,7 +405,7 @@ pub async fn run_tests(
     ));
     debug!("transaction_erc1155_deposit_1 has been created");
 
-    transaction_ids.push(create_nf3_deposit_transaction(
+    deposit_requests.push(create_nf3_deposit_transaction(
         &http_client,
         url.clone(),
         TokenType::ERC1155,
@@ -415,7 +414,7 @@ pub async fn run_tests(
     ));
     debug!("transaction_erc1155_deposit_2 has been created");
 
-    transaction_ids.push(create_nf3_deposit_transaction(
+    deposit_requests.push(create_nf3_deposit_transaction(
         &http_client,
         url.clone(),
         TokenType::ERC1155,
@@ -425,28 +424,44 @@ pub async fn run_tests(
     debug!("transaction_erc1155_deposit_3 has been created");
 
     // throw all the transactions at the client as fast as we can
-    let transaction_ids = try_join_all(transaction_ids).await.unwrap();
+    let mut transaction_data = try_join_all(deposit_requests).await.unwrap();
+    // sort by Uuid
+    transaction_data.sort_by_key(|(uuid, _)| *uuid);
 
-    // wait for the responses to the deposit requests to come back to the webhook server
-    let deposit_responses = wait_for_all_responses(&transaction_ids, responses.clone())
-        .await
+    //  Extract UUIDs and store expected token info for verification
+    let transaction_ids: Vec<Uuid> = transaction_data.iter().map(|(uuid, _)| *uuid).collect();
+    // Build a lookup for later token validation
+
+    let mut expected_token_data: HashMap<Uuid, Vec<(String, String)>> = HashMap::new();
+    for (uuid, deposit_infos) in transaction_data.iter() {
+        for info in deposit_infos {
+            expected_token_data
+                .entry(*uuid)
+                .or_default()
+                .push((info.erc_address.clone(), info.token_id.clone()));
+        }
+    }
+
+    // Wait for webhook responses
+    let responses_by_uuid = wait_for_all_responses(&transaction_ids, responses.clone()).await;
+    // Sanity check: ensure matching UUID order
+    for (i, response) in responses_by_uuid.clone().iter().enumerate() {
+        assert_eq!(
+            response.0, transaction_data[i].0,
+            "{}th Deposit response Uuid does not match deposit data Uuid",
+            i
+        );
+    }
+    // Extract commitment hashes
+    let commitment_hashes = responses_by_uuid
+        .clone()
         .into_iter()
-        .map(|(u, l)| {
-            (
-                u,
-                serde_json::from_str::<Vec<String>>(&l)
-                    .expect(&format!("Failed to parse response {}", &l)),
-            )
+        .flat_map(|(_, l)| {
+            serde_json::from_str::<Vec<String>>(&l).expect("Failed to parse response")
         })
+        .map(|l| Fr254::from_hex_string(&l).unwrap())
         .collect::<Vec<_>>();
-
-    // extract the commitment hashes from the responses
-    let commitment_hashes = deposit_responses
-        .iter()
-        .flat_map(|(_, l)| l)
-        .map(|l| Fr254::from_hex_string(l).unwrap())
-        .collect::<Vec<_>>();
-
+    // Wait for commitments to appear
     let resume_url = Url::parse(&settings.nightfall_proposer.url)
         .unwrap()
         .join("v1/resume")
@@ -481,68 +496,32 @@ pub async fn run_tests(
         fee_balance
     );
     assert_eq!(fee_balance, 137 + client1_starting_fee_balance);
+    // call verify_deposit_commitments_nf_token_id
+    info!("Verifying deposit commitments");
 
     // check that we can find one of our commitments
-    // Query the commitment endpoint to return the CommitmEntry of the first ERC20 deposit
-    // Find the value commitment in deposit_responses with uuid matching transaction_ids[0] and get its first element
-    let commitment_hash = deposit_responses
-        .iter()
-        .find(|(uuid, _)| *uuid == transaction_ids[0])
-        .and_then(|(_, vec)| vec.get(0))
-        .map(|s| Fr254::from_hex_string(s).unwrap())
-        .expect("Could not find commitment hash for matching uuid");
+    // Query the commitment endpoint to return the CommitmEntry of commitment_hashes[0]
     info!("Querying commitment endpoint");
-    let commitment_url = Url::parse(&settings.nightfall_client.url)
-        .unwrap()
-        .join(&format!(
-            "v1/commitment/{}",
-            commitment_hash.to_hex_string()
-        ))
-        .unwrap();
-    let commitment = http_client
-        .get(commitment_url)
-        .send()
-        .await
-        .expect("Failed to query commitment endpoint")
-        .json::<CommitmentEntry>()
-        .await
-        .expect("Failed to parse commitment entry");
-    assert_eq!(
-        commitment.key, commitment_hash,
-        "The commitment hashes should match"
-    );
-
-    // check that we can lookup the token id and the erc address of the first commitment
-    info!("Querying token info endpoint");
-    let token_info_url = Url::parse(&settings.nightfall_client.url)
-        .unwrap()
-        .join(&format!(
-            "v1/token/{}",
-            commitment.preimage.nf_token_id.to_hex_string()
-        ))
-        .unwrap();
-    let token_data = http_client
-        .get(token_info_url)
-        .send()
-        .await
-        .expect("Failed to query token info endpoint")
-        .json::<TokenData>()
-        .await
-        .expect("Failed to parse token info");
-    // this should be an erc20 token
-    assert_eq!(
-        token_data
-            .erc_address
-            .to_hex_string()
-            .trim_start_matches("00"),
-        TokenType::ERC20.address(),
-        "The erc address should match the ERC20 token address"
-    );
-    assert_eq!(
-        token_data.token_id,
-        BigInteger256::zero(),
-        "The token id should be 0x00"
-    );
+    // Cache for token info lookup
+    let uuid_to_commitments: HashMap<Uuid, Vec<Fr254>> = responses_by_uuid
+        .clone()
+        .iter()
+        .map(|(uuid, l)| {
+            let commitments: Vec<Fr254> = serde_json::from_str::<Vec<String>>(l)
+                .expect("Failed to parse commitment response")
+                .into_iter()
+                .map(|s| Fr254::from_hex_string(&s).unwrap())
+                .collect();
+            (*uuid, commitments)
+        })
+        .collect();
+    verify_deposit_commitments_nf_token_id(
+        &http_client,
+        &uuid_to_commitments,
+        &expected_token_data,
+        &settings,
+    )
+    .await;
 
     info!("Making client2 fee commitments so that it can withdraw");
     // give client 2 some deposit fee commitments so that it can transact
@@ -576,6 +555,10 @@ pub async fn run_tests(
 
     // throw all the transactions at the client as fast as we can
     let transaction_ids = try_join_all(transaction_ids).await.unwrap();
+    let transaction_ids = transaction_ids
+        .iter()
+        .map(|(uuid, _)| *uuid)
+        .collect::<Vec<_>>();
 
     // wait for the responses to the deposit requests to come back to the webhook server
     let commitment_hashes = wait_for_all_responses(&transaction_ids, responses.clone())
@@ -673,6 +656,20 @@ pub async fn run_tests(
         })
         .map(|l| l.0)
         .collect::<Vec<_>>();
+
+    info!("Starting chain reorg, {} blocks reorged", 200);
+
+    anvil_reorg(
+        &http_client,
+        &Url::parse("http://anvil:8545").unwrap(),
+        200,
+        true,
+        5,
+    )
+    .await
+    .unwrap();
+
+    info!("====== Chain reorg completed =========");
 
     // compute the commmitments for the transactions
     let commitment_hashes = transactions
@@ -791,6 +788,7 @@ pub async fn run_tests(
         "Balance of ERC20 tokens held as layer 2 commitments by client 1: {}",
         balance
     );
+
     assert_eq!(balance, 1 + client1_starting_balance);
 
     let balance = get_erc20_balance(&http_client, Url::parse("http://client2:3000").unwrap()).await;

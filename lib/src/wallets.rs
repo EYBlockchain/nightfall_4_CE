@@ -1,18 +1,17 @@
-use crate::blockchain_client::BlockchainClientConnection;
-use crate::error::BlockchainClientConnectionError;
+use crate::{
+    blockchain_client::BlockchainClientConnection, error::BlockchainClientConnectionError,
+};
 use async_trait::async_trait;
 use azure_security_keyvault::SecretClient;
-use ethers::core::k256::ecdsa::SigningKey;
-use ethers::providers::Middleware;
-use ethers::types::U256;
 use ethers::{
+    core::k256::ecdsa::SigningKey,
     middleware::SignerMiddleware,
-    providers::{Provider, Ws},
+    providers::{Middleware, Provider, Ws},
     signers::{LocalWallet, Signer, Wallet},
+    types::U256,
 };
 use log::{debug, info};
-use std::error::Error;
-use std::sync::Arc;
+use std::{error::Error, sync::Arc};
 use url::Url;
 
 #[derive(Clone, Debug)]

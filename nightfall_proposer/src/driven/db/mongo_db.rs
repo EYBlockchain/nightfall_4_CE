@@ -423,6 +423,7 @@ mod test {
     use super::*;
     use ark_bn254::Fr as Fr254;
     use ark_std::UniformRand;
+
     #[test]
     fn test_historic_root_type_conversion() {
         let rng = &mut ark_std::test_rng();

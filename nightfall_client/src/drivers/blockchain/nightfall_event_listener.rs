@@ -1,17 +1,27 @@
-use crate::domain::{entities::SynchronisationStatus, error::EventHandlerError};
-use crate::driven::event_handlers::nightfall_event::get_expected_layer2_blocknumber;
-use crate::ports::contracts::NightfallContract;
-use crate::services::process_events::process_events;
+use crate::{
+    domain::{
+        entities::{OnChainTransaction, SynchronisationPhase, SynchronisationStatus},
+        error::EventHandlerError,
+    },
+    driven::db::mongo::{BlockStorageDB, StoredBlock},
+    driven::event_handlers::nightfall_event::get_expected_layer2_blocknumber,
+    drivers::blockchain::nightfall_event_listener::SynchronisationPhase::Synchronized,
+    initialisation::get_db_connection,
+    ports::{contracts::NightfallContract, trees::CommitmentTree},
+    services::process_events::process_events,
+};
+use ark_bn254::Fr as Fr254;
 use configuration::{addresses::get_addresses, settings::get_settings};
 use ethers::prelude::*;
 use futures::{future::BoxFuture, FutureExt};
 use lib::{
-    blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
+    blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
+    initialisation::get_blockchain_client_connection,
 };
 use log::{debug, warn};
+use mongodb::Client as MongoClient;
 use nightfall_bindings::nightfall::Nightfall;
-use std::panic;
-use std::time::Duration;
+use std::{panic, time::Duration};
 use tokio::time::sleep;
 
 /// This function starts the event handler. It will attempt to restart the event handler in case of errors
@@ -119,8 +129,8 @@ where
     let sync_state = get_synchronisation_status::<N>()
         .await
         .expect("Could not check synchronisation state")
-        .is_synchronised();
-    if sync_state {
+        .phase();
+    if sync_state == Synchronized {
         panic!("Restarting event listener while synchronised. This should not happen");
     }
     let settings = get_settings();
@@ -129,18 +139,118 @@ where
         .max_event_listener_attempts
         .unwrap_or(10);
 
+    // clean the database and reset the trees
+    // this is a bit of a hack, but we need to reset the trees to get them back in sync
+    // with the blockchain. We should probably do this in a more elegant way, but this works for now
+    // and we can improve it later
+    {
+        let db = get_db_connection().await;
+        let _ = <MongoClient as CommitmentTree<Fr254>>::reset_tree(db).await;
+    }
+
     start_event_listener::<N>(start_block, max_attempts).await;
 }
 
 pub async fn get_synchronisation_status<N: NightfallContract>(
 ) -> Result<SynchronisationStatus, EventHandlerError> {
-    let expected_block = get_expected_layer2_blocknumber().lock().await;
-    let current_block = N::get_current_layer2_blocknumber()
+    let expected_block_number = get_expected_layer2_blocknumber().lock().await;
+    let current_block_number = N::get_current_layer2_blocknumber()
         .await
         .map_err(|_| EventHandlerError::IOError("Could not read current block".to_string()))?;
-    debug!(
-        "Expected block: {}, Current block: {}",
-        *expected_block, current_block
+
+    if *expected_block_number < current_block_number {
+        warn!(
+            "Client is behind chain: expected block {} < current block {}",
+            *expected_block_number, current_block_number
+        );
+        return Ok(SynchronisationStatus::new(
+            SynchronisationPhase::Desynchronized,
+        ));
+    }
+
+    if *expected_block_number > current_block_number {
+        let delta = *expected_block_number - current_block_number;
+        warn!(
+            "Client is ahead of chain: expected block {} > current block {}",
+            *expected_block_number, current_block_number
+        );
+        return Ok(SynchronisationStatus::new(
+            SynchronisationPhase::AheadOfChain {
+                blocks_ahead: delta.as_usize(),
+            },
+        ));
+    }
+
+    // expected == current
+    let i256_val = *expected_block_number;
+    assert!(
+        i256_val >= I256::zero(),
+        "expected_block_number is negative: {}",
+        i256_val
     );
-    Ok(SynchronisationStatus::new(*expected_block == current_block))
+
+    let expected_u64: u64 = i256_val
+        .try_into()
+        .expect("expected_block_number must be within u64 range");
+
+    let db = get_db_connection().await;
+
+    match db.get_block_by_number(expected_u64).await {
+        Some(stored_block) => {
+            let stored_hash = stored_block.hash();
+            let (proposer_address, block_onchain) =
+                N::get_layer2_block_by_number(current_block_number)
+                    .await
+                    .map_err(|_| {
+                        EventHandlerError::IOError(
+                            "Could not read block from blockchain".to_string(),
+                        )
+                    })?;
+
+            let store_block_pending = StoredBlock {
+                layer2_block_number: expected_u64,
+                commitments: block_onchain
+                    .transactions
+                    .iter()
+                    .flat_map(|ntx| {
+                        let tx: OnChainTransaction = (*ntx).clone().into();
+                        tx.commitments
+                            .iter()
+                            .map(|c| c.to_hex_string())
+                            .collect::<Vec<_>>()
+                    })
+                    .collect(),
+                proposer_address,
+            };
+
+            let expected_hash = store_block_pending.hash();
+
+            if expected_hash != stored_hash {
+                warn!(
+                    "Hash mismatch at block {}: expected {}, found {}",
+                    expected_u64, expected_hash, stored_hash
+                );
+                return Ok(SynchronisationStatus::new(
+                    SynchronisationPhase::Desynchronized,
+                ));
+            }
+            // If hashes match, fall through and return Synchronized
+            debug!(
+                "Block {} verified in local DB with matching hash.",
+                expected_u64
+            );
+            Ok(SynchronisationStatus::new(
+                SynchronisationPhase::Synchronized,
+            ))
+        }
+        None => {
+            debug!(
+                "Block {} not found in local DB. Assuming client is still in sync.",
+                expected_u64
+            );
+            Ok(SynchronisationStatus::new(
+                SynchronisationPhase::Synchronized,
+            ))
+        }
+    }
 }

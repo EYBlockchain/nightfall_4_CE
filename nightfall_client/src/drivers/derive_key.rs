@@ -1,5 +1,4 @@
-use crate::get_zkp_keys;
-use crate::ports::keys::KeySpending;
+use crate::{get_zkp_keys, ports::keys::KeySpending};
 
 use ark_bn254::Fr as Fr254;
 use ark_ec::twisted_edwards::Affine as TEAffine;
@@ -15,8 +14,7 @@ use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError
 use bip32::{DerivationPath, Mnemonic, XPrv};
 use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
-use std::error::Error;
-use std::fmt;
+use std::{error::Error, fmt};
 
 // The baby jub jub curve in ark is defined in Edwards form and use a different generator than nightfall_3
 // For nightfall_3 compatibility we will use the twisted edwards representation and map them to points in Edwards form

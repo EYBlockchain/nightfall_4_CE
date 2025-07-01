@@ -1,10 +1,11 @@
 use async_trait::async_trait;
-use ethers::middleware::SignerMiddleware;
-use ethers::providers::{JsonRpcClient, Provider, PubsubClient};
-use ethers::types::{Address, U256};
+use ethers::{
+    middleware::SignerMiddleware,
+    providers::{JsonRpcClient, Provider, PubsubClient},
+    types::{Address, U256},
+};
 use serde::Deserialize;
-use std::marker::Sync;
-use std::sync::Arc;
+use std::{marker::Sync, sync::Arc};
 use url::Url;
 
 use crate::error::BlockchainClientConnectionError;
