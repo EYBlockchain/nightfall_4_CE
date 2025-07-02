@@ -72,7 +72,7 @@ impl<P: Proof + Send + Sync> BlockAssemblyTrigger for SmartTrigger<P> {
     async fn await_trigger(&self) {
         let interval_duration = Duration::from_secs(self.interval_secs);
         let mut interval = time::interval(interval_duration);
-        let short_wait = Duration::from_secs(5);
+        let short_wait = Duration::from_secs(10);
         let start = Instant::now();
         loop {
             let elapsed = start.elapsed().as_secs();

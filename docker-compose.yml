@@ -27,7 +27,6 @@ services:
       - type: volume
         source: address_data
         target: /app/configuration/toml
-        
         read_only: true
     depends_on:
       db_client:

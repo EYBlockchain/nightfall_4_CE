@@ -2,10 +2,11 @@ use crate::{
     test::{
         self, create_nf3_deposit_transaction, create_nf3_transfer_transaction,
         create_nf3_withdraw_transaction, de_escrow_request, get_key, get_recipient_address,
-        load_addresses, set_anvil_mining_interval, validate_certificate_with_server,
-        verify_deposit_commitments_nf_token_id, wait_for_all_responses, wait_on_chain, TokenType,
+        load_addresses, set_anvil_mining_interval, verify_deposit_commitments_nf_token_id,
+        wait_for_all_responses, wait_on_chain, TokenType,
     },
     test_settings::TestSettings,
+    validate_certs::validate_all_certificates,
 };
 use ark_bn254::Fr as Fr254;
 use ark_std::{collections::HashMap, Zero};
@@ -18,12 +19,11 @@ use ethers::{
 use futures::future::try_join_all;
 use lib::{
     blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
-    initialisation::get_blockchain_client_connection, models::CertificateReq,
+    initialisation::get_blockchain_client_connection,
 };
 use log::{debug, info, warn};
 use nightfall_client::drivers::rest::{client_nf_3::WithdrawResponse, models::DeEscrowDataReq};
 use serde_json::Value;
-use std::fs;
 use test::{
     anvil_reorg, count_spent_commitments, get_erc20_balance, get_erc721_balance, get_fee_balance,
 };
@@ -60,80 +60,40 @@ pub async fn run_tests(
     let zkp_key2 = get_key(url, &key_request2).await.unwrap();
     info!("* zkp keys created");
 
-    // forge_command(&["install"]);
-    // forge_command(&[
-    //     "script",
-    //     "MockDeployer",
-    //     "--fork-url",
-    //     &settings.ethereum_client_url,
-    //     "--broadcast",
-    //     "--force",
-    // ]);
-
     let _ = load_addresses(&settings).unwrap();
     info!("* contract addresses obtained");
-
-    // Validate the certificate with the server before proceeding
-    info!("Validating Client's certificate");
-    let cert_url = Url::parse(&settings.nightfall_client.url)
-        .unwrap()
-        .join("/v1/certification")
-        .unwrap();
-
-    let client_1_cert =
-        fs::read("../blockchain_assets/test_contracts/X509/_certificates/user/user-1.der")
-            .expect("Failed to read user-1 certificate");
-    let client_1_cert_private_key =
-        fs::read("../blockchain_assets/test_contracts/X509/_certificates/user/user-1.priv_key")
-            .expect("Failed to read user priv_key");
-
-    let client_1_certificate_req = CertificateReq {
-        certificate: client_1_cert,
-        certificate_private_key: client_1_cert_private_key,
-    };
-    validate_certificate_with_server(&http_client, cert_url, client_1_certificate_req.clone())
-        .await
-        .expect("Client 1 Certificate validation failed");
-
-    info!("Validating Client Two's certificate");
-    let client_2_cert =
-        fs::read("../blockchain_assets/test_contracts/X509/_certificates/user/user-2.der")
-            .expect("Failed to read user-2 certificate");
-    let client_2_cert_private_key =
-        fs::read("../blockchain_assets/test_contracts/X509/_certificates/user/user-2.priv_key")
-            .expect("Failed to read user priv_key");
-
-    let client_2_certificate_req = CertificateReq {
-        certificate: client_2_cert,
-        certificate_private_key: client_2_cert_private_key,
-    };
-    let cert_2_url = Url::parse("http://client2:3000")
-        .unwrap()
-        .join("/v1/certification")
-        .unwrap();
-    validate_certificate_with_server(&http_client, cert_2_url, client_2_certificate_req)
-        .await
-        .expect("Client 2 Certificate validation failed");
-
-    info!("Validating Proposer's certificate");
-    //let http_client = reqwest::Client::new();
-    let cert_url = Url::parse(&settings.nightfall_proposer.url)
-        .unwrap()
-        .join("/v1/certification")
-        .unwrap();
-    let proposer_cert =
-        fs::read("../blockchain_assets/test_contracts/X509/_certificates/user/user-3.der")
-            .expect("Failed to read proposer's certificate");
-    let proposer_cert_private_key =
-        fs::read("../blockchain_assets/test_contracts/X509/_certificates/user/user-3.priv_key")
-            .expect("Failed to read proposer's certificate priv_key");
-    let proposer_certificate_req = CertificateReq {
-        certificate: proposer_cert,
-        certificate_private_key: proposer_cert_private_key,
-    };
-    validate_certificate_with_server(&http_client, cert_url, proposer_certificate_req)
-        .await
-        .expect("Certificate validation failed");
+    // Validate all certificates (clients and proposer)
+    // (name, cert_path, key_path, url)
+    let certs: [(&'static str, &'static str, &'static str, Url); 3] = [
+        (
+            "Client 1",
+            "../blockchain_assets/test_contracts/X509/_certificates/user/user-1.der",
+            "../blockchain_assets/test_contracts/X509/_certificates/user/user-1.priv_key",
+            Url::parse(&settings.nightfall_client.url)
+                .unwrap()
+                .join("/v1/certification")
+                .unwrap(),
+        ),
+        (
+            "Client 2",
+            "../blockchain_assets/test_contracts/X509/_certificates/user/user-2.der",
+            "../blockchain_assets/test_contracts/X509/_certificates/user/user-2.priv_key",
+            Url::parse("http://client2:3000")
+                .unwrap()
+                .join("/v1/certification")
+                .unwrap(),
+        ),
+        (
+            "Proposer",
+            "../blockchain_assets/test_contracts/X509/_certificates/user/user-3.der",
+            "../blockchain_assets/test_contracts/X509/_certificates/user/user-3.priv_key",
+            Url::parse(&settings.nightfall_proposer.url)
+                .unwrap()
+                .join("/v1/certification")
+                .unwrap(),
+        ),
+    ];
+    validate_all_certificates(certs, &http_client).await;
 
     //see if the NF4_LARGE_BLOCK_TEST environment variable is set to 'true' and run the large block test only if it is
     let (

@@ -7,6 +7,7 @@ use nightfall_client::drivers::derive_key::ZKPKeys;
 use nightfall_client::drivers::rest::models::{
     NF3DepositRequest, NF3RecipientData, NF3TransferRequest, NF3WithdrawRequest,
 };
+use nightfall_test::validate_certs::validate_all_certificates;
 use reqwest::Client;
 use serde::Deserialize;
 use std::error::Error;
@@ -20,25 +21,10 @@ const CONFIG_PATH: &str = "nightfall_test/bin/config.toml";
 /// This module provides a simple UI for interacting with a Nightfall client.
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    println!("Nightfall Client UI is running...");
+    println!("Nightfall Client UI...");
 
     // Read and parse config.toml into url and mnemonic variables
-    let (url, mnemonic, erc_address) = load_config(CONFIG_PATH);
-
-    // Derive ZKP keys from the mnemonic and a standard derivation path
-    let derivation_path = "m/44'/60'/0'/0/0"
-        .parse::<DerivationPath>()
-        .expect("Invalid derivation path");
-    let zkp_keys = ZKPKeys::derive_from_mnemonic(&mnemonic, &derivation_path)
-        .expect("Failed to derive ZKP keys from mnemonic");
-    // Print the ZkP compressed public key
-    println!(
-        "Your layer 2 address is: {}",
-        zkp_keys
-            .compressed_public_key()
-            .expect("Failed to get compressed public key")
-            .to_hex_string()
-    );
+    let (url, mnemonic) = load_config(CONFIG_PATH);
 
     // check for client connectivity
     if !check_client_connection(&url).await {
@@ -47,18 +33,71 @@ async fn main() -> Result<(), Box<dyn Error>> {
         println!("Client is healthy and reachable at {}", url);
     }
 
+    // Derive ZKP keys from the mnemonic and a standard derivation path
+    let derivation_path = "m/44'/60'/0'/0/0"
+        .parse::<DerivationPath>()
+        .expect("Invalid derivation path");
+    let zkp_keys = ZKPKeys::derive_from_mnemonic(&mnemonic, &derivation_path)
+        .expect("Failed to derive ZKP keys from mnemonic");
+    // Print the ZkP compressed public key
+    let layer_2_address = zkp_keys
+        .compressed_public_key()
+        .expect("Failed to get compressed public key")
+        .to_hex_string();
+    println!("Your layer 2 address is: {}", layer_2_address);
+
+    // Extract ERC20Mock contract address from deployment log file
+    let log_path = "blockchain_assets/logs/mock_deployment.s.sol/31337/run-latest.json";
+    let log_content =
+        std::fs::read_to_string(log_path).expect("Failed to read deployment log file");
+    let log_json: serde_json::Value =
+        serde_json::from_str(&log_content).expect("Failed to parse deployment log JSON");
+    let erc20_address = log_json["transactions"]
+        .as_array()
+        .and_then(|txs| txs.iter().find(|tx| tx["contractName"] == "ERC20Mock"))
+        .and_then(|tx| tx["contractAddress"].as_str())
+        .expect("ERC20Mock contract address not found in log");
+    let default_erc_address = erc20_address.to_string();
+
+    println!("ERC20Mock contract address: {}", default_erc_address);
+
+    println!("Presenting certificates for validation...");
+    // present certificates for validation
+    let http_client = Client::new();
+    // Validate all certificates (clients and proposer)
+    // (name, cert_path, key_path, url)
+    let certs = [
+        (
+            "Client 1",
+            "blockchain_assets/test_contracts/X509/_certificates/user/user-1.der",
+            "blockchain_assets/test_contracts/X509/_certificates/user/user-1.priv_key",
+            url.join("/v1/certification").unwrap(),
+        ),
+        (
+            "Proposer",
+            "blockchain_assets/test_contracts/X509/_certificates/user/user-3.der",
+            "blockchain_assets/test_contracts/X509/_certificates/user/user-3.priv_key",
+            Url::parse("http://localhost:3001")
+                .unwrap()
+                .join("/v1/certification")
+                .unwrap(),
+        ),
+    ];
+    validate_all_certificates(certs, &http_client).await;
+
+    println!("Ready");
     // start the inquirer to get user input
     loop {
         let action = get_actions()?;
         match action.as_str() {
             "Get L2 balance" => {
-                let balance = get_l2_balance(&url, &erc_address).await;
+                let balance = get_l2_balance(&url, &default_erc_address).await;
                 println!("Balance: {}", balance);
             }
             "Get L1 balance" => get_l1_balance(),
-            "Deposit" => deposit(&url, &erc_address).await,
-            "Transfer" => transfer(&url, &erc_address).await,
-            "Withdraw" => withdraw(&url, &erc_address).await,
+            "Deposit" => deposit(&url, &default_erc_address).await,
+            "Transfer" => transfer(&url, &default_erc_address, &layer_2_address).await,
+            "Withdraw" => withdraw(&url, &default_erc_address).await,
             "Exit" => {
                 println!("Exiting the Nightfall Client UI.");
                 break;
@@ -69,12 +108,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn load_config<P: AsRef<Path>>(path: P) -> (Url, Mnemonic, String) {
+fn load_config<P: AsRef<Path>>(path: P) -> (Url, Mnemonic) {
     #[derive(Deserialize)]
     struct ConfigSection {
         url: String,
         mnemonic: String,
-        erc_address: String,
     }
     #[derive(Deserialize)]
     struct ConfigFile {
@@ -93,8 +131,7 @@ fn load_config<P: AsRef<Path>>(path: P) -> (Url, Mnemonic, String) {
             new_mnemonic
         }
     };
-    let erc_address = config.config.erc_address;
-    (url, mnemonic, erc_address)
+    (url, mnemonic)
 }
 
 fn get_actions() -> Result<String, inquire::InquireError> {
@@ -176,8 +213,8 @@ async fn deposit(url: &url::Url, default_erc_address: &str) {
     }
 }
 
-async fn transfer(url: &url::Url, default_erc_address: &str) {
-    let req = prompt_nf3_transfer_request(default_erc_address);
+async fn transfer(url: &url::Url, default_erc_address: &str, default_recipient_key: &str) {
+    let req = prompt_nf3_transfer_request(default_erc_address, default_recipient_key);
     let mut endpoint = url.clone();
     endpoint.set_path("/v1/transfer");
     let client = reqwest::Client::new();
@@ -258,7 +295,10 @@ fn prompt_nf3_deposit_request(default_erc_address: &str) -> NF3DepositRequest {
     }
 }
 
-fn prompt_nf3_transfer_request(default_erc_address: &str) -> NF3TransferRequest {
+fn prompt_nf3_transfer_request(
+    default_erc_address: &str,
+    default_recipient_key: &str,
+) -> NF3TransferRequest {
     let erc_address = Text::new("Enter ERC address:")
         .with_initial_value(default_erc_address)
         .prompt()
@@ -272,9 +312,11 @@ fn prompt_nf3_transfer_request(default_erc_address: &str) -> NF3TransferRequest 
         .prompt()
         .expect("Failed to get Value");
     let recipient_key = Text::new("Enter recipient compressed ZKP public key:")
-        .with_initial_value("0x00")
+        .with_initial_value(default_recipient_key)
         .prompt()
-        .expect("Failed to get recipient key");
+        .expect("Failed to get recipient key")
+        .trim_start_matches("0x")
+        .to_string();
     let fee = Text::new("Enter Fee:")
         .with_initial_value("0x00")
         .prompt()

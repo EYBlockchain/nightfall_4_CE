@@ -7,43 +7,53 @@ pub use sanctions_list_mock::*;
     clippy::upper_case_acronyms,
     clippy::type_complexity,
     dead_code,
-    non_camel_case_types
+    non_camel_case_types,
 )]
 pub mod sanctions_list_mock {
     #[allow(deprecated)]
     fn __abi() -> ::ethers::core::abi::Abi {
         ::ethers::core::abi::ethabi::Contract {
             constructor: ::core::option::Option::Some(::ethers::core::abi::ethabi::Constructor {
-                inputs: ::std::vec![::ethers::core::abi::ethabi::Param {
-                    name: ::std::borrow::ToOwned::to_owned("_sanctionedUser"),
-                    kind: ::ethers::core::abi::ethabi::ParamType::Address,
-                    internal_type: ::core::option::Option::Some(::std::borrow::ToOwned::to_owned(
-                        "address"
-                    ),),
-                },],
-            }),
-            functions: ::core::convert::From::from([(
-                ::std::borrow::ToOwned::to_owned("isSanctioned"),
-                ::std::vec![::ethers::core::abi::ethabi::Function {
-                    name: ::std::borrow::ToOwned::to_owned("isSanctioned"),
-                    inputs: ::std::vec![::ethers::core::abi::ethabi::Param {
-                        name: ::std::borrow::ToOwned::to_owned("user"),
+                inputs: ::std::vec![
+                    ::ethers::core::abi::ethabi::Param {
+                        name: ::std::borrow::ToOwned::to_owned("_sanctionedUser"),
                         kind: ::ethers::core::abi::ethabi::ParamType::Address,
                         internal_type: ::core::option::Option::Some(
                             ::std::borrow::ToOwned::to_owned("address"),
                         ),
-                    },],
-                    outputs: ::std::vec![::ethers::core::abi::ethabi::Param {
-                        name: ::std::string::String::new(),
-                        kind: ::ethers::core::abi::ethabi::ParamType::Bool,
-                        internal_type: ::core::option::Option::Some(
-                            ::std::borrow::ToOwned::to_owned("bool"),
-                        ),
-                    },],
-                    constant: ::core::option::Option::None,
-                    state_mutability: ::ethers::core::abi::ethabi::StateMutability::View,
-                },],
-            )]),
+                    },
+                ],
+            }),
+            functions: ::core::convert::From::from([
+                (
+                    ::std::borrow::ToOwned::to_owned("isSanctioned"),
+                    ::std::vec![
+                        ::ethers::core::abi::ethabi::Function {
+                            name: ::std::borrow::ToOwned::to_owned("isSanctioned"),
+                            inputs: ::std::vec![
+                                ::ethers::core::abi::ethabi::Param {
+                                    name: ::std::borrow::ToOwned::to_owned("user"),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::Address,
+                                    internal_type: ::core::option::Option::Some(
+                                        ::std::borrow::ToOwned::to_owned("address"),
+                                    ),
+                                },
+                            ],
+                            outputs: ::std::vec![
+                                ::ethers::core::abi::ethabi::Param {
+                                    name: ::std::string::String::new(),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::Bool,
+                                    internal_type: ::core::option::Option::Some(
+                                        ::std::borrow::ToOwned::to_owned("bool"),
+                                    ),
+                                },
+                            ],
+                            constant: ::core::option::Option::None,
+                            state_mutability: ::ethers::core::abi::ethabi::StateMutability::View,
+                        },
+                    ],
+                ),
+            ]),
             events: ::std::collections::BTreeMap::new(),
             errors: ::std::collections::BTreeMap::new(),
             receive: false,
@@ -51,18 +61,21 @@ pub mod sanctions_list_mock {
         }
     }
     ///The parsed JSON ABI of the contract.
-    pub static SANCTIONSLISTMOCK_ABI: ::ethers::contract::Lazy<::ethers::core::abi::Abi> =
-        ::ethers::contract::Lazy::new(__abi);
+    pub static SANCTIONSLISTMOCK_ABI: ::ethers::contract::Lazy<
+        ::ethers::core::abi::Abi,
+    > = ::ethers::contract::Lazy::new(__abi);
     #[rustfmt::skip]
     const __BYTECODE: &[u8] = b"`\x80`@R4\x80\x15`\x0EW__\xFD[P`@Qa\x01W8\x03\x80a\x01W\x839\x81\x01`@\x81\x90R`+\x91`NV[_\x80T`\x01`\x01`\xA0\x1B\x03\x19\x16`\x01`\x01`\xA0\x1B\x03\x92\x90\x92\x16\x91\x90\x91\x17\x90U`yV[_` \x82\x84\x03\x12\x15`]W__\xFD[\x81Q`\x01`\x01`\xA0\x1B\x03\x81\x16\x81\x14`rW__\xFD[\x93\x92PPPV[`\xD2\x80a\0\x85_9_\xF3\xFE`\x80`@R4\x80\x15`\x0EW__\xFD[P`\x046\x10`&W_5`\xE0\x1C\x80c\xDFY/}\x14`*W[__\xFD[`9`56`\x04`qV[`MV[`@Q\x90\x15\x15\x81R` \x01`@Q\x80\x91\x03\x90\xF3[_\x80T`\x01`\x01`\xA0\x1B\x03\x90\x81\x16\x90\x83\x16\x03`jWP`\x01\x91\x90PV[P_\x91\x90PV[_` \x82\x84\x03\x12\x15`\x80W__\xFD[\x815`\x01`\x01`\xA0\x1B\x03\x81\x16\x81\x14`\x95W__\xFD[\x93\x92PPPV\xFE\xA2dipfsX\"\x12 L\xF6\xA1%\xFE\xCFQ;\xEC\x9D\xD1\xEF\xEF\xA0\xD8xD\xAB\xA5\x80\xD6\xA5\xF8\x89L\xA0q\x91\xCE\xFD\xD8\xBDdsolcC\0\x08\x1C\x003";
     /// The bytecode of the contract.
-    pub static SANCTIONSLISTMOCK_BYTECODE: ::ethers::core::types::Bytes =
-        ::ethers::core::types::Bytes::from_static(__BYTECODE);
+    pub static SANCTIONSLISTMOCK_BYTECODE: ::ethers::core::types::Bytes = ::ethers::core::types::Bytes::from_static(
+        __BYTECODE,
+    );
     #[rustfmt::skip]
     const __DEPLOYED_BYTECODE: &[u8] = b"`\x80`@R4\x80\x15`\x0EW__\xFD[P`\x046\x10`&W_5`\xE0\x1C\x80c\xDFY/}\x14`*W[__\xFD[`9`56`\x04`qV[`MV[`@Q\x90\x15\x15\x81R` \x01`@Q\x80\x91\x03\x90\xF3[_\x80T`\x01`\x01`\xA0\x1B\x03\x90\x81\x16\x90\x83\x16\x03`jWP`\x01\x91\x90PV[P_\x91\x90PV[_` \x82\x84\x03\x12\x15`\x80W__\xFD[\x815`\x01`\x01`\xA0\x1B\x03\x81\x16\x81\x14`\x95W__\xFD[\x93\x92PPPV\xFE\xA2dipfsX\"\x12 L\xF6\xA1%\xFE\xCFQ;\xEC\x9D\xD1\xEF\xEF\xA0\xD8xD\xAB\xA5\x80\xD6\xA5\xF8\x89L\xA0q\x91\xCE\xFD\xD8\xBDdsolcC\0\x08\x1C\x003";
     /// The deployed bytecode of the contract.
-    pub static SANCTIONSLISTMOCK_DEPLOYED_BYTECODE: ::ethers::core::types::Bytes =
-        ::ethers::core::types::Bytes::from_static(__DEPLOYED_BYTECODE);
+    pub static SANCTIONSLISTMOCK_DEPLOYED_BYTECODE: ::ethers::core::types::Bytes = ::ethers::core::types::Bytes::from_static(
+        __DEPLOYED_BYTECODE,
+    );
     pub struct SanctionsListMock<M>(::ethers::contract::Contract<M>);
     impl<M> ::core::clone::Clone for SanctionsListMock<M> {
         fn clone(&self) -> Self {
@@ -94,11 +107,13 @@ pub mod sanctions_list_mock {
             address: T,
             client: ::std::sync::Arc<M>,
         ) -> Self {
-            Self(::ethers::contract::Contract::new(
-                address.into(),
-                SANCTIONSLISTMOCK_ABI.clone(),
-                client,
-            ))
+            Self(
+                ::ethers::contract::Contract::new(
+                    address.into(),
+                    SANCTIONSLISTMOCK_ABI.clone(),
+                    client,
+                ),
+            )
         }
         /// Constructs the general purpose `Deployer` instance based on the provided constructor arguments and sends it.
         /// Returns a new instance of a deployer that returns an instance of this contract after sending the transaction
@@ -150,8 +165,7 @@ pub mod sanctions_list_mock {
         }
     }
     impl<M: ::ethers::providers::Middleware> From<::ethers::contract::Contract<M>>
-        for SanctionsListMock<M>
-    {
+    for SanctionsListMock<M> {
         fn from(contract: ::ethers::contract::Contract<M>) -> Self {
             Self::new(contract.address(), contract.client())
         }
@@ -167,7 +181,7 @@ pub mod sanctions_list_mock {
         Debug,
         PartialEq,
         Eq,
-        Hash,
+        Hash
     )]
     #[ethcall(name = "isSanctioned", abi = "isSanctioned(address)")]
     pub struct IsSanctionedCall {
@@ -184,7 +198,7 @@ pub mod sanctions_list_mock {
         Debug,
         PartialEq,
         Eq,
-        Hash,
+        Hash
     )]
     pub struct IsSanctionedReturn(pub bool);
 }
