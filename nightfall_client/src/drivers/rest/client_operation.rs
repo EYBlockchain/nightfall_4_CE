@@ -65,7 +65,7 @@ where
     {
         let db = get_db_connection().await;
         let mut commitment_entries = vec![];
-        for commitment in new_commitments.iter() {
+        for (i, commitment) in new_commitments.iter().enumerate() {
             let commitment_hash = commitment.hash().expect("Commitments must be hashable");
             let commitment_hex = commitment_hash.to_hex_string();
             // Add mapping between request and commitment
@@ -73,7 +73,8 @@ where
                 Ok(_) => debug!("{id} Mapped commitment to request"),
                 Err(e) => error!("{id} Failed to  map commitment to request: {e}"),
             }
-            if commitment.get_public_key() == zkp_public_key {
+            // we only store the change commitments and only the ones that aren't default 
+            if commitment.get_public_key() == zkp_public_key && i != 0 && commitment.get_preimage() != Preimage::default() {
                 let nullifier = commitment
                     .nullifier_hash(&nullifier_key)
                     .expect("Nullifiers must be hashable");
@@ -86,8 +87,6 @@ where
             }
         }
         if !commitment_entries.is_empty() {
-            // remove default commitment entries because they're never going to be used
-            commitment_entries.retain(|entry| entry.preimage != Preimage::default());
             db.store_commitments(&commitment_entries, true)
                 .await
                 .ok_or(TransactionHandlerError::DatabaseError)?;

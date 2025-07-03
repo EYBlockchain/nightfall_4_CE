@@ -1,5 +1,5 @@
 use ark_std::rand;
-use bip32::{DerivationPath, Mnemonic};
+use bip32::Mnemonic;
 use inquire::Select;
 use inquire::Text;
 use lib::hex_conversion::HexConvertible;
@@ -33,17 +33,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         println!("Client is healthy and reachable at {}", url);
     }
 
-    // Derive ZKP keys from the mnemonic and a standard derivation path
-    let derivation_path = "m/44'/60'/0'/0/0"
-        .parse::<DerivationPath>()
-        .expect("Invalid derivation path");
-    let zkp_keys = ZKPKeys::derive_from_mnemonic(&mnemonic, &derivation_path)
-        .expect("Failed to derive ZKP keys from mnemonic");
-    // Print the ZkP compressed public key
-    let layer_2_address = zkp_keys
-        .compressed_public_key()
-        .expect("Failed to get compressed public key")
-        .to_hex_string();
+    // Derive ZKP keys by calling the deriveKey endpoint (refactored into get_keys)
+    let layer_2_address = get_keys(&url, &mnemonic).await;
     println!("Your layer 2 address is: 0x{}", layer_2_address);
 
     // Extract ERC20Mock contract address from deployment log file
@@ -374,4 +365,30 @@ async fn check_client_connection(base_url: &Url) -> bool {
         Ok(resp) => resp.status().is_success(),
         Err(_) => false,
     }
+}
+
+// Helper function to derive the layer 2 address from the deriveKey endpoint
+async fn get_keys(url: &Url, mnemonic: &Mnemonic) -> String {
+    let derivation_path = "m/44'/60'/0'/0/0";
+    let key_request = serde_json::json!({
+        "mnemonic": mnemonic.phrase(),
+        "child_path": derivation_path
+    });
+    let mut derive_key_url = url.clone();
+    derive_key_url.set_path("/v1/deriveKey");
+    let client = reqwest::Client::new();
+    let resp = client
+        .post(derive_key_url)
+        .json(&key_request)
+        .send()
+        .await
+        .expect("Failed to call deriveKey endpoint");
+    if !resp.status().is_success() {
+        panic!("deriveKey endpoint failed: {}", resp.text().await.unwrap());
+    }
+    let zkp_keys: ZKPKeys = resp.json().await.expect("Failed to parse ZKPKeys from response");
+    zkp_keys
+        .compressed_public_key()
+        .expect("Failed to get compressed public key")
+        .to_hex_string()
 }
