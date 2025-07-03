@@ -1,6 +1,6 @@
 use crate::{
     domain::{
-        entities::{ClientTransaction, CommitmentStatus, Operation, RequestStatus},
+        entities::{ClientTransaction, CommitmentStatus, Operation, Preimage, RequestStatus},
         error::TransactionHandlerError,
         notifications::NotificationPayload,
     },
@@ -34,6 +34,7 @@ use std::{error::Error, fmt::Debug, time::Duration};
 use tokio::time::sleep;
 use url::Url;
 use warp::hyper::StatusCode;
+
 #[allow(clippy::too_many_arguments)]
 pub async fn handle_client_operation<P, E, N>(
     operation: Operation,
@@ -59,7 +60,6 @@ where
         ..
     } = *get_zkp_keys().lock().expect("Poisoned Mutex lock");
 
-    debug!("{id} Calling client_operation");
     // We should store the change commitments, so that when they appear on-chain, we can add them to the commitments DB.
     // That will mean that they could potentially be spent.
     {
@@ -86,6 +86,8 @@ where
             }
         }
         if !commitment_entries.is_empty() {
+            // remove default commitment entries because they're never going to be used
+            commitment_entries.retain(|entry| entry.preimage != Preimage::default());
             db.store_commitments(&commitment_entries, true)
                 .await
                 .ok_or(TransactionHandlerError::DatabaseError)?;

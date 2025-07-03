@@ -44,7 +44,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .compressed_public_key()
         .expect("Failed to get compressed public key")
         .to_hex_string();
-    println!("Your layer 2 address is: {}", layer_2_address);
+    println!("Your layer 2 address is: 0x{}", layer_2_address);
 
     // Extract ERC20Mock contract address from deployment log file
     let log_path = "blockchain_assets/logs/mock_deployment.s.sol/31337/run-latest.json";

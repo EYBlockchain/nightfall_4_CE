@@ -12,11 +12,7 @@ use jf_primitives::{
 };
 use lib::hex_conversion::HexConvertible;
 use log::{debug, error, info};
-use mongodb::{
-    bson::doc,
-    error::{ErrorKind, WriteFailure::WriteError},
-    Client,
-};
+use mongodb::{bson::doc, error::{ErrorKind, WriteFailure::WriteError}, Client};
 use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, str};
 
@@ -175,7 +171,7 @@ impl RequestDB for Client {
         match result {
             Ok(_) => Some(()),
             Err(e) => {
-                info!("{} Got an error inserting request: {}", request.uuid, e);
+                error!("{} Got an error inserting request: {}", request.uuid, e);
                 None
             }
         }
@@ -193,11 +189,14 @@ impl RequestDB for Client {
     async fn update_request(&self, request_id: &str, status: RequestStatus) -> Option<()> {
         let filter = doc! { "uuid": request_id };
         let update = doc! {"$set": { "status": status.to_string() }};
-        self.database(DB)
+        let result = self.database(DB)
             .collection::<Request>("requests")
             .update_one(filter, update)
-            .await
-            .ok()?;
+            .await;
+        if let Err(e) = result {
+            error!("{} Got an error updating request: {}", request_id, e);
+            return None;
+        }
         Some(())
     }
 }
@@ -570,6 +569,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
         if commitments.is_empty() {
             return Some(());
         }
+        debug!("Storing commitments with hashes{:?} ", commitments.iter().map(|c| c.key.to_hex_string()).collect::<Vec<_>>());
         let res = self
             .database(DB)
             .collection::<CommitmentEntry>("commitments")
@@ -577,19 +577,23 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
             .await;
         match res {
             Ok(_) => Some(()),
-            // unpack the Mongo error and check if it's a duplicate _id error. If so, behave according to dup_key_check
+            // unpack the Mongo errors and check if it's a duplicate _id error. If so, behave according to dup_key_check
             Err(e) => {
                 match e.kind.as_ref() {
                     ErrorKind::Write(WriteError(write_error)) => {
                         if write_error.code == 11000 && !dup_key_check {
-                            println!("Duplicate _id error: {:?}", write_error);
+                            debug!("Duplicate _id error: {:?}", write_error);
                             // duplicate _id error but we don't care
                             Some(())
                         } else {
+                            error!("Unhandled Write Error storing commitments: {} duplicate key check {}", e, dup_key_check);
                             None
                         }
                     }
-                    _ => None,
+                    _ => {
+                        error!("Unhandled Error storing commitments: {} duplicate key check {}", e, dup_key_check);
+                        None
+                    }
                 }
             }
         }

@@ -19,7 +19,7 @@ chain_id = 31337 # Anvil chain id = 31337
 
 [development.nightfall_client]
 url = "http://client:3000"
-log_level = "info"
+log_level = "debug"
 wallet_type = "local"
 db_url = "mongodb://nf4_db_client:27017"
 max_event_listener_attempts = 10

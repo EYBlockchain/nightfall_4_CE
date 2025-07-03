@@ -439,6 +439,7 @@ where
     E: ProvingEngine<P>,
     N: NightfallContract,
 {
+    debug!("Handling transfer request: {:?}", transfer_req);
     let NF3TransferRequest {
         erc_address,
         token_id,
@@ -600,6 +601,8 @@ where
         new_commitment_three,
         new_commitment_four,
     ];
+
+    dbg!(new_commitments.iter().map(|c| c.hash().unwrap().to_hex_string()).collect::<Vec<_>>());
 
     let secret_preimages = [
         spend_commitments[0].get_secret_preimage(),

@@ -11,7 +11,8 @@ pub async fn validate_all_certificates<const N: usize>(
 ) {
     for (name, cert_path, key_path, url) in certs.iter() {
         info!("Validating {}'s certificate", name);
-        let cert = fs::read(cert_path).unwrap_or_else(|_| panic!("Failed to read {} certificate", name));
+        let cert =
+            fs::read(cert_path).unwrap_or_else(|_| panic!("Failed to read {} certificate", name));
         let key = fs::read(key_path).unwrap_or_else(|_| panic!("Failed to read {} priv_key", name));
         let cert_req = CertificateReq {
             certificate: cert,
