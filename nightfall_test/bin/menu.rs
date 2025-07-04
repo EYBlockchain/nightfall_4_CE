@@ -1,5 +1,7 @@
 use ark_std::rand;
 use bip32::Mnemonic;
+use dotenv::dotenv;
+use ethers::types::U256;
 use inquire::Select;
 use inquire::Text;
 use lib::hex_conversion::HexConvertible;
@@ -19,9 +21,18 @@ use uuid::Uuid;
 const CONFIG_PATH: &str = "nightfall_test/bin/config.toml";
 
 /// This module provides a simple UI for interacting with a Nightfall client.
+/// Entry point for the Nightfall Client UI CLI. Handles config loading, client health check, key derivation, contract address extraction, certificate validation, and user interaction loop.
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     println!("Nightfall Client UI...");
+
+    // Load environment variables from .env file (if present)
+    dotenv().ok();
+
+    // Extract the client address from the environment variable CLIENT_ADDRESS
+    let client_address =
+        std::env::var("CLIENT_ADDRESS").expect("CLIENT_ADDRESS environment variable not set");
+    println!("Client address from .env: {}", client_address);
 
     // Read and parse config.toml into url and mnemonic variables
     let (url, mnemonic) = load_config(CONFIG_PATH);
@@ -34,7 +45,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 
     // Derive ZKP keys by calling the deriveKey endpoint (refactored into get_keys)
-    let layer_2_address = get_keys(&url, &mnemonic).await;
+    let layer_2_address = get_keys(&url, &mnemonic).await?;
     println!("Your layer 2 address is: 0x{}", layer_2_address);
 
     // Extract ERC20Mock contract address from deployment log file
@@ -49,11 +60,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .and_then(|tx| tx["contractAddress"].as_str())
         .expect("ERC20Mock contract address not found in log");
     let default_erc_address = erc20_address.to_string();
-
     println!("ERC20Mock contract address: {}", default_erc_address);
 
-    println!("Presenting certificates for validation...");
     // present certificates for validation
+    println!("Presenting certificates for validation...");
     let http_client = Client::new();
     // Validate all certificates (clients and proposer)
     // (name, cert_path, key_path, url)
@@ -85,10 +95,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 let balance = get_l2_balance(&url, &default_erc_address).await;
                 println!("Balance: {}", balance);
             }
-            "Get L1 balance" => get_l1_balance(),
-            "Deposit" => deposit(&url, &default_erc_address).await,
-            "Transfer" => transfer(&url, &default_erc_address, &layer_2_address).await,
-            "Withdraw" => withdraw(&url, &default_erc_address).await,
+            "Get L1 balance" => match get_l1_balance(&url).await {
+                Ok(balance) => println!("L1 Balance: {}", balance),
+                Err(e) => println!("Failed to get L1 balance: {}", e),
+            },
+            "Deposit" => deposit(&url, &default_erc_address).await?,
+            "Transfer" => transfer(&url, &default_erc_address, &layer_2_address).await?,
+            "Withdraw" => withdraw(&url, &default_erc_address, &client_address).await?,
             "Exit" => {
                 println!("Exiting the Nightfall Client UI.");
                 break;
@@ -99,6 +112,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+/// Loads the configuration file at the given path and returns the parsed URL and mnemonic.
+/// If the mnemonic is invalid, generates a new one and prints it for the user to add to the config.
 fn load_config<P: AsRef<Path>>(path: P) -> (Url, Mnemonic) {
     #[derive(Deserialize)]
     struct ConfigSection {
@@ -125,6 +140,7 @@ fn load_config<P: AsRef<Path>>(path: P) -> (Url, Mnemonic) {
     (url, mnemonic)
 }
 
+/// Presents the user with a menu of available actions and returns the selected action as a string.
 fn get_actions() -> Result<String, inquire::InquireError> {
     let options = vec![
         "Get L2 balance",
@@ -138,6 +154,8 @@ fn get_actions() -> Result<String, inquire::InquireError> {
     Ok(ans.to_string())
 }
 
+/// Prompts the user for ERC address and token ID, then queries the L2 balance from the client REST API.
+/// Returns the balance as an i64, or 0 if the request fails.
 async fn get_l2_balance(url: &url::Url, default_erc_address: &str) -> i64 {
     let (erc_address, token_id) = {
         let erc_address = inquire::Text::new("Enter ERC address:")
@@ -173,12 +191,27 @@ async fn get_l2_balance(url: &url::Url, default_erc_address: &str) -> i64 {
     }
 }
 
-fn get_l1_balance() {
-    // Placeholder for L1 balance retrieval logic
-    unimplemented!("L1 balance retrieval is not implemented yet");
+/// Calls the /v1/l1_balance endpoint and returns the L1 balance as a u64 on success, using HexConvertible for parsing.
+async fn get_l1_balance(url: &Url) -> Result<U256, Box<dyn std::error::Error>> {
+    let mut l1_url = url.clone();
+    l1_url.set_path("/v1/l1_balance");
+    let client = reqwest::Client::new();
+    let resp = client.get(l1_url).send().await?;
+    if resp.status().is_success() {
+        let text = resp.text().await?.trim().to_string();
+        // Use HexConvertible to parse the string into a U256, then downcast to u64
+        let u256 = lib::hex_conversion::HexConvertible::from_hex_string(&text)
+            .map_err(|e| format!("Failed to parse hex as U256: {:?}", e))?;
+        // Convert U256 to u64 (truncating if necessary)
+        Ok(u256)
+    } else {
+        Err(format!("HTTP error: {}", resp.status()).into())
+    }
 }
 
-async fn deposit(url: &url::Url, default_erc_address: &str) {
+/// Prompts the user for deposit parameters, constructs a deposit request, and sends it to the client REST API.
+/// Prints the response or panics if the request fails.
+async fn deposit(url: &url::Url, default_erc_address: &str) -> Result<(), Box<dyn Error>> {
     println!("Depositing...");
     let nf3_deposit_request = prompt_nf3_deposit_request(default_erc_address);
     let client = Client::new();
@@ -199,12 +232,19 @@ async fn deposit(url: &url::Url, default_erc_address: &str) {
     let text = resp.text().await.expect("Failed to read response body");
     if status.is_success() {
         println!("{}", text);
+        Ok(())
     } else {
-        panic!("Deposit request failed: {}", text);
+        Err(format!("Deposit request failed: {}", text).into())
     }
 }
 
-async fn transfer(url: &url::Url, default_erc_address: &str, default_recipient_key: &str) {
+/// Prompts the user for transfer parameters, constructs a transfer request, and sends it to the client REST API.
+/// Prints the response or panics if the request fails.
+async fn transfer(
+    url: &url::Url,
+    default_erc_address: &str,
+    default_recipient_key: &str,
+) -> Result<(), Box<dyn Error>> {
     let req = prompt_nf3_transfer_request(default_erc_address, default_recipient_key);
     let mut endpoint = url.clone();
     endpoint.set_path("/v1/transfer");
@@ -221,13 +261,21 @@ async fn transfer(url: &url::Url, default_erc_address: &str, default_recipient_k
     let text = resp.text().await.expect("Failed to read response body");
     if status.is_success() {
         println!("{}", text);
+        Ok(())
     } else {
-        panic!("Transfer request failed: {}", text);
+        Err(format!("Transfer request failed: {}", text).into())
     }
 }
 
-async fn withdraw(url: &url::Url, default_erc_address: &str) {
-    let req = prompt_nf3_withdraw_request(default_erc_address);
+/// Prompts the user for withdrawal parameters, constructs a withdraw request, and sends it to the client REST API.
+/// Prints the response or panics if the request fails.
+async fn withdraw(
+    url: &url::Url,
+    default_erc_address: &str,
+    client_address: &str,
+) -> Result<(), Box<dyn Error>> {
+    // Use the client address as the default recipient address
+    let req = prompt_nf3_withdraw_request(default_erc_address, client_address);
     let mut endpoint = url.clone();
     endpoint.set_path("/v1/withdraw");
     let client = reqwest::Client::new();
@@ -243,11 +291,13 @@ async fn withdraw(url: &url::Url, default_erc_address: &str) {
     let text = resp.text().await.expect("Failed to read response body");
     if status.is_success() {
         println!("{}", text);
+        Ok(())
     } else {
-        panic!("Withdraw request failed: {}", text);
+        Err(format!("Withdraw request failed: {}", text).into())
     }
 }
 
+/// Prompts the user for all required deposit parameters and returns a populated `NF3DepositRequest` struct.
 fn prompt_nf3_deposit_request(default_erc_address: &str) -> NF3DepositRequest {
     let erc_address = Text::new("Enter ERC address:")
         .with_initial_value(default_erc_address)
@@ -257,10 +307,11 @@ fn prompt_nf3_deposit_request(default_erc_address: &str) -> NF3DepositRequest {
         .with_initial_value("0x00")
         .prompt()
         .expect("Failed to get Token ID");
-    let token_type = Text::new("Enter Token Type:")
-        .with_initial_value("0")
+    let token_type_name = Text::new("Enter Token Type (ERC20, ERC721, ERC1155, ERC3525):")
+        .with_initial_value("ERC20")
         .prompt()
         .expect("Failed to get Token Type");
+    let token_type = token_type_name_to_number_string(&token_type_name);
     let value = Text::new("Enter Value:")
         .with_initial_value("0x01")
         .prompt()
@@ -286,6 +337,7 @@ fn prompt_nf3_deposit_request(default_erc_address: &str) -> NF3DepositRequest {
     }
 }
 
+/// Prompts the user for all required transfer parameters and returns a populated `NF3TransferRequest` struct.
 fn prompt_nf3_transfer_request(
     default_erc_address: &str,
     default_recipient_key: &str,
@@ -323,7 +375,11 @@ fn prompt_nf3_transfer_request(
     }
 }
 
-fn prompt_nf3_withdraw_request(default_erc_address: &str) -> NF3WithdrawRequest {
+/// Prompts the user for all required withdrawal parameters and returns a populated `NF3WithdrawRequest` struct.
+fn prompt_nf3_withdraw_request(
+    default_erc_address: &str,
+    default_recipient_address: &str,
+) -> NF3WithdrawRequest {
     let erc_address = Text::new("Enter ERC address:")
         .with_initial_value(default_erc_address)
         .prompt()
@@ -332,16 +388,17 @@ fn prompt_nf3_withdraw_request(default_erc_address: &str) -> NF3WithdrawRequest 
         .with_initial_value("0x00")
         .prompt()
         .expect("Failed to get Token ID");
-    let token_type = Text::new("Enter Token Type:")
+    let token_type_name = Text::new("Enter Token Type (ERC20, ERC721, ERC1155, ERC3525):")
         .with_initial_value("ERC20")
         .prompt()
         .expect("Failed to get Token Type");
+    let token_type = token_type_name_to_number_string(&token_type_name);
     let value = Text::new("Enter Value:")
         .with_initial_value("0x01")
         .prompt()
         .expect("Failed to get Value");
     let recipient_address = Text::new("Enter Recipient Address:")
-        .with_initial_value("0x00")
+        .with_initial_value(default_recipient_address)
         .prompt()
         .expect("Failed to get Recipient Address");
     let fee = Text::new("Enter Fee:")
@@ -358,6 +415,24 @@ fn prompt_nf3_withdraw_request(default_erc_address: &str) -> NF3WithdrawRequest 
     }
 }
 
+/// Converts a user-provided token type name (e.g., "ERC20", "ERC721", or a number) to the string number expected by the API.
+/// Falls back to "0" (ERC20) if the input is unrecognized.
+fn token_type_name_to_number_string(name: &str) -> String {
+    match name.to_uppercase().as_str() {
+        "ERC20" => "0".to_string(),
+        "ERC1155" => "1".to_string(),
+        "ERC721" => "2".to_string(),
+        "ERC3525" => "3".to_string(),
+        n if n.chars().all(|c| c.is_ascii_digit()) => n.to_string(), // fallback: allow numbers
+        _ => {
+            println!("Unknown token type '{}', defaulting to ERC20 (0)", name);
+            "0".to_string()
+        }
+    }
+}
+
+/// Checks if the client REST API is reachable and healthy by calling the /v1/health endpoint.
+/// Returns true if the client is healthy, false otherwise.
 async fn check_client_connection(base_url: &Url) -> bool {
     let mut health_url = base_url.clone();
     health_url.set_path("/v1/health");
@@ -367,8 +442,9 @@ async fn check_client_connection(base_url: &Url) -> bool {
     }
 }
 
-// Helper function to derive the layer 2 address from the deriveKey endpoint
-async fn get_keys(url: &Url, mnemonic: &Mnemonic) -> String {
+/// Calls the /v1/deriveKey endpoint to derive ZKP keys from the provided mnemonic and returns the compressed public key as a hex string.
+/// Returns a Result<String, Box<dyn Error>>.
+async fn get_keys(url: &Url, mnemonic: &Mnemonic) -> Result<String, Box<dyn std::error::Error>> {
     let derivation_path = "m/44'/60'/0'/0/0";
     let key_request = serde_json::json!({
         "mnemonic": mnemonic.phrase(),
@@ -381,14 +457,11 @@ async fn get_keys(url: &Url, mnemonic: &Mnemonic) -> String {
         .post(derive_key_url)
         .json(&key_request)
         .send()
-        .await
-        .expect("Failed to call deriveKey endpoint");
+        .await?;
     if !resp.status().is_success() {
-        panic!("deriveKey endpoint failed: {}", resp.text().await.unwrap());
+        return Err(format!("deriveKey endpoint failed: {}", resp.text().await?).into());
     }
-    let zkp_keys: ZKPKeys = resp.json().await.expect("Failed to parse ZKPKeys from response");
-    zkp_keys
-        .compressed_public_key()
-        .expect("Failed to get compressed public key")
-        .to_hex_string()
+    let zkp_keys: ZKPKeys = resp.json().await?;
+    let compressed = zkp_keys.compressed_public_key()?;
+    Ok(compressed.to_hex_string())
 }

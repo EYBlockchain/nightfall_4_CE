@@ -12,7 +12,11 @@ use jf_primitives::{
 };
 use lib::hex_conversion::HexConvertible;
 use log::{debug, error, info};
-use mongodb::{bson::doc, error::{ErrorKind, WriteFailure::WriteError}, Client};
+use mongodb::{
+    bson::doc,
+    error::{ErrorKind, WriteFailure::WriteError},
+    Client,
+};
 use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, str};
 
@@ -189,7 +193,8 @@ impl RequestDB for Client {
     async fn update_request(&self, request_id: &str, status: RequestStatus) -> Option<()> {
         let filter = doc! { "uuid": request_id };
         let update = doc! {"$set": { "status": status.to_string() }};
-        let result = self.database(DB)
+        let result = self
+            .database(DB)
             .collection::<Request>("requests")
             .update_one(filter, update)
             .await;
@@ -569,7 +574,13 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
         if commitments.is_empty() {
             return Some(());
         }
-        debug!("Storing commitments with hashes{:?} ", commitments.iter().map(|c| c.key.to_hex_string()).collect::<Vec<_>>());
+        debug!(
+            "Storing commitments with hashes{:?} ",
+            commitments
+                .iter()
+                .map(|c| c.key.to_hex_string())
+                .collect::<Vec<_>>()
+        );
         let res = self
             .database(DB)
             .collection::<CommitmentEntry>("commitments")
@@ -591,7 +602,10 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
                         }
                     }
                     _ => {
-                        error!("Unhandled Error storing commitments: {} duplicate key check {}", e, dup_key_check);
+                        error!(
+                            "Unhandled Error storing commitments: {} duplicate key check {}",
+                            e, dup_key_check
+                        );
                         None
                     }
                 }

@@ -58,7 +58,13 @@ pub async fn find_usable_commitments(
         .map_err(|_| "Preimage hashing failed during commitment selection")?;
 
     // Mark Pending
-    debug!("Marking these commitments as pending: {:?}", pending_keys.iter().map(|k| k.to_hex_string()).collect::<Vec<_>>());
+    debug!(
+        "Marking these commitments as pending: {:?}",
+        pending_keys
+            .iter()
+            .map(|k| k.to_hex_string())
+            .collect::<Vec<_>>()
+    );
     db.mark_commitments_pending_spend(pending_keys).await;
 
     Ok([old_commitments[0], old_commitments[1]])

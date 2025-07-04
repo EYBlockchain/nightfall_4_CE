@@ -581,6 +581,18 @@ curl -i 'http://localhost:3000/v1/fee_balance
 Returns: on success, the balance of the fee tokens in the user's layer 2 wallet. Note that, for consistency with other endpoints, the fee balance will be encoded as a big-endian hex string.
 ***
 
+GET /v1/l1_balance
+
+```sh
+curl -i 'http://localhost:3000/v1/l1_balance'
+```
+
+Returns: on success, the balance of the user's Layer 1 wallet (Ethereum address) as a big-endian hex string. This value is the current on-chain balance of the wallet used by the client, and is returned as a hexadecimal string for consistency with other endpoints.
+
+If the wallet is not found or there is an error retrieving the balance, a `404 NOT FOUND` status code will be returned.
+
+***
+
 GET /v1/requests/:uuid
 
 ```sh

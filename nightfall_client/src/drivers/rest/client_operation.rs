@@ -73,8 +73,11 @@ where
                 Ok(_) => debug!("{id} Mapped commitment to request"),
                 Err(e) => error!("{id} Failed to  map commitment to request: {e}"),
             }
-            // we only store the change commitments and only the ones that aren't default 
-            if commitment.get_public_key() == zkp_public_key && i != 0 && commitment.get_preimage() != Preimage::default() {
+            // we only store the change commitments and only the ones that aren't default
+            if commitment.get_public_key() == zkp_public_key
+                && i != 0
+                && commitment.get_preimage() != Preimage::default()
+            {
                 let nullifier = commitment
                     .nullifier_hash(&nullifier_key)
                     .expect("Nullifiers must be hashable");

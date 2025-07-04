@@ -4,6 +4,10 @@ use crate::{
     ports::db::CommitmentDB,
 };
 use ark_ff::{BigInteger, PrimeField};
+use lib::{
+    blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
+    initialisation::get_blockchain_client_connection,
+};
 use warp::{http::StatusCode, path, reply::Reply, Filter};
 /// Endpoint to get a token balance
 /// NB for consistency with the rest of the API,
@@ -59,5 +63,27 @@ pub async fn handle_get_fee_balance() -> Result<impl Reply, warp::Rejection> {
     } else {
         // if we don't find a balance, return a custom rejection
         Err(warp::reject::custom(ClientRejection::NoSuchToken))
+    }
+}
+
+/// Endpoint to get the L1 balance of the client's wallet
+/// Returns the value as a *hex* string.
+pub fn get_l1_balance(
+) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
+    path!("v1" / "l1_balance")
+        .and(warp::get())
+        .and_then(handle_get_l1_balance)
+}
+
+pub async fn handle_get_l1_balance() -> Result<impl Reply, warp::Rejection> {
+    // Get the blockchain client connection (should be initialised elsewhere)
+    let client = get_blockchain_client_connection().await.read().await;
+    // get_balance returns Option<U256>
+    match client.get_balance().await {
+        Some(balance) => Ok(warp::reply::with_status(
+            balance.to_hex_string(),
+            StatusCode::OK,
+        )),
+        None => Err(warp::reject::custom(ClientRejection::NoSuchToken)),
     }
 }

@@ -168,10 +168,7 @@ async fn queue_request(
 
     // return a 202 Accepted response with the request ID
     Ok(reply::with_header(
-        reply::with_status(
-            json(&"Deposit request queued".to_string()),
-            StatusCode::ACCEPTED,
-        ),
+        reply::with_status(json(&"Request queued".to_string()), StatusCode::ACCEPTED),
         "X-Request-ID",
         id,
     ))
@@ -602,7 +599,10 @@ where
         new_commitment_four,
     ];
 
-    dbg!(new_commitments.iter().map(|c| c.hash().unwrap().to_hex_string()).collect::<Vec<_>>());
+    dbg!(new_commitments
+        .iter()
+        .map(|c| c.hash().unwrap().to_hex_string())
+        .collect::<Vec<_>>());
 
     let secret_preimages = [
         spend_commitments[0].get_secret_preimage(),
