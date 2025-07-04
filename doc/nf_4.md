@@ -744,6 +744,52 @@ Withdraws the stake of a de-registered proposer, actually, the amount withdrawn 
 
 ***
 
+
+## Test UI: Using the Menu Application
+
+### 1. Build the Menu Application
+
+From the project root, build the CLI menu application:
+
+```sh
+cargo build --bin menu --release
+```
+
+This will produce the executable at `target/release/menu`.
+
+### 2. Prepare Environment Variables
+
+Ensure you have a `.env` file in the project root with the required variables, especially `CLIENT_ADDRESS` (the Ethereum address for the client wallet). Example:
+
+```env
+CLIENT_ADDRESS=0xYourEthereumAddress
+# ...other required variables...
+```
+
+### 3. Start the Nightfall Containers (no-test profile)
+
+To start the main Nightfall services (client, proposer, deployer, databases, etc.) for integration with the menu application, use the `no-test` profile:
+
+```sh
+docker compose --profile no_test down -v
+docker compose --profile no_test build # This only needs doing once
+docker compose --profile no_test up
+```
+
+Wait until the containers are healthy (the client should be reachable at http://localhost:3000/v1/health).
+
+### 4. Run the Menu Application
+
+In a new terminal, from the project root, run:
+
+```sh
+./target/release/menu
+```
+
+The menu application will load environment variables, connect to the running client, and present an interactive CLI for deposit, transfer, withdraw, and balance queries.
+
+---
+
 ## Production deployment
 
 TBD once environment is confirmed
