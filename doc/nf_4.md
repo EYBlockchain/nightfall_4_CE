@@ -1,4 +1,32 @@
+
 # Nightfall 4 Documentation
+
+## Contents
+
+- [Overview](#overview)
+- [How it works](#how-it-works)
+- [Handling Fees in Transactions](#handling-fees-in-transactions)
+- [Handling chain reorganisations](#handling-chain-reorganisations)
+- [Local installation and testing](#local-installation-and-testing)
+  - [Prerequisites for local installation](#prerequisites-for-local-installation)
+  - [Download and test](#download-and-test)
+- [Configuration](#configuration)
+- [Deployment on a testnet for integration testing](#deployment-on-a-testnet-for-integration-testing)
+- [Deployment on a testnet for beta testing](#deployment-on-a-testnet-for-beta-testing)
+- [Architecture](#architecture)
+  - [Comparison with Nightfall_3](#comparison-with-nightfall_3)
+  - [Nightfall_4 containers](#nightfall_4-containers)
+  - [Client Webhook](#client-webhook)
+- [APIs](#apis)
+  - [Client APIs](#client-apis)
+    - [X509 Certificates for Client](#x509-certificates-for-client)
+    - [Value transactions](#value-transactions)
+  - [Proposer APIs](#proposer-apis)
+    - [X509 Certificates for Proposer](#x509-certificates-for-proposer)
+- [Test UI: Using the Menu Application](#test-ui-using-the-menu-application)
+- [Production deployment](#production-deployment)
+- [Appendix](#appendix)
+
 
 ## Overview
 
