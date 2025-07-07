@@ -1,6 +1,6 @@
 use crate::{
     domain::{
-        entities::{ClientTransaction, CommitmentStatus, Operation, RequestStatus},
+        entities::{ClientTransaction, CommitmentStatus, Operation, Preimage, RequestStatus},
         error::TransactionHandlerError,
         notifications::NotificationPayload,
     },
@@ -34,6 +34,7 @@ use std::{error::Error, fmt::Debug, time::Duration};
 use tokio::time::sleep;
 use url::Url;
 use warp::hyper::StatusCode;
+
 #[allow(clippy::too_many_arguments)]
 pub async fn handle_client_operation<P, E, N>(
     operation: Operation,
@@ -59,13 +60,12 @@ where
         ..
     } = *get_zkp_keys().lock().expect("Poisoned Mutex lock");
 
-    debug!("{id} Calling client_operation");
     // We should store the change commitments, so that when they appear on-chain, we can add them to the commitments DB.
     // That will mean that they could potentially be spent.
     {
         let db = get_db_connection().await;
         let mut commitment_entries = vec![];
-        for commitment in new_commitments.iter() {
+        for (i, commitment) in new_commitments.iter().enumerate() {
             let commitment_hash = commitment.hash().expect("Commitments must be hashable");
             let commitment_hex = commitment_hash.to_hex_string();
             // Add mapping between request and commitment
@@ -73,7 +73,11 @@ where
                 Ok(_) => debug!("{id} Mapped commitment to request"),
                 Err(e) => error!("{id} Failed to  map commitment to request: {e}"),
             }
-            if commitment.get_public_key() == zkp_public_key {
+            // we only store the change commitments and only the ones that aren't default
+            if commitment.get_public_key() == zkp_public_key
+                && i != 0
+                && commitment.get_preimage() != Preimage::default()
+            {
                 let nullifier = commitment
                     .nullifier_hash(&nullifier_key)
                     .expect("Nullifiers must be hashable");

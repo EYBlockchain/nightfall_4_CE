@@ -399,9 +399,15 @@ async fn process_propose_block_event<N: NightfallContract>(
             .into();
 
         if test_hash != commitment_hash {
-            debug!("Commitment {} is not owned by us", commitment_hash);
+            debug!(
+                "Commitment {} is not owned by us",
+                commitment_hash.to_hex_string()
+            );
         } else {
-            info!("Received commitment owned by us, with hash {}", test_hash);
+            info!(
+                "Received commitment owned by us, with hash {}",
+                test_hash.to_hex_string()
+            );
             // store our newly received commitment in our commitment db
             let nullifier = test_preimage
                 .nullifier_hash(&nullifier_key)
