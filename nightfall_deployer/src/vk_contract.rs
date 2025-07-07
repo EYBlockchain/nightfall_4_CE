@@ -470,7 +470,6 @@ mod tests {
     use super::*;
 
     use ethers::types::Bytes;
-
     use jf_plonk::{
         errors::PlonkError,
         proof_system::{PlonkKzgSnark, UniversalSNARK},
@@ -483,10 +482,29 @@ mod tests {
 
     use ark_std::vec::Vec;
     use configuration::settings::Settings;
+    use std::process::Command;
 
     #[test]
     fn test_verifier_contract() {
+        let build_output = Command::new("forge")
+        .args(["build"])
+        .output()
+        .expect("Failed to execute `forge build`");
+
+        if !build_output.status.success() {
+            panic!(
+                "Forge build failed (exit code {}).\nStdout: {}\nStderr: {}",
+                build_output.status.code().unwrap_or(-1),
+                String::from_utf8_lossy(&build_output.stdout),
+                String::from_utf8_lossy(&build_output.stderr)
+            );
+        }
         let settings: Settings = Settings::new().unwrap();
+       println!(
+        "Debug: Current working directory in test_verifier_contract: {:?}", std::env::current_dir().unwrap()
+
+       );
+       println!("Settings contracts assets: {:?}", settings.contracts.assets);
         let mut rng = jf_utils::test_rng();
 
         let circuit = gen_circuit_for_test(2, 2).unwrap();
@@ -516,6 +534,7 @@ mod tests {
             .parent()
             .unwrap()
             .join("contracts/Nightfall.sol");
+        println!("Resolved Nightfall.sol path: {:?}", join_path);
 
         let path_out: PathBuf;
         let cwd = std::env::current_dir().unwrap();
@@ -534,8 +553,15 @@ mod tests {
 
             cwd = cwd.parent().ok_or("No parent in path").unwrap();
         }
-        let mut file = File::create(path_out.clone()).unwrap();
+
+        if let Some(parent) = path_out.parent() {
+            std::fs::create_dir_all(parent)
+                .unwrap_or_else(|e| panic!("Failed to create test_contracts folder: {}", e));
+        }
+    
+        let mut file = File::create(&path_out).unwrap();
         file.write_fmt(format_args!("{:0x}", bytes)).unwrap();
+        file.flush().unwrap();
 
         // We run `forge test` now to update all the contracts
         let output = std::process::Command::new("forge")

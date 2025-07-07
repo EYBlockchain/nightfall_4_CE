@@ -34,6 +34,7 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn Error>>
         "--broadcast",
         "--force",
     ]);
+    println!("DEBUG: Current working directory inside deploy_contracts: {:?}", std::env::current_dir().unwrap());
 
     // read the deployment log file to extract the contract addresses
     let join_path = Path::new(&settings.contracts.deployment_file)
@@ -88,7 +89,9 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn Error>>
 
 /// Function should only be called after we have checked forge is installed by running 'which forge'
 pub fn forge_command(command: &[&str]) {
+    info!("DEBUG: Running forge command: {:?}", command); // Use info! as forge_command already uses info!
     let output = std::process::Command::new("forge").args(command).output();
+    println!("Executing forge command: forge {:?}", command);
 
     match output {
         Ok(o) => {
@@ -123,8 +126,9 @@ mod tests {
 
     use super::*;
     use configuration::addresses::get_addresses;
+
     use ethers::{
-        core::utils::Anvil,
+        core::utils::Anvil, 
         providers::{Http, Middleware, Provider},
     };
     use nightfall_bindings::nightfall::NIGHTFALL_DEPLOYED_BYTECODE;
@@ -134,12 +138,14 @@ mod tests {
     // Restart VS Code after installing Anvil so that it's in your PATH otherwise VS Code won't find it!
     #[tokio::test]
     async fn test_deploy_contracts() {
+        println!("DEBUG: Current working directory before in the beginning deploy_contracts: {:?}", std::env::current_dir().unwrap());
         // fire up a blockchain simulator
         let mut settings = Settings::new().unwrap();
         std::env::set_var(
             "NF4_SIGNING_KEY",
             "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
         );
+        println!("DEBUG: Current working directory before deploy_contracts: {:?}", std::env::current_dir().unwrap());
         println!(" wallet type {:?}", settings.nightfall_client.wallet_type);
         settings.ethereum_client_url = "http://localhost:8545".to_string(); // we're running bare metal so a docker url won't work
         let url = Url::parse(&settings.ethereum_client_url).unwrap();
@@ -149,10 +155,14 @@ mod tests {
                     .expect("Could not get Anvil instance. Have you installed it?"),
             )
             .spawn();
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
         // set the current working directory to be the project root
         let root = "../";
         std::env::set_current_dir(root).unwrap();
+        println!("DEBUG: CWD AFTER setting to root ('../'): {:?}", std::env::current_dir().unwrap());
+
         // run the deploy function and get the contract addresses
+      
         deploy_contracts(&settings).await.unwrap();
         // get a blockchain provider so we can interrogate the deployed code
         let provider = Provider::<Http>::try_from(anvil.endpoint()).unwrap();
