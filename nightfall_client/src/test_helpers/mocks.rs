@@ -28,13 +28,17 @@ use nf_curves::ed_on_bn254::{
 use num::BigUint;
 use serde::{Deserialize, Serialize};
 use std::fmt::Error;
+use std::sync::RwLock;
 use tokio::sync::Mutex;
+use ethers::abi::AbiEncode;
 
 #[derive(Clone, Debug)]
 pub struct MockCommitmentEntry {
     pub preimage: Preimage,
     pub nullifier: Fr254,
     pub status: CommitmentStatus,
+    pub layer_1_transaction_hash: Option<String>,
+    pub layer_2_block_number: Option<String>,
 }
 impl MockCommitmentEntry {
     pub fn rand(mut rng: impl Rng) -> Self {
@@ -54,6 +58,8 @@ impl MockCommitmentEntry {
             preimage,
             nullifier: Fr254::zero(),
             status: CommitmentStatus::Unspent,
+            layer_1_transaction_hash: None,
+            layer_2_block_number: None,
         }
     }
 }
@@ -63,6 +69,8 @@ impl CommitmentEntryDB for MockCommitmentEntry {
             preimage,
             nullifier,
             status,
+            layer_1_transaction_hash: None,
+            layer_2_block_number: None,
         }
     }
 
@@ -97,77 +105,162 @@ impl Commitment for MockCommitmentEntry {
         self.preimage.get_secret_preimage()
     }
 }
+struct MockCommitmentDB {
+    data: RwLock<HashMap<Fr254, MockCommitmentEntry>>,
+}
 #[async_trait]
-impl CommitmentDB<Fr254, MockCommitmentEntry> for HashMap<Fr254, MockCommitmentEntry> {
+impl CommitmentDB<Fr254, MockCommitmentEntry> for MockCommitmentDB {
     async fn get_all_commitments(
         &self,
     ) -> Result<Vec<(Fr254, MockCommitmentEntry)>, mongodb::error::Error> {
-        let mut v = vec![];
-        for (&key, value) in self.iter() {
-            v.push((key, value.clone()));
-        }
-        Ok(v)
+        let data = self.data.read().unwrap();
+        Ok(data.iter().map(|(k, v)| (*k, v.clone())).collect())
     }
 
     async fn get_commitment(&self, k: &Fr254) -> Option<MockCommitmentEntry> {
-        self.get(k).cloned()
+        let data = self.data.read().unwrap();
+        data.get(k).cloned()
     }
 
     async fn get_available_commitments(
         &self,
         nf_token_id: Fr254,
     ) -> Option<Vec<MockCommitmentEntry>> {
-        let f = self
+        let data = self.data.read().unwrap();
+        let result: Vec<_> = data
             .values()
             .filter(|v| v.get_nf_token_id() == nf_token_id && v.status == CommitmentStatus::Unspent)
             .cloned()
-            .collect::<Vec<_>>();
-        if f.is_empty() {
-            return None;
+            .collect();
+        if result.is_empty() {
+            None
+        } else {
+            Some(result)
         }
-        Some(f)
     }
 
-    async fn store_commitment(&self, _commitment: MockCommitmentEntry) -> Option<()> {
-        todo!()
+    async fn store_commitment(&self, commitment: MockCommitmentEntry) -> Option<()> {
+        let mut data = self.data.write().unwrap();
+        let key = commitment.nullifier;
+    
+        if data.contains_key(&key) {
+            return None;
+        }
+        data.insert(key, commitment);
+        Some(())
     }
+    
 
     async fn store_commitments(
         &self,
-        _commitments: &[MockCommitmentEntry],
-        _dup_key_check: bool,
+        commitments: &[MockCommitmentEntry],
+        dup_key_check: bool,
     ) -> Option<()> {
-        todo!()
+        if commitments.is_empty() {
+            return Some(());
+        }
+    
+        let mut data = self.data.write().unwrap();
+    
+        for c in commitments {
+            let key = c.nullifier;
+    
+            if data.contains_key(&key) {
+                if dup_key_check {
+                    eprintln!("Mock DB Duplicate _id error: {:?}", key);
+                    return None;
+                } else {
+                    println!(
+                        "Mock DB: Duplicate _id {:?} but dup_key_check is false. Overwriting.",
+                        key
+                    );
+                    data.insert(key, c.clone());
+                }
+            } else {
+                data.insert(key, c.clone());
+            }
+        }
+    
+        Some(())
+    }
+    
+    
+    
+
+    async fn get_balance(&self, nf_token_id: &Fr254) -> Option<Fr254> {
+        let data = self.data.read().unwrap();
+        let sum: Fr254 = data
+            .values()
+            .filter(|v| v.get_nf_token_id() == *nf_token_id && v.status == CommitmentStatus::Unspent)
+            .map(|v| v.preimage.value)
+            .sum();
+        if sum == Fr254::zero() {
+            None
+        } else {
+            Some(sum)
+        }
+    }
+    
+
+    async fn mark_commitments_pending_spend(&self, commitments: Vec<Fr254>) -> Option<()> {
+        let mut data = self.data.write().unwrap();
+        for k in commitments {
+            if let Some(entry) = data.get_mut(&k) {
+                entry.status = CommitmentStatus::PendingSpend;
+            }
+        }
+        Some(())
     }
 
-    async fn get_balance(&self, _k: &Fr254) -> Option<Fr254> {
-        todo!()
+    async fn mark_commitments_spent(&self, nullifiers: Vec<Fr254>) -> Option<()> {
+        let mut data = self.data.write().unwrap();
+        for (_k, entry) in data.iter_mut() {
+            if nullifiers.contains(&entry.nullifier) {
+                entry.status = CommitmentStatus::Spent;
+            }
+        }
+        Some(())
     }
 
-    async fn mark_commitments_pending_spend(&self, _commitments: Vec<Fr254>) -> Option<()> {
-        todo!()
-    }
-
-    async fn mark_commitments_spent(&self, _commitments: Vec<Fr254>) -> Option<()> {
-        todo!()
-    }
 
     async fn mark_commitments_unspent(
         &self,
-        _commitments: &[Fr254],
-        _l1_hash: Option<H256>,
-        _l2_blocknumber: Option<I256>,
+        commitments: &[Fr254],
+        l1_hash: Option<H256>,
+        l2_blocknumber: Option<I256>,
     ) -> Option<()> {
-        todo!()
+        let mut data = self.data.write().unwrap();
+        for hash_key in commitments {
+            if let Some(entry) = data.get_mut(hash_key) {
+                entry.status = CommitmentStatus::Unspent;
+                entry.layer_1_transaction_hash = l1_hash.as_ref().map(|h| h.encode_hex());
+                entry.layer_2_block_number = l2_blocknumber.as_ref().map(|b| b.encode_hex());
+            }
+        }
+        Some(())
     }
 
-    async fn mark_commitments_pending_creation(&self, _commitments: Vec<Fr254>) -> Option<()> {
-        todo!()
+    async fn mark_commitments_pending_creation(&self, commitments: Vec<Fr254>) -> Option<()> {
+        let mut data = self.data.write().unwrap();
+        for hash_key in commitments {
+            if let Some(entry) = data.get_mut(&hash_key) {
+                entry.status = CommitmentStatus::PendingCreation;
+            }
+        }
+        Some(())
     }
 
-    async fn add_nullifier(&self, _key: &Fr254, _nullifier: Fr254) -> Option<()> {
-        todo!()
+    async fn add_nullifier(&self, key: &Fr254, nullifier: Fr254) -> Option<()> {
+        let mut data = self.data.write().unwrap();
+        if let Some(entry) = data.get_mut(key) {
+            entry.nullifier = nullifier;
+            Some(())
+        } else {
+            // Key not found, just like an update_one that doesn't match anything
+            None
+        }
     }
+
 }
 // test helper function (lets one instantiate a mock DB containing random data)
 pub fn random_mock_db(
