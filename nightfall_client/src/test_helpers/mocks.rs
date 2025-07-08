@@ -246,7 +246,6 @@ impl CommitmentDB<Fr254, MockCommitmentEntry> for MockCommitmentDB {
             entry.nullifier = nullifier;
             Some(())
         } else {
-            // Key not found, just like an update_one that doesn't match anything
             None
         }
     }
