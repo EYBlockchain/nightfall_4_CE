@@ -115,39 +115,35 @@ where
         let wrapped = FrWrapperhex(nullifier);
         let filter = match to_bson(&wrapped) {
             Ok(bson) => doc! { "nullifier": bson },
-            Err(_) => return false, 
+            Err(_) => return false,
         };
-    
-        match self
-            .database(DB)
-            .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
-            .find_one(filter)
-            .await
-        {
-            Ok(Some(_)) => true, 
-            _ => false,          
-        }
+
+        matches!(
+            self.database(DB)
+                .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
+                .find_one(filter)
+                .await,
+            Ok(Some(_)) 
+        )
     }
     
     async fn check_commitment(&self, commitment: Fr254) -> bool {
         let wrapped = FrWrapperhex(commitment);
         let filter = match to_bson(&wrapped) {
-            Ok(bson_val) => doc! { "commitment": bson_val },
+            Ok(bson) => doc! { "commitment": bson },
             Err(e) => {
                 eprintln!("Serialization error: {:?}", e);
                 return false;
             }
         };
-    
-        match self
-            .database(DB)
-            .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
-            .find_one(filter)
-            .await
-        {
-            Ok(Some(_)) => true, 
-            _ => false,          
-        }
+
+        matches!(
+            self.database(DB)
+                .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
+                .find_one(filter)
+                .await,
+            Ok(Some(_)) 
+        )
     }
     
     async fn update_commitment<M>(&self, mutator: M, key: &'a [u32]) -> Option<()>

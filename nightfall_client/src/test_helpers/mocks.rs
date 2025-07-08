@@ -142,13 +142,18 @@ impl CommitmentDB<Fr254, MockCommitmentEntry> for MockCommitmentDB {
     async fn store_commitment(&self, commitment: MockCommitmentEntry) -> Option<()> {
         let mut data = self.data.write().unwrap();
         let key = commitment.nullifier;
-        if data.contains_key(&key) {
-            return None;
+    
+        match data.entry(key) {
+            std::collections::hash_map::Entry::Occupied(_) => {
+                None
+            },
+            std::collections::hash_map::Entry::Vacant(e) => {
+                e.insert(commitment);
+                Some(())
+            }
         }
-        data.insert(key, commitment);
-        Some(())
     }
-
+    
     async fn store_commitments(
         &self,
         commitments: &[MockCommitmentEntry],
@@ -160,19 +165,22 @@ impl CommitmentDB<Fr254, MockCommitmentEntry> for MockCommitmentDB {
         let mut data = self.data.write().unwrap();
         for c in commitments {
             let key = c.nullifier;
-            if data.contains_key(&key) {
-                if dup_key_check {
-                    eprintln!("Mock DB Duplicate _id error: {:?}", key);
-                    return None;
-                } else {
-                    println!(
-                        "Mock DB: Duplicate _id {:?} but dup_key_check is false. Overwriting.",
-                        key
-                    );
-                    data.insert(key, c.clone());
+            match data.entry(key) { // Use the entry API here
+                std::collections::hash_map::Entry::Occupied(mut e) => {
+                    if dup_key_check {
+                        eprintln!("Mock DB Duplicate _id error: {:?}", e.key());
+                        return None;
+                    } else {
+                        println!(
+                            "Mock DB: Duplicate _id {:?} but dup_key_check is false. Overwriting.",
+                            e.key()
+                        );
+                        e.insert(c.clone());
+                    }
                 }
-            } else {
-                data.insert(key, c.clone());
+                std::collections::hash_map::Entry::Vacant(e) => {
+                    e.insert(c.clone());
+                }
             }
         }
         Some(())
