@@ -7,6 +7,8 @@ use ark_ff::{PrimeField, Zero};
 use ethers::types::H160;
 use futures::TryStreamExt;
 use lib::hex_conversion::HexConvertible;
+use lib::serialization::FrWrapperhex;
+use bson::to_bson;
 use mongodb::bson::doc;
 use nightfall_client::{
     domain::{entities::ClientTransaction, error::ConversionError},
@@ -109,14 +111,45 @@ where
         }
     }
 
-    async fn check_nullifier(&self, _nullifier: Fr254) -> bool {
-        todo!()
+    async fn check_nullifier(&self, nullifier: Fr254) -> bool {
+        let wrapped = FrWrapperhex(nullifier);
+        let filter = match to_bson(&wrapped) {
+            Ok(bson) => doc! { "nullifier": bson },
+            Err(_) => return false, 
+        };
+    
+        match self
+            .database(DB)
+            .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
+            .find_one(filter)
+            .await
+        {
+            Ok(Some(_)) => true, 
+            _ => false,          
+        }
     }
-
-    async fn check_commitment(&self, _commitment: Fr254) -> bool {
-        todo!()
+    
+    async fn check_commitment(&self, commitment: Fr254) -> bool {
+        let wrapped = FrWrapperhex(commitment);
+        let filter = match to_bson(&wrapped) {
+            Ok(bson_val) => doc! { "commitment": bson_val },
+            Err(e) => {
+                eprintln!("Serialization error: {:?}", e);
+                return false;
+            }
+        };
+    
+        match self
+            .database(DB)
+            .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
+            .find_one(filter)
+            .await
+        {
+            Ok(Some(_)) => true, 
+            _ => false,          
+        }
     }
-
+    
     async fn update_commitment<M>(&self, mutator: M, key: &'a [u32]) -> Option<()>
     where
         M: Fn(&ClientTransactionWithMetaData<P>) -> ClientTransactionWithMetaData<P> + Send,
