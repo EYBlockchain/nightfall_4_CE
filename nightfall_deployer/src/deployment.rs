@@ -34,8 +34,7 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn Error>>
         "--broadcast",
         "--force",
     ]);
-    println!("DEBUG: Current working directory inside deploy_contracts: {:?}", std::env::current_dir().unwrap());
-
+   
     // read the deployment log file to extract the contract addresses
     let join_path = Path::new(&settings.contracts.deployment_file)
         .join(settings.network.chain_id.to_string())
@@ -91,8 +90,7 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn Error>>
 pub fn forge_command(command: &[&str]) {
     info!("DEBUG: Running forge command: {:?}", command); // Use info! as forge_command already uses info!
     let output = std::process::Command::new("forge").args(command).output();
-    println!("Executing forge command: forge {:?}", command);
-
+   
     match output {
         Ok(o) => {
             if o.status.success() {
@@ -138,15 +136,12 @@ mod tests {
     // Restart VS Code after installing Anvil so that it's in your PATH otherwise VS Code won't find it!
     #[tokio::test]
     async fn test_deploy_contracts() {
-        println!("DEBUG: Current working directory before in the beginning deploy_contracts: {:?}", std::env::current_dir().unwrap());
         // fire up a blockchain simulator
         let mut settings = Settings::new().unwrap();
         std::env::set_var(
             "NF4_SIGNING_KEY",
             "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
         );
-        println!("DEBUG: Current working directory before deploy_contracts: {:?}", std::env::current_dir().unwrap());
-        println!(" wallet type {:?}", settings.nightfall_client.wallet_type);
         settings.ethereum_client_url = "http://localhost:8545".to_string(); // we're running bare metal so a docker url won't work
         let url = Url::parse(&settings.ethereum_client_url).unwrap();
         let anvil = Anvil::new()
@@ -159,8 +154,7 @@ mod tests {
         // set the current working directory to be the project root
         let root = "../";
         std::env::set_current_dir(root).unwrap();
-        println!("DEBUG: CWD AFTER setting to root ('../'): {:?}", std::env::current_dir().unwrap());
-
+  
         // run the deploy function and get the contract addresses
       
         deploy_contracts(&settings).await.unwrap();

@@ -500,13 +500,7 @@ mod tests {
             );
         }
         let settings: Settings = Settings::new().unwrap();
-       println!(
-        "Debug: Current working directory in test_verifier_contract: {:?}", std::env::current_dir().unwrap()
-
-       );
-       println!("Settings contracts assets: {:?}", settings.contracts.assets);
         let mut rng = jf_utils::test_rng();
-
         let circuit = gen_circuit_for_test(2, 2).unwrap();
 
         let srs_size = circuit.srs_size().unwrap();
@@ -534,7 +528,6 @@ mod tests {
             .parent()
             .unwrap()
             .join("contracts/Nightfall.sol");
-        println!("Resolved Nightfall.sol path: {:?}", join_path);
 
         let path_out: PathBuf;
         let cwd = std::env::current_dir().unwrap();
