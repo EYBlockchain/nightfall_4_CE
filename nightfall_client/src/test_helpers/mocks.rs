@@ -74,7 +74,7 @@ impl CommitmentEntryDB for MockCommitmentEntry {
     }
 
     fn get_status(&self) -> CommitmentStatus {
-        todo!()
+        self.status
     }
 }
 
@@ -104,6 +104,7 @@ impl Commitment for MockCommitmentEntry {
         self.preimage.get_secret_preimage()
     }
 }
+#[allow(dead_code)]
 struct MockCommitmentDB {
     data: RwLock<HashMap<Fr254, MockCommitmentEntry>>,
 }
