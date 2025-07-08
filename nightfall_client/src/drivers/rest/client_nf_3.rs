@@ -5,37 +5,25 @@ use super::{
 };
 use crate::{
     domain::{
-        entities::{CommitmentStatus, RequestStatus},
+        entities::{
+            CommitmentStatus, DepositSecret, ERCAddress, Operation, OperationType, Preimage,
+            RequestStatus, Salt, TokenType, Transport,
+        },
         error::TransactionHandlerError,
+        notifications::NotificationPayload,
     },
     driven::{
+        contract_functions::contract_type_conversions::FrBn254,
         db::mongo::CommitmentEntry,
         queue::{get_queue, QueuedRequest, TransactionRequest},
     },
-    get_zkp_keys,
-    ports::{
-        commitments::Nullifiable,
-        contracts::NightfallContract,
-        db::{RequestCommitmentMappingDB, RequestDB},
-    },
-};
-use crate::{
-    domain::{
-        entities::{
-            DepositSecret, ERCAddress, Operation, OperationType, Preimage, Salt, TokenType,
-            Transport,
-        },
-        notifications::NotificationPayload,
-    },
-    driven::contract_functions::contract_type_conversions::FrBn254,
-    drivers::{
-        blockchain::nightfall_event_listener::get_synchronisation_status, derive_key::ZKPKeys,
-    },
-    get_fee_token_id,
+    drivers::derive_key::ZKPKeys,
+    get_fee_token_id, get_zkp_keys,
     initialisation::get_db_connection,
     ports::{
-        commitments::Commitment,
-        db::{CommitmentDB, CommitmentEntryDB},
+        commitments::{Commitment, Nullifiable},
+        contracts::NightfallContract,
+        db::{CommitmentDB, CommitmentEntryDB, RequestCommitmentMappingDB, RequestDB},
         keys::KeySpending,
         proof::{Proof, ProvingEngine},
     },
@@ -51,7 +39,7 @@ use ark_std::{rand::thread_rng, UniformRand};
 use configuration::addresses::get_addresses;
 use jf_primitives::poseidon::{FieldHasher, Poseidon};
 use lib::{hex_conversion::HexConvertible, wallets::LocalWsClient};
-use log::{debug, error, info, warn};
+use log::{debug, error, info};
 use nf_curves::ed_on_bn254::{BabyJubjub, Fr as BJJScalar};
 use nightfall_bindings::{
     ierc1155::IERC1155, ierc20::IERC20, ierc3525::IERC3525, ierc721::IERC721, nightfall::Nightfall,
@@ -138,7 +126,7 @@ async fn queue_withdraw_request(
     queue_request(transaction_request, request_id).await
 }
 
-/// function to queue the transfer requests. This function queues all types of transaction request
+/// This function queues all types of transaction request
 async fn queue_request(
     transaction_request: TransactionRequest,
     request_id: Option<String>,
@@ -148,13 +136,8 @@ async fn queue_request(
     let id = request_id.unwrap_or_default();
     // check if the id is a valid uuid
     if Uuid::parse_str(&id).is_err() {
-        return Ok(reply::with_header(
-            reply::with_status(
-                json(&"Invalid request id".to_string()),
-                StatusCode::BAD_REQUEST,
-            ),
-            "X-Request-ID",
-            id,
+        return Err(warp::reject::custom(
+            crate::domain::error::ClientRejection::InvalidRequestId,
         ));
     };
 
@@ -163,13 +146,8 @@ async fn queue_request(
     let mut q = get_queue().await.write().await;
     // check if the queue is full
     if q.len() >= MAX_QUEUE_SIZE {
-        return Ok(reply::with_header(
-            reply::with_status(
-                json(&"Queue is full".to_string()),
-                StatusCode::SERVICE_UNAVAILABLE,
-            ),
-            "X-Request-ID",
-            id,
+        return Err(warp::reject::custom(
+            crate::domain::error::ClientRejection::QueueFull,
         ));
     }
     debug!("got lock on queue");
@@ -182,23 +160,15 @@ async fn queue_request(
     // record the request as queued
     let db = get_db_connection().await;
     if db.store_request(&id, RequestStatus::Queued).await.is_none() {
-        return Ok(reply::with_header(
-            reply::with_status(
-                json(&"Database error or duplicate transaction".to_string()),
-                StatusCode::INTERNAL_SERVER_ERROR,
-            ),
-            "X-Request-ID",
-            id,
+        return Err(warp::reject::custom(
+            crate::domain::error::ClientRejection::DatabaseError,
         ));
     }
     debug!("Stored request status in database");
 
     // return a 202 Accepted response with the request ID
     Ok(reply::with_header(
-        reply::with_status(
-            json(&"Deposit request queued".to_string()),
-            StatusCode::ACCEPTED,
-        ),
+        reply::with_status(json(&"Request queued".to_string()), StatusCode::ACCEPTED),
         "X-Request-ID",
         id,
     ))
@@ -233,15 +203,6 @@ pub async fn handle_deposit<N: NightfallContract>(
     req: NF3DepositRequest,
     id: &str,
 ) -> Result<NotificationPayload, TransactionHandlerError> {
-    let sync_state = get_synchronisation_status::<N>()
-        .await
-        .map_err(|e| TransactionHandlerError::CustomError(e.to_string()))?
-        .is_synchronised();
-    if !sync_state {
-        warn!("{id} Rejecting request - Client is not synchronised with the blockchain");
-        return Err(TransactionHandlerError::ClientNotSynchronized);
-    }
-
     info!("Deposit raw request: {:?}", req);
 
     // We convert the request into values
@@ -475,6 +436,7 @@ where
     E: ProvingEngine<P>,
     N: NightfallContract,
 {
+    debug!("Handling transfer request: {:?}", transfer_req);
     let NF3TransferRequest {
         erc_address,
         token_id,
@@ -636,6 +598,11 @@ where
         new_commitment_three,
         new_commitment_four,
     ];
+
+    dbg!(new_commitments
+        .iter()
+        .map(|c| c.hash().unwrap().to_hex_string())
+        .collect::<Vec<_>>());
 
     let secret_preimages = [
         spend_commitments[0].get_secret_preimage(),

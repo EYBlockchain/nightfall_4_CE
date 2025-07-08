@@ -16,6 +16,7 @@ interface ProposerManager {
     event ProposerRotated(Proposer proposer);
 
     /// @notice Rotates the proposer; errors if rotation is not currently allowed
+    // Emits ProposerRotated event
     function rotate_proposer() external;
     function add_proposer(string calldata proposer_url) external payable;
     function remove_proposer() external;

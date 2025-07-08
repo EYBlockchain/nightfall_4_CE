@@ -89,7 +89,7 @@ contract Nightfall is
     IERC3525Receiver
 {
     int256 public layer2_block_number = 0; // useful for checking your node is in sync, can be negative (offchain) to indicate a block that is not onchain
-    event BlockProposed(int256 layer2_block_number);
+    event BlockProposed(int256 indexed layer2_block_number);
     event DepositEscrowed(uint256 nfSlotId, uint256 value);
 
     mapping(uint256 => DepositFeeState) private feeBinding; // remembers a Deposit's fee
@@ -141,6 +141,8 @@ contract Nightfall is
         }
         feeId = computedFeeId;
         owner = msg.sender;
+        // nfTokenId for fee commitmemt is keccak256(abi.encode(address(this), 0))
+        tokenIdMapping[feeId] = TokenIdValue(address(this), 0);
     }
 
     function set_x509_address(address x509_address) external onlyOwner {
@@ -426,6 +428,13 @@ contract Nightfall is
         bytes calldata
     ) external pure returns (bytes4) {
         return 0x009ce20b;
+    }
+
+    // Function to the the ercAddress and tokenId of a token if the only information you have is the nfTokenId
+    // This is useful if someone transfers a Nightfall token to you and you want to know what the underlying token is.
+    function getTokenInfo(uint256 nfTokenId) external view returns (address ercAddress, uint256 tokenId) {
+        TokenIdValue memory tokenData = tokenIdMapping[nfTokenId];
+        return (tokenData.erc_address, tokenData.token_id);
     }
 
     // Called by the client to remove their funds from escrow, once they've proved they're entitled to them

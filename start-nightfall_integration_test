@@ -1,7 +1,0 @@
-#!/bin/bash
-set -e
-
-MODE=${1:-"development"}
-NF4_RUN_MODE=$MODE COMPOSE_PROFILES=$MODE docker compose down -v
-NF4_RUN_MODE=$MODE COMPOSE_PROFILES=$MODE docker compose build
-NF4_RUN_MODE=$MODE COMPOSE_PROFILES=$MODE docker compose up

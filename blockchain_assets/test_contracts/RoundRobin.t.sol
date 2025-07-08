@@ -107,6 +107,9 @@ contract RoundRobinTest is Test {
             proposer2_address
         );
         assertEq(roundRobin.get_proposers()[0].url, default_proposer_url);
+        // rotate when 64 blocks have passed
+        vm.roll(block.number + 64);
+        // rotate the proposer
         roundRobin.rotate_proposer();
         // check that the rotation has succeeded
         assertEq(roundRobin.get_current_proposer_address(), proposer2_address);
@@ -128,6 +131,7 @@ contract RoundRobinTest is Test {
         assertEq(newStake2, 3, "Proposer 2's pending withdraw incorrect");
         
         // rotate to the next proposer
+        vm.roll(block.number + 64);
         roundRobin.rotate_proposer();
         assertEq(
             roundRobin.get_current_proposer_address(),

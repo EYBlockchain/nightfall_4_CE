@@ -2,7 +2,7 @@
 use super::contract_type_conversions::{Addr, FrBn254, Uint256};
 use crate::{
     domain::{
-        entities::{DepositSecret, TokenType, WithdrawData},
+        entities::{DepositSecret, TokenData, TokenType, WithdrawData},
         error::NightfallContractError,
     },
     drivers::rest::utils::to_nf_token_id_from_solidity,
@@ -13,19 +13,19 @@ use ark_ff::BigInteger256;
 use ark_std::Zero;
 use configuration::addresses::get_addresses;
 use ethers::{
-    abi::{encode, Tokenizable},
-    providers::ProviderError,
-    types::I256,
+    abi::{encode, AbiDecode, Tokenizable},
+    providers::{Middleware, ProviderError},
+    types::{BigEndianHash, Filter, H160, H256, I256},
     utils::keccak256,
 };
 use lib::{
     blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
 };
-use log::info;
+use log::{debug, info};
 use nightfall_bindings::{
     erc20_mock::ERC20MockErrors,
     ierc3525::IERC3525,
-    nightfall::{Nightfall, WithdrawData as NFWithdrawData},
+    nightfall::{Block, Nightfall, NightfallCalls, WithdrawData as NFWithdrawData},
 };
 use num::BigUint;
 
@@ -210,5 +210,94 @@ impl<M> NightfallContract for Nightfall<M> {
             .call()
             .await
             .map_err(|_| NightfallContractError::TransactionError)
+    }
+
+    async fn get_token_info(nf_token_id: Fr254) -> Result<TokenData, NightfallContractError> {
+        let client = get_blockchain_client_connection()
+            .await
+            .read()
+            .await
+            .get_client();
+
+        let contract = Nightfall::new(get_addresses().nightfall(), client);
+
+        let (erc_address, token_id) = contract
+            .get_token_info(Uint256::from(nf_token_id).into())
+            .call()
+            .await
+            .map_err(|_| NightfallContractError::TransactionError)?;
+
+        Ok(TokenData {
+            erc_address: FrBn254::from(erc_address).into(),
+            token_id: BigInteger256::from(Uint256(token_id)),
+        })
+    }
+
+    // given a layer 2 block number, return the layer 2 block and the sender address
+    async fn get_layer2_block_by_number(
+        block_number: I256,
+    ) -> Result<(H160, Block), NightfallContractError> {
+        let block_number = block_number - I256::one();
+        let client = get_blockchain_client_connection()
+            .await
+            .read()
+            .await
+            .get_client();
+        let nightfall_address = get_addresses().nightfall();
+        let block_topic = H256::from_uint(&block_number.into_raw());
+
+        let latest_block = client.get_block_number().await.map_err(|e| {
+            NightfallContractError::ProviderError(format!("get_block_number error: {}", e))
+        })?;
+
+        let event_sig = H256::from(keccak256("BlockProposed(int256)"));
+        let filter = Filter::new()
+            .address(nightfall_address)
+            .from_block(0u64)
+            .to_block(latest_block)
+            .topic0(event_sig)
+            .topic1(block_topic);
+
+        let logs = client
+            .get_logs(&filter)
+            .await
+            .map_err(|e| NightfallContractError::ProviderError(format!("Provider error: {}", e)))?;
+
+        let log = logs
+            .first()
+            .ok_or_else(|| NightfallContractError::BlockNotFound(block_number.as_u64()))?;
+
+        let tx_hash = log.transaction_hash.ok_or_else(|| {
+            NightfallContractError::MissingTransactionHash(
+                "Log has no transaction hash".to_string(),
+            )
+        })?;
+        let tx = client
+            .get_transaction(tx_hash)
+            .await
+            .map_err(|e| {
+                NightfallContractError::ProviderError(format!("get_transaction error: {}", e))
+            })?
+            .ok_or(NightfallContractError::TransactionNotFound(tx_hash))?;
+
+        let sender_address = tx.from;
+        debug!("Sender of transaction {} is {}", tx_hash, sender_address);
+
+        let decoded = NightfallCalls::decode(tx.input).map_err(|e| {
+            NightfallContractError::AbiDecodeError(format!("ABI decode error: {:?}", e))
+        })?;
+
+        match decoded {
+            NightfallCalls::ProposeBlock(call) => {
+                debug!(
+                    "Successfully decoded block {} from tx {}",
+                    block_number, tx_hash
+                );
+                Ok((sender_address, call.blk))
+            }
+            _ => Err(NightfallContractError::DecodedCallError(
+                "Decoded call was not propose_block".to_string(),
+            )),
+        }
     }
 }

@@ -1,12 +1,16 @@
 use crate::{
     domain::{
-        entities::{CommitmentStatus, CompressedSecrets, Preimage, RequestStatus, Salt},
+        entities::{
+            CommitmentStatus, CompressedSecrets, OnChainTransaction, Preimage, RequestStatus, Salt,
+        },
         error::EventHandlerError,
         notifications::NotificationPayload,
     },
     driven::{
-        contract_functions::contract_type_conversions::FrBn254, db::mongo::CommitmentEntry,
-        notifier::webhook_notifier::WebhookNotifier, primitives::kemdem_functions::kemdem_decrypt,
+        contract_functions::contract_type_conversions::FrBn254,
+        db::mongo::{BlockStorageDB, CommitmentEntry, StoredBlock},
+        notifier::webhook_notifier::WebhookNotifier,
+        primitives::kemdem_functions::kemdem_decrypt,
     },
     drivers::derive_key::ZKPKeys,
     get_zkp_keys,
@@ -124,15 +128,17 @@ async fn process_propose_block_event<N: NightfallContract>(
         "Decoded Proposed block call from transaction {}, Layer 2 block number {} is now on-chain",
         transaction_hash, filter.layer_2_block_number,
     );
+
     let blk = decode.blk;
     // The first thing to do is to make sure that we've not missed any blocks.
     // If we have, then we'll need to resynchronise with the blockchain.
     // note, the L2 block number on chain increments immediately after the BlockProposed event is emitted (hence adding 1).
+    let layer_2_block_number_in_event = filter.layer_2_block_number;
     let mut expected_onchain_block_number = get_expected_layer2_blocknumber().lock().await;
-    if *expected_onchain_block_number < filter.layer_2_block_number {
+    if *expected_onchain_block_number < layer_2_block_number_in_event {
         warn!(
             "Out of sync with blockchain. Blockchain has block number {}, expected {}",
-            filter.layer_2_block_number, expected_onchain_block_number
+            layer_2_block_number_in_event, expected_onchain_block_number
         );
         return Err(EventHandlerError::MissingBlocks(
             expected_onchain_block_number.as_usize(),
@@ -141,12 +147,86 @@ async fn process_propose_block_event<N: NightfallContract>(
 
     // check if we're ahead of the event, this means we've already seen it and we shouldn't process it again
     // This could happen if we've missed some blocks and we're re-synchronising
-    if *expected_onchain_block_number > filter.layer_2_block_number {
+
+    if *expected_onchain_block_number > layer_2_block_number_in_event {
         warn!(
             "Already processed layer 2 block {} - skipping",
-            filter.layer_2_block_number
+            layer_2_block_number_in_event
         );
         return Ok(());
+    }
+    let layer_2_block_number_in_event_u64: u64 = layer_2_block_number_in_event
+        .try_into()
+        .expect("I256 to u64 conversion failed");
+    let proposer_address = get_blockchain_client_connection()
+        .await
+        .read()
+        .await
+        .get_client()
+        .get_transaction(transaction_hash)
+        .await
+        .map_err(|_| EventHandlerError::IOError("Could not retrieve transaction".to_string()))?
+        .ok_or(EventHandlerError::IOError(
+            "Could not retrieve transaction".to_string(),
+        ))?
+        .from;
+    let store_block_pending = StoredBlock {
+        layer2_block_number: layer_2_block_number_in_event_u64,
+        commitments: blk
+            .transactions
+            .iter()
+            .flat_map(|ntx| {
+                let tx: OnChainTransaction = (*ntx).clone().into();
+                tx.commitments
+                    .iter()
+                    .map(|c| c.to_hex_string())
+                    .collect::<Vec<_>>()
+            })
+            .collect(),
+        proposer_address,
+    };
+    // get a lock on the db, we don't want anything else updating or reading the DB until
+    // we're done here
+    let db = &mut get_db_connection().await;
+    let layer_2_block_number_in_event_u64: u64 = layer_2_block_number_in_event
+        .try_into()
+        .expect("I256 to u64 conversion failed");
+
+    if *expected_onchain_block_number == layer_2_block_number_in_event
+        && db
+            .get_block_by_number(layer_2_block_number_in_event_u64)
+            .await
+            .is_some()
+    {
+        // compute the expected block hash and the block hash saved before in other proposed block event
+
+        let existing_block = db
+            .get_block_by_number(layer_2_block_number_in_event_u64)
+            .await
+            .ok_or(EventHandlerError::IOError(
+                "Could not retrieve block from database".to_string(),
+            ))?;
+        let existing_block_stored_hash = existing_block.hash();
+        let block_store_pending_hash = store_block_pending.hash();
+
+        if existing_block.hash() != store_block_pending.hash() {
+            warn!(
+                "Block hash mismatch. Expected {}, got {} in layer 2 block {}",
+                existing_block_stored_hash, block_store_pending_hash, layer_2_block_number_in_event
+            );
+            // Delete the invalid block and clear sync status
+            db.delete_block_by_number(layer_2_block_number_in_event_u64)
+                .await;
+            return Err(EventHandlerError::BlockHashError(
+                existing_block_stored_hash,
+                block_store_pending_hash,
+            ));
+        } else {
+            debug!(
+                "Block hash matches for layer 2 block {}: {}",
+                layer_2_block_number_in_event, existing_block_stored_hash
+            );
+        }
     }
 
     *expected_onchain_block_number += 1;
@@ -319,9 +399,15 @@ async fn process_propose_block_event<N: NightfallContract>(
             .into();
 
         if test_hash != commitment_hash {
-            debug!("Commitment {} is not owned by us", commitment_hash);
+            debug!(
+                "Commitment {} is not owned by us",
+                commitment_hash.to_hex_string()
+            );
         } else {
-            info!("Received commitment owned by us, with hash {}", test_hash);
+            info!(
+                "Received commitment owned by us, with hash {}",
+                test_hash.to_hex_string()
+            );
             // store our newly received commitment in our commitment db
             let nullifier = test_preimage
                 .nullifier_hash(&nullifier_key)
@@ -380,6 +466,9 @@ async fn process_propose_block_event<N: NightfallContract>(
     };
 
     publisher.publish(notification).await;
+
+    // If the block is not in the database, we can store it
+    db.store_block(&store_block_pending).await;
     Ok(())
 }
 

@@ -1,4 +1,32 @@
+
 # Nightfall 4 Documentation
+
+## Contents
+
+- [Overview](#overview)
+- [How it works](#how-it-works)
+- [Handling Fees in Transactions](#handling-fees-in-transactions)
+- [Handling chain reorganisations](#handling-chain-reorganisations)
+- [Local installation and testing](#local-installation-and-testing)
+  - [Prerequisites for local installation](#prerequisites-for-local-installation)
+  - [Download and test](#download-and-test)
+- [Configuration](#configuration)
+- [Deployment on a testnet for integration testing](#deployment-on-a-testnet-for-integration-testing)
+- [Deployment on a testnet for beta testing](#deployment-on-a-testnet-for-beta-testing)
+- [Architecture](#architecture)
+  - [Comparison with Nightfall_3](#comparison-with-nightfall_3)
+  - [Nightfall_4 containers](#nightfall_4-containers)
+  - [Client Webhook](#client-webhook)
+- [APIs](#apis)
+  - [Client APIs](#client-apis)
+    - [X509 Certificates for Client](#x509-certificates-for-client)
+    - [Value transactions](#value-transactions)
+  - [Proposer APIs](#proposer-apis)
+    - [X509 Certificates for Proposer](#x509-certificates-for-proposer)
+- [Test UI: Using the Menu Application](#test-ui-using-the-menu-application)
+- [Production deployment](#production-deployment)
+- [Appendix](#appendix)
+
 
 ## Overview
 
@@ -581,6 +609,18 @@ curl -i 'http://localhost:3000/v1/fee_balance
 Returns: on success, the balance of the fee tokens in the user's layer 2 wallet. Note that, for consistency with other endpoints, the fee balance will be encoded as a big-endian hex string.
 ***
 
+GET /v1/l1_balance
+
+```sh
+curl -i 'http://localhost:3000/v1/l1_balance'
+```
+
+Returns: on success, the balance of the user's Layer 1 wallet (Ethereum address) as a big-endian hex string. This value is the current on-chain balance of the wallet used by the client, and is returned as a hexadecimal string for consistency with other endpoints.
+
+If the wallet is not found or there is an error retrieving the balance, a `404 NOT FOUND` status code will be returned.
+
+***
+
 GET /v1/requests/:uuid
 
 ```sh
@@ -594,6 +634,42 @@ Returns the status of a deposit/transfer or withdraw request when provided with 
 - Failed: The hand off to the next stage did not succeed.
 
 Note that internal failures of the client will cause the request state to be unreliable so the request status is not an alternative to error logs.
+
+***
+
+GET /v1/token/:nf_token_id
+
+```sh
+curl -i 'http://localhost:3000/v1/token/0x1234abcd...'
+```
+
+Returns: on success, a JSON object describing the token corresponding to the given Nightfall token ID. On error, returns `400 BAD REQUEST` if the token ID is invalid, or `404 NOT FOUND` if the token does not exist.
+
+This endpoint allows you to retrieve detailed information about a token using its Nightfall token ID. The token ID should be provided as a hexadecimal string in the URL path. This is useful if you want to Withdraw a token that someone has sent you but you don't know the Layer 1 contract address and Token ID.
+
+**Parameters:**
+
+- `nf_token_id`: The Nightfall token ID as a hex string (e.g., `0x1234abcd...`).
+
+**Response:**
+
+- `200 OK`: Returns a JSON object with token information, derived from the `TokenData` struct:
+    - `erc_address`: The ERC contract address for the token, as a hex string.
+    - `token_id`: The token ID (for ERC721/1155/3525), as a hex string.
+- `400 BAD REQUEST`: Returned if the provided token ID is not a valid field element.
+- `404 NOT FOUND`: Returned if no token exists for the given ID.
+
+**Example Response:**
+
+```json
+{
+  "erc_address": "0x6fcb6af7f7947f8480c36e8ffca0c66f6f2be32b",
+  "token_id": "0x00"
+}
+```
+
+Use this endpoint to look up metadata and contract details for any token registered in Nightfall, provided you know its Nightfall token ID.
+***
 
 ### Proposer APIs
 
@@ -695,6 +771,52 @@ Returns: on success `200 OK`
 Withdraws the stake of a de-registered proposer, actually, the amount withdrawn can be up to the amount of the stake. This can only be called by the de-registered proposer, otherwise the withdraw will fail.
 
 ***
+
+
+## Test UI: Using the Menu Application
+
+### 1. Build the Menu Application
+
+From the project root, build the CLI menu application:
+
+```sh
+cargo build --bin menu --release
+```
+
+This will produce the executable at `target/release/menu`.
+
+### 2. Prepare Environment Variables
+
+Ensure you have a `.env` file in the project root with the required variables, especially `CLIENT_ADDRESS` (the Ethereum address for the client wallet). Example:
+
+```env
+CLIENT_ADDRESS=0xYourEthereumAddress
+# ...other required variables...
+```
+
+### 3. Start the Nightfall Containers (no-test profile)
+
+To start the main Nightfall services (client, proposer, deployer, databases, etc.) for integration with the menu application, use the `no-test` profile:
+
+```sh
+docker compose --profile no_test down -v
+docker compose --profile no_test build # This only needs doing once
+docker compose --profile no_test up
+```
+
+Wait until the containers are healthy (the client should be reachable at http://localhost:3000/v1/health).
+
+### 4. Run the Menu Application
+
+In a new terminal, from the project root, run:
+
+```sh
+./target/release/menu
+```
+
+The menu application will load environment variables, connect to the running client, and present an interactive CLI for deposit, transfer, withdraw, and balance queries.
+
+---
 
 ## Production deployment
 

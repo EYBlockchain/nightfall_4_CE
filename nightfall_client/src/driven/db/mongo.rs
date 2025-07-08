@@ -1,31 +1,129 @@
 use ark_bn254::Fr as Fr254;
+use ark_ff::PrimeField;
 use async_trait::async_trait;
-use ethers::abi::AbiEncode;
-use ethers::types::{H256, I256};
+use ethers::{
+    abi::AbiEncode,
+    types::{H256, I256},
+};
 use futures::TryStreamExt;
-use jf_primitives::poseidon::{FieldHasher, Poseidon};
-use jf_primitives::trees::{Directions, PathElement};
+use jf_primitives::{
+    poseidon::{FieldHasher, Poseidon},
+    trees::{Directions, PathElement},
+};
 use lib::hex_conversion::HexConvertible;
 use log::{debug, error, info};
-use mongodb::error::{ErrorKind, WriteFailure::WriteError};
-use mongodb::{bson::doc, Client};
-use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
-use std::str;
-
-use crate::domain::entities::{
-    CommitmentStatus, Request, RequestCommitmentMapping, RequestStatus, WithdrawData,
+use mongodb::{
+    bson::doc,
+    error::{ErrorKind, WriteFailure::WriteError},
+    Client,
 };
-use crate::ports::db::{CommitmentDB, RequestCommitmentMappingDB, RequestDB, WithdrawalDB};
+use serde::{Deserialize, Serialize};
+use std::{fmt::Debug, str};
+
 use crate::{
-    domain::entities::Preimage,
+    domain::entities::{
+        CommitmentStatus, Preimage, Request, RequestCommitmentMapping, RequestStatus, WithdrawData,
+    },
     driven::contract_functions::contract_type_conversions::FrBn254,
+    ports::db::{CommitmentDB, RequestCommitmentMappingDB, RequestDB, WithdrawalDB},
     ports::{commitments::Commitment, db::CommitmentEntryDB},
 };
+use ethers::types::H160;
 use jf_primitives::{poseidon::PoseidonError, trees::MembershipProof};
 use lib::serialization::{ark_de_hex, ark_se_hex};
+use sha2::Sha256;
+use sha3::Digest;
 
 pub const DB: &str = "nightfall";
+pub const PROPOSED_BLOCKS_COLLECTION: &str = "ProposedBlocks";
+
+// To do, move this to lib, and change proposer to use it as well.
+#[async_trait::async_trait]
+pub trait BlockStorageDB {
+    async fn store_block(&self, block: &StoredBlock) -> Option<()>;
+    async fn get_block_by_number(&self, block_number: u64) -> Option<StoredBlock>;
+    async fn get_all_blocks(&self) -> Option<Vec<StoredBlock>>;
+    async fn delete_block_by_number(&self, block_number: u64) -> Option<()>;
+}
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+/// A struct representing a stored block in the database
+/// To update local mempool so that proposers won't assemble the block with the same transactions onchain, proposers can just check if the commitments for deposit/client_transactions in mempool have appeared in the stored block.
+/// To sync the status, proposers need to check if block is the same as the one it remembers when layer 2 block number expected and onchain are the same, since commitments are unique, it's enought to check the hash of commitments in block.
+/// So we only store commitments and layer2_block_number in the block database.
+pub struct StoredBlock {
+    pub layer2_block_number: u64,
+    pub commitments: Vec<String>,
+    pub proposer_address: H160,
+}
+impl StoredBlock {
+    pub fn hash(&self) -> Fr254 {
+        let mut bytes = Vec::new();
+        for c in &self.commitments {
+            bytes.extend_from_slice(c.as_bytes());
+        }
+        bytes.extend_from_slice(&self.proposer_address.to_fixed_bytes());
+        let hash = Sha256::digest(&bytes);
+        Fr254::from_be_bytes_mod_order(&hash)
+    }
+}
+#[async_trait::async_trait]
+impl BlockStorageDB for mongodb::Client {
+    async fn store_block(&self, block: &StoredBlock) -> Option<()> {
+        // check if the block already exists
+        let filter = doc! { "layer2_block_number": block.layer2_block_number as i64 };
+        let existing_block = self
+            .database(DB)
+            .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
+            .find_one(filter.clone())
+            .await
+            .ok()?;
+        if existing_block.is_some() {
+            // if the block already exists, we need to update it
+            let update = doc! { "$set": { "commitments": block.commitments.clone() } };
+            self.database(DB)
+                .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
+                .update_one(filter, update)
+                .await
+                .ok()?;
+            return Some(());
+        }
+        // if the block doesn't exist, we need to insert it
+        self.database(DB)
+            .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
+            .insert_one(block)
+            .await
+            .ok()?;
+        Some(())
+    }
+
+    async fn get_block_by_number(&self, block_number: u64) -> Option<StoredBlock> {
+        let filter = doc! { "layer2_block_number": block_number as i64 };
+        self.database(DB)
+            .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
+            .find_one(filter)
+            .await
+            .ok()?
+    }
+
+    async fn get_all_blocks(&self) -> Option<Vec<StoredBlock>> {
+        let cursor = self
+            .database(DB)
+            .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
+            .find(doc! {})
+            .await
+            .ok()?;
+        cursor.try_collect().await.ok()
+    }
+    async fn delete_block_by_number(&self, block_number: u64) -> Option<()> {
+        let filter = doc! { "layer2_block_number": block_number as i64 };
+        self.database(DB)
+            .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
+            .delete_one(filter)
+            .await
+            .ok()?;
+        Some(())
+    }
+}
 
 /// Utility function to convert a MembershipProof<Fr254> to a MemershipProof<FrBn254>
 ///
@@ -77,7 +175,7 @@ impl RequestDB for Client {
         match result {
             Ok(_) => Some(()),
             Err(e) => {
-                info!("{} Got an error inserting request: {}", request.uuid, e);
+                error!("{} Got an error inserting request: {}", request.uuid, e);
                 None
             }
         }
@@ -95,11 +193,15 @@ impl RequestDB for Client {
     async fn update_request(&self, request_id: &str, status: RequestStatus) -> Option<()> {
         let filter = doc! { "uuid": request_id };
         let update = doc! {"$set": { "status": status.to_string() }};
-        self.database(DB)
+        let result = self
+            .database(DB)
             .collection::<Request>("requests")
             .update_one(filter, update)
-            .await
-            .ok()?;
+            .await;
+        if let Err(e) = result {
+            error!("{} Got an error updating request: {}", request_id, e);
+            return None;
+        }
         Some(())
     }
 }
@@ -472,6 +574,13 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
         if commitments.is_empty() {
             return Some(());
         }
+        debug!(
+            "Storing commitments with hashes{:?} ",
+            commitments
+                .iter()
+                .map(|c| c.key.to_hex_string())
+                .collect::<Vec<_>>()
+        );
         let res = self
             .database(DB)
             .collection::<CommitmentEntry>("commitments")
@@ -479,19 +588,26 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
             .await;
         match res {
             Ok(_) => Some(()),
-            // unpack the Mongo error and check if it's a duplicate _id error. If so, behave according to dup_key_check
+            // unpack the Mongo errors and check if it's a duplicate _id error. If so, behave according to dup_key_check
             Err(e) => {
                 match e.kind.as_ref() {
                     ErrorKind::Write(WriteError(write_error)) => {
                         if write_error.code == 11000 && !dup_key_check {
-                            println!("Duplicate _id error: {:?}", write_error);
+                            debug!("Duplicate _id error: {:?}", write_error);
                             // duplicate _id error but we don't care
                             Some(())
                         } else {
+                            error!("Unhandled Write Error storing commitments: {} duplicate key check {}", e, dup_key_check);
                             None
                         }
                     }
-                    _ => None,
+                    _ => {
+                        error!(
+                            "Unhandled Error storing commitments: {} duplicate key check {}",
+                            e, dup_key_check
+                        );
+                        None
+                    }
                 }
             }
         }

@@ -1,21 +1,27 @@
-use crate::ports::secret_hash::SecretHash;
-use crate::ports::{
-    commitments::{Commitment, Nullifiable},
-    key_provider::KeyProvider,
-    proof::{Proof, PublicInputs},
+use crate::{
+    driven::contract_functions::contract_type_conversions::FrBn254,
+    ports::{
+        commitments::{Commitment, Nullifiable},
+        key_provider::KeyProvider,
+        proof::{Proof, PublicInputs},
+        secret_hash::SecretHash,
+    },
 };
-use lib::error::HexError;
-
 use ark_bn254::Fr as Fr254;
 use ark_ec::twisted_edwards::Affine as TEAffine;
+use ark_ff::BigInteger256;
 use ark_serialize::SerializationError;
 use ark_std::UniformRand;
-use lib::serialization::{ark_de_hex, ark_se_hex};
+use lib::{
+    error::HexError,
+    serialization::{ark_de_hex, ark_se_hex},
+};
 
 use jf_primitives::poseidon::{FieldHasher, Poseidon, PoseidonError};
 use lib::hex_conversion::HexConvertible;
 use log::{error, warn};
 use nf_curves::ed_on_bn254::{BabyJubjub, Fr as BJJScalar};
+use nightfall_bindings::nightfall::OnChainTransaction as NightfallOnChainTransaction;
 use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
 use sha3::{digest::generic_array::GenericArray, Digest, Keccak256};
@@ -65,25 +71,42 @@ impl Display for RequestStatus {
 }
 
 /// A struct representing the synchronisation status of a container
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SynchronisationPhase {
+    /// Client is fully caught up with the on-chain state.
+    Synchronized,
+    /// Client is ahead of the chain and No need to resync.
+    AheadOfChain { blocks_ahead: usize },
+    /// Client is out-of-sync and must restart syncing.
+    Desynchronized,
+}
+
+/// A struct representing the synchronisation status of a container
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct SynchronisationStatus(bool);
+pub struct SynchronisationStatus {
+    phase: SynchronisationPhase,
+}
 
 impl SynchronisationStatus {
     /// Create a new instance
-    pub fn new(synchronised: bool) -> Self {
-        Self(synchronised)
+    pub fn new(phase: SynchronisationPhase) -> Self {
+        Self { phase }
+    }
+    /// Get the current synchronisation phase
+    pub fn phase(&self) -> SynchronisationPhase {
+        self.phase
     }
     /// return whether the application is synchronised with the blockchain
     pub fn is_synchronised(&self) -> bool {
-        self.0
+        matches!(self.phase, SynchronisationPhase::Synchronized)
     }
-    /// set the synchronisation status to true
+    /// Set the synchronisation status to fully synchronised
     pub fn set_synchronised(&mut self) {
-        self.0 = true;
+        self.phase = SynchronisationPhase::Synchronized;
     }
     /// clear the synchronisation status
     pub fn clear_synchronised(&mut self) {
-        self.0 = false;
+        self.phase = SynchronisationPhase::Desynchronized;
     }
 }
 
@@ -130,7 +153,47 @@ pub struct CompressedSecrets {
     #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
     pub cipher_text: [Fr254; 5],
 }
-
+//Todo: Move this and the same one in proposer to lib
+/// Transaction struct representing NF on chain transaction
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Copy)]
+pub struct OnChainTransaction {
+    // The fee paid to the proposer.
+    #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
+    pub fee: Fr254,
+    // List of new commitments created by this transaction.
+    #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
+    pub commitments: [Fr254; 4],
+    // List of nullifiers consumed by this transaction.
+    #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
+    pub nullifiers: [Fr254; 4],
+    // public data (public inputs) associated with this transaction.
+    pub public_data: CompressedSecrets,
+}
+// Move this to lib
+impl From<NightfallOnChainTransaction> for OnChainTransaction {
+    fn from(ntx: NightfallOnChainTransaction) -> Self {
+        Self {
+            fee: FrBn254::try_from(ntx.fee)
+                .expect("Conversion of on-chain fee into field element should never fail")
+                .0,
+            commitments: ntx.commitments.map(|c| {
+                FrBn254::try_from(c)
+                    .expect(
+                        "Conversion of on-chain commitments into field elements should never fail",
+                    )
+                    .0
+            }),
+            nullifiers: ntx.nullifiers.map(|n| {
+                FrBn254::try_from(n)
+                    .expect(
+                        "Conversion of on-chain commitments into field elements should never fail",
+                    )
+                    .0
+            }),
+            public_data: ntx.public_data.into(),
+        }
+    }
+}
 pub struct EnvironmentKey;
 
 impl KeyProvider<BJJScalar> for EnvironmentKey {
@@ -479,6 +542,14 @@ impl DepositSecret {
             preimage_three,
         }
     }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct TokenData {
+    #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
+    pub erc_address: Fr254,
+    #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
+    pub token_id: BigInteger256,
 }
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, Default, PartialEq)]

@@ -180,6 +180,12 @@ pub enum NightfallContractError {
     TransactionError,
     EscrowError(String),
     PoseidonError(PoseidonError),
+    BlockNotFound(u64),
+    ProviderError(String),
+    MissingTransactionHash(String),
+    TransactionNotFound(ethers::types::H256),
+    AbiDecodeError(String),
+    DecodedCallError(String),
 }
 
 impl Display for NightfallContractError {
@@ -200,6 +206,24 @@ impl Display for NightfallContractError {
             }
             NightfallContractError::EscrowError(s) => write!(f, "Escrow Funds Error: {}", s),
             NightfallContractError::PoseidonError(e) => write!(f, "Hashing Error: {}", e),
+            NightfallContractError::BlockNotFound(n) => {
+                write!(f, "Layer 2 block number {} not found on-chain", n)
+            }
+            NightfallContractError::ProviderError(e) => {
+                write!(f, "Blockchain provider error: {}", e)
+            }
+            NightfallContractError::MissingTransactionHash(s) => {
+                write!(f, "Missing transaction hash: {}", s)
+            }
+            NightfallContractError::TransactionNotFound(tx_hash) => {
+                write!(f, "Transaction not found: {}", tx_hash)
+            }
+            NightfallContractError::AbiDecodeError(s) => {
+                write!(f, "ABI decode error: {}", s)
+            }
+            NightfallContractError::DecodedCallError(s) => {
+                write!(f, "Decoded call error: {}", s)
+            }
         }
     }
 }
@@ -321,3 +345,45 @@ impl Display for SyncingError {
 }
 
 impl Error for SyncingError {}
+
+/// Custom rejection type for REST API errors
+#[derive(Debug)]
+pub enum ClientRejection {
+    NoSuchToken,
+    InvalidTokenId,
+    InvalidRequestId,
+    QueueFull,
+    DatabaseError,
+    InvalidCommitmentKey,
+    CommitmentNotFound,
+    ProposerError,
+    RequestNotFound,
+    FailedDeEscrow,
+    SynchronisationUnavailable,
+}
+
+impl std::fmt::Display for ClientRejection {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ClientRejection::NoSuchToken => write!(f, "No such token found"),
+            ClientRejection::InvalidTokenId => write!(f, "Invalid token id"),
+            ClientRejection::InvalidRequestId => write!(f, "Invalid request id"),
+            ClientRejection::QueueFull => write!(f, "Queue is full"),
+            ClientRejection::DatabaseError => {
+                write!(f, "Database error or duplicate transaction")
+            }
+            ClientRejection::InvalidCommitmentKey => write!(f, "Invalid commitment key"),
+            ClientRejection::CommitmentNotFound => write!(f, "Commitment not found"),
+            ClientRejection::ProposerError => write!(f, "Failed to get list of Proposers"),
+            ClientRejection::RequestNotFound => write!(f, "No such request"),
+            ClientRejection::FailedDeEscrow => write!(f, "Failed to de-escrow funds"),
+            ClientRejection::SynchronisationUnavailable => {
+                write!(f, "Synchronisation service unavailable")
+            }
+        }
+    }
+}
+
+impl std::error::Error for ClientRejection {}
+
+impl warp::reject::Reject for ClientRejection {}
