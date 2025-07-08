@@ -149,7 +149,6 @@ impl CommitmentDB<Fr254, MockCommitmentEntry> for MockCommitmentDB {
         data.insert(key, commitment);
         Some(())
     }
-    
 
     async fn store_commitments(
         &self,
@@ -184,9 +183,6 @@ impl CommitmentDB<Fr254, MockCommitmentEntry> for MockCommitmentDB {
         Some(())
     }
     
-    
-    
-
     async fn get_balance(&self, nf_token_id: &Fr254) -> Option<Fr254> {
         let data = self.data.read().unwrap();
         let sum: Fr254 = data
@@ -201,7 +197,6 @@ impl CommitmentDB<Fr254, MockCommitmentEntry> for MockCommitmentDB {
         }
     }
     
-
     async fn mark_commitments_pending_spend(&self, commitments: Vec<Fr254>) -> Option<()> {
         let mut data = self.data.write().unwrap();
         for k in commitments {
