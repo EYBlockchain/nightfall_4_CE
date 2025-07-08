@@ -141,7 +141,6 @@ impl CommitmentDB<Fr254, MockCommitmentEntry> for MockCommitmentDB {
     async fn store_commitment(&self, commitment: MockCommitmentEntry) -> Option<()> {
         let mut data = self.data.write().unwrap();
         let key = commitment.nullifier;
-    
         if data.contains_key(&key) {
             return None;
         }
@@ -157,12 +156,9 @@ impl CommitmentDB<Fr254, MockCommitmentEntry> for MockCommitmentDB {
         if commitments.is_empty() {
             return Some(());
         }
-    
         let mut data = self.data.write().unwrap();
-    
         for c in commitments {
             let key = c.nullifier;
-    
             if data.contains_key(&key) {
                 if dup_key_check {
                     eprintln!("Mock DB Duplicate _id error: {:?}", key);
@@ -178,7 +174,6 @@ impl CommitmentDB<Fr254, MockCommitmentEntry> for MockCommitmentDB {
                 data.insert(key, c.clone());
             }
         }
-    
         Some(())
     }
     
