@@ -9,7 +9,6 @@ use nightfall_proposer::driven::rollup_prover::RollupProver;
 use std::{
     error::Error,
     os::unix::process::ExitStatusExt,
-    path::{Path, PathBuf},
 };
 use url::Url;
 
@@ -21,9 +20,10 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn Error>>
     // which the script can then read.
     std::env::set_var("NF4_RUN_MODE", &settings.run_mode); // this is possibly already set but if it was, it will be the same as settings.run_mode.
     if !settings.mock_prover && settings.contracts.deploy_contracts {
+        forge_command(&["build", "--force"]);
         let vk = RollupProver::get_decider_vk();
         create_vk_contract::<false>(&vk, settings);
-        forge_command(&["build", "--force"]);
+        
     }
 
     forge_command(&[
@@ -36,20 +36,18 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn Error>>
     ]);
    
     // read the deployment log file to extract the contract addresses
-    let join_path = Path::new(&settings.contracts.deployment_file)
+    let cwd = std::env::current_dir()?;
+
+    let path_out = cwd
+        .join(&settings.contracts.deployment_file)
         .join(settings.network.chain_id.to_string())
         .join("run-latest.json");
-    let path_out: PathBuf;
-    let cwd = std::env::current_dir()?;
-    let mut cwd = cwd.as_path();
-    loop {
-        let file_path = cwd.join(&join_path);
-        if file_path.is_file() {
-            path_out = file_path;
-            break;
-        }
 
-        cwd = cwd.parent().ok_or("No parent in path")?;
+    if !path_out.is_file() {
+        return Err(format!(
+            "Deployment log file not found at the expected location: {:?}",
+            path_out
+        ).into());
     }
     let addresses = Addresses::load(Sources::parse(
         path_out.to_str().ok_or("Couldn't convert path to str")?,
@@ -120,8 +118,7 @@ pub fn forge_command(command: &[&str]) {
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
-
+    use std::{fs, path::Path};
     use super::*;
     use configuration::addresses::get_addresses;
 

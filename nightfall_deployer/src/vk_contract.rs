@@ -482,23 +482,9 @@ mod tests {
 
     use ark_std::vec::Vec;
     use configuration::settings::Settings;
-    use std::process::Command;
 
     #[test]
     fn test_verifier_contract() {
-        let build_output = Command::new("forge")
-        .args(["build"])
-        .output()
-        .expect("Failed to execute `forge build`");
-
-        if !build_output.status.success() {
-            panic!(
-                "Forge build failed (exit code {}).\nStdout: {}\nStderr: {}",
-                build_output.status.code().unwrap_or(-1),
-                String::from_utf8_lossy(&build_output.stdout),
-                String::from_utf8_lossy(&build_output.stderr)
-            );
-        }
         let settings: Settings = Settings::new().unwrap();
         let mut rng = jf_utils::test_rng();
         let circuit = gen_circuit_for_test(2, 2).unwrap();
@@ -524,10 +510,13 @@ mod tests {
 
         let bytes = Bytes::from_iter(proof_vec);
 
+
+
         let join_path = Path::new(&settings.contracts.assets)
             .parent()
             .unwrap()
             .join("contracts/Nightfall.sol");
+      
 
         let path_out: PathBuf;
         let cwd = std::env::current_dir().unwrap();
@@ -555,6 +544,7 @@ mod tests {
         let mut file = File::create(&path_out).unwrap();
         file.write_fmt(format_args!("{:0x}", bytes)).unwrap();
         file.flush().unwrap();
+        file.sync_all().unwrap();
 
         // We run `forge test` now to update all the contracts
         let output = std::process::Command::new("forge")
@@ -562,7 +552,7 @@ mod tests {
             .output()
             .unwrap();
         //    std::fs::remove_file(path_out).unwrap();
-
+   
         match output.status.code() {
             Some(0) => (),
             Some(code) => panic!(
