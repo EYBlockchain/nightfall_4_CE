@@ -1,0 +1,5 @@
+[config]
+url = "http://localhost:3000"
+mnemonic = "test"
+
+
