@@ -1,5 +1,5 @@
 use crate::ports::{contracts::NightfallContract, proof::Proof};
-use balance::{get_balance, get_fee_balance};
+use balance::{get_balance, get_fee_balance, get_l1_balance};
 use lib::validate_certificate::certification_validation_request;
 use log::error;
 use proposers::get_proposers;
@@ -57,6 +57,7 @@ where
         .or(get_request_status())
         .or(get_queue_length())
         .or(get_token_info::<N>())
+        .or(get_l1_balance())
         .recover(handle_rejection)
 }
 

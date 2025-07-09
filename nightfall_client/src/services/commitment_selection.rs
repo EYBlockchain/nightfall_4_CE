@@ -12,6 +12,7 @@ use crate::{
 };
 use ark_bn254::Fr as Fr254;
 use ark_ff::{BigInteger256, PrimeField, Zero};
+use lib::hex_conversion::HexConvertible;
 use log::{debug, trace};
 use mongodb::{Client, Database};
 use nf_curves::ed_on_bn254::BJJTEAffine as JubJub;
@@ -57,10 +58,13 @@ pub async fn find_usable_commitments(
         .map_err(|_| "Preimage hashing failed during commitment selection")?;
 
     // Mark Pending
-    debug!("Marking these commitments as pending: {:?}", pending_keys);
-    for key in pending_keys.iter() {
-        debug!("{}", key);
-    }
+    debug!(
+        "Marking these commitments as pending: {:?}",
+        pending_keys
+            .iter()
+            .map(|k| k.to_hex_string())
+            .collect::<Vec<_>>()
+    );
     db.mark_commitments_pending_spend(pending_keys).await;
 
     Ok([old_commitments[0], old_commitments[1]])

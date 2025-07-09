@@ -1,9 +1,10 @@
-use crate::error::HexError;
 /// This module provides functionality to convert various types to and from hexadecimal strings.
 /// It uses a bigendian representation for the conversions.
+use crate::error::HexError;
 use ark_bn254::Fr as Fr254;
 use ark_ff::PrimeField;
 use ark_ff::{BigInteger, BigInteger256};
+use ethers::types::U256;
 use nf_curves::ed_on_bn254::Fr as BJJScalar;
 use num_bigint::BigUint;
 
@@ -111,6 +112,26 @@ impl HexConvertible for Vec<u8> {
     }
 }
 
+// Implement the trait for ethers::types::U256
+impl HexConvertible for U256 {
+    fn to_hex_string(&self) -> String {
+        let mut bytes = [0u8; 32];
+        self.to_big_endian(&mut bytes);
+        hex::encode(bytes)
+    }
+
+    fn from_hex_string(hex_str: &str) -> Result<U256, HexError> {
+        let hex_str = hex_str.strip_prefix("0x").unwrap_or(hex_str);
+        let decoded_bytes = hex::decode(hex_str).map_err(|_| HexError::InvalidHexFormat)?;
+        if decoded_bytes.len() > 32 {
+            return Err(HexError::InvalidStringLength);
+        }
+        let mut padded_bytes = [0u8; 32];
+        padded_bytes[32 - decoded_bytes.len()..].copy_from_slice(&decoded_bytes);
+        Ok(U256::from_big_endian(&padded_bytes))
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -118,7 +139,6 @@ mod test {
     use ark_ff::UniformRand;
     use ark_std::rand::{self, Rng, RngCore};
     use ark_std::test_rng;
-    use nf_curves::ed_on_bn254::Fr as BJJScalar;
 
     #[test]
     fn correctly_manipulate_strings() {
@@ -235,6 +255,36 @@ mod test {
         assert_eq!(
             original_vec, parsed_vec,
             "Vec<u8> conversion with prefix failed"
+        );
+    }
+
+    #[test]
+    fn test_u256_hex_conversion() {
+        use ethers::types::U256;
+        // Test with a known value
+        let value = U256::from_dec_str("1234567890123456789012345678901234567890").unwrap();
+        let hex_string = value.to_hex_string();
+        let parsed = U256::from_hex_string(&hex_string).unwrap();
+        assert_eq!(value, parsed, "U256 conversion failed for known value");
+
+        // Test with zero
+        let zero = U256::zero();
+        let hex_zero = zero.to_hex_string();
+        let parsed_zero = U256::from_hex_string(&hex_zero).unwrap();
+        assert_eq!(zero, parsed_zero, "U256 conversion failed for zero");
+
+        // Test with max value
+        let max = U256::MAX;
+        let hex_max = max.to_hex_string();
+        let parsed_max = U256::from_hex_string(&hex_max).unwrap();
+        assert_eq!(max, parsed_max, "U256 conversion failed for max value");
+
+        // Test with a hex string with 0x prefix
+        let hex_with_prefix = format!("0x{}", hex_string);
+        let parsed_with_prefix = U256::from_hex_string(&hex_with_prefix).unwrap();
+        assert_eq!(
+            value, parsed_with_prefix,
+            "U256 conversion failed with 0x prefix"
         );
     }
 }

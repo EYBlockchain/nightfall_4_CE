@@ -6,7 +6,7 @@ services:
       - client
       - development
       - sync_test
-      - testnet
+      - no_test
     build:
       dockerfile: nightfall_client/Dockerfile
       context: .
@@ -27,7 +27,6 @@ services:
       - type: volume
         source: address_data
         target: /app/configuration/toml
-        
         read_only: true
     depends_on:
       db_client:
@@ -90,6 +89,7 @@ services:
       - client
       - sync_test
       - development
+      - no_test
     build:
       dockerfile: nightfall_client/Dockerfile
       context: .
@@ -140,7 +140,7 @@ services:
       - proposer
       - development
       - sync_test
-      - testnet
+      - no_test
     build:
       dockerfile: nightfall_proposer/Dockerfile
       context: .
@@ -267,7 +267,7 @@ services:
       - indie-client
       - development
       - sync_test
-      - testnet
+      - no_test
     image: mongo:4.4.1-bionic # Replace with mongo:6.0 when image is available
     healthcheck:
       test: echo 'db.runCommand("ping").ok' | mongo localhost:27017 --quiet || exit 1
@@ -292,6 +292,7 @@ services:
       - client
       - sync_test
       - development
+      - no_test
     image: mongo:4.4.1-bionic # Replace with mongo:6.0 when image is available
     healthcheck:
       test: echo 'db.runCommand("ping").ok' | mongo localhost:27017 --quiet || exit 1
@@ -317,7 +318,7 @@ services:
       - indie-proposer # We'll reuse the db_proposer for the indie-proposer as this will never run at the same time as the proposer
       - development
       - sync_test
-      - testnet
+      - no_test
     image: mongo:4.4.1-bionic # Replace with mongo:6.0 when image is available
     restart: unless-stopped
     ports:
@@ -363,7 +364,7 @@ services:
       - deployer
       - development
       - sync_test
-      - testnet
+      - no_test
     build:
       dockerfile: nightfall_deployer/Dockerfile
       context: .
@@ -433,7 +434,7 @@ services:
       - configuration
       - development
       - sync_test
-      - testnet
+      - no_test
     build:
       dockerfile: configuration/Dockerfile
       context: .
@@ -459,7 +460,7 @@ services:
       - development
       - sync_test
       - anvil
-      - testnet # Required for deployer to start up correctly
+      - no_test
     build:
       dockerfile: anvil/Dockerfile
       context: .
@@ -470,11 +471,15 @@ services:
       timeout: 90s
       retries: 10
       start_period: 0s
+    volumes:
+      - ./blockchain_assets/logs:/blockchain_assets/logs # to be able to see deployed contract addresses locally
     networks:
       - nightfall_network
     ports:
       - "8545:8545" 
-    
+    environment:
+      - NF4_SIGNING_KEY=${DEPLOYER_SIGNING_KEY}
+
   test:
     container_name: nf4_test
     stop_grace_period: 3s
@@ -482,7 +487,6 @@ services:
       - development
       - sync_test
       - no_deployment
-      - testnet
     build:
       dockerfile: nightfall_test/Dockerfile
       context: .
