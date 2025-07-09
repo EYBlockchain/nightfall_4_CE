@@ -508,7 +508,7 @@ contract Nightfall is
     // Hashes a string of bytes and right-shifts the output by 4
     function sha256_and_shift(
         bytes memory inputs
-    ) private view returns (uint256 result) {
+    ) public view returns (uint256 result) {
         assembly {
             // Allocate memory for hash result (32 bytes)
             let freePtr := mload(0x40)
@@ -527,7 +527,7 @@ contract Nightfall is
     // hashes the public data in a transaction, for use by the rollup proof
     function hash_transaction(
         OnChainTransaction memory txn
-    ) private view returns (uint256) {
+    ) public view returns (uint256) {
         uint256 lastData = txn.public_data[3] & ((1 << 255) - 1);
         bytes memory concatenatedInputs = abi.encode(
             txn.commitments[0],
@@ -550,7 +550,7 @@ contract Nightfall is
     function verify_rollup_proof(
         Block calldata blk,
         uint256 public_hash
-    ) private view returns (bool, uint256) {
+    ) public view returns (bool, uint256) {
         // We need to split the proof into the public data and the actual proof
         // The first 32 bytes of the proof are the sum of fees
         bytes32 feeSum = abi.decode(blk.rollup_proof[:32], (bytes32));
