@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-jf-relation = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "023f1f5b4a244b70c1d4878b26b316c0de3582d3" }
+jf-relation = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "6064675fe4137e5ab391757d6c56b70737bad0a7" }
 ark-bn254 = "0.4.0"
 ark-ff = { version = "0.4.2", features = ["parallel"] }
 bip32 = { version = "0.4.0", features = ["bip39"] }
@@ -28,13 +28,13 @@ arkworks-utils = "1.0.1"
 mongodb = "3.2.3"
 futures = "0.3.31"
 async-trait = "0.1.88"
-jf-plonk = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "023f1f5b4a244b70c1d4878b26b316c0de3582d3", features = [
+jf-plonk = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "6064675fe4137e5ab391757d6c56b70737bad0a7", features = [
     "test-srs",
 ] }
-jf-utils = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "023f1f5b4a244b70c1d4878b26b316c0de3582d3", features = [
+jf-utils = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "6064675fe4137e5ab391757d6c56b70737bad0a7", features = [
     "parallel",
 ] }
-jf-primitives = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "023f1f5b4a244b70c1d4878b26b316c0de3582d3" }
+jf-primitives = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "6064675fe4137e5ab391757d6c56b70737bad0a7" }
 num-traits = "0.2.19"
 byteorder = "1.5.0"
 hex = "0.4.3"
@@ -44,7 +44,7 @@ serde_with = "2.3.3"
 config = "0.13.4"
 configuration = { path = "../configuration" }
 log = "0.4.27"
-nf-curves = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "023f1f5b4a244b70c1d4878b26b316c0de3582d3"}
+nf-curves = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "6064675fe4137e5ab391757d6c56b70737bad0a7"}
 reqwest = "0.11.27"
 url = "2.5.4"
 rustc-hex = "2.1.0"
