@@ -705,6 +705,7 @@ impl RecursiveProver for RollupProver {
         ipa_srs: &jf_plonk::nightfall::UnivariateUniversalIpaParams<nf_curves::grumpkin::Grumpkin>,
         kzg_srs: &jf_primitives::pcs::prelude::UnivariateUniversalParams<Bn254>,
     ) -> Result<(), PlonkError> {
+        ark_std::println!("JJ: am inside the preprocess function");
         // First check that we have the same number of outputs and pi's and that they are also non-zero in length
         if outputs.len() != specific_pi.len() {
             return Err(PlonkError::InvalidParameters(format!(
@@ -1269,10 +1270,16 @@ impl RecursiveProvingEngine<PlonkProof> for RollupProver {
 // extra_decider_info:
 // A vector containing extra data for the final "decider" circuit, such as the historic root membership proof and the old root.
 // This is used in the final aggregation step to ensure the block’s state transition is valid.
+        ark_std::println!("JJ: check if the roots are inside info");
         ark_std::println!("outputs_and_circuit_type: {:?}", outputs_and_circuit_type);
         ark_std::println!("specific_pi: {:?}", specific_pi);
         ark_std::println!("extra_info: {:?}", extra_info);
-        ark_std::println!("extra_info_vec: {:?}", extra_info_vec);
+        ark_std::println!("new_commitment_root: {:?}", new_commitment_root);
+        ark_std::println!("new_commitment_root: {}", new_commitment_root);
+        ark_std::println!("nullifier_root: {:?}", nullifier_root);
+        ark_std::println!("nullifier_root: {}", nullifier_root);
+        ark_std::println!("updated_historic_root: {:?}", updated_historic_root);
+        ark_std::println!("updated_historic_root: {}", updated_historic_root);
         Ok((
             RollupPreppedInfo {
                 outputs_and_circuit_type,
