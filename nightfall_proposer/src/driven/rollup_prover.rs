@@ -298,6 +298,7 @@ impl RecursiveProver for RollupProver {
         specific_pis: &[Variable],
         circuit: &mut PlonkCircuit<Fr254>,
     ) -> Result<Vec<Variable>, CircuitError> {
+        ark_std::println!("JJ: am inside the base_bn254_extra_checks function");
         let (first_pis, second_pis) = specific_pis.split_at(specific_pis.len() / 2);
         let root_m_proof_length =
             BigUint::from(circuit.witness(first_pis[0])?).to_u32_digits()[0] as usize;
@@ -391,6 +392,7 @@ impl RecursiveProver for RollupProver {
         specific_pis: &[Vec<Variable>],
         circuit: &mut PlonkCircuit<Fr254>,
     ) -> Result<Vec<Variable>, CircuitError> {
+        ark_std::println!("JJ: am inside the base_bn254_checks function");
         let first_pis = &specific_pis[0];
         let second_pis = &specific_pis[1];
 
@@ -447,6 +449,7 @@ impl RecursiveProver for RollupProver {
         specific_pis: &[Vec<Variable>],
         _circuit: &mut PlonkCircuit<Fq254>,
     ) -> Result<Vec<Variable>, CircuitError> {
+        ark_std::println!("JJ: am inside the base_grumpkin_checks function");
         Ok(specific_pis.concat())
     }
 
@@ -454,6 +457,7 @@ impl RecursiveProver for RollupProver {
         specific_pis: &[Vec<Variable>],
         circuit: &mut PlonkCircuit<Fr254>,
     ) -> Result<Vec<Variable>, CircuitError> {
+        ark_std::println!("JJ: am inside the bn254_merge_circuit_checks function");
         let start_root_comm_one = specific_pis[0][0];
         let start_root_comm_two = specific_pis[1][0];
         let end_root_comm_one = specific_pis[0][1];
@@ -473,6 +477,7 @@ impl RecursiveProver for RollupProver {
         circuit.enforce_equal(end_root_null_one, start_root_null_two)?;
 
         let fee_sum = circuit.add(fee_sum_one, fee_sum_two)?;
+        ark_std::println!("Fee sum in bn254_merge_circuit_checks: {}", fee_sum);
         let mut lookup_vars = Vec::<(Variable, Variable, Variable)>::new();
 
         let (_, sha_left) =
@@ -499,6 +504,7 @@ impl RecursiveProver for RollupProver {
         specific_pis: &[Vec<Variable>],
         circuit: &mut PlonkCircuit<Fq254>,
     ) -> Result<Vec<Variable>, CircuitError> {
+        ark_std::println!("JJ: am inside the grumpkin_merge_circuit_checks function");
         let start_root_comm_one = specific_pis[0][0];
         let start_root_comm_two = specific_pis[1][0];
         let end_root_comm_one = specific_pis[0][1];
@@ -516,6 +522,7 @@ impl RecursiveProver for RollupProver {
         circuit.enforce_equal(end_root_null_one, start_root_null_two)?;
 
         let fee_sum = circuit.add(fee_sum_one, fee_sum_two)?;
+        ark_std::println!("Fee sum in grumpkin_merge_circuit_checks: {}", fee_sum);
         Ok(vec![
             start_root_comm_one,
             end_root_comm_two,
@@ -531,6 +538,7 @@ impl RecursiveProver for RollupProver {
         specific_pis: &[Vec<Variable>],
         circuit: &mut PlonkCircuit<Fr254>,
     ) -> Result<Vec<Variable>, CircuitError> {
+        ark_std::println!("JJ: am inside the decider_circuit_checks function");
         let fee_sum_one = specific_pis[0][4];
         let fee_sum_two = specific_pis[1][4];
         let sha_one = specific_pis[0][5];
