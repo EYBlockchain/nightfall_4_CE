@@ -550,7 +550,10 @@ impl RecursiveProver for RollupProver {
         circuit.enforce_equal(end_root_null_one, start_root_null_two)?;
 
         let fee_sum = circuit.add(fee_sum_one, fee_sum_two)?;
-        ark_std::println!("Fee sum in decider_circuit_checks: {}", circuit.witness(fee_sum)?);
+        ark_std::println!(
+            "Fee sum in decider_circuit_checks: {}",
+            circuit.witness(fee_sum)?
+        );
         let mut lookup_vars = Vec::<(Variable, Variable, Variable)>::new();
 
         let (_, sha_left) =
@@ -1032,7 +1035,7 @@ impl RecursiveProvingEngine<PlonkProof> for RollupProver {
             .collect::<Vec<Fr254>>();
 
         // work out what the new historic root would be if we were to add these new commitments
-        let db = get_db_connection().await; 
+        let db = get_db_connection().await;
 
         // get the current historic root
         // JJ: will this have sync issues, i though historic roots were from chain. or maybe proposer needs to check sync status to make sure its db is correct?
@@ -1041,36 +1044,33 @@ impl RecursiveProvingEngine<PlonkProof> for RollupProver {
             <Client as HistoricRootTree<Fr254>>::TREE_NAME,
         )
         .await?;
-        ark_std::println!(
-            "Current historic root: {}",
-            current_historic_root
-        );
+        ark_std::println!("Current historic root: {}", current_historic_root);
         // Create the commitments circuit info
 
-// pub struct IMTCircuitInsertionInfo<N: PrimeField> {
-//     /// Root of the tree before any updates.
-//     pub old_root: N,
-//     /// The circuit info for the actual subtree insertion.
-//     pub circuit_info: CircuitInsertionInfo<N>,
-//     /// The initial index of the first leaf in the inserted subtree.
-//     pub first_index: u32,
-//     /// The low nullifiers for the leaves inserted with non_membership proofs.
-//     pub low_nullifiers: Vec<(LeafDBEntry<N>, MembershipProof<N>)>,
-//     /// The entries of the nullifiers inserted.
-//     pub pending_inserts: Vec<LeafDBEntry<N>>,
-// }
-// pub struct CircuitInsertionInfo<N> {
-//     /// The root of the tree before the insertion.
-//     pub old_root: N,
-//     /// The root of the tree after the insertion.
-//     pub new_root: N,
-//     /// Leaf count pre-insertion.
-//     pub leaf_count: usize,
-//     /// The leaves inserted.
-//     pub leaves: Vec<N>,
-//     /// The Merkle proof that proves the subtree we are inserting into was empty.
-//     pub proof: MembershipProof<N>,
-// }
+        // pub struct IMTCircuitInsertionInfo<N: PrimeField> {
+        //     /// Root of the tree before any updates.
+        //     pub old_root: N,
+        //     /// The circuit info for the actual subtree insertion.
+        //     pub circuit_info: CircuitInsertionInfo<N>,
+        //     /// The initial index of the first leaf in the inserted subtree.
+        //     pub first_index: u32,
+        //     /// The low nullifiers for the leaves inserted with non_membership proofs.
+        //     pub low_nullifiers: Vec<(LeafDBEntry<N>, MembershipProof<N>)>,
+        //     /// The entries of the nullifiers inserted.
+        //     pub pending_inserts: Vec<LeafDBEntry<N>>,
+        // }
+        // pub struct CircuitInsertionInfo<N> {
+        //     /// The root of the tree before the insertion.
+        //     pub old_root: N,
+        //     /// The root of the tree after the insertion.
+        //     pub new_root: N,
+        //     /// Leaf count pre-insertion.
+        //     pub leaf_count: usize,
+        //     /// The leaves inserted.
+        //     pub leaves: Vec<N>,
+        //     /// The Merkle proof that proves the subtree we are inserting into was empty.
+        //     pub proof: MembershipProof<N>,
+        // }
         debug!("Inserting commitments");
         let commitment_circuit_info =
             <Client as CommitmentTree<Fr254>>::batch_insert_with_circuit_info(db, &new_commitments)
@@ -1089,10 +1089,7 @@ impl RecursiveProvingEngine<PlonkProof> for RollupProver {
             <Client as CommitmentTree<Fr254>>::TREE_NAME,
         )
         .await?;
-        ark_std::println!(
-            "new_commitment_root: {}",
-            new_commitment_root
-        );
+        ark_std::println!("new_commitment_root: {}", new_commitment_root);
 
         // We also need check each of the roots in the client proofs is valid so we construct the membership proofs for them here.
         let mut root_proofs = HashMap::<Fr254, Vec<Fr254>>::new();
@@ -1133,10 +1130,7 @@ impl RecursiveProvingEngine<PlonkProof> for RollupProver {
         )
         .await?;
 
-        ark_std::println!(
-            "nullifier_root: {}",
-            nullifier_root
-        );
+        ark_std::println!("nullifier_root: {}", nullifier_root);
 
         // work out what the new historic root tree root would be if we were to add this new historic root
         let old_historic_root = <Client as MutableTree<Fr254>>::get_root(
@@ -1144,10 +1138,7 @@ impl RecursiveProvingEngine<PlonkProof> for RollupProver {
             <Client as HistoricRootTree<Fr254>>::TREE_NAME,
         )
         .await?;
-        ark_std::println!(
-            "old_historic_root: {}",
-            old_historic_root
-        ); 
+        ark_std::println!("old_historic_root: {}", old_historic_root);
 
         let metadata_collection_name = format!(
             "{}_{}",
@@ -1180,16 +1171,16 @@ impl RecursiveProvingEngine<PlonkProof> for RollupProver {
         let root_proof_len_field = Fr254::from(root_m_proof_len as u64);
 
         //Zips together chunks of public inputs, membership proofs, and circuit info to build the extra info needed for the recursive circuits.
-    // Structure of extra_info: Vec<Vec<Fr254>>
-    // The outer Vec: Each element represents a chunk (typically a group of 4 transactions, matching the recursion tree's arity).
-    // The inner Vec<Fr254>: This is not just 4 elements!
-    // It is a flattened, concatenated vector containing all the auxiliary data needed for that chunk of transactions.
-    // This includes:
-    // Length fields (for parsing)
-    // Roots for the transactions in the chunk
-    // Membership proofs for those roots
-    // Commitment insertion info
-    // Nullifier insertion info
+        // Structure of extra_info: Vec<Vec<Fr254>>
+        // The outer Vec: Each element represents a chunk (typically a group of 4 transactions, matching the recursion tree's arity).
+        // The inner Vec<Fr254>: This is not just 4 elements!
+        // It is a flattened, concatenated vector containing all the auxiliary data needed for that chunk of transactions.
+        // This includes:
+        // Length fields (for parsing)
+        // Roots for the transactions in the chunk
+        // Membership proofs for those roots
+        // Commitment insertion info
+        // Nullifier insertion info
 
         let extra_info = izip!(
             public_inputs.chunks(4),
@@ -1251,25 +1242,25 @@ impl RecursiveProvingEngine<PlonkProof> for RollupProver {
         let historic_root_proof_length = Fr254::from(extra_info_vec.len() as u64);
         extra_info_vec.insert(0, historic_root_proof_length);
         extra_info_vec.push(old_historic_root);
-// 1. RollupPreppedInfo
-// This struct contains all the data needed to generate the recursive rollup proof for a block. It includes:
+        // 1. RollupPreppedInfo
+        // This struct contains all the data needed to generate the recursive rollup proof for a block. It includes:
 
-// outputs_and_circuit_type:
-// A vector of tuples, each containing:
+        // outputs_and_circuit_type:
+        // A vector of tuples, each containing:
 
-// The recursive proof output for a transaction (used in recursive aggregation).
-// The verifying key for the circuit that produced the proof. This is used to verify and aggregate all the individual transaction proofs into a single block proof.
-// specific_pi:
-// A vector of vectors, where each inner vector contains the public inputs for a transaction, formatted as field elements.
-// These are the public data (like commitments, nullifiers, roots, etc.) that the circuits use as inputs.
+        // The recursive proof output for a transaction (used in recursive aggregation).
+        // The verifying key for the circuit that produced the proof. This is used to verify and aggregate all the individual transaction proofs into a single block proof.
+        // specific_pi:
+        // A vector of vectors, where each inner vector contains the public inputs for a transaction, formatted as field elements.
+        // These are the public data (like commitments, nullifiers, roots, etc.) that the circuits use as inputs.
 
-// extra_info:
-// A vector of vectors, each containing additional circuit-specific data needed for the recursive circuits.
-// This typically includes membership proofs, insertion info, and other auxiliary data required by the circuits to validate the state transitions.
+        // extra_info:
+        // A vector of vectors, each containing additional circuit-specific data needed for the recursive circuits.
+        // This typically includes membership proofs, insertion info, and other auxiliary data required by the circuits to validate the state transitions.
 
-// extra_decider_info:
-// A vector containing extra data for the final "decider" circuit, such as the historic root membership proof and the old root.
-// This is used in the final aggregation step to ensure the block’s state transition is valid.
+        // extra_decider_info:
+        // A vector containing extra data for the final "decider" circuit, such as the historic root membership proof and the old root.
+        // This is used in the final aggregation step to ensure the block’s state transition is valid.
         ark_std::println!("JJ: check if the roots are inside info");
         ark_std::println!("outputs_and_circuit_type: {:?}", outputs_and_circuit_type);
         ark_std::println!("specific_pi: {:?}", specific_pi);
