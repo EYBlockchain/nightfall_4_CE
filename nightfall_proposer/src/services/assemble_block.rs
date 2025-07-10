@@ -165,9 +165,11 @@ where
     // ****************************************
     // we'll get a rough idea of how long this takes
     let now = Instant::now();
+    ark_std::println!("I'm computing the block");
     let block = R::prove_block(&deposit_transactions, &client_transactions)
         .await
         .map_err(|e| e.into());
+    ark_std::println!("and the block is computed: {:#?}", block);
     info!("Block computation took: {} s", now.elapsed().as_secs());
     block
 }

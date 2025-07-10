@@ -45,8 +45,15 @@ pub trait RecursiveProvingEngine<P: Proof> {
         deposit_transactions: &[(P, PublicInputs)],
         client_transactions: &[ClientTransactionWithMetaData<P>],
     ) -> Result<Block, Self::Error> {
+        ark_std::println!("I'm inside prove_block");
         let (info, [commitments_root, nullifiers_root, commitments_root_root]) =
             Self::prepare_state_transition(deposit_transactions, client_transactions).await?;
+        ark_std::println!(
+            "I get commitments_root: {}, nullifiers_root:{}, commitments_root_root:{}",
+            commitments_root,
+            nullifiers_root,
+            commitments_root_root
+        );
         let proof = Self::recursive_prove(info)?;
         let proof_vec: Vec<Fq254> = proof.into();
         let proof_bytes = proof_vec

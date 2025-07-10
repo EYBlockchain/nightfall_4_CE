@@ -96,13 +96,13 @@ contract NightfallVerifierTest is Test {
                 );
             }
         }
-        //  console2.log("transaction_hashes: ", transaction_hashes.length);
         console2.log("transaction_hashes[0]: ", transaction_hashes[0]);
         // console2.log("transaction_hashes_new[0]: ", transaction_hashes_new[0]);
         // Jiajie: todo, make this a public function in Nightfall, so we can call it directly without needing to compute the hashes again
         (bool verified, uint256 totalFee) = nightfall.verify_rollup_proof(blk, transaction_hashes[0]);
-
         // (bool verified, uint256 totalFee) = nightfall.verify_rollup_proof(blk, uint256(0));
+        // assert that the proof is verified
+        assertTrue(verified, "Proof verification failed");
         console2.log("verified: ", verified);
         console2.log("totalFee: ", totalFee);
     }

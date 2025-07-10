@@ -12,6 +12,8 @@ import {IERC3525Receiver} from "@erc-3525/contracts/IERC3525Receiver.sol";
 import "./ProposerManager.sol";
 import "./X509/Certified.sol";
 import "./X509/X509.sol";
+import "forge-std/console2.sol";
+
 
 pragma solidity ^0.8.20;
 
@@ -553,9 +555,14 @@ contract Nightfall is
     ) public view returns (bool, uint256) {
         // We need to split the proof into the public data and the actual proof
         // The first 32 bytes of the proof are the sum of fees
+        console2.log("blk.rollup_proof");
+        console2.logBytes(blk.rollup_proof);
         bytes32 feeSum = abi.decode(blk.rollup_proof[:32], (bytes32));
+        console2.log("feeSum");
+        console2.logBytes32(feeSum);
         // convert feeSum to uint256
         uint256 feeSumAsNumber = uint256(feeSum);
+        console2.log("feeSumAsNumber: ", feeSumAsNumber);
         // Then its instance1 x, instance 1y, proof1 x, proof1y, instance2 x, instance2 y, proof2 x, proof2 y
         bytes32 instance1_x = abi.decode(blk.rollup_proof[32:64], (bytes32));
         bytes32 instance1_y = abi.decode(blk.rollup_proof[64:96], (bytes32));

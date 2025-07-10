@@ -14,6 +14,7 @@ use nightfall_client::domain::error::NightfallContractError;
 #[async_trait::async_trait]
 impl<M> NightfallContract for Nightfall<M> {
     async fn propose_block(block: Block) -> Result<(), NightfallContractError> {
+        ark_std::println!("Proposing block's input: {:#?}", block);
         let client = get_blockchain_client_connection()
             .await
             .read()
@@ -23,13 +24,19 @@ impl<M> NightfallContract for Nightfall<M> {
         let nightfall = Nightfall::new(nightfall_address, client);
 
         let blk = NightfallBlock::from(block);
+        ark_std::println!("Proposing block's output from conversion: {:#?}", blk);
         let receipt = nightfall
-            .propose_block(blk)
+            .propose_block(blk.clone())
             .send()
             .await
             .map_err(|_| NightfallContractError::TransactionError)?
             .await
             .map_err(|_| NightfallContractError::TransactionError)?;
+
+        // saving the block to a file
+        use ark_serialize::Write;
+        let mut file = std::fs::File::create("nightfall_block.txt").unwrap();
+        write!(file, "Printing the block to ightfall_block.txt{:#?}", &blk).unwrap();
 
         match receipt {
             Some(receipt) => {
