@@ -194,9 +194,11 @@ contract Nightfall is
                 );
             }
         }
-
+        console2.log("transaction_hashes[0]: ", transaction_hashes[0]);
         // get the output of verify_rollup_proof
         (bool verified, uint256 totalFee) = verify_rollup_proof(blk, transaction_hashes[0]);
+        console2.log("verified: ", verified);
+        console2.log("totalFee: ", totalFee);
         require(verified, "Rollup proof verification failed");
 
         // now we need to decode the public data for each transaction and do something with it
@@ -572,6 +574,23 @@ contract Nightfall is
         bytes32 instance2_y = abi.decode(blk.rollup_proof[192:224], (bytes32));
         bytes32 proof2_x = abi.decode(blk.rollup_proof[224:256], (bytes32));
         bytes32 proof2_y = abi.decode(blk.rollup_proof[256:288], (bytes32));
+        console2.log("instance1_x: ");
+        console2.logBytes32(instance1_x);
+        console2.log("instance1_y: ");
+        console2.logBytes32(instance1_y);
+        console2.log("proof1_x: ");
+        console2.logBytes32(proof1_x);
+        console2.log("proof1_y: ");
+        console2.logBytes32(proof1_y);
+        console2.log("instance2_x: ");
+        console2.logBytes32(instance2_x);
+        console2.log("instance2_y: ");
+        console2.logBytes32(instance2_y);
+        console2.log("proof2_x: ");
+        console2.logBytes32(proof2_x);
+        console2.log("proof2_y: ");
+        console2.logBytes32(proof2_y);
+        
 
         bytes32[] memory publicInputs = new bytes32[](16); // we need to pass in 16 public inputs
         publicInputs[0] = feeSum;
