@@ -58,20 +58,20 @@ pub async fn get_db_connection(container: &ContainerAsync<GenericImage>) -> mong
         client
     }
 
-    #[allow(dead_code)]
-    /// This function is used to print the stdout of a container for test debugging
-    pub async fn print_stdout(container: &ContainerAsync<GenericImage>) {
-        let mut reader_stdout = container.stdout(false);
-        let mut dst = String::new();
-        let _ = reader_stdout.read_to_string(&mut dst).await;
-        println!("{}", dst);
-    }
+#[allow(dead_code)]
+/// This function is used to print the stdout of a container for test debugging
+pub async fn print_stdout(container: &ContainerAsync<GenericImage>) {
+    let mut reader_stdout = container.stdout(false);
+    let mut dst = String::new();
+    let _ = reader_stdout.read_to_string(&mut dst).await;
+    println!("{}", dst);
+}
 
-    #[allow(dead_code)]
-    /// This function is used to print the stderr of a container for test debugging
-    pub async fn print_stderr(container: &ContainerAsync<GenericImage>) {
-        let mut reader_stderr = container.stderr(false);
-        let mut dst = String::new();
-        let _ = reader_stderr.read_to_string(&mut dst).await;
-        println!("{}", dst);
-    }
+#[allow(dead_code)]
+/// This function is used to print the stderr of a container for test debugging
+pub async fn print_stderr(container: &ContainerAsync<GenericImage>) {
+    let mut reader_stderr = container.stderr(false);
+    let mut dst = String::new();
+    let _ = reader_stderr.read_to_string(&mut dst).await;
+    println!("{}", dst);
+}
