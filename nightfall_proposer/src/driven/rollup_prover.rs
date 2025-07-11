@@ -294,6 +294,7 @@ impl RollupProver {
 }
 
 impl RecursiveProver for RollupProver {
+    // these checks are implementation of RecursiveProver in Nightfish and will be called by each corresponding circuit
     fn base_bn254_extra_checks(
         specific_pis: &[Variable],
         circuit: &mut PlonkCircuit<Fr254>,
