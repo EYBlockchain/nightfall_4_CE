@@ -560,7 +560,15 @@ impl RecursiveProver for RollupProver {
 
         let fee_sum = circuit.add(fee_sum_one, fee_sum_two)?;
         ark_std::println!(
-            "Fee sum in decider_circuit_checks: {}",
+            "fee_sum_one in decider_circuit_checks: {:?}",
+            circuit.witness(fee_sum_one)?
+        );
+        ark_std::println!(
+            "fee_sum_two in decider_circuit_checks: {:?}",
+            circuit.witness(fee_sum_two)?
+        );
+        ark_std::println!(
+            "Fee sum in decider_circuit_checks: {:?}",
             circuit.witness(fee_sum)?
         );
         let mut lookup_vars = Vec::<(Variable, Variable, Variable)>::new();
