@@ -1,7 +1,6 @@
 #![cfg(test)]
 
 use std::{collections::HashMap, fmt::Debug, sync::Arc};
-
 use crate::{
     domain::entities::{ClientTransaction, CommitmentStatus, Preimage, Salt},
     drivers::{derive_key::ZKPKeys, rest::models::PreimageReq},
@@ -27,9 +26,7 @@ use nf_curves::ed_on_bn254::{
 use num::BigUint;
 use serde::{Deserialize, Serialize};
 use std::fmt::Error;
-use std::sync::RwLock;
 use tokio::sync::Mutex;
-use ethers::abi::AbiEncode;
 
 #[derive(Clone, Debug)]
 pub struct MockCommitmentEntry {
@@ -74,7 +71,7 @@ impl CommitmentEntryDB for MockCommitmentEntry {
     }
 
     fn get_status(&self) -> CommitmentStatus {
-        self.status
+        unimplemented!("get_status is not relevant for this mock's current test")
     }
 }
 
@@ -105,159 +102,78 @@ impl Commitment for MockCommitmentEntry {
     }
 }
 #[allow(dead_code)]
-struct MockCommitmentDB {
-    data: RwLock<HashMap<Fr254, MockCommitmentEntry>>,
-}
+
 #[async_trait]
-impl CommitmentDB<Fr254, MockCommitmentEntry> for MockCommitmentDB {
+impl CommitmentDB<Fr254, MockCommitmentEntry> for HashMap<Fr254, MockCommitmentEntry> {
     async fn get_all_commitments(
         &self,
     ) -> Result<Vec<(Fr254, MockCommitmentEntry)>, mongodb::error::Error> {
-        let data = self.data.read().unwrap();
-        Ok(data.iter().map(|(k, v)| (*k, v.clone())).collect())
+        let mut v = vec![];
+        for (&key, value) in self.iter() {
+            v.push((key, value.clone()));
+        }
+        Ok(v)
     }
 
     async fn get_commitment(&self, k: &Fr254) -> Option<MockCommitmentEntry> {
-        let data = self.data.read().unwrap();
-        data.get(k).cloned()
+        self.get(k).cloned()
     }
 
     async fn get_available_commitments(
         &self,
         nf_token_id: Fr254,
     ) -> Option<Vec<MockCommitmentEntry>> {
-        let data = self.data.read().unwrap();
-        let result: Vec<_> = data
+        let f = self
             .values()
             .filter(|v| v.get_nf_token_id() == nf_token_id && v.status == CommitmentStatus::Unspent)
             .cloned()
-            .collect();
-        if result.is_empty() {
-            None
-        } else {
-            Some(result)
+            .collect::<Vec<_>>();
+        if f.is_empty() {
+            return None;
         }
+        Some(f)
     }
 
-    async fn store_commitment(&self, commitment: MockCommitmentEntry) -> Option<()> {
-        let mut data = self.data.write().unwrap();
-        let key = commitment.nullifier;
-    
-        match data.entry(key) {
-            std::collections::hash_map::Entry::Occupied(_) => {
-                None
-            },
-            std::collections::hash_map::Entry::Vacant(e) => {
-                e.insert(commitment);
-                Some(())
-            }
-        }
+    async fn store_commitment(&self, _commitment: MockCommitmentEntry) -> Option<()> {
+        unimplemented!("store_commitment is not used in current mock test");
     }
-    
+
     async fn store_commitments(
         &self,
-        commitments: &[MockCommitmentEntry],
-        dup_key_check: bool,
+        _commitments: &[MockCommitmentEntry],
+        _dup_key_check: bool,
     ) -> Option<()> {
-        if commitments.is_empty() {
-            return Some(());
-        }
-        let mut data = self.data.write().unwrap();
-        for c in commitments {
-            let key = c.nullifier;
-            match data.entry(key) { // Use the entry API here
-                std::collections::hash_map::Entry::Occupied(mut e) => {
-                    if dup_key_check {
-                        eprintln!("Mock DB Duplicate _id error: {:?}", e.key());
-                        return None;
-                    } else {
-                        println!(
-                            "Mock DB: Duplicate _id {:?} but dup_key_check is false. Overwriting.",
-                            e.key()
-                        );
-                        e.insert(c.clone());
-                    }
-                }
-                std::collections::hash_map::Entry::Vacant(e) => {
-                    e.insert(c.clone());
-                }
-            }
-        }
-        Some(())
-    }
-    
-    async fn get_balance(&self, nf_token_id: &Fr254) -> Option<Fr254> {
-        let data = self.data.read().unwrap();
-        let sum: Fr254 = data
-            .values()
-            .filter(|v| v.get_nf_token_id() == *nf_token_id && v.status == CommitmentStatus::Unspent)
-            .map(|v| v.preimage.value)
-            .sum();
-        if sum == Fr254::zero() {
-            None
-        } else {
-            Some(sum)
-        }
-    }
-    
-    async fn mark_commitments_pending_spend(&self, commitments: Vec<Fr254>) -> Option<()> {
-        let mut data = self.data.write().unwrap();
-        for k in commitments {
-            if let Some(entry) = data.get_mut(&k) {
-                entry.status = CommitmentStatus::PendingSpend;
-            }
-        }
-        Some(())
+        unimplemented!("store_commitments is not used in current mock test");
     }
 
-    async fn mark_commitments_spent(&self, nullifiers: Vec<Fr254>) -> Option<()> {
-        let mut data = self.data.write().unwrap();
-        for (_k, entry) in data.iter_mut() {
-            if nullifiers.contains(&entry.nullifier) {
-                entry.status = CommitmentStatus::Spent;
-            }
-        }
-        Some(())
+    async fn get_balance(&self, _k: &Fr254) -> Option<Fr254> {
+        unimplemented!("get_balance is not used in current mock test");
     }
 
+    async fn mark_commitments_pending_spend(&self, _commitments: Vec<Fr254>) -> Option<()> {
+        unimplemented!("mark_commitments_pending_spend is not used in current mock test ");
+    }
+
+    async fn mark_commitments_spent(&self, _commitments: Vec<Fr254>) -> Option<()> {
+        unimplemented!("mark_commitments_spent is not used in current mock test");
+    }
 
     async fn mark_commitments_unspent(
         &self,
-        commitments: &[Fr254],
-        l1_hash: Option<H256>,
-        l2_blocknumber: Option<I256>,
+        _commitments: &[Fr254],
+        _l1_hash: Option<H256>,
+        _l2_blocknumber: Option<I256>,
     ) -> Option<()> {
-        let mut data = self.data.write().unwrap();
-        for hash_key in commitments {
-            if let Some(entry) = data.get_mut(hash_key) {
-                entry.status = CommitmentStatus::Unspent;
-                entry.layer_1_transaction_hash = l1_hash.as_ref().map(|h| h.encode_hex());
-                entry.layer_2_block_number = l2_blocknumber.as_ref().map(|b| b.encode_hex());
-            }
-        }
-        Some(())
+        unimplemented!("mark_commitments_unspent is not used in current mock test");
     }
 
-    async fn mark_commitments_pending_creation(&self, commitments: Vec<Fr254>) -> Option<()> {
-        let mut data = self.data.write().unwrap();
-        for hash_key in commitments {
-            if let Some(entry) = data.get_mut(&hash_key) {
-                entry.status = CommitmentStatus::PendingCreation;
-            }
-        }
-        Some(())
+    async fn mark_commitments_pending_creation(&self, _commitments: Vec<Fr254>) -> Option<()> {
+        unimplemented!("mark_commitments_pending_creation is not used in current mock test");
     }
 
-    async fn add_nullifier(&self, key: &Fr254, nullifier: Fr254) -> Option<()> {
-        let mut data = self.data.write().unwrap();
-        if let Some(entry) = data.get_mut(key) {
-            entry.nullifier = nullifier;
-            Some(())
-        } else {
-            None
-        }
+    async fn add_nullifier(&self, _key: &Fr254, _nullifier: Fr254) -> Option<()> {
+        unimplemented!("add_nullifier is not used in current mock test ");
     }
-
 }
 // test helper function (lets one instantiate a mock DB containing random data)
 pub fn random_mock_db(
@@ -440,3 +356,4 @@ impl Mocks {
         }
     }
 }
+
