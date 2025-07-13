@@ -3669,7 +3669,7 @@ checksum = "4a5f13b858c8d314ee3e8f639011f7ccefe71f97f96e50151fb991f267928e2c"
 [[package]]
 name = "jf-plonk"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git?rev=8e498022e0d2df923943a665d83362c02877c9ff#8e498022e0d2df923943a665d83362c02877c9ff"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git?rev=ee84547f506f0a46da6b9a27b5a887b624219fa5#ee84547f506f0a46da6b9a27b5a887b624219fa5"
 dependencies = [
  "ark-bn254",
  "ark-crypto-primitives",
@@ -3705,7 +3705,7 @@ dependencies = [
 [[package]]
 name = "jf-primitives"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git?rev=8e498022e0d2df923943a665d83362c02877c9ff#8e498022e0d2df923943a665d83362c02877c9ff"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git?rev=ee84547f506f0a46da6b9a27b5a887b624219fa5#ee84547f506f0a46da6b9a27b5a887b624219fa5"
 dependencies = [
  "anyhow",
  "arithmetic",
@@ -3755,7 +3755,7 @@ dependencies = [
 [[package]]
 name = "jf-relation"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git?rev=8e498022e0d2df923943a665d83362c02877c9ff#8e498022e0d2df923943a665d83362c02877c9ff"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git?rev=ee84547f506f0a46da6b9a27b5a887b624219fa5#ee84547f506f0a46da6b9a27b5a887b624219fa5"
 dependencies = [
  "ark-bls12-377",
  "ark-bls12-381",
@@ -3787,7 +3787,7 @@ dependencies = [
 [[package]]
 name = "jf-utils"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git?rev=8e498022e0d2df923943a665d83362c02877c9ff#8e498022e0d2df923943a665d83362c02877c9ff"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git?rev=ee84547f506f0a46da6b9a27b5a887b624219fa5#ee84547f506f0a46da6b9a27b5a887b624219fa5"
 dependencies = [
  "ark-ec",
  "ark-ff 0.4.2",
@@ -4291,7 +4291,7 @@ dependencies = [
 [[package]]
 name = "nf-curves"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git?rev=8e498022e0d2df923943a665d83362c02877c9ff#8e498022e0d2df923943a665d83362c02877c9ff"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git?rev=ee84547f506f0a46da6b9a27b5a887b624219fa5#ee84547f506f0a46da6b9a27b5a887b624219fa5"
 dependencies = [
  "ark-bn254",
  "ark-ec",

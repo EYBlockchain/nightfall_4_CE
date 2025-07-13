@@ -10,7 +10,7 @@ path = "bin/key_generation.rs"
 
 
 [dependencies]
-jf-utils = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "8e498022e0d2df923943a665d83362c02877c9ff", features = [
+jf-utils = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "ee84547f506f0a46da6b9a27b5a887b624219fa5", features = [
     "parallel",
 ] }
 itertools = "0.10.5"
@@ -31,12 +31,12 @@ nightfall_proposer = { path = "../nightfall_proposer" }
 ark-serialize = "0.4.2"
 ark-std = { version = "0.4.0", default-features = false }
 ark-bn254 = "0.4.0"
-jf-plonk = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "8e498022e0d2df923943a665d83362c02877c9ff", features = [
+jf-plonk = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "ee84547f506f0a46da6b9a27b5a887b624219fa5", features = [
     "test-srs",
 ] }
-jf-relation = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "8e498022e0d2df923943a665d83362c02877c9ff" }
-jf-primitives = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "8e498022e0d2df923943a665d83362c02877c9ff" }
-nf-curves = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "8e498022e0d2df923943a665d83362c02877c9ff" }
+jf-relation = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "ee84547f506f0a46da6b9a27b5a887b624219fa5" }
+jf-primitives = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "ee84547f506f0a46da6b9a27b5a887b624219fa5" }
+nf-curves = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "ee84547f506f0a46da6b9a27b5a887b624219fa5" }
 ark-ec = { version = "0.4.2", features = ["parallel"] }
 ark-ff = { version = "0.4.2", features = ["parallel"] }
 ark-poly = { version = "0.4.2", features = ["parallel"] }
@@ -51,7 +51,7 @@ log = "0.4.27"
 
 [dev-dependencies]
 url = "2.5.4"
-jf-utils = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "8e498022e0d2df923943a665d83362c02877c9ff" }
+jf-utils = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "ee84547f506f0a46da6b9a27b5a887b624219fa5" }
 
 [features]
 test-srs = ["jf-plonk/test-srs"]
