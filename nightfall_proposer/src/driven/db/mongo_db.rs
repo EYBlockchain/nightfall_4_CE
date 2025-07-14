@@ -7,8 +7,6 @@ use ark_ff::{PrimeField, Zero};
 use ethers::types::H160;
 use futures::TryStreamExt;
 use lib::hex_conversion::HexConvertible;
-use lib::serialization::FrWrapperhex;
-use bson::to_bson;
 use mongodb::bson::doc;
 use nightfall_client::{
     domain::{entities::ClientTransaction, error::ConversionError},
@@ -95,71 +93,6 @@ where
             .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
             .count_documents(filter)
             .await
-    }
-
-    async fn is_transaction_in_mempool(&self, k: &'a [u32]) -> bool {
-        let filter = doc! {"hash": k};
-        let result = self
-            .database(DB)
-            .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
-            .find_one(filter)
-            .await
-            .expect("Database error"); // we can't really proceed at this point
-        match result {
-            Some(_v) => true,
-            None => false,
-        }
-    }
-
-    async fn check_nullifier(&self, nullifier: Fr254) -> bool {
-        let wrapped = FrWrapperhex(nullifier);
-        let filter = match to_bson(&wrapped) {
-            Ok(bson) => doc! { "nullifier": bson },
-            Err(_) => return false,
-        };
-
-        matches!(
-            self.database(DB)
-                .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
-                .find_one(filter)
-                .await,
-            Ok(Some(_)) 
-        )
-    }
-    
-    async fn check_commitment(&self, commitment: Fr254) -> bool {
-        let wrapped = FrWrapperhex(commitment);
-        let filter = match to_bson(&wrapped) {
-            Ok(bson) => doc! { "commitment": bson },
-            Err(e) => {
-                eprintln!("Serialization error: {:?}", e);
-                return false;
-            }
-        };
-
-        matches!(
-            self.database(DB)
-                .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
-                .find_one(filter)
-                .await,
-            Ok(Some(_)) 
-        )
-    }
-    
-    async fn update_commitment<M>(&self, mutator: M, key: &'a [u32]) -> Option<()>
-    where
-        M: Fn(&ClientTransactionWithMetaData<P>) -> ClientTransactionWithMetaData<P> + Send,
-    {
-        let filter = doc! {"hash": key};
-        let old_tx = self.get_transaction(key).await?;
-        let new_tx = mutator(&old_tx);
-
-        self.database(DB)
-            .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
-            .replace_one(filter, new_tx)
-            .await
-            .expect("Database error"); // we can't really proceed at this point
-        Some(())
     }
 
     async fn set_in_mempool(

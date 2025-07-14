@@ -162,7 +162,7 @@ fn build_valid_transfer_inputs() -> CircuitTestInfo {
 
     let token_id = Fr254::from_hex_string(&token_id_string).unwrap();
 
-    let withdraw_address_bytes: [u8; 20] = [rand::thread_rng().gen(); 20];
+    let withdraw_address_bytes: [u8; 20] = [0; 20];
 
     let withdraw_address = Fr254::from_be_bytes_mod_order(&withdraw_address_bytes);
     // make a random Nightfall address, and create fee_token_id from it
@@ -188,7 +188,7 @@ fn build_valid_transfer_inputs() -> CircuitTestInfo {
     let keys = ZKPKeys::new(root_key).unwrap();
 
     // Set recipient public key to neutral point
-    let recipient_public_key = Affine::<BabyJubjub>::zero();
+    let recipient_public_key = Affine::<BabyJubjub>::generator();
 
     // Generate random ephemeral private key
     let ephemeral_key = BJJScalar::rand(&mut rng);
