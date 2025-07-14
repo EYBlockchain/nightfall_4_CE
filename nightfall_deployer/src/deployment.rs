@@ -9,7 +9,6 @@ use nightfall_proposer::driven::rollup_prover::RollupProver;
 use std::{
     error::Error,
     os::unix::process::ExitStatusExt,
-    path::{Path, PathBuf},
 };
 use url::Url;
 
@@ -21,9 +20,10 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn Error>>
     // which the script can then read.
     std::env::set_var("NF4_RUN_MODE", &settings.run_mode); // this is possibly already set but if it was, it will be the same as settings.run_mode.
     if !settings.mock_prover && settings.contracts.deploy_contracts {
+        forge_command(&["build", "--force"]);
         let vk = RollupProver::get_decider_vk();
         create_vk_contract::<false>(&vk, settings);
-        forge_command(&["build", "--force"]);
+        
     }
 
     forge_command(&[
@@ -34,22 +34,20 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn Error>>
         "--broadcast",
         "--force",
     ]);
-
+   
     // read the deployment log file to extract the contract addresses
-    let join_path = Path::new(&settings.contracts.deployment_file)
+    let cwd = std::env::current_dir()?;
+
+    let path_out = cwd
+        .join(&settings.contracts.deployment_file)
         .join(settings.network.chain_id.to_string())
         .join("run-latest.json");
-    let path_out: PathBuf;
-    let cwd = std::env::current_dir()?;
-    let mut cwd = cwd.as_path();
-    loop {
-        let file_path = cwd.join(&join_path);
-        if file_path.is_file() {
-            path_out = file_path;
-            break;
-        }
 
-        cwd = cwd.parent().ok_or("No parent in path")?;
+    if !path_out.is_file() {
+        return Err(format!(
+            "Deployment log file not found at the expected location: {:?}",
+            path_out
+        ).into());
     }
     let addresses = Addresses::load(Sources::parse(
         path_out.to_str().ok_or("Couldn't convert path to str")?,
@@ -88,8 +86,9 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn Error>>
 
 /// Function should only be called after we have checked forge is installed by running 'which forge'
 pub fn forge_command(command: &[&str]) {
+    info!("DEBUG: Running forge command: {:?}", command); // Use info! as forge_command already uses info!
     let output = std::process::Command::new("forge").args(command).output();
-
+   
     match output {
         Ok(o) => {
             if o.status.success() {
@@ -119,12 +118,12 @@ pub fn forge_command(command: &[&str]) {
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
-
+    use std::{fs, path::Path};
     use super::*;
     use configuration::addresses::get_addresses;
+
     use ethers::{
-        core::utils::Anvil,
+        core::utils::Anvil, 
         providers::{Http, Middleware, Provider},
     };
     use nightfall_bindings::nightfall::NIGHTFALL_DEPLOYED_BYTECODE;
@@ -140,7 +139,6 @@ mod tests {
             "NF4_SIGNING_KEY",
             "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
         );
-        println!(" wallet type {:?}", settings.nightfall_client.wallet_type);
         settings.ethereum_client_url = "http://localhost:8545".to_string(); // we're running bare metal so a docker url won't work
         let url = Url::parse(&settings.ethereum_client_url).unwrap();
         let anvil = Anvil::new()
@@ -149,10 +147,13 @@ mod tests {
                     .expect("Could not get Anvil instance. Have you installed it?"),
             )
             .spawn();
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
         // set the current working directory to be the project root
         let root = "../";
         std::env::set_current_dir(root).unwrap();
+  
         // run the deploy function and get the contract addresses
+      
         deploy_contracts(&settings).await.unwrap();
         // get a blockchain provider so we can interrogate the deployed code
         let provider = Provider::<Http>::try_from(anvil.endpoint()).unwrap();

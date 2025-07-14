@@ -146,6 +146,7 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
         // Calculate new commitments
         let withdraw_flag = self.is_zero(withdraw_address)?;
         let withdraw_flag = self.logic_neg(withdraw_flag)?;
+   
 
         let commitments = self.verify_commitments(
             fee_token_id,
@@ -770,7 +771,12 @@ mod tests {
         let nf_token_id = to_nf_token_id_from_str(&erc_address_string, &token_id_string).unwrap();
         let nf_slot_id = nf_token_id;
 
-        let withdraw_address_bytes: [u8; 20] = [rand::thread_rng().gen(); 20];
+        // Generate a random withdraw address
+        let mut withdraw_address_bytes: [u8; 20] = [0; 20]; // Initialize with zeros
+                rand::thread_rng().fill(&mut withdraw_address_bytes);
+                if withdraw_address_bytes == [0; 20] {
+                    withdraw_address_bytes[0] = 1;
+                }
 
         let withdraw_address = Fr254::from_be_bytes_mod_order(&withdraw_address_bytes);
         // make a random Nightfall address, and create fee_token_id from it
@@ -1118,13 +1124,13 @@ mod tests {
                 &mut circuit_test_info.public_inputs,
                 &mut circuit_test_info.private_inputs,
             )
-            .unwrap();
+            .expect("Failed to build circuit");
 
             circuit
                 .check_circuit_satisfiability(
                     Vec::from(&circuit_test_info.public_inputs).as_slice(),
                 )
-                .unwrap();
+                .expect("Circuit should be satisfiable with valid inputs");
 
             for (circuit_comm, expected_comm) in circuit_test_info
                 .public_inputs
