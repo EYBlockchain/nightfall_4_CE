@@ -554,7 +554,7 @@ contract Nightfall is
     function verify_rollup_proof(
         Block calldata blk,
         uint256 public_hash
-    ) public view returns (bool, uint256) {
+    ) public  returns (bool, uint256) {
         // We need to split the proof into the public data and the actual proof
         // The first 32 bytes of the proof are the sum of fees
         console2.log("blk.rollup_proof");
@@ -609,6 +609,11 @@ contract Nightfall is
         publicInputs[13] = instance2_y;
         publicInputs[14] = proof2_x;
         publicInputs[15] = proof2_y;
+        // compute the keccak256 hash of the public inputs
+        {uint256 publicInputsHash = uint256(
+            keccak256(abi.encodePacked(publicInputs))
+        );
+        console2.log("publicInputsHash: ", publicInputsHash);}
 
         // we also need to deserialize the transaction public data bytes into fields - but that's easy in Solidity
         bytes memory proof = blk.rollup_proof[288:];

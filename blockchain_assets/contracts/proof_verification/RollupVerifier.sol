@@ -3,8 +3,25 @@ pragma solidity ^0.8.20;
 
 import {UltraVK as VerifyingKey} from "./VerificationKey.sol";
 import {INFVerifier} from "./INFVerifier.sol";
+import "forge-std/console2.sol";
 
 contract RollupVerifier is INFVerifier {
+    // test purpose
+    uint256 public_inputs_hash;
+    // uint256 domain_size1;
+    // uint256 num_inputs;
+    // uint256 sigma_comms_1_x;
+    // uint256 sigma_comms_1_y;
+    // uint256 sigma_comms_2_x;
+    // uint256 sigma_comms_2_y;
+    // uint256 sigma_comms_3_x;
+    // uint256 sigma_comms_3_y;
+    // uint256 sigma_comms_4_x;
+    // uint256 sigma_comms_4_y;
+    // uint256 sigma_comms_5_x;
+    // uint256 sigma_comms_5_y;
+    // uint256  sigma_comms_6_x;
+    // uint256 sigma_comms_6_y;
     // Memory locations for verification key parts
     uint256 internal constant DOMAIN_SIZE = 0x400;
     uint256 internal constant NUM_PUBLIC_INPUTS = 0x420;
@@ -235,6 +252,11 @@ contract RollupVerifier is INFVerifier {
                     eq(mulmod(y, y, q), addmod(mulmod(x, xx, q), 3, q))
                 )
             }
+            // sstore(domain_size1.slot, mload(DOMAIN_SIZE))
+            // sstore(num_inputs.slot, mload(NUM_PUBLIC_INPUTS))
+            // sstore(sigma_comms_1_x.slot, mload(SIGMA1_X))
+            // sstore(sigma_comms_1_y.slot, mload(SIGMA1_Y))
+
 
             // VALIDATE SIGMA2
             {
@@ -247,6 +269,8 @@ contract RollupVerifier is INFVerifier {
                     eq(mulmod(y, y, q), addmod(mulmod(x, xx, q), 3, q))
                 )
             }
+//  sstore(sigma_comms_2_x.slot, mload(SIGMA2_X))
+//             sstore(sigma_comms_2_y.slot, mload(SIGMA2_Y))
 
             // VALIDATE SIGMA3
             {
@@ -572,7 +596,26 @@ contract RollupVerifier is INFVerifier {
                 mcopy(add(ptr, 0x600), PLRANGE_X, 0x100)
                 vkHash := mod(keccak256(ptr, 0x700), p)
             }
+            // sstore(sigma_comms_2_x.slot, mload(SIGMA2_X))
+            // sstore(sigma_comms_2_y.slot, mload(SIGMA2_Y))
+
+
         }
+
+        // console2.log("am checking the vk");
+        // domain_size1 = ds;
+        // console2.log("domain size:", domain_size1);
+        // console2.log("domain size (hex): %x", domain_size1);
+        // console2.log("num_inputs:", num_inputs);
+        // console2.log("num_inputs (hex): %x", num_inputs);
+        // console2.log("sigma_comms_1_x:", sigma_comms_1_x);
+        // console2.log("sigma_comms_1_x (hex): %x", sigma_comms_1_x);
+        // console2.log("sigma_comms_1_y:", sigma_comms_1_y);
+        // console2.log("sigma_comms_1_y (hex): %x", sigma_comms_1_y);
+        // console2.log("sigma_comms_2_x:", sigma_comms_2_x);
+        // console2.log("sigma_comms_2_x (hex): %x", sigma_comms_2_x);
+        // console2.log("sigma_comms_2_y:", sigma_comms_2_y);
+        // console2.log("sigma_comms_2_y (hex): %x", sigma_comms_2_y);
 
         if (vkHash != getVerificationKeyHash()) {
             revert INVALID_VERIFICATION_KEY_HASH(
@@ -595,7 +638,7 @@ contract RollupVerifier is INFVerifier {
     function verify(
         bytes calldata,
         bytes32[] calldata
-    ) external view override returns (bool) {
+    ) external  override returns (bool) {
         loadVerificationKey(DOMAIN_SIZE, N_INV_LOCATION);
         bytes32 vkHash = getVerificationKeyHash();
         uint256 requiredPublicInputCount;
@@ -618,6 +661,7 @@ contract RollupVerifier is INFVerifier {
             {
                 let data_ptr := add(calldataload(0x04), 0x24)
                 let success := 1
+                // G1Point wires_poly_comms_1;
                 mstore(W1_X, mod(calldataload(data_ptr), q))
                 mstore(W1_Y, mod(calldataload(add(data_ptr, 0x20)), q))
                 {
@@ -1024,6 +1068,7 @@ contract RollupVerifier is INFVerifier {
                         mod(keccak256(0x00, 0x200), p)
                     )
                 }
+                sstore(public_inputs_hash.slot, mload(PUBLIC_INPUTS_HASH_LOCATION))
             }
             // Now we begin transcript and challenge generation
             // The first 64 bytes of the initial transcript are zero
@@ -2872,6 +2917,9 @@ contract RollupVerifier is INFVerifier {
                     staticcall(gas(), 0x06, ACC_SPACE_X, 0x80, ACC_NEXT_X, 0x40)
                 )
             }
+        // }
+        // console2.log("PI Hash:", public_inputs_hash);
+        // // assembly {
 
             /**
              * PERFORM PAIRING
@@ -2911,5 +2959,110 @@ contract RollupVerifier is INFVerifier {
                 return(0x00, 0x20) // Proof succeeded!
             }
         }
+
+        console2.log("PI Hash:", public_inputs_hash);
+
+        return true;
+        // then help me print the proof
+        // console2.log("Proof:", mload(add(PROOF_LOCATION, 0x40)));
+        // Verify if the vk is correctly set
+        
+
+
+
+        // Copilot, add the code from here
+        // console2.log("am checking the proof");
+        // console2.log("wires_poly_comms_1, W1_X, W1_Y", uint256(mload(W1_X)), uint256(mload(W1_Y)));
+        // console2.log("wires_poly_comms_2, W1_X, W1_Y:", uint256(mload(W2_X)), uint256(mload(W2_Y)));
+        // console2.log("wires_poly_comms_3, W3_X, W3_Y:", uint256(mload(W3_X)), uint256(mload(W3_Y)));
+        // console2.log("wires_poly_comms_4, W4_X, W4_Y:", uint256(mload(W4_X)), uint256(mload(W4_Y)));
+        // console2.log("wires_poly_comms_5, W5_X, W5_Y:", uint256(mload(W5_X)), uint256(mload(W5_Y)));
+        // console2.log("wires_poly_comms_6, W6_X, W6_Y:", uint256(mload(W6_X)), uint256(mload(W6_Y)));
+        // console2.log("sigma_poly_comms_1, SIGMA1_X, SIGMA1_Y:", uint256(mload(SIGMA1_X)), uint256(mload(SIGMA1_Y)));
+        // console2.log("sigma_poly_comms_2, SIGMA2_X, SIGMA2_Y:", uint256(mload(SIGMA2_X)), uint256(mload(SIGMA2_Y)));
+        // console2.log("sigma_poly_comms_3, SIGMA3_X, SIGMA3_Y:", uint256(mload(SIGMA3_X)), uint256(mload(SIGMA3_Y)));
+        // console2.log("sigma_poly_comms_4, SIGMA4_X, SIGMA4_Y:", uint256(mload(SIGMA4_X)), uint256(mload(SIGMA4_Y)));
+        // console2.log("sigma_poly_comms_5, SIGMA5_X, SIGMA5_Y:", uint256(mload(SIGMA5_X)), uint256(mload(SIGMA5_Y)));
+        // console2.log("quot_poly_comms_1, QUOT1_X, QUOT1_Y:", uint256(mload(QUOT1_X)), uint256(mload(QUOT1_Y)));
+        // console2.log("quot_poly_comms_2, QUOT2_X, QUOT2_Y:", uint256(mload(QUOT2_X)), uint256(mload(QUOT2_Y)));
+        // console2.log("quot_poly_comms_3, QUOT3_X, QUOT3_Y:", uint256(mload(QUOT3_X)), uint256(mload(    QUOT3_Y)));
+        // console2.log("quot_poly_comms_4, QUOT4_X, QUOT4_Y:", uint256(mload(QUOT4_X)), uint256(mload(QUOT4_Y)));
+        // console2.log("quot_poly_comms_5, QUOT5_X, QUOT5_Y:", uint256(mload(QUOT5_X)), uint256(mload(QUOT5_Y)));
+        // console2.log("quot_poly_comms_6, QUOT6_X, QUOT6_Y:", uint256(mload(QUOT6_X)), uint256(mload(QUOT6_Y)));
+        // console2.log("plrange_poly_comms, PLRANGE_X, PLRANGE_Y:", uint256(mload(PLRANGE_X)), uint256(mload(PLRANGE_Y)));
+        // console2.log("plkey_poly_comms, PLKEY_X, PLKEY_Y:", uint256(mload(PLKEY_X)), uint256(mload(PLKEY_Y)));
+        // console2.log("pltds_poly_comms, PLTDS_X, PLTDS_Y:", uint256(mload(PLTDS_X)), uint256(mload(PLTDS_Y)));
+        // console2.log("pldomsep_poly_comms, PLDOMSEP_X, PLDOMSEP_Y:", uint256(mload(PLDOMSEP_X)), uint256(mload(PLDOMSEP_Y)));
+        // console2.log("qlookup_poly_comms, QLOOKUP_X, QLOOKUP_Y:", uint256(mload(QLOOKUP_X)), uint256(mload(QLOOKUP_Y)));
+        // console2.log("qdomsep_poly_comms, QDOMSEP_X, QDOMSEP_Y:", uint256(mload(QDOMSEP_X)), uint256(mload(QDOMSEP_Y)));
+        // console2.log("okg1_poly_comms, OKG1_X, OKG1_Y:", uint256(mload(OKG1_X)), uint256(mload(OKG1_Y)));
+        // console2.log("okg2_poly_comms, OKG2_X, OKG2_Y:", uint256(mload(OKG2_X)), uint256(mload(OKG2_Y)));
+        // console2.log("okg3_poly_comms, OKG3_X, OKG3_Y:", uint256(mload(OKG3_X)), uint256(mload(OKG3_Y)));
+        // console2.log("acc_proof1_poly_comms, ACC_PROOF1_X, ACC_PROOF1_Y:", uint256(mload(ACC_PROOF1_X)), uint256(mload(ACC_PROOF1_Y)));
+        // console2.log("acc_proof2_poly_comms, ACC_PROOF2_X, ACC_PROOF2_Y:", uint256(mload(ACC_PROOF2_X)), uint256(mload(ACC_PROOF2_Y)));
+        // console2.log("acc_instance1_poly_comms, ACC_INSTANCE1_X, ACC_INSTANCE1_Y:", uint256(mload(ACC_INSTANCE1_X)), uint256(mload(ACC_INSTANCE1_Y)));
+        // console2.log("acc_instance2_poly_comms, ACC_INSTANCE2_X, ACC_INSTANCE2_Y:", uint256(mload(ACC_INSTANCE2_X)), uint256(mload(ACC_INSTANCE2_Y)));
+        // console2.log("opening1_poly_comms, OPENING1_X, OPENING1_Y:", uint256(mload(OPENING1_X)), uint256(mload(OPENING1_Y)));
+        // console2.log("opening2_poly_comms, OPENING2_X, OPENING2_Y:", uint256(mload(OPENING2_X)), uint256(mload(OPENING2_Y)));
+        // console2.log("acc_x_poly_comms, ACC_X:", uint256(mload(ACC_X)));
+        // console2.log("acc_y_poly_comms, ACC_Y:", uint256(mload(ACC_Y)));
+        // console2.log("acc_next_x_poly_comms, ACC_NEXT_X:", uint256(mload(ACC_NEXT_X)));
+        // console2.log("acc_next_y_poly_comms, ACC_NEXT_Y:", uint256(mload(ACC_NEXT_Y)));
+        // console2.log("acc_space_x_poly_comms, ACC_SPACE_X:", uint256(mload(ACC_SPACE_X)));
+        // console2.log("acc_space_y_poly_comms, ACC_SPACE_Y:", uint256(mload(ACC_SPACE_Y)));
+        // console2.log("zeta_poly_comms, ZETA:", uint256(mload(ZETA)));
+        // console2.log("zeta_n_plus_two_poly_comms, ZETA_N_PLUS_TWO:", uint256(mload(ZETA_N_PLUS_TWO)));
+        // console2.log("challenge_u_poly_comms, CHALLENGE_U:", uint256(mload(CHALLENGE_U)));
+        // console2.log("challenge_v_poly_comms, CHALLENGE_V:", uint256(mload(CHALLENGE_V)));
+        // console2.log("quot_coeff_poly_comms, QUOT_COEFF:", uint256(mload(QUOT_COEFF)));
+        // console2.log("p_poly_comms, P:", uint256(mload(P)));
+        // console2.log("lin_poly_const_poly_comms, LIN_POLY_CONST:", uint256(mload(LIN_POLY_CONST)));
+        // console2.log("public_inputs_hash_poly_comms, PUBLIC_INPUTS_HASH:", uint256(mload(PUBLIC_INPUTS_HASH_LOCATION)));
+        // console2.log("omega_location_poly_comms, OMEGA_LOCATION:", uint256(mload(OMEGA_LOCATION)));
+        // console2.log("point_not_on_curve_selector, POINT_NOT_ON_CURVE_SELECTOR:", uint256(POINT_NOT_ON_CURVE_SELECTOR));
+        // console2.log("pairing_failed_selector, PAIRING_FAILED_SELECTOR:", uint256(PAIRING_FAILED_SELECTOR));
+        // console2.log("acc_x_poly_comms, ACC_X:", uint256(mload(ACC_X)));
+        // console2.log("acc_y_poly_comms, ACC_Y:", uint256(mload(ACC_Y)));
+        // console2.log("acc_next_x_poly_comms, ACC_NEXT_X:", uint256(mload(ACC_NEXT_X)));
+        // console2.log("acc_next_y_poly_comms, ACC_NEXT_Y:", uint256(mload(ACC_NEXT_Y)));
+        // console2.log("acc_space_x_poly_comms, ACC_SPACE_X:", uint256(mload(ACC_SPACE_X)));
+        // console2.log("acc_space_y_poly_comms, ACC_SPACE_Y:", uint256(mload(ACC_SPACE_Y)));
+        // console2.log("acc_proof1_poly_comms, ACC_PROOF1_X:", uint256(mload(ACC_PROOF1_X)));
+        // console2.log("acc_proof1_poly_comms, ACC_PROOF1_Y:", uint256(mload(ACC_PROOF1_Y)));
+        // console2.log("acc_proof2_poly_comms, ACC_PROOF2_X:", uint256(mload(ACC_PROOF2_X)));
+        // console2.log("acc_proof2_poly_comms, ACC_PROOF2_Y:", uint256(mload(ACC_PROOF2_Y)));
+        // console2.log("acc_instance1_poly_comms, ACC_INSTANCE1_X:", uint256(mload(ACC_INSTANCE1_X)));
+        // console2.log("acc_instance2_poly_comms, ACC_INSTANCE2_Y:", uint256(mload(ACC_INSTANCE2_Y)));
+        // console2.log("opening1_poly_comms, OPENING1_X:", uint256(mload(OPENING1_X)));
+        // console2.log("opening1_poly_comms, OPENING1_Y:", uint256(mload(OPENING1_Y)));
+        // console2.log("opening2_poly_comms, OPENING2_X:", uint256(mload(OPENING2_X)));
+        // console2.log("opening2_poly_comms, OPENING2_Y:", uint256(mload(OPENING2_Y)));
+        // console2.log("zeta_poly_comms, ZETA:", uint256(mload(ZETA)));
+        // console2.log("zeta_n_plus_two_poly_comms, ZETA_N_PLUS_TWO:", uint256(mload(ZETA_N_PLUS_TWO)));
+        // console2.log("challenge_u_poly_comms, CHALLENGE_U:", uint256(mload(CHALLENGE_U)));
+        // console2.log("challenge_v_poly_comms, CHALLENGE_V:", uint256(mload(CHALLENGE_V)));
+        // console2.log("quot_coeff_poly_comms, QUOT_COEFF:", uint256(mload(QUOT_COEFF)));
+        // console2.log("p_poly_comms, P:", uint256(mload(P)));
+        // console2.log("lin_poly_const_poly_comms, LIN_POLY_CONST:", uint256(mload(LIN_POLY_CONST)));
+        // console2.log("public_inputs_hash_poly_comms, PUBLIC_INPUTS_HASH:", uint256(mload(PUBLIC_INPUTS_HASH_LOCATION)));
+        // console2.log("omega_location_poly_comms, OMEGA_LOCATION:", uint256(mload(OMEGA_LOCATION)));
+        // console2.log("point_not_on_curve_selector, POINT_NOT_ON_CURVE_SELECTOR:", uint256(POINT_NOT_ON_CURVE_SELECTOR));
+        // console2.log("pairing_failed_selector, PAIRING_FAILED_SELECTOR:", uint256(PAIRING_FAILED_SELECTOR));
+        // console2.log("acc_x_poly_comms, ACC_X:", uint256(mload(ACC_X)));
+        // console2.log("acc_y_poly_comms, ACC_Y:", uint256(mload(ACC_Y)));
+        // console2.log("acc_next_x_poly_comms, ACC_NEXT_X:", uint256(mload(ACC_NEXT_X)));
+        // console2.log("acc_next_y_poly_comms, ACC_NEXT_Y:", uint256(mload(ACC_NEXT_Y)));
+        // console2.log("acc_space_x_poly_comms, ACC_SPACE_X:", uint256(mload(ACC_SPACE_X)));
+        // console2.log("acc_space_y_poly_comms, ACC_SPACE_Y:", uint256(mload(ACC_SPACE_Y)));
+        // console2.log("acc_proof1_poly_comms, ACC_PROOF1_X:", uint256(mload(ACC_PROOF1_X)));
+        // console2.log("acc_proof1_poly_comms, ACC_PROOF1_Y:", uint256(mload(ACC_PROOF1_Y)));
+        // console2.log("acc_proof2_poly_comms, ACC_PROOF2_X:", uint256(mload(ACC_PROOF2_X)));
+        // console2.log("acc_proof2_poly_comms, ACC_PROOF2_Y:", uint256(mload(ACC_PROOF2_Y)));
+        // console2.log("acc_instance1_poly_comms, ACC_INSTANCE1_X:", uint256(mload(ACC_INSTANCE1_X)));
+        // console2.log("acc_instance2_poly_comms, ACC_INSTANCE2_Y:", uint256(mload(ACC_INSTANCE2_Y)));
+        // console2.log("opening1_poly_comms, OPENING1_X:", uint256(mload(OPENING1_X)));
+        // console2.log("opening1_poly_comms, OPENING1_Y:", uint256(mload(OPENING1_Y)));
+        // console2.log("opening2_poly_comms, OPENING2_X:", uint256(mload(OPENING2_X)));
+        // console2.log("opening2_poly_comms, OPENING2_Y:", uint256(mload(OPENING2_Y)));
     }
 }

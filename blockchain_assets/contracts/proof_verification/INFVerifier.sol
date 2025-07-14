@@ -5,5 +5,5 @@ interface INFVerifier {
     function verify(
         bytes calldata,
         bytes32[] calldata publicInputs
-    ) external view returns (bool result);
+    ) external returns (bool result);
 }

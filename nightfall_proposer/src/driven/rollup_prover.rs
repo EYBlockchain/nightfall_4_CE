@@ -406,7 +406,7 @@ impl RecursiveProver for RollupProver {
         let fee_sum = pi_slices
             .iter()
             .try_fold(circuit.zero(), |acc, slice| circuit.add(acc, slice[0]))?;
-        ark_std::println!("Fee sum in base_bn254_checks: {}", circuit.witness(fee_sum)?);
+        // ark_std::println!("Fee sum in base_bn254_checks: {}", circuit.witness(fee_sum)?);
 
         let mut lookup_vars = Vec::<(Variable, Variable, Variable)>::new();
         let mut sha_vars = Vec::<Variable>::new();
@@ -478,7 +478,7 @@ impl RecursiveProver for RollupProver {
         circuit.enforce_equal(end_root_null_one, start_root_null_two)?;
 
         let fee_sum = circuit.add(fee_sum_one, fee_sum_two)?;
-        ark_std::println!("Fee sum in bn254_merge_circuit_checks: {}", circuit.witness(fee_sum)?);
+        // ark_std::println!("Fee sum in bn254_merge_circuit_checks: {}", circuit.witness(fee_sum)?);
         let mut lookup_vars = Vec::<(Variable, Variable, Variable)>::new();
 
         let (_, sha_left) =
@@ -523,7 +523,7 @@ impl RecursiveProver for RollupProver {
         circuit.enforce_equal(end_root_null_one, start_root_null_two)?;
 
         let fee_sum = circuit.add(fee_sum_one, fee_sum_two)?;
-        ark_std::println!("Fee sum in grumpkin_merge_circuit_checks: {}", circuit.witness(fee_sum)?);
+        // ark_std::println!("Fee sum in grumpkin_merge_circuit_checks: {}", circuit.witness(fee_sum)?);
         Ok(vec![
             start_root_comm_one,
             end_root_comm_two,
@@ -559,18 +559,18 @@ impl RecursiveProver for RollupProver {
         circuit.enforce_equal(end_root_null_one, start_root_null_two)?;
 
         let fee_sum = circuit.add(fee_sum_one, fee_sum_two)?;
-        ark_std::println!(
-            "fee_sum_one in decider_circuit_checks: {:?}",
-            circuit.witness(fee_sum_one)?
-        );
-        ark_std::println!(
-            "fee_sum_two in decider_circuit_checks: {:?}",
-            circuit.witness(fee_sum_two)?
-        );
-        ark_std::println!(
-            "Fee sum in decider_circuit_checks: {:?}",
-            circuit.witness(fee_sum)?
-        );
+        // ark_std::println!(
+        //     "fee_sum_one in decider_circuit_checks: {:?}",
+        //     circuit.witness(fee_sum_one)?
+        // );
+        // ark_std::println!(
+        //     "fee_sum_two in decider_circuit_checks: {:?}",
+        //     circuit.witness(fee_sum_two)?
+        // );
+        // ark_std::println!(
+        //     "Fee sum in decider_circuit_checks: {:?}",
+        //     circuit.witness(fee_sum)?
+        // );
         let mut lookup_vars = Vec::<(Variable, Variable, Variable)>::new();
 
         let (_, sha_left) =
