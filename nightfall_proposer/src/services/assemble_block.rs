@@ -398,26 +398,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use lib::tests_utils::{get_db_connection, get_mongo};
     use nightfall_client::driven::plonk_prover::plonk_proof::PlonkProof;
-    use testcontainers::{
-        core::IntoContainerPort, runners::AsyncRunner, ContainerAsync, GenericImage,
-    };
-
-    async fn get_mongo() -> ContainerAsync<GenericImage> {
-        GenericImage::new("mongo", "4.4.1-bionic")
-            .with_exposed_port(27017_u16.udp())
-            .start()
-            .await
-            .unwrap()
-    }
-
-    async fn get_db_connection(container: &ContainerAsync<GenericImage>) -> mongodb::Client {
-        let host = container.get_host().await.unwrap();
-        let port = container.get_host_port_ipv4(27017).await.unwrap();
-        mongodb::Client::with_uri_str(&format!("mongodb://{}:{}", host, port))
-            .await
-            .expect("Could not create database connection")
-    }
 
     #[tokio::test]
     async fn test_prepare_block_data_simple_case() {

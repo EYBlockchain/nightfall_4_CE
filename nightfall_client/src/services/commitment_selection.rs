@@ -253,35 +253,10 @@ async fn verify_enough_commitments(
 #[cfg(test)]
 mod test {
     use super::*;
+    use lib::tests_utils::{get_db_connection, get_mongo, get_db_connection_uri};
     use crate::domain::entities::CommitmentStatus;
     use ark_bn254::Fr as Fr254;
-    use testcontainers::{
-        core::IntoContainerPort, runners::AsyncRunner, ContainerAsync, GenericImage,
-    };
-    use tokio::io::AsyncReadExt;
     use url::Host;
-
-    fn get_db_connection_uri(host: Host, port: u16) -> String {
-        format!("mongodb://{}:{}", host, port)
-    }
-
-    /// This function creates a mongo container and returns it
-    async fn get_mongo() -> ContainerAsync<GenericImage> {
-        GenericImage::new("mongo", "4.4.1-bionic")
-            .with_exposed_port(27017.udp())
-            .start()
-            .await
-            .unwrap()
-    }
-
-    /// This function is used to provide a database connection to the tests
-    async fn get_db_connection(container: &ContainerAsync<GenericImage>) -> mongodb::Client {
-        let host = container.get_host().await.unwrap();
-        let port = container.get_host_port_ipv4(27017).await.unwrap();
-        mongodb::Client::with_uri_str(&get_db_connection_uri(host, port))
-            .await
-            .expect("Could not create database connection")
-    }
 
     #[tokio::test]
     async fn test_commitment_selection_case_1_2() {
