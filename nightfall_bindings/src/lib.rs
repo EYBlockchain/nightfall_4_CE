@@ -5,6 +5,7 @@
 //! These files may be overwritten by the codegen system at any time.
 pub mod allowlist;
 pub mod arrays;
+pub mod bn_254_crypto;
 pub mod bytes_lib;
 pub mod certified;
 pub mod comparators;
@@ -43,8 +44,10 @@ pub mod inf_verifier;
 pub mod math;
 pub mod mock_deployer;
 pub mod mock_verifier;
+pub mod night_fish_verifier;
 pub mod nightfall;
 pub mod panic;
+pub mod polynomial_eval;
 pub mod proposer_manager;
 pub mod rollup_verifier;
 pub mod round_robin;
@@ -57,6 +60,8 @@ pub mod signed_math;
 pub mod slot_derivation;
 pub mod storage_slot;
 pub mod strings;
+pub mod transcript;
+pub mod types;
 pub mod ultra_vk;
 pub mod x509;
 pub mod x509_interface;

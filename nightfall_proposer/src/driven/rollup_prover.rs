@@ -540,6 +540,7 @@ impl RecursiveProver for RollupProver {
         circuit: &mut PlonkCircuit<Fr254>,
     ) -> Result<Vec<Variable>, CircuitError> {
         ark_std::println!("JJ: am inside the decider_circuit_checks function");
+        ark_std::println!("JJ: specific_pis: {:?}", specific_pis);
         let fee_sum_one = specific_pis[0][4];
         let fee_sum_two = specific_pis[1][4];
         let sha_one = specific_pis[0][5];
