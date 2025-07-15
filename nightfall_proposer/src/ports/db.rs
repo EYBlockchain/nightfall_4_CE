@@ -26,12 +26,6 @@ pub trait TransactionsDB<'a, P> {
         &self,
     ) -> Option<Vec<(Vec<u32>, ClientTransactionWithMetaData<P>)>>;
     async fn count_mempool_client_transactions(&self) -> Result<u64, mongodb::error::Error>;
-    async fn is_transaction_in_mempool(&self, key: &'a [u32]) -> bool;
-    async fn check_nullifier(&self, nullifier: Fr254) -> bool;
-    async fn check_commitment(&self, commitment: Fr254) -> bool;
-    async fn update_commitment<M>(&self, mutator: M, key: &'a [u32]) -> Option<()>
-    where
-        M: Fn(&ClientTransactionWithMetaData<P>) -> ClientTransactionWithMetaData<P> + Send;
     async fn set_in_mempool(
         &self,
         transactions: &[ClientTransactionWithMetaData<P>],

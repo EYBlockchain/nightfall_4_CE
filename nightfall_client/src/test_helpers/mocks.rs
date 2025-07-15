@@ -1,184 +1,29 @@
 #![cfg(test)]
 
-use std::{collections::HashMap, fmt::Debug, sync::Arc};
-
+use std::fmt::Debug;
 use crate::{
-    domain::entities::{ClientTransaction, CommitmentStatus, Preimage, Salt},
+    domain::entities::{ClientTransaction, Preimage, Salt},
     drivers::{derive_key::ZKPKeys, rest::models::PreimageReq},
     get_fee_token_id,
     ports::{
         commitments::Commitment,
-        db::*,
         proof::{PrivateInputs, Proof, ProvingEngine, PublicInputs},
     },
 };
 use ark_bn254::Fr as Fr254;
 use ark_ec::AffineRepr;
-use ark_ff::{BigInt, BigInteger, Field, PrimeField};
+use ark_ff::{BigInt, BigInteger, Field};
 use ark_serialize::SerializationError;
-use ark_std::{rand::Rng, UniformRand, Zero};
-use async_trait::async_trait;
-use ethers::types::{Bytes, H256, I256};
-use jf_primitives::poseidon::PoseidonError;
+use ark_std::Zero;
+use ethers::types::Bytes;
 use lib::hex_conversion::HexConvertible;
 use nf_curves::ed_on_bn254::{
     BJJTEAffine as JubJubAffine, BJJTEProjective as JubJub, Fr as FqJubJub,
 };
-use num::BigUint;
 use serde::{Deserialize, Serialize};
 use std::fmt::Error;
-use tokio::sync::Mutex;
 
-#[derive(Clone, Debug)]
-pub struct MockCommitmentEntry {
-    pub preimage: Preimage,
-    pub nullifier: Fr254,
-    pub status: CommitmentStatus,
-}
-impl MockCommitmentEntry {
-    pub fn rand(mut rng: impl Rng) -> Self {
-        let root_key = Fr254::rand(&mut rng);
-        let zkp_keys = ZKPKeys::new(root_key).unwrap();
-        let bytes = Fr254::rand(&mut rng).into_bigint().to_bytes_le();
-        let rand_biguin = BigUint::from_bytes_le(&bytes) >> 4;
-        let nf_token_id = Fr254::from(rand_biguin);
-        let preimage = Preimage {
-            value: Fr254::rand(&mut rng),
-            nf_token_id,
-            nf_slot_id: nf_token_id,
-            public_key: zkp_keys.zkp_public_key,
-            salt: Salt::new_transfer_salt(),
-        };
-        Self {
-            preimage,
-            nullifier: Fr254::zero(),
-            status: CommitmentStatus::Unspent,
-        }
-    }
-}
-impl CommitmentEntryDB for MockCommitmentEntry {
-    fn new(preimage: Preimage, nullifier: Fr254, status: CommitmentStatus) -> Self {
-        Self {
-            preimage,
-            nullifier,
-            status,
-        }
-    }
 
-    fn get_status(&self) -> CommitmentStatus {
-        todo!()
-    }
-}
-
-impl Commitment for MockCommitmentEntry {
-    fn get_preimage(&self) -> Preimage {
-        self.preimage
-    }
-    fn get_nf_slot_id(&self) -> Fr254 {
-        self.preimage.nf_slot_id
-    }
-    fn get_public_key(&self) -> nf_curves::ed_on_bn254::BJJTEAffine {
-        self.preimage.public_key
-    }
-    fn get_salt(&self) -> Fr254 {
-        self.preimage.get_salt()
-    }
-    fn get_nf_token_id(&self) -> Fr254 {
-        self.preimage.nf_token_id
-    }
-    fn get_value(&self) -> Fr254 {
-        self.preimage.value
-    }
-    fn hash(&self) -> Result<Fr254, PoseidonError> {
-        self.preimage.hash()
-    }
-    fn get_secret_preimage(&self) -> crate::domain::entities::DepositSecret {
-        self.preimage.get_secret_preimage()
-    }
-}
-#[async_trait]
-impl CommitmentDB<Fr254, MockCommitmentEntry> for HashMap<Fr254, MockCommitmentEntry> {
-    async fn get_all_commitments(
-        &self,
-    ) -> Result<Vec<(Fr254, MockCommitmentEntry)>, mongodb::error::Error> {
-        let mut v = vec![];
-        for (&key, value) in self.iter() {
-            v.push((key, value.clone()));
-        }
-        Ok(v)
-    }
-
-    async fn get_commitment(&self, k: &Fr254) -> Option<MockCommitmentEntry> {
-        self.get(k).cloned()
-    }
-
-    async fn get_available_commitments(
-        &self,
-        nf_token_id: Fr254,
-    ) -> Option<Vec<MockCommitmentEntry>> {
-        let f = self
-            .values()
-            .filter(|v| v.get_nf_token_id() == nf_token_id && v.status == CommitmentStatus::Unspent)
-            .cloned()
-            .collect::<Vec<_>>();
-        if f.is_empty() {
-            return None;
-        }
-        Some(f)
-    }
-
-    async fn store_commitment(&self, _commitment: MockCommitmentEntry) -> Option<()> {
-        todo!()
-    }
-
-    async fn store_commitments(
-        &self,
-        _commitments: &[MockCommitmentEntry],
-        _dup_key_check: bool,
-    ) -> Option<()> {
-        todo!()
-    }
-
-    async fn get_balance(&self, _k: &Fr254) -> Option<Fr254> {
-        todo!()
-    }
-
-    async fn mark_commitments_pending_spend(&self, _commitments: Vec<Fr254>) -> Option<()> {
-        todo!()
-    }
-
-    async fn mark_commitments_spent(&self, _commitments: Vec<Fr254>) -> Option<()> {
-        todo!()
-    }
-
-    async fn mark_commitments_unspent(
-        &self,
-        _commitments: &[Fr254],
-        _l1_hash: Option<H256>,
-        _l2_blocknumber: Option<I256>,
-    ) -> Option<()> {
-        todo!()
-    }
-
-    async fn mark_commitments_pending_creation(&self, _commitments: Vec<Fr254>) -> Option<()> {
-        todo!()
-    }
-
-    async fn add_nullifier(&self, _key: &Fr254, _nullifier: Fr254) -> Option<()> {
-        todo!()
-    }
-}
-// test helper function (lets one instantiate a mock DB containing random data)
-pub fn random_mock_db(
-    entry_count: u32,
-) -> std::sync::Arc<tokio::sync::Mutex<HashMap<Fr254, MockCommitmentEntry>>> {
-    let mut rng = ark_std::test_rng();
-    let mut test_hashmap: HashMap<Fr254, MockCommitmentEntry> = HashMap::new();
-    for k in 0..entry_count {
-        test_hashmap.insert(Fr254::from(k), MockCommitmentEntry::rand(&mut rng));
-    }
-    Arc::new(Mutex::new(test_hashmap))
-}
 // define a mock proof, a bit G16-like, which returns a fixed answer
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct MockProof {
@@ -349,3 +194,4 @@ impl Mocks {
         }
     }
 }
+

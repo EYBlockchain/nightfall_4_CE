@@ -967,7 +967,7 @@ mod tests {
             poseidon
                 .hash(&[keys.nullifier_key, c.hash().unwrap()])
                 .unwrap()
-        });
+        }); 
 
         let expected_compressed_secrets: [Fr254; 5] = kemdem_encrypt::<true>(
             ephemeral_key,
