@@ -37,7 +37,7 @@ contract NightfallVerifierTest is Test {
 
         OnChainTransaction[] memory transactions = new OnChainTransaction[](64);
         transactions[0] = OnChainTransaction({
-    fee: 1,
+    fee: 0,
     commitments: [
                 15392351480021048203930963145242234931291562469394646180004177305873539759707,
                 18733568117644813939395418613955016050166314086467640784322196204361374209493,
