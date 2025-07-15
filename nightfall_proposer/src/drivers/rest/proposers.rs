@@ -1,7 +1,7 @@
 use configuration::{addresses::get_addresses, settings::get_settings};
 use ethers::{providers::ProviderError, types::U256};
 use log::{info, warn};
-use nightfall_bindings::round_robin::RoundRobin;
+//use nightfall_bindings::round_robin::RoundRobin;
 /// APIs for managing proposers
 use warp::{hyper::StatusCode, path, reject::Reject, reply::Reply, Filter};
 

@@ -3,12 +3,15 @@ use crate::{
     domain::entities::{TokenType, WithdrawData},
     ports::contracts::NightfallContract,
 };
-use lib::wallets::LocalWsClient;
 use log::{error, info};
-use nightfall_bindings::nightfall::Nightfall;
+use alloy::sol;
+//use nightfall_bindings::nightfall::Nightfall;
 use reqwest::StatusCode;
 use std::{error::Error, fmt::Debug};
 use warp::{path, reject, reply, Filter, Reply};
+sol!(
+    #[sol(rpc)]     // Add Debug trait to x509CheckReturn
+    Nightfall, "/Users/Swati.Rawal/nightfall_4_PV/blockchain_assets/artifacts/Nightfall.sol/Nightfall.json");
 
 #[derive(Debug)]
 pub struct FailedDeEscrow;
@@ -44,12 +47,12 @@ pub async fn handle_de_escrow(data: DeEscrowDataReq) -> Result<impl Reply, warp:
         );
         reject::custom(FailedDeEscrow)
     })?;
-    let available = Nightfall::<LocalWsClient>::withdraw_available(withdraw_data).await;
+    let available = NightfallContract::withdraw_available(withdraw_data).await;
     match available {
         Ok(b) => {
             if b == 1 {
                 info!("Withdraw is on chain, attempting to de-escrow funds");
-                Nightfall::<LocalWsClient>::de_escrow_funds(withdraw_data, token_type)
+                NightfallContract::de_escrow_funds(withdraw_data, token_type)
                     .await
                     .map_err(|e| {
                         error!("Could not de-escrow funds: {}", e);

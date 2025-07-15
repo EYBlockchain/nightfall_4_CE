@@ -1,6 +1,5 @@
 use crate::settings::ContractAddresses;
 use crate::settings::Settings;
-use rand::Rng;
 
 use alloy::primitives::Address;
 
@@ -282,6 +281,7 @@ impl Sources {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rand::Rng;
     #[tokio::test]
     async fn test_save_and_load() {
         const FILE: &str = "test_file.tmp";

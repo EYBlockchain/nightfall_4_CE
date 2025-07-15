@@ -5,15 +5,13 @@ pub mod ports;
 pub mod services;
 pub mod test_helpers;
 
+use alloy::dyn_abi::abi::encode;
+use alloy::sol_types::SolValue;
 use ark_bn254::{Bn254, Fr as Fr254};
 use ark_serialize::CanonicalDeserialize;
 use configuration::addresses::get_addresses;
 use drivers::derive_key::ZKPKeys;
-use ethers::{
-    abi::{encode, Tokenizable},
-    types::U256,
-    utils::keccak256,
-};
+use alloy::primitives::{U256, keccak256};
 use jf_plonk::nightfall::ipa_structs::ProvingKey;
 use jf_primitives::pcs::prelude::UnivariateKzgPCS;
 use lib::utils::load_key_from_server;
@@ -35,11 +33,10 @@ pub fn get_zkp_keys() -> &'static Mutex<ZKPKeys> {
 pub fn get_fee_token_id() -> Fr254 {
     let nf_address = get_addresses().nightfall();
 
-    let nf_address_token = nf_address.into_token();
-    let u256_zero = U256::zero().into_token();
-
-    let fee_token_id_biguint =
-        BigUint::from_bytes_be(&keccak256(encode(&[nf_address_token, u256_zero]))) >> 4;
+    let nf_address_token = nf_address.tokenize();
+    let u256_zero = U256::ZERO.tokenize();
+     let fee_token_id_biguint =
+        BigUint::from_bytes_be(keccak256(encode(&(nf_address_token, u256_zero))).as_slice()) >> 4;
     Fr254::from(fee_token_id_biguint)
 }
 

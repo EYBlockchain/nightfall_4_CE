@@ -15,7 +15,7 @@ use crate::{
     get_client_proving_key,
     ports::proof::{CircuitBuilder, PrivateInputs, Proof, ProvingEngine, PublicInputs},
 };
-use ethers::types::Bytes;
+use alloy::primitives::Bytes;
 use jf_primitives::{pcs::prelude::UnivariateKzgPCS, rescue::sponge::RescueCRHF};
 use jf_relation::{Circuit, PlonkCircuit};
 use lib::serialization::{ark_de_hex, ark_se_hex};

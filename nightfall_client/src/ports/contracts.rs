@@ -7,7 +7,7 @@ use crate::domain::{
 };
 use ark_bn254::Fr as Fr254;
 use ark_ff::BigInteger256;
-use ethers::types::I256;
+use alloy::primitives::I256;
 use futures::Future;
 
 /// Interface trait for a token contract.

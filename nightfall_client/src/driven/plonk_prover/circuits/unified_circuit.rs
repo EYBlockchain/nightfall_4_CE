@@ -9,10 +9,8 @@ use crate::{
 };
 use ark_ec::{twisted_edwards::Affine, AffineRepr};
 use ark_ff::{One, Zero};
-use ethers::{
-    abi::{encode, Tokenizable},
-    types::U256,
-    utils::keccak256,
+use alloy::{
+    dyn_abi::abi::encode, primitives::{keccak256, U256}, sol_types::SolValue
 };
 use jf_plonk::errors::PlonkError;
 use jf_relation::{errors::CircuitError, gadgets::ecc::Point, Circuit, PlonkCircuit, Variable};
@@ -65,10 +63,10 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
         // this is similar to how to deal with commitment/nullifier verification
         // (instead of asserting that input commitment/nullfiers are correct, we compute them from inputs and return them as public inputs)
         // calculate fee_token_id from nf_address
-        let nf_address_token = private_inputs.nf_address.into_token();
-        let u256_zero = U256::zero().into_token();
+        let nf_address_token = private_inputs.nf_address.tokenize();
+        let u256_zero = U256::ZERO.tokenize();
         let fee_token_id_biguint =
-            BigUint::from_bytes_be(&keccak256(encode(&[nf_address_token, u256_zero]))) >> 4;
+            BigUint::from_bytes_be(&keccak256(encode(&(nf_address_token, u256_zero))).as_slice()) >> 4;
         let fee_token_id_field = Fr254::from(fee_token_id_biguint);
         private_inputs.fee_token_id = fee_token_id_field;
 
@@ -315,10 +313,10 @@ mod tests {
     use ark_ec::CurveGroup;
     use ark_ff::{PrimeField, Zero};
     use ark_std::{rand::rngs::StdRng, UniformRand};
-    use ethers::{
-        abi::{encode, Tokenizable},
-        types::{H160, U256},
-        utils::keccak256,
+    use alloy::{
+        primitives::{Address, U256, keccak256},
+        dyn_abi::abi::encode
+
     };
     use jf_plonk::{
         nightfall::FFTPlonk, proof_system::UniversalSNARK, transcript::StandardTranscript,
@@ -538,12 +536,13 @@ mod tests {
         let nf_slot_id = nf_token_id;
 
         // make a random Nightfall address
-        let nf_address_h160 = H160::random();
-        let nf_address_field = Fr254::from(BigUint::from_bytes_be(nf_address_h160.as_bytes()));
-        let nf_address_token = nf_address_h160.into_token();
-        let u256_zero = U256::zero().into_token();
+        let mut bytes = rand::thread_rng();
+        let nf_address_h160 = Address::new(bytes.gen());
+        let nf_address_field = Fr254::from(BigUint::from_bytes_be(nf_address_h160.as_slice()));
+        let nf_address_token = nf_address_h160.tokenize();
+        let u256_zero = U256::ZERO.tokenize();
         let fee_token_id_biguint =
-            BigUint::from_bytes_be(&keccak256(encode(&[nf_address_token, u256_zero]))) >> 4;
+            BigUint::from_bytes_be(&keccak256(encode(&(nf_address_token, u256_zero))).as_slice()) >> 4;
         let fee_token_id = Fr254::from(fee_token_id_biguint);
 
         let FeesAndValues {
@@ -774,12 +773,14 @@ mod tests {
 
         let withdraw_address = Fr254::from_be_bytes_mod_order(&withdraw_address_bytes);
         // make a random Nightfall address, and create fee_token_id from it
-        let nf_address_h160 = H160::random();
-        let nf_address = Fr254::from(BigUint::from_bytes_be(nf_address_h160.as_bytes()));
-        let nf_address_token = nf_address_h160.into_token();
-        let u256_zero = U256::zero().into_token();
+        let mut bytes = rand::thread_rng();
+
+        let nf_address_h160 = Address::new(bytes.gen());
+        let nf_address = Fr254::from(BigUint::from_bytes_be(nf_address_h160.as_slice()));
+        let nf_address_token = nf_address_h160.tokenize();
+        let u256_zero = U256::ZERO.tokenize();
         let fee_token_id_biguint =
-            BigUint::from_bytes_be(&keccak256(encode(&[nf_address_token, u256_zero]))) >> 4;
+            BigUint::from_bytes_be(&keccak256(encode(&(nf_address_token, u256_zero))).as_slice()) >> 4;
         let fee_token_id = Fr254::from(fee_token_id_biguint);
 
         let FeesAndValues {

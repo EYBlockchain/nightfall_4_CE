@@ -119,11 +119,11 @@ pub struct AppendOnlyTreeMetadata<F> {
 /// A struct representing a proposer in a linked list of proposers (used in the ProposerManager contract)
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Proposer {
-    pub stake: ::ethers::core::types::U256,
-    pub addr: ::ethers::core::types::Address,
+    pub stake: ::alloy::primitives::U256,
+    pub addr: ::alloy::primitives::Address,
     pub url: ::std::string::String,
-    pub next_addr: ::ethers::core::types::Address,
-    pub previous_addr: ::ethers::core::types::Address,
+    pub next_addr: ::alloy::primitives::Address,
+    pub previous_addr: ::alloy::primitives::Address,
 }
 
 /// Formalises the compressed secrets in a client proof.  This makes the purpose of the data clearer than using

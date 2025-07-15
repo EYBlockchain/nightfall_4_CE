@@ -6,16 +6,34 @@ use ark_bn254::Fr as Fr254;
 use ark_ff::{BigInteger, BigInteger256};
 use ark_std::Zero;
 use configuration::addresses::get_addresses;
-use ethers::providers::ProviderError;
 use lib::{
     blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
+    error::BlockchainClientConnectionError
 };
+use alloy::sol;
 
-use nightfall_bindings::{
-    ierc1155::IERC1155, ierc20::IERC20, ierc3525::IERC3525, ierc721::IERC721,
-};
+// use nightfall_bindings::{
+//     ierc1155::IERC1155, ierc20::IERC20, ierc3525::IERC3525, ierc721::IERC721,
+// };
+sol!(
+    #[sol(rpc)]    
+    #[derive(Debug)] // Add Debug trait to x509CheckReturn
+    IERC1155, "/Users/Swati.Rawal/nightfall_4_PV/blockchain_assets/artifacts/IERC1155.sol/IERC1155.json");
+sol!(
+    #[sol(rpc)]    
+    #[derive(Debug)]
+    IERC20, "/Users/Swati.Rawal/nightfall_4_PV/blockchain_assets/artifacts/IERC20.sol/IERC20.json");
+sol!(
+    #[sol(rpc)]    
+    #[derive(Debug)] // Add Debug trait to x509CheckReturn
+    IERC3525, "/Users/Swati.Rawal/nightfall_4_PV/blockchain_assets/artifacts/IERC3525.sol/IERC3525.json");
+sol!(
+    #[sol(rpc)]    
+    #[derive(Debug)] // Add Debug trait to x509CheckReturn
+    IERC721, "/Users/Swati.Rawal/nightfall_4_PV/blockchain_assets/artifacts/IERC721.sol/IERC721.json");
 
-impl<M> TokenContract for IERC20<M> {
+
+impl TokenContract for IERC20::IERC20Calls {
     async fn set_approval(
         erc_address: Fr254,
         value: Fr254,
@@ -38,20 +56,19 @@ impl<M> TokenContract for IERC20<M> {
             .read()
             .await
             .get_client();
-
+        
         let tx_receipt = IERC20::new(solidity_erc_address.0, client.clone())
             .approve(solidity_approval_address, solidity_value.0)
             .send()
             .await
-            .map_err(|e| ProviderError::CustomError(format!("Contract error: {}", e)))?
-            .await?;
+            .map_err(|e| BlockchainClientConnectionError::ProviderError(format!("Contract error: {}", e)))?;
 
-        tx_receipt.ok_or(TokenContractError::TransactionError)?;
+        tx_receipt.get_receipt().await.is_ok();
         Ok(())
     }
 }
 
-impl<M> TokenContract for IERC721<M> {
+impl TokenContract for IERC721::IERC721Calls {
     async fn set_approval(
         erc_address: Fr254,
         value: Fr254,
@@ -79,15 +96,14 @@ impl<M> TokenContract for IERC721<M> {
             .approve(solidity_approval_address, solidity_token_id.0)
             .send()
             .await
-            .map_err(|e| ProviderError::CustomError(format!("Contract error: {}", e)))?
-            .await?;
+            .map_err(|e| BlockchainClientConnectionError::ProviderError(format!("Contract error: {}", e)))?;
 
-        tx_receipt.ok_or(TokenContractError::TransactionError)?;
+        tx_receipt.get_receipt().await.is_ok();
         Ok(())
     }
 }
 
-impl<M> TokenContract for IERC1155<M> {
+impl TokenContract for IERC1155::IERC1155Calls {
     async fn set_approval(
         erc_address: Fr254,
         value: Fr254,
@@ -111,18 +127,18 @@ impl<M> TokenContract for IERC1155<M> {
             .get_client();
 
         let tx_receipt = IERC1155::new(solidity_erc_address.0, client.clone())
-            .set_approval_for_all(solidity_approval_address, true)
+            .setApprovalForAll(solidity_approval_address, true)
             .send()
             .await
-            .map_err(|e| ProviderError::CustomError(format!("Contract error: {}", e)))?
-            .await?;
+            .map_err(|e| BlockchainClientConnectionError::ProviderError(format!("Contract error: {}", e)))?;
 
-        tx_receipt.ok_or(TokenContractError::TransactionError)?;
+
+        tx_receipt.get_receipt().await.is_ok();
         Ok(())
     }
 }
 
-impl<M> TokenContract for IERC3525<M> {
+impl TokenContract for IERC3525::IERC3525Calls {
     async fn set_approval(
         erc_address: Fr254,
         _value: Fr254,
@@ -141,13 +157,12 @@ impl<M> TokenContract for IERC3525<M> {
             .get_client();
 
         let tx_receipt = IERC3525::new(solidity_erc_address.0, client.clone())
-            .approve(solidity_approval_address, solidity_token_id.0)
+            .approve_0(solidity_approval_address, solidity_token_id.0)
             .send()
             .await
-            .map_err(|e| ProviderError::CustomError(format!("Contract error: {}", e)))?
-            .await?;
+            .map_err(|e| BlockchainClientConnectionError::ProviderError(format!("Contract error: {}", e)))?;
 
-        tx_receipt.ok_or(TokenContractError::TransactionError)?;
+            tx_receipt.get_receipt().await.is_ok();
         Ok(())
     }
 }

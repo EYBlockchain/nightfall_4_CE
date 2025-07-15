@@ -7,13 +7,14 @@ use crate::{
 use async_trait::async_trait;
 
 use configuration::addresses::get_addresses;
-use ethers::types::Bytes;
+use alloy::primitives::Bytes;
+use alloy::sol;
 use lib::blockchain_client::BlockchainClientConnection;
 use log::{debug, error, warn};
-use nightfall_bindings::{
-    nightfall::{Block as NightfallBlockStruct, OnChainTransaction as NightfallOnChainTransaction},
-    round_robin::RoundRobin,
-};
+// use nightfall_bindings::{
+//     nightfall::{Block as NightfallBlockStruct, OnChainTransaction as NightfallOnChainTransaction},
+//     round_robin::RoundRobin,
+// };
 use nightfall_client::{
     domain::{entities::ClientTransaction, error::ConversionError},
     driven::contract_functions::contract_type_conversions::{FrBn254, Uint256},

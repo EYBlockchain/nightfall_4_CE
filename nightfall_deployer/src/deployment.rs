@@ -127,7 +127,7 @@ mod tests {
         core::utils::Anvil,
         providers::{Http, Middleware, Provider},
     };
-    use nightfall_bindings::nightfall::NIGHTFALL_DEPLOYED_BYTECODE;
+    //use nightfall_bindings::nightfall::NIGHTFALL_DEPLOYED_BYTECODE;
     use tokio::task::spawn_blocking;
 
     // NB: This test requires Anvil to be installed (it will use Anvil to simulate a blockchain).

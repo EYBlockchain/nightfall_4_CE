@@ -8,7 +8,7 @@ use configuration::addresses::get_addresses;
 use ethers::types::{I256, U256};
 use lib::blockchain_client::BlockchainClientConnection;
 use log::info;
-use nightfall_bindings::nightfall::{Block as NightfallBlock, Nightfall};
+//use nightfall_bindings::nightfall::{Block as NightfallBlock, Nightfall};
 use nightfall_client::domain::error::NightfallContractError;
 
 #[async_trait::async_trait]

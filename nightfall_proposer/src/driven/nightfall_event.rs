@@ -22,9 +22,9 @@ use ethers::{
 use lib::{blockchain_client::BlockchainClientConnection, merkle_trees::trees::IndexedTree};
 use log::{debug, error, info, warn};
 use mongodb::Client;
-use nightfall_bindings::nightfall::{
-    DepositEscrowedFilter, NightfallCalls, NightfallEvents, ProposeBlockCall,
-};
+// use nightfall_bindings::nightfall::{
+//     DepositEscrowedFilter, NightfallCalls, NightfallEvents, ProposeBlockCall,
+// };
 use nightfall_client::{
     domain::{entities::HexConvertible, error::EventHandlerError},
     driven::contract_functions::contract_type_conversions::FrBn254,

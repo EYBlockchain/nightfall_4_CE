@@ -53,9 +53,7 @@ use jf_primitives::poseidon::{FieldHasher, Poseidon};
 use lib::wallets::LocalWsClient;
 use log::{debug, error, info, warn};
 use nf_curves::ed_on_bn254::{BabyJubjub, Fr as BJJScalar};
-use nightfall_bindings::{
-    ierc1155::IERC1155, ierc20::IERC20, ierc3525::IERC3525, ierc721::IERC721, nightfall::Nightfall,
-};
+use alloy::sol;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use warp::{
@@ -64,6 +62,28 @@ use warp::{
     reply::{self, json, Reply},
     Filter,
 };
+// Codegen from ABI file to interact with the contract.
+sol!(
+    #[sol(rpc)]
+    IERC1155,
+    "/Users/Swati.Rawal/nightfall_4_PV/blockchain_assets/artifacts/IERC1155.sol/IERC1155.json");
+sol!(
+    #[sol(rpc)]
+IERC20,
+"/Users/Swati.Rawal/nightfall_4_PV/blockchain_assets/artifacts/IERC20.sol/IERC20.json");
+sol!(
+    #[sol(rpc)]
+IERC3525,
+"/Users/Swati.Rawal/nightfall_4_PV/blockchain_assets/artifacts/IERC3525.sol/IERC3525.json");
+sol!(
+    #[sol(rpc)]
+IERC721,
+"/Users/Swati.Rawal/nightfall_4_PV/blockchain_assets/artifacts/IERC721.sol/IERC721.json");
+sol!(
+    #[sol(rpc)]
+Nightfall,
+"/Users/Swati.Rawal/nightfall_4_PV/blockchain_assets/artifacts/Nightfall.sol/Nightfall.json"
+);
 
 #[derive(Serialize, Deserialize)]
 pub struct WithdrawResponse {

@@ -5,7 +5,6 @@ use std::{
 
 use ark_bn254::Fr as Fr254;
 use ark_serialize::SerializationError;
-use ethers::providers::ProviderError;
 
 use jf_primitives::poseidon::PoseidonError;
 use lib::error::BlockchainClientConnectionError;
@@ -166,11 +165,11 @@ impl From<ConversionError> for TokenContractError {
     }
 }
 
-impl From<ProviderError> for TokenContractError {
-    fn from(e: ProviderError) -> Self {
-        Self::from(BlockchainClientConnectionError::from(e))
-    }
-}
+// impl From<ProviderError> for TokenContractError {
+//     fn from(e: ProviderError) -> Self {
+//         Self::from(BlockchainClientConnectionError::from(e))
+//     }
+//}
 
 /// Error type for handling calls to a token contract
 #[derive(Debug)]
@@ -180,6 +179,7 @@ pub enum NightfallContractError {
     TransactionError,
     EscrowError(String),
     PoseidonError(PoseidonError),
+    CustomError(String),
 }
 
 impl Display for NightfallContractError {
@@ -200,6 +200,7 @@ impl Display for NightfallContractError {
             }
             NightfallContractError::EscrowError(s) => write!(f, "Escrow Funds Error: {}", s),
             NightfallContractError::PoseidonError(e) => write!(f, "Hashing Error: {}", e),
+            NightfallContractError::CustomError(s) => write!(f, "Nightfall Contract Error: {}", s),
         }
     }
 }
@@ -215,12 +216,6 @@ impl From<BlockchainClientConnectionError> for NightfallContractError {
 impl From<ConversionError> for NightfallContractError {
     fn from(e: ConversionError) -> Self {
         Self::ConversionError(e)
-    }
-}
-
-impl From<ProviderError> for NightfallContractError {
-    fn from(e: ProviderError) -> Self {
-        Self::from(BlockchainClientConnectionError::from(e))
     }
 }
 

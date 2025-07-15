@@ -5,14 +5,17 @@ use crate::{
 };
 use configuration::addresses::get_addresses;
 use alloy::primitives::{Address, U256};
+use alloy::sol;
 use futures::stream::TryStreamExt;
 use log::{debug, error, info, trace, warn};
-use nightfall_bindings::x509::X509::{self, CertificateArgs};
 use reqwest::StatusCode;
 use x509_parser::nom::AsBytes;
 use std::{ffi::OsStr, io::Read, path::Path};
 use warp::{filters::multipart::FormData, path, reply::Reply, Buf, Filter};
-
+sol!(
+    #[sol(rpc)]    
+    #[derive(Debug)] // Add Debug trait to x509CheckReturn
+    X509, "/Users/Swati.Rawal/nightfall_4_PV/blockchain_assets/artifacts/X509.sol/X509.json");
 #[derive(Debug)]
 pub struct X509ValidationError;
 
@@ -65,21 +68,22 @@ async fn handle_certificate_validation(
             _ => return Ok(StatusCode::BAD_REQUEST),
         }
     }
+    let requestor_address = get_blockchain_client_connection()
+    .await
+    .read()
+    .await
+    .get_address();
 
-    let requestor_address = blockchain_client.address();
     trace!("Requestor address: {}", requestor_address);
-    let x509_instance = X509::new(get_addresses().x509, blockchain_client.clone());
-    let is_certified: bool = x509_instance
-        .x_509_check(requestor_address)
-        .call()
-        .await
-        .map_err(|e| {
-            error!("x_509_check transaction failed {}", e);
-            warp::reject::custom(CertificateVerificationError::new(
-                "Invalid certificate provided",
-            ))
-        })?;
-    if !is_certified {
+    let x509_instance = X509::new(get_addresses().x509, blockchain_client);
+    let is_certified  = x509_instance.x509Check(requestor_address).call().await.map_err(|e| {
+        error!("x_509_check transaction failed {}", e);
+        warp::reject::custom(CertificateVerificationError::new(
+            "Invalid certificate provided",
+        ))
+    })?;
+println!("isCertified -------------- {:?}", is_certified);
+    if !is_certified._0 {
         // compute the signature and validate the certificate
         debug!(
             "Signing ethereum address {} with certificate private key",
@@ -96,6 +100,12 @@ async fn handle_certificate_validation(
                         "Invalid certificate provided",
                     ))
                 })?;
+         let sender_address =   get_blockchain_client_connection()
+         .await
+         .read()
+         .await
+         .get_address();
+      
         validate_certificate(
             get_addresses().x509,
             certificate_req.certificate,
@@ -103,7 +113,7 @@ async fn handle_certificate_validation(
             true,
             false,
             0,
-            blockchain_client.address(),
+            sender_address,
         )
         .await
         .map_err(|err| {
@@ -132,14 +142,16 @@ async fn validate_certificate(
         .read()
         .await
         .get_client();
-    let x509_instance = X509::new(x509_contract_address, blockchain_client.clone());
+    
+    let x509_instance = X509::new(x509_contract_address, blockchain_client);
 
-    let number_of_tlvs: U256 = x509_instance
-        .compute_number_of_tlvs(certificate.clone().into(), U256::ZERO)
+    let compute_result = x509_instance
+        .computeNumberOfTlvs(certificate.clone().into(), U256::ZERO)
         .call()
         .await?;
+    let number_of_tlvs: U256 = compute_result._0; // Convert computeNumberOfTlvsReturn to U256
 
-    let certificate_args = CertificateArgs {
+    let certificate_args = X509::CertificateArgs {
         certificate: certificate.clone().into(),
         tlvLength: number_of_tlvs,
         addressSignature: ethereum_address_signature.into(),
@@ -150,16 +162,15 @@ async fn validate_certificate(
     };
 
     let tx_receipt = x509_instance
-        .validate_certificate(certificate_args)
+        .validateCertificate(certificate_args)
         .send()
         .await
         .map_err(|e| {
             warn!("{}", e);
             X509ValidationError
-        })?
-        .await?;
-
-    if tx_receipt.is_none() {
+        })?;
+println!("tx_receipt ---------------------------->>>>>>> {:?}", tx_receipt);
+    if tx_receipt.get_receipt().await.is_ok() {
         error!("X509Validation transaction failed");
         return Err(Box::new(X509ValidationError));
     }

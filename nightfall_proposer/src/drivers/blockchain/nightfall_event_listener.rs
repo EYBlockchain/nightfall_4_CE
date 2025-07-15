@@ -14,7 +14,7 @@ use futures::{future::BoxFuture, FutureExt};
 use lib::blockchain_client::BlockchainClientConnection;
 use log::{debug, warn};
 use mongodb::Client as MongoClient;
-use nightfall_bindings::nightfall::Nightfall;
+//use nightfall_bindings::nightfall::Nightfall;
 use nightfall_client::{
     domain::{entities::SynchronisationStatus, error::EventHandlerError},
     ports::proof::{Proof, ProvingEngine},

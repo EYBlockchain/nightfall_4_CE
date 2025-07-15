@@ -4,7 +4,6 @@ use lib::{merkle_trees::trees::TreeMetadata, utils, wallets::LocalWsClient};
 use log::{error, info};
 
 use ark_bn254::Fr as Fr254;
-use nightfall_bindings::nightfall::Nightfall;
 use nightfall_client::{
     domain::entities::{Node, Request},
     driven::{

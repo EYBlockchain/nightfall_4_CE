@@ -1,7 +1,7 @@
 use configuration::{logging::init_logging, settings::get_settings};
 use lib::wallets::LocalWsClient;
 use log::{error, info};
-use nightfall_bindings::nightfall::Nightfall;
+//use nightfall_bindings::nightfall::Nightfall;
 use nightfall_client::driven::{
     db::mongo::DB,
     plonk_prover::plonk_proof::{PlonkProof, PlonkProvingEngine},

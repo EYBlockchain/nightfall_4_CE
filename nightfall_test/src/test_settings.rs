@@ -206,10 +206,10 @@ mod tests {
         providers::{Http, Middleware, Provider},
         utils::Anvil,
     };
-    use nightfall_bindings::{
-        erc1155_mock::ERC1155MOCK_DEPLOYED_BYTECODE, erc20_mock::ERC20MOCK_DEPLOYED_BYTECODE,
-        erc3525_mock::ERC3525MOCK_DEPLOYED_BYTECODE, erc721_mock::ERC721MOCK_DEPLOYED_BYTECODE,
-    };
+    // use nightfall_bindings::{
+    //     erc1155_mock::ERC1155MOCK_DEPLOYED_BYTECODE, erc20_mock::ERC20MOCK_DEPLOYED_BYTECODE,
+    //     erc3525_mock::ERC3525MOCK_DEPLOYED_BYTECODE, erc721_mock::ERC721MOCK_DEPLOYED_BYTECODE,
+    // };
     #[tokio::test]
     async fn test_mock_addresses() {
         // fire up a blockchain simulator

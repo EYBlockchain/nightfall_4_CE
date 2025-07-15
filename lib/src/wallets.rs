@@ -2,17 +2,12 @@ use crate::blockchain_client::BlockchainClientConnection;
 use crate::error::BlockchainClientConnectionError;
 use async_trait::async_trait;
 use azure_security_keyvault::SecretClient;
-use alloy::providers::{Provider, ProviderBuilder, fillers::FillProvider};
+use alloy::providers::{Provider, ProviderBuilder, RootProvider};
+use alloy::primitives::Address;
 use alloy::transports::ws::WsConnect;
-use alloy::network::{EthereumWallet, NetworkWallet};
 use alloy::signers::local::PrivateKeySigner;
-use alloy::signers::Signer;
-use k256::ecdsa::SigningKey;
 use log::{debug, info};
-use openssl::pkey::Private;
 use std::error::Error;
-use std::f32::consts::E;
-use std::sync::Arc;
 use url::Url;
 
 #[derive(Clone, Debug)]
@@ -50,9 +45,8 @@ impl AzureWallet {
 
 #[derive(Clone)]
 pub struct LocalWsClient {
-    provider: Arc<dyn Provider + Send + Sync>,
-    signer: EthereumWallet,
-    chain_id: u64,
+    provider: RootProvider,
+    signer: PrivateKeySigner,
 }
 
 #[async_trait]
@@ -64,17 +58,16 @@ impl BlockchainClientConnection for LocalWsClient {
     async fn new(
         url: Url,
         signer: Self::W,
-        chain_id: u64,
     ) -> Result<Self, BlockchainClientConnectionError> {
         let ws = WsConnect::new(url);
-        let provider = ProviderBuilder::new()
-            .on_ws(ws)
-            .await
-            .map_err(|e| BlockchainClientConnectionError::ProviderError(e.to_string()))?;
+        let provider = ProviderBuilder::new().wallet(signer.clone())
+        .on_ws(ws)
+        .await
+        .map_err(|e| BlockchainClientConnectionError::ProviderError(e.to_string()))?;
             
         Ok(Self {
-            signer: EthereumWallet::from(signer),
-            chain_id,
+            provider: provider.root().clone(),
+            signer: signer,
         })
     }
 
@@ -83,15 +76,19 @@ impl BlockchainClientConnection for LocalWsClient {
     }
 
     async fn get_balance(&self) -> Option<alloy::primitives::U256> {
-        let address = self.get_address()?;
+        let address = self.get_address();
         self.provider.get_balance(address).await.ok()
     }
 
-    fn get_address(&self) -> Option<alloy::primitives::Address> {
-        Some(self.signer.signer_addresses())
+    fn get_address(&self) -> Address {
+        self.signer.address()
     }
 
-    fn get_signer(&self) -> EthereumWallet<Self::Signer> {
+    fn get_client(&self) -> RootProvider {
+        self.provider.clone()
+    }
+
+    fn get_signer(&self) -> PrivateKeySigner {
         self.signer.clone()
     }
 
@@ -128,9 +125,8 @@ impl BlockchainClientConnection for LocalWsClient {
             .map_err(|e| BlockchainClientConnectionError::ProviderError(e.to_string()))?;
 
         Ok(Self {
-            provider: Arc::new(provider),
-            signer: EthereumWallet::from(signer),
-            chain_id: settings.network.chain_id,
+            provider: provider.root().clone(),
+            signer: signer,
         })
     }
 }

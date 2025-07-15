@@ -80,7 +80,6 @@ pub struct ContractAddresses {
 #[allow(unused)]
 pub struct Contracts {
     pub assets: String,
-    pub rust_bindings: String,
     pub addresses_file: String,
     pub deployment_file: String,
     pub deploy_contracts: bool,

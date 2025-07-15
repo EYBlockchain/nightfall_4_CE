@@ -3,7 +3,7 @@ use ark_ec::{twisted_edwards::Affine as TEAffine, AffineRepr};
 use ark_ff::{BigInteger, PrimeField};
 use ark_serialize::SerializationError;
 use ark_std::Zero;
-use ethers::types::{Bytes, H160};
+use alloy::primitives::{Bytes, Address};
 use jf_primitives::{
     circuit::tree::structs::MembershipProofVar,
     trees::{MembershipProof, PathElement},
@@ -17,7 +17,7 @@ use jf_utils::fr_to_fq;
 use nf_curves::ed_on_bn254::{BabyJubjub, Fr as BJJScalar};
 use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
+use std::{fmt::Debug};
 
 pub trait Proof:
     Serialize + Debug + Clone + Sync + Send + 'static + for<'a> Deserialize<'a> + Unpin
@@ -137,7 +137,7 @@ pub struct PrivateInputs {
     pub fee_token_id: Fr254,
     // nf_address should be similar to recipient_public_key, as we make fee commitment have the fee which is paid to a nightfall address that can't be nullified.
     // so we make it private input
-    pub nf_address: H160,
+    pub nf_address: Address,
     pub value: Fr254,
     pub nf_token_id: Fr254,
     pub nf_slot_id: Fr254,
@@ -174,7 +174,7 @@ impl Default for PrivateInputs {
 
         Self {
             fee_token_id: Fr254::zero(),
-            nf_address: H160::zero(),
+            nf_address: Address::ZERO,
             value: Fr254::zero(),
             nf_token_id: Fr254::zero(),
             nf_slot_id: Fr254::zero(),
@@ -205,7 +205,7 @@ impl PrivateInputs {
         self
     }
 
-    pub fn nf_address(&mut self, nf_address: H160) -> &mut Self {
+    pub fn nf_address(&mut self, nf_address: Address) -> &mut Self {
         self.nf_address = nf_address;
         self
     }
@@ -362,7 +362,7 @@ impl PrivateInputsVar {
     ) -> Result<PrivateInputsVar, CircuitError> {
         let fee_token_id = circuit.create_variable(private_inputs.fee_token_id)?;
         let nf_address_field =
-            Fr254::from(BigUint::from_bytes_be(private_inputs.nf_address.as_bytes()));
+            Fr254::from(BigUint::from_bytes_be(private_inputs.nf_address.as_slice()));
         let nf_address = circuit.create_variable(nf_address_field)?;
         let value = circuit.create_variable(private_inputs.value)?;
         let nf_token_id = circuit.create_variable(private_inputs.nf_token_id)?;

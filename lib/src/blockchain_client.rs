@@ -1,8 +1,9 @@
 use alloy::pubsub::PubSubConnect;
 use async_trait::async_trait;
 use alloy::signers::Signer;
+use alloy::providers::{RootProvider};
 use alloy::primitives::{Address, U256};
-use alloy::network::EthereumWallet;
+use alloy::signers::local::PrivateKeySigner;
 use serde::Deserialize;
 use std::marker::Sync;
 use url::Url;
@@ -23,16 +24,17 @@ pub trait BlockchainClientConnection: Clone + Send + Sync {
 
     async fn get_balance(&self) -> Option<U256>;
 
-    fn get_address(&self) -> Option<Address>;
+    fn get_address(&self) -> Address;
 
-    fn get_signer(&self) -> EthereumWallet
+    fn get_client(&self) -> RootProvider;
+
+    fn get_signer(&self) -> PrivateKeySigner
     where
         Self: Sized;
 
     async fn new(
         url: Url,
         wallet: Self::W,
-        chain_id: u64,
     ) -> Result<Self, BlockchainClientConnectionError>
     where
         Self: Sized;

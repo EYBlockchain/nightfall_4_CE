@@ -2,8 +2,7 @@ use ark_bn254::Fr as Fr254;
 use ark_ff::{BigInteger, PrimeField};
 use ark_serialize::CanonicalSerialize;
 use async_trait::async_trait;
-use ethers::abi::AbiEncode;
-use ethers::types::{H256, I256};
+use alloy::primitives::{TxHash, I256};
 use futures::TryStreamExt;
 use hex::encode;
 use jf_primitives::poseidon::{FieldHasher, Poseidon};
@@ -173,7 +172,7 @@ pub struct CommitmentEntry {
         default
     )]
     pub nullifier: Fr254,
-    pub layer_1_transaction_hash: Option<H256>,
+    pub layer_1_transaction_hash: Option<TxHash>,
     pub layer_2_block_number: Option<I256>,
 }
 
@@ -412,15 +411,15 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
     async fn mark_commitments_unspent(
         &self,
         commitments: &[Fr254],
-        l1_hash: Option<H256>,
+        l1_hash: Option<TxHash>,
         l2_blocknumber: Option<I256>,
     ) -> Option<()> {
         let commitment_str = commitments
             .iter()
             .map(|c| hex::encode(c.into_bigint().to_bytes_le()))
             .collect::<Vec<_>>();
-        let l1_hash = l1_hash.map(|h| h.encode_hex());
-        let l2_blocknumber = l2_blocknumber.map(|b| b.encode_hex());
+        let l1_hash = l1_hash.map(|h| h.to_string());
+        let l2_blocknumber = l2_blocknumber.map(|b| b.to_hex_string());
         let filter = doc! { "_id": { "$in": commitment_str }};
         let update = doc! {"$set": { "status": "Unspent", "layer_1_transaction_hash": l1_hash, "layer_2_block_number": l2_blocknumber }};
         self.database(DB)

@@ -19,7 +19,7 @@ use ark_serialize::SerializationError;
 use ark_std::Zero;
 use ark_std::{rand::Rng, UniformRand};
 use async_trait::async_trait;
-use ethers::types::{Bytes, H256, I256};
+use alloy::primitives::{Bytes, B256, I256};
 use jf_primitives::poseidon::PoseidonError;
 use nf_curves::ed_on_bn254::{
     BJJTEAffine as JubJubAffine, BJJTEProjective as JubJub, Fr as FqJubJub,
@@ -154,7 +154,7 @@ impl CommitmentDB<Fr254, MockCommitmentEntry> for HashMap<Fr254, MockCommitmentE
     async fn mark_commitments_unspent(
         &self,
         _commitments: &[Fr254],
-        _l1_hash: Option<H256>,
+        _l1_hash: Option<B256>,
         _l2_blocknumber: Option<I256>,
     ) -> Option<()> {
         todo!()

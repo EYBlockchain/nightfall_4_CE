@@ -11,7 +11,7 @@ use ethers::providers::ProviderError;
 use jf_plonk::errors::PlonkError;
 use lib::blockchain_client::BlockchainClientConnection;
 use log::{debug, error, info, warn};
-use nightfall_bindings::round_robin::RoundRobin;
+//use nightfall_bindings::round_robin::RoundRobin;
 use nightfall_client::{
     domain::error::{ConversionError, EventHandlerError, NightfallContractError},
     ports::proof::Proof,

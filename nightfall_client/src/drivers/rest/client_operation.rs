@@ -22,20 +22,30 @@ use crate::{
 };
 use ark_bn254::Fr as Fr254;
 use configuration::addresses::get_addresses;
-use ethers::types::TransactionReceipt;
+use alloy::rpc::types::TransactionReceipt;
+use alloy::sol;
 use futures::future::join_all;
 use lib::{
     blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
 };
 use log::{debug, error, info, warn};
 use nf_curves::ed_on_bn254::Fr as BJJScalar;
-use nightfall_bindings::{round_robin::RoundRobin, x509::Proposer};
 use reqwest::{Client, Error as ReqwestError};
 use serde::Serialize;
 use std::{error::Error, fmt::Debug, time::Duration};
 use tokio::time::sleep;
 use url::Url;
 use warp::hyper::StatusCode;
+//use nightfall_bindings::{round_robin::RoundRobin, x509::Proposer};
+sol!(
+    #[sol(rpc)]    
+    #[derive(Debug)] // Add Debug trait to x509CheckReturn
+    RoundRobin, "/Users/Swati.Rawal/nightfall_4_PV/blockchain_assets/artifacts/RoundRobin.sol/RoundRobin.json");
+sol!(
+    #[sol(rpc)]    
+    #[derive(Debug)] // Add Debug trait to x509CheckReturn
+    X509, "/Users/Swati.Rawal/nightfall_4_PV/blockchain_assets/artifacts/X509.sol/X509.json");
+
 #[allow(clippy::too_many_arguments)]
 pub async fn handle_client_operation<P, E, N>(
     operation: Operation,
@@ -177,7 +187,7 @@ fn is_retriable_error(err: &ReqwestError) -> bool {
 }
 async fn send_to_proposer_with_retry<P: Serialize + Sync>(
     client: &Client,
-    proposer: Proposer,
+    proposer: RoundRobin::Proposer,
     l2_transaction: &ClientTransaction<P>,
     id: &str,
     max_retries: u32,
@@ -254,16 +264,17 @@ pub async fn process_transaction_offchain<P: Serialize + Sync>(
     const MAX_RETRIES: u32 = 3;
     const INITIAL_BACKOFF: Duration = Duration::from_millis(500);
 
-    let client = Client::new();
+    let client = Client::new(); 
     let round_robin_instance = RoundRobin::new(
         get_addresses().round_robin,
         get_blockchain_client_connection()
             .await
             .read()
             .await
-            .get_client(),
+            .get_client(), 
     );
-    let proposers_struct: Vec<Proposer> = round_robin_instance.get_proposers().call().await?;
+
+    let proposers_struct: Vec<RoundRobin::Proposer> = round_robin_instance.get_proposers().call().await?._0;
     let db = get_db_connection().await;
 
     let futures: Vec<_> = proposers_struct
