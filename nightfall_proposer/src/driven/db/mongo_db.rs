@@ -95,44 +95,6 @@ where
             .await
     }
 
-    async fn is_transaction_in_mempool(&self, k: &'a [u32]) -> bool {
-        let filter = doc! {"hash": k};
-        let result = self
-            .database(DB)
-            .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
-            .find_one(filter)
-            .await
-            .expect("Database error"); // we can't really proceed at this point
-        match result {
-            Some(_v) => true,
-            None => false,
-        }
-    }
-
-    async fn check_nullifier(&self, _nullifier: Fr254) -> bool {
-        todo!()
-    }
-
-    async fn check_commitment(&self, _commitment: Fr254) -> bool {
-        todo!()
-    }
-
-    async fn update_commitment<M>(&self, mutator: M, key: &'a [u32]) -> Option<()>
-    where
-        M: Fn(&ClientTransactionWithMetaData<P>) -> ClientTransactionWithMetaData<P> + Send,
-    {
-        let filter = doc! {"hash": key};
-        let old_tx = self.get_transaction(key).await?;
-        let new_tx = mutator(&old_tx);
-
-        self.database(DB)
-            .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
-            .replace_one(filter, new_tx)
-            .await
-            .expect("Database error"); // we can't really proceed at this point
-        Some(())
-    }
-
     async fn set_in_mempool(
         &self,
         txs: &[ClientTransactionWithMetaData<P>],
