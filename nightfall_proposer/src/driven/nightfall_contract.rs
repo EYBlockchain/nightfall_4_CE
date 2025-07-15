@@ -34,9 +34,10 @@ impl<M> NightfallContract for Nightfall<M> {
             .map_err(|_| NightfallContractError::TransactionError)?;
 
         // saving the block to a file
+        ark_std::println!("JJ: Saving the block to a file");
         use ark_serialize::Write;
         let mut file = std::fs::File::create("nightfall_block.txt").unwrap();
-        write!(file, "Printing the block to ightfall_block.txt{:#?}", &blk).unwrap();
+        write!(file, "Printing the block to Nightfall_block.txt{:#?}", &blk).unwrap();
 
         match receipt {
             Some(receipt) => {
