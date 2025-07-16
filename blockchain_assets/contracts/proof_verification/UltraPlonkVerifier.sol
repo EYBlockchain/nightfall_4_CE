@@ -281,8 +281,17 @@ contract UltraPlonkVerifier{
         // reconstruct the tau, beta, gamma, alpha, zeta, v and u challenges based on the transcripts
         Transcript.TranscriptData memory transcripts;
         Transcript.compute_challengs(transcripts, vk, decoded_proof);
-        // Types.ChallengeTranscript memory full_challenges = transcripts
-        //     .challenges;
+        Types.ChallengeTranscript memory full_challenges = transcripts
+            .challenges;
+        console2.log("full_challenges.tau: ", full_challenges.tau);
+        console2.log("full_challenges.beta: ", full_challenges.beta);
+        console2.log("full_challenges.gamma: ", full_challenges.gamma);
+        console2.log("full_challenges.alpha: ", full_challenges.alpha);
+        console2.log("full_challenges.zeta: ", full_challenges.zeta);
+        console2.log("full_challenges.v: ", full_challenges.v);
+        console2.log("full_challenges.u: ", full_challenges.u);
+        console2.log("full_challenges.alpha2: ", full_challenges.alpha2);
+        
         
         // // compute polynomial commitment evaluation info
         // Types.PcsInfo memory pcsInfo = prepare_PcsInfo(
@@ -1830,13 +1839,59 @@ library Transcript {
         v = (v >> 128) | (v << 128);
     }
 
+    function compute_vk_hash(Types.VerificationKey memory vk) internal pure returns (uint256 vk_hash) 
+    {
+        //vk_hash = keccak256(
+        //    vk.sigma_comms,
+        //    vk.selector_comms,
+        //    vk.range_table_comm,
+        //    vk.key_table_comm,
+        //    vk.table_dom_sep_comm,
+        //    vk.q_dom_sep_comm,
+    assembly {
+        let ptr := mload(0x40)
+        let offset := ptr
+
+        // Loop through sigma_comms_1 to sigma_comms_6
+        for { let i := 0 } lt(i, 6) { i := add(i, 1) } {
+            let g1ptr := mload(add(vk, add(0x40, mul(i, 0x20))))
+            mstore(offset, mload(g1ptr))             // x
+            mstore(add(offset, 0x20), mload(add(g1ptr, 0x20))) // y
+            offset := add(offset, 0x40)
+        }
+
+        // selector_comms_1 to selector_comms_18
+        for { let i := 0 } lt(i, 18) { i := add(i, 1) } {
+            let g1ptr := mload(add(vk, add(0x100, mul(i, 0x20))))
+            mstore(offset, mload(g1ptr))             // x
+            mstore(add(offset, 0x20), mload(add(g1ptr, 0x20))) // y
+            offset := add(offset, 0x40)
+        }
+
+        // range_table_comm, key_table_comm, table_dom_sep_comm, q_dom_sep_comm
+        for { let i := 0 } lt(i, 4) { i := add(i, 1) } {
+            let g1ptr := mload(add(vk, add(0x400, mul(i, 0x20))))
+            mstore(offset, mload(g1ptr))             // x
+            mstore(add(offset, 0x20), mload(add(g1ptr, 0x20))) // y
+            offset := add(offset, 0x40)
+        }
+
+        let len := sub(offset, ptr)
+        vk_hash := shr(0, keccak256(ptr, len))
+        vk_hash := mod(vk_hash, 21888242871839275222246405745257275088548364400416034343698204186575808495617)
+
+    }
+}
     function compute_challengs(
         TranscriptData memory self,
         Types.VerificationKey memory vk,
         Types.Proof memory proof
     ) internal pure {
+        // compute vk hash
+        uint256 vk_hash = compute_vk_hash(vk);
+        console2.log("vk_hash:",vk_hash);
         Transcript.generate_initial_transcript(self, vk);
-        Transcript.append_sigma_comms_1_6(self, vk);
+        Transcript.append_sigma_comms_1_6(self, vk);    
         Transcript.append_selector_comms_1_18(self, vk);
         Transcript.append_public_inputs(self, vk);
         Transcript.append_wires_poly_comms_1_6(self, proof);
