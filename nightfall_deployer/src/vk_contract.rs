@@ -28,11 +28,18 @@ pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: 
 
     let omega = U256::from_little_endian(&domain.group_gen().into_bigint().to_bytes_le());
     let omega_inv = U256::from_little_endian(&domain.group_gen_inv().into_bigint().to_bytes_le());
+    ark_std::println!(
+        "creating vk contract:vk:{:?} ",
+        vk.clone()
+    );
     let vk_vec = Vec::<Fq254>::from(vk.clone())
         .into_iter()
         .map(|x| U256::from_little_endian(&x.into_bigint().to_bytes_le()))
         .collect::<Vec<_>>();
-
+    ark_std::println!(
+        "creating vk contract:vk_vec:{:?} ",
+        vk_vec.clone()
+    );
     let join_path = Path::new(&settings.contracts.assets)
         .parent()
         .unwrap()

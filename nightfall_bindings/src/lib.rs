@@ -62,6 +62,7 @@ pub mod storage_slot;
 pub mod strings;
 pub mod transcript;
 pub mod types;
+pub mod ultra_plonk_verifier;
 pub mod ultra_vk;
 pub mod x509;
 pub mod x509_interface;
