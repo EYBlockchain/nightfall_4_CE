@@ -194,92 +194,93 @@ contract UltraPlonkVerifier{
         assembly {
             public_inputs_hash := calldataload(add(publicInputsHashBytes.offset, 0))
         }
-        console2.log("public_input: ", public_inputs_hash);
+        // console2.log("public_input: ", public_inputs_hash);
 
         // parse the input calldata and construct a proof object and public_inputs
         Types.Proof memory decoded_proof
         = deserialize_proof(proofBytes);
-        console2.log("wires_poly_comms_1.x: ", decoded_proof.wires_poly_comms_1.x);
-        console2.log("wires_poly_comms_1.y: ", decoded_proof.wires_poly_comms_1.y);
-        console2.log("wires_poly_comms_2.x: ", decoded_proof.wires_poly_comms_2.x);
-        console2.log("wires_poly_comms_2.y: ", decoded_proof.wires_poly_comms_2.y);
-        console2.log("wires_poly_comms_3.x: ", decoded_proof.wires_poly_comms_3.x);
-        console2.log("wires_poly_comms_3.y: ", decoded_proof.wires_poly_comms_3.y);
-        console2.log("wires_poly_comms_4.x: ", decoded_proof.wires_poly_comms_4.x);
-        console2.log("wires_poly_comms_4.y: ", decoded_proof.wires_poly_comms_4.y);
-        console2.log("wires_poly_comms_5.x: ", decoded_proof.wires_poly_comms_5.x);
-        console2.log("wires_poly_comms_5.y: ", decoded_proof.wires_poly_comms_5.y);
-        console2.log("wires_poly_comms_6.x: ", decoded_proof.wires_poly_comms_6.x);
-        console2.log("wires_poly_comms_6.y: ", decoded_proof.wires_poly_comms_6.y);
-        console2.log("prod_perm_poly_comm.x: ", decoded_proof.prod_perm_poly_comm.x);
-        console2.log("prod_perm_poly_comm.y: ", decoded_proof.prod_perm_poly_comm.y);
-        console2.log("split_quot_poly_comms_1.x: ", decoded_proof.split_quot_poly_comms_1.x);
-        console2.log("split_quot_poly_comms_1.y: ", decoded_proof.split_quot_poly_comms_1.y);
-        console2.log("split_quot_poly_comms_2.x: ", decoded_proof.split_quot_poly_comms_2.x);
-        console2.log("split_quot_poly_comms_2.y: ", decoded_proof.split_quot_poly_comms_2.y);
-        console2.log("split_quot_poly_comms_3.x: ", decoded_proof.split_quot_poly_comms_3.x);
-        console2.log("split_quot_poly_comms_3.y: ", decoded_proof.split_quot_poly_comms_3.y);
-        console2.log("split_quot_poly_comms_4.x: ", decoded_proof.split_quot_poly_comms_4.x);
-        console2.log("split_quot_poly_comms_4.y: ", decoded_proof.split_quot_poly_comms_4.y);
-        console2.log("split_quot_poly_comms_5.x: ", decoded_proof.split_quot_poly_comms_5.x);
-        console2.log("split_quot_poly_comms_5.y: ", decoded_proof.split_quot_poly_comms_5.y);
-        console2.log("split_quot_poly_comms_6.x: ", decoded_proof.split_quot_poly_comms_6.x);
-        console2.log("split_quot_poly_comms_6.y: ", decoded_proof.split_quot_poly_comms_6.y);
-        console2.log("h_poly_comm_1.x: ", decoded_proof.h_poly_comm_1.x);
-        console2.log("h_poly_comm_1.y: ", decoded_proof.h_poly_comm_1.y);
-        console2.log("h_poly_comm_2.x: ", decoded_proof.h_poly_comm_2.x);
-        console2.log("h_poly_comm_2.y: ", decoded_proof.h_poly_comm_2.y);
-        console2.log("prod_lookup_poly_comm.x: ", decoded_proof.prod_lookup_poly_comm.x);
-        console2.log("prod_lookup_poly_comm.y: ", decoded_proof.prod_lookup_poly_comm.y);
+{
+    //     console2.log("wires_poly_comms_1.x: ", decoded_proof.wires_poly_comms_1.x);
+    //     console2.log("wires_poly_comms_1.y: ", decoded_proof.wires_poly_comms_1.y);
+    //     console2.log("wires_poly_comms_2.x: ", decoded_proof.wires_poly_comms_2.x);
+    //     console2.log("wires_poly_comms_2.y: ", decoded_proof.wires_poly_comms_2.y);
+    //     console2.log("wires_poly_comms_3.x: ", decoded_proof.wires_poly_comms_3.x);
+    //     console2.log("wires_poly_comms_3.y: ", decoded_proof.wires_poly_comms_3.y);
+    //     console2.log("wires_poly_comms_4.x: ", decoded_proof.wires_poly_comms_4.x);
+    //     console2.log("wires_poly_comms_4.y: ", decoded_proof.wires_poly_comms_4.y);
+    //     console2.log("wires_poly_comms_5.x: ", decoded_proof.wires_poly_comms_5.x);
+    //     console2.log("wires_poly_comms_5.y: ", decoded_proof.wires_poly_comms_5.y);
+    //     console2.log("wires_poly_comms_6.x: ", decoded_proof.wires_poly_comms_6.x);
+    //     console2.log("wires_poly_comms_6.y: ", decoded_proof.wires_poly_comms_6.y);
+    //     console2.log("prod_perm_poly_comm.x: ", decoded_proof.prod_perm_poly_comm.x);
+    //     console2.log("prod_perm_poly_comm.y: ", decoded_proof.prod_perm_poly_comm.y);
+    //     console2.log("split_quot_poly_comms_1.x: ", decoded_proof.split_quot_poly_comms_1.x);
+    //     console2.log("split_quot_poly_comms_1.y: ", decoded_proof.split_quot_poly_comms_1.y);
+    //     console2.log("split_quot_poly_comms_2.x: ", decoded_proof.split_quot_poly_comms_2.x);
+    //     console2.log("split_quot_poly_comms_2.y: ", decoded_proof.split_quot_poly_comms_2.y);
+    //     console2.log("split_quot_poly_comms_3.x: ", decoded_proof.split_quot_poly_comms_3.x);
+    //     console2.log("split_quot_poly_comms_3.y: ", decoded_proof.split_quot_poly_comms_3.y);
+    //     console2.log("split_quot_poly_comms_4.x: ", decoded_proof.split_quot_poly_comms_4.x);
+    //     console2.log("split_quot_poly_comms_4.y: ", decoded_proof.split_quot_poly_comms_4.y);
+    //     console2.log("split_quot_poly_comms_5.x: ", decoded_proof.split_quot_poly_comms_5.x);
+    //     console2.log("split_quot_poly_comms_5.y: ", decoded_proof.split_quot_poly_comms_5.y);
+    //     console2.log("split_quot_poly_comms_6.x: ", decoded_proof.split_quot_poly_comms_6.x);
+    //     console2.log("split_quot_poly_comms_6.y: ", decoded_proof.split_quot_poly_comms_6.y);
+    //     console2.log("h_poly_comm_1.x: ", decoded_proof.h_poly_comm_1.x);
+    //     console2.log("h_poly_comm_1.y: ", decoded_proof.h_poly_comm_1.y);
+    //     console2.log("h_poly_comm_2.x: ", decoded_proof.h_poly_comm_2.x);
+    //     console2.log("h_poly_comm_2.y: ", decoded_proof.h_poly_comm_2.y);
+    //     console2.log("prod_lookup_poly_comm.x: ", decoded_proof.prod_lookup_poly_comm.x);
+    //     console2.log("prod_lookup_poly_comm.y: ", decoded_proof.prod_lookup_poly_comm.y);
         
 
-        console2.log("wires_evals_1: ", decoded_proof.wires_evals_1);
-        console2.log("wires_evals_2: ", decoded_proof.wires_evals_2);
-        console2.log("wires_evals_3: ", decoded_proof.wires_evals_3);
-        console2.log("wires_evals_4: ", decoded_proof.wires_evals_4);
-        console2.log("wires_evals_5: ", decoded_proof.wires_evals_5);
-        console2.log("wires_evals_6: ", decoded_proof.wires_evals_6);
-        console2.log("wire_sigma_evals_1: ", decoded_proof.wire_sigma_evals_1);
-        console2.log("wire_sigma_evals_2: ", decoded_proof.wire_sigma_evals_2);
-        console2.log("wire_sigma_evals_3: ", decoded_proof.wire_sigma_evals_3);
-        console2.log("wire_sigma_evals_4: ", decoded_proof.wire_sigma_evals_4);
-        console2.log("wire_sigma_evals_5: ", decoded_proof.wire_sigma_evals_5);
-        console2.log("perm_next_eval: ", decoded_proof.perm_next_eval);
-        console2.log("range_table_eval: ", decoded_proof.range_table_eval);
-        console2.log("key_table_eval: ", decoded_proof.key_table_eval);
-        console2.log("table_dom_sep_eval: ", decoded_proof.table_dom_sep_eval);
-        console2.log("q_dom_sep_eval: ", decoded_proof.q_dom_sep_eval);
-        console2.log("h_1_eval: ", decoded_proof.h_1_eval);
-        console2.log("q_lookup_eval: ", decoded_proof.q_lookup_eval);
-        console2.log("prod_next_eval: ", decoded_proof.prod_next_eval);
-        console2.log("range_table_next_eval: ", decoded_proof.range_table_next_eval);
-        console2.log("key_table_next_eval: ", decoded_proof.key_table_next_eval);
-        console2.log("table_dom_sep_next_eval: ", decoded_proof.table_dom_sep_next_eval);
-        console2.log("h_1_next_eval: ", decoded_proof.h_1_next_eval);
-        console2.log("h_2_next_eval: ", decoded_proof.h_2_next_eval);
-        console2.log("q_lookup_next_eval: ", decoded_proof.q_lookup_next_eval);
-        console2.log("w_3_next_eval: ", decoded_proof.w_3_next_eval);
-        console2.log("w_4_next_eval: ", decoded_proof.w_4_next_eval);
+    //     console2.log("wires_evals_1: ", decoded_proof.wires_evals_1);
+    //     console2.log("wires_evals_2: ", decoded_proof.wires_evals_2);
+    //     console2.log("wires_evals_3: ", decoded_proof.wires_evals_3);
+    //     console2.log("wires_evals_4: ", decoded_proof.wires_evals_4);
+    //     console2.log("wires_evals_5: ", decoded_proof.wires_evals_5);
+    //     console2.log("wires_evals_6: ", decoded_proof.wires_evals_6);
+    //     console2.log("wire_sigma_evals_1: ", decoded_proof.wire_sigma_evals_1);
+    //     console2.log("wire_sigma_evals_2: ", decoded_proof.wire_sigma_evals_2);
+    //     console2.log("wire_sigma_evals_3: ", decoded_proof.wire_sigma_evals_3);
+    //     console2.log("wire_sigma_evals_4: ", decoded_proof.wire_sigma_evals_4);
+    //     console2.log("wire_sigma_evals_5: ", decoded_proof.wire_sigma_evals_5);
+    //     console2.log("perm_next_eval: ", decoded_proof.perm_next_eval);
+    //     console2.log("range_table_eval: ", decoded_proof.range_table_eval);
+    //     console2.log("key_table_eval: ", decoded_proof.key_table_eval);
+    //     console2.log("table_dom_sep_eval: ", decoded_proof.table_dom_sep_eval);
+    //     console2.log("q_dom_sep_eval: ", decoded_proof.q_dom_sep_eval);
+    //     console2.log("h_1_eval: ", decoded_proof.h_1_eval);
+    //     console2.log("q_lookup_eval: ", decoded_proof.q_lookup_eval);
+    //     console2.log("prod_next_eval: ", decoded_proof.prod_next_eval);
+    //     console2.log("range_table_next_eval: ", decoded_proof.range_table_next_eval);
+    //     console2.log("key_table_next_eval: ", decoded_proof.key_table_next_eval);
+    //     console2.log("table_dom_sep_next_eval: ", decoded_proof.table_dom_sep_next_eval);
+    //     console2.log("h_1_next_eval: ", decoded_proof.h_1_next_eval);
+    //     console2.log("h_2_next_eval: ", decoded_proof.h_2_next_eval);
+    //     console2.log("q_lookup_next_eval: ", decoded_proof.q_lookup_next_eval);
+    //     console2.log("w_3_next_eval: ", decoded_proof.w_3_next_eval);
+    //     console2.log("w_4_next_eval: ", decoded_proof.w_4_next_eval);
 
 
-    console2.log("opening_proof.x: ", decoded_proof.opening_proof.x);
-        console2.log("opening_proof.y: ", decoded_proof.opening_proof.y);
-        console2.log("shifted_opening_proof.x: ", decoded_proof.shifted_opening_proof.x);
-        console2.log("shifted_opening_proof.y: ", decoded_proof.shifted_opening_proof.y);
+    // console2.log("opening_proof.x: ", decoded_proof.opening_proof.x);
+    //     console2.log("opening_proof.y: ", decoded_proof.opening_proof.y);
+    //     console2.log("shifted_opening_proof.x: ", decoded_proof.shifted_opening_proof.x);
+    //     console2.log("shifted_opening_proof.y: ", decoded_proof.shifted_opening_proof.y);
+}
 
 
+        validate_proof(decoded_proof);
 
-        // validate_proof(decoded_proof);
-
-        // // validate public inputs (scalars, number of values varies)
+        // validate public inputs (scalars, number of values varies)
         // for (uint256 i = 0; i < num_public_inputs; i++) {
-        //     validate_scalar_field(public_inputs[i]);
+            validate_scalar_field(public_inputs_hash);
         // }
 
-        // // Compute the transcripts by appending vk, public inputs and proof
-        // // reconstruct the tau, beta, gamma, alpha, zeta, v and u challenges based on the transcripts
-        // Transcript.TranscriptData memory transcripts;
-        // Transcript.compute_challengs(transcripts, vk, decoded_proof);
+        // Compute the transcripts by appending vk, public inputs and proof
+        // reconstruct the tau, beta, gamma, alpha, zeta, v and u challenges based on the transcripts
+        Transcript.TranscriptData memory transcripts;
+        Transcript.compute_challengs(transcripts, vk, decoded_proof);
         // Types.ChallengeTranscript memory full_challenges = transcripts
         //     .challenges;
         
@@ -1532,17 +1533,30 @@ function add_plookup_commitments_helper1_4_2(
         Bn254Crypto.validate_G1Point(proof.wires_poly_comms_4);
         Bn254Crypto.validate_G1Point(proof.wires_poly_comms_5);
         Bn254Crypto.validate_G1Point(proof.wires_poly_comms_6);
+        Bn254Crypto.validate_G1Point(proof.prod_perm_poly_comm);
         Bn254Crypto.validate_G1Point(proof.split_quot_poly_comms_1);
         Bn254Crypto.validate_G1Point(proof.split_quot_poly_comms_2);
         Bn254Crypto.validate_G1Point(proof.split_quot_poly_comms_3);
         Bn254Crypto.validate_G1Point(proof.split_quot_poly_comms_4);
         Bn254Crypto.validate_G1Point(proof.split_quot_poly_comms_5);
         Bn254Crypto.validate_G1Point(proof.split_quot_poly_comms_6);
-        Bn254Crypto.validate_G1Point(proof.prod_perm_poly_comm);
-        Bn254Crypto.validate_G1Point(proof.opening_proof);
         Bn254Crypto.validate_G1Point(proof.h_poly_comm_1);
         Bn254Crypto.validate_G1Point(proof.h_poly_comm_2);
         Bn254Crypto.validate_G1Point(proof.prod_lookup_poly_comm);
+
+        Bn254Crypto.validate_scalar_field(proof.wires_evals_1);
+        Bn254Crypto.validate_scalar_field(proof.wires_evals_2);
+        Bn254Crypto.validate_scalar_field(proof.wires_evals_3);
+        Bn254Crypto.validate_scalar_field(proof.wires_evals_4);
+        Bn254Crypto.validate_scalar_field(proof.wires_evals_5);
+        Bn254Crypto.validate_scalar_field(proof.wires_evals_6);
+        Bn254Crypto.validate_scalar_field(proof.wire_sigma_evals_1);
+        Bn254Crypto.validate_scalar_field(proof.wire_sigma_evals_2);
+        Bn254Crypto.validate_scalar_field(proof.wire_sigma_evals_3);
+        Bn254Crypto.validate_scalar_field(proof.wire_sigma_evals_4);
+        Bn254Crypto.validate_scalar_field(proof.wire_sigma_evals_5);
+
+        Bn254Crypto.validate_scalar_field(proof.perm_next_eval);
         Bn254Crypto.validate_scalar_field(proof.range_table_eval);
         Bn254Crypto.validate_scalar_field(proof.key_table_eval);
         Bn254Crypto.validate_scalar_field(proof.table_dom_sep_eval);
@@ -1558,18 +1572,10 @@ function add_plookup_commitments_helper1_4_2(
         Bn254Crypto.validate_scalar_field(proof.q_lookup_next_eval);
         Bn254Crypto.validate_scalar_field(proof.w_3_next_eval);
         Bn254Crypto.validate_scalar_field(proof.w_4_next_eval);
-        Bn254Crypto.validate_scalar_field(proof.wires_evals_1);
-        Bn254Crypto.validate_scalar_field(proof.wires_evals_2);
-        Bn254Crypto.validate_scalar_field(proof.wires_evals_3);
-        Bn254Crypto.validate_scalar_field(proof.wires_evals_4);
-        Bn254Crypto.validate_scalar_field(proof.wires_evals_5);
-        Bn254Crypto.validate_scalar_field(proof.wires_evals_6);
-        Bn254Crypto.validate_scalar_field(proof.wire_sigma_evals_1);
-        Bn254Crypto.validate_scalar_field(proof.wire_sigma_evals_2);
-        Bn254Crypto.validate_scalar_field(proof.wire_sigma_evals_3);
-        Bn254Crypto.validate_scalar_field(proof.wire_sigma_evals_4);
-        Bn254Crypto.validate_scalar_field(proof.wire_sigma_evals_5);
-        Bn254Crypto.validate_scalar_field(proof.perm_next_eval);
+        
+        
+        Bn254Crypto.validate_G1Point(proof.opening_proof);
+        Bn254Crypto.validate_G1Point(proof.shifted_opening_proof);
     }
 
     function get_verification_key()
@@ -1713,12 +1719,12 @@ function add_plookup_commitments_helper1_4_2(
     ) internal pure returns (Types.Proof memory proof) {
         uint256 data_ptr;
         assembly {
-            data_ptr := proofBytes.offset
+        data_ptr := proofBytes.offset
 
-            // Allocate memory for the Proof struct
-            let proof_ptr := mload(0x40)
-            mstore(0x40, add(proof, 0x5A0)) // advance free memory pointer by size of Types.Proof struct
-// Initialize each field in the struct to point to memory slots
+        // Allocate memory for the Proof struct
+        let proof_ptr := mload(0x40)
+        mstore(0x40, add(proof, 0x5A0)) // advance free memory pointer by size of Types.Proof struct
+        // Initialize each field in the struct to point to memory slots
         // Allocate G1Point structs (each 0x40 bytes) for each commitment and proof
 
         // wires_poly_comms (6)
@@ -1731,48 +1737,6 @@ function add_plookup_commitments_helper1_4_2(
             mstore(add(g1, 0x20), calldataload(add(data_ptr, 0x20)))
             data_ptr := add(data_ptr, 0x40)
         }
-
-        // // prod_perm_poly_comm
-        // {
-        //     let ptr := add(proof, 0xc0)
-        //     let g1 := mload(0x40)
-        //     mstore(0x40, add(g1, 0x40))
-        //     mstore(ptr, g1)
-        //     mstore(g1, calldataload(data_ptr))
-        //     mstore(add(g1, 0x20), calldataload(add(data_ptr, 0x20)))
-        //     data_ptr := add(data_ptr, 0x40)
-        // }
-
-        // // split_quot_poly_comms (6)
-        // for { let i := 0 } lt(i, 6) { i := add(i, 1) } {        
-        //     let ptr := add(proof, add(0xe0, mul(i, 0x20))) // proof[0xc0, ..., 0x160]
-        //     let g1 := mload(0x40)
-        //     mstore(0x40, add(g1, 0x40))
-        //     mstore(ptr, g1)
-        //     mstore(g1, calldataload(data_ptr))
-        //     mstore(add(g1, 0x20), calldataload(add(data_ptr, 0x20)))
-        //     data_ptr := add(data_ptr, 0x40)
-        // }
-        // // h_poly_comm_1, h_poly_comm_2
-        // for { let i := 0 } lt(i, 2) { i := add(i, 1) } {
-        //     let ptr := add(proof, add(0x160, mul(i, 0x20))) // proof[0x160, ..., 0x1a0]
-        //     let g1 := mload(0x40)
-        //     mstore(0x40, add(g1, 0x40))
-        //     mstore(ptr, g1)
-        //     mstore(g1, calldataload(data_ptr))
-        //     mstore(add(g1, 0x20), calldataload(add(data_ptr, 0x20)))
-        //     data_ptr := add(data_ptr, 0x40)
-        // }
-        // // prod_lookup_poly_comm
-        // {
-        //     let ptr := add(proof, 0x1a0)
-        //     let g1 := mload(0x40)
-        //     mstore(0x40, add(g1, 0x40))
-        //     mstore(ptr, g1)
-        //     mstore(g1, calldataload(data_ptr))
-        //     mstore(add(g1, 0x20), calldataload(add(data_ptr, 0x20)))
-        //     data_ptr := add(data_ptr, 0x40)
-        // }
         // from    uint256 wires_evals_1 to      uint256 w_4_next_eval; 
         for { let i := 0 } lt(i, 27) { i := add(i, 1) } {
             mstore(add(proof, add(0x200, mul(i, 0x20))), calldataload(data_ptr))
@@ -1788,319 +1752,6 @@ function add_plookup_commitments_helper1_4_2(
             mstore(add(g1, 0x20), calldataload(add(data_ptr, 0x20)))
             data_ptr := add(data_ptr, 0x40)
         }
-
-        // for { let i := 0 } lt(i, 6) { i := add(i, 1) } {
-        //     mstore(add(proof, add(0x1c0, mul(i, 0x20))), calldataload(data_ptr))
-        //     data_ptr := add(data_ptr, 0x20)
-        // }
-
-        // // split_quot_poly_comms (6)
-        // for { let i := 0 } lt(i, 6) { i := add(i, 1) } {
-        //     let ptr := add(proof, add(0xc0, mul(i, 0x20))) // proof[0xc0, ..., 0x160]
-        //     let g1 := mload(0x40)
-        //     mstore(0x40, add(g1, 0x40))
-        //     mstore(ptr, g1)
-        //     mstore(g1, calldataload(data_ptr))
-        //     mstore(add(g1, 0x20), calldataload(add(data_ptr, 0x20)))
-        //     data_ptr := add(data_ptr, 0x40)
-        // }
-
-        // // prod_perm_poly_comm (1)
-        // {
-        //     let ptr := add(proof, 0x180)
-        //     let g1 := mload(0x40)
-        //     mstore(0x40, add(g1, 0x40))
-        //     mstore(ptr, g1)
-        //     mstore(g1, calldataload(data_ptr))
-        //     mstore(add(g1, 0x20), calldataload(add(data_ptr, 0x20)))
-        //     data_ptr := add(data_ptr, 0x40)
-        // }
-
-        // // opening_proof (1)
-        // {
-        //     let ptr := add(proof, 0x1A0)
-        //     let g1 := mload(0x40)
-        //     mstore(0x40, add(g1, 0x40))
-        //     mstore(ptr, g1)
-        //     mstore(g1, calldataload(data_ptr))
-        //     mstore(add(g1, 0x20), calldataload(add(data_ptr, 0x20)))
-        //     data_ptr := add(data_ptr, 0x40)
-        // }
-
-        // // shifted_opening_proof (1)
-        // {
-        //     let ptr := add(proof, 0x1C0)
-        //     let g1 := mload(0x40)
-        //     mstore(0x40, add(g1, 0x40))
-        //     mstore(ptr, g1)
-        //     mstore(g1, calldataload(data_ptr))
-        //     mstore(add(g1, 0x20), calldataload(add(data_ptr, 0x20)))
-        //     data_ptr := add(data_ptr, 0x40)
-        // }
-
-        // // wires_evals[6]
-        // for { let i := 0 } lt(i, 6) { i := add(i, 1) } {
-        //     mstore(add(proof, add(0x1E0, mul(i, 0x20))), calldataload(data_ptr))
-        //     data_ptr := add(data_ptr, 0x20)
-        // }
-
-        // // wire_sigma_evals[5]
-        // for { let i := 0 } lt(i, 5) { i := add(i, 1) } {
-        //     mstore(add(proof, add(0x2A0, mul(i, 0x20))), calldataload(data_ptr))
-        //     data_ptr := add(data_ptr, 0x20)
-        // }
-
-        // // perm_next_eval
-        // mstore(add(proof, 0x340), calldataload(data_ptr))
-        // data_ptr := add(data_ptr, 0x20)
-
-        // // h_poly_comm_1 and _2
-        // for { let i := 0 } lt(i, 2) { i := add(i, 1) } {
-        //     let ptr := add(proof, add(0x360, mul(i, 0x20)))
-        //     let g1 := mload(0x40)
-        //     mstore(0x40, add(g1, 0x40))
-        //     mstore(ptr, g1)
-        //     mstore(g1, calldataload(data_ptr))
-        //     mstore(add(g1, 0x20), calldataload(add(data_ptr, 0x20)))
-        //     data_ptr := add(data_ptr, 0x40)
-        // }
-
-        // // prod_lookup_poly_comm
-        // {
-        //     let ptr := add(proof, 0x3A0)
-        //     let g1 := mload(0x40)
-        //     mstore(0x40, add(g1, 0x40))
-        //     mstore(ptr, g1)
-        //     mstore(g1, calldataload(data_ptr))
-        //     mstore(add(g1, 0x20), calldataload(add(data_ptr, 0x20)))
-        //     data_ptr := add(data_ptr, 0x40)
-        // }
-
-        // // 12 uint256 fields at end
-        // for { let i := 0 } lt(i, 12) { i := add(i, 1) } {
-        //     mstore(add(proof, add(0x3C0, mul(i, 0x20))), calldataload(data_ptr))
-        //     data_ptr := add(data_ptr, 0x20)
-        // }
-
-        //     // wires_poly_comms
-        //     // G1Point wires_poly_comms_1;
-        //     mstore(mload(proof_ptr), calldataload(data_ptr))
-        //     mstore(
-        //         add(mload(proof_ptr), 0x20),
-        //         calldataload(add(data_ptr, 0x20))
-        //     )
-        //     // G1Point wires_poly_comms_2;
-        //     mstore(
-        //         mload(add(proof_ptr, 0x20)),
-        //         calldataload(add(data_ptr, 0x40))
-        //     )
-        //     mstore(
-        //         add(mload(add(proof_ptr, 0x20)), 0x20),
-        //         calldataload(add(data_ptr, 0x60))
-        //     )
-        //     // G1Point wires_poly_comms_3;
-        //     mstore(
-        //         mload(add(proof_ptr, 0x40)),
-        //         calldataload(add(data_ptr, 0x80))
-        //     )
-        //     mstore(
-        //         add(mload(add(proof_ptr, 0x40)), 0x20),
-        //         calldataload(add(data_ptr, 0xa0))
-        //     )
-        //     // G1Point wires_poly_comms_4;
-        //     mstore(
-        //         mload(add(proof_ptr, 0x60)),
-        //         calldataload(add(data_ptr, 0xc0))
-        //     )
-        //     mstore(
-        //         add(mload(add(proof_ptr, 0x60)), 0x20),
-        //         calldataload(add(data_ptr, 0xe0))
-        //     )
-        //     // G1Point wires_poly_comms_5;
-        //     mstore(
-        //         mload(add(proof_ptr, 0x80)),
-        //         calldataload(add(data_ptr, 0x100))
-        //     )
-        //     mstore(
-        //         add(mload(add(proof_ptr, 0x80)), 0x20),
-        //         calldataload(add(data_ptr, 0x120))
-        //     )
-        //      // G1Point wires_poly_comms_6;
-        //     mstore(
-        //         mload(add(proof_ptr, 0xa0)),
-        //         calldataload(add(data_ptr, 0x140))
-        //     )
-        //     mstore(
-        //         add(mload(add(proof_ptr, 0xa0)), 0x20),
-        //         calldataload(add(data_ptr, 0x160))
-        //     )
-        //     // prod_perm_poly_comm
-        //     mstore(
-        //         mload(add(proof_ptr, 0xc0)),
-        //         calldataload(add(data_ptr, 0x180))
-        //     )
-        //     mstore(
-        //         add(mload(add(proof_ptr, 0xc0)), 0x20),
-        //         calldataload(add(data_ptr, 0x1a0))
-        //     )
-        //     // // split_quot_poly_comms
-        //     // G1Point split_quot_poly_comms_1;
-        //     mstore(
-        //         mload(add(proof_ptr, 0xe0)),
-        //         calldataload(add(data_ptr, 0x1c0))
-        //     )
-        //     mstore(
-        //         add(mload(add(proof_ptr, 0xe0)), 0x20),
-        //         calldataload(add(data_ptr, 0x1e0))
-        //     )
-        //     // G1Point split_quot_poly_comms_2;
-        //     mstore(
-        //         mload(add(proof_ptr, 0x100)),
-        //         calldataload(add(data_ptr, 0x200))
-        //     )
-        //     mstore(
-        //         add(mload(add(proof_ptr, 0x100)), 0x20),
-        //         calldataload(add(data_ptr, 0x220))
-        //     )
-        //     // G1Point split_quot_poly_comms_3;
-        //     mstore(
-        //         mload(add(proof_ptr, 0x120)),
-        //         calldataload(add(data_ptr, 0x240))
-        //     )
-        //     mstore(
-        //         add(mload(add(proof_ptr, 0x120)), 0x20),
-        //         calldataload(add(data_ptr, 0x260))
-        //     )
-        //     // G1Point split_quot_poly_comms_4;
-        //     mstore(
-        //         mload(add(proof_ptr, 0x140)),
-        //         calldataload(add(data_ptr, 0x280))
-        //     )
-        //     mstore(
-        //         add(mload(add(proof_ptr, 0x140)), 0x20),
-        //         calldataload(add(data_ptr, 0x2a0))
-        //     )
-        //     // G1Point split_quot_poly_comms_5;
-        //     mstore(
-        //         mload(add(proof_ptr, 0x160)),
-        //         calldataload(add(data_ptr, 0x2c0))
-        //     )
-        //     mstore(
-        //         add(mload(add(proof_ptr, 0x160)), 0x20),
-        //         calldataload(add(data_ptr, 0x2e0))
-        //     )
-        //     // G1Point split_quot_poly_comms_6;
-        //     mstore(
-        //         mload(add(proof_ptr, 0x180)),
-        //         calldataload(add(data_ptr, 0x300))
-        //     )
-        //     mstore(
-        //         add(mload(add(proof_ptr, 0x180)), 0x20),
-        //         calldataload(add(data_ptr, 0x320))
-        //     )
-        //     // opening_proof
-        //     // G1Point opening_proof;
-        //     mstore(
-        //         mload(add(proof_ptr, 0x1A0)),
-        //         calldataload(add(data_ptr, 0x340))
-        //     )
-        //     mstore(
-        //         add(mload(add(proof_ptr, 0x1A0)), 0x20),
-        //         calldataload(add(data_ptr, 0x360))
-        //     )
-        //     // shifted_opening_proof
-        //     // G1Point shifted_opening_proof;
-        //     mstore(
-        //         mload(add(proof_ptr, 0x1C0)),
-        //         calldataload(add(data_ptr, 0x380))
-        //     )
-        //     mstore(
-        //         add(mload(add(proof_ptr, 0x1C0)), 0x20),
-        //         calldataload(add(data_ptr, 0x3a0))
-        //     )
-        //     // wires_evals
-        //     // uint256 wires_evals_1;
-        //     mstore(add(proof_ptr, 0x1E0), calldataload(add(data_ptr, 0x3c0)))
-        //     // uint256 wires_evals_2;
-        //     mstore(add(proof_ptr, 0x200), calldataload(add(data_ptr, 0x3e0)))
-        //     // uint256 wires_evals_3;
-        //     mstore(add(proof_ptr, 0x220), calldataload(add(data_ptr, 0x400)))
-        //     // uint256 wires_evals_4;
-        //     mstore(add(proof_ptr, 0x240), calldataload(add(data_ptr, 0x420)))
-        //     // uint256 wires_evals_5;
-        //     mstore(add(proof_ptr, 0x260), calldataload(add(data_ptr, 0x440)))
-        //     // uint256 wires_evals_6;
-        //     mstore(add(proof_ptr, 0x280), calldataload(add(data_ptr, 0x460)))
-        //     // wire_sigma_evals
-        //     // uint256 wire_sigma_evals_1;
-        //     mstore(add(proof_ptr, 0x2A0), calldataload(add(data_ptr, 0x480)))
-        //     // uint256 wire_sigma_evals_2;
-        //     mstore(add(proof_ptr, 0x2C0), calldataload(add(data_ptr, 0x4a0)))
-        //     // uint256 wire_sigma_evals_3;
-        //     mstore(add(proof_ptr, 0x2E0), calldataload(add(data_ptr, 0x4c0)))
-        //     // uint256 wire_sigma_evals_4;
-        //     mstore(add(proof_ptr, 0x300), calldataload(add(data_ptr, 0x4e0)))
-        //     // uint256 wire_sigma_evals_5;
-        //     mstore(add(proof_ptr, 0x320), calldataload(add(data_ptr, 0x500)))
-        //     // uint256 perm_next_eval;
-        //     mstore(add(proof_ptr,0x340), calldataload(add(data_ptr, 0x520)))
-        //      // G1Point h_poly_comm_1;
-        //     mstore(
-        //         mload(add(proof_ptr, 0x360)),
-        //         calldataload(add(data_ptr, 0x540))
-        //     )
-        //     mstore(
-        //         add(mload(add(proof_ptr, 0x360)), 0x20),
-        //         calldataload(add(data_ptr, 0x560))
-        //     )
-        //     // G1Point h_poly_comm_2;
-        //     mstore(
-        //         mload(add(proof_ptr, 0x380)),
-        //         calldataload(add(data_ptr, 0x580))
-        //     )
-        //     mstore(
-        //         add(mload(add(proof_ptr, 0x380)), 0x20),
-        //         calldataload(add(data_ptr, 0x5a0))
-        //     )
-        // // G1Point prod_lookup_poly_comm
-        // mstore(
-        //         mload(add(proof_ptr, 0x3A0)),
-        //         calldataload(add(data_ptr, 0x5c0))
-        //     )
-        //     mstore(
-        //         add(mload(add(proof_ptr, 0x3A0)), 0x20),
-        //         calldataload(add(data_ptr, 0x5e0))
-        //     )
-        //     // uint256 range_table_eval;
-        //     mstore(add(proof_ptr, 0x3C0), calldataload(add(data_ptr, 0x600)))
-        //     // uint256 key_table_eval;
-        //     mstore(add(proof_ptr, 0x3E0), calldataload(add(data_ptr, 0x620)))
-        //     // uint256 table_dom_sep_eval;
-        //     mstore(add(proof_ptr, 0x400), calldataload(add(data_ptr, 0x640)))
-        //     // uint256 q_dom_sep_eval;
-        //     mstore(add(proof_ptr, 0x420), calldataload(add(data_ptr, 0x660)))
-        //     // uint256 h_1_eval;
-        //     mstore(add(proof_ptr, 0x440), calldataload(add(data_ptr, 0x680)))
-        //     // uint256 q_lookup_eval;
-        //     mstore(add(proof_ptr, 0x460), calldataload(add(data_ptr, 0x6a0)))
-        //     // uint256 prod_next_eval;
-        //     mstore(add(proof_ptr, 0x480), calldataload(add(data_ptr, 0x6c0)))
-        //     // uint256 range_table_next_eval;
-        //     mstore(add(proof_ptr, 0x4A0), calldataload(add(data_ptr, 0x6e0)))
-        //     // uint256 key_table_next_eval;
-        //     mstore(add(proof_ptr, 0x4C0), calldataload(add(data_ptr, 0x700)))
-        //     // uint256 table_dom_sep_next_eval;
-        //     mstore(add(proof_ptr, 0x4E0), calldataload(add(data_ptr, 0x720)))
-        //     // uint256 h_1_next_eval;
-        //     mstore(add(proof_ptr, 0x500), calldataload(add(data_ptr, 0x740)))
-        //     // uint256 h_2_next_eval;
-        //     mstore(add(proof_ptr, 0x520), calldataload(add(data_ptr, 0x760)))
-        //     // uint256 q_lookup_next_eval;
-        //     mstore(add(proof_ptr, 0x540), calldataload(add(data_ptr, 0x780)))
-        //     // uint256 w_3_next_eval;
-        //     mstore(add(proof_ptr, 0x560), calldataload(add(data_ptr, 0x7a0)))
-        //     // uint256 w_4_next_eval;
-        //     mstore(add(proof_ptr, 0x580), calldataload(add(data_ptr, 0x7c0)))
         }
         return proof;
     }
