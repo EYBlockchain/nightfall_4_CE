@@ -200,106 +200,115 @@ contract UltraPlonkVerifier{
         Types.Proof memory decoded_proof
         = deserialize_proof(proofBytes);
 {
-        console2.log("wires_poly_comms_1.x: ", decoded_proof.wires_poly_comms_1.x);
-        console2.log("wires_poly_comms_1.y: ", decoded_proof.wires_poly_comms_1.y);
-        console2.log("wires_poly_comms_2.x: ", decoded_proof.wires_poly_comms_2.x);
-        console2.log("wires_poly_comms_2.y: ", decoded_proof.wires_poly_comms_2.y);
-        console2.log("wires_poly_comms_3.x: ", decoded_proof.wires_poly_comms_3.x);
-        console2.log("wires_poly_comms_3.y: ", decoded_proof.wires_poly_comms_3.y);
-        console2.log("wires_poly_comms_4.x: ", decoded_proof.wires_poly_comms_4.x);
-        console2.log("wires_poly_comms_4.y: ", decoded_proof.wires_poly_comms_4.y);
-        console2.log("wires_poly_comms_5.x: ", decoded_proof.wires_poly_comms_5.x);
-        console2.log("wires_poly_comms_5.y: ", decoded_proof.wires_poly_comms_5.y);
-        console2.log("wires_poly_comms_6.x: ", decoded_proof.wires_poly_comms_6.x);
-        console2.log("wires_poly_comms_6.y: ", decoded_proof.wires_poly_comms_6.y);
-        console2.log("prod_perm_poly_comm.x: ", decoded_proof.prod_perm_poly_comm.x);
-        console2.log("prod_perm_poly_comm.y: ", decoded_proof.prod_perm_poly_comm.y);
-        console2.log("split_quot_poly_comms_1.x: ", decoded_proof.split_quot_poly_comms_1.x);
-        console2.log("split_quot_poly_comms_1.y: ", decoded_proof.split_quot_poly_comms_1.y);
-        console2.log("split_quot_poly_comms_2.x: ", decoded_proof.split_quot_poly_comms_2.x);
-        console2.log("split_quot_poly_comms_2.y: ", decoded_proof.split_quot_poly_comms_2.y);
-        console2.log("split_quot_poly_comms_3.x: ", decoded_proof.split_quot_poly_comms_3.x);
-        console2.log("split_quot_poly_comms_3.y: ", decoded_proof.split_quot_poly_comms_3.y);
-        console2.log("split_quot_poly_comms_4.x: ", decoded_proof.split_quot_poly_comms_4.x);
-        console2.log("split_quot_poly_comms_4.y: ", decoded_proof.split_quot_poly_comms_4.y);
-        console2.log("split_quot_poly_comms_5.x: ", decoded_proof.split_quot_poly_comms_5.x);
-        console2.log("split_quot_poly_comms_5.y: ", decoded_proof.split_quot_poly_comms_5.y);
-        console2.log("split_quot_poly_comms_6.x: ", decoded_proof.split_quot_poly_comms_6.x);
-        console2.log("split_quot_poly_comms_6.y: ", decoded_proof.split_quot_poly_comms_6.y);
-        console2.log("h_poly_comm_1.x: ", decoded_proof.h_poly_comm_1.x);
-        console2.log("h_poly_comm_1.y: ", decoded_proof.h_poly_comm_1.y);
-        console2.log("h_poly_comm_2.x: ", decoded_proof.h_poly_comm_2.x);
-        console2.log("h_poly_comm_2.y: ", decoded_proof.h_poly_comm_2.y);
-        console2.log("prod_lookup_poly_comm.x: ", decoded_proof.prod_lookup_poly_comm.x);
-        console2.log("prod_lookup_poly_comm.y: ", decoded_proof.prod_lookup_poly_comm.y);
+    //     console2.log("wires_poly_comms_1.x: ", decoded_proof.wires_poly_comms_1.x);
+    //     console2.log("wires_poly_comms_1.y: ", decoded_proof.wires_poly_comms_1.y);
+    //     console2.log("wires_poly_comms_2.x: ", decoded_proof.wires_poly_comms_2.x);
+    //     console2.log("wires_poly_comms_2.y: ", decoded_proof.wires_poly_comms_2.y);
+    //     console2.log("wires_poly_comms_3.x: ", decoded_proof.wires_poly_comms_3.x);
+    //     console2.log("wires_poly_comms_3.y: ", decoded_proof.wires_poly_comms_3.y);
+    //     console2.log("wires_poly_comms_4.x: ", decoded_proof.wires_poly_comms_4.x);
+    //     console2.log("wires_poly_comms_4.y: ", decoded_proof.wires_poly_comms_4.y);
+    //     console2.log("wires_poly_comms_5.x: ", decoded_proof.wires_poly_comms_5.x);
+    //     console2.log("wires_poly_comms_5.y: ", decoded_proof.wires_poly_comms_5.y);
+    //     console2.log("wires_poly_comms_6.x: ", decoded_proof.wires_poly_comms_6.x);
+    //     console2.log("wires_poly_comms_6.y: ", decoded_proof.wires_poly_comms_6.y);
+    //     console2.log("prod_perm_poly_comm.x: ", decoded_proof.prod_perm_poly_comm.x);
+    //     console2.log("prod_perm_poly_comm.y: ", decoded_proof.prod_perm_poly_comm.y);
+    //     console2.log("split_quot_poly_comms_1.x: ", decoded_proof.split_quot_poly_comms_1.x);
+    //     console2.log("split_quot_poly_comms_1.y: ", decoded_proof.split_quot_poly_comms_1.y);
+    //     console2.log("split_quot_poly_comms_2.x: ", decoded_proof.split_quot_poly_comms_2.x);
+    //     console2.log("split_quot_poly_comms_2.y: ", decoded_proof.split_quot_poly_comms_2.y);
+    //     console2.log("split_quot_poly_comms_3.x: ", decoded_proof.split_quot_poly_comms_3.x);
+    //     console2.log("split_quot_poly_comms_3.y: ", decoded_proof.split_quot_poly_comms_3.y);
+    //     console2.log("split_quot_poly_comms_4.x: ", decoded_proof.split_quot_poly_comms_4.x);
+    //     console2.log("split_quot_poly_comms_4.y: ", decoded_proof.split_quot_poly_comms_4.y);
+    //     console2.log("split_quot_poly_comms_5.x: ", decoded_proof.split_quot_poly_comms_5.x);
+    //     console2.log("split_quot_poly_comms_5.y: ", decoded_proof.split_quot_poly_comms_5.y);
+    //     console2.log("split_quot_poly_comms_6.x: ", decoded_proof.split_quot_poly_comms_6.x);
+    //     console2.log("split_quot_poly_comms_6.y: ", decoded_proof.split_quot_poly_comms_6.y);
+    //     console2.log("h_poly_comm_1.x: ", decoded_proof.h_poly_comm_1.x);
+    //     console2.log("h_poly_comm_1.y: ", decoded_proof.h_poly_comm_1.y);
+    //     console2.log("h_poly_comm_2.x: ", decoded_proof.h_poly_comm_2.x);
+    //     console2.log("h_poly_comm_2.y: ", decoded_proof.h_poly_comm_2.y);
+    //     console2.log("prod_lookup_poly_comm.x: ", decoded_proof.prod_lookup_poly_comm.x);
+    //     console2.log("prod_lookup_poly_comm.y: ", decoded_proof.prod_lookup_poly_comm.y);
         
 
-        console2.log("wires_evals_1: ", decoded_proof.wires_evals_1);
-        console2.log("wires_evals_2: ", decoded_proof.wires_evals_2);
-        console2.log("wires_evals_3: ", decoded_proof.wires_evals_3);
-        console2.log("wires_evals_4: ", decoded_proof.wires_evals_4);
-        console2.log("wires_evals_5: ", decoded_proof.wires_evals_5);
-        console2.log("wires_evals_6: ", decoded_proof.wires_evals_6);
-        console2.log("wire_sigma_evals_1: ", decoded_proof.wire_sigma_evals_1);
-        console2.log("wire_sigma_evals_2: ", decoded_proof.wire_sigma_evals_2);
-        console2.log("wire_sigma_evals_3: ", decoded_proof.wire_sigma_evals_3);
-        console2.log("wire_sigma_evals_4: ", decoded_proof.wire_sigma_evals_4);
-        console2.log("wire_sigma_evals_5: ", decoded_proof.wire_sigma_evals_5);
-        console2.log("perm_next_eval: ", decoded_proof.perm_next_eval);
-        console2.log("range_table_eval: ", decoded_proof.range_table_eval);
-        console2.log("key_table_eval: ", decoded_proof.key_table_eval);
-        console2.log("table_dom_sep_eval: ", decoded_proof.table_dom_sep_eval);
-        console2.log("q_dom_sep_eval: ", decoded_proof.q_dom_sep_eval);
-        console2.log("h_1_eval: ", decoded_proof.h_1_eval);
-        console2.log("q_lookup_eval: ", decoded_proof.q_lookup_eval);
-        console2.log("prod_next_eval: ", decoded_proof.prod_next_eval);
-        console2.log("range_table_next_eval: ", decoded_proof.range_table_next_eval);
-        console2.log("key_table_next_eval: ", decoded_proof.key_table_next_eval);
-        console2.log("table_dom_sep_next_eval: ", decoded_proof.table_dom_sep_next_eval);
-        console2.log("h_1_next_eval: ", decoded_proof.h_1_next_eval);
-        console2.log("h_2_next_eval: ", decoded_proof.h_2_next_eval);
-        console2.log("q_lookup_next_eval: ", decoded_proof.q_lookup_next_eval);
-        console2.log("w_3_next_eval: ", decoded_proof.w_3_next_eval);
-        console2.log("w_4_next_eval: ", decoded_proof.w_4_next_eval);
+        // console2.log("wires_evals_1: ", decoded_proof.wires_evals_1);
+        // console2.log("wires_evals_2: ", decoded_proof.wires_evals_2);
+        // console2.log("wires_evals_3: ", decoded_proof.wires_evals_3);
+        // console2.log("wires_evals_4: ", decoded_proof.wires_evals_4);
+        // console2.log("wires_evals_5: ", decoded_proof.wires_evals_5);
+        // console2.log("wires_evals_6: ", decoded_proof.wires_evals_6);
+        // console2.log("wire_sigma_evals_1: ", decoded_proof.wire_sigma_evals_1);
+        // console2.log("wire_sigma_evals_2: ", decoded_proof.wire_sigma_evals_2);
+        // console2.log("wire_sigma_evals_3: ", decoded_proof.wire_sigma_evals_3);
+        // console2.log("wire_sigma_evals_4: ", decoded_proof.wire_sigma_evals_4);
+        // console2.log("wire_sigma_evals_5: ", decoded_proof.wire_sigma_evals_5);
+        // console2.log("perm_next_eval: ", decoded_proof.perm_next_eval);
+        // console2.log("range_table_eval: ", decoded_proof.range_table_eval);
+        // console2.log("key_table_eval: ", decoded_proof.key_table_eval);
+        // console2.log("table_dom_sep_eval: ", decoded_proof.table_dom_sep_eval);
+        // console2.log("q_dom_sep_eval: ", decoded_proof.q_dom_sep_eval);
+        // console2.log("h_1_eval: ", decoded_proof.h_1_eval);
+        // console2.log("q_lookup_eval: ", decoded_proof.q_lookup_eval);
+        // console2.log("prod_next_eval: ", decoded_proof.prod_next_eval);
+        // console2.log("range_table_next_eval: ", decoded_proof.range_table_next_eval);
+        // console2.log("key_table_next_eval: ", decoded_proof.key_table_next_eval);
+        // console2.log("table_dom_sep_next_eval: ", decoded_proof.table_dom_sep_next_eval);
+        // console2.log("h_1_next_eval: ", decoded_proof.h_1_next_eval);
+        // console2.log("h_2_next_eval: ", decoded_proof.h_2_next_eval);
+        // console2.log("q_lookup_next_eval: ", decoded_proof.q_lookup_next_eval);
+        // console2.log("w_3_next_eval: ", decoded_proof.w_3_next_eval);
+        // console2.log("w_4_next_eval: ", decoded_proof.w_4_next_eval);
 
 
-    console2.log("opening_proof.x: ", decoded_proof.opening_proof.x);
-        console2.log("opening_proof.y: ", decoded_proof.opening_proof.y);
-        console2.log("shifted_opening_proof.x: ", decoded_proof.shifted_opening_proof.x);
-        console2.log("shifted_opening_proof.y: ", decoded_proof.shifted_opening_proof.y);
+    // console2.log("opening_proof.x: ", decoded_proof.opening_proof.x);
+    //     console2.log("opening_proof.y: ", decoded_proof.opening_proof.y);
+    //     console2.log("shifted_opening_proof.x: ", decoded_proof.shifted_opening_proof.x);
+    //     console2.log("shifted_opening_proof.y: ", decoded_proof.shifted_opening_proof.y);
 }
 
 
-        // validate_proof(decoded_proof);
+        validate_proof(decoded_proof);
 
         // validate public inputs (scalars, number of values varies)
         // for (uint256 i = 0; i < num_public_inputs; i++) {
-            // validate_scalar_field(public_inputs_hash);
+            validate_scalar_field(public_inputs_hash);
         // }
 
         // Compute the transcripts by appending vk, public inputs and proof
         // reconstruct the tau, beta, gamma, alpha, zeta, v and u challenges based on the transcripts
-        // Transcript.TranscriptData memory transcripts;
-        // Transcript.compute_challengs(transcripts, vk, decoded_proof, public_inputs_hash);
-        // Types.ChallengeTranscript memory full_challenges = transcripts
-        //     .challenges;
-        // console2.log("full_challenges.tau: ", full_challenges.tau);
-        // console2.log("full_challenges.beta: ", full_challenges.beta);
-        // console2.log("full_challenges.gamma: ", full_challenges.gamma);
-        // console2.log("full_challenges.alpha: ", full_challenges.alpha);
-        // console2.log("full_challenges.zeta: ", full_challenges.zeta);
-        // console2.log("full_challenges.v: ", full_challenges.v);
-        // console2.log("full_challenges.u: ", full_challenges.u);
-        // console2.log("full_challenges.alpha2: ", full_challenges.alpha2);
+        Transcript.TranscriptData memory transcripts;
+        Transcript.compute_challengs(transcripts, vk, decoded_proof, public_inputs_hash);
+        Types.ChallengeTranscript memory full_challenges = transcripts
+            .challenges;
+        console2.log("full_challenges.tau: ", full_challenges.tau);
+        console2.log("full_challenges.beta: ", full_challenges.beta);
+        console2.log("full_challenges.gamma: ", full_challenges.gamma);
+        console2.log("full_challenges.alpha: ", full_challenges.alpha);
+        console2.log("full_challenges.zeta: ", full_challenges.zeta);
+        console2.log("full_challenges.v: ", full_challenges.v);
+        console2.log("full_challenges.u: ", full_challenges.u);
         
         
+        uint256[] memory public_inputs = new uint256[](vk.num_inputs);
+        public_inputs[0] = public_inputs_hash;
         // // compute polynomial commitment evaluation info
-        // Types.PcsInfo memory pcsInfo = prepare_PcsInfo(
-        //     vk,
-        //     public_inputs,
-        //     decoded_proof,
-        //     full_challenges
-        // );
+        Types.PcsInfo memory pcsInfo = prepare_PcsInfo(
+            vk,
+            public_inputs,
+            decoded_proof,
+            full_challenges
+        );
+
+        console2.log("full_challenges.alpha2: ", full_challenges.alpha2);
+        console2.log("full_challenges.alpha2: ", full_challenges.alpha_powers[0]);
+        console2.log("full_challenges.alpha3: ", full_challenges.alpha_powers[1]);
+        console2.log("full_challenges.alpha4: ", full_challenges.alpha_powers[2]);
+        console2.log("full_challenges.alpha5: ", full_challenges.alpha_powers[3]);
+        console2.log("full_challenges.alpha6: ", full_challenges.alpha_powers[4]);
+        console2.log("full_challenges.alpha7: ", full_challenges.alpha7);
         // result = verify_OpeningProof(full_challenges, pcsInfo, decoded_proof);
         // require(result, "Proof failed");
         result = true;
@@ -328,8 +337,13 @@ contract UltraPlonkVerifier{
         uint256 alpha_4 =   mulmod(full_challenges.alpha2, full_challenges.alpha2, p);
         uint256 alpha_5 =   mulmod(full_challenges.alpha2, alpha_3, p);
         uint256 alpha_6 =   mulmod(alpha_4, full_challenges.alpha2, p);
+        // console2.log("alpha_3 prepare_PcsInfo: ", alpha_3);
+        // console2.log("alpha_4 prepare_PcsInfo: ", alpha_4);
+        // console2.log("alpha_5 prepare_PcsInfo: ", alpha_5);
+        // console2.log("alpha_6 prepare_PcsInfo: ", alpha_6);
          full_challenges.alpha_powers = [full_challenges.alpha2, alpha_3, alpha_4, alpha_5, alpha_6];
          full_challenges.alpha_base= 1;
+         full_challenges.alpha7= mulmod(alpha_3, alpha_4, p);
 
 
         // get the domain evaluation information
@@ -2315,38 +2329,63 @@ library Transcript {
         Types.Proof memory proof
     ) internal pure returns (uint256) {
         //ProofEvaluations
-    // poly_eval
-    // wire eval
-    // w_sigma_eval
-    // perm_next_eval
+        // wires_evals
         append_field_element(self, proof.wires_evals_1);
+        // console2.log("checking challenge v, proof.wires_evals_1:",proof.wires_evals_1);
         append_field_element(self, proof.wires_evals_2);
+        // console2.log("proof.wires_evals_2:",proof.wires_evals_2);
         append_field_element(self, proof.wires_evals_3);
+        // console2.log("proof.wires_evals_3:",proof.wires_evals_3);
         append_field_element(self, proof.wires_evals_4);
+        // console2.log("proof.wires_evals_4:",proof.wires_evals_4);
         append_field_element(self, proof.wires_evals_5);
+        // console2.log("proof.wires_evals_5:",proof.wires_evals_5);
         append_field_element(self, proof.wires_evals_6);
+        // console2.log("proof.wires_evals_6:",proof.wires_evals_6);
         append_field_element(self, proof.wire_sigma_evals_1);
+        // console2.log("proof.wire_sigma_evals_1:",proof.wire_sigma_evals_1);
         append_field_element(self, proof.wire_sigma_evals_2);
+        // console2.log("proof.wire_sigma_evals_2:",proof.wire_sigma_evals_2);
         append_field_element(self, proof.wire_sigma_evals_3);
+        // console2.log("proof.wire_sigma_evals_3:",proof.wire_sigma_evals_3);    
         append_field_element(self, proof.wire_sigma_evals_4);
-        // append_field_element(self, proof.wire_sigma_evals_5);
-        // append_field_element(self, proof.perm_next_eval);
-    //plookup_proof: poly_evals (PlookupEvaluations)    
-    // append_field_element(self, proof.range_table_eval);
-    // append_field_element(self, proof.key_table_eval);
-    // append_field_element(self, proof.table_dom_sep_eval);
-    // append_field_element(self, proof.q_dom_sep_eval);
-    // append_field_element(self, proof.h_1_eval);
-    // append_field_element(self, proof.q_lookup_eval);
-    // append_field_element(self, proof.prod_next_eval);
-    // append_field_element(self, proof.range_table_next_eval);
-    // append_field_element(self, proof.key_table_next_eval);
-    // append_field_element(self, proof.table_dom_sep_next_eval);
-    // append_field_element(self, proof.h_1_next_eval);
-    // append_field_element(self, proof.h_2_next_eval);
-    // append_field_element(self, proof.q_lookup_next_eval);
-    //     append_field_element(self, proof.w_3_next_eval);
-    // append_field_element(self, proof.w_4_next_eval);
+        // console2.log("proof.wire_sigma_evals_4:",proof.wire_sigma_evals_4);
+        append_field_element(self, proof.wire_sigma_evals_5);
+        // console2.log("proof.wire_sigma_evals_5:",proof.wire_sigma_evals_5);
+        append_field_element(self, proof.perm_next_eval);
+        // console2.log("proof.perm_next_eval:",proof.perm_next_eval);
+    // plookup_proof: poly_evals (PlookupEvaluations)    
+    
+    append_field_element(self, proof.key_table_eval);
+    // console2.log("proof.key_table_eval:",proof.key_table_eval);
+    append_field_element(self, proof.table_dom_sep_eval);
+    // console2.log("proof.table_dom_sep_eval:",proof.table_dom_sep_eval);
+    append_field_element(self, proof.range_table_eval);
+    // console2.log("proof.range_table_eval:",proof.range_table_eval);
+    append_field_element(self, proof.q_dom_sep_eval);
+    // console2.log("proof.q_dom_sep_eval:",proof.q_dom_sep_eval);
+    append_field_element(self, proof.h_1_eval);
+    // console2.log("proof.h_1_eval:",proof.h_1_eval);
+    append_field_element(self, proof.q_lookup_eval);
+    // console2.log("proof.q_lookup_eval:",proof.q_lookup_eval);
+    append_field_element(self, proof.prod_next_eval);
+    // console2.log("proof.prod_next_eval:",proof.prod_next_eval);
+    append_field_element(self, proof.range_table_next_eval);
+    // console2.log("proof.range_table_next_eval:",proof.range_table_next_eval);
+    append_field_element(self, proof.key_table_next_eval);
+    // console2.log("proof.key_table_next_eval:",proof.key_table_next_eval);
+    append_field_element(self, proof.table_dom_sep_next_eval);
+    // console2.log("proof.table_dom_sep_next_eval:",proof.table_dom_sep_next_eval);
+    append_field_element(self, proof.h_1_next_eval);
+    // console2.log("proof.h_1_next_eval:",proof.h_1_next_eval);
+    append_field_element(self, proof.h_2_next_eval);
+    // console2.log("proof.h_2_next_eval:",proof.h_2_next_eval);
+    append_field_element(self, proof.q_lookup_next_eval);
+    // console2.log("proof.q_lookup_next_eval:",proof.q_lookup_next_eval);
+        append_field_element(self, proof.w_3_next_eval);
+        // console2.log("proof.w_3_next_eval:",proof.w_3_next_eval);
+    append_field_element(self, proof.w_4_next_eval);
+        // console2.log("proof.w_4_next_eval:",proof.w_4_next_eval);
 
     bytes memory input = abi.encodePacked(self.state[0], self.transcript);
         console2.log("input");
@@ -2370,37 +2409,16 @@ library Transcript {
         append_G1_element(self, proof.shifted_opening_proof);
         // //console.log("proof.shifted_opening_proof.x:",proof.shifted_opening_proof.x);
         // //console.log("proof.shifted_opening_proof.y:",proof.shifted_opening_proof.y);
-        bytes memory slice = self.transcript;
-
-        bytes32 buffer_0;
-        bytes32 buffer_1;
-        bytes32 state0 = self.state[0];
-        bytes32 state1 = self.state[1];
-        assembly {
-            let ptr := mload(0x40) // Get the free memory pointer
-            mstore(ptr, state0) // Store the first state
-            mstore(add(ptr, 0x20), state1) // Store the second state
-            // Calculate the total length needed: 2 * bytes32 + length of slice + 1 byte (uint8)
-            let total_length := add(add(0x40, mload(slice)), 0x01)
-            for {
-                let i := 0
-            } lt(i, mload(slice)) {
-                i := add(i, 0x20)
-            } {
-                mstore(add(ptr, add(0x40, i)), mload(add(add(slice, 0x20), i)))
-            }
-            mstore8(add(ptr, sub(total_length, 0x01)), 0)
-            buffer_0 := keccak256(ptr, total_length)
-            mstore8(add(ptr, sub(total_length, 0x01)), 1)
-            buffer_1 := keccak256(ptr, total_length)
-        }
-
-        self.state[0] = buffer_0;
-        self.state[1] = buffer_1;
+       bytes memory input = abi.encodePacked(self.state[0], self.transcript);
+        console2.log("input");
+    console2.logBytes(input);
+       bytes32 buf = keccak256(input);
+    self.state[0] = buf;
+    self.transcript = "";
         return
-            Bn254Crypto.fromLeBytesModOrder(
-                BytesLib.slice(abi.encodePacked(buffer_0, buffer_1), 0, 48)
-            );
+            Bn254Crypto.fromBeBytesModOrder(
+        BytesLib.slice(abi.encodePacked(buf), 0, 32)
+    );
     }
 }
 
@@ -2485,6 +2503,7 @@ library Types {
         uint256 u; // 0xc0
         uint256 alpha2; // 0xe0
         uint256[5] alpha_powers; // 0x100
+        uint256 alpha7; // 0x100
         uint256 alpha_base;// 0x120
     }
     struct VerificationKey {
