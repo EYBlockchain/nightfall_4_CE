@@ -283,13 +283,13 @@ contract UltraPlonkVerifier{
         Transcript.compute_challengs(transcripts, vk, decoded_proof, public_inputs_hash);
         Types.ChallengeTranscript memory full_challenges = transcripts
             .challenges;
-        console2.log("full_challenges.tau: ", full_challenges.tau);
-        console2.log("full_challenges.beta: ", full_challenges.beta);
-        console2.log("full_challenges.gamma: ", full_challenges.gamma);
-        console2.log("full_challenges.alpha: ", full_challenges.alpha);
-        console2.log("full_challenges.zeta: ", full_challenges.zeta);
-        console2.log("full_challenges.v: ", full_challenges.v);
-        console2.log("full_challenges.u: ", full_challenges.u);
+        // console2.log("full_challenges.tau: ", full_challenges.tau);
+        // console2.log("full_challenges.beta: ", full_challenges.beta);
+        // console2.log("full_challenges.gamma: ", full_challenges.gamma);
+        // console2.log("full_challenges.alpha: ", full_challenges.alpha);
+        // console2.log("full_challenges.zeta: ", full_challenges.zeta);
+        // console2.log("full_challenges.v: ", full_challenges.v);
+        // console2.log("full_challenges.u: ", full_challenges.u);
         
         
         uint256[] memory public_inputs = new uint256[](vk.num_inputs);
@@ -302,13 +302,15 @@ contract UltraPlonkVerifier{
             full_challenges
         );
 
-        console2.log("full_challenges.alpha2: ", full_challenges.alpha2);
-        console2.log("full_challenges.alpha2: ", full_challenges.alpha_powers[0]);
-        console2.log("full_challenges.alpha3: ", full_challenges.alpha_powers[1]);
-        console2.log("full_challenges.alpha4: ", full_challenges.alpha_powers[2]);
-        console2.log("full_challenges.alpha5: ", full_challenges.alpha_powers[3]);
-        console2.log("full_challenges.alpha6: ", full_challenges.alpha_powers[4]);
-        console2.log("full_challenges.alpha7: ", full_challenges.alpha7);
+        // console2.log("full_challenges.alpha2: ", full_challenges.alpha2);
+        // console2.log("full_challenges.alpha2: ", full_challenges.alpha_powers[0]);
+        // console2.log("full_challenges.alpha3: ", full_challenges.alpha_powers[1]);
+        // console2.log("full_challenges.alpha4: ", full_challenges.alpha_powers[2]);
+        // console2.log("full_challenges.alpha5: ", full_challenges.alpha_powers[3]);
+        // console2.log("full_challenges.alpha6: ", full_challenges.alpha_powers[4]);
+        // console2.log("full_challenges.alpha7: ", full_challenges.alpha7);
+
+
         // result = verify_OpeningProof(full_challenges, pcsInfo, decoded_proof);
         // require(result, "Proof failed");
         result = true;
@@ -337,10 +339,6 @@ contract UltraPlonkVerifier{
         uint256 alpha_4 =   mulmod(full_challenges.alpha2, full_challenges.alpha2, p);
         uint256 alpha_5 =   mulmod(full_challenges.alpha2, alpha_3, p);
         uint256 alpha_6 =   mulmod(alpha_4, full_challenges.alpha2, p);
-        // console2.log("alpha_3 prepare_PcsInfo: ", alpha_3);
-        // console2.log("alpha_4 prepare_PcsInfo: ", alpha_4);
-        // console2.log("alpha_5 prepare_PcsInfo: ", alpha_5);
-        // console2.log("alpha_6 prepare_PcsInfo: ", alpha_6);
          full_challenges.alpha_powers = [full_challenges.alpha2, alpha_3, alpha_4, alpha_5, alpha_6];
          full_challenges.alpha_base= 1;
          full_challenges.alpha7= mulmod(alpha_3, alpha_4, p);
@@ -360,6 +358,10 @@ contract UltraPlonkVerifier{
             full_challenges.zeta,
             publicInput
         );
+        // console2.log("evalData.vanish_eval: ", evalData.vanish_eval);
+        // console2.log("evalData.lagrange_1_eval: ", evalData.lagrange_1_eval);
+        // console2.log("evalData.piEval: ", evalData.piEval);
+        // console2.log("evalData.lagrange_n_eval: ", evalData.lagrange_n_eval);
 
         // compute opening proof in poly comms
         // caller allocates the memory for commScalars and commBases
@@ -368,6 +370,7 @@ contract UltraPlonkVerifier{
 
        
         uint256 eval = prepare_OpeningProof(
+            publicInput,
             vk,
             evalData,
             proof,
@@ -376,6 +379,7 @@ contract UltraPlonkVerifier{
             commBases,
             domain
         );
+        console2.log("eval: ", eval);
 
         uint256 zeta = full_challenges.zeta;
         uint256 gen = domain.groupGen;
@@ -479,6 +483,7 @@ contract UltraPlonkVerifier{
      eval is the scalar in `[E]1` described in Sec 8.4, step 11 of https://eprint.iacr.org/2019/953
      */
     function prepare_OpeningProof(
+        uint256[] memory publicInput,
         Types.VerificationKey memory verifyingKey,
         PolynomialEval.EvalData memory evalData,
         Types.Proof memory proof,
@@ -489,11 +494,13 @@ contract UltraPlonkVerifier{
     ) internal view returns (uint256) {
         
        uint256 lin_poly_constant = compute_lin_poly_constant_term(
+        publicInput,
             chal,
             proof,
             evalData,
             domain
         );
+        console2.log("lin_poly_constant: ", lin_poly_constant);
 
         uint256[] memory buffer_v_and_uv_basis = prepare_PolyCommitments(
             verifyingKey,
@@ -526,15 +533,193 @@ contract UltraPlonkVerifier{
     //   k_j is the number of alpha power terms added to the first j-1 instances.
 
     function compute_lin_poly_constant_term(
+        uint256[] memory publicInput,
         Types.ChallengeTranscript memory chal,
         Types.Proof memory proof,
         PolynomialEval.EvalData memory evalData,
         PolynomialEval.EvalDomain memory domain
     ) internal view returns (uint256) {
-        
+        // evaluate_pi_poly
+        // let vanish_eval_div_n = E::ScalarField::from(self.domain.size() as u32)
+        //     .inverse()
+        //     .ok_or(PlonkError::DivisionError)?
+        //     * (*vanish_eval);
+        uint256 vanish_eval_div_n = mulmod(
+            domain.sizeInv,
+            evalData.vanish_eval,
+            p
+        );
+        // console2.log("domain.sizeInv: ", domain.sizeInv);
+        // console2.log("evalData.vanish_eval: ", evalData.vanish_eval);
+        // console2.log("vanish_eval_div_n: ", vanish_eval_div_n);
+        // let results = public_inputs[0] *(vanish_eval_div_n/(challenges.zeta-1))
 
-        uint256 tmp = addmod(evalData.piEval, Bn254Crypto.negate_fr(mulmod(chal.alpha2, evalData.lagrange_1_eval, p)), p);
-        uint256[5] memory first_w_evals = [proof.wires_evals_1, proof.wires_evals_2, proof.wires_evals_3, proof.wires_evals_4, proof.wires_evals_5];
+        uint256 result = mulmod(publicInput[0], mulmod(vanish_eval_div_n, Bn254Crypto.invert(addmod(chal.zeta, p - 1, p)), p), p);
+         
+        //  results - alpha_powers[0] * lagrange_1_eval
+        console2.log("result: ", result);
+        // let mut tmp = self.evaluate_pi_poly(pi, &challenges.zeta, vanish_eval, vk.is_merged)?
+        // jj this two have same value, check this later when i finish
+        // uint256 tmp = addmod(evalData.piEval, Bn254Crypto.negate_fr(mulmod(chal.alpha2, evalData.lagrange_1_eval, p)), p);
+        uint256 tmp = addmod(result, Bn254Crypto.negate_fr(mulmod(chal.alpha2, evalData.lagrange_1_eval, p)), p);
+        console2.log("tmp: ", tmp);
+       
+
+// uint256 gamma_mul_beta_plus_one = mulmod(
+//             addmod(chal.beta, 1, p),
+//             chal.gamma,
+//             p
+//         );
+//         console2.log("gamma_mul_beta_plus_one: ", gamma_mul_beta_plus_one);
+
+// // let plookup_constant = *lagrange_n_eval
+// //                     * (evals.h_1_eval - evals.h_2_next_eval - alpha_powers[0])
+// //                     - challenges.alpha * lagrange_1_eval
+// //                     - alpha_powers[1]
+// //                         * (challenges.zeta - self.domain.group_gen_inv)
+// //                         * evals.prod_next_eval
+// //                         * (gamma_mul_beta_plus_one
+// //                             + evals.h_1_eval
+// //                             + challenges.beta * evals.h_1_next_eval)
+// //                         * (gamma_mul_beta_plus_one + challenges.beta * evals.h_2_next_eval);
+
+// uint256 plookup_constant = addmod(
+//     addmod(
+//     mulmod(
+//         evalData.lagrange_n_eval,
+//         addmod(
+//             proof.h_1_eval,
+//             p - addmod(proof.h_2_next_eval, chal.alpha_powers[0], p),
+//             p
+//         ),
+//         p
+//     ),
+//     p - mulmod(chal.alpha, evalData.lagrange_1_eval, p),
+//     p
+// ),
+//     p - mulmod(
+//         mulmod(
+//             chal.alpha_powers[1],
+//             mulmod(
+//                 addmod(chal.zeta, p - domain.groupGenInv, p),
+//                 proof.prod_next_eval,
+//                 p
+//             ),
+//             p
+//         ),
+//         mulmod(
+//             addmod(
+//                 gamma_mul_beta_plus_one,
+//                 addmod(proof.h_1_eval, mulmod(chal.beta, proof.h_1_next_eval, p), p),
+//                 p
+//             ),
+//             addmod(
+//                 gamma_mul_beta_plus_one,
+//                 mulmod(chal.beta, proof.h_2_next_eval, p),
+//                 p
+//             ),
+//             p
+//         ),
+//         p
+//     ),
+//     p
+// );
+
+// console2.log("plookup_constant: ", plookup_constant);
+
+// uint256 negative_part = addmod(
+//     mulmod(chal.alpha, evalData.lagrange_1_eval, p),
+//    help(chal, proof,  domain),
+//     p
+// );
+// plookup_constant = addmod(
+//     plookup_constant,
+//     p - negative_part,
+//     p
+// );
+      uint256 plookup_constant = compute_plookup_constant(tmp, chal, proof, evalData, domain, p);
+       uint256 tmpOut = compute_tmp(tmp, chal, proof, evalData, domain, p);
+console2.log("plookup_constant: ", plookup_constant);
+tmpOut = addmod(tmpOut, mulmod(chal.alpha_powers[1], plookup_constant, p), p);
+console2.log("tmp  after plookup_constant: ", tmpOut);
+// result += current_alpha_bases * tmp;
+ uint256 result_lin = mulmod(chal.alpha_base, tmpOut, p);
+console2.log("result_lin return: ", result_lin);
+        return result_lin;
+    }
+
+    function compute_plookup_constant(
+    uint256 tmp,
+    Types.ChallengeTranscript memory chal,
+    Types.Proof memory proof,
+    PolynomialEval.EvalData memory evalData,
+    PolynomialEval.EvalDomain memory domain,
+    uint256 p
+) internal view returns (uint256) {
+    uint256 gamma_mul_beta_plus_one = mulmod(
+        addmod(chal.beta, 1, p),
+        chal.gamma,
+        p
+    );
+
+    uint256 term1 = mulmod(
+        evalData.lagrange_n_eval,
+        addmod(
+            proof.h_1_eval,
+            p - addmod(proof.h_2_next_eval, chal.alpha_powers[0], p),
+            p
+        ),
+        p
+    );
+
+    uint256 term2 = mulmod(chal.alpha, evalData.lagrange_1_eval, p);
+
+    uint256 part = mulmod(
+        chal.alpha_powers[1],
+        mulmod(
+            addmod(chal.zeta, p - domain.groupGenInv, p),
+            proof.prod_next_eval,
+            p
+        ),
+        p
+    );
+
+    part = mulmod(
+        part,
+        addmod(
+            gamma_mul_beta_plus_one,
+            addmod(proof.h_1_eval, mulmod(chal.beta, proof.h_1_next_eval, p), p),
+            p
+        ),
+        p
+    );
+
+    part = mulmod(
+        part,
+        addmod(
+            gamma_mul_beta_plus_one,
+            mulmod(chal.beta, proof.h_2_next_eval, p),
+            p
+        ),
+        p
+    );
+
+    return addmod(
+        addmod(term1, p - term2, p),
+        p - part,
+        p
+    );
+}
+
+ function compute_tmp(
+    uint256 tmp,
+    Types.ChallengeTranscript memory chal,
+    Types.Proof memory proof,
+    PolynomialEval.EvalData memory evalData,
+    PolynomialEval.EvalDomain memory domain,
+    uint256 p
+) internal view returns (uint256) {
+     uint256[5] memory first_w_evals = [proof.wires_evals_1, proof.wires_evals_2, proof.wires_evals_3, proof.wires_evals_4, proof.wires_evals_5];
         uint256 last_w_eval = proof.wires_evals_6;
         uint256[5] memory sigma_evals = [proof.wire_sigma_evals_1, proof.wire_sigma_evals_2, proof.wire_sigma_evals_3, proof.wire_sigma_evals_4, proof.wire_sigma_evals_5];
         uint256 acc =  mulmod(mulmod(chal.alpha,proof.perm_next_eval,p),addmod(chal.gamma,last_w_eval,p),p);
@@ -543,34 +728,8 @@ contract UltraPlonkVerifier{
         }
         tmp = addmod(tmp, Bn254Crypto.negate_fr(acc), p);
 
-// Assuming declarations and initializations for variables and parameters (e.g., evalData, proof, chal, p) are done elsewhere
-uint256 plookup_constant = mulmod(
-    evalData.lagrange_n_eval,
-    addmod(
-        proof.h_1_eval,
-        p - addmod(
-            proof.h_2_next_eval,
-            chal.alpha_powers[0],
-            p
-        ),
-        p
-    ),
-    p
-);
-
-uint256 negative_part = addmod(
-    mulmod(chal.alpha, evalData.lagrange_1_eval, p),
-   help(chal, proof,  domain),
-    p
-);
-plookup_constant = addmod(
-    plookup_constant,
-    p - negative_part,
-    p
-);
-        
-tmp = addmod(tmp, mulmod(chal.alpha_powers[1], plookup_constant, p), p);
-        return tmp;
+        console2.log("tmp after adding acc: ", tmp);
+    return tmp;
     }
     // a helper function to avoid stack too deep error when computing plookup_constant
     function help(
@@ -1927,7 +2086,7 @@ library Transcript {
     ) internal pure {
         // compute vk hash
         uint256 vk_hash = compute_vk_hash(vk);
-        console2.log("vk_hash:",vk_hash);
+        // console2.log("vk_hash:",vk_hash);
         append_field_element(self, vk_hash);    
         append_field_element(self, public_inputs_hash);
         append_G1_element(self, proof.wires_poly_comms_1);
@@ -2272,8 +2431,8 @@ library Transcript {
         TranscriptData memory self
     ) internal pure returns (uint256) {
         bytes memory input = abi.encodePacked(self.state[0], self.transcript);
-        console2.log("input");
-    console2.logBytes(input);
+    //     console2.log("input");
+    // console2.logBytes(input);
        bytes32 buf = keccak256(input);
     self.state[0] = buf;
     self.transcript = "";
@@ -2313,8 +2472,8 @@ library Transcript {
         append_G1_element(self, proof.split_quot_poly_comms_5);
         append_G1_element(self, proof.split_quot_poly_comms_6);
         bytes memory input = abi.encodePacked(self.state[0], self.transcript);
-        console2.log("input");
-    console2.logBytes(input);
+    //     console2.log("input");
+    // console2.logBytes(input);
        bytes32 buf = keccak256(input);
     self.state[0] = buf;
     self.transcript = "";
@@ -2388,8 +2547,8 @@ library Transcript {
         // console2.log("proof.w_4_next_eval:",proof.w_4_next_eval);
 
     bytes memory input = abi.encodePacked(self.state[0], self.transcript);
-        console2.log("input");
-    console2.logBytes(input);
+    //     console2.log("input");
+    // console2.logBytes(input);
        bytes32 buf = keccak256(input);
     self.state[0] = buf;
     self.transcript = "";
@@ -2410,8 +2569,8 @@ library Transcript {
         // //console.log("proof.shifted_opening_proof.x:",proof.shifted_opening_proof.x);
         // //console.log("proof.shifted_opening_proof.y:",proof.shifted_opening_proof.y);
        bytes memory input = abi.encodePacked(self.state[0], self.transcript);
-        console2.log("input");
-    console2.logBytes(input);
+    //     console2.log("input");
+    // console2.logBytes(input);
        bytes32 buf = keccak256(input);
     self.state[0] = buf;
     self.transcript = "";
@@ -2884,12 +3043,12 @@ library PolynomialEval {
                 domainSize,
                 // log size
                 11,
-                // size_inv
-                0x305E41E912D579F5B3193BADCAB128321C8EE1CB70AA396331B979553D820001,
+                // sizeInv size_inv
+                0x304C1C4BA7C10759A3741D93A64097B0F99FCE54557C93D8FB40049926080001,
                 // groupGen
                 0x27A358499C5042BB4027FD7A5355D71B8C12C177494F0CAD00A58F9769A2EE2,
                 // groupGenInv
-                0xFA9BB21BC73D07B3BB6DCD7FDDABF54FD7EFED80ADC442020A3A65D579D71AE
+                0x9D8F821AA9995B3546875D5E4FCFCAB4C277A07F0BCC0C852F26C0FAF6B3E4E
 
             );
     }
@@ -2947,9 +3106,18 @@ library PolynomialEval {
         uint256 divisor1 = mulmod(self.size, (zeta - 1), p);
         divisor1 = Bn254Crypto.invert(divisor1);
         lagrange_1_eval = mulmod(vanish_eval, divisor1, p);
+        console2.log("lagrange_1_eval:",lagrange_1_eval);
+
         uint256 divisor_n = mulmod(self.size,addmod(zeta, Bn254Crypto.negate_fr(self.groupGenInv),p) ,p);
+        console2.log("self.size:",self.size);
+        console2.log("zeta:",zeta);
+        console2.log("self.groupGenInv:",self.groupGenInv);
+        console2.log("divisor_n:",divisor_n);
         divisor_n = Bn254Crypto.invert(divisor_n);
+        console2.log("divisor_n:",divisor_n);
+        console2.log("self.groupGenInv:",self.groupGenInv);
         lagrange_n_eval =mulmod(vanish_eval, mulmod(self.groupGenInv, divisor_n, p),p);
+        console2.log("lagrange_n_eval:",lagrange_n_eval);
         // let lagrange_n_eval = *vanish_eval * self.domain.group_gen_inv / divisor;
         // (lagrange_1_eval, lagrange_n_eval)
     }
