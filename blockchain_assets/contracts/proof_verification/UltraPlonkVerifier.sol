@@ -2232,57 +2232,20 @@ library Transcript {
     self.challenges.beta = Bn254Crypto.fromBeBytesModOrder(
         BytesLib.slice(abi.encodePacked(buf), 0, 32)
     );
-
-//     bytes32 buffer_0;
-//     bytes32 buffer_1;
-//     assembly {
-//     let ptr := add(input, 0x20)
-//     let total_length := mload(input)
-//     mstore8(add(ptr, total_length), 0)
-//     buffer_0 := keccak256(ptr, add(total_length, 1))
-//     mstore8(add(ptr, total_length), 1)
-//     buffer_1 := keccak256(ptr, add(total_length, 1))
-// }
-// self.state[0] = buffer_0;
-// self.state[1] = buffer_1;
-// return Bn254Crypto.fromBeBytesModOrder(
-//     BytesLib.slice(abi.encodePacked(buffer_0, buffer_1), 0, 48)
-// );
 }
     function generate_gamma_challenges(
         TranscriptData memory self
     ) internal pure returns (uint256) {
-        bytes memory slice = self.transcript;
-        bytes32 state0 = self.state[0];
-        bytes32 state1 = self.state[1];
-
-        bytes32 buffer_0;
-        bytes32 buffer_1;
-        assembly {
-            let ptr := mload(0x40) // Get the free memory pointer
-            mstore(ptr, state0) // Store the first state
-            mstore(add(ptr, 0x20), state1) // Store the second state
-            // Calculate the total length needed: 2 * bytes32 + length of slice + 1 byte (uint8)
-            let total_length := add(add(0x40, mload(slice)), 0x01)
-            for {
-                let i := 0
-            } lt(i, mload(slice)) {
-                i := add(i, 0x20)
-            } {
-                mstore(add(ptr, add(0x40, i)), mload(add(add(slice, 0x20), i)))
-            }
-            mstore8(add(ptr, sub(total_length, 0x01)), 0)
-            buffer_0 := keccak256(ptr, total_length)
-            mstore8(add(ptr, sub(total_length, 0x01)), 1)
-            buffer_1 := keccak256(ptr, total_length)
-        }
-
-        self.state[0] = buffer_0;
-        self.state[1] = buffer_1;
+        bytes memory input = abi.encodePacked(self.state[0], self.transcript);
+        console2.log("input");
+    console2.logBytes(input);
+       bytes32 buf = keccak256(input);
+    self.state[0] = buf;
+    self.transcript = "";
         return
-            Bn254Crypto.fromLeBytesModOrder(
-                BytesLib.slice(abi.encodePacked(buffer_0, buffer_1), 0, 48)
-            );
+            Bn254Crypto.fromBeBytesModOrder(
+        BytesLib.slice(abi.encodePacked(buf), 0, 32)
+    );
     }
 
 
