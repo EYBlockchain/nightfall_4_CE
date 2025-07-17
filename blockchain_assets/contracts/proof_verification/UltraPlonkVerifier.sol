@@ -557,12 +557,12 @@ contract UltraPlonkVerifier{
         uint256 result = mulmod(publicInput[0], mulmod(vanish_eval_div_n, Bn254Crypto.invert(addmod(chal.zeta, p - 1, p)), p), p);
          
         //  results - alpha_powers[0] * lagrange_1_eval
-        console2.log("result: ", result);
+        // console2.log("result: ", result);
         // let mut tmp = self.evaluate_pi_poly(pi, &challenges.zeta, vanish_eval, vk.is_merged)?
         // jj this two have same value, check this later when i finish
         // uint256 tmp = addmod(evalData.piEval, Bn254Crypto.negate_fr(mulmod(chal.alpha2, evalData.lagrange_1_eval, p)), p);
         uint256 tmp = addmod(result, Bn254Crypto.negate_fr(mulmod(chal.alpha2, evalData.lagrange_1_eval, p)), p);
-        console2.log("tmp: ", tmp);
+        // console2.log("tmp: ", tmp);
        
 
 // uint256 gamma_mul_beta_plus_one = mulmod(
@@ -639,12 +639,12 @@ contract UltraPlonkVerifier{
 // );
       uint256 plookup_constant = compute_plookup_constant(tmp, chal, proof, evalData, domain, p);
        uint256 tmpOut = compute_tmp(tmp, chal, proof, evalData, domain, p);
-console2.log("plookup_constant: ", plookup_constant);
+// console2.log("plookup_constant: ", plookup_constant);
 tmpOut = addmod(tmpOut, mulmod(chal.alpha_powers[1], plookup_constant, p), p);
-console2.log("tmp  after plookup_constant: ", tmpOut);
+// console2.log("tmp  after plookup_constant: ", tmpOut);
 // result += current_alpha_bases * tmp;
  uint256 result_lin = mulmod(chal.alpha_base, tmpOut, p);
-console2.log("result_lin return: ", result_lin);
+// console2.log("result_lin return: ", result_lin);
         return result_lin;
     }
 
