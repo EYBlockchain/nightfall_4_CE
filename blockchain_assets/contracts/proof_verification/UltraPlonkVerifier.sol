@@ -511,6 +511,34 @@ contract UltraPlonkVerifier{
             commBases,
             domain
         );
+        // console2.log("buffer_v_and_uv_basis length: ", buffer_v_and_uv_basis.length);
+        // console2.log("buffer_v_and_uv_basis[0]: ", buffer_v_and_uv_basis[0]);
+        // console2.log("buffer_v_and_uv_basis[1]: ", buffer_v_and_uv_basis[1]);
+        // console2.log("buffer_v_and_uv_basis[2]: ", buffer_v_and_uv_basis[2]);
+        // console2.log("buffer_v_and_uv_basis[3]: ", buffer_v_and_uv_basis[3]);
+        // console2.log("buffer_v_and_uv_basis[4]: ", buffer_v_and_uv_basis[4]);
+        // console2.log("buffer_v_and_uv_basis[5]: ", buffer_v_and_uv_basis[5]);
+        // console2.log("buffer_v_and_uv_basis[6]: ", buffer_v_and_uv_basis[6]);
+        // console2.log("buffer_v_and_uv_basis[7]: ", buffer_v_and_uv_basis[7]);
+        // console2.log("buffer_v_and_uv_basis[8]: ", buffer_v_and_uv_basis[8]);
+        // console2.log("buffer_v_and_uv_basis[9]: ", buffer_v_and_uv_basis[9]);
+        // console2.log("buffer_v_and_uv_basis[10]: ", buffer_v_and_uv_basis[10]);
+        // console2.log("buffer_v_and_uv_basis[11]: ", buffer_v_and_uv_basis[11]);
+        // console2.log("buffer_v_and_uv_basis[12]: ", buffer_v_and_uv_basis[12]);
+        // console2.log("buffer_v_and_uv_basis[13]: ", buffer_v_and_uv_basis[13]);
+        // console2.log("buffer_v_and_uv_basis[14]: ", buffer_v_and_uv_basis[14]);
+        // console2.log("buffer_v_and_uv_basis[15]: ", buffer_v_and_uv_basis[15]);
+        // console2.log("buffer_v_and_uv_basis[16]: ", buffer_v_and_uv_basis[16]);
+        // console2.log("buffer_v_and_uv_basis[17]: ", buffer_v_and_uv_basis[17]);
+        // console2.log("buffer_v_and_uv_basis[18]: ", buffer_v_and_uv_basis[18]);
+        // console2.log("buffer_v_and_uv_basis[19]: ", buffer_v_and_uv_basis[19]);
+        // console2.log("buffer_v_and_uv_basis[20]: ", buffer_v_and_uv_basis[20]);
+        // console2.log("buffer_v_and_uv_basis[21]: ", buffer_v_and_uv_basis[21]);
+        // console2.log("buffer_v_and_uv_basis[22]: ", buffer_v_and_uv_basis[22]);
+        // console2.log("buffer_v_and_uv_basis[23]: ", buffer_v_and_uv_basis[23]);
+        // console2.log("buffer_v_and_uv_basis[24]: ", buffer_v_and_uv_basis[24]);
+        // console2.log("buffer_v_and_uv_basis[25]: ", buffer_v_and_uv_basis[25]);
+        // console2.log("buffer_v_and_uv_basis[26]: ", buffer_v_and_uv_basis[26]);
 
         uint256 eval = prepare_evaluations(
             lin_poly_constant,
