@@ -280,17 +280,17 @@ contract UltraPlonkVerifier{
         // Compute the transcripts by appending vk, public inputs and proof
         // reconstruct the tau, beta, gamma, alpha, zeta, v and u challenges based on the transcripts
         Transcript.TranscriptData memory transcripts;
-        Transcript.compute_challengs(transcripts, vk, decoded_proof);
+        Transcript.compute_challengs(transcripts, vk, decoded_proof, public_inputs_hash);
         Types.ChallengeTranscript memory full_challenges = transcripts
             .challenges;
         console2.log("full_challenges.tau: ", full_challenges.tau);
-        console2.log("full_challenges.beta: ", full_challenges.beta);
-        console2.log("full_challenges.gamma: ", full_challenges.gamma);
-        console2.log("full_challenges.alpha: ", full_challenges.alpha);
-        console2.log("full_challenges.zeta: ", full_challenges.zeta);
-        console2.log("full_challenges.v: ", full_challenges.v);
-        console2.log("full_challenges.u: ", full_challenges.u);
-        console2.log("full_challenges.alpha2: ", full_challenges.alpha2);
+        // console2.log("full_challenges.beta: ", full_challenges.beta);
+        // console2.log("full_challenges.gamma: ", full_challenges.gamma);
+        // console2.log("full_challenges.alpha: ", full_challenges.alpha);
+        // console2.log("full_challenges.zeta: ", full_challenges.zeta);
+        // console2.log("full_challenges.v: ", full_challenges.v);
+        // console2.log("full_challenges.u: ", full_challenges.u);
+        // console2.log("full_challenges.alpha2: ", full_challenges.alpha2);
         
         
         // // compute polynomial commitment evaluation info
@@ -1785,7 +1785,8 @@ library Transcript {
         TranscriptData memory self,
         uint256 fieldElement
     ) internal pure {
-        appendMessage(self, abi.encodePacked(reverse_Endianness(fieldElement)));
+        // appendMessage(self, abi.encodePacked(reverse_Endianness(fieldElement)));
+        appendMessage(self, abi.encodePacked(fieldElement));
     }
 
     function appendMessage(
@@ -1878,6 +1879,7 @@ library Transcript {
 
         let len := sub(offset, ptr)
         vk_hash := shr(0, keccak256(ptr, len))
+        // jj, come back to make 21888242871839275222246405745257275088548364400416034343698204186575808495617 p
         vk_hash := mod(vk_hash, 21888242871839275222246405745257275088548364400416034343698204186575808495617)
 
     }
@@ -1885,16 +1887,26 @@ library Transcript {
     function compute_challengs(
         TranscriptData memory self,
         Types.VerificationKey memory vk,
-        Types.Proof memory proof
+        Types.Proof memory proof,
+        uint256  public_inputs_hash
     ) internal pure {
         // compute vk hash
         uint256 vk_hash = compute_vk_hash(vk);
         console2.log("vk_hash:",vk_hash);
-        Transcript.generate_initial_transcript(self, vk);
-        Transcript.append_sigma_comms_1_6(self, vk);    
-        Transcript.append_selector_comms_1_18(self, vk);
-        Transcript.append_public_inputs(self, vk);
-        Transcript.append_wires_poly_comms_1_6(self, proof);
+        append_field_element(self, vk_hash);    
+        append_field_element(self, public_inputs_hash);
+        append_G1_element(self, proof.wires_poly_comms_1);
+        append_G1_element(self, proof.wires_poly_comms_2);
+        append_G1_element(self, proof.wires_poly_comms_3);
+        append_G1_element(self, proof.wires_poly_comms_4);
+        append_G1_element(self, proof.wires_poly_comms_5);
+        append_G1_element(self, proof.wires_poly_comms_6);
+        // append_G1_element(self, vk.selector_comms_1);
+        // Transcript.generate_initial_transcript(self, vk);
+        // Transcript.append_sigma_comms_1_6(self, vk);    
+        // Transcript.append_selector_comms_1_18(self, vk);
+        // Transcript.append_public_inputs(self, vk);
+        // Transcript.append_wires_poly_comms_1_6(self, proof);
 
         // tau:
         //    buf0=hash(transcript||0)
@@ -1902,20 +1914,20 @@ library Transcript {
         //    state=[buf0,buf1]
         //    tau = state[..48]
         Transcript.generate_tau_challenge(self);
-        self.transcript = Transcript.slice_from_index(self.transcript, 64);
+        // self.transcript = Transcript.slice_from_index(self.transcript, 64);
         // beta:
         //    transcript:h_poly_comms
         //    buf0=hash(state||transcript-first 64 zeros||0)
         //    buf1=hash(state||transcript-first 64 zeros||1)
         //    state=[buf0,buf1]
         //    tau = state[..48]
-        self.challenges.beta = Transcript.generate_beta_challenges(self, proof);
+        // self.challenges.beta = Transcript.generate_beta_challenges(self, proof);
         //  gamma
         //    buf0=hash(state||transcript-first 64 zeros||0)
         //    buf1=hash(state||transcript-first 64 zeros||1)
         //    state=[buf0,buf1]
         //    tau = state[..48]
-        self.challenges.gamma = Transcript.generate_gamma_challenges(self);
+        // self.challenges.gamma = Transcript.generate_gamma_challenges(self);
         // alpha
         //    transcript:prod_perm_poly_comm
         //    transcript:prod_lookup_poly_comm
@@ -1923,17 +1935,17 @@ library Transcript {
         //    buf1=hash(state||transcript-first 64 zeros||1)
         //    state=[buf0,buf1]
         //    tau = state[..48]
-        self.challenges.alpha = Transcript.generate_alpha_challenges(
-            self,
-            proof
-        );
+        // self.challenges.alpha = Transcript.generate_alpha_challenges(
+        //     self,
+        //     proof
+        // );
         // zeta
         //    transcript:proof.split_quot_poly_comms
         //    buf0=hash(state||transcript-first 64 zeros||0)
         //    buf1=hash(state||transcript-first 64 zeros||1)
         //    state=[buf0,buf1]
         //    tau = state[..48]
-        self.challenges.zeta = Transcript.generate_zeta_challenges(self, proof);
+        // self.challenges.zeta = Transcript.generate_zeta_challenges(self, proof);
         // v
         //    transcript:proof.range_table_eval
         //    transcript:proof.h_1_eval
@@ -1945,7 +1957,7 @@ library Transcript {
         //    buf1=hash(state||transcript-first 64 zeros||1)
         //    state=[buf0,buf1]
         //    tau = state[..48]
-        self.challenges.v = Transcript.generate_v_challenges(self, proof);
+        // self.challenges.v = Transcript.generate_v_challenges(self, proof);
          // u
         //    transcript:proof.opening_proof
         //    transcript:proof.shifted_opening_proof
@@ -1953,7 +1965,7 @@ library Transcript {
         //    buf1=hash(state||transcript-first 64 zeros||1)
         //    state=[buf0,buf1]
         //    tau = state[..48]
-        self.challenges.u = Transcript.generate_u_challenges(self, proof);
+        // self.challenges.u = Transcript.generate_u_challenges(self, proof);
     }
 
     function generate_initial_transcript(
@@ -2119,34 +2131,56 @@ library Transcript {
         append_field_element(self, proof.wires_poly_comms_6.y); 
     }
 
+    // function generate_tau_challenge(TranscriptData memory self) internal pure {
+    //     bytes memory slice = self.transcript;
+    //     bytes32 buffer_0;
+    //     bytes32 buffer_1;
+    //     assembly {
+    //         let ptr := mload(0x40) // Get the free memory pointer
+    //         // Calculate the total length needed:length of slice + 1 byte (uint8)
+    //         let total_length := add(mload(slice), 0x01)
+    //         for {
+    //             let i := 0
+    //         } lt(i, mload(slice)) {
+    //             i := add(i, 0x20)
+    //         } {
+    //             mstore(add(ptr, i), mload(add(add(slice, 0x20), i)))
+    //         }
+
+    //         mstore8(add(ptr, sub(total_length, 0x01)), 0)
+    //         buffer_0 := keccak256(ptr, total_length)
+    //         mstore8(add(ptr, sub(total_length, 0x01)), 1)
+    //         buffer_1 := keccak256(ptr, total_length)
+    //     }
+
+    //     self.state[0] = buffer_0;
+    //     self.state[1] = buffer_1;
+    //     self.challenges.tau = Bn254Crypto.fromLeBytesModOrder(
+    //         BytesLib.slice(abi.encodePacked(buffer_0, buffer_1), 0, 48)
+    //     );
+    // }
     function generate_tau_challenge(TranscriptData memory self) internal pure {
-        bytes memory slice = self.transcript;
-        bytes32 buffer_0;
-        bytes32 buffer_1;
-        assembly {
-            let ptr := mload(0x40) // Get the free memory pointer
-            // Calculate the total length needed:length of slice + 1 byte (uint8)
-            let total_length := add(mload(slice), 0x01)
-            for {
-                let i := 0
-            } lt(i, mload(slice)) {
-                i := add(i, 0x20)
-            } {
-                mstore(add(ptr, i), mload(add(add(slice, 0x20), i)))
-            }
+    // Concatenate state and transcript
+    // bytes memory input = abi.encodePacked(self.state[0], self.state[1], self.transcript);
+    bytes memory input = abi.encodePacked(self.state[0], self.transcript);
+    console2.log("input");
+    console2.logBytes(input);
+    // Hash with keccak256
+    bytes32 buf = keccak256(input);
 
-            mstore8(add(ptr, sub(total_length, 0x01)), 0)
-            buffer_0 := keccak256(ptr, total_length)
-            mstore8(add(ptr, sub(total_length, 0x01)), 1)
-            buffer_1 := keccak256(ptr, total_length)
-        }
+    // Update state with the hash (like Rust: self.state.copy_from_slice(&buf))
+    self.state[0] = buf;
+    // self.state[1] = bytes32(0); // Rust clears transcript, so set second state to zero
 
-        self.state[0] = buffer_0;
-        self.state[1] = buffer_1;
-        self.challenges.tau = Bn254Crypto.fromLeBytesModOrder(
-            BytesLib.slice(abi.encodePacked(buffer_0, buffer_1), 0, 48)
-        );
-    }
+    // Clear the transcript
+    self.transcript = "";
+    
+
+    // Convert hash to scalar using little-endian order (like Rust: from_be_bytes_mod_order)
+    self.challenges.tau = Bn254Crypto.fromBeBytesModOrder(
+        BytesLib.slice(abi.encodePacked(buf), 0, 32)
+    );
+}
 
     function removeLeadingZeros(
         bytes memory x
@@ -2774,6 +2808,19 @@ library Bn254Crypto {
             }
         }
     }
+
+    function fromBeBytesModOrder(bytes memory beBytes) internal pure returns (uint256 ret) {
+    assembly {
+        let len := mload(beBytes)
+        let byteData := add(beBytes, 0x20)
+        for { let i := 0 } lt(i, len) { i := add(i, 1) } {
+            ret := mulmod(ret, 256, r_mod)
+            let byteVal := byte(0, mload(add(byteData, i)))
+            ret := addmod(ret, byteVal, r_mod)
+        }
+    }
+}
+
 
     function invert(uint256 fr) internal view returns (uint256) {
         uint256 output;
