@@ -383,6 +383,7 @@ contract UltraPlonkVerifier{
 
         uint256 zeta = full_challenges.zeta;
         uint256 gen = domain.groupGen;
+        console2.log("domain.group_gen: ", gen);
         return (
             Types.PcsInfo(mulmod(zeta, gen, p), eval, commScalars, commBases)
         );
@@ -545,6 +546,7 @@ contract UltraPlonkVerifier{
             proof,
             buffer_v_and_uv_basis
         );
+        // console2.log("eval: ", eval);
         return eval;
     }
 
@@ -1685,6 +1687,7 @@ function add_plookup_commitments_helper1_4_2(
         uint256[] memory buffer_v_and_uv_basis
     ) internal view returns (uint256 eval) {
         eval = Bn254Crypto.negate_fr(lin_poly_constant);
+        // console2.log("lin_poly_constant negative", eval);
         uint256 p_local = Bn254Crypto.r_mod;
         assembly {
             for {
@@ -1696,14 +1699,28 @@ function add_plookup_commitments_helper1_4_2(
                     eval,
                     mulmod(
                         mload(add(buffer_v_and_uv_basis, mul(add(i, 1), 0x20))),
-                        mload(add(add(proof, 0x1E0), mul(i, 0x20))),
+                        mload(add(add(proof, 0x200), mul(i, 0x20))),
                         p_local
                     ),
                     p_local
                 )
             }
         }
+        // console2.log("eval after wires_evals", eval);
+
+       // this is different from before
+       // jj: change it to assembly code later
+        // eval = addmod(eval,mulmod(buffer_v_and_uv_basis[11],proof.wire_sigma_evals_1,p),p);
+        // eval = addmod(eval,mulmod(buffer_v_and_uv_basis[12],proof.wire_sigma_evals_2,p),p);
+        // eval = addmod(eval,mulmod(buffer_v_and_uv_basis[13],proof.wire_sigma_evals_3,p),p);
+        // eval = addmod(eval,mulmod(buffer_v_and_uv_basis[14],proof.wire_sigma_evals_4,p),p);
+        // eval = addmod(eval,mulmod(buffer_v_and_uv_basis[15],proof.wire_sigma_evals_5,p),p);
+        // console2.log("eval after wire_sigma_evals", eval);
+
+
         eval = addmod(eval,mulmod(buffer_v_and_uv_basis[11],proof.perm_next_eval,p),p);
+        // console2.log("eval after perm_next_eval", eval);
+        
         
         // for lookup
                 eval = addmod(eval,mulmod(buffer_v_and_uv_basis[12],proof.range_table_eval,p),p);
@@ -1712,6 +1729,7 @@ function add_plookup_commitments_helper1_4_2(
                 eval = addmod(eval,mulmod(buffer_v_and_uv_basis[15],proof.q_lookup_eval,p),p);
                 eval = addmod(eval,mulmod(buffer_v_and_uv_basis[16],proof.table_dom_sep_eval,p),p);
                 eval = addmod(eval,mulmod(buffer_v_and_uv_basis[17],proof.q_dom_sep_eval,p),p);
+        // console2.log("eval after evals_vec", eval);
 
                  eval = addmod(eval,mulmod(buffer_v_and_uv_basis[18],proof.prod_next_eval,p),p);
                 eval = addmod(eval,mulmod(buffer_v_and_uv_basis[19],proof.range_table_next_eval,p),p);
@@ -1722,6 +1740,8 @@ function add_plookup_commitments_helper1_4_2(
                  eval = addmod(eval,mulmod(buffer_v_and_uv_basis[24],proof.w_3_next_eval,p),p);
                 eval = addmod(eval,mulmod(buffer_v_and_uv_basis[25],proof.w_4_next_eval,p),p);
                 eval = addmod(eval,mulmod(buffer_v_and_uv_basis[26],proof.table_dom_sep_next_eval,p),p);
+                        // console2.log("eval after next_evals_vec", eval);
+
     }
 
     function validate_scalar_field(uint256 fr) internal pure {
@@ -3074,7 +3094,7 @@ library PolynomialEval {
                 // sizeInv size_inv
                 0x304C1C4BA7C10759A3741D93A64097B0F99FCE54557C93D8FB40049926080001,
                 // groupGen
-                0x27A358499C5042BB4027FD7A5355D71B8C12C177494F0CAD00A58F9769A2EE2,
+                0xF1DED1EF6E72F5BFFC02C0EDD9B0675E8302A41FC782D75893A7FA1470157CE,
                 // groupGenInv
                 0x9D8F821AA9995B3546875D5E4FCFCAB4C277A07F0BCC0C852F26C0FAF6B3E4E
 
@@ -3134,18 +3154,18 @@ library PolynomialEval {
         uint256 divisor1 = mulmod(self.size, (zeta - 1), p);
         divisor1 = Bn254Crypto.invert(divisor1);
         lagrange_1_eval = mulmod(vanish_eval, divisor1, p);
-        console2.log("lagrange_1_eval:",lagrange_1_eval);
+        // console2.log("lagrange_1_eval:",lagrange_1_eval);
 
         uint256 divisor_n = mulmod(self.size,addmod(zeta, Bn254Crypto.negate_fr(self.groupGenInv),p) ,p);
-        console2.log("self.size:",self.size);
-        console2.log("zeta:",zeta);
-        console2.log("self.groupGenInv:",self.groupGenInv);
-        console2.log("divisor_n:",divisor_n);
+        // console2.log("self.size:",self.size);
+        // console2.log("zeta:",zeta);
+        // console2.log("self.groupGenInv:",self.groupGenInv);
+        // console2.log("divisor_n:",divisor_n);
         divisor_n = Bn254Crypto.invert(divisor_n);
-        console2.log("divisor_n:",divisor_n);
-        console2.log("self.groupGenInv:",self.groupGenInv);
+        // console2.log("divisor_n:",divisor_n);
+        // console2.log("self.groupGenInv:",self.groupGenInv);
         lagrange_n_eval =mulmod(vanish_eval, mulmod(self.groupGenInv, divisor_n, p),p);
-        console2.log("lagrange_n_eval:",lagrange_n_eval);
+        // console2.log("lagrange_n_eval:",lagrange_n_eval);
         // let lagrange_n_eval = *vanish_eval * self.domain.group_gen_inv / divisor;
         // (lagrange_1_eval, lagrange_n_eval)
     }
