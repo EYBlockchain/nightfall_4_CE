@@ -379,11 +379,16 @@ contract UltraPlonkVerifier{
             commBases,
             domain
         );
-        console2.log("eval: ", eval);
+        // console2.log("eval: ", eval);
 
         uint256 zeta = full_challenges.zeta;
         uint256 gen = domain.groupGen;
-        console2.log("domain.group_gen: ", gen);
+        // console2.log("domain.group_gen: ", gen);
+        //  console2.log("challenges.zeta * self.domain.group_gen: ", mulmod(zeta, gen, p));
+        // console2.log("commScalars length: ", commScalars.length);
+        // console2.log("commBases length: ", commBases.length);
+         console2.log("commBases[0]: ", commBases[0].x, commBases[0].y);
+         console2.log("commScalars[0]: ", commScalars[0]);
         return (
             Types.PcsInfo(mulmod(zeta, gen, p), eval, commScalars, commBases)
         );
@@ -501,7 +506,7 @@ contract UltraPlonkVerifier{
             evalData,
             domain
         );
-        console2.log("lin_poly_constant: ", lin_poly_constant);
+        // console2.log("lin_poly_constant: ", lin_poly_constant);
 
         uint256[] memory buffer_v_and_uv_basis = prepare_PolyCommitments(
             verifyingKey,
@@ -758,7 +763,7 @@ tmpOut = addmod(tmpOut, mulmod(chal.alpha_powers[1], plookup_constant, p), p);
         }
         tmp = addmod(tmp, Bn254Crypto.negate_fr(acc), p);
 
-        console2.log("tmp after adding acc: ", tmp);
+        // console2.log("tmp after adding acc: ", tmp);
     return tmp;
     }
     // a helper function to avoid stack too deep error when computing plookup_constant
@@ -1034,6 +1039,7 @@ z.start_index =44;
             proof,
             challenge
         );
+        console2.log("scalars[0]: ", scalars[0]);
         scalars[1] = compute_second_scalar(proof, challenge);
 
         // compute first base and second base
@@ -1059,6 +1065,10 @@ z.start_index =44;
 add_plookup_commitments(bases,scalars,proof,challenge,domain,evalData);
        
         add_splitted_quotient_commitments_parameter memory y;
+
+        console2.log("scalars[19]: ", scalars[19]);
+        console2.log("scalars[20]: ", scalars[20]);
+        console2.log("scalars[21]: ", scalars[21]);
         y.index = 21; // 21 scalars so far
         y.challenge_zeta = challenge.zeta;
         y.evalData_vanish_eval = evalData.vanish_eval;
@@ -1120,7 +1130,7 @@ add_plookup_commitments(bases,scalars,proof,challenge,domain,evalData);
             ) //K1
             tmp := mulmod(tmp, challenge_zeta, p_local)
             tmp := addmod(tmp, challenge_gamma, p_local)
-            tmp := addmod(tmp, mload(add(proof, 0x1E0)), p_local) // wires_evals_1
+            tmp := addmod(tmp, mload(add(proof, 0x200)), p_local) // wires_evals_1
             acc := mulmod(acc, tmp, p_local)
 
             tmp := mulmod(
@@ -1130,7 +1140,7 @@ add_plookup_commitments(bases,scalars,proof,challenge,domain,evalData);
             )//K2
             tmp := mulmod(tmp, challenge_zeta, p_local)
             tmp := addmod(tmp, challenge_gamma, p_local)
-            tmp := addmod(tmp, mload(add(proof, 0x200)), p_local) // wires_evals_2
+            tmp := addmod(tmp, mload(add(proof, 0x220)), p_local) // wires_evals_2
             acc := mulmod(acc, tmp, p_local)
 
             tmp := mulmod(
@@ -1140,7 +1150,7 @@ add_plookup_commitments(bases,scalars,proof,challenge,domain,evalData);
             )//k3
             tmp := mulmod(tmp, challenge_zeta, p_local)
             tmp := addmod(tmp, challenge_gamma, p_local)
-            tmp := addmod(tmp, mload(add(proof, 0x220)), p_local) // wires_evals_3
+            tmp := addmod(tmp, mload(add(proof, 0x240)), p_local) // wires_evals_3
             acc := mulmod(acc, tmp, p_local)
 
             tmp := mulmod(
@@ -1150,7 +1160,7 @@ add_plookup_commitments(bases,scalars,proof,challenge,domain,evalData);
             )//k4
             tmp := mulmod(tmp, challenge_zeta, p_local)
             tmp := addmod(tmp, challenge_gamma, p_local)
-            tmp := addmod(tmp, mload(add(proof, 0x240)), p_local) // wires_evals_4
+            tmp := addmod(tmp, mload(add(proof, 0x260)), p_local) // wires_evals_4
             acc := mulmod(acc, tmp, p_local)
 
             tmp := mulmod(
@@ -1160,7 +1170,7 @@ add_plookup_commitments(bases,scalars,proof,challenge,domain,evalData);
             ) // k5
             tmp := mulmod(tmp, challenge_zeta, p_local)
             tmp := addmod(tmp, challenge_gamma, p_local)
-            tmp := addmod(tmp, mload(add(proof, 0x260)), p_local) // wires_evals_5
+            tmp := addmod(tmp, mload(add(proof, 0x280)), p_local) // wires_evals_5
             acc := mulmod(acc, tmp, p_local)
 
             tmp := mulmod(
@@ -1170,7 +1180,7 @@ add_plookup_commitments(bases,scalars,proof,challenge,domain,evalData);
             ) // k6
             tmp := mulmod(tmp, challenge_zeta, p_local)
             tmp := addmod(tmp, challenge_gamma, p_local)
-            tmp := addmod(tmp, mload(add(proof, 0x280)), p_local) // wires_evals_6
+            tmp := addmod(tmp, mload(add(proof, 0x2a0)), p_local) // wires_evals_6
             acc := mulmod(acc, tmp, p_local)
 
             firstScalar := addmod(firstScalar, acc, p_local)
