@@ -1030,29 +1030,7 @@ compute_buffer_v_and_uv_basis_3_parameters memory z3;
             z.commBases[z.start_index + i] = plookup_comms[i];
             z.v_base = mulmod(z.v_base, v, p_local);
         }
-
-
-Types.G1Point[9] memory plookup_shifted_comms =[
-    z.proof.prod_lookup_poly_comm,
-    z.vk.range_table_comm,
-    z.vk.key_table_comm,
-    z.proof.h_poly_comm_1,
-    z.proof.h_poly_comm_2,
-    z.vk.q_dom_sep_comm,
-    z.proof.wires_poly_comms_4,
-    z.proof.wires_poly_comms_5,
-    z.vk.table_dom_sep_comm
-];
-
-z.start_index =44;
- for (uint256 i = 0; i < 9; i++) {
-            z.buffer_v_and_uv_basis[18 + i] = z.uv_base;
-            z.commScalars[z.start_index + i] = z.uv_base;
-            z.commBases[z.start_index + i] = plookup_shifted_comms[i];
-            z.uv_base = mulmod(z.uv_base, v, p_local);
-
-        }
-        console2.log("scalars[38]: ", z.commScalars[38]);
+console2.log("scalars[38]: ", z.commScalars[38]);
         console2.log("commBases[38]: ", z.commBases[38].x, z.commBases[38].y);
         console2.log("scalars[39]: ", z.commScalars[39]);
         console2.log("commBases[39]: ", z.commBases[39].x, z.commBases[39].y);
@@ -1065,6 +1043,39 @@ z.start_index =44;
         console2.log("scalars[43]: ", z.commScalars[43]);
         console2.log("commBases[43]: ", z.commBases[43].x, z.commBases[43].y);
 
+
+Types.G1Point[9] memory plookup_shifted_comms =[
+    z.proof.prod_lookup_poly_comm, //44
+    z.vk.range_table_comm, //45
+    z.vk.key_table_comm, //46
+    z.proof.h_poly_comm_1, //47
+    z.proof.h_poly_comm_2, //48
+    // jj: this is new, used to be q_dom_sep_comm, but now it is z.vk.selector_comms_18
+    z.vk.selector_comms_18, // 49
+    z.proof.wires_poly_comms_4, //50
+    z.proof.wires_poly_comms_5, //51
+    z.vk.table_dom_sep_comm //52
+];
+  console2.log("44 z.proof.prod_lookup_poly_comm: ", z.proof.prod_lookup_poly_comm.x, z.proof.prod_lookup_poly_comm.y);
+  console2.log("45 z.vk.range_table_comm: ", z.vk.range_table_comm.x, z.vk.range_table_comm.y);
+  console2.log("46 z.vk.key_table_comm: ", z.vk.key_table_comm.x, z.vk.key_table_comm.y);
+    console2.log("47 z.proof.h_poly_comm_1: ", z.proof.h_poly_comm_1.x, z.proof.h_poly_comm_1.y);
+    console2.log("48 z.proof.h_poly_comm_2: ", z.proof.h_poly_comm_2.x, z.proof.h_poly_comm_2.y);
+    console2.log("49 z.selector_comms_18: ", z.vk.selector_comms_18.x, z.vk.selector_comms_18.y);
+    console2.log("50 z.proof.wires_poly_comms_4: ", z.proof.wires_poly_comms_4.x, z.proof.wires_poly_comms_4.y);
+    console2.log("51 z.proof.wires_poly_comms_5: ", z.proof.wires_poly_comms_5.x, z.proof.wires_poly_comms_5.y);
+    console2.log("52 z.vk.table_dom_sep_comm: ", z.vk.table_dom_sep_comm.x, z.vk.table_dom_sep_comm.y);
+
+z.start_index =44;
+ for (uint256 i = 0; i < 9; i++) {
+    console2.log("z.start_index + i:", z.start_index + i);
+            z.buffer_v_and_uv_basis[18 + i] = z.uv_base;
+            z.commScalars[z.start_index + i] = z.uv_base;
+            z.commBases[z.start_index + i] = plookup_shifted_comms[i];
+            z.uv_base = mulmod(z.uv_base, v, p_local);
+
+        }
+        
         console2.log("plookup_shifted_comms");
         console2.log("scalars[44]: ", z.commScalars[44]);
         console2.log("commBases[44]: ", z.commBases[44].x, z.commBases[44].y);
@@ -1079,6 +1090,7 @@ z.start_index =44;
 
 
         // wrong base from here
+         console2.log("wrong base from here");
         console2.log("scalars[49]: ", z.commScalars[49]);
         console2.log("commBases[49]: ", z.commBases[49].x, z.commBases[49].y);
         console2.log("scalars[50]: ", z.commScalars[50]);
