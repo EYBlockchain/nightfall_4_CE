@@ -1104,26 +1104,25 @@ z.start_index =44;
         console2.log("bases[17]: ", bases[17].x, bases[17].y);
         console2.log("scalars[18]: ", scalars[18]);
         console2.log("bases[18]: ", bases[18].x, bases[18].y);
-        console2.log("scalars[19]: ", scalars[19]);
-        console2.log("bases[19]: ", bases[19].x, bases[19].y);
-        console2.log("scalars[20]: ", scalars[20]);
-        console2.log("bases[20]: ", bases[20].x, bases[20].y);
+
         console2.log("add_selector_polynomial_commitments is done: ");
 
 add_plookup_commitments(bases,scalars,proof,challenge,domain,evalData);
        
-        add_splitted_quotient_commitments_parameter memory y;
+        // add_splitted_quotient_commitments_parameter memory y;
 
-        console2.log("scalars[19]: ", scalars[19]);
-        console2.log("scalars[20]: ", scalars[20]);
-        console2.log("scalars[21]: ", scalars[21]);
-        y.index = 21; // 21 scalars so far
-        y.challenge_zeta = challenge.zeta;
-        y.evalData_vanish_eval = evalData.vanish_eval;
-        y.bases = bases;
-        y.scalars = scalars;
-        y.proof = proof;
-        add_splitted_quotient_commitments(y);
+       
+        // y.index = 19; // 21 scalars so far
+        // y.challenge_zeta = challenge.zeta;
+        // y.evalData_vanish_eval = evalData.vanish_eval;
+        // y.bases = bases;
+        // y.scalars = scalars;
+        // y.proof = proof;
+        // add_splitted_quotient_commitments(y);
+        //  console2.log("scalars[19]: ", scalars[19]);
+        // console2.log("bases[19]: ", bases[19].x, bases[19].y);
+        // console2.log("scalars[20]: ", scalars[20]);
+        // console2.log("bases[20]: ", bases[20].x, bases[20].y);
     }
 
     function compute_first_scalar(
@@ -1458,6 +1457,7 @@ add_plookup_commitments(bases,scalars,proof,challenge,domain,evalData);
         PolynomialEval.EvalDomain memory domain,
          PolynomialEval.EvalData memory evalData
     ) internal view {
+    console2.log("add_plookup_commitments: ");
      scalars[19] =add_plookup_commitments_helper1(
          proof,
          challenge,
@@ -1465,6 +1465,8 @@ add_plookup_commitments(bases,scalars,proof,challenge,domain,evalData);
          evalData
      );
      bases[19] = proof.prod_lookup_poly_comm;
+    console2.log("scalars[19] after add_plookup_commitments_helper1: ", scalars[19]);
+    console2.log("bases[19] after add_plookup_commitments_helper1: ", bases[19].x, bases[19].y);
 
         scalars[20] = add_plookup_commitments_helper2(
             proof,
@@ -1645,11 +1647,11 @@ function add_plookup_commitments_helper1_4_2(
             let scalarsPtr := add(scalars, mul(add(index, 1), 0x20))
             // let basesPtr := add(bases, mul(add(index, 1), 0x20))
 
-            let split_quot_poly_comms_1 := mload(add(proof, 0xc0))
-            let split_quot_poly_comms_2 := mload(add(proof, 0xe0))
-            let split_quot_poly_comms_3 := mload(add(proof, 0x100))
-            let split_quot_poly_comms_4 := mload(add(proof, 0x120))
-            let split_quot_poly_comms_5 := mload(add(proof, 0x140))
+            let split_quot_poly_comms_1 := mload(add(proof, 0xe0))
+            let split_quot_poly_comms_2 := mload(add(proof, 0x100))
+            let split_quot_poly_comms_3 := mload(add(proof, 0x120))
+            let split_quot_poly_comms_4 := mload(add(proof, 0x140))
+            let split_quot_poly_comms_5 := mload(add(proof, 0x160))
 
             mstore(scalarsPtr, coeff)
             // mstore(basesPtr, split_quot_poly_comms_1)
