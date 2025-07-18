@@ -311,8 +311,8 @@ contract UltraPlonkVerifier{
         // console2.log("full_challenges.alpha7: ", full_challenges.alpha7);
 
 
-        // result = verify_OpeningProof(full_challenges, pcsInfo, decoded_proof);
-        // require(result, "Proof failed");
+        result = verify_OpeningProof(full_challenges, pcsInfo, decoded_proof);
+        require(result, "Proof failed");
         result = true;
     }
 
@@ -411,6 +411,8 @@ contract UltraPlonkVerifier{
         Types.G1Point memory B;
         // A = [open_proof] + u * [shifted_open_proof]
         A = compute_A(proof, challenge);
+
+        console2.log("A: ", A.x, A.y);
      
         // B = eval_point * open_proof + u * next_eval_point *
         //   shifted_open_proof + comm - eval * [1]1`.
