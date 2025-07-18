@@ -1013,7 +1013,7 @@ compute_buffer_v_and_uv_basis_3_parameters memory z3;
     ) internal pure {
         uint256 p_local = Bn254Crypto.r_mod;
         uint256 v = z.chal.v;
-        z.start_index =39;
+        z.start_index =38;
         Types.G1Point[6] memory plookup_comms = 
         [
             z.vk.range_table_comm,
@@ -1052,6 +1052,18 @@ z.start_index =44;
             z.uv_base = mulmod(z.uv_base, v, p_local);
 
         }
+        console2.log("scalars[38]: ", z.commScalars[38]);
+        console2.log("commBases[38]: ", z.commBases[38].x, z.commBases[38].y);
+        console2.log("scalars[39]: ", z.commScalars[39]);
+        console2.log("commBases[39]: ", z.commBases[39].x, z.commBases[39].y);
+        console2.log("scalars[40]: ", z.commScalars[40]);
+        console2.log("commBases[40]: ", z.commBases[40].x, z.commBases[40].y);
+        console2.log("scalars[41]: ", z.commScalars[41]);
+        console2.log("commBases[41]: ", z.commBases[41].x, z.commBases[41].y);
+        console2.log("scalars[42]: ", z.commScalars[42]);
+        console2.log("commBases[42]: ", z.commBases[42].x, z.commBases[42].y);
+        console2.log("scalars[43]: ", z.commScalars[43]);
+        console2.log("commBases[43]: ", z.commBases[43].x, z.commBases[43].y);
     }
     function linearization_scalars_and_bases(
         Types.VerificationKey memory verifyingKey,
