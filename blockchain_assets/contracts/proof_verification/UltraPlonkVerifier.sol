@@ -839,7 +839,7 @@ tmpOut = addmod(tmpOut, mulmod(chal.alpha_powers[1], plookup_constant, p), p);
             commScalars,
             domain
         );
-        
+        // linearization_scalars_and_bases added 0-25 scalars and bases
 
         // Add wire witness polynomial commitments.
 
@@ -895,7 +895,7 @@ compute_buffer_v_and_uv_basis_3_parameters memory z3;
         uint256[] memory commScalars,
         Types.G1Point[] memory commBases
     ) internal pure returns (uint256[] memory, uint256, uint256) {
-        // uint256 start_index = 27;
+        // uint256 start_index = 26;
         uint256 v = chal.v;
         uint256 v_base = chal.v;
         uint256 uv_base = chal.u;
@@ -912,7 +912,7 @@ compute_buffer_v_and_uv_basis_3_parameters memory z3;
             } lt(i, 6) {
                 i := add(i, 1)
             } {
-                let commIndex := add(27, i)
+                let commIndex := add(26, i)
                 mstore(add(buffer_v_and_uv_basis, mul(add(i, 1), 0x20)), v_base)
                 mstore(add(commScalars, mul(add(commIndex, 1), 0x20)), v_base)
                 let proof_elem := mload(add(add(proof, 0x00), mul(i, 0x20)))
@@ -927,6 +927,20 @@ compute_buffer_v_and_uv_basis_3_parameters memory z3;
             mstore(add(commBases, mul(add(commIndex, 1), 0x20)), proof_elem2)
             
         }
+
+        console2.log("scalars[26]: ", commScalars[26]);
+        console2.log("commBases[26]: ", commBases[26].x, commBases[26].y);
+        console2.log("scalars[27]: ", commScalars[27]);
+        console2.log("commBases[27]: ", commBases[27].x, commBases[27].y);
+        console2.log("scalars[28]: ", commScalars[28]);
+        console2.log("commBases[28]: ", commBases[28].x, commBases[28].y);
+        console2.log("scalars[29]: ", commScalars[29]);
+        console2.log("commBases[29]: ", commBases[29].x, commBases[29].y);
+        console2.log("scalars[30]: ", commScalars[30]);
+        console2.log("commBases[30]: ", commBases[30].x, commBases[30].y);
+        console2.log("scalars[31]: ", commScalars[31]);
+        console2.log("commBases[31]: ", commBases[31].x, commBases[31].y);
+
         // //console.log("Part 3");
         buffer_v_and_uv_basis[11] = uv_base;
         commScalars[38] = uv_base;
