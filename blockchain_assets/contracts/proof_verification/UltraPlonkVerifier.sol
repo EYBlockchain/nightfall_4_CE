@@ -1067,8 +1067,9 @@ z.start_index =44;
 
         add_selector_polynomial_commitments(x);
 
-        // JJ: double check the bases, if they are same computation and then we only do one time
-
+        // JJ: double check the bases,
+        // the base should be vk.selector_comms
+        console2.log("add_selector_polynomial_commitments: ");
         console2.log("scalars[2]: ", scalars[2]);
         console2.log("bases[2]: ", bases[2].x, bases[2].y);
         console2.log("scalars[3]: ", scalars[3]);
@@ -1103,6 +1104,11 @@ z.start_index =44;
         console2.log("bases[17]: ", bases[17].x, bases[17].y);
         console2.log("scalars[18]: ", scalars[18]);
         console2.log("bases[18]: ", bases[18].x, bases[18].y);
+        console2.log("scalars[19]: ", scalars[19]);
+        console2.log("bases[19]: ", bases[19].x, bases[19].y);
+        console2.log("scalars[20]: ", scalars[20]);
+        console2.log("bases[20]: ", bases[20].x, bases[20].y);
+        console2.log("add_selector_polynomial_commitments is done: ");
 
 add_plookup_commitments(bases,scalars,proof,challenge,domain,evalData);
        
@@ -1435,7 +1441,7 @@ add_plookup_commitments(bases,scalars,proof,challenge,domain,evalData);
             mstore(add(basesPtr, 0x1C0), mload(add(verifyingKeyPtr, 0x2c0))) //selector_comms_15
             mstore(add(basesPtr, 0x1E0), mload(add(verifyingKeyPtr, 0x2e0))) //selector_comms_16
             mstore(add(basesPtr, 0x200), mload(add(verifyingKeyPtr, 0x300))) //selector_comms_17
-            mstore(add(basesPtr, 0x200), mload(add(verifyingKeyPtr, 0x320))) //selector_comms_18
+            mstore(add(basesPtr, 0x220), mload(add(verifyingKeyPtr, 0x320))) //selector_comms_18
 
         }
 
