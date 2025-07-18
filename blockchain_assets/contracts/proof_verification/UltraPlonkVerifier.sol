@@ -1109,20 +1109,26 @@ z.start_index =44;
 
 add_plookup_commitments(bases,scalars,proof,challenge,domain,evalData);
        
-        // add_splitted_quotient_commitments_parameter memory y;
+        add_splitted_quotient_commitments_parameter memory y;
 
        
-        // y.index = 19; // 21 scalars so far
-        // y.challenge_zeta = challenge.zeta;
-        // y.evalData_vanish_eval = evalData.vanish_eval;
-        // y.bases = bases;
-        // y.scalars = scalars;
-        // y.proof = proof;
-        // add_splitted_quotient_commitments(y);
-        //  console2.log("scalars[19]: ", scalars[19]);
-        // console2.log("bases[19]: ", bases[19].x, bases[19].y);
-        // console2.log("scalars[20]: ", scalars[20]);
-        // console2.log("bases[20]: ", bases[20].x, bases[20].y);
+        y.index = 21; // 21 scalars so far
+        y.challenge_zeta = challenge.zeta;
+        y.evalData_vanish_eval = evalData.vanish_eval;
+        y.bases = bases;
+        y.scalars = scalars;
+        y.proof = proof;
+        add_splitted_quotient_commitments(y);
+         console2.log("scalars[21]: ", scalars[21]);
+        console2.log("bases[21]: ", bases[21].x, bases[21].y);
+        console2.log("scalars[22]: ", scalars[22]);
+        console2.log("bases[22]: ", bases[22].x, bases[22].y);
+        console2.log("scalars[23]: ", scalars[23]);
+        console2.log("bases[23]: ", bases[23].x, bases[23].y);
+        console2.log("scalars[24]: ", scalars[24]);
+        console2.log("bases[24]: ", bases[24].x, bases[24].y);
+        console2.log("scalars[25]: ", scalars[25]);
+        console2.log("bases[25]: ", bases[25].x, bases[25].y);
     }
 
     function compute_first_scalar(
@@ -1624,6 +1630,7 @@ function add_plookup_commitments_helper1_4_2(
     function add_splitted_quotient_commitments(
         add_splitted_quotient_commitments_parameter memory y
     ) internal pure {
+        // JJ: new thing, skip first split_quot_poly_comms
         uint256 index = y.index;
         uint256 evalData_vanish_eval = y.evalData_vanish_eval;
         uint256 challenge_zeta = y.challenge_zeta;
@@ -1678,12 +1685,18 @@ function add_plookup_commitments_helper1_4_2(
             mstore(add(scalarsPtr, 0xa0), coeff)
             // mstore(add(basesPtr, 0xa0), split_quot_poly_comms_6)
         }
-        bases[index] = proof.split_quot_poly_comms_1;
-        bases[index + 1] = proof.split_quot_poly_comms_2;
-        bases[index + 2] = proof.split_quot_poly_comms_3;
-        bases[index + 3] = proof.split_quot_poly_comms_4;
-        bases[index + 4] = proof.split_quot_poly_comms_5;
-        bases[index + 5] = proof.split_quot_poly_comms_6;
+        // bases[index] = proof.split_quot_poly_comms_1;
+        // bases[index + 1] = proof.split_quot_poly_comms_2;
+        // bases[index + 2] = proof.split_quot_poly_comms_3;
+        // bases[index + 3] = proof.split_quot_poly_comms_4;
+        // bases[index + 4] = proof.split_quot_poly_comms_5;
+        // bases[index + 5] = proof.split_quot_poly_comms_6;
+
+        bases[index] = proof.split_quot_poly_comms_2;
+        bases[index + 1] = proof.split_quot_poly_comms_3;
+        bases[index + 2] = proof.split_quot_poly_comms_4;
+        bases[index + 3] = proof.split_quot_poly_comms_5;
+        bases[index + 4] = proof.split_quot_poly_comms_6;
        
         // index =21;
     
