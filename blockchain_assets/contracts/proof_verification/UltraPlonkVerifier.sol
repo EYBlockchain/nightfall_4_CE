@@ -1047,10 +1047,12 @@ z.start_index =44;
        
         assembly {
             // G1Point prod_perm_poly_comm;
-            mstore(add(bases, 0x20), mload(add(proof, 0x180)))
+            mstore(add(bases, 0x20), mload(add(proof, 0xc0)))
             // G1Point sigma_comms_6;
             mstore(add(bases, 0x40), mload(add(verifyingKey, 0xe0)))
         }
+        console2.log("bases[0]: , ", bases[0].x, bases[0].y);
+        console2.log("bases[1]: ,   ", bases[1].x, bases[1].y);
         
         // set the function parameters to avoid stack too deep error
         add_selector_polynomial_commitments_parameters
