@@ -1064,6 +1064,31 @@ z.start_index =44;
         console2.log("commBases[42]: ", z.commBases[42].x, z.commBases[42].y);
         console2.log("scalars[43]: ", z.commScalars[43]);
         console2.log("commBases[43]: ", z.commBases[43].x, z.commBases[43].y);
+
+        console2.log("plookup_shifted_comms");
+        console2.log("scalars[44]: ", z.commScalars[44]);
+        console2.log("commBases[44]: ", z.commBases[44].x, z.commBases[44].y);
+        console2.log("scalars[45]: ", z.commScalars[45]);
+        console2.log("commBases[45]: ", z.commBases[45].x, z.commBases[45].y);
+        console2.log("scalars[46]: ", z.commScalars[46]);
+        console2.log("commBases[46]: ", z.commBases[46].x, z.commBases[46].y);
+        console2.log("scalars[47]: ", z.commScalars[47]);
+        console2.log("commBases[47]: ", z.commBases[47].x, z.commBases[47].y);
+        console2.log("scalars[48]: ", z.commScalars[48]);
+        console2.log("commBases[48]: ", z.commBases[48].x, z.commBases[48].y);
+
+
+        // wrong base from here
+        console2.log("scalars[49]: ", z.commScalars[49]);
+        console2.log("commBases[49]: ", z.commBases[49].x, z.commBases[49].y);
+        console2.log("scalars[50]: ", z.commScalars[50]);
+        console2.log("commBases[50]: ", z.commBases[50].x, z.commBases[50].y);
+        console2.log("scalars[51]: ", z.commScalars[51]);
+        console2.log("commBases[51]: ", z.commBases[51].x, z.commBases[51].y);
+        console2.log("scalars[52]: ", z.commScalars[52]);
+        console2.log("commBases[52]: ", z.commBases[52].x, z.commBases[52].y);
+      
+        
     }
     function linearization_scalars_and_bases(
         Types.VerificationKey memory verifyingKey,
