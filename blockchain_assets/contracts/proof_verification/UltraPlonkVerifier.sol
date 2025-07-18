@@ -941,11 +941,14 @@ compute_buffer_v_and_uv_basis_3_parameters memory z3;
         console2.log("scalars[31]: ", commScalars[31]);
         console2.log("commBases[31]: ", commBases[31].x, commBases[31].y);
 
+       
+
         // //console.log("Part 3");
         buffer_v_and_uv_basis[11] = uv_base;
-        commScalars[38] = uv_base;
-        commBases[38] = proof.prod_perm_poly_comm;
-        
+        commScalars[37] = uv_base;
+        commBases[37] = proof.prod_perm_poly_comm;
+        console2.log("commScalars[37]: ", commScalars[37]);
+        console2.log("commBases[37]: ", commBases[37].x, commBases[37].y);
         return (buffer_v_and_uv_basis, v_base,mulmod(uv_base, v, p_local));
     }
 
@@ -958,7 +961,7 @@ compute_buffer_v_and_uv_basis_3_parameters memory z3;
         compute_buffer_v_and_uv_basis_2_parameters memory z
     ) internal pure returns (uint256 res){
         uint256[] memory buffer_v_and_uv_basis = z.buffer_v_and_uv_basis;
-        uint256 start_index = 27;//z.start_index;
+        uint256 start_index = 26;//z.start_index;
         Types.VerificationKey memory verifyingKey = z.verifyingKey;
         Types.ChallengeTranscript memory chal = z.chal;
         uint256[] memory commScalars = z.commScalars;
@@ -987,6 +990,18 @@ compute_buffer_v_and_uv_basis_3_parameters memory z3;
                 v_base := mulmod(v_base, v, p_local)
             }
         }
+
+         console2.log("Dealing with vk.sigma_comms");
+        console2.log("scalars[32]: ", commScalars[32]);
+        console2.log("commBases[32]: ", commBases[32].x, commBases[32].y);
+        console2.log("scalars[33]: ", commScalars[33]);
+        console2.log("commBases[33]: ", commBases[33].x, commBases[33].y);
+        console2.log("scalars[34]: ", commScalars[34]);
+        console2.log("commBases[34]: ", commBases[34].x, commBases[34].y);
+        console2.log("scalars[35]: ", commScalars[35]);
+        console2.log("commBases[35]: ", commBases[35].x, commBases[35].y);
+        console2.log("scalars[36]: ", commScalars[36]);
+        console2.log("commBases[36]: ", commBases[36].x, commBases[36].y);
         res = v_base;
        
 
