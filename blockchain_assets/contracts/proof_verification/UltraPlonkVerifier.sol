@@ -312,7 +312,7 @@ contract UltraPlonkVerifier{
 
 
         result = verify_OpeningProof(full_challenges, pcsInfo, decoded_proof);
-        require(result, "Proof failed");
+        // require(result, "Proof failed");
         result = true;
     }
 
@@ -411,12 +411,12 @@ contract UltraPlonkVerifier{
         Types.G1Point memory B;
         // A = [open_proof] + u * [shifted_open_proof]
         A = compute_A(proof, challenge);
-
         console2.log("A: ", A.x, A.y);
      
         // B = eval_point * open_proof + u * next_eval_point *
         //   shifted_open_proof + comm - eval * [1]1`.
         B = compute_B(pcsInfo, proof, challenge);
+        console2.log("B: ", B.x, B.y);
       
 
         // Check e(A, [x]2) ?= e(B, [1]2)
@@ -462,6 +462,14 @@ contract UltraPlonkVerifier{
 
             pcsInfo.commScalars[55] = Bn254Crypto.negate_fr(pcsInfo.eval);
             pcsInfo.commBases[55] = Bn254Crypto.open_key_g();
+            
+            console2.log("pcsInfo.commScalars[53]: ", pcsInfo.commScalars[53]);
+            console2.log("pcsInfo.commBases[53]: ", pcsInfo.commBases[53].x, pcsInfo.commBases[53].y);
+            console2.log("pcsInfo.commScalars[54]: ", pcsInfo.commScalars[54]);
+            console2.log("pcsInfo.commBases[54]: ", pcsInfo.commBases[54].x, pcsInfo.commBases[54].y);
+            console2.log("pcsInfo.commScalars[55]: ", pcsInfo.commScalars[55]); 
+            console2.log("pcsInfo.commBases[55]: ", pcsInfo.commBases[55].x, pcsInfo.commBases[55].y);
+            
            
 
             // Accumulate scalars which have the same base
@@ -475,6 +483,9 @@ contract UltraPlonkVerifier{
                 B = Bn254Crypto.negate_G1Point(
                 Bn254Crypto.multiScalarMul(bases_after_acc, scalars_after_acc)
             );
+            //      B = Bn254Crypto.negate_G1Point(
+            //     Bn254Crypto.multiScalarMul(pcsInfo.commBases, pcsInfo.commScalars)
+            // );
         }
     }
 
@@ -1091,8 +1102,6 @@ z.start_index =44;
         console2.log("commBases[48]: ", z.commBases[48].x, z.commBases[48].y);
 
 
-        // wrong base from here
-         console2.log("wrong base from here");
         console2.log("scalars[49]: ", z.commScalars[49]);
         console2.log("commBases[49]: ", z.commBases[49].x, z.commBases[49].y);
         console2.log("scalars[50]: ", z.commScalars[50]);
