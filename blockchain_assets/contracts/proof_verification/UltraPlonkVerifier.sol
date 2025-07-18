@@ -1051,8 +1051,10 @@ z.start_index =44;
             // G1Point sigma_comms_6;
             mstore(add(bases, 0x40), mload(add(verifyingKey, 0xe0)))
         }
+        
         console2.log("bases[0]: , ", bases[0].x, bases[0].y);
         console2.log("bases[1]: ,   ", bases[1].x, bases[1].y);
+
         
         // set the function parameters to avoid stack too deep error
         add_selector_polynomial_commitments_parameters
@@ -1064,6 +1066,43 @@ z.start_index =44;
             );
 
         add_selector_polynomial_commitments(x);
+
+        // JJ: double check the bases, if they are same computation and then we only do one time
+
+        console2.log("scalars[2]: ", scalars[2]);
+        console2.log("bases[2]: ", bases[2].x, bases[2].y);
+        console2.log("scalars[3]: ", scalars[3]);
+        console2.log("bases[3]: ", bases[3].x, bases[3].y);
+        console2.log("scalars[4]: ", scalars[4]);
+        console2.log("bases[4]: ", bases[4].x, bases[4].y);
+        console2.log("scalars[5]: ", scalars[5]);
+        console2.log("bases[5]: ", bases[5].x, bases[5].y);
+        console2.log("scalars[6]: ", scalars[6]);
+        console2.log("bases[6]: ", bases[6].x, bases[6].y);
+        console2.log("scalars[7]: ", scalars[7]);
+        console2.log("bases[7]: ", bases[7].x, bases[7].y);
+        console2.log("scalars[8]: ", scalars[8]);
+        console2.log("bases[8]: ", bases[8].x, bases[8].y);
+        console2.log("scalars[9]: ", scalars[9]);
+        console2.log("bases[9]: ", bases[9].x, bases[9].y);
+        console2.log("scalars[10]: ", scalars[10]);
+        console2.log("bases[10]: ", bases[10].x, bases[10].y);
+        console2.log("scalars[11]: ", scalars[11]);
+        console2.log("bases[11]: ", bases[11].x, bases[11].y);
+        console2.log("scalars[12]: ", scalars[12]);
+        console2.log("bases[12]: ", bases[12].x, bases[12].y);
+        console2.log("scalars[13]: ", scalars[13]);
+        console2.log("bases[13]: ", bases[13].x, bases[13].y);
+        console2.log("scalars[14]: ", scalars[14]);
+        console2.log("bases[14]: ", bases[14].x, bases[14].y);
+        console2.log("scalars[15]: ", scalars[15]);
+        console2.log("bases[15]: ", bases[15].x, bases[15].y);
+        console2.log("scalars[16]: ", scalars[16]);
+        console2.log("bases[16]: ", bases[16].x, bases[16].y);
+        console2.log("scalars[17]: ", scalars[17]);
+        console2.log("bases[17]: ", bases[17].x, bases[17].y);
+        console2.log("scalars[18]: ", scalars[18]);
+        console2.log("bases[18]: ", bases[18].x, bases[18].y);
 
 add_plookup_commitments(bases,scalars,proof,challenge,domain,evalData);
        
@@ -1263,12 +1302,12 @@ add_plookup_commitments(bases,scalars,proof,challenge,domain,evalData);
             let scalarsPtr := add(scalars, mul(add(start_index, 1), 0x20)) // Point to scalars[start_index]
 
             // Load proof evaluations into variables
-            let wires_evals_1 := mload(add(proofPtr, 0x1E0))
-            let wires_evals_2 := mload(add(proofPtr, 0x200))
-            let wires_evals_3 := mload(add(proofPtr, 0x220))
-            let wires_evals_4 := mload(add(proofPtr, 0x240))
-            let wires_evals_5 := mload(add(proofPtr, 0x260))
-            // let wires_evals_6 := mload(add(proofPtr, 0x280))
+            let wires_evals_1 := mload(add(proofPtr, 0x200))
+            let wires_evals_2 := mload(add(proofPtr, 0x220))
+            let wires_evals_3 := mload(add(proofPtr, 0x240))
+            let wires_evals_4 := mload(add(proofPtr, 0x260))
+            let wires_evals_5 := mload(add(proofPtr, 0x280))
+            // let wires_evals_6 := mload(add(proofPtr, 0x2a0))
 
             // scalars calculations
             mstore(scalarsPtr, wires_evals_1)
@@ -1311,12 +1350,12 @@ add_plookup_commitments(bases,scalars,proof,challenge,domain,evalData);
             let basesPtr := add(bases, mul(add(start_index, 1), 0x20)) // Point to bases[start_index] (each element is two 32-byte words)
 
             // Load proof evaluations into variables
-            let wires_evals_1 := mload(add(proofPtr, 0x1E0))
-            let wires_evals_2 := mload(add(proofPtr, 0x200))
-            let wires_evals_3 := mload(add(proofPtr, 0x220))
-            let wires_evals_4 := mload(add(proofPtr, 0x240))
-            let wires_evals_5 := mload(add(proofPtr, 0x260))
-            // let wires_evals_6 := mload(add(proofPtr, 0x280))
+            let wires_evals_1 := mload(add(proofPtr, 0x200))
+            let wires_evals_2 := mload(add(proofPtr, 0x220))
+            let wires_evals_3 := mload(add(proofPtr, 0x240))
+            let wires_evals_4 := mload(add(proofPtr, 0x260))
+            let wires_evals_5 := mload(add(proofPtr, 0x280))
+            // let wires_evals_6 := mload(add(proofPtr, 0x2a0))
 
             // scalars calculations
             mstore(add(scalarsPtr, 0x160), 1)
