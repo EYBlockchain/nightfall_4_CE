@@ -1474,6 +1474,8 @@ add_plookup_commitments(bases,scalars,proof,challenge,domain,evalData);
             domain
         );
         bases[20] = proof.h_poly_comm_2;
+        console2.log("scalars[20] after add_plookup_commitments_helper2: ", scalars[20]);
+    console2.log("bases[20] after add_plookup_commitments_helper2: ", bases[20].x, bases[20].y);
     }
     
     // to avoid the stack too deep error
