@@ -1041,6 +1041,7 @@ z.start_index =44;
         );
         console2.log("scalars[0]: ", scalars[0]);
         scalars[1] = compute_second_scalar(proof, challenge);
+        console2.log("scalars[1]: ", scalars[1]);
 
         // compute first base and second base
        
@@ -1184,6 +1185,7 @@ add_plookup_commitments(bases,scalars,proof,challenge,domain,evalData);
             acc := mulmod(acc, tmp, p_local)
 
             firstScalar := addmod(firstScalar, acc, p_local)
+
         }
         return firstScalar;
     }
@@ -1210,34 +1212,34 @@ add_plookup_commitments(bases,scalars,proof,challenge,domain,evalData);
             secondScalar := mulmod(challenge_alpha, challenge_beta, p_local)
             secondScalar := mulmod(
                 secondScalar,
-                mload(add(proof, 0x340)),
+                mload(add(proof, 0x360)),
                 p_local
             ) // perm_next_eval
 
-            let tmp := mulmod(challenge_beta, mload(add(proof, 0x2A0)), p_local) // wire_sigma_evals_1
+            let tmp := mulmod(challenge_beta, mload(add(proof, 0x2c0)), p_local) // wire_sigma_evals_1
             tmp := addmod(tmp, challenge_gamma, p_local)
-            tmp := addmod(tmp, mload(add(proof, 0x1E0)), p_local) // wires_evals_1
+            tmp := addmod(tmp, mload(add(proof, 0x200)), p_local) // wires_evals_1
             secondScalar := mulmod(secondScalar, tmp, p_local)
 
-            tmp := mulmod(challenge_beta, mload(add(proof, 0x2C0)), p_local) // wire_sigma_evals_2
+            tmp := mulmod(challenge_beta, mload(add(proof, 0x2e0)), p_local) // wire_sigma_evals_2
             tmp := addmod(tmp, challenge_gamma, p_local)
-            tmp := addmod(tmp, mload(add(proof, 0x200)), p_local) // wires_evals_2
+            tmp := addmod(tmp, mload(add(proof, 0x220)), p_local) // wires_evals_2
             secondScalar := mulmod(secondScalar, tmp, p_local)
 
-            tmp := mulmod(challenge_beta, mload(add(proof, 0x2E0)), p_local) // wire_sigma_evals_3
+            tmp := mulmod(challenge_beta, mload(add(proof, 0x300)), p_local) // wire_sigma_evals_3
             tmp := addmod(tmp, challenge_gamma, p_local)
-            tmp := addmod(tmp, mload(add(proof, 0x220)), p_local) // wires_evals_3
+            tmp := addmod(tmp, mload(add(proof, 0x240)), p_local) // wires_evals_3
             secondScalar := mulmod(secondScalar, tmp, p_local)
 
-            tmp := mulmod(challenge_beta, mload(add(proof, 0x300)), p_local) // wire_sigma_evals_4
+            tmp := mulmod(challenge_beta, mload(add(proof, 0x320)), p_local) // wire_sigma_evals_4
             tmp := addmod(tmp, challenge_gamma, p_local)
-            tmp := addmod(tmp, mload(add(proof, 0x240)), p_local) // wires_evals_4
+            tmp := addmod(tmp, mload(add(proof, 0x260)), p_local) // wires_evals_4
             secondScalar := mulmod(secondScalar, tmp, p_local)
 
-            tmp := mulmod(challenge_beta, mload(add(proof, 0x320)), p_local) 
+            tmp := mulmod(challenge_beta, mload(add(proof, 0x340)), p_local) 
             // wire_sigma_evals_5
             tmp := addmod(tmp, challenge_gamma, p_local)
-            tmp := addmod(tmp, mload(add(proof, 0x260)), p_local) // wires_evals_5
+            tmp := addmod(tmp, mload(add(proof, 0x280)), p_local) // wires_evals_5
             secondScalar := mulmod(secondScalar, tmp, p_local)
         }
         return Bn254Crypto.negate_fr(secondScalar);
