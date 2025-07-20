@@ -18,6 +18,6 @@ contract UltraPlonkVerifierTest is Test {
 
 
         bool verified = verifier.verify(proofBytes, publicDataBytes);
-        // console2.log("verified: ", verified);
+        assertTrue(verified, "Proof should be verified successfully");
     }
 }

@@ -312,8 +312,8 @@ contract UltraPlonkVerifier{
 
 
         result = verify_OpeningProof(full_challenges, pcsInfo, decoded_proof);
-        // require(result, "Proof failed");
-        result = true;
+        require(result, "Proof failed");
+        // result = true;
     }
 
     /**
