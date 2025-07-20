@@ -1,6 +1,6 @@
 use ark_bn254::{Bn254, Fq as Fq254, Fr as Fr254};
 use ark_ff::{BigInteger, Field, PrimeField};
-use ark_poly::{EvaluationDomain, Radix2EvaluationDomain};
+use ark_poly::{domain, EvaluationDomain, Radix2EvaluationDomain};
 use ark_std::vec::Vec;
 use configuration::settings::Settings;
 use ethers::types::{H256, U256};
@@ -32,6 +32,32 @@ pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: 
         "creating vk contract:vk:{:?} ",
         vk.clone()
     );
+
+    let domain_size_U256 = U256::from(domain_size as u32);
+    let num_inputs_U256 = U256::from(vk.num_inputs() as u32);
+    let sigma_comms_U256: Vec<U256> = vk.sigma_comms
+    .iter()
+    .flat_map(|comm| {
+        let x = U256::from_big_endian(&comm.x.into_bigint().to_bytes_be());
+        let y = U256::from_big_endian(&comm.y.into_bigint().to_bytes_be());
+        vec![x, y]
+    })
+    .collect();
+    let selector_comms_U256: Vec<U256> = vk
+        .selector_comms
+        .iter()
+        .flat_map(|comm| {
+            let x = U256::from_big_endian(&comm.x.into_bigint().to_bytes_be());
+            let y = U256::from_big_endian(&comm.y.into_bigint().to_bytes_be());
+            vec![x, y]
+        })
+        .collect();
+    let ks_u256: Vec<U256> = vk
+        .k
+        .iter()
+        .map(|k| U256::from_big_endian(&k.into_bigint().to_bytes_be()))
+        .collect();
+
     let vk_vec = Vec::<Fq254>::from(vk.clone())
         .into_iter()
         .map(|x| U256::from_little_endian(&x.into_bigint().to_bytes_le()))
@@ -40,6 +66,28 @@ pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: 
         "creating vk contract:vk_vec:{:?} ",
         vk_vec.clone()
     );
+    let vk_vec_u256 = Vec::<Fq254>::from(vk.clone())
+    .into_iter()
+    .map(|x| U256::from_little_endian(&x.into_bigint().to_bytes_le()))
+    .collect::<Vec<_>>();
+let range_table_comm_u256 = vec![
+    vk_vec_u256[56].clone(), // x
+    vk_vec_u256[57].clone(), // y
+];
+let key_table_comm_u256 = vec![
+    vk_vec_u256[58].clone(), // x
+    vk_vec_u256[59].clone(), // y
+];
+let table_dom_sep_comm_u256 = vec![
+    vk_vec_u256[60].clone(), // x
+    vk_vec_u256[61].clone(), // y
+];
+let q_dom_sep_comm_u256 = vec![
+    vk_vec_u256[60].clone(), // x
+    vk_vec_u256[61].clone(), // y
+];
+
+
     let join_path = Path::new(&settings.contracts.assets)
         .parent()
         .unwrap()
@@ -52,17 +100,19 @@ pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: 
         let file_path = cwd.join(&join_path);
         if file_path.is_file() {
             path_out = if !TEST {
+                ark_std::println!("Creating contract proof_verification/VerificationKeyJJ.sol");
                 file_path
                     .parent()
                     .unwrap()
-                    .join("proof_verification/VerificationKey.sol")
+                    .join("proof_verification/VerificationKeyJJ.sol")
             } else {
+                ark_std::println!("Creating contract test_contracts/TestVerificationKeyJJ.sol");
                 file_path
                     .parent()
                     .unwrap()
                     .parent()
                     .unwrap()
-                    .join("test_contracts/TestVerificationKey.sol")
+                    .join("test_contracts/TestVerificationKeyJJ.sol")
             };
             break;
         }
@@ -75,399 +125,394 @@ pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: 
     }
 
     let mut file: File = File::create(path_out).unwrap();
-
-    let name = if !TEST { "UltraVK" } else { "TestVK" };
-
+    let import_path = "./Types.sol";
     file.write_fmt(format_args!(
-        "// SPDX-License-Identifier: Apache-2.0 \n
-        pragma solidity >=0.8.4; \n
+    "// SPDX-License-Identifier: Apache-2.0 \n
+    pragma solidity ^0.8.20; \n
+    import \"{}\"; \n
         
-        library {name} {{ \n
+    library {{UltraPlonkVerificationKey}} {{ \n
 
-            function getVerificationKeyHash() internal pure returns (bytes32) {{ \n
-        return {:#x};
-    }} \n
-
-           function loadVerificationKey( \n
-             uint256 _vk, \n
-               uint256 _second_loc \n
-           ) internal pure {{ \n
-              assembly {{ \n
-                 mstore( 
-                      add(_vk, 0x00), 
-                      {:#x} 
-                  ) // DOMAIN_SIZE \n
-                   mstore( \n
-                       add(_vk, 0x20), \n
-                  {:#x} \n
-                    ) // NUM_PUBLIC_INPUTS \n
-                    mstore(
-                        add(_vk, 0x40),
-                        {:#x}
-                    ) // SIGMA1_X \n
-                    mstore(
-                        add(_vk, 0x60),
-                        {:#x}
-                    ) // SIGMA1_Y \n
-                    mstore(
-                        add(_vk, 0x80),
-                        {:#x}
-                    ) // SIGMA2_X \n
-                    mstore(
-                        add(_vk, 0xa0),
-                        {:#x}
-                    ) // SIGMA2_Y \n
-                    mstore(
-                        add(_vk, 0xc0),
-                        {:#x}
-                    ) // SIGMA3_X \n
-                    mstore(
-                        add(_vk, 0xe0),
-                        {:#x}
-                    ) // SIGMA3_Y \n
-                    mstore(
-                        add(_vk, 0x100),
-                        {:#x}
-                    ) // SIGMA4_X \n
-                    mstore(
-                        add(_vk, 0x120),
-                        {:#x}
-                    ) // SIGMA4_Y \n
-                    mstore(
-                        add(_vk, 0x140),
-                        {:#x}
-                    ) // SIGMA5_X \n
-                    mstore(
-                        add(_vk, 0x160),
-                        {:#x}
-                    ) // SIGMA5_Y \n
-                    mstore(
-                        add(_vk, 0x180),
-                        {:#x}
-                    ) // SIGMA6_X \n
-                    mstore(
-                        add(_vk, 0x1a0),
-                        {:#x}
-                    ) // SIGMA6_Y \n
-                    mstore(
-                        add(_vk, 0x1c0),
-                        {:#x}
-                    ) // QLC1_X \n
-                    mstore(
-                        add(_vk, 0x1e0),
-                        {:#x}
-                    ) // QLC1_Y \n
-                    mstore(
-                        add(_vk, 0x200),
-                        {:#x}
-                    ) // QLC2_X \n
-                    mstore(
-                        add(_vk, 0x220),
-                        {:#x}
-                    ) // QLC2_Y \n
-                    mstore(
-                        add(_vk, 0x240),
-                        {:#x}
-                    ) // QLC3_X \n
-                    mstore(
-                        add(_vk, 0x260),
-                        {:#x}
-                    ) // QLC3_Y \n
-                    mstore(
-                        add(_vk, 0x280),
-                        {:#x}
-                    ) // QLC4_X \n
-                    mstore(
-                        add(_vk, 0x2a0),
-                        {:#x}
-                    ) // QLC4_Y \n
-                    mstore(
-                        add(_vk, 0x2c0),
-                        {:#x}
-                    ) // QMUL1_X \n
-                    mstore(
-                        add(_vk, 0x2e0),
-                        {:#x}
-                    ) // QMUL1_Y \n
-                    mstore(
-                        add(_vk, 0x300),
-                        {:#x}
-                    ) // QMUL2_X \n
-                    mstore(
-                        add(_vk, 0x320),
-                        {:#x}
-                    ) // QMUL2_Y \n
-                    mstore(
-                        add(_vk, 0x340),
-                        {:#x}
-                    ) // QHASH1_X \n
-                    mstore(
-                        add(_vk, 0x360),
-                        {:#x}
-                    ) // QHASH1_Y \n
-                    mstore(
-                        add(_vk, 0x380),
-                        {:#x}
-                    ) // QHASH2_X \n
-                    mstore(
-                        add(_vk, 0x3a0),
-                        {:#x}
-                    ) // QHASH2_Y \n
-                    mstore(
-                        add(_vk, 0x3c0),
-                        {:#x}
-                    ) // QHASH3_X \n
-                    mstore(
-                        add(_vk, 0x3e0),
-                        {:#x}
-                    ) // QHASH3_Y \n
-                    mstore(
-                        add(_vk, 0x400),
-                        {:#x}
-                    ) // QHASH4_X \n
-                    mstore(
-                        add(_vk, 0x420),
-                        {:#x}
-                    ) // QHASH4_Y \n
-                    mstore(
-                        add(_vk, 0x440),
-                        {:#x}
-                    ) // QOUT_X \n
-                    mstore(
-                        add(_vk, 0x460),
-                        {:#x}
-                    ) // QOUT_Y \n
-                    mstore(
-                        add(_vk, 0x480),
-                        {:#x}
-                    ) // QCONST_X \n
-                    mstore(
-                        add(_vk, 0x4a0),
-                        {:#x}
-                    ) // QCONST_Y \n
-                    mstore(
-                        add(_vk, 0x4c0),
-                        {:#x}
-                    ) // QECC_X \n
-                    mstore(
-                        add(_vk, 0x4e0),
-                        {:#x}
-                    ) // QECC_Y \n
-                    mstore(
-                        add(_vk, 0x500),
-                        {:#x}
-                    ) // QSWX1_X \n
-                    mstore(
-                        add(_vk, 0x520),
-                        {:#x}
-                    ) // QSWX1_Y \n
-                    mstore(
-                        add(_vk, 0x540),
-                        {:#x}
-                    ) // QSWX2_X \n
-                    mstore(
-                        add(_vk, 0x560),
-                        {:#x}
-                    ) // QSWX2_Y \n
-                    mstore(
-                        add(_vk, 0x580),
-                        {:#x}
-                    ) // QSWY1_X \n
-                    mstore(
-                        add(_vk, 0x5a0),
-                        {:#x}
-                    ) // QSWY1_Y \n
-                    mstore(
-                        add(_vk, 0x5c0),
-                        {:#x}
-                    ) // QSWY2_X \n
-                    mstore(
-                        add(_vk, 0x5e0),
-                        {:#x}
-                    ) // QSWY2_Y \n
-                    mstore(
-                        add(_vk, 0x600),
-                        {:#x} 
-                    ) // QLOOKUP_X \n
-                    mstore(
-                        add(_vk, 0x620),
-                        {:#x}
-                    ) // QLOOKUP_Y \n
-                    mstore(add(_vk, 0x640), {:#x}) // K1 \n
-                    mstore(add(_vk, 0x660), {:#x}) // K2 \n
-                    mstore(
-                        add(_vk, 0x680),
-                        {:#x}
-                    ) // K3 \n
-                    mstore(
-                        add(_vk, 0x6a0),
-                        {:#x}
-                    ) // K4 \n
-                    mstore(
-                        add(_vk, 0x6c0),
-                        {:#x}
-                    ) // K5 \n
-                    mstore(
-                        add(_vk, 0x6e0),
-                        {:#x}
-                    ) // K6 \n
-                     mstore(
-                        add(_vk, 0x840),
-                        {:#x}
-                    ) // PLRANGE_X \n
-                    mstore(
-                        add(_vk, 0x860),
-                        {:#x}
-                    ) // PLRANGE_Y \n
-                    mstore(
-                        add(_vk, 0x880),
-                        {:#x}
-                    ) // PLKEY_X \n
-                    mstore(
-                        add(_vk, 0x8a0),
-                        {:#x}
-                    ) // PLKEY_Y \n
-                    mstore(
-                        add(_vk, 0x8c0),
-                        {:#x}
-                    ) // PLTDS_X \n
-                    mstore(
-                        add(_vk, 0x8e0),
-                        {:#x}
-                    ) // PLTDS_Y \n
-                     mstore(
-                        add(_vk, 0x900),
-                        {:#x}
-                    ) // QDOMSEP_X \n
-                     mstore(
-                        add(_vk, 0x920),
-                        {:#x}
-                    ) // QDOMSEP_Y \n
-                    mstore(
-                        add(_vk, 0x700),
-                        {:#x}
-                    ) // OKG1_X \n
-                    mstore(
-                        add(_vk, 0x720),
-                        {:#x}
-                    ) // OKG1_Y \n
-                    mstore(
-                        add(_vk, 0x740),
-                        {:#x}
-                    ) // OKG2_X1 \n
-                    mstore(
-                        add(_vk, 0x760),
-                        {:#x}
-                    ) // OKG2_X2 \n
-                    mstore(
-                        add(_vk, 0x780),
-                        {:#x}
-                    ) // OKG2_Y1 \n
-                    mstore(
-                        add(_vk, 0x7a0),
-                        {:#x} 
-                    ) // OKG2_Y2 \n
-                    mstore(
-                        add(_vk, 0x7c0),
-                        {:#x}
-                    ) // OKG3_X1 \n
-                    mstore(
-                        add(_vk, 0x7e0),
-                        {:#x}
-                    ) // OKG3_X2 \n
-                    mstore(
-                        add(_vk, 0x800),
-                        {:#x}
-                    ) // OKG3_Y1 \n
-                    mstore(
-                        add(_vk, 0x820),
-                        {:#x}
-                    ) // OKG3_Y2 \n
-                    
-                    mstore(_second_loc, {:#x}) // N_INV_LOCATION \n
-                    mstore(add(_second_loc, 0x20), {:#x}) // OMEGA_LOCATION \n
-                    mstore(add(_second_loc, 0x40), {:#x}) // OMEGA_INV_LOCATION \n
-                }}
-            }}
+        function getVerificationKey() internal pure returns (Types.VerificationKey memory vk) {{ \n
+            assembly {{ \n
+            // domain_size
+            mstore(add(vk, 0x00), {}) \n
+            // num_inputs \n
+            mstore(add(vk, 0x20), {}) \n
+            // sigma_comms_1.x \n
+            mstore( \n
+                mload(add(vk, 0x40)), \n
+                {} \n
+            ) \n
+            // sigma_comms_1.y \n
+            mstore( \n
+                add(mload(add(vk, 0x40)), 0x20), \n
+                {} \n
+            ) \n
+            // sigma_comms_2.x \n
+            mstore( \n
+                mload(add(vk, 0x60)), \n
+                {} \n
+            ) \n
+            // sigma_comms_2.y \n
+            mstore( \n
+                add(mload(add(vk, 0x60)), 0x20), \n
+                {} \n
+            ) \n
+            // sigma_comms_3.x \n
+            mstore( \n
+                mload(add(vk, 0x80)), \n
+                {} \n
+            ) \n
+            // sigma_comms_3.y \n
+            mstore( \n
+                add(mload(add(vk, 0x80)), 0x20), \n
+                {} \n
+            ) \n
+            // sigma_comms_4.x \n
+            mstore( \n
+                mload(add(vk, 0xa0)), \n
+                {} \n
+            ) \n
+            // sigma_comms_4.y \n 
+            mstore( \n
+                add(mload(add(vk, 0xa0)), 0x20), \n
+                {} \n
+            ) \n
+            // sigma_comms_5.x \n
+            mstore( \n
+                mload(add(vk, 0xc0)), \n
+                {} \n
+            ) \n
+            // sigma_comms_5.y \n
+            mstore( \n
+                add(mload(add(vk, 0xc0)), 0x20), \n
+                {} \n
+            ) \n
+            // sigma_comms_6.x \n
+                mstore( \n
+                mload(add(vk, 0xe0)), \n
+                {} \n
+            ) \n
+            // sigma_comms_6.y \n
+            mstore( \n
+                add(mload(add(vk, 0xe0)), 0x20), \n
+                {} \n
+            ) \n
+            // selector_comms_1.x \n
+            mstore( \n
+                mload(add(vk, 0x100)), \n  
+                {} \n
+            ) \n
+            // selector_comms_1.y \n
+            mstore( \n
+                add(mload(add(vk, 0x100)), 0x20), \n
+                {} \n
+            ) \n
+            // selector_comms_2.x \n
+            mstore( \n
+                mload(add(vk, 0x120)), \n
+                {} \n
+            ) \n
+            // selector_comms_2.y \n
+            mstore( \n
+                add(mload(add(vk, 0x120)), 0x20), \n
+                {} \n
+            ) \n
+            // selector_comms_3.x \n
+            mstore( \n
+                mload(add(vk, 0x140)), \n
+                {} \n
+            ) \n
+            // selector_comms_3.y \n
+            mstore( \n
+                add(mload(add(vk, 0x140)), 0x20), \n
+                {} \n
+            ) \n
+            // selector_comms_4.x \n
+            mstore( \n
+                mload(add(vk, 0x160)), \n
+                {} \n
+            ) \n
+            // selector_comms_4.y \n
+            mstore( \n
+                add(mload(add(vk, 0x160)), 0x20), \n
+                {} \n
+            ) \n
+            // selector_comms_5.x \n
+            mstore( \n
+                mload(add(vk, 0x180)), \n
+                {} \n
+            ) \n
+            // selector_comms_5.y \n
+            mstore( \n
+                add(mload(add(vk, 0x180)), 0x20), \n
+                {} \n
+            ) \n
+            // selector_comms_6.x \n
+            mstore( \n
+                mload(add(vk, 0x1a0)), \n
+                {} \n
+            ) \n
+            // selector_comms_6.y \n
+            mstore( \n
+                add(mload(add(vk, 0x1a0)), 0x20), \n
+                {} \n
+            ) \n
+            // selector_comms_7.x \n
+            mstore( \n
+                mload(add(vk, 0x1c0)), \n
+                {} \n
+            ) \n
+            // selector_comms_7.y \n
+            mstore( \n
+                add(mload(add(vk, 0x1c0)), 0x20), \n
+                {} \n
+            ) \n
+            // selector_comms_8.x \n
+            mstore( \n
+                mload(add(vk, 0x1e0)), \n
+                {} \n
+            ) \n
+            // selector_comms_8.y \n
+            mstore( \n
+                add(mload(add(vk, 0x1e0)), 0x20), \n
+                {} \n
+            ) \n
+            // selector_comms_9.x \n
+            mstore( \n
+                mload(add(vk, 0x200)), \n
+                {} \n
+            ) \n
+            // selector_comms_9.y \n
+            mstore( \n
+                add(mload(add(vk, 0x200)), 0x20), \n
+                {} \n
+            ) \n
+            // selector_comms_10.x \n
+            mstore( \n
+                mload(add(vk, 0x220)), \n
+                {} \n
+            ) \n
+            // selector_comms_10.y \n
+            mstore( \n
+                add(mload(add(vk, 0x220)), 0x20), \n
+                {} \n
+            ) \n
+            // selector_comms_11.x \n
+            mstore( \n
+                mload(add(vk, 0x240)), \n
+                {} \n
+            ) \n
+            // selector_comms_11.y \n
+            mstore( \n
+                add(mload(add(vk, 0x240)), 0x20), \n
+                {} \n
+            ) \n
+            // selector_comms_12.x \n
+            mstore( \n
+                mload(add(vk, 0x260)), \n
+                {} \n
+            ) \n
+            // selector_comms_12.y \n
+            mstore( \n
+                add(mload(add(vk, 0x260)), 0x20), \n
+                {} \n
+            ) \n
+            // selector_comms_13.x \n
+            mstore( \n
+                mload(add(vk, 0x280)), \n
+                {} \n
+            ) \n
+            // selector_comms_13.y \n
+            mstore( \n
+                add(mload(add(vk, 0x280)), 0x20), \n
+                {} \n
+            ) \n
+            // selector_comms_14.x \n
+            mstore( \n
+                mload(add(vk, 0x2a0)), \n
+                {} \n
+            ) \n
+            // selector_comms_14.y \n
+            mstore( \n
+                add(mload(add(vk, 0x2a0)), 0x20), \n
+                {} \n
+            ) \n
+            // selector_comms_15.x \n
+            mstore( \n
+                mload(add(vk, 0x2c0)), \n
+                {} \n
+            ) \n
+            // selector_comms_15.y \n
+            mstore( \n
+                add(mload(add(vk, 0x2c0)), 0x20), \n
+                {} \n  
+            ) \n
+            // selector_comms_16.x \n
+            mstore( \n
+                mload(add(vk, 0x2e0)), \n
+                {} \n
+            ) \n
+            // selector_comms_16.y \n
+            mstore( \n
+                add(mload(add(vk, 0x2e0)), 0x20), \n
+                {} \n
+            ) \n
+            // selector_comms_17.x \n
+            mstore( \n
+                mload(add(vk, 0x300)), \n
+                {} \n
+            ) \n
+            // selector_comms_17.y \n
+            mstore( \n
+                add(mload(add(vk, 0x300)), 0x20), \n
+                {} \n
+            ) \n
+            // selector_comms_18.x \n
+            mstore( \n
+                mload(add(vk, 0x320)), \n
+                {} \n
+            ) \n
+            // selector_comms_18.y \n
+            mstore( \n
+                add(mload(add(vk, 0x320)), 0x20), \n
+                {} \n
+            ) \n
+            // k1 \n
+            mstore(add(vk, 0x340), 1) \n
+            // k2 \n
+            mstore( \n
+                add(vk, 0x360), \n
+                {} \n
+            ) \n
+            // k3 \n
+            mstore( \n
+                add(vk, 0x380), \n
+                {} \n
+            ) \n
+            // k4 \n
+            mstore( \n
+                add(vk, 0x3a0), \n
+                {} \n
+            ) \n
+            // k5 \n
+            mstore( \n
+                add(vk, 0x3c0), \n
+                {} \n
+            ) \n
+            // k6 \n
+            mstore( \n
+                add(vk, 0x3e0), \n
+                {} \n
+            ) \n
+            // range_table_comm.x \n
+            mstore( \n
+                mload(add(vk, 0x400)), \n
+                {} \n
+            ) \n
+            // range_table_comm.y \n
+            mstore( \n
+                add(mload(add(vk, 0x400)), 0x20), \n
+                {} \n
+            ) \n
+            // key_table_comm.x \n
+            mstore( \n
+                mload(add(vk, 0x420)), \n
+                {} \n
+            ) \n
+            // key_table_comm.y \n
+            mstore( \n
+                add(mload(add(vk, 0x420)), 0x20), \n
+                {} \n
+            ) \n
+            // table_dom_sep_comm.x \n
+            mstore( \n
+                mload(add(vk, 0x440)), \n
+                {} \n
+            ) \n
+            // table_dom_sep_comm.y \n
+            mstore( \n
+                add(mload(add(vk, 0x440)), 0x20), \n
+                {} \n
+            ) \n
+            // q_dom_sep_comm.x \n
+            mstore( \n
+                mload(add(vk, 0x460)), \n
+                {} \n
+            ) \n
+            // q_dom_sep_comm.y \n
+            mstore( \n
+                add(mload(add(vk, 0x460)), 0x20), \n
+                {} \n
+            ) \n
+            }}\n
         }}",
-        vk_hash,
-        vk_vec[0],
-        vk_vec[1],
-        vk_vec[2],
-        vk_vec[3],
-        vk_vec[4],
-        vk_vec[5],
-        vk_vec[6],
-        vk_vec[7],
-        vk_vec[8],
-        vk_vec[9],
-        vk_vec[10],
-        vk_vec[11],
-        vk_vec[12],
-        vk_vec[13],
-        vk_vec[14],
-        vk_vec[15],
-        vk_vec[16],
-        vk_vec[17],
-        vk_vec[18],
-        vk_vec[19],
-        vk_vec[20],
-        vk_vec[21],
-        vk_vec[22],
-        vk_vec[23],
-        vk_vec[24],
-        vk_vec[25],
-        vk_vec[26],
-        vk_vec[27],
-        vk_vec[28],
-        vk_vec[29],
-        vk_vec[30],
-        vk_vec[31],
-        vk_vec[32],
-        vk_vec[33],
-        vk_vec[34],
-        vk_vec[35],
-        vk_vec[36],
-        vk_vec[37],
-        vk_vec[38],
-        vk_vec[39],
-        vk_vec[40],
-        vk_vec[41],
-        vk_vec[42],
-        vk_vec[43],
-        vk_vec[44],
-        vk_vec[45],
-        vk_vec[46],
-        vk_vec[47],
-        vk_vec[48],
-        vk_vec[49],
-        vk_vec[50],
-        vk_vec[51],
-        vk_vec[52],
-        vk_vec[53],
-        vk_vec[54],
-        vk_vec[55],
-        vk_vec[56],
-        vk_vec[57],
-        vk_vec[58],
-        vk_vec[59],
-        vk_vec[60],
-        vk_vec[61],
-        vk_vec[62],
-        vk_vec[63],
-        vk_vec[64],
-        vk_vec[65],
-        vk_vec[66],
-        vk_vec[67],
-        vk_vec[68],
-        vk_vec[69],
-        vk_vec[70],
-        vk_vec[71],
-        vk_vec[72],
-        vk_vec[73],
-        domain_size_inv,
-        omega,
-        omega_inv
+        import_path,
+        domain_size_U256, // domain_size
+        num_inputs_U256, // num_inputs
+        sigma_comms_U256[0], // sigma_comms_1.x
+        sigma_comms_U256[1], // sigma_comms_1.y
+        sigma_comms_U256[3], // sigma_comms_2.x
+        sigma_comms_U256[4], // sigma_comms_2.y
+        sigma_comms_U256[5], // sigma_comms_3.x
+        sigma_comms_U256[6], // sigma_comms_3.y
+        sigma_comms_U256[7], // sigma_comms_4.x
+        sigma_comms_U256[8], // sigma_comms_4.y
+        sigma_comms_U256[9],// sigma_comms_5.x
+        sigma_comms_U256[10],// sigma_comms_5.y
+        sigma_comms_U256[11],// sigma_comms_6.x
+        sigma_comms_U256[12],// sigma_comms_6.y
+        selector_comms_U256[0],// selector_comms_1.x
+        selector_comms_U256[1],// selector_comms_1.y
+        selector_comms_U256[2],// selector_comms_2.x
+        selector_comms_U256[3],// selector_comms_2.y
+        selector_comms_U256[4],// selector_comms_3.x
+        selector_comms_U256[5],// selector_comms_3.y
+        selector_comms_U256[6],// selector_comms_4.x
+        selector_comms_U256[7],// selector_comms_4.y
+        selector_comms_U256[8],// selector_comms_5.x
+        selector_comms_U256[9],// selector_comms_5.y
+        selector_comms_U256[10],// selector_comms_6.x
+        selector_comms_U256[11],// selector_comms_6.y
+        selector_comms_U256[12],// selector_comms_7.x
+        selector_comms_U256[13],// selector_comms_7.y
+        selector_comms_U256[14],// selector_comms_8.x
+        selector_comms_U256[15],// selector_comms_8.y
+        selector_comms_U256[16],// selector_comms_9.x
+        selector_comms_U256[17],// selector_comms_9.y
+        selector_comms_U256[18],// selector_comms_10.x
+        selector_comms_U256[19],// selector_comms_10.y
+        selector_comms_U256[20],// selector_comms_11.x
+        selector_comms_U256[21],// selector_comms_11.y
+        selector_comms_U256[22],// selector_comms_12.x
+        selector_comms_U256[23],// selector_comms_12.y
+        selector_comms_U256[24],// selector_comms_13.x
+        selector_comms_U256[25],// selector_comms_13.y
+        selector_comms_U256[26],// selector_comms_14.x
+        selector_comms_U256[27],// selector_comms_14.y
+        selector_comms_U256[28],// selector_comms_15.x
+        selector_comms_U256[29],// selector_comms_15.y
+        selector_comms_U256[30],// selector_comms_16.x
+        selector_comms_U256[31],// selector_comms_16.y
+        selector_comms_U256[32],// selector_comms_17.x
+        selector_comms_U256[33],// selector_comms_17.y
+        selector_comms_U256[34],// selector_comms_18.x
+        selector_comms_U256[35],// selector_comms_18.y
+        ks_u256[0],// k1
+        ks_u256[1],// k2
+        ks_u256[2],// k3
+        ks_u256[3],// k4
+        ks_u256[4],// k5
+        ks_u256[5],// k6
+        range_table_comm_u256[0],// range_table_comm.x
+        range_table_comm_u256[1],// range_table_comm.y
+        key_table_comm_u256[0],// key_table_comm.x
+       key_table_comm_u256[1],// key_table_comm.y
+        table_dom_sep_comm_u256[0],// table_dom_sep_comm.x
+        table_dom_sep_comm_u256[1],// table_dom_sep_comm.y
+        q_dom_sep_comm_u256[0],// q_dom_sep_comm.x
+        q_dom_sep_comm_u256[1],// q_dom_sep_comm.y
     ))
     .unwrap();
 }
@@ -502,65 +547,66 @@ mod tests {
         let srs = PlonkKzgSnark::<Bn254>::universal_setup_for_testing(srs_size, &mut rng).unwrap();
         let (pk, vk) = PlonkKzgSnark::<Bn254>::preprocess(&srs, &circuit).unwrap();
         create_vk_contract::<true>(&vk, &settings);
+        ark_std::println!("vk:{:?}", vk);
 
-        let proof = PlonkKzgSnark::<Bn254>::prove::<_, _, SolidityTranscript>(
-            &mut rng, &circuit, &pk, None,
-        )
-        .unwrap();
-        let proof_vec = Vec::<Fq254>::from(proof)
-            .into_iter()
-            .flat_map(|x| {
-                let mut bytes: Vec<u8> = x.into_bigint().to_bytes_le();
-                bytes.resize(32, 0u8);
-                bytes.reverse();
-                bytes
-            })
-            .collect::<Vec<u8>>();
+        // let proof = PlonkKzgSnark::<Bn254>::prove::<_, _, SolidityTranscript>(
+        //     &mut rng, &circuit, &pk, None,
+        // )
+        // .unwrap();
+        // let proof_vec = Vec::<Fq254>::from(proof)
+        //     .into_iter()
+        //     .flat_map(|x| {
+        //         let mut bytes: Vec<u8> = x.into_bigint().to_bytes_le();
+        //         bytes.resize(32, 0u8);
+        //         bytes.reverse();
+        //         bytes
+        //     })
+        //     .collect::<Vec<u8>>();
 
-        let bytes = Bytes::from_iter(proof_vec);
+        // let bytes = Bytes::from_iter(proof_vec);
 
-        let join_path = Path::new(&settings.contracts.assets)
-            .parent()
-            .unwrap()
-            .join("contracts/Nightfall.sol");
+        // let join_path = Path::new(&settings.contracts.assets)
+        //     .parent()
+        //     .unwrap()
+        //     .join("contracts/Nightfall.sol");
 
-        let path_out: PathBuf;
-        let cwd = std::env::current_dir().unwrap();
-        let mut cwd = cwd.as_path();
-        loop {
-            let file_path = cwd.join(&join_path);
-            if file_path.is_file() {
-                path_out = file_path
-                    .parent()
-                    .unwrap()
-                    .parent()
-                    .unwrap()
-                    .join("test_contracts/testproof.txt");
-                break;
-            }
+        // let path_out: PathBuf;
+        // let cwd = std::env::current_dir().unwrap();
+        // let mut cwd = cwd.as_path();
+        // loop {
+        //     let file_path = cwd.join(&join_path);
+        //     if file_path.is_file() {
+        //         path_out = file_path
+        //             .parent()
+        //             .unwrap()
+        //             .parent()
+        //             .unwrap()
+        //             .join("test_contracts/testproof.txt");
+        //         break;
+        //     }
 
-            cwd = cwd.parent().ok_or("No parent in path").unwrap();
-        }
-        let mut file = File::create(path_out.clone()).unwrap();
-        file.write_fmt(format_args!("{:0x}", bytes)).unwrap();
+        //     cwd = cwd.parent().ok_or("No parent in path").unwrap();
+        // }
+        // let mut file = File::create(path_out.clone()).unwrap();
+        // file.write_fmt(format_args!("{:0x}", bytes)).unwrap();
 
-        // We run `forge test` now to update all the contracts
-        let output = std::process::Command::new("forge")
-            .args(["test", "--force", "--match-test", "testRollupVerifier"])
-            .output()
-            .unwrap();
-        //    std::fs::remove_file(path_out).unwrap();
+        // // We run `forge test` now to update all the contracts
+        // let output = std::process::Command::new("forge")
+        //     .args(["test", "--force", "--match-test", "testRollupVerifier"])
+        //     .output()
+        //     .unwrap();
+        // //    std::fs::remove_file(path_out).unwrap();
 
-        match output.status.code() {
-            Some(0) => (),
-            Some(code) => panic!(
-                "Forge failed with code {}, stdout is: {}, stderr is : {}",
-                code,
-                String::from_utf8_lossy(&output.stdout),
-                String::from_utf8_lossy(&output.stderr)
-            ),
-            None => panic!("Forge failed with no exit code"),
-        }
+        // match output.status.code() {
+        //     Some(0) => (),
+        //     Some(code) => panic!(
+        //         "Forge failed with code {}, stdout is: {}, stderr is : {}",
+        //         code,
+        //         String::from_utf8_lossy(&output.stdout),
+        //         String::from_utf8_lossy(&output.stderr)
+        //     ),
+        //     None => panic!("Forge failed with no exit code"),
+        // }
     }
 
     pub(crate) fn gen_circuit_for_test(
