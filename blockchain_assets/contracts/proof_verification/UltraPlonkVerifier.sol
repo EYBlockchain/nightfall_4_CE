@@ -365,8 +365,8 @@ contract UltraPlonkVerifier{
 
         // compute opening proof in poly comms
         // caller allocates the memory for commScalars and commBases
-        uint256[] memory commScalars = new uint256[](56);
-        Types.G1Point[] memory commBases = new Types.G1Point[](56);
+        uint256[] memory commScalars = new uint256[](58);
+        Types.G1Point[] memory commBases = new Types.G1Point[](58);
 
        
         uint256 eval = prepare_OpeningProof(
@@ -450,25 +450,27 @@ contract UltraPlonkVerifier{
     ) internal view returns (Types.G1Point memory B) {
         // Compute B := B0 + r * B1 + ... + r^{m-1} * Bm
         {
-            pcsInfo.commScalars[53] = challenge.zeta;
-            pcsInfo.commBases[53] = proof.opening_proof;
+            pcsInfo.commScalars[54] = challenge.zeta;
+            pcsInfo.commBases[54] = proof.opening_proof;
 
-            pcsInfo.commScalars[54] = mulmod(
+            pcsInfo.commScalars[55] = mulmod(
                 challenge.u,
                 pcsInfo.nextEvalPoint,
                 p
             );
-            pcsInfo.commBases[54] = proof.shifted_opening_proof;
+            pcsInfo.commBases[55] = proof.shifted_opening_proof;
 
-            pcsInfo.commScalars[55] = Bn254Crypto.negate_fr(pcsInfo.eval);
-            pcsInfo.commBases[55] = Bn254Crypto.open_key_g();
+            pcsInfo.commScalars[56] = Bn254Crypto.negate_fr(pcsInfo.eval);
+            pcsInfo.commBases[56] = Bn254Crypto.open_key_g();
             
-            console2.log("pcsInfo.commScalars[53]: ", pcsInfo.commScalars[53]);
-            console2.log("pcsInfo.commBases[53]: ", pcsInfo.commBases[53].x, pcsInfo.commBases[53].y);
             console2.log("pcsInfo.commScalars[54]: ", pcsInfo.commScalars[54]);
             console2.log("pcsInfo.commBases[54]: ", pcsInfo.commBases[54].x, pcsInfo.commBases[54].y);
-            console2.log("pcsInfo.commScalars[55]: ", pcsInfo.commScalars[55]); 
+            console2.log("pcsInfo.commScalars[55]: ", pcsInfo.commScalars[55]);
             console2.log("pcsInfo.commBases[55]: ", pcsInfo.commBases[55].x, pcsInfo.commBases[55].y);
+            console2.log("pcsInfo.commScalars[56]: ", pcsInfo.commScalars[56]); 
+            console2.log("pcsInfo.commBases[56]: ", pcsInfo.commBases[56].x, pcsInfo.commBases[56].y);
+            console2.log("pcsInfo.commScalars[57]: ", pcsInfo.commScalars[57]); 
+            console2.log("pcsInfo.commBases[57]: ", pcsInfo.commBases[57].x, pcsInfo.commBases[57].y);
             
            
 
@@ -483,9 +485,46 @@ contract UltraPlonkVerifier{
                 B = Bn254Crypto.negate_G1Point(
                 Bn254Crypto.multiScalarMul(bases_after_acc, scalars_after_acc)
             );
-            //      B = Bn254Crypto.negate_G1Point(
-            //     Bn254Crypto.multiScalarMul(pcsInfo.commBases, pcsInfo.commScalars)
-            // );
+            // log everything in bases_after_acc and scalars_after_acc
+            // console2.log("element 1: ", scalars_after_acc[0], bases_after_acc[0].x, bases_after_acc[0].y);
+            // console2.log("element 2: ", scalars_after_acc[1], bases_after_acc[1].x, bases_after_acc[1].y);
+            // console2.log("element 3: ", scalars_after_acc[2], bases_after_acc[2].x, bases_after_acc[2].y);
+            // console2.log("element 4: ", scalars_after_acc[3], bases_after_acc[3].x, bases_after_acc[3].y);
+            // console2.log("element 5: ", scalars_after_acc[4], bases_after_acc[4].x, bases_after_acc[4].y);
+            // console2.log("element 6: ", scalars_after_acc[5], bases_after_acc[5].x, bases_after_acc[5].y);
+            // console2.log("element 7: ", scalars_after_acc[6], bases_after_acc[6].x, bases_after_acc[6].y);
+            // console2.log("element 8: ", scalars_after_acc[7], bases_after_acc[7].x, bases_after_acc[7].y);
+            // console2.log("element 9: ", scalars_after_acc[8], bases_after_acc[8].x, bases_after_acc[8].y);
+            // console2.log("element 10: ", scalars_after_acc[9], bases_after_acc[9].x, bases_after_acc[9].y);
+            // console2.log("element 11: ", scalars_after_acc[10], bases_after_acc[10].x, bases_after_acc[10].y);
+            // console2.log("element 12: ", scalars_after_acc[11], bases_after_acc[11].x, bases_after_acc[11].y);
+            // console2.log("element 13: ", scalars_after_acc[12], bases_after_acc[12].x, bases_after_acc[12].y);
+            // console2.log("element 14: ", scalars_after_acc[13], bases_after_acc[13].x, bases_after_acc[13].y);
+            // console2.log("element 15: ", scalars_after_acc[14], bases_after_acc[14].x, bases_after_acc[14].y);
+            // console2.log("element 16: ", scalars_after_acc[15], bases_after_acc[15].x, bases_after_acc[15].y);
+            // console2.log("element 17: ", scalars_after_acc[16], bases_after_acc[16].x, bases_after_acc[16].y);
+            // console2.log("element 18: ", scalars_after_acc[17], bases_after_acc[17].x, bases_after_acc[17].y);
+            // console2.log("element 19: ", scalars_after_acc[18], bases_after_acc[18].x, bases_after_acc[18].y);
+            // console2.log("element 20: ", scalars_after_acc[19], bases_after_acc[19].x, bases_after_acc[19].y);
+            // console2.log("element 21: ", scalars_after_acc[20], bases_after_acc[20].x, bases_after_acc[20].y);
+            // console2.log("element 22: ", scalars_after_acc[21], bases_after_acc[21].x, bases_after_acc[21].y);
+            // console2.log("element 23: ", scalars_after_acc[22], bases_after_acc[22].x, bases_after_acc[22].y);
+            // console2.log("element 24: ", scalars_after_acc[23], bases_after_acc[23].x, bases_after_acc[23].y);
+            // console2.log("element 25: ", scalars_after_acc[24], bases_after_acc[24].x, bases_after_acc[24].y);
+            // console2.log("element 26: ", scalars_after_acc[25], bases_after_acc[25].x, bases_after_acc[25].y);
+            // console2.log("element 27: ", scalars_after_acc[26], bases_after_acc[26].x, bases_after_acc[26].y);
+            // console2.log("element 28: ", scalars_after_acc[27], bases_after_acc[27].x, bases_after_acc[27].y);
+            // console2.log("element 29: ", scalars_after_acc[28], bases_after_acc[28].x, bases_after_acc[28].y);
+            // console2.log("element 30: ", scalars_after_acc[29], bases_after_acc[29].x, bases_after_acc[29].y);
+            // console2.log("element 31: ", scalars_after_acc[30], bases_after_acc[30].x, bases_after_acc[30].y);
+            // console2.log("element 32: ", scalars_after_acc[31], bases_after_acc[31].x, bases_after_acc[31].y);
+            
+
+
+            console2.log("bases_after_acc lenth: ", bases_after_acc.length);
+            console2.log("scalars_after_acc lenth: ", scalars_after_acc.length);
+            console2.log("pcsInfo.commBases lenth: ",  pcsInfo.commBases.length);
+            console2.log("pcsInfo.commScalars lenth: ", pcsInfo.commScalars.length);
         }
     }
 
@@ -610,81 +649,6 @@ contract UltraPlonkVerifier{
         // jj this two have same value, check this later when i finish
         // uint256 tmp = addmod(evalData.piEval, Bn254Crypto.negate_fr(mulmod(chal.alpha2, evalData.lagrange_1_eval, p)), p);
         uint256 tmp = addmod(result, Bn254Crypto.negate_fr(mulmod(chal.alpha2, evalData.lagrange_1_eval, p)), p);
-        // console2.log("tmp: ", tmp);
-       
-
-// uint256 gamma_mul_beta_plus_one = mulmod(
-//             addmod(chal.beta, 1, p),
-//             chal.gamma,
-//             p
-//         );
-//         console2.log("gamma_mul_beta_plus_one: ", gamma_mul_beta_plus_one);
-
-// // let plookup_constant = *lagrange_n_eval
-// //                     * (evals.h_1_eval - evals.h_2_next_eval - alpha_powers[0])
-// //                     - challenges.alpha * lagrange_1_eval
-// //                     - alpha_powers[1]
-// //                         * (challenges.zeta - self.domain.group_gen_inv)
-// //                         * evals.prod_next_eval
-// //                         * (gamma_mul_beta_plus_one
-// //                             + evals.h_1_eval
-// //                             + challenges.beta * evals.h_1_next_eval)
-// //                         * (gamma_mul_beta_plus_one + challenges.beta * evals.h_2_next_eval);
-
-// uint256 plookup_constant = addmod(
-//     addmod(
-//     mulmod(
-//         evalData.lagrange_n_eval,
-//         addmod(
-//             proof.h_1_eval,
-//             p - addmod(proof.h_2_next_eval, chal.alpha_powers[0], p),
-//             p
-//         ),
-//         p
-//     ),
-//     p - mulmod(chal.alpha, evalData.lagrange_1_eval, p),
-//     p
-// ),
-//     p - mulmod(
-//         mulmod(
-//             chal.alpha_powers[1],
-//             mulmod(
-//                 addmod(chal.zeta, p - domain.groupGenInv, p),
-//                 proof.prod_next_eval,
-//                 p
-//             ),
-//             p
-//         ),
-//         mulmod(
-//             addmod(
-//                 gamma_mul_beta_plus_one,
-//                 addmod(proof.h_1_eval, mulmod(chal.beta, proof.h_1_next_eval, p), p),
-//                 p
-//             ),
-//             addmod(
-//                 gamma_mul_beta_plus_one,
-//                 mulmod(chal.beta, proof.h_2_next_eval, p),
-//                 p
-//             ),
-//             p
-//         ),
-//         p
-//     ),
-//     p
-// );
-
-// console2.log("plookup_constant: ", plookup_constant);
-
-// uint256 negative_part = addmod(
-//     mulmod(chal.alpha, evalData.lagrange_1_eval, p),
-//    help(chal, proof,  domain),
-//     p
-// );
-// plookup_constant = addmod(
-//     plookup_constant,
-//     p - negative_part,
-//     p
-// );
       uint256 plookup_constant = compute_plookup_constant(tmp, chal, proof, evalData, domain, p);
        uint256 tmpOut = compute_tmp(tmp, chal, proof, evalData, domain, p);
 // console2.log("plookup_constant: ", plookup_constant);
@@ -925,7 +889,7 @@ compute_buffer_v_and_uv_basis_3_parameters memory z3;
             } lt(i, 6) {
                 i := add(i, 1)
             } {
-                let commIndex := add(26, i)
+                let commIndex := add(27, i)
                 mstore(add(buffer_v_and_uv_basis, mul(add(i, 1), 0x20)), v_base)
                 mstore(add(commScalars, mul(add(commIndex, 1), 0x20)), v_base)
                 let proof_elem := mload(add(add(proof, 0x00), mul(i, 0x20)))
@@ -941,8 +905,7 @@ compute_buffer_v_and_uv_basis_3_parameters memory z3;
             
         }
 
-        console2.log("scalars[26]: ", commScalars[26]);
-        console2.log("commBases[26]: ", commBases[26].x, commBases[26].y);
+        
         console2.log("scalars[27]: ", commScalars[27]);
         console2.log("commBases[27]: ", commBases[27].x, commBases[27].y);
         console2.log("scalars[28]: ", commScalars[28]);
@@ -953,15 +916,17 @@ compute_buffer_v_and_uv_basis_3_parameters memory z3;
         console2.log("commBases[30]: ", commBases[30].x, commBases[30].y);
         console2.log("scalars[31]: ", commScalars[31]);
         console2.log("commBases[31]: ", commBases[31].x, commBases[31].y);
+        console2.log("scalars[32]: ", commScalars[32]);
+        console2.log("commBases[32]: ", commBases[32].x, commBases[32].y);
 
        
 
         // //console.log("Part 3");
         buffer_v_and_uv_basis[11] = uv_base;
-        commScalars[37] = uv_base;
-        commBases[37] = proof.prod_perm_poly_comm;
-        console2.log("commScalars[37]: ", commScalars[37]);
-        console2.log("commBases[37]: ", commBases[37].x, commBases[37].y);
+        commScalars[38] = uv_base;
+        commBases[38] = proof.prod_perm_poly_comm;
+        console2.log("commScalars[38]: ", commScalars[38]);
+        console2.log("commBases[38]: ", commBases[38].x, commBases[38].y);
         return (buffer_v_and_uv_basis, v_base,mulmod(uv_base, v, p_local));
     }
 
@@ -974,7 +939,7 @@ compute_buffer_v_and_uv_basis_3_parameters memory z3;
         compute_buffer_v_and_uv_basis_2_parameters memory z
     ) internal pure returns (uint256 res){
         uint256[] memory buffer_v_and_uv_basis = z.buffer_v_and_uv_basis;
-        uint256 start_index = 26;//z.start_index;
+        uint256 start_index = 27;//z.start_index;
         Types.VerificationKey memory verifyingKey = z.verifyingKey;
         Types.ChallengeTranscript memory chal = z.chal;
         uint256[] memory commScalars = z.commScalars;
@@ -1005,8 +970,7 @@ compute_buffer_v_and_uv_basis_3_parameters memory z3;
         }
 
          console2.log("Dealing with vk.sigma_comms");
-        console2.log("scalars[32]: ", commScalars[32]);
-        console2.log("commBases[32]: ", commBases[32].x, commBases[32].y);
+        
         console2.log("scalars[33]: ", commScalars[33]);
         console2.log("commBases[33]: ", commBases[33].x, commBases[33].y);
         console2.log("scalars[34]: ", commScalars[34]);
@@ -1015,6 +979,8 @@ compute_buffer_v_and_uv_basis_3_parameters memory z3;
         console2.log("commBases[35]: ", commBases[35].x, commBases[35].y);
         console2.log("scalars[36]: ", commScalars[36]);
         console2.log("commBases[36]: ", commBases[36].x, commBases[36].y);
+        console2.log("scalars[37]: ", commScalars[37]);
+        console2.log("commBases[37]: ", commBases[37].x, commBases[37].y);
         res = v_base;
        
 
@@ -1026,7 +992,7 @@ compute_buffer_v_and_uv_basis_3_parameters memory z3;
     ) internal pure {
         uint256 p_local = Bn254Crypto.r_mod;
         uint256 v = z.chal.v;
-        z.start_index =38;
+        z.start_index =39;
         Types.G1Point[6] memory plookup_comms = 
         [
             z.vk.range_table_comm,
@@ -1043,8 +1009,7 @@ compute_buffer_v_and_uv_basis_3_parameters memory z3;
             z.commBases[z.start_index + i] = plookup_comms[i];
             z.v_base = mulmod(z.v_base, v, p_local);
         }
-console2.log("scalars[38]: ", z.commScalars[38]);
-        console2.log("commBases[38]: ", z.commBases[38].x, z.commBases[38].y);
+
         console2.log("scalars[39]: ", z.commScalars[39]);
         console2.log("commBases[39]: ", z.commBases[39].x, z.commBases[39].y);
         console2.log("scalars[40]: ", z.commScalars[40]);
@@ -1055,31 +1020,33 @@ console2.log("scalars[38]: ", z.commScalars[38]);
         console2.log("commBases[42]: ", z.commBases[42].x, z.commBases[42].y);
         console2.log("scalars[43]: ", z.commScalars[43]);
         console2.log("commBases[43]: ", z.commBases[43].x, z.commBases[43].y);
+        console2.log("scalars[44]: ", z.commScalars[44]);
+        console2.log("commBases[44]: ", z.commBases[44].x, z.commBases[44].y);
 
 
 Types.G1Point[9] memory plookup_shifted_comms =[
-    z.proof.prod_lookup_poly_comm, //44
-    z.vk.range_table_comm, //45
-    z.vk.key_table_comm, //46
-    z.proof.h_poly_comm_1, //47
-    z.proof.h_poly_comm_2, //48
+    z.proof.prod_lookup_poly_comm, //45
+    z.vk.range_table_comm, //46
+    z.vk.key_table_comm, //47
+    z.proof.h_poly_comm_1, //48
+    z.proof.h_poly_comm_2, //49
     // jj: this is new, used to be q_dom_sep_comm, but now it is z.vk.selector_comms_18
-    z.vk.selector_comms_18, // 49
-    z.proof.wires_poly_comms_4, //50
-    z.proof.wires_poly_comms_5, //51
-    z.vk.table_dom_sep_comm //52
+    z.vk.selector_comms_18, // 50
+    z.proof.wires_poly_comms_4, //51
+    z.proof.wires_poly_comms_5, //52
+    z.vk.table_dom_sep_comm //53
 ];
-  console2.log("44 z.proof.prod_lookup_poly_comm: ", z.proof.prod_lookup_poly_comm.x, z.proof.prod_lookup_poly_comm.y);
-  console2.log("45 z.vk.range_table_comm: ", z.vk.range_table_comm.x, z.vk.range_table_comm.y);
-  console2.log("46 z.vk.key_table_comm: ", z.vk.key_table_comm.x, z.vk.key_table_comm.y);
-    console2.log("47 z.proof.h_poly_comm_1: ", z.proof.h_poly_comm_1.x, z.proof.h_poly_comm_1.y);
-    console2.log("48 z.proof.h_poly_comm_2: ", z.proof.h_poly_comm_2.x, z.proof.h_poly_comm_2.y);
-    console2.log("49 z.selector_comms_18: ", z.vk.selector_comms_18.x, z.vk.selector_comms_18.y);
-    console2.log("50 z.proof.wires_poly_comms_4: ", z.proof.wires_poly_comms_4.x, z.proof.wires_poly_comms_4.y);
-    console2.log("51 z.proof.wires_poly_comms_5: ", z.proof.wires_poly_comms_5.x, z.proof.wires_poly_comms_5.y);
-    console2.log("52 z.vk.table_dom_sep_comm: ", z.vk.table_dom_sep_comm.x, z.vk.table_dom_sep_comm.y);
+  console2.log("45 z.proof.prod_lookup_poly_comm: ", z.proof.prod_lookup_poly_comm.x, z.proof.prod_lookup_poly_comm.y);
+  console2.log("46 z.vk.range_table_comm: ", z.vk.range_table_comm.x, z.vk.range_table_comm.y);
+  console2.log("47 z.vk.key_table_comm: ", z.vk.key_table_comm.x, z.vk.key_table_comm.y);
+    console2.log("48 z.proof.h_poly_comm_1: ", z.proof.h_poly_comm_1.x, z.proof.h_poly_comm_1.y);
+    console2.log("49 z.proof.h_poly_comm_2: ", z.proof.h_poly_comm_2.x, z.proof.h_poly_comm_2.y);
+    console2.log("50 z.selector_comms_18: ", z.vk.selector_comms_18.x, z.vk.selector_comms_18.y);
+    console2.log("51 z.proof.wires_poly_comms_4: ", z.proof.wires_poly_comms_4.x, z.proof.wires_poly_comms_4.y);
+    console2.log("52 z.proof.wires_poly_comms_5: ", z.proof.wires_poly_comms_5.x, z.proof.wires_poly_comms_5.y);
+    console2.log("53 z.vk.table_dom_sep_comm: ", z.vk.table_dom_sep_comm.x, z.vk.table_dom_sep_comm.y);
 
-z.start_index =44;
+z.start_index =45;
  for (uint256 i = 0; i < 9; i++) {
     console2.log("z.start_index + i:", z.start_index + i);
             z.buffer_v_and_uv_basis[18 + i] = z.uv_base;
@@ -1090,8 +1057,6 @@ z.start_index =44;
         }
         
         console2.log("plookup_shifted_comms");
-        console2.log("scalars[44]: ", z.commScalars[44]);
-        console2.log("commBases[44]: ", z.commBases[44].x, z.commBases[44].y);
         console2.log("scalars[45]: ", z.commScalars[45]);
         console2.log("commBases[45]: ", z.commBases[45].x, z.commBases[45].y);
         console2.log("scalars[46]: ", z.commScalars[46]);
@@ -1110,6 +1075,8 @@ z.start_index =44;
         console2.log("commBases[51]: ", z.commBases[51].x, z.commBases[51].y);
         console2.log("scalars[52]: ", z.commScalars[52]);
         console2.log("commBases[52]: ", z.commBases[52].x, z.commBases[52].y);
+          console2.log("scalars[53]: ", z.commScalars[53]);
+        console2.log("commBases[53]: ", z.commBases[53].x, z.commBases[53].y);
       
         
     }
@@ -1128,9 +1095,9 @@ z.start_index =44;
             proof,
             challenge
         );
-        console2.log("scalars[0]: ", scalars[0]);
+        
         scalars[1] = compute_second_scalar(proof, challenge);
-        console2.log("scalars[1]: ", scalars[1]);
+       
 
         // compute first base and second base
        
@@ -1140,8 +1107,9 @@ z.start_index =44;
             // G1Point sigma_comms_6;
             mstore(add(bases, 0x40), mload(add(verifyingKey, 0xe0)))
         }
-        
+        console2.log("scalars[0]: ", scalars[0]);
         console2.log("bases[0]: , ", bases[0].x, bases[0].y);
+        console2.log("scalars[1]: ", scalars[1]);
         console2.log("bases[1]: ,   ", bases[1].x, bases[1].y);
 
         
@@ -1218,6 +1186,8 @@ add_plookup_commitments(bases,scalars,proof,challenge,domain,evalData);
         console2.log("bases[24]: ", bases[24].x, bases[24].y);
         console2.log("scalars[25]: ", scalars[25]);
         console2.log("bases[25]: ", bases[25].x, bases[25].y);
+        console2.log("scalars[26]: ", scalars[26]);
+        console2.log("bases[26]: ", bases[26].x, bases[26].y);
     }
 
     function compute_first_scalar(
@@ -1719,7 +1689,6 @@ function add_plookup_commitments_helper1_4_2(
     function add_splitted_quotient_commitments(
         add_splitted_quotient_commitments_parameter memory y
     ) internal pure {
-        // JJ: new thing, skip first split_quot_poly_comms
         uint256 index = y.index;
         uint256 evalData_vanish_eval = y.evalData_vanish_eval;
         uint256 challenge_zeta = y.challenge_zeta;
@@ -1774,27 +1743,66 @@ function add_plookup_commitments_helper1_4_2(
             mstore(add(scalarsPtr, 0xa0), coeff)
             // mstore(add(basesPtr, 0xa0), split_quot_poly_comms_6)
         }
-        // bases[index] = proof.split_quot_poly_comms_1;
-        // bases[index + 1] = proof.split_quot_poly_comms_2;
-        // bases[index + 2] = proof.split_quot_poly_comms_3;
-        // bases[index + 3] = proof.split_quot_poly_comms_4;
-        // bases[index + 4] = proof.split_quot_poly_comms_5;
-        // bases[index + 5] = proof.split_quot_poly_comms_6;
+        bases[index] = proof.split_quot_poly_comms_1;
+        bases[index + 1] = proof.split_quot_poly_comms_2;
+        bases[index + 2] = proof.split_quot_poly_comms_3;
+        bases[index + 3] = proof.split_quot_poly_comms_4;
+        bases[index + 4] = proof.split_quot_poly_comms_5;
+        bases[index + 5] = proof.split_quot_poly_comms_6;
 
-        bases[index] = proof.split_quot_poly_comms_2;
-        bases[index + 1] = proof.split_quot_poly_comms_3;
-        bases[index + 2] = proof.split_quot_poly_comms_4;
-        bases[index + 3] = proof.split_quot_poly_comms_5;
-        bases[index + 4] = proof.split_quot_poly_comms_6;
+        // bases[index] = proof.split_quot_poly_comms_2;
+        // bases[index + 1] = proof.split_quot_poly_comms_3;
+        // bases[index + 2] = proof.split_quot_poly_comms_4;
+        // bases[index + 3] = proof.split_quot_poly_comms_5;
+        // bases[index + 4] = proof.split_quot_poly_comms_6;
        
         // index =21;
     
     }
 
+//     function accumulate_scalar_with_same_base(
+//     Types.G1Point[] memory bases,
+//     uint256[] memory scalars
+// ) internal pure returns (Types.G1Point[] memory, uint256[] memory) {
+//     uint256 p_local = Bn254Crypto.r_mod;
+//     require(bases.length == scalars.length, "Length mismatch");
+
+//     Types.G1Point[] memory tempBases = new Types.G1Point[](bases.length);
+//     uint256[] memory tempScalars = new uint256[](bases.length);
+
+//     uint256 uniqueCount = 0;
+
+//     for (uint256 i = 0; i < bases.length; i++) {
+//         bool found = false;
+//         for (uint256 j = 0; j < uniqueCount && !found; j++) {
+//             if (bases[i].x == tempBases[j].x && bases[i].y == tempBases[j].y) {
+//                 tempScalars[j] = addmod(tempScalars[j], scalars[i], p_local);
+//                 found = true;
+//             }
+//         }
+//         if (!found) {
+//             tempBases[uniqueCount] = bases[i];
+//             tempScalars[uniqueCount] = scalars[i];
+//             uniqueCount++;
+//         }
+//     }
+
+//     Types.G1Point[] memory finalBases = new Types.G1Point[](uniqueCount);
+//     uint256[] memory finalScalars = new uint256[](uniqueCount);
+//     for (uint256 i = 0; i < uniqueCount; i++) {
+//         finalBases[i] = tempBases[i];
+//         finalScalars[i] = tempScalars[i];
+//     }
+
+//     return (finalBases, finalScalars);
+// }
+
     function accumulate_scalar_with_same_base(
         Types.G1Point[] memory bases,
         uint256[] memory scalars
     ) internal pure returns (Types.G1Point[] memory, uint256[] memory) {
+
+        console2.log("accumulate_scalar_with_same_base");
         uint256 p_local = Bn254Crypto.r_mod;
         require(bases.length == scalars.length, "Length mismatch");
 
@@ -1806,33 +1814,33 @@ function add_plookup_commitments_helper1_4_2(
         uint256 uniqueCount = 0;
 
         for (uint256 i = 0; i < bases.length; i++) {
-            uint256 xorValue = bases[i].x ^ bases[i].y;
-            bool found = false;
-
-            for (uint256 j = 0; j < uniqueCount && !found; j++) {
-                if (hashTable[j] == xorValue) {
-                    tempScalars[j] = addmod(
-                        tempScalars[j],
-                        scalars[i],
-                        p_local
-                    );
-                    found = true;
-                }
-            }
-
-            if (!found) {
-                hashTable[uniqueCount] = xorValue;
-                tempBases[uniqueCount] = bases[i];
-                tempScalars[uniqueCount] = scalars[i];
-                uniqueCount++;
-            }
+            console2.log("bases scalars", i);
+                console2.log("bases.x:, bases.y, scalars", bases[i].x, bases[i].y, scalars[i]);
+    bool found = false;
+    for (uint256 j = 0; j < uniqueCount && !found; j++) {
+        if (bases[i].x == tempBases[j].x && bases[i].y == tempBases[j].y) {
+            console2.log("found same base:", j);
+            console2.log("same base is", bases[i].x, bases[i].y);
+            console2.log("add these two scalars", tempScalars[j], scalars[i]);
+            tempScalars[j] = addmod(tempScalars[j], scalars[i], p_local);
+            console2.log("add these two scalars to get", tempScalars[j]);
+            found = true;
         }
+    }
+    if (!found) {
+        tempBases[uniqueCount] = bases[i];
+        tempScalars[uniqueCount] = scalars[i];
+        uniqueCount++;
+    }
+}
 
         Types.G1Point[] memory finalBases = new Types.G1Point[](uniqueCount);
         uint256[] memory finalScalars = new uint256[](uniqueCount);
         for (uint256 i = 0; i < uniqueCount; i++) {
             finalBases[i] = tempBases[i];
             finalScalars[i] = tempScalars[i];
+            console2.log("finalBases, finalScalars index", i);
+            console2.log("finalBases, finalScalars", finalBases[i].x, finalBases[i].y, finalScalars[i]);
         }
 
         return (finalBases, finalScalars);
