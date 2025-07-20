@@ -8,9 +8,6 @@ pragma solidity >=0.6.0;
 pragma experimental ABIEncoderV2;
 import "./BytesLib.sol";
 import "forge-std/console2.sol";
-import "./Types.sol";
-import "./UltraPlonkVerificationKey.sol";
-
 
 /**
 @title UltraPlonkVerifier
@@ -31,6 +28,7 @@ contract UltraPlonkVerifier{
     // Jiajie: You can find that when we use line assembly code in a function,
     // I define a p again, this is because line assembly code can only get local parameter
     uint256 public p;
+
     constructor() {
         p = Bn254Crypto.r_mod;
     }
@@ -1983,148 +1981,142 @@ function add_plookup_commitments_helper1_4_2(
         Bn254Crypto.validate_G1Point(proof.opening_proof);
         Bn254Crypto.validate_G1Point(proof.shifted_opening_proof);
     }
- function get_verification_key()
+
+    function get_verification_key()
         internal
-        view
+        pure
         returns (Types.VerificationKey memory)
     {
-       return UltraPlonkVerificationKey.getVerificationKey();
-    }
-    // function get_verification_key()
-    //     internal
-    //     pure
-    //     returns (Types.VerificationKey memory)
-    // {
-    //     Types.VerificationKey memory vk;
-    //     assembly {
-    //         // domain_size
-    //         mstore(add(vk, 0x00), 512)
-    //         // num_inputs
-    //         mstore(add(vk, 0x20), 1)
-    //         // sigma_comms_1.x
-    //         mstore(
-    //             mload(add(vk, 0x40)),
-    //             0x2F5BB5FDB1E276AB3296410B2E37950DBEC8FB71D33FD8C06FF37187867E64C2
-    //         )
-    //         // sigma_comms_1.y
-    //         mstore(
-    //             add(mload(add(vk, 0x40)), 0x20),
-    //             0xE93AF618A1F0C36812D866E64FC1E67AAE9A38DA0B0DBB892A81B9596CA9526
-    //         )
-    //         // sigma_comms_2.x
-    //         mstore(
-    //             mload(add(vk, 0x60)),
-    //             0x191347D5516C89251606C73F1AAEDE230315CCE8D119DBB8F85EC7ADCA58FECF
-    //         )
-    //         // sigma_comms_2.y
-    //         mstore(
-    //             add(mload(add(vk, 0x60)), 0x20),
-    //             0xD51DA4FACEF5A9A1F66CAE614A9729AE73CBA7E910DE1E398890BFB19479E4D
-    //         )
-    //         // sigma_comms_3.x
-    //         mstore(
-    //             mload(add(vk, 0x80)),
-    //             0x152DDE58EAB59643AC5E43697C9F224183B4FA11E3A1A2A159C775AB2123598B
-    //         )
-    //         // sigma_comms_3.y
-    //         mstore(
-    //             add(mload(add(vk, 0x80)), 0x20),
-    //             0x27DC6260745CA0D7D34369926A2FB01A2B5F9DAD22284AFCD741DB392C136572
-    //         )
+        Types.VerificationKey memory vk;
+        assembly {
+            // domain_size
+            mstore(add(vk, 0x00), 512)
+            // num_inputs
+            mstore(add(vk, 0x20), 1)
+            // sigma_comms_1.x
+            mstore(
+                mload(add(vk, 0x40)),
+                0x2F5BB5FDB1E276AB3296410B2E37950DBEC8FB71D33FD8C06FF37187867E64C2
+            )
+            // sigma_comms_1.y
+            mstore(
+                add(mload(add(vk, 0x40)), 0x20),
+                0xE93AF618A1F0C36812D866E64FC1E67AAE9A38DA0B0DBB892A81B9596CA9526
+            )
+            // sigma_comms_2.x
+            mstore(
+                mload(add(vk, 0x60)),
+                0x191347D5516C89251606C73F1AAEDE230315CCE8D119DBB8F85EC7ADCA58FECF
+            )
+            // sigma_comms_2.y
+            mstore(
+                add(mload(add(vk, 0x60)), 0x20),
+                0xD51DA4FACEF5A9A1F66CAE614A9729AE73CBA7E910DE1E398890BFB19479E4D
+            )
+            // sigma_comms_3.x
+            mstore(
+                mload(add(vk, 0x80)),
+                0x152DDE58EAB59643AC5E43697C9F224183B4FA11E3A1A2A159C775AB2123598B
+            )
+            // sigma_comms_3.y
+            mstore(
+                add(mload(add(vk, 0x80)), 0x20),
+                0x27DC6260745CA0D7D34369926A2FB01A2B5F9DAD22284AFCD741DB392C136572
+            )
 
-    //         // sigma_comms_4.x
-    //         mstore(
-    //             mload(add(vk, 0xa0)),
-    //             0x2F23DFE6B5F7375F0E0D27F7386B95472ACB6E307E6794387D43B8A41851A738
-    //         )
-    //         // sigma_comms_4.y
-    //         mstore(
-    //             add(mload(add(vk, 0xa0)), 0x20),
-    //             0x1AA7E43E0C46B17121B3E336E2F0DDF21920247FE3F163DCB86277533E6D5368
-    //         )
+            // sigma_comms_4.x
+            mstore(
+                mload(add(vk, 0xa0)),
+                0x2F23DFE6B5F7375F0E0D27F7386B95472ACB6E307E6794387D43B8A41851A738
+            )
+            // sigma_comms_4.y
+            mstore(
+                add(mload(add(vk, 0xa0)), 0x20),
+                0x1AA7E43E0C46B17121B3E336E2F0DDF21920247FE3F163DCB86277533E6D5368
+            )
 
-    //         // sigma_comms_5.x
-    //         mstore(
-    //             mload(add(vk, 0xc0)),
-    //             0xC2BBD36AF72B26237A1A65C5078E16D52EE5815037B8ADCBEEAE664B12D09AB
-    //         )
-    //         // sigma_comms_5.y
-    //         mstore(
-    //             add(mload(add(vk, 0xc0)), 0x20),
-    //             0xD6522D528F18B34B9ECA3DA372B38355441EBC1052EBD6336FBAD629DD69530
-    //         )
+            // sigma_comms_5.x
+            mstore(
+                mload(add(vk, 0xc0)),
+                0xC2BBD36AF72B26237A1A65C5078E16D52EE5815037B8ADCBEEAE664B12D09AB
+            )
+            // sigma_comms_5.y
+            mstore(
+                add(mload(add(vk, 0xc0)), 0x20),
+                0xD6522D528F18B34B9ECA3DA372B38355441EBC1052EBD6336FBAD629DD69530
+            )
 
-    //         // sigma_comms_6.x
-    //         mstore(
-    //             mload(add(vk, 0xe0)),
-    //             0x2B6B34697EDC9241665F312E085493A73D96C936270084A53B7E79944F5030C7
-    //         )
-    //         // sigma_comms_6.y
-    //         mstore(
-    //             add(mload(add(vk, 0xe0)), 0x20),
-    //             0x2C2FDD8C0EF5D94FCFEFC694906A40183B7EA89EA3F57632CC4DEB833B576EB1
-    //         )
-    //         // k1
-    //         mstore(add(vk, 0x340), 1)
-    //         // k2
-    //         mstore(
-    //             add(vk, 0x360),
-    //             0x2F8DD1F1A7583C42C4E12A44E110404C73CA6C94813F85835DA4FB7BB1301D4A
-    //         )
-    //         // k3
-    //         mstore(
-    //             add(vk, 0x380),
-    //             0x1EE678A0470A75A6EAA8FE837060498BA828A3703B311D0F77F010424AFEB025
-    //         )
-    //         // k4
-    //         mstore(
-    //             add(vk, 0x3a0),
-    //             0x2042A587A90C187B0A087C03E29C968B950B1DB26D5C82D666905A6895790C0A
-    //         )
-    //         // k5
-    //         mstore(
-    //             add(vk, 0x3c0),
-    //             0x2E2B91456103698ADF57B799969DEA1C8F739DA5D8D40DD3EB9222DB7C81E881
-    //         )
-    //         // k6
-    //         mstore(
-    //             add(vk, 0x3e0),
-    //             0x1F20F5B0ADB417179D42DF7DDD4410A330AFDB03E5C28949665B55ADF7D7922D
-    //         )
+            // sigma_comms_6.x
+            mstore(
+                mload(add(vk, 0xe0)),
+                0x2B6B34697EDC9241665F312E085493A73D96C936270084A53B7E79944F5030C7
+            )
+            // sigma_comms_6.y
+            mstore(
+                add(mload(add(vk, 0xe0)), 0x20),
+                0x2C2FDD8C0EF5D94FCFEFC694906A40183B7EA89EA3F57632CC4DEB833B576EB1
+            )
+            // k1
+            mstore(add(vk, 0x340), 1)
+            // k2
+            mstore(
+                add(vk, 0x360),
+                0x2F8DD1F1A7583C42C4E12A44E110404C73CA6C94813F85835DA4FB7BB1301D4A
+            )
+            // k3
+            mstore(
+                add(vk, 0x380),
+                0x1EE678A0470A75A6EAA8FE837060498BA828A3703B311D0F77F010424AFEB025
+            )
+            // k4
+            mstore(
+                add(vk, 0x3a0),
+                0x2042A587A90C187B0A087C03E29C968B950B1DB26D5C82D666905A6895790C0A
+            )
+            // k5
+            mstore(
+                add(vk, 0x3c0),
+                0x2E2B91456103698ADF57B799969DEA1C8F739DA5D8D40DD3EB9222DB7C81E881
+            )
+            // k6
+            mstore(
+                add(vk, 0x3e0),
+                0x1F20F5B0ADB417179D42DF7DDD4410A330AFDB03E5C28949665B55ADF7D7922D
+            )
          
-    //     }
-    //     // vk.sigma_comms_6= Types.G1Point(0x283BBA8A33ED122DA7AD7F26BA7A2D5407FACA0A0D6CFA935F647C60C914B723, 0xDBFBABB7C023EF0DA02D99D1515897019BCA7CC41C4B47161B51C0F27F52956);
+        }
+        // vk.sigma_comms_6= Types.G1Point(0x283BBA8A33ED122DA7AD7F26BA7A2D5407FACA0A0D6CFA935F647C60C914B723, 0xDBFBABB7C023EF0DA02D99D1515897019BCA7CC41C4B47161B51C0F27F52956);
 
-    //     vk.selector_comms_1 = Types.G1Point(0x2C070E98C8202FCC3A8CAC5DFCAB636A125C2C53F7BA36A2178C545131DB2D9F, 0x1A3298B6427790A076429AAF4FD8554A022989D298E6636F295EC239EDE33287);
-    //     vk.selector_comms_2 = Types.G1Point(0x2C070E98C8202FCC3A8CAC5DFCAB636A125C2C53F7BA36A2178C545131DB2D9F, 0x1A3298B6427790A076429AAF4FD8554A022989D298E6636F295EC239EDE33287);
-    //     vk.selector_comms_3 = Types.G1Point(0x2C070E98C8202FCC3A8CAC5DFCAB636A125C2C53F7BA36A2178C545131DB2D9F, 0x1A3298B6427790A076429AAF4FD8554A022989D298E6636F295EC239EDE33287);
-    //     vk.selector_comms_4 = Types.G1Point(0x2C070E98C8202FCC3A8CAC5DFCAB636A125C2C53F7BA36A2178C545131DB2D9F, 0x1A3298B6427790A076429AAF4FD8554A022989D298E6636F295EC239EDE33287);
-    //     vk.selector_comms_5 = Types.G1Point(0x2C070E98C8202FCC3A8CAC5DFCAB636A125C2C53F7BA36A2178C545131DB2D9F, 0x1A3298B6427790A076429AAF4FD8554A022989D298E6636F295EC239EDE33287);
-    //     vk.selector_comms_6 = Types.G1Point(0x2C070E98C8202FCC3A8CAC5DFCAB636A125C2C53F7BA36A2178C545131DB2D9F, 0x1A3298B6427790A076429AAF4FD8554A022989D298E6636F295EC239EDE33287);
-    //     vk.selector_comms_7 = Types.G1Point(0x2C070E98C8202FCC3A8CAC5DFCAB636A125C2C53F7BA36A2178C545131DB2D9F, 0x1A3298B6427790A076429AAF4FD8554A022989D298E6636F295EC239EDE33287);
-    //     vk.selector_comms_8 = Types.G1Point(0x2C070E98C8202FCC3A8CAC5DFCAB636A125C2C53F7BA36A2178C545131DB2D9F, 0x1A3298B6427790A076429AAF4FD8554A022989D298E6636F295EC239EDE33287);
-    //     vk.selector_comms_9 = Types.G1Point(0x2C070E98C8202FCC3A8CAC5DFCAB636A125C2C53F7BA36A2178C545131DB2D9F, 0x1A3298B6427790A076429AAF4FD8554A022989D298E6636F295EC239EDE33287);
-    //     vk.selector_comms_10 = Types.G1Point(0x2C070E98C8202FCC3A8CAC5DFCAB636A125C2C53F7BA36A2178C545131DB2D9F, 0x1A3298B6427790A076429AAF4FD8554A022989D298E6636F295EC239EDE33287);
-    //     vk.selector_comms_11 = Types.G1Point(0xE540ED913C934CE103797CA49597514B737221427B65DE4193A24D22D35A6A0, 0x301D93C3824E94953FBB3CF62DD9C715FFF5091191A9C0746EA2344439C5F757);
-    //     vk.selector_comms_12 = Types.G1Point(0xEEB0057D511309B6D4CD782C845A8F2E4C0A38ED864537A11459A31C4100F17, 0xB267413389DD11E903F58A5E319F92D81177B27D959449C67DACA851903AFC6);
-    //     vk.selector_comms_13 = Types.G1Point(0x2C070E98C8202FCC3A8CAC5DFCAB636A125C2C53F7BA36A2178C545131DB2D9F, 0x1A3298B6427790A076429AAF4FD8554A022989D298E6636F295EC239EDE33287);
-    //     vk.selector_comms_14 = Types.G1Point(0x2C070E98C8202FCC3A8CAC5DFCAB636A125C2C53F7BA36A2178C545131DB2D9F, 0x1A3298B6427790A076429AAF4FD8554A022989D298E6636F295EC239EDE33287);
-    //     vk.selector_comms_15 = Types.G1Point(0x2C070E98C8202FCC3A8CAC5DFCAB636A125C2C53F7BA36A2178C545131DB2D9F, 0x1A3298B6427790A076429AAF4FD8554A022989D298E6636F295EC239EDE33287);
-    //     vk.selector_comms_16 = Types.G1Point(0x2C070E98C8202FCC3A8CAC5DFCAB636A125C2C53F7BA36A2178C545131DB2D9F, 0x1A3298B6427790A076429AAF4FD8554A022989D298E6636F295EC239EDE33287);
-    //     vk.selector_comms_17 = Types.G1Point(0x2C070E98C8202FCC3A8CAC5DFCAB636A125C2C53F7BA36A2178C545131DB2D9F, 0x1A3298B6427790A076429AAF4FD8554A022989D298E6636F295EC239EDE33287);
-    //     vk.selector_comms_18 = Types.G1Point(0x14E6B4B2E0AB16AF07895F5323C577819F76AFADD3B654D05864E3A8D2569529, 0x291747F35CB51FDDCD8F87CBB0F1AD48E9274BEA9D4F788FE791D3F545872F88);
+        vk.selector_comms_1 = Types.G1Point(0x2C070E98C8202FCC3A8CAC5DFCAB636A125C2C53F7BA36A2178C545131DB2D9F, 0x1A3298B6427790A076429AAF4FD8554A022989D298E6636F295EC239EDE33287);
+        vk.selector_comms_2 = Types.G1Point(0x2C070E98C8202FCC3A8CAC5DFCAB636A125C2C53F7BA36A2178C545131DB2D9F, 0x1A3298B6427790A076429AAF4FD8554A022989D298E6636F295EC239EDE33287);
+        vk.selector_comms_3 = Types.G1Point(0x2C070E98C8202FCC3A8CAC5DFCAB636A125C2C53F7BA36A2178C545131DB2D9F, 0x1A3298B6427790A076429AAF4FD8554A022989D298E6636F295EC239EDE33287);
+        vk.selector_comms_4 = Types.G1Point(0x2C070E98C8202FCC3A8CAC5DFCAB636A125C2C53F7BA36A2178C545131DB2D9F, 0x1A3298B6427790A076429AAF4FD8554A022989D298E6636F295EC239EDE33287);
+        vk.selector_comms_5 = Types.G1Point(0x2C070E98C8202FCC3A8CAC5DFCAB636A125C2C53F7BA36A2178C545131DB2D9F, 0x1A3298B6427790A076429AAF4FD8554A022989D298E6636F295EC239EDE33287);
+        vk.selector_comms_6 = Types.G1Point(0x2C070E98C8202FCC3A8CAC5DFCAB636A125C2C53F7BA36A2178C545131DB2D9F, 0x1A3298B6427790A076429AAF4FD8554A022989D298E6636F295EC239EDE33287);
+        vk.selector_comms_7 = Types.G1Point(0x2C070E98C8202FCC3A8CAC5DFCAB636A125C2C53F7BA36A2178C545131DB2D9F, 0x1A3298B6427790A076429AAF4FD8554A022989D298E6636F295EC239EDE33287);
+        vk.selector_comms_8 = Types.G1Point(0x2C070E98C8202FCC3A8CAC5DFCAB636A125C2C53F7BA36A2178C545131DB2D9F, 0x1A3298B6427790A076429AAF4FD8554A022989D298E6636F295EC239EDE33287);
+        vk.selector_comms_9 = Types.G1Point(0x2C070E98C8202FCC3A8CAC5DFCAB636A125C2C53F7BA36A2178C545131DB2D9F, 0x1A3298B6427790A076429AAF4FD8554A022989D298E6636F295EC239EDE33287);
+        vk.selector_comms_10 = Types.G1Point(0x2C070E98C8202FCC3A8CAC5DFCAB636A125C2C53F7BA36A2178C545131DB2D9F, 0x1A3298B6427790A076429AAF4FD8554A022989D298E6636F295EC239EDE33287);
+        vk.selector_comms_11 = Types.G1Point(0xE540ED913C934CE103797CA49597514B737221427B65DE4193A24D22D35A6A0, 0x301D93C3824E94953FBB3CF62DD9C715FFF5091191A9C0746EA2344439C5F757);
+        vk.selector_comms_12 = Types.G1Point(0xEEB0057D511309B6D4CD782C845A8F2E4C0A38ED864537A11459A31C4100F17, 0xB267413389DD11E903F58A5E319F92D81177B27D959449C67DACA851903AFC6);
+        vk.selector_comms_13 = Types.G1Point(0x2C070E98C8202FCC3A8CAC5DFCAB636A125C2C53F7BA36A2178C545131DB2D9F, 0x1A3298B6427790A076429AAF4FD8554A022989D298E6636F295EC239EDE33287);
+        vk.selector_comms_14 = Types.G1Point(0x2C070E98C8202FCC3A8CAC5DFCAB636A125C2C53F7BA36A2178C545131DB2D9F, 0x1A3298B6427790A076429AAF4FD8554A022989D298E6636F295EC239EDE33287);
+        vk.selector_comms_15 = Types.G1Point(0x2C070E98C8202FCC3A8CAC5DFCAB636A125C2C53F7BA36A2178C545131DB2D9F, 0x1A3298B6427790A076429AAF4FD8554A022989D298E6636F295EC239EDE33287);
+        vk.selector_comms_16 = Types.G1Point(0x2C070E98C8202FCC3A8CAC5DFCAB636A125C2C53F7BA36A2178C545131DB2D9F, 0x1A3298B6427790A076429AAF4FD8554A022989D298E6636F295EC239EDE33287);
+        vk.selector_comms_17 = Types.G1Point(0x2C070E98C8202FCC3A8CAC5DFCAB636A125C2C53F7BA36A2178C545131DB2D9F, 0x1A3298B6427790A076429AAF4FD8554A022989D298E6636F295EC239EDE33287);
+        vk.selector_comms_18 = Types.G1Point(0x14E6B4B2E0AB16AF07895F5323C577819F76AFADD3B654D05864E3A8D2569529, 0x291747F35CB51FDDCD8F87CBB0F1AD48E9274BEA9D4F788FE791D3F545872F88);
 
         
 
-    //     vk.range_table_comm = Types.G1Point(
-    //         0x5CB0B9FC82EFF921CCD085F1254A3A8FBE2C82E79ABFDD99CB2F2C8353D5E8,
-    //         0x3DEAC380246DA8595AE1A8AF4B8246A53F4A3B0CA66252B34B915205A311162
-    //     );
-    //     vk.key_table_comm = Types.G1Point(0x26015DD551EF9EB178392DB023F08B8AF77AA5FABDCF53CB1201ADDEBF9E1A67, 0xEB1D734631243278AD0C244DA67CBC72A8C3367F07188E22689B2D4C2F91F6A);
-    //     vk.table_dom_sep_comm = Types.G1Point(0x2960E04A2EEE47A5373512D4181ECDD9F6B7C8C1875DA9BEAE0A934CE071638D, 0x7AB73985287B41F40028D108E97686F674EA59588C20027B791F93EB7FC8AFD);
-    //     vk.q_dom_sep_comm = Types.G1Point(0x2C51031B1329ECB7043CA0B1A39BEDDC2A4C42AF8DC91062FD3ADE6EA9B62C48, 0x141587296A82B2E51B417B9D7930A22D92B0C028E16CA94CE3C808419F03560);
-    //     return vk;
-    // }
+        vk.range_table_comm = Types.G1Point(
+            0x5CB0B9FC82EFF921CCD085F1254A3A8FBE2C82E79ABFDD99CB2F2C8353D5E8,
+            0x3DEAC380246DA8595AE1A8AF4B8246A53F4A3B0CA66252B34B915205A311162
+        );
+        vk.key_table_comm = Types.G1Point(0x26015DD551EF9EB178392DB023F08B8AF77AA5FABDCF53CB1201ADDEBF9E1A67, 0xEB1D734631243278AD0C244DA67CBC72A8C3367F07188E22689B2D4C2F91F6A);
+        vk.table_dom_sep_comm = Types.G1Point(0x2960E04A2EEE47A5373512D4181ECDD9F6B7C8C1875DA9BEAE0A934CE071638D, 0x7AB73985287B41F40028D108E97686F674EA59588C20027B791F93EB7FC8AFD);
+        vk.q_dom_sep_comm = Types.G1Point(0x2C51031B1329ECB7043CA0B1A39BEDDC2A4C42AF8DC91062FD3ADE6EA9B62C48, 0x141587296A82B2E51B417B9D7930A22D92B0C028E16CA94CE3C808419F03560);
+        return vk;
+    }
 
     function deserialize_proof(
         bytes calldata proofBytes
@@ -2810,124 +2802,183 @@ library Transcript {
     }
 }
 
-// library Types {
-//     // If a G1Point is infinity, for simplicity set x and y to zero
-//     // struct G1Point {
-//     //     uint256 x;
-//     //     uint256 y;
-//     // }
-//     struct G2Point {
-//         uint256 x0;
-//         uint256 x1;
-//         uint256 y0;
-//         uint256 y1;
-//     }
-//     struct PcsInfo {
-//         // the shifted point to be evaluated at
-//         uint256 nextEvalPoint; // 0x00
-//         // the polynomial evaluation value
-//         uint256 eval; // 0x20
-//         // scalars of poly comm for MSM
-//         uint256[] commScalars; // 0x40
-//         // bases of poly comm for MSM
-//         Types.G1Point[] commBases; // 0x60
-//     }
-//     struct Proof {
-//         G1Point wires_poly_comms_1; // 0x00
-//         G1Point wires_poly_comms_2; // 0x20
-//         G1Point wires_poly_comms_3; // 0x40
-//         G1Point wires_poly_comms_4; // 0x60
-//         G1Point wires_poly_comms_5; // 0x80
-//         G1Point wires_poly_comms_6; // 0xa0
-//         G1Point prod_perm_poly_comm; // 0xc0
-//         G1Point split_quot_poly_comms_1; // 0xe0
-//         G1Point split_quot_poly_comms_2; // 0x100
-//         G1Point split_quot_poly_comms_3; // 0x120
-//         G1Point split_quot_poly_comms_4; // 0x140
-//         G1Point split_quot_poly_comms_5; // 0x160
-//         G1Point split_quot_poly_comms_6; // 0x180
-//         G1Point h_poly_comm_1; // 0x1a0
-//         G1Point h_poly_comm_2; // 0x1c0
-//         G1Point prod_lookup_poly_comm; // 0x1e0
-//         uint256 wires_evals_1; // 0x200
-//         uint256 wires_evals_2; // 0x220
-//         uint256 wires_evals_3; // 0x240
-//         uint256 wires_evals_4; // 0x260
-//         uint256 wires_evals_5; // 0x280
-//         uint256 wires_evals_6; // 0x2a0
-//         uint256 wire_sigma_evals_1; // 0x2c0
-//         uint256 wire_sigma_evals_2; // 0x2e0
-//         uint256 wire_sigma_evals_3; // 0x300
-//         uint256 wire_sigma_evals_4; // 0x320
-//         uint256 wire_sigma_evals_5; // 0x340
-//         uint256 perm_next_eval; // 0x360
-//         uint256 range_table_eval; // 0x380
-//         uint256 key_table_eval; // 0x3a0
-//         uint256 table_dom_sep_eval; // 0x3c0
-//         uint256 q_dom_sep_eval; // 0x3e0
-//         uint256 h_1_eval; // 0x400
-//         uint256 q_lookup_eval; // 0x420
-//         uint256 prod_next_eval; // 0x440
-//         uint256 range_table_next_eval; // 0x460
-//         uint256 key_table_next_eval; // 0x480
-//         uint256 table_dom_sep_next_eval; // 0x4a0
-//         uint256 h_1_next_eval; // 0x4c0
-//         uint256 h_2_next_eval; // 0x4e0
-//         uint256 q_lookup_next_eval; // 0x500
-//         uint256 w_3_next_eval; // 0x520
-//         uint256 w_4_next_eval; // 0x540
-//         G1Point opening_proof; // 0x560
-//         G1Point shifted_opening_proof; // 0x580
-//     }
+library Types {
+    // If a G1Point is infinity, for simplicity set x and y to zero
+    struct G1Point {
+        uint256 x;
+        uint256 y;
+    }
+    struct G2Point {
+        uint256 x0;
+        uint256 x1;
+        uint256 y0;
+        uint256 y1;
+    }
+    struct PcsInfo {
+        // the shifted point to be evaluated at
+        uint256 nextEvalPoint; // 0x00
+        // the polynomial evaluation value
+        uint256 eval; // 0x20
+        // scalars of poly comm for MSM
+        uint256[] commScalars; // 0x40
+        // bases of poly comm for MSM
+        Types.G1Point[] commBases; // 0x60
+    }
+    struct Proof {
+        G1Point wires_poly_comms_1; // 0x00
+        G1Point wires_poly_comms_2; // 0x20
+        G1Point wires_poly_comms_3; // 0x40
+        G1Point wires_poly_comms_4; // 0x60
+        G1Point wires_poly_comms_5; // 0x80
+        G1Point wires_poly_comms_6; // 0xa0
+        G1Point prod_perm_poly_comm; // 0xc0
+        G1Point split_quot_poly_comms_1; // 0xe0
+        G1Point split_quot_poly_comms_2; // 0x100
+        G1Point split_quot_poly_comms_3; // 0x120
+        G1Point split_quot_poly_comms_4; // 0x140
+        G1Point split_quot_poly_comms_5; // 0x160
+        G1Point split_quot_poly_comms_6; // 0x180
+        G1Point h_poly_comm_1; // 0x1a0
+        G1Point h_poly_comm_2; // 0x1c0
+        G1Point prod_lookup_poly_comm; // 0x1e0
+        uint256 wires_evals_1; // 0x200
+        uint256 wires_evals_2; // 0x220
+        uint256 wires_evals_3; // 0x240
+        uint256 wires_evals_4; // 0x260
+        uint256 wires_evals_5; // 0x280
+        uint256 wires_evals_6; // 0x2a0
+        uint256 wire_sigma_evals_1; // 0x2c0
+        uint256 wire_sigma_evals_2; // 0x2e0
+        uint256 wire_sigma_evals_3; // 0x300
+        uint256 wire_sigma_evals_4; // 0x320
+        uint256 wire_sigma_evals_5; // 0x340
+        uint256 perm_next_eval; // 0x360
+        uint256 range_table_eval; // 0x380
+        uint256 key_table_eval; // 0x3a0
+        uint256 table_dom_sep_eval; // 0x3c0
+        uint256 q_dom_sep_eval; // 0x3e0
+        uint256 h_1_eval; // 0x400
+        uint256 q_lookup_eval; // 0x420
+        uint256 prod_next_eval; // 0x440
+        uint256 range_table_next_eval; // 0x460
+        uint256 key_table_next_eval; // 0x480
+        uint256 table_dom_sep_next_eval; // 0x4a0
+        uint256 h_1_next_eval; // 0x4c0
+        uint256 h_2_next_eval; // 0x4e0
+        uint256 q_lookup_next_eval; // 0x500
+        uint256 w_3_next_eval; // 0x520
+        uint256 w_4_next_eval; // 0x540
+        G1Point opening_proof; // 0x560
+        G1Point shifted_opening_proof; // 0x580
+    }
 
-//     /// @dev Plonk IOP verifier challenges.
-//     struct ChallengeTranscript {
-//         uint256 tau; // 0x00
-//         uint256 beta; // 0x20
-//         uint256 gamma; // 0x40
-//         uint256 alpha; // 0x60
-//         uint256 zeta; // 0x80
-//         uint256 v; // 0xa0
-//         uint256 u; // 0xc0
-//         uint256 alpha2; // 0xe0
-//         uint256[5] alpha_powers; // 0x100
-//         uint256 alpha7; // 0x100
-//         uint256 alpha_base;// 0x120
-//     }
-    
+    /// @dev Plonk IOP verifier challenges.
+    struct ChallengeTranscript {
+        uint256 tau; // 0x00
+        uint256 beta; // 0x20
+        uint256 gamma; // 0x40
+        uint256 alpha; // 0x60
+        uint256 zeta; // 0x80
+        uint256 v; // 0xa0
+        uint256 u; // 0xc0
+        uint256 alpha2; // 0xe0
+        uint256[5] alpha_powers; // 0x100
+        uint256 alpha7; // 0x100
+        uint256 alpha_base;// 0x120
+    }
+    struct VerificationKey {
+        uint256 domain_size; //0x00
+        uint256 num_inputs; //0x20
+        // extended perm (sigma) poly commitment
+        G1Point sigma_comms_1; //0x40
+        G1Point sigma_comms_2; //0x60
+        G1Point sigma_comms_3; //0x80
+        G1Point sigma_comms_4; //0xa0
+        G1Point sigma_comms_5; //0xc0
+        G1Point sigma_comms_6; // 0xe0
+        //  linear combination selector q1-q4
+        G1Point selector_comms_1; //0x100
+        G1Point selector_comms_2; //0x120
+        G1Point selector_comms_3; //0x140
+        G1Point selector_comms_4; //0x160
+        // multiplication selector for the first and the second wire
+        // qM12
+        G1Point selector_comms_5; //0x180
+        // multiplication selector for the third and the fourth wire
+        // qM34
+        G1Point selector_comms_6; //0x1a0
+        // output selector
+        G1Point selector_comms_7; //0x1c0
+        // constant term selector
+        G1Point selector_comms_8; //0x1e0
+        // rescue selector qH1 * w_ai^5
+        G1Point selector_comms_9; //0x200
+        // rescue selector qH2 * w_bi^5
+        G1Point selector_comms_10; //0x220
+        // rescue selector qH3 * w_ci^5
+        G1Point selector_comms_11; //0x240
+        // rescue selector qH4 * w_di^5
+        G1Point selector_comms_12; //0x260
+        // elliptic curve selector
+        G1Point selector_comms_13; //0x280
+        G1Point selector_comms_14; //0x2a0
+        G1Point selector_comms_15;  //0x2c0
+        G1Point selector_comms_16; //0x2e0
+        G1Point selector_comms_17; //0x300
+        G1Point selector_comms_18; //0x320
 
-//     function compress_g1_point(
-//         G1Point memory point
-//     ) internal pure returns (bytes memory) {
-//         uint256 flag = 0;
 
-//         if (!isYNegative(point)) {
-//             flag = 0x8000000000000000000000000000000000000000000000000000000000000000;
-//         }
+        // coset representatives
+        // wire types == 5
+        uint256 k1; //0x340
+        uint256 k2; //0x360
+        uint256 k3; //0x380
+        uint256 k4; //0x3a0
+        uint256 k5; //0x3c0
+        uint256 k6; //0x3e0
+        /// PlookupVerifyingKey<E>>
+        //range_table_comm 
+        G1Point range_table_comm; //0x400
+        //key_table_comm
+        G1Point key_table_comm; //0x420
+        //table_dom_sep_comm
+        G1Point table_dom_sep_comm; //0x440
+        // q_dom_sep_comm
+        G1Point q_dom_sep_comm; //0x460
+    }
 
-//         return abi.encodePacked(Transcript.reverse_Endianness(point.x | flag));
-//     }
+    function compress_g1_point(
+        G1Point memory point
+    ) internal pure returns (bytes memory) {
+        uint256 flag = 0;
 
-//     function G1PointCompress(
-//         G1Point memory point
-//     ) internal pure returns (bytes memory) {
-//         uint256 flag = 0;
+        if (!isYNegative(point)) {
+            flag = 0x8000000000000000000000000000000000000000000000000000000000000000;
+        }
 
-//         if (point.x == 0 && point.y == 0) {
-//             flag |= 0x4000000000000000000000000000000000000000000000000000000000000000;
-//         }
+        return abi.encodePacked(Transcript.reverse_Endianness(point.x | flag));
+    }
 
-//         if (!isYNegative(point)) {
-//             flag = 0x8000000000000000000000000000000000000000000000000000000000000000;
-//         }
+    function G1PointCompress(
+        G1Point memory point
+    ) internal pure returns (bytes memory) {
+        uint256 flag = 0;
 
-//         return abi.encodePacked(Transcript.reverse_Endianness(point.x | flag));
-//     }
+        if (point.x == 0 && point.y == 0) {
+            flag |= 0x4000000000000000000000000000000000000000000000000000000000000000;
+        }
 
-//     function isYNegative(G1Point memory point) internal pure returns (bool) {
-//         return (point.y << 1) < Bn254Crypto.p_mod;
-//     }
-// }
+        if (!isYNegative(point)) {
+            flag = 0x8000000000000000000000000000000000000000000000000000000000000000;
+        }
+
+        return abi.encodePacked(Transcript.reverse_Endianness(point.x | flag));
+    }
+
+    function isYNegative(G1Point memory point) internal pure returns (bool) {
+        return (point.y << 1) < Bn254Crypto.p_mod;
+    }
+}
 
 library Bn254Crypto {
     uint256 constant p_mod =
