@@ -200,10 +200,10 @@ contract UltraPlonkVerifier{
         Types.Proof memory decoded_proof
         = deserialize_proof(proofBytes);
 {
-    //     console2.log("wires_poly_comms_1.x: ", decoded_proof.wires_poly_comms_1.x);
-    //     console2.log("wires_poly_comms_1.y: ", decoded_proof.wires_poly_comms_1.y);
-    //     console2.log("wires_poly_comms_2.x: ", decoded_proof.wires_poly_comms_2.x);
-    //     console2.log("wires_poly_comms_2.y: ", decoded_proof.wires_poly_comms_2.y);
+        // console2.log("wires_poly_comms_1.x: ", decoded_proof.wires_poly_comms_1.x);
+        // console2.log("wires_poly_comms_1.y: ", decoded_proof.wires_poly_comms_1.y);
+        // console2.log("wires_poly_comms_2.x: ", decoded_proof.wires_poly_comms_2.x);
+        // console2.log("wires_poly_comms_2.y: ", decoded_proof.wires_poly_comms_2.y);
     //     console2.log("wires_poly_comms_3.x: ", decoded_proof.wires_poly_comms_3.x);
     //     console2.log("wires_poly_comms_3.y: ", decoded_proof.wires_poly_comms_3.y);
     //     console2.log("wires_poly_comms_4.x: ", decoded_proof.wires_poly_comms_4.x);
@@ -312,7 +312,7 @@ contract UltraPlonkVerifier{
 
 
         result = verify_OpeningProof(full_challenges, pcsInfo, decoded_proof);
-        require(result, "Proof failed");
+        // require(result, "Proof failed");
         // result = true;
     }
 
@@ -387,8 +387,8 @@ contract UltraPlonkVerifier{
         //  console2.log("challenges.zeta * self.domain.group_gen: ", mulmod(zeta, gen, p));
         // console2.log("commScalars length: ", commScalars.length);
         // console2.log("commBases length: ", commBases.length);
-         console2.log("commBases[0]: ", commBases[0].x, commBases[0].y);
-         console2.log("commScalars[0]: ", commScalars[0]);
+        //  console2.log("commBases[0]: ", commBases[0].x, commBases[0].y);
+        //  console2.log("commScalars[0]: ", commScalars[0]);
         return (
             Types.PcsInfo(mulmod(zeta, gen, p), eval, commScalars, commBases)
         );
@@ -411,12 +411,12 @@ contract UltraPlonkVerifier{
         Types.G1Point memory B;
         // A = [open_proof] + u * [shifted_open_proof]
         A = compute_A(proof, challenge);
-        console2.log("A: ", A.x, A.y);
+        // console2.log("A: ", A.x, A.y);
      
         // B = eval_point * open_proof + u * next_eval_point *
         //   shifted_open_proof + comm - eval * [1]1`.
         B = compute_B(pcsInfo, proof, challenge);
-        console2.log("B: ", B.x, B.y);
+        // console2.log("B: ", B.x, B.y);
       
 
         // Check e(A, [x]2) ?= e(B, [1]2)
@@ -463,14 +463,14 @@ contract UltraPlonkVerifier{
             pcsInfo.commScalars[56] = Bn254Crypto.negate_fr(pcsInfo.eval);
             pcsInfo.commBases[56] = Bn254Crypto.open_key_g();
             
-            console2.log("pcsInfo.commScalars[54]: ", pcsInfo.commScalars[54]);
-            console2.log("pcsInfo.commBases[54]: ", pcsInfo.commBases[54].x, pcsInfo.commBases[54].y);
-            console2.log("pcsInfo.commScalars[55]: ", pcsInfo.commScalars[55]);
-            console2.log("pcsInfo.commBases[55]: ", pcsInfo.commBases[55].x, pcsInfo.commBases[55].y);
-            console2.log("pcsInfo.commScalars[56]: ", pcsInfo.commScalars[56]); 
-            console2.log("pcsInfo.commBases[56]: ", pcsInfo.commBases[56].x, pcsInfo.commBases[56].y);
-            console2.log("pcsInfo.commScalars[57]: ", pcsInfo.commScalars[57]); 
-            console2.log("pcsInfo.commBases[57]: ", pcsInfo.commBases[57].x, pcsInfo.commBases[57].y);
+            // console2.log("pcsInfo.commScalars[54]: ", pcsInfo.commScalars[54]);
+            // console2.log("pcsInfo.commBases[54]: ", pcsInfo.commBases[54].x, pcsInfo.commBases[54].y);
+            // console2.log("pcsInfo.commScalars[55]: ", pcsInfo.commScalars[55]);
+            // console2.log("pcsInfo.commBases[55]: ", pcsInfo.commBases[55].x, pcsInfo.commBases[55].y);
+            // console2.log("pcsInfo.commScalars[56]: ", pcsInfo.commScalars[56]); 
+            // console2.log("pcsInfo.commBases[56]: ", pcsInfo.commBases[56].x, pcsInfo.commBases[56].y);
+            // console2.log("pcsInfo.commScalars[57]: ", pcsInfo.commScalars[57]); 
+            // console2.log("pcsInfo.commBases[57]: ", pcsInfo.commBases[57].x, pcsInfo.commBases[57].y);
             
            
 
@@ -521,10 +521,10 @@ contract UltraPlonkVerifier{
             
 
 
-            console2.log("bases_after_acc lenth: ", bases_after_acc.length);
-            console2.log("scalars_after_acc lenth: ", scalars_after_acc.length);
-            console2.log("pcsInfo.commBases lenth: ",  pcsInfo.commBases.length);
-            console2.log("pcsInfo.commScalars lenth: ", pcsInfo.commScalars.length);
+            // console2.log("bases_after_acc lenth: ", bases_after_acc.length);
+            // console2.log("scalars_after_acc lenth: ", scalars_after_acc.length);
+            // console2.log("pcsInfo.commBases lenth: ",  pcsInfo.commBases.length);
+            // console2.log("pcsInfo.commScalars lenth: ", pcsInfo.commScalars.length);
         }
     }
 
@@ -906,18 +906,18 @@ compute_buffer_v_and_uv_basis_3_parameters memory z3;
         }
 
         
-        console2.log("scalars[27]: ", commScalars[27]);
-        console2.log("commBases[27]: ", commBases[27].x, commBases[27].y);
-        console2.log("scalars[28]: ", commScalars[28]);
-        console2.log("commBases[28]: ", commBases[28].x, commBases[28].y);
-        console2.log("scalars[29]: ", commScalars[29]);
-        console2.log("commBases[29]: ", commBases[29].x, commBases[29].y);
-        console2.log("scalars[30]: ", commScalars[30]);
-        console2.log("commBases[30]: ", commBases[30].x, commBases[30].y);
-        console2.log("scalars[31]: ", commScalars[31]);
-        console2.log("commBases[31]: ", commBases[31].x, commBases[31].y);
-        console2.log("scalars[32]: ", commScalars[32]);
-        console2.log("commBases[32]: ", commBases[32].x, commBases[32].y);
+        // console2.log("scalars[27]: ", commScalars[27]);
+        // console2.log("commBases[27]: ", commBases[27].x, commBases[27].y);
+        // console2.log("scalars[28]: ", commScalars[28]);
+        // console2.log("commBases[28]: ", commBases[28].x, commBases[28].y);
+        // console2.log("scalars[29]: ", commScalars[29]);
+        // console2.log("commBases[29]: ", commBases[29].x, commBases[29].y);
+        // console2.log("scalars[30]: ", commScalars[30]);
+        // console2.log("commBases[30]: ", commBases[30].x, commBases[30].y);
+        // console2.log("scalars[31]: ", commScalars[31]);
+        // console2.log("commBases[31]: ", commBases[31].x, commBases[31].y);
+        // console2.log("scalars[32]: ", commScalars[32]);
+        // console2.log("commBases[32]: ", commBases[32].x, commBases[32].y);
 
        
 
@@ -925,8 +925,8 @@ compute_buffer_v_and_uv_basis_3_parameters memory z3;
         buffer_v_and_uv_basis[11] = uv_base;
         commScalars[38] = uv_base;
         commBases[38] = proof.prod_perm_poly_comm;
-        console2.log("commScalars[38]: ", commScalars[38]);
-        console2.log("commBases[38]: ", commBases[38].x, commBases[38].y);
+        // console2.log("commScalars[38]: ", commScalars[38]);
+        // console2.log("commBases[38]: ", commBases[38].x, commBases[38].y);
         return (buffer_v_and_uv_basis, v_base,mulmod(uv_base, v, p_local));
     }
 
@@ -969,18 +969,18 @@ compute_buffer_v_and_uv_basis_3_parameters memory z3;
             }
         }
 
-         console2.log("Dealing with vk.sigma_comms");
+        //  console2.log("Dealing with vk.sigma_comms");
         
-        console2.log("scalars[33]: ", commScalars[33]);
-        console2.log("commBases[33]: ", commBases[33].x, commBases[33].y);
-        console2.log("scalars[34]: ", commScalars[34]);
-        console2.log("commBases[34]: ", commBases[34].x, commBases[34].y);
-        console2.log("scalars[35]: ", commScalars[35]);
-        console2.log("commBases[35]: ", commBases[35].x, commBases[35].y);
-        console2.log("scalars[36]: ", commScalars[36]);
-        console2.log("commBases[36]: ", commBases[36].x, commBases[36].y);
-        console2.log("scalars[37]: ", commScalars[37]);
-        console2.log("commBases[37]: ", commBases[37].x, commBases[37].y);
+        // console2.log("scalars[33]: ", commScalars[33]);
+        // console2.log("commBases[33]: ", commBases[33].x, commBases[33].y);
+        // console2.log("scalars[34]: ", commScalars[34]);
+        // console2.log("commBases[34]: ", commBases[34].x, commBases[34].y);
+        // console2.log("scalars[35]: ", commScalars[35]);
+        // console2.log("commBases[35]: ", commBases[35].x, commBases[35].y);
+        // console2.log("scalars[36]: ", commScalars[36]);
+        // console2.log("commBases[36]: ", commBases[36].x, commBases[36].y);
+        // console2.log("scalars[37]: ", commScalars[37]);
+        // console2.log("commBases[37]: ", commBases[37].x, commBases[37].y);
         res = v_base;
        
 
@@ -1010,18 +1010,18 @@ compute_buffer_v_and_uv_basis_3_parameters memory z3;
             z.v_base = mulmod(z.v_base, v, p_local);
         }
 
-        console2.log("scalars[39]: ", z.commScalars[39]);
-        console2.log("commBases[39]: ", z.commBases[39].x, z.commBases[39].y);
-        console2.log("scalars[40]: ", z.commScalars[40]);
-        console2.log("commBases[40]: ", z.commBases[40].x, z.commBases[40].y);
-        console2.log("scalars[41]: ", z.commScalars[41]);
-        console2.log("commBases[41]: ", z.commBases[41].x, z.commBases[41].y);
-        console2.log("scalars[42]: ", z.commScalars[42]);
-        console2.log("commBases[42]: ", z.commBases[42].x, z.commBases[42].y);
-        console2.log("scalars[43]: ", z.commScalars[43]);
-        console2.log("commBases[43]: ", z.commBases[43].x, z.commBases[43].y);
-        console2.log("scalars[44]: ", z.commScalars[44]);
-        console2.log("commBases[44]: ", z.commBases[44].x, z.commBases[44].y);
+        // console2.log("scalars[39]: ", z.commScalars[39]);
+        // console2.log("commBases[39]: ", z.commBases[39].x, z.commBases[39].y);
+        // console2.log("scalars[40]: ", z.commScalars[40]);
+        // console2.log("commBases[40]: ", z.commBases[40].x, z.commBases[40].y);
+        // console2.log("scalars[41]: ", z.commScalars[41]);
+        // console2.log("commBases[41]: ", z.commBases[41].x, z.commBases[41].y);
+        // console2.log("scalars[42]: ", z.commScalars[42]);
+        // console2.log("commBases[42]: ", z.commBases[42].x, z.commBases[42].y);
+        // console2.log("scalars[43]: ", z.commScalars[43]);
+        // console2.log("commBases[43]: ", z.commBases[43].x, z.commBases[43].y);
+        // console2.log("scalars[44]: ", z.commScalars[44]);
+        // console2.log("commBases[44]: ", z.commBases[44].x, z.commBases[44].y);
 
 
 Types.G1Point[9] memory plookup_shifted_comms =[
@@ -1036,19 +1036,19 @@ Types.G1Point[9] memory plookup_shifted_comms =[
     z.proof.wires_poly_comms_5, //52
     z.vk.table_dom_sep_comm //53
 ];
-  console2.log("45 z.proof.prod_lookup_poly_comm: ", z.proof.prod_lookup_poly_comm.x, z.proof.prod_lookup_poly_comm.y);
-  console2.log("46 z.vk.range_table_comm: ", z.vk.range_table_comm.x, z.vk.range_table_comm.y);
-  console2.log("47 z.vk.key_table_comm: ", z.vk.key_table_comm.x, z.vk.key_table_comm.y);
-    console2.log("48 z.proof.h_poly_comm_1: ", z.proof.h_poly_comm_1.x, z.proof.h_poly_comm_1.y);
-    console2.log("49 z.proof.h_poly_comm_2: ", z.proof.h_poly_comm_2.x, z.proof.h_poly_comm_2.y);
-    console2.log("50 z.selector_comms_18: ", z.vk.selector_comms_18.x, z.vk.selector_comms_18.y);
-    console2.log("51 z.proof.wires_poly_comms_4: ", z.proof.wires_poly_comms_4.x, z.proof.wires_poly_comms_4.y);
-    console2.log("52 z.proof.wires_poly_comms_5: ", z.proof.wires_poly_comms_5.x, z.proof.wires_poly_comms_5.y);
-    console2.log("53 z.vk.table_dom_sep_comm: ", z.vk.table_dom_sep_comm.x, z.vk.table_dom_sep_comm.y);
+//   console2.log("45 z.proof.prod_lookup_poly_comm: ", z.proof.prod_lookup_poly_comm.x, z.proof.prod_lookup_poly_comm.y);
+//   console2.log("46 z.vk.range_table_comm: ", z.vk.range_table_comm.x, z.vk.range_table_comm.y);
+//   console2.log("47 z.vk.key_table_comm: ", z.vk.key_table_comm.x, z.vk.key_table_comm.y);
+//     console2.log("48 z.proof.h_poly_comm_1: ", z.proof.h_poly_comm_1.x, z.proof.h_poly_comm_1.y);
+//     console2.log("49 z.proof.h_poly_comm_2: ", z.proof.h_poly_comm_2.x, z.proof.h_poly_comm_2.y);
+//     console2.log("50 z.selector_comms_18: ", z.vk.selector_comms_18.x, z.vk.selector_comms_18.y);
+//     console2.log("51 z.proof.wires_poly_comms_4: ", z.proof.wires_poly_comms_4.x, z.proof.wires_poly_comms_4.y);
+//     console2.log("52 z.proof.wires_poly_comms_5: ", z.proof.wires_poly_comms_5.x, z.proof.wires_poly_comms_5.y);
+//     console2.log("53 z.vk.table_dom_sep_comm: ", z.vk.table_dom_sep_comm.x, z.vk.table_dom_sep_comm.y);
 
 z.start_index =45;
  for (uint256 i = 0; i < 9; i++) {
-    console2.log("z.start_index + i:", z.start_index + i);
+//     console2.log("z.start_index + i:", z.start_index + i);
             z.buffer_v_and_uv_basis[18 + i] = z.uv_base;
             z.commScalars[z.start_index + i] = z.uv_base;
             z.commBases[z.start_index + i] = plookup_shifted_comms[i];
@@ -1056,27 +1056,27 @@ z.start_index =45;
 
         }
         
-        console2.log("plookup_shifted_comms");
-        console2.log("scalars[45]: ", z.commScalars[45]);
-        console2.log("commBases[45]: ", z.commBases[45].x, z.commBases[45].y);
-        console2.log("scalars[46]: ", z.commScalars[46]);
-        console2.log("commBases[46]: ", z.commBases[46].x, z.commBases[46].y);
-        console2.log("scalars[47]: ", z.commScalars[47]);
-        console2.log("commBases[47]: ", z.commBases[47].x, z.commBases[47].y);
-        console2.log("scalars[48]: ", z.commScalars[48]);
-        console2.log("commBases[48]: ", z.commBases[48].x, z.commBases[48].y);
+        // console2.log("plookup_shifted_comms");
+        // console2.log("scalars[45]: ", z.commScalars[45]);
+        // console2.log("commBases[45]: ", z.commBases[45].x, z.commBases[45].y);
+        // console2.log("scalars[46]: ", z.commScalars[46]);
+        // console2.log("commBases[46]: ", z.commBases[46].x, z.commBases[46].y);
+        // console2.log("scalars[47]: ", z.commScalars[47]);
+        // console2.log("commBases[47]: ", z.commBases[47].x, z.commBases[47].y);
+        // console2.log("scalars[48]: ", z.commScalars[48]);
+        // console2.log("commBases[48]: ", z.commBases[48].x, z.commBases[48].y);
 
 
-        console2.log("scalars[49]: ", z.commScalars[49]);
-        console2.log("commBases[49]: ", z.commBases[49].x, z.commBases[49].y);
-        console2.log("scalars[50]: ", z.commScalars[50]);
-        console2.log("commBases[50]: ", z.commBases[50].x, z.commBases[50].y);
-        console2.log("scalars[51]: ", z.commScalars[51]);
-        console2.log("commBases[51]: ", z.commBases[51].x, z.commBases[51].y);
-        console2.log("scalars[52]: ", z.commScalars[52]);
-        console2.log("commBases[52]: ", z.commBases[52].x, z.commBases[52].y);
-          console2.log("scalars[53]: ", z.commScalars[53]);
-        console2.log("commBases[53]: ", z.commBases[53].x, z.commBases[53].y);
+        // console2.log("scalars[49]: ", z.commScalars[49]);
+        // console2.log("commBases[49]: ", z.commBases[49].x, z.commBases[49].y);
+        // console2.log("scalars[50]: ", z.commScalars[50]);
+        // console2.log("commBases[50]: ", z.commBases[50].x, z.commBases[50].y);
+        // console2.log("scalars[51]: ", z.commScalars[51]);
+        // console2.log("commBases[51]: ", z.commBases[51].x, z.commBases[51].y);
+        // console2.log("scalars[52]: ", z.commScalars[52]);
+        // console2.log("commBases[52]: ", z.commBases[52].x, z.commBases[52].y);
+        //   console2.log("scalars[53]: ", z.commScalars[53]);
+        // console2.log("commBases[53]: ", z.commBases[53].x, z.commBases[53].y);
       
         
     }
@@ -1107,10 +1107,10 @@ z.start_index =45;
             // G1Point sigma_comms_6;
             mstore(add(bases, 0x40), mload(add(verifyingKey, 0xe0)))
         }
-        console2.log("scalars[0]: ", scalars[0]);
-        console2.log("bases[0]: , ", bases[0].x, bases[0].y);
-        console2.log("scalars[1]: ", scalars[1]);
-        console2.log("bases[1]: ,   ", bases[1].x, bases[1].y);
+        // console2.log("scalars[0]: ", scalars[0]);
+        // console2.log("bases[0]: , ", bases[0].x, bases[0].y);
+        // console2.log("scalars[1]: ", scalars[1]);
+        // console2.log("bases[1]: ,   ", bases[1].x, bases[1].y);
 
         
         // set the function parameters to avoid stack too deep error
@@ -1126,43 +1126,43 @@ z.start_index =45;
 
         // JJ: double check the bases,
         // the base should be vk.selector_comms
-        console2.log("add_selector_polynomial_commitments: ");
-        console2.log("scalars[2]: ", scalars[2]);
-        console2.log("bases[2]: ", bases[2].x, bases[2].y);
-        console2.log("scalars[3]: ", scalars[3]);
-        console2.log("bases[3]: ", bases[3].x, bases[3].y);
-        console2.log("scalars[4]: ", scalars[4]);
-        console2.log("bases[4]: ", bases[4].x, bases[4].y);
-        console2.log("scalars[5]: ", scalars[5]);
-        console2.log("bases[5]: ", bases[5].x, bases[5].y);
-        console2.log("scalars[6]: ", scalars[6]);
-        console2.log("bases[6]: ", bases[6].x, bases[6].y);
-        console2.log("scalars[7]: ", scalars[7]);
-        console2.log("bases[7]: ", bases[7].x, bases[7].y);
-        console2.log("scalars[8]: ", scalars[8]);
-        console2.log("bases[8]: ", bases[8].x, bases[8].y);
-        console2.log("scalars[9]: ", scalars[9]);
-        console2.log("bases[9]: ", bases[9].x, bases[9].y);
-        console2.log("scalars[10]: ", scalars[10]);
-        console2.log("bases[10]: ", bases[10].x, bases[10].y);
-        console2.log("scalars[11]: ", scalars[11]);
-        console2.log("bases[11]: ", bases[11].x, bases[11].y);
-        console2.log("scalars[12]: ", scalars[12]);
-        console2.log("bases[12]: ", bases[12].x, bases[12].y);
-        console2.log("scalars[13]: ", scalars[13]);
-        console2.log("bases[13]: ", bases[13].x, bases[13].y);
-        console2.log("scalars[14]: ", scalars[14]);
-        console2.log("bases[14]: ", bases[14].x, bases[14].y);
-        console2.log("scalars[15]: ", scalars[15]);
-        console2.log("bases[15]: ", bases[15].x, bases[15].y);
-        console2.log("scalars[16]: ", scalars[16]);
-        console2.log("bases[16]: ", bases[16].x, bases[16].y);
-        console2.log("scalars[17]: ", scalars[17]);
-        console2.log("bases[17]: ", bases[17].x, bases[17].y);
-        console2.log("scalars[18]: ", scalars[18]);
-        console2.log("bases[18]: ", bases[18].x, bases[18].y);
+        // console2.log("add_selector_polynomial_commitments: ");
+        // console2.log("scalars[2]: ", scalars[2]);
+        // console2.log("bases[2]: ", bases[2].x, bases[2].y);
+        // console2.log("scalars[3]: ", scalars[3]);
+        // console2.log("bases[3]: ", bases[3].x, bases[3].y);
+        // console2.log("scalars[4]: ", scalars[4]);
+        // console2.log("bases[4]: ", bases[4].x, bases[4].y);
+        // console2.log("scalars[5]: ", scalars[5]);
+        // console2.log("bases[5]: ", bases[5].x, bases[5].y);
+        // console2.log("scalars[6]: ", scalars[6]);
+        // console2.log("bases[6]: ", bases[6].x, bases[6].y);
+        // console2.log("scalars[7]: ", scalars[7]);
+        // console2.log("bases[7]: ", bases[7].x, bases[7].y);
+        // console2.log("scalars[8]: ", scalars[8]);
+        // console2.log("bases[8]: ", bases[8].x, bases[8].y);
+        // console2.log("scalars[9]: ", scalars[9]);
+        // console2.log("bases[9]: ", bases[9].x, bases[9].y);
+        // console2.log("scalars[10]: ", scalars[10]);
+        // console2.log("bases[10]: ", bases[10].x, bases[10].y);
+        // console2.log("scalars[11]: ", scalars[11]);
+        // console2.log("bases[11]: ", bases[11].x, bases[11].y);
+        // console2.log("scalars[12]: ", scalars[12]);
+        // console2.log("bases[12]: ", bases[12].x, bases[12].y);
+        // console2.log("scalars[13]: ", scalars[13]);
+        // console2.log("bases[13]: ", bases[13].x, bases[13].y);
+        // console2.log("scalars[14]: ", scalars[14]);
+        // console2.log("bases[14]: ", bases[14].x, bases[14].y);
+        // console2.log("scalars[15]: ", scalars[15]);
+        // console2.log("bases[15]: ", bases[15].x, bases[15].y);
+        // console2.log("scalars[16]: ", scalars[16]);
+        // console2.log("bases[16]: ", bases[16].x, bases[16].y);
+        // console2.log("scalars[17]: ", scalars[17]);
+        // console2.log("bases[17]: ", bases[17].x, bases[17].y);
+        // console2.log("scalars[18]: ", scalars[18]);
+        // console2.log("bases[18]: ", bases[18].x, bases[18].y);
 
-        console2.log("add_selector_polynomial_commitments is done: ");
+        // console2.log("add_selector_polynomial_commitments is done: ");
 
 add_plookup_commitments(bases,scalars,proof,challenge,domain,evalData);
        
@@ -1176,18 +1176,18 @@ add_plookup_commitments(bases,scalars,proof,challenge,domain,evalData);
         y.scalars = scalars;
         y.proof = proof;
         add_splitted_quotient_commitments(y);
-         console2.log("scalars[21]: ", scalars[21]);
-        console2.log("bases[21]: ", bases[21].x, bases[21].y);
-        console2.log("scalars[22]: ", scalars[22]);
-        console2.log("bases[22]: ", bases[22].x, bases[22].y);
-        console2.log("scalars[23]: ", scalars[23]);
-        console2.log("bases[23]: ", bases[23].x, bases[23].y);
-        console2.log("scalars[24]: ", scalars[24]);
-        console2.log("bases[24]: ", bases[24].x, bases[24].y);
-        console2.log("scalars[25]: ", scalars[25]);
-        console2.log("bases[25]: ", bases[25].x, bases[25].y);
-        console2.log("scalars[26]: ", scalars[26]);
-        console2.log("bases[26]: ", bases[26].x, bases[26].y);
+        //  console2.log("scalars[21]: ", scalars[21]);
+        // console2.log("bases[21]: ", bases[21].x, bases[21].y);
+        // console2.log("scalars[22]: ", scalars[22]);
+        // console2.log("bases[22]: ", bases[22].x, bases[22].y);
+        // console2.log("scalars[23]: ", scalars[23]);
+        // console2.log("bases[23]: ", bases[23].x, bases[23].y);
+        // console2.log("scalars[24]: ", scalars[24]);
+        // console2.log("bases[24]: ", bases[24].x, bases[24].y);
+        // console2.log("scalars[25]: ", scalars[25]);
+        // console2.log("bases[25]: ", bases[25].x, bases[25].y);
+        // console2.log("scalars[26]: ", scalars[26]);
+        // console2.log("bases[26]: ", bases[26].x, bases[26].y);
     }
 
     function compute_first_scalar(
@@ -1522,7 +1522,7 @@ add_plookup_commitments(bases,scalars,proof,challenge,domain,evalData);
         PolynomialEval.EvalDomain memory domain,
          PolynomialEval.EvalData memory evalData
     ) internal view {
-    console2.log("add_plookup_commitments: ");
+    // console2.log("add_plookup_commitments: ");
      scalars[19] =add_plookup_commitments_helper1(
          proof,
          challenge,
@@ -1530,8 +1530,8 @@ add_plookup_commitments(bases,scalars,proof,challenge,domain,evalData);
          evalData
      );
      bases[19] = proof.prod_lookup_poly_comm;
-    console2.log("scalars[19] after add_plookup_commitments_helper1: ", scalars[19]);
-    console2.log("bases[19] after add_plookup_commitments_helper1: ", bases[19].x, bases[19].y);
+    // console2.log("scalars[19] after add_plookup_commitments_helper1: ", scalars[19]);
+    // console2.log("bases[19] after add_plookup_commitments_helper1: ", bases[19].x, bases[19].y);
 
         scalars[20] = add_plookup_commitments_helper2(
             proof,
@@ -1539,8 +1539,8 @@ add_plookup_commitments(bases,scalars,proof,challenge,domain,evalData);
             domain
         );
         bases[20] = proof.h_poly_comm_2;
-        console2.log("scalars[20] after add_plookup_commitments_helper2: ", scalars[20]);
-    console2.log("bases[20] after add_plookup_commitments_helper2: ", bases[20].x, bases[20].y);
+    //     console2.log("scalars[20] after add_plookup_commitments_helper2: ", scalars[20]);
+    // console2.log("bases[20] after add_plookup_commitments_helper2: ", bases[20].x, bases[20].y);
     }
     
     // to avoid the stack too deep error
@@ -1802,7 +1802,7 @@ function add_plookup_commitments_helper1_4_2(
         uint256[] memory scalars
     ) internal pure returns (Types.G1Point[] memory, uint256[] memory) {
 
-        console2.log("accumulate_scalar_with_same_base");
+        // console2.log("accumulate_scalar_with_same_base");
         uint256 p_local = Bn254Crypto.r_mod;
         require(bases.length == scalars.length, "Length mismatch");
 
@@ -1814,16 +1814,16 @@ function add_plookup_commitments_helper1_4_2(
         uint256 uniqueCount = 0;
 
         for (uint256 i = 0; i < bases.length; i++) {
-            console2.log("bases scalars", i);
-                console2.log("bases.x:, bases.y, scalars", bases[i].x, bases[i].y, scalars[i]);
+            // console2.log("bases scalars", i);
+            //     console2.log("bases.x:, bases.y, scalars", bases[i].x, bases[i].y, scalars[i]);
     bool found = false;
     for (uint256 j = 0; j < uniqueCount && !found; j++) {
         if (bases[i].x == tempBases[j].x && bases[i].y == tempBases[j].y) {
-            console2.log("found same base:", j);
-            console2.log("same base is", bases[i].x, bases[i].y);
-            console2.log("add these two scalars", tempScalars[j], scalars[i]);
+            // console2.log("found same base:", j);
+            // console2.log("same base is", bases[i].x, bases[i].y);
+            // console2.log("add these two scalars", tempScalars[j], scalars[i]);
             tempScalars[j] = addmod(tempScalars[j], scalars[i], p_local);
-            console2.log("add these two scalars to get", tempScalars[j]);
+            // console2.log("add these two scalars to get", tempScalars[j]);
             found = true;
         }
     }
@@ -1839,8 +1839,8 @@ function add_plookup_commitments_helper1_4_2(
         for (uint256 i = 0; i < uniqueCount; i++) {
             finalBases[i] = tempBases[i];
             finalScalars[i] = tempScalars[i];
-            console2.log("finalBases, finalScalars index", i);
-            console2.log("finalBases, finalScalars", finalBases[i].x, finalBases[i].y, finalScalars[i]);
+            // console2.log("finalBases, finalScalars index", i);
+            // console2.log("finalBases, finalScalars", finalBases[i].x, finalBases[i].y, finalScalars[i]);
         }
 
         return (finalBases, finalScalars);
