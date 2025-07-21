@@ -33,9 +33,13 @@ pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: 
         vk.clone()
     );
 
-    let domain_size_U256 = U256::from(domain_size as u32);
-    let num_inputs_U256 = U256::from(vk.num_inputs() as u32);
-    let sigma_comms_U256: Vec<U256> = vk.sigma_comms
+    let domain_size_u256 = U256::from(domain_size as u32);
+    ark_std::println!(
+        "creating vk contract:domain_size_U256:{:#x} ",
+        domain_size_u256
+    );
+    let num_inputs_u256 = U256::from(vk.num_inputs() as u32);
+    let sigma_comms_u256: Vec<U256> = vk.sigma_comms
     .iter()
     .flat_map(|comm| {
         let x = U256::from_big_endian(&comm.x.into_bigint().to_bytes_be());
@@ -43,7 +47,8 @@ pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: 
         vec![x, y]
     })
     .collect();
-    let selector_comms_U256: Vec<U256> = vk
+
+    let selector_comms_u256: Vec<U256> = vk
         .selector_comms
         .iter()
         .flat_map(|comm| {
@@ -83,8 +88,8 @@ let table_dom_sep_comm_u256 = vec![
     vk_vec_u256[61].clone(), // y
 ];
 let q_dom_sep_comm_u256 = vec![
-    vk_vec_u256[60].clone(), // x
-    vk_vec_u256[61].clone(), // y
+    vk_vec_u256[62].clone(), // x
+    vk_vec_u256[63].clone(), // y
 ];
 
 
@@ -99,20 +104,19 @@ let q_dom_sep_comm_u256 = vec![
     loop {
         let file_path = cwd.join(&join_path);
         if file_path.is_file() {
-            path_out = if !TEST {
-                ark_std::println!("Creating contract proof_verification/VerificationKeyJJ.sol");
+            path_out = 
+            if !TEST {
                 file_path
                     .parent()
                     .unwrap()
-                    .join("proof_verification/VerificationKeyJJ.sol")
+                    .join("contracts/proof_verification/RollupProofVerificationKey.sol")
             } else {
-                ark_std::println!("Creating contract test_contracts/TestVerificationKeyJJ.sol");
                 file_path
                     .parent()
                     .unwrap()
                     .parent()
                     .unwrap()
-                    .join("test_contracts/TestVerificationKeyJJ.sol")
+                    .join("contracts/proof_verification/UltraPlonkVerificationKey.sol")
             };
             break;
         }
@@ -123,382 +127,398 @@ let q_dom_sep_comm_u256 = vec![
     if path_out.is_file() {
         std::fs::remove_file(&path_out).unwrap();
     }
+    if let Some(parent) = path_out.parent() {
+    std::fs::create_dir_all(parent)
+        .unwrap_or_else(|e| panic!("Failed to create test_contracts folder: {}", e));
+}
+// let mut file = std::fs::File::create(&path_out).unwrap();
 
     let mut file: File = File::create(path_out).unwrap();
     let import_path = "./Types.sol";
+    let extra_line = if TEST {
+    "// This contract is made to test create_vk_contract function.\n"
+} else {
+    ""
+};
     file.write_fmt(format_args!(
     "// SPDX-License-Identifier: Apache-2.0 \n
+    {} \n
     pragma solidity ^0.8.20; \n
     import \"{}\"; \n
         
-    library {{UltraPlonkVerificationKey}} {{ \n
+    library UltraPlonkVerificationKey {{ \n
 
         function getVerificationKey() internal pure returns (Types.VerificationKey memory vk) {{ \n
             assembly {{ \n
             // domain_size
-            mstore(add(vk, 0x00), {}) \n
+            mstore(add(vk, 0x00), {:#x}) \n
             // num_inputs \n
-            mstore(add(vk, 0x20), {}) \n
+            mstore(add(vk, 0x20), {:#x}) \n
             // sigma_comms_1.x \n
             mstore( \n
                 mload(add(vk, 0x40)), \n
-                {} \n
+                {:#x} \n
             ) \n
             // sigma_comms_1.y \n
             mstore( \n
                 add(mload(add(vk, 0x40)), 0x20), \n
-                {} \n
+                {:#x} \n
             ) \n
             // sigma_comms_2.x \n
             mstore( \n
                 mload(add(vk, 0x60)), \n
-                {} \n
+                {:#x} \n
             ) \n
             // sigma_comms_2.y \n
             mstore( \n
                 add(mload(add(vk, 0x60)), 0x20), \n
-                {} \n
+                {:#x} \n
             ) \n
             // sigma_comms_3.x \n
             mstore( \n
                 mload(add(vk, 0x80)), \n
-                {} \n
+                {:#x} \n
             ) \n
             // sigma_comms_3.y \n
             mstore( \n
                 add(mload(add(vk, 0x80)), 0x20), \n
-                {} \n
+                {:#x} \n
             ) \n
             // sigma_comms_4.x \n
             mstore( \n
                 mload(add(vk, 0xa0)), \n
-                {} \n
+                {:#x} \n
             ) \n
             // sigma_comms_4.y \n 
             mstore( \n
                 add(mload(add(vk, 0xa0)), 0x20), \n
-                {} \n
+                {:#x} \n
             ) \n
             // sigma_comms_5.x \n
             mstore( \n
                 mload(add(vk, 0xc0)), \n
-                {} \n
+                {:#x} \n
             ) \n
             // sigma_comms_5.y \n
             mstore( \n
                 add(mload(add(vk, 0xc0)), 0x20), \n
-                {} \n
+                {:#x} \n
             ) \n
             // sigma_comms_6.x \n
                 mstore( \n
                 mload(add(vk, 0xe0)), \n
-                {} \n
+                {:#x} \n
             ) \n
             // sigma_comms_6.y \n
             mstore( \n
                 add(mload(add(vk, 0xe0)), 0x20), \n
-                {} \n
+                {:#x} \n
             ) \n
             // selector_comms_1.x \n
             mstore( \n
                 mload(add(vk, 0x100)), \n  
-                {} \n
+                {:#x} \n
             ) \n
             // selector_comms_1.y \n
             mstore( \n
                 add(mload(add(vk, 0x100)), 0x20), \n
-                {} \n
+                {:#x} \n
             ) \n
             // selector_comms_2.x \n
             mstore( \n
                 mload(add(vk, 0x120)), \n
-                {} \n
+                {:#x} \n
             ) \n
             // selector_comms_2.y \n
             mstore( \n
                 add(mload(add(vk, 0x120)), 0x20), \n
-                {} \n
+                {:#x} \n
             ) \n
             // selector_comms_3.x \n
             mstore( \n
                 mload(add(vk, 0x140)), \n
-                {} \n
+                {:#x} \n
             ) \n
             // selector_comms_3.y \n
             mstore( \n
                 add(mload(add(vk, 0x140)), 0x20), \n
-                {} \n
+                {:#x} \n
             ) \n
             // selector_comms_4.x \n
             mstore( \n
                 mload(add(vk, 0x160)), \n
-                {} \n
+                {:#x} \n
             ) \n
             // selector_comms_4.y \n
             mstore( \n
                 add(mload(add(vk, 0x160)), 0x20), \n
-                {} \n
+                {:#x} \n
             ) \n
             // selector_comms_5.x \n
             mstore( \n
                 mload(add(vk, 0x180)), \n
-                {} \n
+                {:#x} \n
             ) \n
             // selector_comms_5.y \n
             mstore( \n
                 add(mload(add(vk, 0x180)), 0x20), \n
-                {} \n
+                {:#x} \n
             ) \n
             // selector_comms_6.x \n
             mstore( \n
                 mload(add(vk, 0x1a0)), \n
-                {} \n
+                {:#x} \n
             ) \n
             // selector_comms_6.y \n
             mstore( \n
                 add(mload(add(vk, 0x1a0)), 0x20), \n
-                {} \n
+                {:#x} \n
             ) \n
             // selector_comms_7.x \n
             mstore( \n
                 mload(add(vk, 0x1c0)), \n
-                {} \n
+                {:#x} \n
             ) \n
             // selector_comms_7.y \n
             mstore( \n
                 add(mload(add(vk, 0x1c0)), 0x20), \n
-                {} \n
+                {:#x} \n
             ) \n
             // selector_comms_8.x \n
             mstore( \n
                 mload(add(vk, 0x1e0)), \n
-                {} \n
+                {:#x} \n
             ) \n
             // selector_comms_8.y \n
             mstore( \n
                 add(mload(add(vk, 0x1e0)), 0x20), \n
-                {} \n
+                {:#x} \n
             ) \n
             // selector_comms_9.x \n
             mstore( \n
                 mload(add(vk, 0x200)), \n
-                {} \n
+                {:#x} \n
             ) \n
             // selector_comms_9.y \n
             mstore( \n
                 add(mload(add(vk, 0x200)), 0x20), \n
-                {} \n
+                {:#x} \n
             ) \n
             // selector_comms_10.x \n
             mstore( \n
                 mload(add(vk, 0x220)), \n
-                {} \n
+                {:#x} \n
             ) \n
             // selector_comms_10.y \n
             mstore( \n
                 add(mload(add(vk, 0x220)), 0x20), \n
-                {} \n
+                {:#x} \n
             ) \n
             // selector_comms_11.x \n
             mstore( \n
                 mload(add(vk, 0x240)), \n
-                {} \n
+                {:#x} \n
             ) \n
             // selector_comms_11.y \n
             mstore( \n
                 add(mload(add(vk, 0x240)), 0x20), \n
-                {} \n
+                {:#x} \n
             ) \n
             // selector_comms_12.x \n
             mstore( \n
                 mload(add(vk, 0x260)), \n
-                {} \n
+                {:#x} \n
             ) \n
             // selector_comms_12.y \n
             mstore( \n
                 add(mload(add(vk, 0x260)), 0x20), \n
-                {} \n
+                {:#x} \n
             ) \n
             // selector_comms_13.x \n
             mstore( \n
                 mload(add(vk, 0x280)), \n
-                {} \n
+                {:#x} \n
             ) \n
             // selector_comms_13.y \n
             mstore( \n
                 add(mload(add(vk, 0x280)), 0x20), \n
-                {} \n
+                {:#x} \n
             ) \n
             // selector_comms_14.x \n
             mstore( \n
                 mload(add(vk, 0x2a0)), \n
-                {} \n
+                {:#x} \n
             ) \n
             // selector_comms_14.y \n
             mstore( \n
                 add(mload(add(vk, 0x2a0)), 0x20), \n
-                {} \n
+                {:#x} \n
             ) \n
             // selector_comms_15.x \n
             mstore( \n
                 mload(add(vk, 0x2c0)), \n
-                {} \n
+                {:#x} \n
             ) \n
             // selector_comms_15.y \n
             mstore( \n
                 add(mload(add(vk, 0x2c0)), 0x20), \n
-                {} \n  
+                {:#x} \n  
             ) \n
             // selector_comms_16.x \n
             mstore( \n
                 mload(add(vk, 0x2e0)), \n
-                {} \n
+                {:#x} \n
             ) \n
             // selector_comms_16.y \n
             mstore( \n
                 add(mload(add(vk, 0x2e0)), 0x20), \n
-                {} \n
+                {:#x} \n
             ) \n
             // selector_comms_17.x \n
             mstore( \n
                 mload(add(vk, 0x300)), \n
-                {} \n
+                {:#x} \n
             ) \n
             // selector_comms_17.y \n
             mstore( \n
                 add(mload(add(vk, 0x300)), 0x20), \n
-                {} \n
+                {:#x} \n
             ) \n
             // selector_comms_18.x \n
             mstore( \n
                 mload(add(vk, 0x320)), \n
-                {} \n
+                {:#x} \n
             ) \n
             // selector_comms_18.y \n
             mstore( \n
                 add(mload(add(vk, 0x320)), 0x20), \n
-                {} \n
+                {:#x} \n
             ) \n
             // k1 \n
-            mstore(add(vk, 0x340), 1) \n
+            mstore( \n
+                add(vk, 0x340), \n
+                {:#x}) \n
             // k2 \n
             mstore( \n
                 add(vk, 0x360), \n
-                {} \n
+                {:#x} \n
             ) \n
             // k3 \n
             mstore( \n
                 add(vk, 0x380), \n
-                {} \n
+                {:#x} \n
             ) \n
             // k4 \n
             mstore( \n
                 add(vk, 0x3a0), \n
-                {} \n
+                {:#x} \n
             ) \n
             // k5 \n
             mstore( \n
                 add(vk, 0x3c0), \n
-                {} \n
+                {:#x} \n
             ) \n
             // k6 \n
             mstore( \n
                 add(vk, 0x3e0), \n
-                {} \n
+                {:#x} \n
             ) \n
             // range_table_comm.x \n
             mstore( \n
                 mload(add(vk, 0x400)), \n
-                {} \n
+                {:#x} \n
             ) \n
             // range_table_comm.y \n
             mstore( \n
                 add(mload(add(vk, 0x400)), 0x20), \n
-                {} \n
+                {:#x} \n
             ) \n
             // key_table_comm.x \n
             mstore( \n
                 mload(add(vk, 0x420)), \n
-                {} \n
+                {:#x} \n
             ) \n
             // key_table_comm.y \n
             mstore( \n
                 add(mload(add(vk, 0x420)), 0x20), \n
-                {} \n
+                {:#x} \n
             ) \n
             // table_dom_sep_comm.x \n
             mstore( \n
                 mload(add(vk, 0x440)), \n
-                {} \n
+                {:#x} \n
             ) \n
             // table_dom_sep_comm.y \n
             mstore( \n
                 add(mload(add(vk, 0x440)), 0x20), \n
-                {} \n
+                {:#x} \n
             ) \n
             // q_dom_sep_comm.x \n
             mstore( \n
                 mload(add(vk, 0x460)), \n
-                {} \n
+                {:#x} \n
             ) \n
             // q_dom_sep_comm.y \n
             mstore( \n
                 add(mload(add(vk, 0x460)), 0x20), \n
-                {} \n
+                {:#x} \n
             ) \n
             }}\n
-        }}",
+            return vk; \n
+        }}\n
+    }}",
+        extra_line,
         import_path,
-        domain_size_U256, // domain_size
-        num_inputs_U256, // num_inputs
-        sigma_comms_U256[0], // sigma_comms_1.x
-        sigma_comms_U256[1], // sigma_comms_1.y
-        sigma_comms_U256[3], // sigma_comms_2.x
-        sigma_comms_U256[4], // sigma_comms_2.y
-        sigma_comms_U256[5], // sigma_comms_3.x
-        sigma_comms_U256[6], // sigma_comms_3.y
-        sigma_comms_U256[7], // sigma_comms_4.x
-        sigma_comms_U256[8], // sigma_comms_4.y
-        sigma_comms_U256[9],// sigma_comms_5.x
-        sigma_comms_U256[10],// sigma_comms_5.y
-        sigma_comms_U256[11],// sigma_comms_6.x
-        sigma_comms_U256[12],// sigma_comms_6.y
-        selector_comms_U256[0],// selector_comms_1.x
-        selector_comms_U256[1],// selector_comms_1.y
-        selector_comms_U256[2],// selector_comms_2.x
-        selector_comms_U256[3],// selector_comms_2.y
-        selector_comms_U256[4],// selector_comms_3.x
-        selector_comms_U256[5],// selector_comms_3.y
-        selector_comms_U256[6],// selector_comms_4.x
-        selector_comms_U256[7],// selector_comms_4.y
-        selector_comms_U256[8],// selector_comms_5.x
-        selector_comms_U256[9],// selector_comms_5.y
-        selector_comms_U256[10],// selector_comms_6.x
-        selector_comms_U256[11],// selector_comms_6.y
-        selector_comms_U256[12],// selector_comms_7.x
-        selector_comms_U256[13],// selector_comms_7.y
-        selector_comms_U256[14],// selector_comms_8.x
-        selector_comms_U256[15],// selector_comms_8.y
-        selector_comms_U256[16],// selector_comms_9.x
-        selector_comms_U256[17],// selector_comms_9.y
-        selector_comms_U256[18],// selector_comms_10.x
-        selector_comms_U256[19],// selector_comms_10.y
-        selector_comms_U256[20],// selector_comms_11.x
-        selector_comms_U256[21],// selector_comms_11.y
-        selector_comms_U256[22],// selector_comms_12.x
-        selector_comms_U256[23],// selector_comms_12.y
-        selector_comms_U256[24],// selector_comms_13.x
-        selector_comms_U256[25],// selector_comms_13.y
-        selector_comms_U256[26],// selector_comms_14.x
-        selector_comms_U256[27],// selector_comms_14.y
-        selector_comms_U256[28],// selector_comms_15.x
-        selector_comms_U256[29],// selector_comms_15.y
-        selector_comms_U256[30],// selector_comms_16.x
-        selector_comms_U256[31],// selector_comms_16.y
-        selector_comms_U256[32],// selector_comms_17.x
-        selector_comms_U256[33],// selector_comms_17.y
-        selector_comms_U256[34],// selector_comms_18.x
-        selector_comms_U256[35],// selector_comms_18.y
+        domain_size_u256, // domain_size
+        num_inputs_u256, // num_inputs
+        sigma_comms_u256[0], // sigma_comms_1.x
+        sigma_comms_u256[1], // sigma_comms_1.y
+        sigma_comms_u256[2], // sigma_comms_2.x
+        sigma_comms_u256[3], // sigma_comms_2.y
+        sigma_comms_u256[4], // sigma_comms_3.x
+        sigma_comms_u256[5], // sigma_comms_3.y
+        sigma_comms_u256[6], // sigma_comms_4.x
+        sigma_comms_u256[7], // sigma_comms_4.y
+        sigma_comms_u256[8],// sigma_comms_5.x
+        sigma_comms_u256[9],// sigma_comms_5.y
+        sigma_comms_u256[10],// sigma_comms_6.x
+        sigma_comms_u256[11],// sigma_comms_6.y
+        selector_comms_u256[0],// selector_comms_1.x
+        selector_comms_u256[1],// selector_comms_1.y
+        selector_comms_u256[2],// selector_comms_2.x
+        selector_comms_u256[3],// selector_comms_2.y
+        selector_comms_u256[4],// selector_comms_3.x
+        selector_comms_u256[5],// selector_comms_3.y
+        selector_comms_u256[6],// selector_comms_4.x
+        selector_comms_u256[7],// selector_comms_4.y
+        selector_comms_u256[8],// selector_comms_5.x
+        selector_comms_u256[9],// selector_comms_5.y
+        selector_comms_u256[10],// selector_comms_6.x
+        selector_comms_u256[11],// selector_comms_6.y
+        selector_comms_u256[12],// selector_comms_7.x
+        selector_comms_u256[13],// selector_comms_7.y
+        selector_comms_u256[14],// selector_comms_8.x
+        selector_comms_u256[15],// selector_comms_8.y
+        selector_comms_u256[16],// selector_comms_9.x
+        selector_comms_u256[17],// selector_comms_9.y
+        selector_comms_u256[18],// selector_comms_10.x
+        selector_comms_u256[19],// selector_comms_10.y
+        selector_comms_u256[20],// selector_comms_11.x
+        selector_comms_u256[21],// selector_comms_11.y
+        selector_comms_u256[22],// selector_comms_12.x
+        selector_comms_u256[23],// selector_comms_12.y
+        selector_comms_u256[24],// selector_comms_13.x
+        selector_comms_u256[25],// selector_comms_13.y
+        selector_comms_u256[26],// selector_comms_14.x
+        selector_comms_u256[27],// selector_comms_14.y
+        selector_comms_u256[28],// selector_comms_15.x
+        selector_comms_u256[29],// selector_comms_15.y
+        selector_comms_u256[30],// selector_comms_16.x
+        selector_comms_u256[31],// selector_comms_16.y
+        selector_comms_u256[32],// selector_comms_17.x
+        selector_comms_u256[33],// selector_comms_17.y
+        selector_comms_u256[34],// selector_comms_18.x
+        selector_comms_u256[35],// selector_comms_18.y
         ks_u256[0],// k1
         ks_u256[1],// k2
         ks_u256[2],// k3
@@ -539,74 +559,97 @@ mod tests {
     #[test]
     fn test_verifier_contract() {
         let settings: Settings = Settings::new().unwrap();
-        let mut rng = jf_utils::test_rng();
+        use ark_ed_on_bn254::Fq;
+        let mut circuit = PlonkCircuit::<Fq>::new_ultra_plonk(8);
+        let _ = circuit.create_public_variable(Fq::from(2)).unwrap();
 
-        let circuit = gen_circuit_for_test(2, 2).unwrap();
-
+        circuit.finalize_for_arithmetization().unwrap();
+        use jf_utils::test_rng;
+        let mut rng = test_rng();
         let srs_size = circuit.srs_size().unwrap();
         let srs = PlonkKzgSnark::<Bn254>::universal_setup_for_testing(srs_size, &mut rng).unwrap();
         let (pk, vk) = PlonkKzgSnark::<Bn254>::preprocess(&srs, &circuit).unwrap();
         create_vk_contract::<true>(&vk, &settings);
-        ark_std::println!("vk:{:?}", vk);
 
-        // let proof = PlonkKzgSnark::<Bn254>::prove::<_, _, SolidityTranscript>(
-        //     &mut rng, &circuit, &pk, None,
-        // )
-        // .unwrap();
-        // let proof_vec = Vec::<Fq254>::from(proof)
-        //     .into_iter()
-        //     .flat_map(|x| {
-        //         let mut bytes: Vec<u8> = x.into_bigint().to_bytes_le();
-        //         bytes.resize(32, 0u8);
-        //         bytes.reverse();
-        //         bytes
-        //     })
-        //     .collect::<Vec<u8>>();
+        let proof = PlonkKzgSnark::<Bn254>::prove::<_, _, SolidityTranscript>(
+            &mut rng, &circuit, &pk, None,
+        )
+        .unwrap();
+        let proof_fr = proof.clone();
+        ark_std::println!("proof_fr:{:?}", proof_fr);
 
-        // let bytes = Bytes::from_iter(proof_vec);
+        // convert proof to bytes
+        let proof_vec: Vec<Fq254> = proof.clone().into();
+        let proof_bytes = proof_vec
+            .into_iter()
+            .flat_map(|x| {
+                let mut bytes: Vec<u8> = x.into_bigint().to_bytes_le();
+                bytes.resize(32, 0u8);
+                bytes.reverse();
+                bytes
+            })
+            .collect::<Vec<u8>>();
+        use ethers::types::Bytes;
+        let proof_bytes_final = Bytes::from(proof_bytes);
+        use ark_serialize::Write;
+        let join_path = Path::new(&settings.contracts.assets)
+            .parent()
+            .unwrap()
+            .join("contracts/Nightfall.sol");
+      
 
-        // let join_path = Path::new(&settings.contracts.assets)
-        //     .parent()
-        //     .unwrap()
-        //     .join("contracts/Nightfall.sol");
+        let path_out: PathBuf;
+        let cwd = std::env::current_dir().unwrap();
+        let mut cwd = cwd.as_path();
+        loop {
+            let file_path = cwd.join(&join_path);
+            if file_path.is_file() {
+                path_out = file_path
+                    .parent()
+                    .unwrap()
+                    .parent()
+                    .unwrap()
+                    .join("test_contracts/ultraPlonkProof.json");
+                break;
+            }
 
-        // let path_out: PathBuf;
-        // let cwd = std::env::current_dir().unwrap();
-        // let mut cwd = cwd.as_path();
-        // loop {
-        //     let file_path = cwd.join(&join_path);
-        //     if file_path.is_file() {
-        //         path_out = file_path
-        //             .parent()
-        //             .unwrap()
-        //             .parent()
-        //             .unwrap()
-        //             .join("test_contracts/testproof.txt");
-        //         break;
-        //     }
+            cwd = cwd.parent().ok_or("No parent in path").unwrap();
+        }
 
-        //     cwd = cwd.parent().ok_or("No parent in path").unwrap();
-        // }
-        // let mut file = File::create(path_out.clone()).unwrap();
-        // file.write_fmt(format_args!("{:0x}", bytes)).unwrap();
-
-        // // We run `forge test` now to update all the contracts
-        // let output = std::process::Command::new("forge")
-        //     .args(["test", "--force", "--match-test", "testRollupVerifier"])
-        //     .output()
-        //     .unwrap();
-        // //    std::fs::remove_file(path_out).unwrap();
-
-        // match output.status.code() {
-        //     Some(0) => (),
-        //     Some(code) => panic!(
-        //         "Forge failed with code {}, stdout is: {}, stderr is : {}",
-        //         code,
-        //         String::from_utf8_lossy(&output.stdout),
-        //         String::from_utf8_lossy(&output.stderr)
-        //     ),
-        //     None => panic!("Forge failed with no exit code"),
-        // }
+        if let Some(parent) = path_out.parent() {
+            std::fs::create_dir_all(parent)
+                .unwrap_or_else(|e| panic!("Failed to create test_contracts folder: {}", e));
+        }
+        let mut file = std::fs::File::create(&path_out).unwrap();
+        write!(
+            file,
+            "{}",
+            hex::encode(&proof_bytes_final)
+        )
+        .unwrap();
+        file.flush().unwrap();
+        file.sync_all().unwrap();
+        let mut file = std::fs::File::create("proof_fr.txt").unwrap();
+        write!(file, "Printing the block to proof_fr.txt{:#?}", &proof_fr).unwrap();
+        // We run `forge test` now to update all the contracts
+        println!("PATH: {:?}", std::env::var("PATH"));
+        let output = std::process::Command::new("forge")
+            .args(["test", "--match-test", "UltraPlonkVerifierTest"])
+            .current_dir("blockchain_assets") 
+            .output()
+            .unwrap();
+        //    std::fs::remove_file(path_out).unwrap();
+        match output.status.code() {
+            Some(0) => (),
+            Some(code) => panic!(
+                "Forge failed with code {}, stdout is: {}, stderr is : {}",
+                code,
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            ),
+            None => panic!("Forge failed with no exit code"),
+        }
+        
     }
 
     pub(crate) fn gen_circuit_for_test(

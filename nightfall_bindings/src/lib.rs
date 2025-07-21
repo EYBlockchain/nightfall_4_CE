@@ -44,7 +44,6 @@ pub mod inf_verifier;
 pub mod math;
 pub mod mock_deployer;
 pub mod mock_verifier;
-pub mod night_fish_verifier;
 pub mod nightfall;
 pub mod panic;
 pub mod polynomial_eval;

@@ -4380,6 +4380,7 @@ version = "0.1.0"
 dependencies = [
  "ark-bn254",
  "ark-ec",
+ "ark-ed-on-bn254",
  "ark-ff 0.4.2",
  "ark-poly",
  "ark-serialize 0.4.2",
@@ -4388,6 +4389,7 @@ dependencies = [
  "dotenv",
  "ethers",
  "ethers-solc",
+ "hex",
  "itertools 0.10.5",
  "jf-plonk",
  "jf-primitives",
