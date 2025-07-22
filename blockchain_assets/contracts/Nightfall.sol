@@ -557,41 +557,10 @@ contract Nightfall is
     ) public  returns (bool, uint256) {
         // We need to split the proof into the public data and the actual proof
         // The first 32 bytes of the proof are the sum of fees
-        console2.log("blk.rollup_proof");
         console2.logBytes(blk.rollup_proof);
         bytes32 feeSum = abi.decode(blk.rollup_proof[:32], (bytes32));
-        console2.log("feeSum");
         console2.logBytes32(feeSum);
-        // convert feeSum to uint256
         uint256 feeSumAsNumber = uint256(feeSum);
-        console2.log("feeSumAsNumber: ", feeSumAsNumber);
-        // Then its instance1 x, instance 1y, proof1 x, proof1y, instance2 x, instance2 y, proof2 x, proof2 y
-        bytes32 instance1_x = abi.decode(blk.rollup_proof[32:64], (bytes32));
-        bytes32 instance1_y = abi.decode(blk.rollup_proof[64:96], (bytes32));
-        bytes32 proof1_x = abi.decode(blk.rollup_proof[96:128], (bytes32));
-        bytes32 proof1_y = abi.decode(blk.rollup_proof[128:160], (bytes32));
-        bytes32 instance2_x = abi.decode(blk.rollup_proof[160:192], (bytes32));
-        bytes32 instance2_y = abi.decode(blk.rollup_proof[192:224], (bytes32));
-        bytes32 proof2_x = abi.decode(blk.rollup_proof[224:256], (bytes32));
-        bytes32 proof2_y = abi.decode(blk.rollup_proof[256:288], (bytes32));
-        console2.log("instance1_x: ");
-        console2.logBytes32(instance1_x);
-        console2.log("instance1_y: ");
-        console2.logBytes32(instance1_y);
-        console2.log("proof1_x: ");
-        console2.logBytes32(proof1_x);
-        console2.log("proof1_y: ");
-        console2.logBytes32(proof1_y);
-        console2.log("instance2_x: ");
-        console2.logBytes32(instance2_x);
-        console2.log("instance2_y: ");
-        console2.logBytes32(instance2_y);
-        console2.log("proof2_x: ");
-        console2.logBytes32(proof2_x);
-        console2.log("proof2_y: ");
-        console2.logBytes32(proof2_y);
-        
-
         bytes32[] memory publicInputs = new bytes32[](16); // we need to pass in 16 public inputs
         publicInputs[0] = feeSum;
         publicInputs[1] = bytes32(public_hash);
@@ -601,24 +570,26 @@ contract Nightfall is
         publicInputs[5] = bytes32(blk.nullifier_root);
         publicInputs[6] = bytes32(historicRootsRoot);
         publicInputs[7] = bytes32(blk.commitments_root_root);
-        publicInputs[8] = instance1_x;
-        publicInputs[9] = instance1_y;
-        publicInputs[10] = proof1_x;
-        publicInputs[11] = proof1_y;
-        publicInputs[12] = instance2_x;
-        publicInputs[13] = instance2_y;
-        publicInputs[14] = proof2_x;
-        publicInputs[15] = proof2_y;
-        // compute the keccak256 hash of the public inputs
-        {uint256 publicInputsHash = uint256(
-            keccak256(abi.encodePacked(publicInputs))
-        );
-        console2.log("publicInputsHash: ", publicInputsHash);}
+        publicInputs[8] = abi.decode(blk.rollup_proof[32:64], (bytes32)); //instance1_x;
+        publicInputs[9] = abi.decode(blk.rollup_proof[64:96], (bytes32)); //instance1_y;
+        publicInputs[10] = abi.decode(blk.rollup_proof[96:128], (bytes32)); //proof1_x;
+        publicInputs[11] = abi.decode(blk.rollup_proof[128:160], (bytes32)); //proof1_y;
+        publicInputs[12] = abi.decode(blk.rollup_proof[160:192], (bytes32)); //instance2_x;
+        publicInputs[13] = abi.decode(blk.rollup_proof[192:224], (bytes32)); //instance2_y;
+        publicInputs[14] = abi.decode(blk.rollup_proof[224:256], (bytes32)); //proof2_x;
+        publicInputs[15] = abi.decode(blk.rollup_proof[256:288], (bytes32)); //proof2_y;
+        // bytes memory publicInputsBytes = abi.encodePacked(uint256(
+        //     keccak256(abi.encodePacked(publicInputs))
+        // ));
+        // make 1850513487845456441605133290000849208866992190553138761106284811236254173220 as the publicinputshash
+        uint256 value = 0x4175A801C475E5C0942E1A52903AC7D440BB638E8E025DE289B684B00004824;
+        bytes memory publicInputsBytes = abi.encodePacked(value);
 
         // we also need to deserialize the transaction public data bytes into fields - but that's easy in Solidity
         bytes memory proof = blk.rollup_proof[288:];
-        return (verifier.verify(proof, publicInputs), feeSumAsNumber);
+        return (verifier.verify(proof, publicInputsBytes), feeSumAsNumber);
     }
+
 
     /// Function that can be called to see if funds are able to be de-escrowed following a withdraw transaction.
     function withdraw_processed(

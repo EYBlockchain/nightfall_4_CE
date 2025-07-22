@@ -5,7 +5,8 @@ import {UltraVK as VerifyingKey} from "./VerificationKey.sol";
 import {INFVerifier} from "./INFVerifier.sol";
 import "forge-std/console2.sol";
 
-contract RollupVerifier is INFVerifier {
+// contract RollupVerifier is INFVerifier {
+    contract RollupVerifier{
     // test purpose
     uint256 public_inputs_hash;
     // uint256 domain_size1;
@@ -638,7 +639,8 @@ contract RollupVerifier is INFVerifier {
     function verify(
         bytes calldata,
         bytes32[] calldata
-    ) external  override returns (bool) {
+    // ) external  override returns (bool) {
+        ) external returns (bool) {
         loadVerificationKey(DOMAIN_SIZE, N_INV_LOCATION);
         bytes32 vkHash = getVerificationKeyHash();
         uint256 requiredPublicInputCount;

@@ -9,7 +9,8 @@ pragma experimental ABIEncoderV2;
 import "./BytesLib.sol";
 import "forge-std/console2.sol";
 import "./Types.sol";
-import "./UltraPlonkVerificationKey.sol";
+import "./RollupProofVerificationKey.sol";
+import {INFVerifier} from "./INFVerifier.sol";
 
 
 /**
@@ -18,7 +19,7 @@ import "./UltraPlonkVerificationKey.sol";
 @notice Change the hardcoded values (beta_h,P2(),vk,open_key_g(), check eval_domain) before using
 */
 
-contract RollupProofVerifier{
+contract RollupProofVerifier is INFVerifier{
     /**
         Calldata formatting:
         0x00 - 0x04 : function signature
@@ -118,7 +119,7 @@ contract RollupProofVerifier{
      * @param proofBytes- array of serialized proof data: every elements is 32 bytes
      * @param publicInputsHashBytes- bytes of public data
      */
-    function verify(bytes calldata proofBytes, bytes calldata publicInputsHashBytes) external view returns (bool result) {
+    function verify(bytes calldata proofBytes, bytes calldata publicInputsHashBytes) external   override  returns (bool result) {
         // parse the hardecoded vk and construct a vk object
         Types.VerificationKey memory vk = get_verification_key();
 {
@@ -276,7 +277,9 @@ contract RollupProofVerifier{
 
         // validate public inputs (scalars, number of values varies)
         // for (uint256 i = 0; i < num_public_inputs; i++) {
+        // console2.log("public_inputs_hash: ", public_inputs_hash);
             validate_scalar_field(public_inputs_hash);
+        //     console2.log("public_inputs_hash: ", public_inputs_hash);
         // }
 
         // Compute the transcripts by appending vk, public inputs and proof
@@ -413,12 +416,12 @@ contract RollupProofVerifier{
         Types.G1Point memory B;
         // A = [open_proof] + u * [shifted_open_proof]
         A = compute_A(proof, challenge);
-        // console2.log("A: ", A.x, A.y);
+        console2.log("A: ", A.x, A.y);
      
         // B = eval_point * open_proof + u * next_eval_point *
         //   shifted_open_proof + comm - eval * [1]1`.
         B = compute_B(pcsInfo, proof, challenge);
-        // console2.log("B: ", B.x, B.y);
+        console2.log("B: ", B.x, B.y);
       
 
         // Check e(A, [x]2) ?= e(B, [1]2)

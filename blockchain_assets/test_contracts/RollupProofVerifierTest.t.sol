@@ -3,17 +3,17 @@ pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
 import "../contracts/Nightfall.sol";
-import "../contracts/proof_verification/RollupVerifier.sol";
+import "../contracts/proof_verification/RollupProofVerifier.sol";
 import "../contracts/SanctionsListMock.sol";
 import "forge-std/console2.sol";
 
-contract NightfallVerifierTest is Test {
+contract RollupProofVerifierTest is Test {
     Nightfall nightfall;
-    RollupVerifier verifier;
+    RollupProofVerifier verifier;
     X509 x509Contract;
 
     function setUp() public {
-        verifier = new RollupVerifier();
+        verifier = new RollupProofVerifier();
         x509Contract = new X509(address(this));
         address sanctionedUser = address(0x123);
         SanctionsListMock sanctionsListMock = new SanctionsListMock(
@@ -37,33 +37,33 @@ contract NightfallVerifierTest is Test {
 
         OnChainTransaction[] memory transactions = new OnChainTransaction[](64);
         transactions[0] = OnChainTransaction({
-    fee: 0,
+    fee: uint256(0),
     commitments: [
-                15392351480021048203930963145242234931291562469394646180004177305873539759707,
-                18733568117644813939395418613955016050166314086467640784322196204361374209493,
-                0,
-                0
+                0x24BDCAC4C8E9DEE4D404F2B6C51DCB69AB86A5552A0334092749050FEA9BF03A,
+                uint256(0),
+                uint256(0),
+                uint256(0)
     ],
     nullifiers: [
                 uint256(0),
-                0,
-                0,
-                0
+                uint256(0),
+                uint256(0),
+                uint256(0)
     ],
     public_data: [
-                6621752246873859139838072872206134400407912793669465530530173505215706218417,
-                2916144407822975174036791482540787921472104446237086589774849043505523554367,
-                0,
-                0
+                0x6A6800E8217051833D61E3B6A942BCD02391EBA79F98BA3A79D6BADEF211E8E,
+                uint256(0),
+                uint256(0),
+                uint256(0)
     ]
 });
 
  // Zero out the rest of the transactions
     OnChainTransaction memory emptyTx = OnChainTransaction({
         fee: 0,
-        commitments: [uint256(0), 0, 0, 0],
-        nullifiers: [uint256(0), 0, 0, 0],
-        public_data: [uint256(0), 0, 0, 0]
+        commitments: [uint256(0), uint256(0), uint256(0), uint256(0)],
+        nullifiers: [uint256(0), uint256(0), uint256(0), uint256(0)],
+        public_data: [uint256(0), uint256(0), uint256(0), uint256(0)]
     });
 
     for (uint256 i = 1; i < 64; ++i) {
@@ -71,9 +71,9 @@ contract NightfallVerifierTest is Test {
     }
 
         Block memory blk = Block({
-            commitments_root: 18439016711412260618672493514077720303865169596918994323081924644547288257451,
-            nullifier_root: 5626012003977595441102792096342856268135928990590954181023475305010363075697,
-            commitments_root_root: 5257425180143297814316082854138125443161646206268696786907660751879901223481,
+            commitments_root: 0x23AB6B16D30640DAE93F621B59871295F63F375E5BF1C218065551D2914761BC,
+            nullifier_root: 0xC7035BF4A3A237A4C081307ACE7B80B5830974E2B4738D88F15C3EA19C38C71,
+            commitments_root_root: 0x1EBF02320521160CB113D49DFB3D5A652651CFC6C4E9B02685828506EF8DEE98,
             transactions: transactions,
             rollup_proof: rollupProof
         });
