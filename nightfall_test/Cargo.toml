@@ -29,12 +29,12 @@ hex = "0.4.3"
 log = "0.4.27"
 sha2 = "0.10.9"
 ark-ec = { version = "0.4.2", features = ["parallel"] }
-nf-curves = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "15349a35a5c284c1fcabc85b87576122d3de923c" }
-jf-plonk = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "15349a35a5c284c1fcabc85b87576122d3de923c", features = [
+nf-curves = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "e3c03de025c5b92924240344d50921f9ce08a1dd" }
+jf-plonk = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "e3c03de025c5b92924240344d50921f9ce08a1dd", features = [
     "test-srs",
 ] }
-jf-primitives = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "15349a35a5c284c1fcabc85b87576122d3de923c" }
-jf-relation = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "15349a35a5c284c1fcabc85b87576122d3de923c" }
+jf-primitives = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "e3c03de025c5b92924240344d50921f9ce08a1dd" }
+jf-relation = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "e3c03de025c5b92924240344d50921f9ce08a1dd" }
 serial_test = "3.2.0"
 nightfall-bindings = { path = "../nightfall_bindings" }
 num-bigint = "0.4.6"

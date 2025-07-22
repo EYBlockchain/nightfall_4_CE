@@ -22,12 +22,12 @@ ark-serialize = "0.4.2"
 ark-std = { version = "0.4.0", default-features = false }
 ark-bn254 = "0.4.0"
 alloy-rlp = "0.3.12" 
-jf-plonk = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "15349a35a5c284c1fcabc85b87576122d3de923c", features = [
+jf-plonk = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "e3c03de025c5b92924240344d50921f9ce08a1dd", features = [
     "test-srs",
 ] }
-jf-relation = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "15349a35a5c284c1fcabc85b87576122d3de923c" }
-jf-primitives = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "15349a35a5c284c1fcabc85b87576122d3de923c" }
-nf-curves = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "15349a35a5c284c1fcabc85b87576122d3de923c" }
+jf-relation = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "e3c03de025c5b92924240344d50921f9ce08a1dd" }
+jf-primitives = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "e3c03de025c5b92924240344d50921f9ce08a1dd" }
+nf-curves = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "e3c03de025c5b92924240344d50921f9ce08a1dd" }
 ark-ec = { version = "0.4.2", features = ["parallel"] }
 num-bigint = "0.4.6"
 nightfall-bindings = { path = "../nightfall_bindings" }
@@ -43,8 +43,8 @@ azure_security_keyvault = "0.21.0"
 [build-dependencies]
 configuration = { path = "../configuration" }
 tokio = { version = "1.45.0", features = ["full"] }
-jf-primitives = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "15349a35a5c284c1fcabc85b87576122d3de923c" }
-jf-plonk = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "15349a35a5c284c1fcabc85b87576122d3de923c", features = [
+jf-primitives = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "e3c03de025c5b92924240344d50921f9ce08a1dd" }
+jf-plonk = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "e3c03de025c5b92924240344d50921f9ce08a1dd", features = [
     "test-srs",
 ] }
 

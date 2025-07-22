@@ -526,10 +526,10 @@ contract RollupProofVerifier is INFVerifier{
             
 
 
-            // console2.log("bases_after_acc lenth: ", bases_after_acc.length);
-            // console2.log("scalars_after_acc lenth: ", scalars_after_acc.length);
-            // console2.log("pcsInfo.commBases lenth: ",  pcsInfo.commBases.length);
-            // console2.log("pcsInfo.commScalars lenth: ", pcsInfo.commScalars.length);
+            console2.log("bases_after_acc lenth: ", bases_after_acc.length);
+            console2.log("scalars_after_acc lenth: ", scalars_after_acc.length);
+            console2.log("pcsInfo.commBases lenth: ",  pcsInfo.commBases.length);
+            console2.log("pcsInfo.commScalars lenth: ", pcsInfo.commScalars.length);
         }
     }
 
