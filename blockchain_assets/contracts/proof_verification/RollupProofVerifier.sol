@@ -13,12 +13,12 @@ import "./UltraPlonkVerificationKey.sol";
 
 
 /**
-@title UltraPlonkVerifier
+@title RollupProofVerifier
 @dev Verifier Implementation for Jellyfish Ultra plonk proof verification
 @notice Change the hardcoded values (beta_h,P2(),vk,open_key_g(), check eval_domain) before using
 */
 
-contract UltraPlonkVerifier{
+contract RollupProofVerifier{
     /**
         Calldata formatting:
         0x00 - 0x04 : function signature

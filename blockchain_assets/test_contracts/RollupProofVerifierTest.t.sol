@@ -9,11 +9,11 @@ import "forge-std/console2.sol";
 
 contract NightfallVerifierTest is Test {
     Nightfall nightfall;
-    RollupVerifier verifier;
+    RollupProofVerifier verifier;
     X509 x509Contract;
 
     function setUp() public {
-        verifier = new RollupVerifier();
+        verifier = new RollupProofVerifier();
         x509Contract = new X509(address(this));
         address sanctionedUser = address(0x123);
         SanctionsListMock sanctionsListMock = new SanctionsListMock(
