@@ -1,0 +1,298 @@
+Attaching to anvil, nf4_client, nf4_client2, nf4_configuration, nf4_db_client, nf4_db_client2, nf4_db_proposer, nf4_deployer, nf4_proposer, nf4_test
+anvil              | Waiting for anvil to be ready... (1)
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: using the "epoll" event method
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: nginx/1.29.0
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: built by gcc 12.2.0 (Debian 12.2.0-14+deb12u1) 
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: OS: Linux 6.8.0-1031-azure
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: getrlimit(RLIMIT_NOFILE): 1048576:1048576
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker processes
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 29
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 30
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 31
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 32
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 33
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 34
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 35
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 36
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 37
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 38
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 39
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 40
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 41
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 42
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 43
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 44
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 45
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 46
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 47
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 48
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 49
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 50
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 51
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 52
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 53
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 54
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 55
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 56
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 57
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 58
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 59
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 60
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 61
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 62
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 63
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 64
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 65
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 66
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 67
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 68
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 69
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 70
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 71
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 72
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 73
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 74
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 75
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 76
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 77
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 78
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 79
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 80
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 81
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 82
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 83
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 84
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 85
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 86
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 87
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 88
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 89
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 90
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 91
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 92
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 93
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 94
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 95
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 96
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 97
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 98
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 99
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 100
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 101
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 102
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 103
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 104
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 105
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 106
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 107
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 108
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 109
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 110
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 111
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 112
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 113
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 114
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 115
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 116
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 117
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 118
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 119
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 120
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 121
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 122
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 123
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 124
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 125
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 126
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 127
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 128
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 129
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 130
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 131
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 132
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 133
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 134
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 135
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 136
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 137
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 138
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 139
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 140
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 141
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 142
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 143
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 144
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 145
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 146
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 147
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 148
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 149
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 150
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 151
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 152
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 153
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 154
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 155
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 156
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 157
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 158
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 159
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 160
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 161
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 162
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 163
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 164
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 165
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 166
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 167
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 168
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 169
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 170
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 171
+nf4_configuration  | 2025/07/22 13:34:37 [notice] 1#1: start worker process 172
+anvil              | Compiling 74 files with Solc 0.8.29
+anvil              | installing solc version "0.8.29"
+anvil              | Successfully installed solc 0.8.29
+anvil              | Solc 0.8.29 finished in 3.01s
+anvil              | Compiler run successful with warnings:
+anvil              | Warning (2519): This declaration shadows an existing declaration.
+anvil              |    --> blockchain_assets/contracts/proof_verification/UltraPlonkVerifier.sol:671:5:
+anvil              |     |
+anvil              | 671 |     uint256 p
+anvil              |     |     ^^^^^^^^^
+anvil              | Note: The shadowed declaration is here:
+anvil              |   --> blockchain_assets/contracts/proof_verification/UltraPlonkVerifier.sol:33:5:
+anvil              |    |
+anvil              | 33 |     uint256 public p;
+anvil              |    |     ^^^^^^^^^^^^^^^^
+anvil              | 
+anvil              | Warning (2519): This declaration shadows an existing declaration.
+anvil              |    --> blockchain_assets/contracts/proof_verification/UltraPlonkVerifier.sol:734:5:
+anvil              |     |
+anvil              | 734 |     uint256 p
+anvil              |     |     ^^^^^^^^^
+anvil              | Note: The shadowed declaration is here:
+anvil              |   --> blockchain_assets/contracts/proof_verification/UltraPlonkVerifier.sol:33:5:
+anvil              |    |
+anvil              | 33 |     uint256 public p;
+anvil              |    |     ^^^^^^^^^^^^^^^^
+anvil              | 
+anvil              | Warning (5740): Unreachable code.
+anvil              |     --> blockchain_assets/contracts/proof_verification/RollupVerifier.sol:2963:9:
+anvil              |      |
+anvil              | 2963 |         console2.log("PI Hash:", public_inputs_hash);
+anvil              |      |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+anvil              | 
+anvil              | Warning (5740): Unreachable code.
+anvil              |     --> blockchain_assets/contracts/proof_verification/RollupVerifier.sol:2965:9:
+anvil              |      |
+anvil              | 2965 |         return true;
+anvil              |      |         ^^^^^^^^^^^
+anvil              | 
+anvil              | Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+anvil              |    --> blockchain_assets/contracts/proof_verification/UltraPlonkVerifier.sol:666:5:
+anvil              |     |
+anvil              | 666 |     uint256 tmp,
+anvil              |     |     ^^^^^^^^^^^
+anvil              | 
+anvil              | Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+anvil              |    --> blockchain_assets/contracts/proof_verification/UltraPlonkVerifier.sol:732:5:
+anvil              |     |
+anvil              | 732 |     PolynomialEval.EvalData memory evalData,
+anvil              |     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+anvil              | 
+anvil              | Warning (5667): Unused function parameter. Remove or comment out the variable name to silence this warning.
+anvil              |    --> blockchain_assets/contracts/proof_verification/UltraPlonkVerifier.sol:733:5:
+anvil              |     |
+anvil              | 733 |     PolynomialEval.EvalDomain memory domain,
+anvil              |     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+anvil              | 
+anvil              | Warning (2072): Unused local variable.
+anvil              |     --> blockchain_assets/contracts/proof_verification/UltraPlonkVerifier.sol:1812:9:
+anvil              |      |
+anvil              | 1812 |         uint256[] memory hashTable = new uint256[](bases.length);
+anvil              |      |         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+anvil              | 
+anvil              | Warning (2018): Function state mutability can be restricted to pure
+anvil              |    --> blockchain_assets/contracts/proof_verification/UltraPlonkVerifier.sol:665:5:
+anvil              |     |
+anvil              | 665 |     function compute_plookup_constant(
+anvil              |     |     ^ (Relevant source part starts here and spans across multiple lines).
+anvil              | 
+anvil              | Warning (2018): Function state mutability can be restricted to pure
+anvil              |    --> blockchain_assets/contracts/proof_verification/UltraPlonkVerifier.sol:728:2:
+anvil              |     |
+anvil              | 728 |  function compute_tmp(
+anvil              |     |  ^ (Relevant source part starts here and spans across multiple lines).
+anvil              | 
+anvil              | Warning (2018): Function state mutability can be restricted to pure
+anvil              |     --> blockchain_assets/contracts/proof_verification/UltraPlonkVerifier.sol:1986:2:
+anvil              |      |
+anvil              | 1986 |  function get_verification_key()
+anvil              |      |  ^ (Relevant source part starts here and spans across multiple lines).
+anvil              | 
+anvil              | Script ran successfully.
+anvil              | 
+anvil              | == Logs ==
+anvil              |   ERC20Mock deployed at: 0x5FbDB2315678afecb367f032d93F642f64180aa3
+anvil              |   ERC721Mock deployed at: 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+anvil              |   ERC1155Mock deployed at: 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0
+anvil              |   ERC3525Mock deployed at: 0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9
+anvil              | 
+anvil              | ## Setting up 1 EVM.
+anvil              | 
+anvil              | ==========================
+anvil              | 
+anvil              | Chain 31337
+anvil              | 
+anvil              | Estimated gas price: 116.000000001 gwei
+anvil              | 
+anvil              | Estimated total gas used for script: 7640727
+anvil              | 
+anvil              | Estimated amount required: 0.886324332007640727 ETH
+anvil              | 
+anvil              | ==========================
+anvil              | 
+anvil              | 
+anvil              | ==========================
+anvil              | 
+anvil              | ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+anvil              | 
+anvil              | Transactions saved to: /blockchain_assets/logs/mock_deployment.s.sol/31337/run-latest.json
+anvil              | 
+anvil              | Sensitive values saved to: /blockchain_assets/cache/mock_deployment.s.sol/31337/run-latest.json
+anvil              | 
+nf4_deployer       | [0m[38;5;8m[[0m2025-07-22T13:34:53Z [0m[32mINFO [0m nightfall_deployer[0m[38;5;8m][0m Deployer has started
+nf4_deployer       | [0m[38;5;8m[[0m2025-07-22T13:34:53Z [0m[32mINFO [0m nightfall_deployer[0m[38;5;8m][0m Deploying contracts
+nf4_deployer       | Hashing verifying key...
+nf4_deployer       | VK Hashing done:2512208485490812481936670078756724361365950416096418502040184818126091914363
+nf4_deployer       | creating vk contract:domain_size:33554432, domain_log_size:25, size_inv:0x30644e5aaf0a66b91f8030da595e7d1c6787b9b45fc54c546729acf1ff053609, group_gen:0x2a734ebb326341efa19b0361d9130cd47b26b7488dc6d26eeccd4f3eb878331a, group_gen_inv:0x27f035bdb21de9525bcd0d50e993ee185f43327bf6a8efc445d2f3cb9550fe47
+nf4_deployer       | creating vk contract:domain_size_U256:0x2000000 
+nf4_deployer       | [0m[38;5;8m[[0m2025-07-22T13:34:53Z [0m[1m[31mERROR[0m panic[0m[38;5;8m][0m thread 'main' panicked at 'Command 'forge ["build", "--force"]' executed with failing error code: None
+nf4_deployer       |     Standard Output: Unable to resolve imports:
+nf4_deployer       |           "./Types.sol" in "/app/blockchain_assets/contracts/contracts/proof_verification/RollupProofVerificationKey.sol"
+nf4_deployer       |     with remappings:
+nf4_deployer       |           @openzeppelin/contracts/=/app/blockchain_assets/solidity_lib/openzeppelin-contracts/contracts/
+nf4_deployer       |           @forge-std/=/app/blockchain_assets/solidity_lib/forge-std/src/
+nf4_deployer       |           @erc-3525/=/app/blockchain_assets/solidity_lib/erc-3525/
+nf4_deployer       |           ds-test/=/app/blockchain_assets/solidity_lib/openzeppelin-contracts/lib/forge-std/lib/ds-test/src/
+nf4_deployer       |           erc-3525/=/app/blockchain_assets/solidity_lib/erc-3525/
+nf4_deployer       |           erc4626-tests/=/app/blockchain_assets/solidity_lib/openzeppelin-contracts/lib/erc4626-tests/
+nf4_deployer       |           forge-std/=/app/blockchain_assets/solidity_lib/forge-std/src/
+nf4_deployer       |           halmos-cheatcodes/=/app/blockchain_assets/solidity_lib/openzeppelin-contracts/lib/halmos-cheatcodes/src/
+nf4_deployer       |           openzeppelin-contracts/=/app/blockchain_assets/solidity_lib/openzeppelin-contracts/
+nf4_deployer       |     Compiling 85 files with Solc 0.8.29
+nf4_deployer       |     installing solc version "0.8.29"
+nf4_deployer       |     Successfully installed solc 0.8.29
+nf4_deployer       |     Solc 0.8.29 finished in 242.03ms
+nf4_deployer       |     
+nf4_deployer       |     Standard Error: Error: Compiler run failed:
+nf4_deployer       |     Error (6275): Source "blockchain_assets/contracts/contracts/proof_verification/Types.sol" not found: File not found. Searched the following locations: "/app".
+nf4_deployer       |     ParserError: Source "blockchain_assets/contracts/contracts/proof_verification/Types.sol" not found: File not found. Searched the following locations: "/app".
+nf4_deployer       |      --> blockchain_assets/contracts/contracts/proof_verification/RollupProofVerificationKey.sol:7:5:
+nf4_deployer       |       |
+nf4_deployer       |     7 |     import "./Types.sol"; 
+nf4_deployer       |       |     ^^^^^^^^^^^^^^^^^^^^^
+nf4_deployer       |     
+nf4_deployer       |     ': nightfall_deployer/src/deployment.rs:102
+[Knf4_deployer exited with code 101
