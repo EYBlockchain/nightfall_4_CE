@@ -1,5 +1,5 @@
 use configuration::settings::Settings;
-use ethers::types::Address;
+use alloy::primitives::Address;
 use figment::{
     providers::{Format, Toml},
     Figment,
@@ -130,10 +130,10 @@ impl TestSettings {
         let mut json_string = String::new();
         json_file.read_to_string(&mut json_string).unwrap();
         let v: serde_json::Value = serde_json::from_str(&json_string).unwrap();
-        let mut erc20 = Address::zero();
-        let mut erc721 = Address::zero();
-        let mut erc1155 = Address::zero();
-        let mut erc3525 = Address::zero();
+        let mut erc20 = Address::ZERO;
+        let mut erc721 = Address::ZERO;
+        let mut erc1155 = Address::ZERO;
+        let mut erc3525 = Address::ZERO;
         let transaction_array = v["transactions"].as_array().unwrap();
 
         for transaction in transaction_array {
@@ -202,14 +202,30 @@ impl TestSettings {
 mod tests {
     use super::*;
     use crate::test::forge_command;
-    use ethers::{
-        providers::{Http, Middleware, Provider},
-        utils::Anvil,
+    use alloy::{
+         providers::{Provider, ProviderBuilder},
+         sol,
     };
-    // use nightfall_bindings::{
-    //     erc1155_mock::ERC1155MOCK_DEPLOYED_BYTECODE, erc20_mock::ERC20MOCK_DEPLOYED_BYTECODE,
-    //     erc3525_mock::ERC3525MOCK_DEPLOYED_BYTECODE, erc721_mock::ERC721MOCK_DEPLOYED_BYTECODE,
-    // };
+    use alloy_node_bindings::Anvil;
+
+
+    sol!(
+        #[sol(rpc)]    
+        #[derive(Debug)] // Add Debug trait to x509CheckReturn
+        erc1155_mock, "/Users/Swati.Rawal/nightfall_4_PV/blockchain_assets/artifacts/ERC1155Mock.sol/ERC1155Mock.json");
+    sol!(
+        #[sol(rpc)]    
+        #[derive(Debug)]
+        erc20_mock, "/Users/Swati.Rawal/nightfall_4_PV/blockchain_assets/artifacts/ERC20Mock.sol/ERC20Mock.json");
+    sol!(
+        #[sol(rpc)]    
+        #[derive(Debug)] // Add Debug trait to x509CheckReturn
+        erc3525_mock, "/Users/Swati.Rawal/nightfall_4_PV/blockchain_assets/artifacts/ERC3525Mock.sol/ERC3525Mock.json");
+    sol!(
+        #[sol(rpc)]    
+        #[derive(Debug)] // Add Debug trait to x509CheckReturn
+        erc721_mock, "/Users/Swati.Rawal/nightfall_4_PV/blockchain_assets/artifacts/ERC721Mock.sol/ERC721Mock.json");
+
     #[tokio::test]
     async fn test_mock_addresses() {
         // fire up a blockchain simulator
@@ -232,23 +248,26 @@ mod tests {
         let mock_addresses = TestSettings::retrieve_mock_addresses();
 
         // get a blockchain provider so we can interrogate the deployed code
-        let provider = Provider::<Http>::try_from(anvil.endpoint()).unwrap();
-        let erc20_code = provider.get_code(mock_addresses.erc20, None).await.unwrap();
+        let provider = ProviderBuilder::new()
+        .disable_recommended_fillers()
+        .on_http(anvil.endpoint_url());
+        //let provider = Provider::<Http>::try_from(anvil.endpoint()).unwrap();
+        let erc20_code = provider.get_code_at(mock_addresses.erc20).await.unwrap();
         let erc721_code = provider
-            .get_code(mock_addresses.erc721, None)
+            .get_code_at(mock_addresses.erc721)
             .await
             .unwrap();
         let erc1155_code = provider
-            .get_code(mock_addresses.erc1155, None)
+            .get_code_at(mock_addresses.erc1155)
             .await
             .unwrap();
         let erc3525_code = provider
-            .get_code(mock_addresses.erc3525, None)
+            .get_code_at(mock_addresses.erc3525)
             .await
             .unwrap();
-        assert_eq!(erc20_code, ERC20MOCK_DEPLOYED_BYTECODE);
-        assert_eq!(erc721_code, ERC721MOCK_DEPLOYED_BYTECODE);
-        assert_eq!(erc1155_code, ERC1155MOCK_DEPLOYED_BYTECODE);
-        assert_eq!(erc3525_code, ERC3525MOCK_DEPLOYED_BYTECODE);
+        assert_eq!(erc20_code, erc20_mock::DEPLOYED_BYTECODE);
+        assert_eq!(erc721_code, erc721_mock::DEPLOYED_BYTECODE);
+        assert_eq!(erc1155_code, erc1155_mock::DEPLOYED_BYTECODE);
+        assert_eq!(erc3525_code, erc3525_mock::DEPLOYED_BYTECODE);
     }
 }

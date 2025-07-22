@@ -2,12 +2,13 @@ use crate::blockchain_client::BlockchainClientConnection;
 use crate::error::BlockchainClientConnectionError;
 use async_trait::async_trait;
 use azure_security_keyvault::SecretClient;
-use alloy::providers::{Provider, ProviderBuilder, RootProvider};
+use alloy::providers::{Provider, ProviderBuilder};
 use alloy::primitives::Address;
 use alloy::transports::ws::WsConnect;
 use alloy::signers::local::PrivateKeySigner;
 use log::{debug, info};
 use std::error::Error;
+use std::sync::Arc;
 use url::Url;
 
 #[derive(Clone, Debug)]
@@ -45,7 +46,7 @@ impl AzureWallet {
 
 #[derive(Clone)]
 pub struct LocalWsClient {
-    provider: RootProvider,
+    provider: Arc<dyn Provider>,
     signer: PrivateKeySigner,
 }
 
@@ -66,7 +67,7 @@ impl BlockchainClientConnection for LocalWsClient {
         .map_err(|e| BlockchainClientConnectionError::ProviderError(e.to_string()))?;
             
         Ok(Self {
-            provider: provider.root().clone(),
+            provider: Arc::new(provider),
             signer: signer,
         })
     }
@@ -84,7 +85,7 @@ impl BlockchainClientConnection for LocalWsClient {
         self.signer.address()
     }
 
-    fn get_client(&self) -> RootProvider {
+    fn get_client(&self) -> Arc<dyn Provider> {
         self.provider.clone()
     }
 
@@ -125,7 +126,7 @@ impl BlockchainClientConnection for LocalWsClient {
             .map_err(|e| BlockchainClientConnectionError::ProviderError(e.to_string()))?;
 
         Ok(Self {
-            provider: provider.root().clone(),
+            provider: Arc::new(provider),
             signer: signer,
         })
     }

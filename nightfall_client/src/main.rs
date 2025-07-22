@@ -1,6 +1,6 @@
 use configuration::{logging::init_logging, settings::get_settings};
 
-use lib::{merkle_trees::trees::TreeMetadata, utils, wallets::LocalWsClient};
+use lib::{merkle_trees::trees::TreeMetadata, utils};
 use log::{error, info};
 
 use ark_bn254::Fr as Fr254;
@@ -9,6 +9,8 @@ use nightfall_client::{
     driven::{
         plonk_prover::plonk_proof::{PlonkProof, PlonkProvingEngine},
         queue::process_queue,
+        contract_functions::nightfall_contract::Nightfall,
+
     },
     drivers::{blockchain::nightfall_event_listener::start_event_listener, rest::routes},
 };
@@ -17,7 +19,7 @@ use tokio::task::JoinError;
 #[tokio::main]
 async fn main() -> Result<(), JoinError> {
     // declare the types of wallet that we're using
-    type N = Nightfall<LocalWsClient>;
+    type N = Nightfall::NightfallCalls;
     init_logging(
         get_settings().nightfall_client.log_level.as_str(),
         get_settings().log_app_only,
@@ -55,12 +57,12 @@ async fn main() -> Result<(), JoinError> {
         max_event_listener_attempts_client,
     ));
     // set up the warp server
-    let routes = routes::<PlonkProof, PlonkProvingEngine, Nightfall<LocalWsClient>>();
+    let routes = routes::<PlonkProof, PlonkProvingEngine, Nightfall::NightfallCalls>();
     let task_2 = tokio::spawn(warp::serve(routes).run(([0, 0, 0, 0], 3000)));
     let task_3 = tokio::spawn(process_queue::<
         PlonkProof,
         PlonkProvingEngine,
-        Nightfall<LocalWsClient>,
+        Nightfall::NightfallCalls,
     >());
     info!("Starting warp server, request queue, and event_handler threads");
     // we'll run the warp server and blockchain listener in parallel in separate threads

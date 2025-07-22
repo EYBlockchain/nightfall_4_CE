@@ -42,6 +42,7 @@ azure_identity = "0.21.0"
 azure_security_keyvault = "0.21.0"
 [build-dependencies]
 configuration = { path = "../configuration" }
+nightfall_bindings = { path = "../nightfall_bindings"}
 tokio = { version = "1.45.0", features = ["full"] }
 jf-primitives = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git" }
 jf-plonk = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", features = [

@@ -6,12 +6,9 @@ use crate::{
 };
 use ark_serialize::SerializationError;
 use configuration::addresses::get_addresses;
-
-use ethers::providers::ProviderError;
 use jf_plonk::errors::PlonkError;
 use lib::blockchain_client::BlockchainClientConnection;
 use log::{debug, error, info, warn};
-//use nightfall_bindings::round_robin::RoundRobin;
 use nightfall_client::{
     domain::error::{ConversionError, EventHandlerError, NightfallContractError},
     ports::proof::Proof,
@@ -20,6 +17,10 @@ use std::{
     error::Error,
     fmt::{Debug, Display, Formatter},
 };
+use alloy::sol;
+sol!(
+    #[sol(rpc)]     // Add Debug trait to x509CheckReturn
+    RoundRobin, "/Users/Swati.Rawal/nightfall_4_PV/blockchain_assets/artifacts/RoundRobin.sol/RoundRobin.json");
 
 #[derive(Debug)]
 pub enum BlockAssemblyError {
@@ -33,7 +34,7 @@ pub enum BlockAssemblyError {
     ConversionError(ConversionError),
     ProvingError(String),
     ContractError(String),
-    ProviderError(ProviderError),
+    ProviderError(String),
     EventHandlerError(EventHandlerError),
 }
 
@@ -63,7 +64,7 @@ impl Display for BlockAssemblyError {
             Self::FailedToGetDepositData(e) => write!(f, "Failed to acquire deposit data: {}", e),
             Self::ProvingError(s) => write!(f, "Error occurred while proving: {} ", s),
             Self::ContractError(s) => write!(f, "Contract error: {}", s),
-            Self::ProviderError(e) => write!(f, "Provider error: {}", e),
+            Self::ProviderError(s) => write!(f, "Provider error: {}", s),
             Self::EventHandlerError(e) => write!(f, "Event handling error: {}", e),
         }
     }
@@ -102,13 +103,15 @@ where
     R: RecursiveProvingEngine<P> + Send + Sync + 'static,
     N: NightfallContract,
 {
+    let blockchain_client = get_blockchain_client_connection()
+    .await
+    .read()
+    .await
+    .get_client();
+
     let round_robin_instance = RoundRobin::new(
         get_addresses().round_robin,
-        get_blockchain_client_connection()
-            .await
-            .read()
-            .await
-            .get_client(),
+        blockchain_client.root(),
     );
     debug!("Starting block assembly");
     loop {
@@ -125,14 +128,13 @@ where
                 tokio::time::sleep(std::time::Duration::from_secs(5)).await;
                 continue;
             }
-        };
+        }._0;
 
         let our_address = get_blockchain_client_connection()
             .await
             .read()
             .await
-            .get_client()
-            .address();
+            .get_address();
 
         // Step 2: If we are not the proposer, wait and retry
         if current_proposer != our_address {
@@ -162,14 +164,13 @@ where
                 error!("Failed to get current proposer after trigger: {}", e);
                 continue;
             }
-        };
+        }._0;
 
         let our_address = get_blockchain_client_connection()
             .await
             .read()
             .await
-            .get_client()
-            .address();
+            .get_address();
 
         if current_proposer_after_trigger != our_address {
             info!(

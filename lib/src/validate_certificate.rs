@@ -5,17 +5,13 @@ use crate::{
 };
 use configuration::addresses::get_addresses;
 use alloy::primitives::{Address, U256};
-use alloy::sol;
 use futures::stream::TryStreamExt;
 use log::{debug, error, info, trace, warn};
 use reqwest::StatusCode;
 use x509_parser::nom::AsBytes;
 use std::{ffi::OsStr, io::Read, path::Path};
 use warp::{filters::multipart::FormData, path, reply::Reply, Buf, Filter};
-sol!(
-    #[sol(rpc)]    
-    #[derive(Debug)] // Add Debug trait to x509CheckReturn
-    X509, "/Users/Swati.Rawal/nightfall_4_PV/blockchain_assets/artifacts/X509.sol/X509.json");
+use nightfall_bindings::bindings::X509;
 #[derive(Debug)]
 pub struct X509ValidationError;
 
@@ -41,11 +37,12 @@ async fn handle_certificate_validation(
     mut x509_data: FormData,
 ) -> Result<impl Reply, warp::Rejection> {
     // get a blockchain client from the singleton lazy static
-    let blockchain_client = get_blockchain_client_connection()
+    let client = get_blockchain_client_connection()
         .await
         .read()
         .await
         .get_client();
+    let blockchain_client = client.root();
 
     // Parse the certificate validation request
     let mut certificate_req = CertificateReq::default();
@@ -137,11 +134,12 @@ async fn validate_certificate(
     oid_group: u32,
     sender_address: Address,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let blockchain_client = get_blockchain_client_connection()
+    let client = get_blockchain_client_connection()
         .await
         .read()
         .await
         .get_client();
+    let blockchain_client = client.root();
     
     let x509_instance = X509::new(x509_contract_address, blockchain_client);
 

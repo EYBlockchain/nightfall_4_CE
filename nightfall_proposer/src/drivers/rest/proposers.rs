@@ -1,12 +1,13 @@
 use configuration::{addresses::get_addresses, settings::get_settings};
-use ethers::{providers::ProviderError, types::U256};
+use alloy::primitives::U256;
 use log::{info, warn};
 //use nightfall_bindings::round_robin::RoundRobin;
 /// APIs for managing proposers
 use warp::{hyper::StatusCode, path, reject::Reject, reply::Reply, Filter};
 
 use crate::initialisation::get_blockchain_client_connection;
-use lib::blockchain_client::BlockchainClientConnection;
+use lib::blockchain_client::{BlockchainClientConnection};
+use crate::driven::block_assembler::RoundRobin;
 
 /// Error type for proposer rotation
 #[derive(Debug)]
@@ -15,7 +16,7 @@ pub enum ProposerError {
     FailedToAddProposer,
     FailedToRemoveProposer,
     FailedToWithdrawStake,
-    ProviderError(ProviderError),
+    ProviderError(String),
 }
 
 impl std::fmt::Display for ProposerError {
@@ -54,17 +55,18 @@ pub fn rotate_proposer() -> impl Filter<Extract = impl warp::Reply, Error = warp
 
 async fn handle_rotate_proposer() -> Result<impl Reply, warp::Rejection> {
     // get a ManageProposers instance
+    let blockchain_client = get_blockchain_client_connection()
+    .await
+    .read()
+    .await
+    .get_client();
     let proposer_manager = RoundRobin::new(
         get_addresses().round_robin,
-        get_blockchain_client_connection()
-            .await
-            .read()
-            .await
-            .get_client(),
+        blockchain_client.root(),
     );
     match proposer_manager.proposer_count().call().await {
         Ok(count) => {
-            if count <= U256::one() {
+            if count._0 <= U256::ONE {
                 warn!("Rotation requested, but only one active proposer; rotation will have no effect.");
             }
         }
@@ -77,7 +79,10 @@ async fn handle_rotate_proposer() -> Result<impl Reply, warp::Rejection> {
     let tx_result = tx_call.send().await;
     match tx_result {
         Ok(tx) => {
-            tx.await.map_err(ProposerError::ProviderError)?;
+            tx.get_receipt().await.map_err(|e| {
+                warn!("Failed to get transaction receipt: {}", e);
+                ProposerError::ProviderError(e.to_string())
+            })?;
             Ok(StatusCode::OK)
         }
         Err(_e) => Ok(StatusCode::LOCKED),
@@ -93,33 +98,34 @@ pub fn add_proposer() -> impl Filter<Extract = impl warp::Reply, Error = warp::R
 
 async fn handle_add_proposer(url: String) -> Result<impl Reply, warp::Rejection> {
     // get a ManageProposers instance
+    let blockchain_client = get_blockchain_client_connection()
+    .await
+    .read()
+    .await
+    .get_client();
     let proposer_manager = RoundRobin::new(
         get_addresses().round_robin,
-        get_blockchain_client_connection()
-            .await
-            .read()
-            .await
-            .get_client(),
+        blockchain_client.root(),
     );
     // add the proposer
     let tx = proposer_manager
         .add_proposer(url)
-        .value(get_settings().nightfall_deployer.proposer_stake)
+        .value(U256::from(get_settings().nightfall_deployer.proposer_stake))
         .send()
         .await
         .map_err(|e| {
             warn!("{}", e);
             ProposerError::FailedToAddProposer
-        })?
-        .await
-        .map_err(ProposerError::ProviderError)?;
-    match tx {
-        Some(transaction) => info!("Registered proposer with address: {:?}", transaction.from),
-        None => {
+        })?.get_receipt().await.map_err(| e | {
+            warn!("Failed to get transaction receipt: {}", e);
+            ProposerError::ProviderError(e.to_string())
+        })?;
+        if tx.status() {
+            info!("Registered proposer with address: {:?}", tx.from);
+        } else {
             warn!("Failed to add proposer");
             return Err(warp::reject::custom(ProposerError::FailedToAddProposer));
         }
-    }
     Ok(StatusCode::OK)
 }
 
@@ -133,20 +139,21 @@ pub fn remove_proposer() -> impl Filter<Extract = impl warp::Reply, Error = warp
 
 async fn handle_remove_proposer() -> Result<impl Reply, warp::Rejection> {
     // get a ManageProposers instance
+    let blockchain_client = get_blockchain_client_connection()
+    .await
+    .read()
+    .await
+    .get_client();
     let proposer_manager = RoundRobin::new(
         get_addresses().round_robin,
-        get_blockchain_client_connection()
-            .await
-            .read()
-            .await
-            .get_client(),
+        blockchain_client.root(),
     );
     let signer_address = get_blockchain_client_connection()
         .await
         .read()
         .await
-        .get_client()
-        .address();
+        .get_address();
+        
 
     // Read penalty + cooling config from settings
     let settings = get_settings();
@@ -156,7 +163,7 @@ async fn handle_remove_proposer() -> Result<impl Reply, warp::Rejection> {
     // Fetch the current proposer address on-chain
     match proposer_manager.get_current_proposer_address().call().await {
         Ok(current_proposer) => {
-            if current_proposer == signer_address {
+            if current_proposer._0 == signer_address {
                 warn!(
                     "You are removing yourself as the active proposer — this will deduct an exit penalty of {} units and start a cooldown period of {} L1 blocks before you can re-register.",
                     penalty,
@@ -180,15 +187,17 @@ async fn handle_remove_proposer() -> Result<impl Reply, warp::Rejection> {
             warn!("{}", e);
             ProposerError::FailedToRemoveProposer
         })?
-        .await
-        .map_err(ProposerError::ProviderError)?;
-    match tx {
-        Some(transaction) => info!("Removed proposer with address: {:?}", transaction.from),
-        None => {
+        .get_receipt()
+        .await.map_err(| e | {
+            warn!("Failed to get transaction receipt: {}", e);
+            ProposerError::ProviderError(e.to_string())
+        })?;
+        if tx.status() {
+            info!("Removed proposer with address: {:?}", tx.from);
+        } else {
             warn!("Failed to remove proposer");
-            return Err(warp::reject::custom(ProposerError::FailedToRemoveProposer));
+            return Err(warp::reject::custom(ProposerError::FailedToAddProposer));
         }
-    }
     Ok(StatusCode::OK)
 }
 
@@ -201,31 +210,33 @@ pub fn withdraw() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejec
 
 async fn handle_withdraw(amount: u64) -> Result<impl Reply, warp::Rejection> {
     // get a ManageProposers instance
+    let blockchain_client = get_blockchain_client_connection()
+    .await
+    .read()
+    .await
+    .get_client();
+
     let proposer_manager = RoundRobin::new(
         get_addresses().round_robin,
-        get_blockchain_client_connection()
-            .await
-            .read()
-            .await
-            .get_client(),
+        blockchain_client.root(),
     );
     // attemp to withdraw the stake
     let tx = proposer_manager
-        .withdraw(amount.into())
+        .withdraw(U256::from(amount))
         .send()
         .await
         .map_err(|e| {
             warn!("{}", e);
             ProposerError::FailedToWithdrawStake
-        })?
-        .await
-        .map_err(ProposerError::ProviderError)?;
-    match tx {
-        Some(transaction) => info!("Withdrew {} to address: {:?}", amount, transaction.from),
-        None => {
+        })?.get_receipt().await.map_err(| e | {
+            warn!("Failed to get transaction receipt: {}", e);
+            ProposerError::ProviderError(e.to_string())
+        })?;
+        if tx.status() {
+            info!("Withdrew {} to address: {:?}", amount, tx.from);
+        } else {
             warn!("Failed to withdraw funds");
             return Err(warp::reject::custom(ProposerError::FailedToWithdrawStake));
         }
-    }
     Ok(StatusCode::OK)
 }

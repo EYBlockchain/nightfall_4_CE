@@ -4,7 +4,7 @@ use crate::{
 };
 use ark_bn254::Fr as Fr254;
 use ark_ff::{BigInteger, PrimeField, Zero};
-use ethers::types::H160;
+use alloy::primitives::Address;
 use futures::TryStreamExt;
 use mongodb::bson::doc;
 use nightfall_client::{
@@ -345,7 +345,7 @@ impl TryFrom<HistoricRootEntry> for HistoricRoot {
 pub struct StoredBlock {
     pub layer2_block_number: u64,
     pub commitments: Vec<String>,
-    pub proposer_address: H160,
+    pub proposer_address: Address,
 }
 impl StoredBlock {
     pub fn hash(&self) -> Fr254 {
@@ -353,7 +353,7 @@ impl StoredBlock {
         for c in &self.commitments {
             bytes.extend_from_slice(c.as_bytes());
         }
-        bytes.extend_from_slice(&self.proposer_address.to_fixed_bytes());
+        bytes.extend_from_slice(&self.proposer_address.as_slice());
         let hash = Sha256::digest(&bytes);
         Fr254::from_be_bytes_mod_order(&hash)
     }

@@ -16,6 +16,7 @@ soljson*
 **/blockchain_assets/artifacts
 **/blockchain_assets/cache
 **/blockchain_assets/logs
+**/nightfall_bindings/src/bindings.rs
 configuration/toml
 remappings.txt
 local.env

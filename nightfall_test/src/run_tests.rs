@@ -12,7 +12,7 @@ use std::fs;
 use test::{count_spent_commitments, get_erc20_balance, get_erc721_balance, get_fee_balance};
 
 use lib::{
-    blockchain_client::BlockchainClientConnection,
+    blockchain_client::{BlockchainClientConnection},
     initialisation::get_blockchain_client_connection, models::CertificateReq,
 };
 
@@ -26,10 +26,15 @@ use crate::{
     test_settings::TestSettings,
 };
 use ark_std::Zero;
-use ethers::{
-    providers::Middleware,
-    types::{TransactionReceipt, U256},
-    utils::{format_units, parse_units},
+// use ethers::{
+//     types::{TransactionReceipt, U256},
+//     utils::{format_units, parse_units},
+// };
+use alloy::{
+    primitives::{U256,
+    utils::{format_units, parse_units}},
+    rpc::types::TransactionReceipt,
+
 };
 use url::Url;
 
@@ -1027,28 +1032,24 @@ pub async fn run_tests(
     // get the final balance of all the addresses used. As these are all addresses funded by Anvil,
     // we can simple print those balances
     let client = get_blockchain_client_connection()
-        .await
-        .read()
-        .await
-        .get_client();
-    let accounts = client.get_accounts().await.unwrap();
-    let initial_balance = U256::from(parse_units("10000.0", "ether").unwrap());
-    let final_balances = try_join_all(
-        accounts
-            .iter()
-            .map(|a| client.get_balance(*a, None))
-            .collect::<Vec<_>>(),
-    )
     .await
-    .unwrap()
-    .iter()
-    .map(|b| initial_balance - b)
-    .collect::<Vec<_>>();
+    .read()
+    .await
+    .get_client();
+    let accounts = client.get_accounts().await.unwrap();
+    let initial_balance: U256 = parse_units("10000.0", "ether").unwrap().into();
+    let final_balances = futures::future::join_all(
+            accounts.iter().map(|a| async { client.get_balance(*a).await.unwrap() }),
+        )
+        .await
+        .iter()
+        .map(|b| initial_balance - b)
+        .collect::<Vec<_>>();
     let final_balances_str = final_balances
         .iter()
         .map(|b| format_units(*b, "ether").unwrap())
         .collect::<Vec<_>>();
-    let total = final_balances.iter().fold(U256::zero(), |acc, b| acc + b);
+    let total = final_balances.iter().fold(U256::ZERO, |acc, b| acc + b);
     info!("Eth spent was {:#?}", final_balances_str);
     info!(
         "Total spent was {:#?}",

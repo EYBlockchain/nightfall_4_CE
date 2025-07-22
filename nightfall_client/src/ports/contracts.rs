@@ -46,7 +46,7 @@ pub trait NightfallContract {
     /// Function to see if funds are available to withdraw
     fn withdraw_available(
         withdraw_data: WithdrawData,
-    ) -> impl Future<Output = Result<u8, NightfallContractError>> + Send;
+    ) -> impl Future<Output = Result<bool, NightfallContractError>> + Send;
 
     fn get_current_layer2_blocknumber(
     ) -> impl Future<Output = Result<I256, NightfallContractError>> + Send;

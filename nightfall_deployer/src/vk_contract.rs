@@ -1,36 +1,37 @@
 use ark_bn254::{Bn254, Fq as Fq254, Fr as Fr254};
 use ark_ff::{BigInteger, Field, PrimeField};
 use ark_poly::{EvaluationDomain, Radix2EvaluationDomain};
+use ark_serialize::CanonicalSerializeHashExt;
 use ark_std::vec::Vec;
 use configuration::settings::Settings;
-use ethers::types::{H256, U256};
+use alloy::primitives::{Address, U256};
 use jf_plonk::proof_system::structs::{VerifyingKey, VK};
 
 use std::{
     fs::File,
-    io::Write,
+    io::{Read, Write},
     path::{Path, PathBuf},
 };
 
 pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: &Settings) {
-    let vk_hash_bytes: [u8; 32] = vk.hash().into_bigint().to_bytes_be().try_into().unwrap();
-    let vk_hash = H256::from(vk_hash_bytes);
+    let vk_hash_bytes = vk.hash().into_bigint().to_bytes_le();
+    let vk_hash = Address::from(vk_hash_bytes.as_slice());
     let domain_size = vk.domain_size();
     let domain_size_fr = Fr254::from(domain_size as u32);
-    let domain_size_inv = U256::from_little_endian(
-        &domain_size_fr
+    let domain_size_inv = U256::from_le_bytes(
+        domain_size_fr
             .inverse()
             .unwrap()
             .into_bigint()
-            .to_bytes_le(),
+            .to_bytes_le().try_into().expect("Failed to convert Vec<u8> to [u8; 32]"),
     );
     let domain = Radix2EvaluationDomain::<Fr254>::new(domain_size).unwrap();
 
-    let omega = U256::from_little_endian(&domain.group_gen().into_bigint().to_bytes_le());
-    let omega_inv = U256::from_little_endian(&domain.group_gen_inv().into_bigint().to_bytes_le());
+    let omega = U256::from_le_bytes(domain.group_gen().into_bigint().to_bytes_le().try_into().expect("Failed to convert Vec<u8> to [u8; 32]"));
+    let omega_inv = U256::from_le_bytes(domain.group_gen_inv().into_bigint().to_bytes_le().try_into().expect("Failed to convert Vec<u8> to [u8; 32]"));
     let vk_vec = Vec::<Fq254>::from(vk.clone())
         .into_iter()
-        .map(|x| U256::from_little_endian(&x.into_bigint().to_bytes_le()))
+        .map(|x| U256::from_le_bytes(x.into_bigint().to_bytes_le().try_into().expect("Failed to convert Vec<u8> to [u8; 32]")))
         .collect::<Vec<_>>();
 
     let join_path = Path::new(&settings.contracts.assets)

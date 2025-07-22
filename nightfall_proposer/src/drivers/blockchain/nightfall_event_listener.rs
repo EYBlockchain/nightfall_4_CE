@@ -5,11 +5,14 @@ use crate::{
         db::TransactionsDB,
         trees::{CommitmentTree, HistoricRootTree, NullifierTree},
     },
-    services::process_events::process_events,
+    driven::{ block_assembler::Nightfall,
+    nightfall_event::{ process_nightfall_calldata, 
+        process_deposit_escrowed_event, },
+  }
 };
 use ark_bn254::Fr as Fr254;
+use alloy::primitives::I256;
 use configuration::{addresses::get_addresses, settings::get_settings};
-use ethers::prelude::*;
 use futures::{future::BoxFuture, FutureExt};
 use lib::blockchain_client::BlockchainClientConnection;
 use log::{debug, warn};
@@ -19,9 +22,11 @@ use nightfall_client::{
     domain::{entities::SynchronisationStatus, error::EventHandlerError},
     ports::proof::{Proof, ProvingEngine},
 };
+use futures::StreamExt;
 use std::time::Duration;
 use tokio::sync::{OnceCell, RwLock};
 use tokio::time::sleep;
+
 
 /// This function starts the event handler. It will attempt to restart the event handler in case of errors
 /// with an exponential backoff for a configurable number of attempts. If the event handler
@@ -92,23 +97,28 @@ where
     E: ProvingEngine<P>,
     N: NightfallContract,
 {
+    let blockchain_client = get_blockchain_client_connection()
+    .await
+    .read()
+    .await
+    .get_client();
+
     let nightfall_instance = Nightfall::new(
         get_addresses().nightfall,
-        get_blockchain_client_connection()
-            .await
-            .read()
-            .await
-            .get_client(),
+        blockchain_client.root(),
     );
-    let events = nightfall_instance.events().from_block(start_block);
+    let block_proposed_events = nightfall_instance.event_filter::<Nightfall::BlockProposed>().from_block(start_block as u64);
 
-    let mut stream = events
-        .subscribe_with_meta()
+    let mut block_proposed_stream = block_proposed_events
+        .subscribe()
         .await
-        .map_err(|_| EventHandlerError::NoEventStream)?;
-    while let Some(Ok(evt)) = stream.next().await {
+        .map_err(|_| EventHandlerError::NoEventStream)?.into_stream();
+    while let Some(Ok(evt)) = block_proposed_stream.next().await {
         // process each event in the stream and handle any errors
-        let result = process_events::<P, E, N>(evt.0, evt.1).await;
+        let result = process_nightfall_calldata::<P, E, N>(
+            evt.1.transaction_hash.unwrap(),
+            evt.1.block_number.unwrap().to_string().parse::<I256>().unwrap()
+        ).await;
         match result {
             Ok(_) => continue,
             Err(e) => {
@@ -134,6 +144,31 @@ where
             }
         }
     }
+    let deposit_events = nightfall_instance.event_filter::<Nightfall::DepositEscrowed>().from_block(start_block as u64);
+        let mut deposit_stream = deposit_events
+            .subscribe()
+            .await
+            .map_err(|_| EventHandlerError::NoEventStream)?.into_stream();
+    
+            while let Some(Ok(evt)) = deposit_stream.next().await {
+                // process each event in the stream and handle any errors
+                let result = process_deposit_escrowed_event::<P,E>(evt.1.transaction_hash.unwrap(), &Nightfall::DepositEscrowed::from(evt.0)).await;
+                match result {
+                    Ok(_) => continue,
+                    Err(e) => {
+                        match e {
+                            // we're missing blocks, so we need to re-synchronise
+                            EventHandlerError::MissingBlocks(n) => {
+                                warn!("Missing blocks. Last contiguous block was {}. Restarting event listener", n);
+                                restart_event_listener::<P, E, N>(start_block).await;
+                                return Err(EventHandlerError::StreamTerminated);
+                            }
+                            _ => panic!("Error processing event: {:?}", e),
+                        }
+                    }
+                }
+            }    
+
     Err(EventHandlerError::StreamTerminated)
 }
 

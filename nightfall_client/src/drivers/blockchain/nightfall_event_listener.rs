@@ -1,10 +1,10 @@
 use crate::domain::{entities::SynchronisationStatus, error::EventHandlerError};
-use crate::driven::event_handlers::nightfall_event::get_expected_layer2_blocknumber;
+use crate::driven::event_handlers::nightfall_event::{
+    get_expected_layer2_blocknumber, 
+    process_nightfall_calldata, process_deposit_escrowed_event,
+    Nightfall::BlockProposed as NFBlockProposed, Nightfall::DepositEscrowed as NFDepositRequest};
 use crate::ports::contracts::NightfallContract;
-use crate::ports::events;
-use crate::services::process_events::process_events;
 use configuration::{addresses::get_addresses, settings::get_settings};
-use alloy::sol;
 use futures::StreamExt;
 use futures::{future::BoxFuture, FutureExt};
 use lib::{
@@ -15,10 +15,7 @@ use log::{debug, warn};
 use std::panic;
 use std::time::Duration;
 use tokio::time::sleep;
-sol!(
-    #[sol(rpc)]    
-    #[derive(Debug)] // Add Debug trait to x509CheckReturn
-    Nightfall, "/Users/Swati.Rawal/nightfall_4_PV/blockchain_assets/artifacts/Nightfall.sol/Nightfall.json");
+use nightfall_bindings::bindings::Nightfall;
 /// This function starts the event handler. It will attempt to restart the event handler in case of errors
 /// with an exponential backoff  for a configurable number of attempts. If the event handler
 /// fails after the maximum number of attempts, it will log an error and send a notification (if configured).
@@ -76,40 +73,69 @@ async fn notify_failure_client(message: &str) -> Result<(), ()> {
 pub async fn listen_for_events<N: NightfallContract>(
     start_block: usize,
 ) -> Result<(), EventHandlerError> {
+    let blockchain_client = get_blockchain_client_connection()
+    .await
+    .read()
+    .await
+    .get_client();
     let nightfall_instance = Nightfall::new(
         get_addresses().nightfall(),
-        get_blockchain_client_connection()
-            .await
-            .read()
-            .await
-            .get_client(),
+        blockchain_client.root(),
     );
     log::info!(
         "Listening for events on the Nightfall contract at address: {}",
         get_addresses().nightfall()
     );
-    let events = nightfall_instance.event_filter::<Nightfall::BlockProposed>().from_block(start_block as u64);
-    let mut stream = events.subscribe()
+    
+    let events = nightfall_instance.event_filter::<NFBlockProposed>().from_block(start_block as u64);
+    let mut stream = events
+        .subscribe()
         .await
         .map_err(|_| EventHandlerError::NoEventStream)?.into_stream();
-    while let Some(Ok(evt)) = stream.next().await {
-        // process each event in the stream and handle any errors
-        let result = process_events::<N>(Nightfall::NightfallEvents::from(evt.0), evt.1).await;
-        match result {
-            Ok(_) => continue,
-            Err(e) => {
-                match e {
-                    // we're missing blocks, so we need to re-synchronise
-                    EventHandlerError::MissingBlocks(n) => {
-                        warn!("Missing blocks. Last contiguous block was {}. Restarting event listener", n);
-                        restart_event_listener::<N>(start_block).await;
-                        return Err(EventHandlerError::StreamTerminated);
+
+        while let Some(Ok(evt)) = stream.next().await {
+            // process each event in the stream and handle any errors
+            let result = process_nightfall_calldata::<N>(evt.1.transaction_hash, &NFBlockProposed::from(evt.0)).await;
+            match result {
+                Ok(_) => continue,
+                Err(e) => {
+                    match e {
+                        // we're missing blocks, so we need to re-synchronise
+                        EventHandlerError::MissingBlocks(n) => {
+                            warn!("Missing blocks. Last contiguous block was {}. Restarting event listener", n);
+                            restart_event_listener::<N>(start_block).await;
+                            return Err(EventHandlerError::StreamTerminated);
+                        }
+                        _ => panic!("Error processing event: {:?}", e),
                     }
-                    _ => panic!("Error processing event: {:?}", e),
                 }
             }
         }
-    }
+        let deposit_events = nightfall_instance.event_filter::<NFDepositRequest>().from_block(start_block as u64);
+        let mut deposit_stream = deposit_events
+            .subscribe()
+            .await
+            .map_err(|_| EventHandlerError::NoEventStream)?.into_stream();
+    
+            while let Some(Ok(evt)) = deposit_stream.next().await {
+                // process each event in the stream and handle any errors
+                let result = process_deposit_escrowed_event(evt.1.transaction_hash, &NFDepositRequest::from(evt.0)).await;
+                match result {
+                    Ok(_) => continue,
+                    Err(e) => {
+                        match e {
+                            // we're missing blocks, so we need to re-synchronise
+                            EventHandlerError::MissingBlocks(n) => {
+                                warn!("Missing blocks. Last contiguous block was {}. Restarting event listener", n);
+                                restart_event_listener::<N>(start_block).await;
+                                return Err(EventHandlerError::StreamTerminated);
+                            }
+                            _ => panic!("Error processing event: {:?}", e),
+                        }
+                    }
+                }
+            }    
+
     Err(EventHandlerError::StreamTerminated)
 }
 

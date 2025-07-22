@@ -1,5 +1,4 @@
 use configuration::addresses::get_addresses;
-use alloy::sol;
 use warp::reply;
 use warp::{path, reply::Reply, Filter};
 
@@ -7,10 +6,7 @@ use crate::domain::entities::Proposer;
 use lib::{
     blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
 };
-
-sol!(
-    #[sol(rpc)]     // Add Debug trait to x509CheckReturn
-    RoundRobin, "/Users/Swati.Rawal/nightfall_4_PV/blockchain_assets/artifacts/RoundRobin.sol/RoundRobin.json");
+use nightfall_bindings::bindings::RoundRobin;
 /// Error type for proposer rotation
 #[derive(Debug)]
 pub enum ProposerError {
@@ -44,22 +40,29 @@ pub fn get_proposers() -> impl Filter<Extract = impl warp::Reply, Error = warp::
 
 async fn handle_get_proposers() -> Result<impl Reply, warp::Rejection> {
     // get a ManageProposers instance
+    let blcokchain_client = get_blockchain_client_connection()
+    .await
+    .read()
+    .await
+    .get_client();
     let proposer_manager = RoundRobin::new(
         get_addresses().round_robin,
-        get_blockchain_client_connection()
-            .await
-            .read()
-            .await
-            .get_client()  
+        blcokchain_client.root() 
     );
     // get the proposers
     let proposer_list = proposer_manager.get_proposers()
         .call()
         .await
         .map_err(|_| ProposerError::FailedToGetProposers)?._0;
-    let list = proposer_list
+    let list  = proposer_list
         .into_iter()
-        .map(Proposer::from)
-        .collect::<Vec<RoundRobin::Proposer>>();
+        .map(|p| Proposer {
+           stake: p.stake,
+           addr: p.addr,
+           url: p.url,
+           next_addr: p.next_addr,
+           previous_addr: p.previous_addr
+        })
+        .collect::<Vec<Proposer>>();
     Ok(reply::json(&list))
 }

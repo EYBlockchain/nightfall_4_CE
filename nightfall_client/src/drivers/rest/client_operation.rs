@@ -23,7 +23,6 @@ use crate::{
 use ark_bn254::Fr as Fr254;
 use configuration::addresses::get_addresses;
 use alloy::rpc::types::TransactionReceipt;
-use alloy::sol;
 use futures::future::join_all;
 use lib::{
     blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
@@ -36,15 +35,8 @@ use std::{error::Error, fmt::Debug, time::Duration};
 use tokio::time::sleep;
 use url::Url;
 use warp::hyper::StatusCode;
-//use nightfall_bindings::{round_robin::RoundRobin, x509::Proposer};
-sol!(
-    #[sol(rpc)]    
-    #[derive(Debug)] // Add Debug trait to x509CheckReturn
-    RoundRobin, "/Users/Swati.Rawal/nightfall_4_PV/blockchain_assets/artifacts/RoundRobin.sol/RoundRobin.json");
-sol!(
-    #[sol(rpc)]    
-    #[derive(Debug)] // Add Debug trait to x509CheckReturn
-    X509, "/Users/Swati.Rawal/nightfall_4_PV/blockchain_assets/artifacts/X509.sol/X509.json");
+use nightfall_bindings::bindings::{RoundRobin, X509};
+
 
 #[allow(clippy::too_many_arguments)]
 pub async fn handle_client_operation<P, E, N>(
@@ -265,13 +257,14 @@ pub async fn process_transaction_offchain<P: Serialize + Sync>(
     const INITIAL_BACKOFF: Duration = Duration::from_millis(500);
 
     let client = Client::new(); 
+    let blockchain_client = get_blockchain_client_connection()
+    .await
+    .read()
+    .await
+    .get_client();
     let round_robin_instance = RoundRobin::new(
         get_addresses().round_robin,
-        get_blockchain_client_connection()
-            .await
-            .read()
-            .await
-            .get_client(), 
+        blockchain_client.root(), 
     );
 
     let proposers_struct: Vec<RoundRobin::Proposer> = round_robin_instance.get_proposers().call().await?._0;

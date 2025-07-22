@@ -15,7 +15,7 @@ use jf_primitives::poseidon::{FieldHasher, Poseidon};
 use lib::blockchain_client::BlockchainClientConnection;
 use log::{info, warn};
 use nightfall_client::{
-    domain::{entities::HexConvertible, error::EventHandlerError},
+    domain::{entities::HexConvertible},
     driven::db::mongo::DB,
     ports::proof::{Proof, PublicInputs},
 };
@@ -120,12 +120,8 @@ where
         .await
         .read()
         .await
-        .get_address()
-        .ok_or_else(|| {
-            BlockAssemblyError::from(EventHandlerError::IOError(
-                "Could not retrieve our own address".to_string(),
-            ))
-        })?;
+        .get_address();
+
     let store_block = StoredBlock {
         layer2_block_number: current_block_number,
         commitments: block

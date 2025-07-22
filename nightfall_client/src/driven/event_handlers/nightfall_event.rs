@@ -26,20 +26,14 @@ use ark_bn254::Fr as Fr254;
 use ark_ff::BigInteger;
 use configuration::settings::get_settings;
 use alloy::{consensus::Transaction, sol_types::SolInterface};
-use alloy::{providers::Provider, sol};
+
 use alloy::primitives::{TxHash, I256, U256};
 use lib::{
     blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
 };
 use log::{debug, error, info, warn};
-// use nightfall_bindings::nightfall::{
-//     BlockProposedFilter, DepositEscrowedFilter, NightfallCalls, NightfallEvents, ProposeBlockCall,
-// };
-sol!(
-    #[sol(rpc)]    
-    #[derive(Debug)] // Add Debug trait to x509CheckReturn
-    Nightfall, "/Users/Swati.Rawal/nightfall_4_PV/blockchain_assets/artifacts/Nightfall.sol/Nightfall.json");
-use std::{collections::HashSet, error::Error, sync::OnceLock};
+use nightfall_bindings::nightfall::Nightfall;
+use std::{collections::HashSet, sync::OnceLock};
 use tokio::{join, sync::Mutex};
 
 // Define a mutable lazy static to hold the layer 2 blocknumber. We need this to
@@ -64,7 +58,7 @@ where
         match &self {
             Nightfall::NightfallEvents::BlockProposed(filter) => {
                 info!("Detected a new block has been proposed");
-                process_nightfall_calldata::<N>(tx_hash.unwrap(), filter)
+                process_nightfall_calldata::<N>(tx_hash, filter)
                     .await
                     .map_err(|e| {
                         debug!("{}", e);
@@ -73,7 +67,7 @@ where
             }
             Nightfall::NightfallEvents::DepositEscrowed(filter) => {
                 info!("Received DepositEscrowed event");
-                process_deposit_escrowed_event(tx_hash.unwrap(), filter)
+                process_deposit_escrowed_event(tx_hash, filter)
                     .await
                     .map_err(|e| {
                         debug!("{}", e);
@@ -88,26 +82,27 @@ where
 /// This function gets the calldata associated with a given transaction and decodes it.
 /// Once decoded, it passes the decoded calldata to the appropriate function for processing.
 pub async fn process_nightfall_calldata<N: NightfallContract>(
-    transaction_hash: TxHash,
+    transaction_hash: Option<TxHash>,
     filter: &Nightfall::BlockProposed,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<(), EventHandlerError> {
     // get the transaction
     let tx = get_blockchain_client_connection()
         .await
         .read()
         .await
         .get_client()
-        .get_transaction_by_hash(transaction_hash)
-        .await?;
+        .get_transaction_by_hash(transaction_hash.unwrap())
+        .await.map_err(|e| EventHandlerError::IOError(e.to_string()))?;
     // if there is one, decode it. If not, warn someone.
     match tx {
         Some(tx) => {
-            let decoded = Nightfall::NightfallCalls::abi_decode(tx.input(), true)?;
+            let decoded = Nightfall::NightfallCalls::abi_decode(tx.input(), true)
+                .map_err(|e| EventHandlerError::IOError(e.to_string()))?;
             #[allow(clippy::single_match)] // we may add more events later
             match decoded {
                 Nightfall::NightfallCalls::propose_block(decode) => {
                     info!("Processing a block proposed event");
-                    process_propose_block_event::<N>(decode, transaction_hash, filter).await?
+                    process_propose_block_event::<N>(decode, transaction_hash.unwrap(), filter).await?
                 }
                 _ => (),
             }
@@ -152,7 +147,7 @@ async fn process_propose_block_event<N: NightfallContract>(
         return Ok(());
     }
 
-    *expected_onchain_block_number += 1;
+    *expected_onchain_block_number += I256::ONE;
 
     // warn that we're not synced with the blockchain if we're behind
     let current_block_number = N::get_current_layer2_blocknumber().await.map_err(|_| {
@@ -389,13 +384,13 @@ async fn process_propose_block_event<N: NightfallContract>(
     Ok(())
 }
 
-async fn process_deposit_escrowed_event(
-    transaction_hash: TxHash,
+pub async fn process_deposit_escrowed_event(
+    transaction_hash: Option<TxHash>,
     filter: &Nightfall::DepositEscrowed,
 ) -> Result<(), EventHandlerError> {
     info!(
         "Client: Decoded DepositEscrowed event from transaction {}, Deposit Transaction with nf_slot_id {}, value {}, is now on-chain",
-        transaction_hash, filter.nfSlotId, filter.value,
+        transaction_hash.unwrap(), filter.nfSlotId, filter.value,
     );
 
     Ok(())

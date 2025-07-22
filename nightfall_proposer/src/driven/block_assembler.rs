@@ -8,13 +8,8 @@ use async_trait::async_trait;
 
 use configuration::addresses::get_addresses;
 use alloy::primitives::Bytes;
-use alloy::sol;
 use lib::blockchain_client::BlockchainClientConnection;
 use log::{debug, error, warn};
-// use nightfall_bindings::{
-//     nightfall::{Block as NightfallBlockStruct, OnChainTransaction as NightfallOnChainTransaction},
-//     round_robin::RoundRobin,
-// };
 use nightfall_client::{
     domain::{entities::ClientTransaction, error::ConversionError},
     driven::contract_functions::contract_type_conversions::{FrBn254, Uint256},
@@ -25,7 +20,7 @@ use tokio::{
     sync::RwLock,
     time::{self, Duration, Instant},
 };
-
+use nightfall_bindings::bindings::{Nightfall, RoundRobin};
 /// SmartTrigger is responsible for deciding when to trigger block assembly,
 /// based on time constraints and mempool state.
 ///
@@ -83,13 +78,14 @@ impl<P: Proof + Send + Sync> BlockAssemblyTrigger for SmartTrigger<P> {
                 0
             };
             // Re-check current proposer
+            let blockchian_client = get_blockchain_client_connection()
+            .await
+            .read()
+            .await
+            .get_client();
             let round_robin_instance = RoundRobin::new(
                 get_addresses().round_robin,
-                get_blockchain_client_connection()
-                    .await
-                    .read()
-                    .await
-                    .get_client(),
+               blockchian_client.root(),
             );
             let current_proposer = match round_robin_instance
                 .get_current_proposer_address()
@@ -102,13 +98,13 @@ impl<P: Proof + Send + Sync> BlockAssemblyTrigger for SmartTrigger<P> {
                     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
                     continue;
                 }
-            };
+            }._0;
             let our_address = get_blockchain_client_connection()
                 .await
                 .read()
                 .await
-                .get_client()
-                .address();
+                .get_address();
+
             if current_proposer != our_address {
                 debug!(
                     "Lost proposer status during trigger wait. Current proposer: {:?}",
@@ -216,7 +212,7 @@ impl Default for BlockAssemblyStatus {
 
 // Converts the Block type used in rust to a struct suitable for the Nightfall solidity contract.
 // this will need updating as the NightfallBlockStruct type becomes more complex.
-impl From<Block> for NightfallBlockStruct {
+impl From<Block> for Nightfall::Block {
     fn from(blk: Block) -> Self {
         Self {
             rollup_proof: Bytes::from(blk.rollup_proof.clone()),
@@ -226,7 +222,7 @@ impl From<Block> for NightfallBlockStruct {
             transactions: blk
                 .transactions
                 .into_iter()
-                .map(NightfallOnChainTransaction::from)
+                .map(Nightfall::OnChainTransaction::from)
                 .collect(),
         }
     }
@@ -234,7 +230,7 @@ impl From<Block> for NightfallBlockStruct {
 
 /// Converts the Domain representation of an onchain transaction (i.e. one that is rolled up into a block)
 /// into one suitable for interacting with the smart contract
-impl From<OnChainTransaction> for NightfallOnChainTransaction {
+impl From<OnChainTransaction> for Nightfall::OnChainTransaction {
     fn from(otx: OnChainTransaction) -> Self {
         Self {
             fee: Uint256::from(otx.fee).into(),
@@ -247,8 +243,8 @@ impl From<OnChainTransaction> for NightfallOnChainTransaction {
 
 /// Converts the NF_4 smart contract representation of an on-chain transaction (i.e. a transaction that is
 /// rolled up into a block), into a form more sutiable for manipulation in Rust.
-impl From<NightfallOnChainTransaction> for OnChainTransaction {
-    fn from(ntx: NightfallOnChainTransaction) -> Self {
+impl From<Nightfall::OnChainTransaction> for OnChainTransaction {
+    fn from(ntx: Nightfall::OnChainTransaction) -> Self {
         Self {
             fee: FrBn254::try_from(ntx.fee)
                 .expect("Conversion of on-chain fee into field element should never fail")
@@ -286,9 +282,9 @@ impl<P> From<&ClientTransaction<P>> for OnChainTransaction {
 
 /// Converts the NF_4 smart contract representation of a block into a Domain struct,
 /// containing data type more suited to manipulation in Rust.
-impl TryFrom<NightfallBlockStruct> for Block {
+impl TryFrom<Nightfall::Block> for Block {
     type Error = ConversionError;
-    fn try_from(nblk: NightfallBlockStruct) -> Result<Self, Self::Error> {
+    fn try_from(nblk: Nightfall::Block) -> Result<Self, Self::Error> {
         Ok(Self {
             commitments_root: FrBn254::try_from(nblk.commitments_root)?.into(),
             nullifiers_root: FrBn254::try_from(nblk.nullifier_root)?.into(),

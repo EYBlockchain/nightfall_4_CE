@@ -27,7 +27,11 @@ use crate::{
         },
         notifications::NotificationPayload,
     },
-    driven::contract_functions::contract_type_conversions::FrBn254,
+    driven::contract_functions::{
+        contract_type_conversions::FrBn254,
+        token_contracts::{IERC20, IERC1155, IERC721, IERC3525},
+        nightfall_contract::Nightfall
+    },
     drivers::{
         blockchain::nightfall_event_listener::get_synchronisation_status, derive_key::ZKPKeys,
     },
@@ -50,10 +54,8 @@ use ark_serialize::CanonicalDeserialize;
 use ark_std::{rand::thread_rng, UniformRand};
 use configuration::addresses::get_addresses;
 use jf_primitives::poseidon::{FieldHasher, Poseidon};
-use lib::wallets::LocalWsClient;
 use log::{debug, error, info, warn};
 use nf_curves::ed_on_bn254::{BabyJubjub, Fr as BJJScalar};
-use alloy::sol;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use warp::{
@@ -62,29 +64,6 @@ use warp::{
     reply::{self, json, Reply},
     Filter,
 };
-// Codegen from ABI file to interact with the contract.
-sol!(
-    #[sol(rpc)]
-    IERC1155,
-    "/Users/Swati.Rawal/nightfall_4_PV/blockchain_assets/artifacts/IERC1155.sol/IERC1155.json");
-sol!(
-    #[sol(rpc)]
-IERC20,
-"/Users/Swati.Rawal/nightfall_4_PV/blockchain_assets/artifacts/IERC20.sol/IERC20.json");
-sol!(
-    #[sol(rpc)]
-IERC3525,
-"/Users/Swati.Rawal/nightfall_4_PV/blockchain_assets/artifacts/IERC3525.sol/IERC3525.json");
-sol!(
-    #[sol(rpc)]
-IERC721,
-"/Users/Swati.Rawal/nightfall_4_PV/blockchain_assets/artifacts/IERC721.sol/IERC721.json");
-sol!(
-    #[sol(rpc)]
-Nightfall,
-"/Users/Swati.Rawal/nightfall_4_PV/blockchain_assets/artifacts/Nightfall.sol/Nightfall.json"
-);
-
 #[derive(Serialize, Deserialize)]
 pub struct WithdrawResponse {
     success: bool,
@@ -355,7 +334,7 @@ pub async fn handle_deposit<N: NightfallContract>(
     // Then match on the token type and call the correct function
     let (preimage_value, preimage_fee_option) = match token_type {
         TokenType::ERC20 => {
-            deposit_operation::<IERC20<LocalWsClient>, Nightfall<LocalWsClient>>(
+            deposit_operation::<IERC20::IERC20Calls, Nightfall::NightfallCalls >(
                 erc_address,
                 value,
                 fee,
@@ -368,7 +347,7 @@ pub async fn handle_deposit<N: NightfallContract>(
             .await
         }
         TokenType::ERC721 => {
-            deposit_operation::<IERC721<LocalWsClient>, Nightfall<LocalWsClient>>(
+            deposit_operation::<IERC721::IERC721Calls, Nightfall::NightfallCalls>(
                 erc_address,
                 value,
                 fee,
@@ -381,7 +360,7 @@ pub async fn handle_deposit<N: NightfallContract>(
             .await
         }
         TokenType::ERC1155 => {
-            deposit_operation::<IERC1155<LocalWsClient>, Nightfall<LocalWsClient>>(
+            deposit_operation::<IERC1155::IERC1155Calls, Nightfall::NightfallCalls>(
                 erc_address,
                 value,
                 fee,
@@ -394,7 +373,7 @@ pub async fn handle_deposit<N: NightfallContract>(
             .await
         }
         TokenType::ERC3525 => {
-            deposit_operation::<IERC3525<LocalWsClient>, Nightfall<LocalWsClient>>(
+            deposit_operation::<IERC3525::IERC3525Calls, Nightfall::NightfallCalls>(
                 erc_address,
                 value,
                 fee,
