@@ -184,5 +184,12 @@ library Types {
         G1Point table_dom_sep_comm; //0x440
         // q_dom_sep_comm
         G1Point q_dom_sep_comm; //0x460
+        // The followings are for EvalDomain
+        // sizeInv
+        uint256 size_inv; //0x480
+        // groupGen
+        uint256 group_gen; //0x4a0
+        // groupGenInv
+        uint256 group_gen_inv; //0x4c0
     }
 }

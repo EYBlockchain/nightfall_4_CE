@@ -640,6 +640,36 @@
 
             ) 
 
+            // size_inv 
+
+            mstore( 
+
+                add(vk, 0x480), 
+
+                0x304c1c4ba7c10759a3741d93a64097b0f99fce54557c93d8fb40049926080001 
+
+            ) 
+
+            // group_gen 
+
+            mstore( 
+
+                add(vk, 0x4a0), 
+
+                0xf1ded1ef6e72f5bffc02c0edd9b0675e8302a41fc782d75893a7fa1470157ce 
+
+            ) 
+
+            // group_gen_inv 
+
+            mstore( 
+
+                add(vk, 0x4c0), 
+
+                0x9d8f821aa9995b3546875d5e4fcfcab4c277a07f0bcc0c852f26c0faf6b3e4e 
+
+            ) 
+
             }
 
             return vk; 

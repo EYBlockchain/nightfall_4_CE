@@ -350,7 +350,7 @@ contract UltraPlonkVerifier{
         // including 2 ^ domainSize, domainSize, sizeInv, groupGen
         // change this, sizeInv, groupGen
         PolynomialEval.EvalDomain memory domain = PolynomialEval.new_EvalDomain(
-            vk.domain_size
+            vk
         );
 
         //  pre-compute evaluation data
@@ -3164,7 +3164,7 @@ library PolynomialEval {
     /// @dev a Radix 2 Evaluation Domain
     struct EvalDomain {
         uint256 size; // Size of the domain as a field element
-        uint256 logSize; // log_2(self.size)
+        // uint256 logSize; // log_2(self.size)
         uint256 sizeInv; // Inverse of the size in the field
         uint256 groupGen; // A generator of the subgroup
         uint256 groupGenInv; // Inverse of the generator
@@ -3203,23 +3203,23 @@ library PolynomialEval {
 
     /// @dev Create a new Radix2EvalDomain with `domainSize` which should be power of 2.
     function new_EvalDomain(
-        uint256 domainSize
+        Types.VerificationKey memory vk
     ) internal pure returns (EvalDomain memory evalDomain) {
         // Note that this part is hardencoded based on the domainsize
         // Check this for the last rollup proof
+        // get sizeInv, groupGen, groupGenInv from vk structure
       
            return   EvalDomain(
                 // size
-                domainSize,
+                vk.domain_size,
                 // log size
-                11,
+                // 11,
                 // sizeInv size_inv
-                0x304C1C4BA7C10759A3741D93A64097B0F99FCE54557C93D8FB40049926080001,
+                vk.size_inv,
                 // groupGen
-                0xF1DED1EF6E72F5BFFC02C0EDD9B0675E8302A41FC782D75893A7FA1470157CE,
+                vk.group_gen,
                 // groupGenInv
-                0x9D8F821AA9995B3546875D5E4FCFCAB4C277A07F0BCC0C852F26C0FAF6B3E4E
-
+                vk.group_gen_inv
             );
     }
 

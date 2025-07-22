@@ -904,8 +904,12 @@ impl RecursiveProver for RollupProver {
         ark_std::println!("JJ: Saving the decider_vk to a file in preprocess");
         use ark_serialize::Write;
         let mut file = std::fs::File::create("decider_vk_in_preprocess.txt").unwrap();
-        write!(file, "Printing the block todecider_vk.txt{:#?}", &decider_vk).unwrap();
-
+        write!(
+            file,
+            "Printing the block todecider_vk.txt{:#?}",
+            &decider_vk
+        )
+        .unwrap();
 
         Self::store_base_grumpkin_pk(base_grumpkin_pk).ok_or(PlonkError::InvalidParameters(
             "Could not store base Grumpkin proving key".to_string(),
