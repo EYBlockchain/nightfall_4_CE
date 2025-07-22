@@ -413,12 +413,12 @@ contract UltraPlonkVerifier{
         Types.G1Point memory B;
         // A = [open_proof] + u * [shifted_open_proof]
         A = compute_A(proof, challenge);
-        // console2.log("A: ", A.x, A.y);
+        console2.log("A: ", A.x, A.y);
      
         // B = eval_point * open_proof + u * next_eval_point *
         //   shifted_open_proof + comm - eval * [1]1`.
         B = compute_B(pcsInfo, proof, challenge);
-        // console2.log("B: ", B.x, B.y);
+        console2.log("B: ", B.x, B.y);
       
 
         // Check e(A, [x]2) ?= e(B, [1]2)

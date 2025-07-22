@@ -655,7 +655,8 @@ nf4_deployer       |
 nf4_deployer       |     
 nf4_configuration  | 2025/07/22 16:40:31 [crit] 29#29: *1 open() "/var/www/html/configuration/toml/addresses.toml.0000000002" failed (13: Permission denied), client: 172.18.0.7, server: , request: "PUT /configuration/toml/addresses.toml HTTP/1.1", host: "configuration"
 nf4_configuration  | 172.18.0.7 - - [22/Jul/2025:16:40:31 +0000] "PUT /configuration/toml/addresses.toml HTTP/1.1" 500 177 "-" "-" "-"
-[Knf4_deployer exited with code 0
+
+[Knf4_deployer exited with code 0
 nf4_proposer       | [0m[38;5;8m[[0m2025-07-22T16:40:32Z [0m[32mINFO [0m nightfall_proposer[0m[38;5;8m][0m Dropping database: nightfall
 nf4_proposer       | [0m[38;5;8m[[0m2025-07-22T16:40:32Z [0m[32mINFO [0m nightfall_proposer[0m[38;5;8m][0m Using RollupProver
 nf4_proposer       | [0m[38;5;8m[[0m2025-07-22T16:40:32Z [0m[32mINFO [0m nightfall_proposer::drivers::blockchain::nightfall_event_listener[0m[38;5;8m][0m Proposer event listener (attempt 1)...
@@ -22544,7 +22545,8 @@ nf4_proposer       | [0m[38;5;8m[[0m2025-07-22T17:05:30Z [0m[32mINFO [0m n
 nf4_test           | [0m[38;5;8m[[0m2025-07-22T17:05:31Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Commitments are now on-chain
 nf4_test           | [0m[38;5;8m[[0m2025-07-22T17:05:31Z [0m[32mINFO [0m nightfall_test::run_tests[0m[38;5;8m][0m Deposit commitments for client 1 are now on-chain
 nf4_test           | [0m[38;5;8m[[0m2025-07-22T17:05:31Z [0m[32mINFO [0m nightfall_test[0m[38;5;8m][0m Nightfall tests completed successfully.
-[Knf4_test exited with code 0
+
+[Knf4_test exited with code 0
 nf4_proposer       | [0m[38;5;8m[[0m2025-07-22T17:05:33Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 10s, remaining: 50s, will wait for more txs or until timeout (60s).
 nf4_proposer       | [0m[38;5;8m[[0m2025-07-22T17:05:38Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 15s, remaining: 45s, will wait for more txs or until timeout (60s).
 nf4_proposer       | [0m[38;5;8m[[0m2025-07-22T17:05:48Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 25s, remaining: 35s, will wait for more txs or until timeout (60s).

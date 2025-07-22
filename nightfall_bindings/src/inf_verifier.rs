@@ -22,21 +22,19 @@ pub mod inf_verifier {
                             name: ::std::borrow::ToOwned::to_owned("verify"),
                             inputs: ::std::vec![
                                 ::ethers::core::abi::ethabi::Param {
-                                    name: ::std::string::String::new(),
+                                    name: ::std::borrow::ToOwned::to_owned("proofBytes"),
                                     kind: ::ethers::core::abi::ethabi::ParamType::Bytes,
                                     internal_type: ::core::option::Option::Some(
                                         ::std::borrow::ToOwned::to_owned("bytes"),
                                     ),
                                 },
                                 ::ethers::core::abi::ethabi::Param {
-                                    name: ::std::borrow::ToOwned::to_owned("publicInputs"),
-                                    kind: ::ethers::core::abi::ethabi::ParamType::Array(
-                                        ::std::boxed::Box::new(
-                                            ::ethers::core::abi::ethabi::ParamType::FixedBytes(32usize),
-                                        ),
+                                    name: ::std::borrow::ToOwned::to_owned(
+                                        "publicInputsHashBytes",
                                     ),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::Bytes,
                                     internal_type: ::core::option::Option::Some(
-                                        ::std::borrow::ToOwned::to_owned("bytes32[]"),
+                                        ::std::borrow::ToOwned::to_owned("bytes"),
                                     ),
                                 },
                             ],
@@ -104,14 +102,17 @@ pub mod inf_verifier {
                 ),
             )
         }
-        ///Calls the contract's `verify` (0xea50d0e4) function
+        ///Calls the contract's `verify` (0xf7e83aee) function
         pub fn verify(
             &self,
-            p0: ::ethers::core::types::Bytes,
-            public_inputs: ::std::vec::Vec<[u8; 32]>,
+            proof_bytes: ::ethers::core::types::Bytes,
+            public_inputs_hash_bytes: ::ethers::core::types::Bytes,
         ) -> ::ethers::contract::builders::ContractCall<M, bool> {
             self.0
-                .method_hash([234, 80, 208, 228], (p0, public_inputs))
+                .method_hash(
+                    [247, 232, 58, 238],
+                    (proof_bytes, public_inputs_hash_bytes),
+                )
                 .expect("method not found (this should never happen)")
         }
     }
@@ -121,7 +122,7 @@ pub mod inf_verifier {
             Self::new(contract.address(), contract.client())
         }
     }
-    ///Container type for all input parameters for the `verify` function with signature `verify(bytes,bytes32[])` and selector `0xea50d0e4`
+    ///Container type for all input parameters for the `verify` function with signature `verify(bytes,bytes)` and selector `0xf7e83aee`
     #[derive(
         Clone,
         ::ethers::contract::EthCall,
@@ -134,12 +135,12 @@ pub mod inf_verifier {
         Eq,
         Hash
     )]
-    #[ethcall(name = "verify", abi = "verify(bytes,bytes32[])")]
+    #[ethcall(name = "verify", abi = "verify(bytes,bytes)")]
     pub struct VerifyCall {
-        pub p0: ::ethers::core::types::Bytes,
-        pub public_inputs: ::std::vec::Vec<[u8; 32]>,
+        pub proof_bytes: ::ethers::core::types::Bytes,
+        pub public_inputs_hash_bytes: ::ethers::core::types::Bytes,
     }
-    ///Container type for all return fields from the `verify` function with signature `verify(bytes,bytes32[])` and selector `0xea50d0e4`
+    ///Container type for all return fields from the `verify` function with signature `verify(bytes,bytes)` and selector `0xf7e83aee`
     #[derive(
         Clone,
         ::ethers::contract::EthAbiType,
