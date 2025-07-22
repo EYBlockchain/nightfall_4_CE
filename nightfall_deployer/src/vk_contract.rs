@@ -116,7 +116,7 @@ pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: 
                 file_path
                     .parent()
                     .unwrap()
-                    .join("contracts/proof_verification/RollupProofVerificationKey.sol")
+                    .join("proof_verification/RollupProofVerificationKey.sol")
             } else {
                 file_path
                     .parent()
