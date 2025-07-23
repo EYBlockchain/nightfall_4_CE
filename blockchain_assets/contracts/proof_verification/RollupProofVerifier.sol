@@ -106,21 +106,21 @@ contract RollupProofVerifier is INFVerifier{
     // let g = E::G1::rand(rng);
     // let h = E::G2::rand(rng);
     // This value needs to be changed for different proofs.
-    Types.G2Point private beta_h =
-        Types.G2Point({
-            // x0: 0x1DD13357222EAB4FB810D5C89B5AF426816CD0492532F7F181BB44E39CBC2BE4,
-            // x1: 0x1D9B573A9B30EAD10DCF030D1AB3C9EC81DC3DA2AAC764597280370A6B29BAAB,
-            // y0: 0x20CA4B8DA283890EA4AB8AC17F07102E0E3BCD102998E3BB16349B6005B02DE4,
-            // y1: 0x2B9EE7FD0E19D5EC504255B3090E52AB453425E7B43C170022F6F862F7CC2291
-            // x0: 0x285B1F14EDD7E6632340A37DFAE9005FF762EDCFECFE1C732A7474C0708BEF80,
-            // x1: 0x17CC93077F56F654DA727C1DEF86010339C2B4131094547285ADB083E48C197B,
-            // y0: 0x2BAD9A374AEC49D329EC66E8F530F68509313450580C4C17C6DB5DDB9BDE7FD0,
-            // y1: 0x219EDFCEEE1723DE674F5B2F6FDB69D9E32DD53B15844956A630D3C7CDAA6ED9
-            x0: 0x17CC93077F56F654DA727C1DEF86010339C2B4131094547285ADB083E48C197B,
-            x1: 0x285B1F14EDD7E6632340A37DFAE9005FF762EDCFECFE1C732A7474C0708BEF80,
-            y0: 0x219EDFCEEE1723DE674F5B2F6FDB69D9E32DD53B15844956A630D3C7CDAA6ED9,
-            y1: 0x2BAD9A374AEC49D329EC66E8F530F68509313450580C4C17C6DB5DDB9BDE7FD0
-        });
+    // Types.G2Point private beta_h =
+    //     Types.G2Point({
+    //         // x0: 0x1DD13357222EAB4FB810D5C89B5AF426816CD0492532F7F181BB44E39CBC2BE4,
+    //         // x1: 0x1D9B573A9B30EAD10DCF030D1AB3C9EC81DC3DA2AAC764597280370A6B29BAAB,
+    //         // y0: 0x20CA4B8DA283890EA4AB8AC17F07102E0E3BCD102998E3BB16349B6005B02DE4,
+    //         // y1: 0x2B9EE7FD0E19D5EC504255B3090E52AB453425E7B43C170022F6F862F7CC2291
+    //         // x0: 0x285B1F14EDD7E6632340A37DFAE9005FF762EDCFECFE1C732A7474C0708BEF80,
+    //         // x1: 0x17CC93077F56F654DA727C1DEF86010339C2B4131094547285ADB083E48C197B,
+    //         // y0: 0x2BAD9A374AEC49D329EC66E8F530F68509313450580C4C17C6DB5DDB9BDE7FD0,
+    //         // y1: 0x219EDFCEEE1723DE674F5B2F6FDB69D9E32DD53B15844956A630D3C7CDAA6ED9
+    //         x0: 0x17CC93077F56F654DA727C1DEF86010339C2B4131094547285ADB083E48C197B,
+    //         x1: 0x285B1F14EDD7E6632340A37DFAE9005FF762EDCFECFE1C732A7474C0708BEF80,
+    //         y0: 0x219EDFCEEE1723DE674F5B2F6FDB69D9E32DD53B15844956A630D3C7CDAA6ED9,
+    //         y1: 0x2BAD9A374AEC49D329EC66E8F530F68509313450580C4C17C6DB5DDB9BDE7FD0
+    //     });
 
     /**
      * @dev Verify a UltraPlonk proof from Jellyfish with 4 input wires
@@ -326,7 +326,7 @@ contract RollupProofVerifier is INFVerifier{
         // console2.log("full_challenges.alpha7: ", full_challenges.alpha7);
 
 
-        result = verify_OpeningProof(full_challenges, pcsInfo, decoded_proof, vk.open_key_g);
+        result = verify_OpeningProof(full_challenges, pcsInfo, decoded_proof, vk);
         // require(result, "Proof failed");
         console2.log("Proof verification result: ", result);
         result = true;
@@ -421,7 +421,7 @@ contract RollupProofVerifier is INFVerifier{
         Types.ChallengeTranscript memory challenge,
         Types.PcsInfo memory pcsInfo,
         Types.Proof memory proof,
-        Types.G1Point memory open_key_g
+        Types.VerificationKey memory vk
     ) internal view returns (bool) {
         // Compute a pseudorandom challenge from the instances
         Types.G1Point memory A;
@@ -432,14 +432,14 @@ contract RollupProofVerifier is INFVerifier{
      
         // B = eval_point * open_proof + u * next_eval_point *
         //   shifted_open_proof + comm - eval * [1]1`.
-        B = compute_B(pcsInfo, proof, challenge, open_key_g);
+        B = compute_B(pcsInfo, proof, challenge, vk);
         console2.log("B: ", B.x, B.y);
       
 
         // Check e(A, [x]2) ?= e(B, [1]2)
         /// By Schwartz-Zippel lemma, it's equivalent to check that for a random r:
         // - `e(A0 + ... + r^{m-1} * Am, [x]2) = e(B0 + ... + r^{m-1} * Bm, [1]2)`.
-        return Bn254Crypto.pairingProd2(A, beta_h, B, Bn254Crypto.P2());
+        return Bn254Crypto.pairingProd2(A, vk.beta_h, B, vk.h);
     }
 
     function compute_A(
@@ -464,7 +464,7 @@ contract RollupProofVerifier is INFVerifier{
         Types.PcsInfo memory pcsInfo,
         Types.Proof memory proof,
         Types.ChallengeTranscript memory challenge,
-        Types.G1Point memory open_key_g
+        Types.VerificationKey memory vk
     ) internal view returns (Types.G1Point memory B) {
         // Compute B := B0 + r * B1 + ... + r^{m-1} * Bm
         {
@@ -480,7 +480,7 @@ contract RollupProofVerifier is INFVerifier{
 
             pcsInfo.commScalars[56] = Bn254Crypto.negate_fr(pcsInfo.eval);
             // pcsInfo.commBases[56] = Bn254Crypto.open_key_g();
-            pcsInfo.commBases[56] = open_key_g;
+            pcsInfo.commBases[56] = vk.open_key_g;
             
             // console2.log("pcsInfo.commScalars[54]: ", pcsInfo.commScalars[54]);
             // console2.log("pcsInfo.commBases[54]: ", pcsInfo.commBases[54].x, pcsInfo.commBases[54].y);
@@ -3098,19 +3098,19 @@ library Bn254Crypto {
     //         );
     // }
 
-    function P2() internal pure returns (Types.G2Point memory) {
-        return
-            Types.G2Point({
-                // x0: 0x1EB826B8B6E3EBBB3A1607EBF19D2758C162D2C915188D49191D80A4F88E5306,
-                // x1: 0x29FD9755178E22781E448030A456EBFBDBB449335804C09E815F0B7A8437B94D,
-                // y0: 0x29ECA2BD88436DAB9A7BD738D120579D2DBCC9ABC980D32ABA2449D68B0A9457,
-                // y1: 0x182766815B58475E731A8AFCFF419C841A4ED2F571E3F9D4B1AF94BC5E7D5777
-                x0: 0x198E9393920D483A7260BFB731FB5D25F1AA493335A9E71297E485B7AEF312C2,
-                x1: 0x1800DEEF121F1E76426A00665E5C4479674322D4F75EDADD46DEBD5CD992F6ED,
-                y0: 0x90689D0585FF075EC9E99AD690C3395BC4B313370B38EF355ACDADCD122975B,
-                y1: 0x12C85EA5DB8C6DEB4AAB71808DCB408FE3D1E7690C43D37B4CE6CC0166FA7DAA
-            });
-    }
+    // function P2() internal pure returns (Types.G2Point memory) {
+    //     return
+    //         Types.G2Point({
+    //             // x0: 0x1EB826B8B6E3EBBB3A1607EBF19D2758C162D2C915188D49191D80A4F88E5306,
+    //             // x1: 0x29FD9755178E22781E448030A456EBFBDBB449335804C09E815F0B7A8437B94D,
+    //             // y0: 0x29ECA2BD88436DAB9A7BD738D120579D2DBCC9ABC980D32ABA2449D68B0A9457,
+    //             // y1: 0x182766815B58475E731A8AFCFF419C841A4ED2F571E3F9D4B1AF94BC5E7D5777
+    //             x0: 0x198E9393920D483A7260BFB731FB5D25F1AA493335A9E71297E485B7AEF312C2,
+    //             x1: 0x1800DEEF121F1E76426A00665E5C4479674322D4F75EDADD46DEBD5CD992F6ED,
+    //             y0: 0x90689D0585FF075EC9E99AD690C3395BC4B313370B38EF355ACDADCD122975B,
+    //             y1: 0x12C85EA5DB8C6DEB4AAB71808DCB408FE3D1E7690C43D37B4CE6CC0166FA7DAA
+    //         });
+    // }
 
     /// Evaluate the following pairing product:
     /// e(a1, a2).e(-b1, b2) == 1

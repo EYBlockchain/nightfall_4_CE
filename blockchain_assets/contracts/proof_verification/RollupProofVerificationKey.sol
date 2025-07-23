@@ -686,6 +686,38 @@
                 0x2
             ) 
 
+                        // open_key_h 
+
+            let h_ptr := mload(0x40) 
+
+            mstore(add(vk, 0x500), h_ptr) 
+
+            mstore(h_ptr, 0x198E9393920D483A7260BFB731FB5D25F1AA493335A9E71297E485B7AEF312C2) // x0  
+
+            mstore(add(h_ptr, 0x20), 0x1800DEEF121F1E76426A00665E5C4479674322D4F75EDADD46DEBD5CD992F6ED) // x1  
+
+            mstore(add(h_ptr, 0x40), 0x90689D0585FF075EC9E99AD690C3395BC4B313370B38EF355ACDADCD122975B) // y0  
+
+            mstore(add(h_ptr, 0x60), 0x12C85EA5DB8C6DEB4AAB71808DCB408FE3D1E7690C43D37B4CE6CC0166FA7DAA) // y1  
+
+            mstore(0x40, add(h_ptr, 0x80)) 
+
+            // open_key_beta_h 
+
+            let beta_h_ptr := mload(0x40) 
+
+            mstore(add(vk, 0x520), beta_h_ptr) 
+
+            mstore(beta_h_ptr, 0x17CC93077F56F654DA727C1DEF86010339C2B4131094547285ADB083E48C197B) // x0 
+
+            mstore(add(beta_h_ptr, 0x20), 0x285B1F14EDD7E6632340A37DFAE9005FF762EDCFECFE1C732A7474C0708BEF80) // x1 
+
+            mstore(add(beta_h_ptr, 0x40), 0x219EDFCEEE1723DE674F5B2F6FDB69D9E32DD53B15844956A630D3C7CDAA6ED9) // y0 
+
+            mstore(add(beta_h_ptr, 0x60), 0x2BAD9A374AEC49D329EC66E8F530F68509313450580C4C17C6DB5DDB9BDE7FD0) // y1 
+
+            mstore(0x40, add(beta_h_ptr, 0x80)) 
+
             }
 
             return vk; 
