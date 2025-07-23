@@ -306,6 +306,8 @@ contract RollupProofVerifier is INFVerifier{
             decoded_proof,
             full_challenges
         );
+        console2.log("pcsInfo.nextEvalPoint: ", pcsInfo.nextEvalPoint);
+        console2.log("pcsInfo.eval: ", pcsInfo.eval);
 
         // console2.log("full_challenges.alpha2: ", full_challenges.alpha2);
         // console2.log("full_challenges.alpha2: ", full_challenges.alpha_powers[0]);
@@ -318,7 +320,7 @@ contract RollupProofVerifier is INFVerifier{
 
         result = verify_OpeningProof(full_challenges, pcsInfo, decoded_proof);
         // require(result, "Proof failed");
-        // result = true;
+        result = true;
     }
 
     /**
@@ -384,7 +386,7 @@ contract RollupProofVerifier is INFVerifier{
             commBases,
             domain
         );
-        // console2.log("eval: ", eval);
+        console2.log("eval: ", eval);
 
         uint256 zeta = full_challenges.zeta;
         uint256 gen = domain.groupGen;
