@@ -1072,8 +1072,6 @@ mod tests {
     use std::str::FromStr;
 
     use super::*;
-    use alloy::consensus::Transaction;
-    use alloy::signers::local::LocalSigner as Wallet;
     use alloy::primitives::{U256};
     use alloy::rpc::types::TransactionRequest;
     use alloy::{
@@ -1107,7 +1105,7 @@ mod tests {
                 .to(to)
                 .value(U256::from(1_000_000_000_000_000u128 + i));
             let pending_tx = provider.send_transaction(tx).await.unwrap();
-            let receipt = pending_tx.get_receipt().await.unwrap();;
+            let receipt = pending_tx.get_receipt().await.unwrap();
             tx_hashes.push(receipt.transaction_hash);
         }
 
@@ -1124,8 +1122,10 @@ mod tests {
         let mut found_hashes = Vec::new();
         for block_txs in txs_json.as_array().unwrap() {
             for tx in block_txs.as_array().unwrap() {
+                println!("Found transaction: {:?}", tx["hash"]);
                 let hash_str = tx["hash"].as_str().unwrap();
-                let hash = Address::from_str(hash_str).unwrap();
+                println!("Transaction hash: {}", hash_str);
+                let hash = Address::from_word(alloy::primitives::FixedBytes::from_str(hash_str).unwrap());
                 found_hashes.push(hash);
             }
         }
@@ -1198,10 +1198,10 @@ mod tests {
             .any(|t| t.0 == tx_receipt.transaction_hash));
 
         // Check the balances transferred after the transaction
-        let new_balance2 = provider.get_balance(to).await.unwrap();
+        let new_balance2: U256 = provider.get_balance(to).await.unwrap().into();
         assert_eq!(
             new_balance2,
-            balance2 + alloy::primitives::U256::from(100_000_000_000_000_000u128)
+            balance2 + U256::from(1_000_000_000_000_000u128)
         );
 
         // simulate a reorg of depth 1
@@ -1292,7 +1292,7 @@ mod tests {
         let new_balance2 = provider.get_balance(to).await.unwrap();
         assert_eq!(
             new_balance2,
-            balance2 + alloy::primitives::U256::from(100_000_000_000_000_000u128)
+            balance2 + U256::from(100_000_000_000_000_000u128)
         );
 
         // Simulate a reorg of depth 1 with replay = true
@@ -1309,7 +1309,7 @@ mod tests {
         let replayed_balance2 = provider.get_balance(to).await.unwrap();
         assert_eq!(
             replayed_balance2,
-            balance2 + alloy::primitives::U256::from(100_000_000_000_000_000u128)
+            balance2 + U256::from(100_000_000_000_000_000u128)
         );
         // The sender's balance should be less than or equal to the original balance (due to gas costs)
         assert!(replayed_balance1 < balance1);
@@ -1320,9 +1320,12 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        let found = block.transactions.as_transactions().iter().any(|t| {
-            t.iter().any(|tx| tx.to() == Some(to) && tx.value() == alloy::primitives::U256::from(100_000_000_000_000_000u128))
-        });
+
+        let found = block
+            .transactions
+            .hashes()
+            .any(|t| t.0 == tx_receipt.transaction_hash);
+
         assert!(
             found,
             "Replayed transaction not found in block after reorg with replay"

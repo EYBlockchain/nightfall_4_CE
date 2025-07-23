@@ -9,9 +9,30 @@ use configuration::addresses::get_addresses;
 use lib::{
     blockchain_client::{BlockchainClientConnection}, error::BlockchainClientConnectionError, initialisation::get_blockchain_client_connection
 };
-use nightfall_bindings::bindings::{
-    IERC1155, IERC20, IERC3525, IERC721,
-};
+use alloy::{sol};
+
+
+sol!(
+    #[sol(rpc)]    
+    #[derive(Debug)] 
+    IERC1155, "../blockchain_assets/artifacts/IERC1155.sol/IERC1155.json"
+);
+sol!(
+    #[sol(rpc)]    
+    #[derive(Debug)]
+    IERC20, "../blockchain_assets/artifacts/IERC20.sol/IERC20.json"
+);
+sol!(
+    #[sol(rpc)]    
+    #[derive(Debug)] 
+    IERC3525, "../blockchain_assets/artifacts/IERC3525.sol/IERC3525.json"
+);
+sol!(
+    #[sol(rpc)]    
+    #[derive(Debug)]
+    IERC721, "../blockchain_assets/artifacts/IERC721.sol/IERC721.json"
+);
+
 
 impl TokenContract for IERC20::IERC20Calls {
     async fn set_approval(
@@ -44,7 +65,7 @@ impl TokenContract for IERC20::IERC20Calls {
             .await
             .map_err(|e| BlockchainClientConnectionError::ProviderError(format!("Contract error: {}", e)))?.get_receipt().await;
 
-        if !tx_receipt.is_ok() {
+        if tx_receipt.is_err() {
             return Err(BlockchainClientConnectionError::ProviderError("Failed to get transaction receipt".to_string()).into());
         }
         Ok(())
@@ -82,7 +103,7 @@ impl TokenContract for IERC721::IERC721Calls {
             .await
             .map_err(|e| BlockchainClientConnectionError::ProviderError(format!("Contract error: {}", e)))?.get_receipt().await;
 
-        if !tx_receipt.is_ok() {
+        if tx_receipt.is_err() {
             return Err(BlockchainClientConnectionError::ProviderError("Failed to get transaction receipt".to_string()).into());
         }
         Ok(())
@@ -120,7 +141,7 @@ impl TokenContract for IERC1155::IERC1155Calls {
             .map_err(|e| BlockchainClientConnectionError::ProviderError(format!("Contract error: {}", e)))?.get_receipt().await;
 
 
-        if !tx_receipt.is_ok() {
+        if tx_receipt.is_err() {
             return Err(BlockchainClientConnectionError::ProviderError("Failed to get transaction receipt".to_string()).into());
         }
         Ok(())
@@ -152,7 +173,7 @@ impl TokenContract for IERC3525::IERC3525Calls {
             .await
             .map_err(|e| BlockchainClientConnectionError::ProviderError(format!("Contract error: {}", e)))?.get_receipt().await;
 
-        if !tx_receipt.is_ok() {
+        if tx_receipt.is_err() {
             return Err(BlockchainClientConnectionError::ProviderError("Failed to get transaction receipt".to_string()).into());
         }
         Ok(())

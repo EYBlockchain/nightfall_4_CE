@@ -1,8 +1,11 @@
 use crate::domain::{entities::SynchronisationStatus, error::EventHandlerError};
-use crate::driven::event_handlers::nightfall_event::{
+use crate::driven::{
+    event_handlers::nightfall_event::{
     get_expected_layer2_blocknumber, 
     process_nightfall_calldata, process_deposit_escrowed_event,
-    Nightfall::BlockProposed as NFBlockProposed, Nightfall::DepositEscrowed as NFDepositRequest};
+    },
+    contract_functions::nightfall_contract::{Nightfall, Nightfall::BlockProposed as NFBlockProposed, Nightfall::DepositEscrowed as NFDepositRequest},
+    };
 use crate::ports::contracts::NightfallContract;
 use configuration::{addresses::get_addresses, settings::get_settings};
 use futures::StreamExt;
@@ -11,11 +14,9 @@ use lib::{
     blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
 };
 use log::{debug, warn};
-//use nightfall_bindings::nightfall::Nightfall;
 use std::panic;
 use std::time::Duration;
 use tokio::time::sleep;
-use nightfall_bindings::bindings::Nightfall;
 /// This function starts the event handler. It will attempt to restart the event handler in case of errors
 /// with an exponential backoff  for a configurable number of attempts. If the event handler
 /// fails after the maximum number of attempts, it will log an error and send a notification (if configured).
@@ -95,7 +96,7 @@ pub async fn listen_for_events<N: NightfallContract>(
 
         while let Some(Ok(evt)) = stream.next().await {
             // process each event in the stream and handle any errors
-            let result = process_nightfall_calldata::<N>(evt.1.transaction_hash, &NFBlockProposed::from(evt.0)).await;
+            let result = process_nightfall_calldata::<N>(evt.1.transaction_hash, &evt.0).await;
             match result {
                 Ok(_) => continue,
                 Err(e) => {
@@ -119,7 +120,7 @@ pub async fn listen_for_events<N: NightfallContract>(
     
             while let Some(Ok(evt)) = deposit_stream.next().await {
                 // process each event in the stream and handle any errors
-                let result = process_deposit_escrowed_event(evt.1.transaction_hash, &NFDepositRequest::from(evt.0)).await;
+                let result = process_deposit_escrowed_event(evt.1.transaction_hash, &evt.0).await;
                 match result {
                     Ok(_) => continue,
                     Err(e) => {

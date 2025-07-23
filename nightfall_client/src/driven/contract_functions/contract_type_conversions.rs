@@ -19,12 +19,13 @@ use serde::{
 use std::{fmt, ops::Add, str::FromStr};
 sol!(
     #[sol(rpc)]    
-    #[derive(Debug)] // Add Debug trait to x509CheckReturn
-    Nightfall, "/Users/Swati.Rawal/nightfall_4_PV/blockchain_assets/artifacts/Nightfall.sol/Nightfall.json");
+    Nightfall, "../blockchain_assets/artifacts/Nightfall.sol/Nightfall.json"
+);
 sol!(
     #[sol(rpc)]    
     #[derive(Debug)]
-RoundRobin, "/Users/Swati.Rawal/nightfall_4_PV/blockchain_assets/artifacts/RoundRobin.sol/RoundRobin.json");
+RoundRobin, "../blockchain_assets/artifacts/RoundRobin.sol/RoundRobin.json"
+);
 /// enables conversion between a Proposer as used in the ProposerManager contract, and a for suitable for serialisation
 impl From<RoundRobin::Proposer> for Proposer {
     fn from(proposer: RoundRobin::Proposer) -> Self {

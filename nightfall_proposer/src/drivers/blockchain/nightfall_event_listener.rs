@@ -152,6 +152,7 @@ where
     
             while let Some(Ok(evt)) = deposit_stream.next().await {
                 // process each event in the stream and handle any errors
+                println!("Processing deposit event: {:?}", evt);
                 let result = process_deposit_escrowed_event::<P,E>(evt.1.transaction_hash.unwrap(), &Nightfall::DepositEscrowed::from(evt.0)).await;
                 match result {
                     Ok(_) => continue,

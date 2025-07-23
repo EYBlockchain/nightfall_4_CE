@@ -6,7 +6,7 @@ use ark_std::{
     UniformRand, Zero,
 };
 use configuration::settings::{self, Settings};
-use ethers::utils::{hex, keccak256};
+use alloy::primitives::{hex, keccak256};
 use itertools::izip;
 use jf_plonk::{
     errors::PlonkError,
@@ -309,7 +309,7 @@ pub fn build_valid_transfer_inputs(rng: &mut impl Rng) -> (PublicInputs, Private
     let nf_slot_id = nf_token_id;
 
     // generate a 'random' fee token ID (we just use the keccak hash of 1)
-    let fee_token_id = Fr254::from(BigUint::from_bytes_be(&keccak256([1])) >> 4);
+    let fee_token_id = Fr254::from(BigUint::from_bytes_be(&keccak256([1]).as_slice()) >> 4);
 
     // Random values for fee and value
     let mut nullified_fee_one = rand_96_bit(rng);

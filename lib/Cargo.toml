@@ -14,7 +14,7 @@ dotenv = "0.15.0"
 x509-parser = "0.16.0"
 openssl = "0.10.72"
 k256 = "0.13.4"
-alloy = { version = "0.13.0", features = ["transport-ws", "json-rpc", "serde"] }
+alloy = { version = "0.13.0", features = ["full", "json-rpc"] }
 tokio = { version = "1.45.0", features = ["full"] }
 configuration = { path = "../configuration" }
 toml = "0.8.22"
@@ -42,7 +42,6 @@ azure_identity = "0.21.0"
 azure_security_keyvault = "0.21.0"
 [build-dependencies]
 configuration = { path = "../configuration" }
-nightfall_bindings = { path = "../nightfall_bindings"}
 tokio = { version = "1.45.0", features = ["full"] }
 jf-primitives = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git" }
 jf-plonk = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", features = [

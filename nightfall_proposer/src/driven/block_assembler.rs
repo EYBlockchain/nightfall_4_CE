@@ -8,6 +8,7 @@ use async_trait::async_trait;
 
 use configuration::addresses::get_addresses;
 use alloy::primitives::Bytes;
+use alloy::sol;
 use lib::blockchain_client::BlockchainClientConnection;
 use log::{debug, error, warn};
 use nightfall_client::{
@@ -20,7 +21,15 @@ use tokio::{
     sync::RwLock,
     time::{self, Duration, Instant},
 };
-use nightfall_bindings::bindings::{Nightfall, RoundRobin};
+sol!(
+    #[sol(rpc)]     // Add Debug trait to x509CheckReturn
+    RoundRobin, "../blockchain_assets/artifacts/RoundRobin.sol/RoundRobin.json"
+);
+sol!(
+    #[sol(rpc)]
+    #[derive(Debug)]
+    Nightfall, "../blockchain_assets/artifacts/Nightfall.sol/Nightfall.json"
+);    
 /// SmartTrigger is responsible for deciding when to trigger block assembly,
 /// based on time constraints and mempool state.
 ///

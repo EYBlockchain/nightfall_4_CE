@@ -58,17 +58,17 @@ impl BlockchainClientConnection for LocalWsClient {
 
     async fn new(
         url: Url,
-        signer: Self::W,
+        local_signer: Self::W,
     ) -> Result<Self, BlockchainClientConnectionError> {
         let ws = WsConnect::new(url);
-        let provider = ProviderBuilder::new().wallet(signer.clone())
+        let provider = ProviderBuilder::new().wallet(local_signer.clone())
         .on_ws(ws)
         .await
         .map_err(|e| BlockchainClientConnectionError::ProviderError(e.to_string()))?;
             
         Ok(Self {
             provider: Arc::new(provider),
-            signer: signer,
+            signer: local_signer,
         })
     }
 
@@ -95,7 +95,7 @@ impl BlockchainClientConnection for LocalWsClient {
 
     async fn try_from_settings(settings: &Self::S) -> Result<Self, BlockchainClientConnectionError> {
         // get the signer
-        let signer = match settings.nightfall_client.wallet_type.as_str() {
+        let local_signer = match settings.nightfall_client.wallet_type.as_str() {
             "local" => settings
             .signing_key
             .parse::<PrivateKeySigner>()
@@ -114,20 +114,20 @@ impl BlockchainClientConnection for LocalWsClient {
             _ => panic!("Invalid wallet type"),
         };
 
-        info!("Created signer with address: {:?}", signer.address());
+        info!("Created signer with address: {:?}", local_signer.address());
         debug!("And chain id: {}", settings.network.chain_id);
         debug!("And Ethereum client url: {}", settings.ethereum_client_url);
 
         // create provider
         let ws = WsConnect::new(settings.ethereum_client_url.clone());
-        let provider = ProviderBuilder::new().wallet(signer.clone())
+        let provider = ProviderBuilder::new().wallet(local_signer.clone())
             .on_ws(ws)
             .await
             .map_err(|e| BlockchainClientConnectionError::ProviderError(e.to_string()))?;
 
         Ok(Self {
             provider: Arc::new(provider),
-            signer: signer,
+            signer: local_signer,
         })
     }
 }

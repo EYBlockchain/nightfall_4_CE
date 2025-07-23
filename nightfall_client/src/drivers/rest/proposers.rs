@@ -1,4 +1,5 @@
 use configuration::addresses::get_addresses;
+use alloy::sol;
 use warp::reply;
 use warp::{path, reply::Reply, Filter};
 
@@ -6,7 +7,10 @@ use crate::domain::entities::Proposer;
 use lib::{
     blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
 };
-use nightfall_bindings::bindings::RoundRobin;
+sol!(
+    #[sol(rpc)]    
+    RoundRobin, "../blockchain_assets/artifacts/RoundRobin.sol/RoundRobin.json"
+);
 /// Error type for proposer rotation
 #[derive(Debug)]
 pub enum ProposerError {

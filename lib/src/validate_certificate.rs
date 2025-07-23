@@ -11,7 +11,11 @@ use reqwest::StatusCode;
 use x509_parser::nom::AsBytes;
 use std::{ffi::OsStr, io::Read, path::Path};
 use warp::{filters::multipart::FormData, path, reply::Reply, Buf, Filter};
-use nightfall_bindings::bindings::X509;
+use alloy::sol;
+sol!(
+    #[sol(rpc)]
+    X509, "../blockchain_assets/artifacts/X509.sol/X509.json"
+);
 #[derive(Debug)]
 pub struct X509ValidationError;
 
@@ -79,7 +83,6 @@ async fn handle_certificate_validation(
             "Invalid certificate provided",
         ))
     })?;
-println!("isCertified -------------- {:?}", is_certified);
     if !is_certified._0 {
         // compute the signature and validate the certificate
         debug!(
@@ -102,6 +105,10 @@ println!("isCertified -------------- {:?}", is_certified);
          .read()
          .await
          .get_address();
+        println!(
+            "Sender address: {}",
+            sender_address
+        );
       
         validate_certificate(
             get_addresses().x509,
@@ -167,8 +174,8 @@ async fn validate_certificate(
             warn!("{}", e);
             X509ValidationError
         })?;
-println!("tx_receipt ---------------------------->>>>>>> {:?}", tx_receipt);
-    if tx_receipt.get_receipt().await.is_ok() {
+        //println!("Transaction hash: {:?}", tx_receipt.get_receipt().await.unwrap());
+    if tx_receipt.get_receipt().await.is_err() {
         error!("X509Validation transaction failed");
         return Err(Box::new(X509ValidationError));
     }

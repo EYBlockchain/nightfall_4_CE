@@ -211,20 +211,24 @@ mod tests {
 
     sol!(
         #[sol(rpc)]    
-        #[derive(Debug)] // Add Debug trait to x509CheckReturn
-        erc1155_mock, "/Users/Swati.Rawal/nightfall_4_PV/blockchain_assets/artifacts/ERC1155Mock.sol/ERC1155Mock.json");
+        #[derive(Debug)] 
+        erc1155_mock, "../blockchain_assets/artifacts/ERC1155Mock.sol/ERC1155Mock.json"
+    );
     sol!(
         #[sol(rpc)]    
         #[derive(Debug)]
-        erc20_mock, "/Users/Swati.Rawal/nightfall_4_PV/blockchain_assets/artifacts/ERC20Mock.sol/ERC20Mock.json");
+        erc20_mock, "../blockchain_assets/artifacts/ERC20Mock.sol/ERC20Mock.json"
+    );
     sol!(
         #[sol(rpc)]    
-        #[derive(Debug)] // Add Debug trait to x509CheckReturn
-        erc3525_mock, "/Users/Swati.Rawal/nightfall_4_PV/blockchain_assets/artifacts/ERC3525Mock.sol/ERC3525Mock.json");
+        #[derive(Debug)] 
+        erc3525_mock, "../blockchain_assets/artifacts/ERC3525Mock.sol/ERC3525Mock.json"
+    );
     sol!(
         #[sol(rpc)]    
-        #[derive(Debug)] // Add Debug trait to x509CheckReturn
-        erc721_mock, "/Users/Swati.Rawal/nightfall_4_PV/blockchain_assets/artifacts/ERC721Mock.sol/ERC721Mock.json");
+        #[derive(Debug)] 
+        erc721_mock, "../blockchain_assets/artifacts/ERC721Mock.sol/ERC721Mock.json"
+    );
 
     #[tokio::test]
     async fn test_mock_addresses() {
@@ -251,7 +255,6 @@ mod tests {
         let provider = ProviderBuilder::new()
         .disable_recommended_fillers()
         .on_http(anvil.endpoint_url());
-        //let provider = Provider::<Http>::try_from(anvil.endpoint()).unwrap();
         let erc20_code = provider.get_code_at(mock_addresses.erc20).await.unwrap();
         let erc721_code = provider
             .get_code_at(mock_addresses.erc721)

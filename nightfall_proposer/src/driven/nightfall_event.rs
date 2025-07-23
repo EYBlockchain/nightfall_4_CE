@@ -22,9 +22,6 @@ use ark_ff::BigInteger;
 use lib::{blockchain_client::BlockchainClientConnection, merkle_trees::trees::IndexedTree};
 use log::{debug, error, info, warn};
 use mongodb::Client;
-// use nightfall_bindings::nightfall::{
-//     DepositEscrowedFilter, NightfallCalls, NightfallEvents, ProposeBlockCall,
-// };
 use nightfall_client::{
     domain::{entities::{HexConvertible}, error::EventHandlerError},
     driven::contract_functions::contract_type_conversions::FrBn254,
@@ -37,12 +34,7 @@ use std::{
     error::Error,
     fmt::{Debug, Display},
 };
-use tokio::sync::{OnceCell, RwLock};
-// sol!(
-//     #[sol(rpc)]
-//     #[derive(Debug)]
-//     Nightfall, "/Users/Swati.Rawal/nightfall_4_PV/blockchain_assets/artifacts/Nightfall.sol/Nightfall.json"
-// );    
+use tokio::sync::{OnceCell, RwLock};   
 // Define a mutable lazy static to hold the layer 2 blocknumber. We need this to
 // check if we're still in sync, but putting it in the context would mean passing it around too much
 pub async fn get_expected_layer2_blocknumber() -> &'static RwLock<I256> {
@@ -435,7 +427,7 @@ where
                 secret_hash,
             };
             let deposit_data = DepositDatawithFee { fee, deposit_data };
-
+println!("Processing deposit data: {:?}", deposit_data);
             process_deposit_transaction::<P, E>(deposit_data)
                 .await
                 .map_err(|_| {

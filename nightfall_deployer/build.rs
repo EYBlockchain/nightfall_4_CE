@@ -1,8 +1,6 @@
 use configuration::{logging::init_logging, settings::Settings};
 use log::info;
 use std::{os::unix::process::ExitStatusExt, process::Command};
-use std::fs::{File};
-use std::io::{Write};
 
 fn main() {
     println!("cargo:rerun-if-changed=blockchain_assets/contracts/Nightfall.sol");
@@ -19,59 +17,6 @@ fn main() {
     }
 
     forge_command(&["install"]);
-    let cwd = std::env::current_dir().unwrap();
-    let cwd = cwd.as_path();
-    //create the out directory if it does not exist
-    let out_path = cwd.parent().unwrap().join(&"nightfall_bindings/src/bindings.rs");
-    if out_path.exists() {
-        std::fs::remove_file(&out_path).unwrap();
-    }
-    let artifacts_dir = cwd.parent().unwrap().join(&"blockchain_assets/artifacts");
-
-    let mut output: File = File::create(out_path).unwrap();
-
-    output.write_fmt(format_args!(
-        "use alloy::sol;\n",
-    )).unwrap();
-
-        let path = artifacts_dir.as_path();
-        // Check if the artifacts directory exists
-       if path.exists() && path.is_dir() {
-        // go through the directory and find the Nightfall contract artifacts
-            for entry in path.read_dir().unwrap() {
-                
-
-            let contract_name = entry
-                .unwrap()
-                .file_name()
-                .to_string_lossy()
-                .to_string();
-            let contract_name = match contract_name.strip_suffix(".sol") {
-                Some(name) => name.to_string(),
-                None => {
-                    info!("Skipping file without `.sol` suffix: {}", contract_name);
-                    continue; // Skip files that do not have the `.sol` suffix
-                }
-            };
-            let mut artifact_path = format!(
-                "blockchain_assets/artifacts/{}.sol/{}.json",
-                contract_name, contract_name
-            );
-            artifact_path = cwd.parent().unwrap().join(artifact_path).to_string_lossy().to_string();
-            println!("Artifact path: {}", artifact_path);
-
-            writeln!(
-                output,
-                r#"sol!(
-                    #[sol(rpc)]
-                    #[derive(Debug)]
-                    {}, "{}"
-                );
-            "#, // Add the newline here
-                contract_name, artifact_path
-            ).expect("Failed to write contract bindings");
-        };
-        }
     }
 
 fn is_foundry_installed() -> bool {

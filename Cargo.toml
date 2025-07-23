@@ -2,7 +2,6 @@
 members = [
     "nightfall_client",
     "nightfall_deployer",
-    "nightfall_bindings",
     "configuration",
     "nightfall_test",
     "nightfall_proposer", 

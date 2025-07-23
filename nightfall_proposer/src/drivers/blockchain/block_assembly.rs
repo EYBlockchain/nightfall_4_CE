@@ -19,8 +19,9 @@ use std::{
 };
 use alloy::sol;
 sol!(
-    #[sol(rpc)]     // Add Debug trait to x509CheckReturn
-    RoundRobin, "/Users/Swati.Rawal/nightfall_4_PV/blockchain_assets/artifacts/RoundRobin.sol/RoundRobin.json");
+    #[sol(rpc)]     
+    RoundRobin, "../blockchain_assets/artifacts/RoundRobin.sol/RoundRobin.json"
+);
 
 #[derive(Debug)]
 pub enum BlockAssemblyError {

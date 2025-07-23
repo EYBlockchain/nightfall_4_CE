@@ -123,12 +123,15 @@ mod tests {
 
     use super::*;
     use configuration::addresses::get_addresses;
-    use ethers::{
-        core::utils::Anvil,
-        providers::{Http, Middleware, Provider},
-    };
-    //use nightfall_bindings::nightfall::NIGHTFALL_DEPLOYED_BYTECODE;
+    use alloy::providers::{Provider, ProviderBuilder};
+    use alloy::sol;
+    use alloy_node_bindings::Anvil;
+    
     use tokio::task::spawn_blocking;
+    sol!(
+        #[sol(rpc)]     // Add Debug trait to x509CheckReturn
+        Nightfall, "../blockchain_assets/artifacts/Nightfall.sol/Nightfall.json"
+    );
 
     // NB: This test requires Anvil to be installed (it will use Anvil to simulate a blockchain).
     // Restart VS Code after installing Anvil so that it's in your PATH otherwise VS Code won't find it!
@@ -155,16 +158,18 @@ mod tests {
         // run the deploy function and get the contract addresses
         deploy_contracts(&settings).await.unwrap();
         // get a blockchain provider so we can interrogate the deployed code
-        let provider = Provider::<Http>::try_from(anvil.endpoint()).unwrap();
+        let provider = ProviderBuilder::new()
+        .disable_recommended_fillers()
+        .on_http(anvil.endpoint_url());
+
         let code = provider
             // use spawn blocking because the blocking reqwest client is not async and it complains (but we need loading the addresses to be sync elsewhere)
-            .get_code(
+            .get_code_at(
                 spawn_blocking(get_addresses).await.unwrap().nightfall(),
-                None,
             )
             .await
             .unwrap();
-        assert_eq!(code, NIGHTFALL_DEPLOYED_BYTECODE);
+        assert_eq!(code, Nightfall::DEPLOYED_BYTECODE);
         // clean up by remvoing the addresses file and directory that this test created
         fs::remove_dir_all(Path::new("configuration/toml")).unwrap();
     }

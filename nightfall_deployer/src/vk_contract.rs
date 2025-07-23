@@ -1,24 +1,29 @@
 use ark_bn254::{Bn254, Fq as Fq254, Fr as Fr254};
 use ark_ff::{BigInteger, Field, PrimeField};
 use ark_poly::{EvaluationDomain, Radix2EvaluationDomain};
-use ark_serialize::CanonicalSerializeHashExt;
 use ark_std::vec::Vec;
 use configuration::settings::Settings;
-use alloy::primitives::{Address, U256};
+use alloy::{primitives::{B256, U256}};
 use jf_plonk::proof_system::structs::{VerifyingKey, VK};
 
 use std::{
     fs::File,
-    io::{Read, Write},
+    io::{Write},
     path::{Path, PathBuf},
 };
 
 pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: &Settings) {
-    let vk_hash_bytes = vk.hash().into_bigint().to_bytes_le();
-    let vk_hash = Address::from(vk_hash_bytes.as_slice());
+    let vk_hash_bytes: [u8; 32] = vk.hash()
+        .into_bigint()
+        .to_bytes_be()
+        .try_into()
+        .expect("Failed to convert Vec<u8> to [u8; 32]");
+    println!("vk_hash_bytes: {:?}", vk_hash_bytes);
+    let vk_hash = B256::from_slice(&vk_hash_bytes);
+    println!("vk_hash: {:?}", vk_hash);
     let domain_size = vk.domain_size();
     let domain_size_fr = Fr254::from(domain_size as u32);
-    let domain_size_inv = U256::from_le_bytes(
+    let domain_size_inv = U256::from_le_bytes::<32>(
         domain_size_fr
             .inverse()
             .unwrap()
@@ -26,12 +31,11 @@ pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: 
             .to_bytes_le().try_into().expect("Failed to convert Vec<u8> to [u8; 32]"),
     );
     let domain = Radix2EvaluationDomain::<Fr254>::new(domain_size).unwrap();
-
-    let omega = U256::from_le_bytes(domain.group_gen().into_bigint().to_bytes_le().try_into().expect("Failed to convert Vec<u8> to [u8; 32]"));
-    let omega_inv = U256::from_le_bytes(domain.group_gen_inv().into_bigint().to_bytes_le().try_into().expect("Failed to convert Vec<u8> to [u8; 32]"));
+    let omega = U256::from_le_bytes::<32>(domain.group_gen().into_bigint().to_bytes_le().try_into().expect("Failed to convert Vec<u8> to [u8; 32]"));
+    let omega_inv = U256::from_le_bytes::<32>(domain.group_gen_inv().into_bigint().to_bytes_le().try_into().expect("Failed to convert Vec<u8> to [u8; 32]"));
     let vk_vec = Vec::<Fq254>::from(vk.clone())
         .into_iter()
-        .map(|x| U256::from_le_bytes(x.into_bigint().to_bytes_le().try_into().expect("Failed to convert Vec<u8> to [u8; 32]")))
+        .map(|x| U256::from_le_bytes::<32>(x.into_bigint().to_bytes_le().try_into().expect("Failed to convert Vec<u8> to [u8; 32]")))
         .collect::<Vec<_>>();
 
     let join_path = Path::new(&settings.contracts.assets)
@@ -470,7 +474,7 @@ pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: 
 mod tests {
     use super::*;
 
-    use ethers::types::Bytes;
+    use alloy::primitives::Bytes;
 
     use jf_plonk::{
         errors::PlonkError,
@@ -544,7 +548,15 @@ mod tests {
             .output()
             .unwrap();
         //    std::fs::remove_file(path_out).unwrap();
-
+        println!(" forge test output: {:?}", output);
+println!(
+            "Forge output: {}",
+            String::from_utf8_lossy(&output.stdout)
+        );
+        println!(
+            "Forge error: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
         match output.status.code() {
             Some(0) => (),
             Some(code) => panic!(

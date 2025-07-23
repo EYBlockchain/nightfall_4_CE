@@ -23,6 +23,7 @@ use crate::{
 use ark_bn254::Fr as Fr254;
 use configuration::addresses::get_addresses;
 use alloy::rpc::types::TransactionReceipt;
+use alloy::sol;
 use futures::future::join_all;
 use lib::{
     blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
@@ -35,8 +36,16 @@ use std::{error::Error, fmt::Debug, time::Duration};
 use tokio::time::sleep;
 use url::Url;
 use warp::hyper::StatusCode;
-use nightfall_bindings::bindings::{RoundRobin, X509};
 
+sol!(
+    #[sol(rpc)]    
+    RoundRobin, "../blockchain_assets/artifacts/RoundRobin.sol/RoundRobin.json"
+);
+sol!(
+    #[sol(rpc)]    
+    #[derive(Debug)] 
+    X509, "../blockchain_assets/artifacts/X509.sol/X509.json"
+);
 
 #[allow(clippy::too_many_arguments)]
 pub async fn handle_client_operation<P, E, N>(

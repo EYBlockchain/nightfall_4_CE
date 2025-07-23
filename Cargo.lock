@@ -5171,6 +5171,7 @@ name = "nightfall_deployer"
 version = "0.1.0"
 dependencies = [
  "alloy",
+ "alloy-node-bindings",
  "ark-bn254",
  "ark-ec",
  "ark-ff 0.4.2",

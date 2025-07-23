@@ -2,7 +2,7 @@ use super::models::DeEscrowDataReq;
 use crate::{
     domain::{entities::{ WithdrawData as NFWithdrawData}},
     ports::contracts::NightfallContract,
-    driven::contract_functions::nightfall_contract::Nightfall::NightfallCalls as Nightfall
+    driven::contract_functions::nightfall_contract::Nightfall,
 };
 use log::{error, info};
 use reqwest::StatusCode;
@@ -41,12 +41,12 @@ pub async fn handle_de_escrow(data: DeEscrowDataReq) -> Result<impl Reply, warp:
         );
         reject::custom(FailedDeEscrow)
     })?;
-    let available = Nightfall::withdraw_available(withdraw_data).await;
+    let available = Nightfall::NightfallCalls::withdraw_available(withdraw_data).await;
         match available {
             Ok(b) => {
-                if b {
+                if b != 0 {
                     info!("Withdraw is on chain, attempting to de-escrow funds");
-                   Nightfall::de_escrow_funds(withdraw_data, token_type)
+                    Nightfall::NightfallCalls::de_escrow_funds(withdraw_data, token_type)
                    .await
                    .map_err(|e| {
                        error!("Failed to de-escrow funds: {}", e);

@@ -17,9 +17,22 @@ use lib::{
     blockchain_client::{BlockchainClientConnection}, initialisation::get_blockchain_client_connection,
 };
 use log::info;
-use nightfall_bindings::bindings::{
-    Nightfall, IERC3525, ERC20Mock,
-};
+use alloy::sol;
+use num::BigUint;
+sol!(
+    #[sol(rpc)]    
+    Nightfall, "../blockchain_assets/artifacts/Nightfall.sol/Nightfall.json"
+);
+sol!(
+    #[sol(rpc)]     
+    IERC3525, "../blockchain_assets/artifacts/IERC3525.sol/IERC3525.json"
+);
+sol!(
+    #[sol(rpc)]   
+    #[derive(Debug)] 
+    ERC20Mock, "../blockchain_assets/artifacts/ERC20Mock.sol/ERC20Mock.json"
+);
+
 
 impl NightfallContract for Nightfall::NightfallCalls {
     async fn escrow_funds(
@@ -74,7 +87,7 @@ impl NightfallContract for Nightfall::NightfallCalls {
             .send()
             .await
             .map_err(|e| {
-                if !e.as_revert_data().is_none() {
+                if e.as_revert_data().is_some() {
                     format!(
                         "Revert when calling escrow: {:?}",
                         e.as_decoded_error::<ERC20Mock::ERC20InsufficientBalance>()
@@ -118,7 +131,7 @@ impl NightfallContract for Nightfall::NightfallCalls {
         } else {
             let slot_id_token = slot_id.tokenize();
             let nf_slot_id_biguint =
-                BigUint::from_bytes_be(&keccak256(encode(&(erc_token, slot_id_token))).as_slice()) >> 4;
+                BigUint::from_bytes_be(keccak256(encode(&(erc_token, slot_id_token))).as_slice()) >> 4;
             let nf_slot_id = Fr254::from(nf_slot_id_biguint);
             Ok([nf_token_id, nf_slot_id])
         }
@@ -154,7 +167,7 @@ impl NightfallContract for Nightfall::NightfallCalls {
             .send()
             .await
             .map_err(|e| {
-                if !e.as_revert_data().is_none() {
+                if e.as_revert_data().is_some() {
                     format!(
                         "Revert when calling escrow: {:?}",
                         e.as_decoded_error::<ERC20Mock::ERC20InsufficientBalance>()
@@ -176,7 +189,7 @@ impl NightfallContract for Nightfall::NightfallCalls {
         Ok(())
     }
 
-    async fn withdraw_available(withdraw_data: WithdrawData) -> Result<bool, NightfallContractError> {
+    async fn withdraw_available(withdraw_data: WithdrawData) -> Result<u8, NightfallContractError> {
         let blockchain_client = get_blockchain_client_connection()
             .await
             .read()
@@ -195,7 +208,6 @@ impl NightfallContract for Nightfall::NightfallCalls {
         };
         let result = nightfall_instance.withdraw_processed(decode_data).call().await.map_err(|e| NightfallContractError::EscrowError(format!("{}", e)))?._0;
         Ok(result)
-     
     }
 
     async fn get_current_layer2_blocknumber() -> Result<I256, NightfallContractError> {

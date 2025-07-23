@@ -66,7 +66,7 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
         let nf_address_token = private_inputs.nf_address.tokenize();
         let u256_zero = U256::ZERO.tokenize();
         let fee_token_id_biguint =
-            BigUint::from_bytes_be(&keccak256(encode(&(nf_address_token, u256_zero))).as_slice()) >> 4;
+            BigUint::from_bytes_be(keccak256(encode(&(nf_address_token, u256_zero))).as_slice()) >> 4;
         let fee_token_id_field = Fr254::from(fee_token_id_biguint);
         private_inputs.fee_token_id = fee_token_id_field;
 
@@ -542,7 +542,7 @@ mod tests {
         let nf_address_token = nf_address_h160.tokenize();
         let u256_zero = U256::ZERO.tokenize();
         let fee_token_id_biguint =
-            BigUint::from_bytes_be(&keccak256(encode(&(nf_address_token, u256_zero))).as_slice()) >> 4;
+            BigUint::from_bytes_be(keccak256(encode(&(nf_address_token, u256_zero))).as_slice()) >> 4;
         let fee_token_id = Fr254::from(fee_token_id_biguint);
 
         let FeesAndValues {
@@ -780,7 +780,7 @@ mod tests {
         let nf_address_token = nf_address_h160.tokenize();
         let u256_zero = U256::ZERO.tokenize();
         let fee_token_id_biguint =
-            BigUint::from_bytes_be(&keccak256(encode(&(nf_address_token, u256_zero))).as_slice()) >> 4;
+            BigUint::from_bytes_be(keccak256(encode(&(nf_address_token, u256_zero))).as_slice()) >> 4;
         let fee_token_id = Fr254::from(fee_token_id_biguint);
 
         let FeesAndValues {

@@ -7,7 +7,7 @@ use crate::{
         notifications::NotificationPayload,
     },
     driven::{
-        contract_functions::contract_type_conversions::FrBn254, db::mongo::CommitmentEntry,
+        contract_functions::{contract_type_conversions::FrBn254, nightfall_contract::Nightfall}, db::mongo::CommitmentEntry,
         notifier::webhook_notifier::WebhookNotifier, primitives::kemdem_functions::kemdem_decrypt,
     },
     drivers::derive_key::ZKPKeys,
@@ -25,14 +25,14 @@ use crate::{
 use ark_bn254::Fr as Fr254;
 use ark_ff::BigInteger;
 use configuration::settings::get_settings;
-use alloy::{consensus::Transaction, sol_types::SolInterface};
+use alloy::{consensus::Transaction};
 
 use alloy::primitives::{TxHash, I256, U256};
+use alloy::sol_types::SolInterface;
 use lib::{
     blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
 };
 use log::{debug, error, info, warn};
-use nightfall_bindings::nightfall::Nightfall;
 use std::{collections::HashSet, sync::OnceLock};
 use tokio::{join, sync::Mutex};
 
