@@ -566,10 +566,21 @@ contract Nightfall is
         publicInputs[1] = bytes32(public_hash);
         publicInputs[2] = bytes32(commitmentRoot);
         publicInputs[3] = bytes32(blk.commitments_root);
-        publicInputs[4] = bytes32(nullifierRoot);
+        // publicInputs[4] = bytes32(nullifierRoot);
+        publicInputs[4] = bytes32(blk.nullifier_root);
         publicInputs[5] = bytes32(blk.nullifier_root);
         publicInputs[6] = bytes32(historicRootsRoot);
         publicInputs[7] = bytes32(blk.commitments_root_root);
+
+        console2.log("pi0:", uint256(publicInputs[0]));
+        console2.log("pi1:", uint256(publicInputs[1]));
+        console2.log("pi2:", uint256(publicInputs[2]));
+        console2.log("pi3:", uint256(publicInputs[3]));
+        console2.log("pi4:", uint256(publicInputs[4]));
+        console2.log("pi5:", uint256(publicInputs[5]));
+        console2.log("pi6:", uint256(publicInputs[6]));
+        console2.log("pi7:", uint256(publicInputs[7]));
+
         publicInputs[8] = abi.decode(blk.rollup_proof[32:64], (bytes32)); //instance1_x;
         publicInputs[9] = abi.decode(blk.rollup_proof[64:96], (bytes32)); //instance1_y;
         publicInputs[10] = abi.decode(blk.rollup_proof[96:128], (bytes32)); //proof1_x;
@@ -578,9 +589,34 @@ contract Nightfall is
         publicInputs[13] = abi.decode(blk.rollup_proof[192:224], (bytes32)); //instance2_y;
         publicInputs[14] = abi.decode(blk.rollup_proof[224:256], (bytes32)); //proof2_x;
         publicInputs[15] = abi.decode(blk.rollup_proof[256:288], (bytes32)); //proof2_y;
-        // bytes memory publicInputsBytes = abi.encodePacked(uint256(
-        //     keccak256(abi.encodePacked(publicInputs))
-        // ));
+
+        console2.log("pi8:", uint256(publicInputs[8]));
+        console2.log("pi9:", uint256(publicInputs[9]));
+        console2.log("pi10:", uint256(publicInputs[10]));
+        console2.log("pi11:", uint256(publicInputs[11]));
+        console2.log("pi12:", uint256(publicInputs[12]));
+        console2.log("pi13:", uint256(publicInputs[13]));
+        console2.log("pi14:", uint256(publicInputs[14]));
+        console2.log("pi15:", uint256(publicInputs[15]));
+
+bytes memory packedInputs;
+for (uint i = 0; i < publicInputs.length; i++) {
+    packedInputs = bytes.concat(packedInputs, publicInputs[i]);
+}
+// Hash using Keccak256
+bytes32 pi_hash = keccak256(packedInputs);
+
+// If you need a uint256 challenge:
+uint256 pi_hash_uint = uint256(pi_hash);
+
+// Log for debugging
+console2.logBytes32(pi_hash);
+console2.log("pi_hash_uint:", pi_hash_uint);
+        uint256 publicInputsBytes_computed = uint256(
+            keccak256(abi.encodePacked(publicInputs))
+        );
+        console2.log("we want 1850513487845456441605133290000849208866992190553138761106284811236254173220, or 0x4175A801C475E5C0942E1A52903AC7D440BB638E8E025DE289B684B00004824");
+        console2.log("publicInputsBytes_computed is: ",publicInputsBytes_computed);
         // make 1850513487845456441605133290000849208866992190553138761106284811236254173220 as the publicinputshash
         uint256 value = 0x4175A801C475E5C0942E1A52903AC7D440BB638E8E025DE289B684B00004824;
         bytes memory publicInputsBytes = abi.encodePacked(value);
