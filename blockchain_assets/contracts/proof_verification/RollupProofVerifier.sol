@@ -329,7 +329,7 @@ contract RollupProofVerifier is INFVerifier{
         result = verify_OpeningProof(full_challenges, pcsInfo, decoded_proof, vk);
         // require(result, "Proof failed");
         console2.log("Proof verification result: ", result);
-        result = true;
+        // result = true;
     }
 
     /**
