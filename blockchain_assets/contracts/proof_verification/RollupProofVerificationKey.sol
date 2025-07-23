@@ -669,6 +669,23 @@
 
             ) 
 
+            // open_key_g 
+
+            mstore( 
+
+                mload(add(vk, 0x4e0)),  
+
+                0x1 
+
+            ) 
+
+            mstore( 
+
+                add(mload(add(vk, 0x4e0)), 0x20),  
+
+                0x2
+            ) 
+
             }
 
             return vk; 

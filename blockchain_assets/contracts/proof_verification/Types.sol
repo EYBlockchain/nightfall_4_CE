@@ -191,5 +191,7 @@ library Types {
         uint256 group_gen; //0x4a0
         // groupGenInv
         uint256 group_gen_inv; //0x4c0
+        // open_key_g
+        G1Point open_key_g; //0x4e0
     }
 }

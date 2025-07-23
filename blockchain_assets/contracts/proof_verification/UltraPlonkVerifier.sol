@@ -313,7 +313,7 @@ contract UltraPlonkVerifier{
         // console2.log("full_challenges.alpha7: ", full_challenges.alpha7);
 
 
-        result = verify_OpeningProof(full_challenges, pcsInfo, decoded_proof);
+        result = verify_OpeningProof(full_challenges, pcsInfo, decoded_proof, vk.open_key_g);
         // require(result, "Proof failed");
         // result = true;
     }
@@ -406,7 +406,8 @@ contract UltraPlonkVerifier{
     function verify_OpeningProof(
         Types.ChallengeTranscript memory challenge,
         Types.PcsInfo memory pcsInfo,
-        Types.Proof memory proof
+        Types.Proof memory proof,
+        Types.G1Point memory open_key_g
     ) internal view returns (bool) {
         // Compute a pseudorandom challenge from the instances
         Types.G1Point memory A;
@@ -417,7 +418,7 @@ contract UltraPlonkVerifier{
      
         // B = eval_point * open_proof + u * next_eval_point *
         //   shifted_open_proof + comm - eval * [1]1`.
-        B = compute_B(pcsInfo, proof, challenge);
+        B = compute_B(pcsInfo, proof, challenge, open_key_g);
         console2.log("B: ", B.x, B.y);
       
 
@@ -448,7 +449,8 @@ contract UltraPlonkVerifier{
     function compute_B(
         Types.PcsInfo memory pcsInfo,
         Types.Proof memory proof,
-        Types.ChallengeTranscript memory challenge
+        Types.ChallengeTranscript memory challenge,
+        Types.G1Point memory open_key_g
     ) internal view returns (Types.G1Point memory B) {
         // Compute B := B0 + r * B1 + ... + r^{m-1} * Bm
         {
@@ -463,7 +465,8 @@ contract UltraPlonkVerifier{
             pcsInfo.commBases[55] = proof.shifted_opening_proof;
 
             pcsInfo.commScalars[56] = Bn254Crypto.negate_fr(pcsInfo.eval);
-            pcsInfo.commBases[56] = Bn254Crypto.open_key_g();
+            // pcsInfo.commBases[56] = Bn254Crypto.open_key_g();
+            pcsInfo.commBases[56] = open_key_g;
             
             // console2.log("pcsInfo.commScalars[54]: ", pcsInfo.commScalars[54]);
             // console2.log("pcsInfo.commBases[54]: ", pcsInfo.commBases[54].x, pcsInfo.commBases[54].y);
@@ -3073,13 +3076,13 @@ library Bn254Crypto {
         return output;
     }
 
-    function open_key_g() internal pure returns (Types.G1Point memory) {
-        return
-            Types.G1Point(
-                7688067217989994385175370005327028282099909322677106416431281707406319639423,
-                7687918639911294339882576580611551419932980906448618049918745820988988940544
-            );
-    }
+    // function open_key_g() internal pure returns (Types.G1Point memory) {
+    //     return
+    //         Types.G1Point(
+    //             7688067217989994385175370005327028282099909322677106416431281707406319639423,
+    //             7687918639911294339882576580611551419932980906448618049918745820988988940544
+    //         );
+    // }
 
     function P2() internal pure returns (Types.G2Point memory) {
         return

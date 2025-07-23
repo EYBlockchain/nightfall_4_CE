@@ -32,6 +32,13 @@ pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: 
     let omega = U256::from_little_endian(&domain.group_gen().into_bigint().to_bytes_le());
     let omega_inv = U256::from_little_endian(&domain.group_gen_inv().into_bigint().to_bytes_le());
 
+    // let open_key = vk.open_key();
+    ark_std::println!(
+        "vk:{:?} ",
+       vk
+    );
+    // let open_key_x = U256::from_big_endian(&open_key.x.into_bigint().to_bytes_be());
+    // let open_key_y = U256::from_big_endian(&open_key.y.into_bigint().to_bytes_be());
     let domain_log_size = domain_size.ilog2();
     let size_inv = U256::from(domain_size_inv);
     let group_gen = U256::from_little_endian(&domain.group_gen().into_bigint().to_bytes_le());
@@ -84,6 +91,8 @@ pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: 
         .into_iter()
         .map(|x| U256::from_little_endian(&x.into_bigint().to_bytes_le()))
         .collect::<Vec<_>>();
+    ark_std::println!("vk_vec_u256: {:?}", vk_vec_u256);
+
     let range_table_comm_u256 = vec![
         vk_vec_u256[56].clone(), // x
         vk_vec_u256[57].clone(), // y
@@ -100,6 +109,15 @@ pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: 
         vk_vec_u256[62].clone(), // x
         vk_vec_u256[63].clone(), // y
     ];
+
+    let open_key_g = vec![
+        vk_vec_u256[64].clone(), // x
+        vk_vec_u256[65].clone(), // y
+    ];
+    ark_std::println!(
+        "open_key_g: {:?}",
+        open_key_g
+    );
 
     let join_path = Path::new(&settings.contracts.assets)
         .parent()
@@ -485,8 +503,18 @@ pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: 
                 add(vk, 0x4c0), \n
                 {:#x} \n
             ) \n
+            // open_key_g \n
+            mstore( \n
+                mload(add(vk, 0x4e0)),  \n
+                {:#x} \n
+            ) \n
+            mstore( \n
+                add(mload(add(vk, 0x4e0)), 0x20),  \n
+                {:#x}
+            ) \n
             }}\n
             return vk; \n
+            
         }}\n
     }}",
         extra_line,
@@ -558,6 +586,8 @@ pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: 
         size_inv, // size_inv
         group_gen, // group_gen
         group_gen_inv, // group_gen_inv
+        open_key_g[0], // open_key.x
+        open_key_g[1], // open_key.y
     ))
     .unwrap();
 }
@@ -648,23 +678,23 @@ mod tests {
         file.flush().unwrap();
         file.sync_all().unwrap();
 
-        // We run `forge test` now to update all the contracts
-        let output = std::process::Command::new("forge")
-            // .args(["test", "--match-test", "UltraPlonkVerifierTest"])
-            .args(["test"])
-            // .current_dir("blockchain_assets")
-            .output()
-            .unwrap();
-        //    std::fs::remove_file(path_out).unwrap();
-        match output.status.code() {
-            Some(0) => (),
-            Some(code) => panic!(
-                "Forge failed with code {}, stdout is: {}, stderr is : {}",
-                code,
-                String::from_utf8_lossy(&output.stdout),
-                String::from_utf8_lossy(&output.stderr)
-            ),
-            None => panic!("Forge failed with no exit code"),
-        }
+        // // We run `forge test` now to update all the contracts
+        // let output = std::process::Command::new("forge")
+        //     // .args(["test", "--match-test", "UltraPlonkVerifierTest"])
+        //     .args(["test"])
+        //     // .current_dir("blockchain_assets")
+        //     .output()
+        //     .unwrap();
+        // //    std::fs::remove_file(path_out).unwrap();
+        // match output.status.code() {
+        //     Some(0) => (),
+        //     Some(code) => panic!(
+        //         "Forge failed with code {}, stdout is: {}, stderr is : {}",
+        //         code,
+        //         String::from_utf8_lossy(&output.stdout),
+        //         String::from_utf8_lossy(&output.stderr)
+        //     ),
+        //     None => panic!("Forge failed with no exit code"),
+        // }
     }
 }

@@ -670,10 +670,28 @@
 
             ) 
 
+            // open_key_g 
+
+            mstore( 
+
+                mload(add(vk, 0x4e0)),  
+
+                0x10ff4ab61e6109f64b103c45770a0c2ec238622df2dddbf4aee2683203a35b7f 
+
+            ) 
+
+            mstore( 
+
+                add(mload(add(vk, 0x4e0)), 0x20),  
+
+                0x10ff352f0d2acf65fcd3a0517bb3dba40d462da489a9041ffd6e02a1f1ef6100
+            ) 
+
             }
 
             return vk; 
 
+            
         }
 
     }
