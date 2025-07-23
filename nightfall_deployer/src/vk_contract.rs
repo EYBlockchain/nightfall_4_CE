@@ -114,9 +114,29 @@ pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: 
         vk_vec_u256[64].clone(), // x
         vk_vec_u256[65].clone(), // y
     ];
+
+    let h = vec![
+        vk_vec_u256[67].clone(), // x1
+        vk_vec_u256[66].clone(), // x2
+        vk_vec_u256[69].clone(), // y1
+        vk_vec_u256[68].clone(), // y2
+    ];
+
     ark_std::println!(
-        "open_key_g: {:?}",
-        open_key_g
+        "h: {:?}",
+        h
+    );
+
+    let beta_h = vec![
+        vk_vec_u256[71].clone(), // x1
+        vk_vec_u256[70].clone(), // x2
+        vk_vec_u256[73].clone(), // y1
+        vk_vec_u256[72].clone(), // y2
+    ];
+
+    ark_std::println!(
+        "beta_h: {:?}",
+        beta_h
     );
 
     let join_path = Path::new(&settings.contracts.assets)
@@ -503,15 +523,32 @@ pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: 
                 add(vk, 0x4c0), \n
                 {:#x} \n
             ) \n
-            // open_key_g \n
+            // open_key_g.x \n
             mstore( \n
                 mload(add(vk, 0x4e0)),  \n
                 {:#x} \n
             ) \n
+            // open_key_g.y \n
             mstore( \n
                 add(mload(add(vk, 0x4e0)), 0x20),  \n
                 {:#x}
             ) \n
+            // open_key_h \n
+            let h_ptr := mload(0x40) \n
+            mstore(add(vk, 0x500), h_ptr) \n
+            mstore(h_ptr, {:#x}) // x0  \n
+            mstore(add(h_ptr, 0x20), {:#x}) // x1  \n
+            mstore(add(h_ptr, 0x40), {:#x}) // y0  \n
+            mstore(add(h_ptr, 0x60), {:#x}) // y1  \n
+            mstore(0x40, add(h_ptr, 0x80)) \n
+            // open_key_beta_h \n
+            let beta_h_ptr := mload(0x40) \n
+            mstore(add(vk, 0x520), beta_h_ptr) \n
+            mstore(beta_h_ptr, {:#x}) // x0 \n
+            mstore(add(beta_h_ptr, 0x20), {:#x}) // x1 \n
+            mstore(add(beta_h_ptr, 0x40), {:#x}) // y0 \n
+            mstore(add(beta_h_ptr, 0x60), {:#x}) // y1 \n
+            mstore(0x40, add(beta_h_ptr, 0x80)) \n 
             }}\n
             return vk; \n
             
@@ -588,6 +625,14 @@ pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: 
         group_gen_inv, // group_gen_inv
         open_key_g[0], // open_key.x
         open_key_g[1], // open_key.y
+        h[0], // h.x1
+        h[1], // h.x2
+        h[2], // h.y1
+        h[3], // h.y2
+        beta_h[0], // beta_h.x1
+        beta_h[1], // beta_h.x2
+        beta_h[2], // beta_h.y1
+        beta_h[3], // beta_h.y2
     ))
     .unwrap();
 }

@@ -105,13 +105,13 @@ contract UltraPlonkVerifier{
     // let g = E::G1::rand(rng);
     // let h = E::G2::rand(rng);
     // This value needs to be changed for different proofs.
-    Types.G2Point private beta_h =
-        Types.G2Point({
-            x0: 0x1DD13357222EAB4FB810D5C89B5AF426816CD0492532F7F181BB44E39CBC2BE4,
-            x1: 0x1D9B573A9B30EAD10DCF030D1AB3C9EC81DC3DA2AAC764597280370A6B29BAAB,
-            y0: 0x20CA4B8DA283890EA4AB8AC17F07102E0E3BCD102998E3BB16349B6005B02DE4,
-            y1: 0x2B9EE7FD0E19D5EC504255B3090E52AB453425E7B43C170022F6F862F7CC2291
-        });
+    // Types.G2Point private beta_h =
+    //     Types.G2Point({
+    //         x0: 0x1DD13357222EAB4FB810D5C89B5AF426816CD0492532F7F181BB44E39CBC2BE4,
+    //         x1: 0x1D9B573A9B30EAD10DCF030D1AB3C9EC81DC3DA2AAC764597280370A6B29BAAB,
+    //         y0: 0x20CA4B8DA283890EA4AB8AC17F07102E0E3BCD102998E3BB16349B6005B02DE4,
+    //         y1: 0x2B9EE7FD0E19D5EC504255B3090E52AB453425E7B43C170022F6F862F7CC2291
+    //     });
 
     /**
      * @dev Verify a UltraPlonk proof from Jellyfish with 4 input wires
@@ -189,6 +189,27 @@ contract UltraPlonkVerifier{
         // console2.log("vk.table_dom_sep_comm.y: ", vk.table_dom_sep_comm.y);
         // console2.log("vk.q_dom_sep_comm.x: ", vk.q_dom_sep_comm.x);
         // console2.log("vk.q_dom_sep_comm.y: ", vk.q_dom_sep_comm.y);
+
+        // console2.log("vk.h.x0: ", vk.h.x0);
+        // console2.log("vk.h.x1: ", vk.h.x1);
+        // console2.log("vk.h.y0: ", vk.h.y0);
+        // console2.log("vk.h.y1: ", vk.h.y1);
+
+        // console2.log("Bn254Crypto.P2().x0: ", Bn254Crypto.P2().x0);
+        // console2.log("Bn254Crypto.P2().x1: ", Bn254Crypto.P2().x1);
+        // console2.log("Bn254Crypto.P2().y0: ", Bn254Crypto.P2().y0);
+        // console2.log("Bn254Crypto.P2().y1: ", Bn254Crypto.P2().y1);
+
+        // console2.log("vk.beta_h.x0: ", vk.beta_h.x0);
+        // console2.log("vk.beta_h.x1: ", vk.beta_h.x1);
+        // console2.log("vk.beta_h.y0: ", vk.beta_h.y0);
+        // console2.log("vk.beta_h.y1: ", vk.beta_h.y1);
+
+        // console2.log("beta_h.x0: ", beta_h.x0);
+        // console2.log("beta_h.x1: ", beta_h.x1);
+        // console2.log("beta_h.y0: ", beta_h.y0);
+        // console2.log("beta_h.y1: ", beta_h.y1);
+
 }
         // parse the second part of calldata to get public input
         // we hashed all public inputs into a single value
@@ -313,7 +334,7 @@ contract UltraPlonkVerifier{
         // console2.log("full_challenges.alpha7: ", full_challenges.alpha7);
 
 
-        result = verify_OpeningProof(full_challenges, pcsInfo, decoded_proof, vk.open_key_g);
+        result = verify_OpeningProof(full_challenges, pcsInfo, decoded_proof, vk);
         // require(result, "Proof failed");
         // result = true;
     }
@@ -407,7 +428,7 @@ contract UltraPlonkVerifier{
         Types.ChallengeTranscript memory challenge,
         Types.PcsInfo memory pcsInfo,
         Types.Proof memory proof,
-        Types.G1Point memory open_key_g
+        Types.VerificationKey memory vk
     ) internal view returns (bool) {
         // Compute a pseudorandom challenge from the instances
         Types.G1Point memory A;
@@ -418,14 +439,15 @@ contract UltraPlonkVerifier{
      
         // B = eval_point * open_proof + u * next_eval_point *
         //   shifted_open_proof + comm - eval * [1]1`.
-        B = compute_B(pcsInfo, proof, challenge, open_key_g);
+        B = compute_B(pcsInfo, proof, challenge, vk);
         console2.log("B: ", B.x, B.y);
       
 
         // Check e(A, [x]2) ?= e(B, [1]2)
         /// By Schwartz-Zippel lemma, it's equivalent to check that for a random r:
         // - `e(A0 + ... + r^{m-1} * Am, [x]2) = e(B0 + ... + r^{m-1} * Bm, [1]2)`.
-        return Bn254Crypto.pairingProd2(A, beta_h, B, Bn254Crypto.P2());
+        // return Bn254Crypto.pairingProd2(A, beta_h, B, Bn254Crypto.P2());
+        return Bn254Crypto.pairingProd2(A, vk.beta_h, B, vk.h);
     }
 
     function compute_A(
@@ -450,7 +472,7 @@ contract UltraPlonkVerifier{
         Types.PcsInfo memory pcsInfo,
         Types.Proof memory proof,
         Types.ChallengeTranscript memory challenge,
-        Types.G1Point memory open_key_g
+        Types.VerificationKey memory vk
     ) internal view returns (Types.G1Point memory B) {
         // Compute B := B0 + r * B1 + ... + r^{m-1} * Bm
         {
@@ -466,7 +488,7 @@ contract UltraPlonkVerifier{
 
             pcsInfo.commScalars[56] = Bn254Crypto.negate_fr(pcsInfo.eval);
             // pcsInfo.commBases[56] = Bn254Crypto.open_key_g();
-            pcsInfo.commBases[56] = open_key_g;
+            pcsInfo.commBases[56] = vk.open_key_g;
             
             // console2.log("pcsInfo.commScalars[54]: ", pcsInfo.commScalars[54]);
             // console2.log("pcsInfo.commBases[54]: ", pcsInfo.commBases[54].x, pcsInfo.commBases[54].y);
@@ -3084,15 +3106,15 @@ library Bn254Crypto {
     //         );
     // }
 
-    function P2() internal pure returns (Types.G2Point memory) {
-        return
-            Types.G2Point({
-                x0: 0x1EB826B8B6E3EBBB3A1607EBF19D2758C162D2C915188D49191D80A4F88E5306,
-                x1: 0x29FD9755178E22781E448030A456EBFBDBB449335804C09E815F0B7A8437B94D,
-                y0: 0x29ECA2BD88436DAB9A7BD738D120579D2DBCC9ABC980D32ABA2449D68B0A9457,
-                y1: 0x182766815B58475E731A8AFCFF419C841A4ED2F571E3F9D4B1AF94BC5E7D5777
-            });
-    }
+    // function P2() internal pure returns (Types.G2Point memory) {
+    //     return
+    //         Types.G2Point({
+    //             x0: 0x1EB826B8B6E3EBBB3A1607EBF19D2758C162D2C915188D49191D80A4F88E5306,
+    //             x1: 0x29FD9755178E22781E448030A456EBFBDBB449335804C09E815F0B7A8437B94D,
+    //             y0: 0x29ECA2BD88436DAB9A7BD738D120579D2DBCC9ABC980D32ABA2449D68B0A9457,
+    //             y1: 0x182766815B58475E731A8AFCFF419C841A4ED2F571E3F9D4B1AF94BC5E7D5777
+    //         });
+    // }
 
     /// Evaluate the following pairing product:
     /// e(a1, a2).e(-b1, b2) == 1

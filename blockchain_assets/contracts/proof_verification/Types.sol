@@ -193,5 +193,9 @@ library Types {
         uint256 group_gen_inv; //0x4c0
         // open_key_g
         G1Point open_key_g; //0x4e0
+        // h
+        G2Point h; //0x500
+        // beta_h
+        G2Point beta_h; //0x520
     }
 }
