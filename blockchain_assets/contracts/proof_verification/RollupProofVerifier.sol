@@ -3,7 +3,6 @@
 pragma solidity >=0.6.0;
 pragma experimental ABIEncoderV2;
 import "./BytesLib.sol";
-import "forge-std/console2.sol";
 import "./Types.sol";
 import "./RollupProofVerificationKey.sol";
 import {INFVerifier} from "./INFVerifier.sol";

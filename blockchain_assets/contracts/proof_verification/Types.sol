@@ -1,11 +1,6 @@
 pragma solidity ^0.8.20;
 
 library Types {
-    // If a G1Point is infinity, for simplicity set x and y to zero
-    // struct G1Point {
-    //     uint256 x;
-    //     uint256 y;
-    // }
     struct G2Point {
         uint256 x0;
         uint256 x1;
@@ -84,39 +79,7 @@ library Types {
         uint256 alpha7; // 0x100
         uint256 alpha_base;// 0x120
     }
-    
 
-    // function compress_g1_point(
-    //     G1Point memory point
-    // ) internal pure returns (bytes memory) {
-    //     uint256 flag = 0;
-
-    //     if (!isYNegative(point)) {
-    //         flag = 0x8000000000000000000000000000000000000000000000000000000000000000;
-    //     }
-
-    //     return abi.encodePacked(Transcript.reverse_Endianness(point.x | flag));
-    // }
-
-    // function G1PointCompress(
-    //     G1Point memory point
-    // ) internal pure returns (bytes memory) {
-    //     uint256 flag = 0;
-
-    //     if (point.x == 0 && point.y == 0) {
-    //         flag |= 0x4000000000000000000000000000000000000000000000000000000000000000;
-    //     }
-
-    //     if (!isYNegative(point)) {
-    //         flag = 0x8000000000000000000000000000000000000000000000000000000000000000;
-    //     }
-
-    //     return abi.encodePacked(Transcript.reverse_Endianness(point.x | flag));
-    // }
-
-    // function isYNegative(G1Point memory point) internal pure returns (bool) {
-    //     return (point.y << 1) < Bn254Crypto.p_mod;
-    // }
 
     struct G1Point {
         uint256 x;

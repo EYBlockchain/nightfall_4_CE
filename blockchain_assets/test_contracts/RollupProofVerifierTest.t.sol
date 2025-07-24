@@ -5,7 +5,6 @@ import "forge-std/Test.sol";
 import "../contracts/Nightfall.sol";
 import "../contracts/proof_verification/RollupProofVerifier.sol";
 import "../contracts/SanctionsListMock.sol";
-import "forge-std/console2.sol";
 
 contract RollupProofVerifierTest is Test {
     Nightfall nightfall;
@@ -28,47 +27,42 @@ contract RollupProofVerifierTest is Test {
 
     function testVerifyValidProof() public {
         // Load valid proof and block fields from JSON or hardcoded (for now)
-    string memory hexString = string(vm.readFile("./blockchain_assets/test_contracts/blockRollupProof.json"));
-    bytes memory rollupProof = vm.parseBytes(hexString);
-     console.log("rollup_proof:");
-    console2.logBytes(rollupProof);
-    console.log("rollup_proof length:", rollupProof.length);
-
-
+        string memory hexString = string(vm.readFile("./blockchain_assets/test_contracts/blockRollupProof.json"));
+        bytes memory rollupProof = vm.parseBytes(hexString);
         OnChainTransaction[] memory transactions = new OnChainTransaction[](64);
         transactions[0] = OnChainTransaction({
-    fee: uint256(0),
-    commitments: [
+            fee: uint256(0),
+            commitments: [
                 0x24BDCAC4C8E9DEE4D404F2B6C51DCB69AB86A5552A0334092749050FEA9BF03A,
                 uint256(0),
                 uint256(0),
                 uint256(0)
-    ],
-    nullifiers: [
+            ],
+            nullifiers: [
                 uint256(0),
                 uint256(0),
                 uint256(0),
                 uint256(0)
-    ],
-    public_data: [
+            ],
+            public_data: [
                 0x6A6800E8217051833D61E3B6A942BCD02391EBA79F98BA3A79D6BADEF211E8E,
                 uint256(0),
                 uint256(0),
                 uint256(0)
-    ]
-});
-
- // Zero out the rest of the transactions
-    OnChainTransaction memory emptyTx = OnChainTransaction({
-        fee: 0,
-        commitments: [uint256(0), uint256(0), uint256(0), uint256(0)],
-        nullifiers: [uint256(0), uint256(0), uint256(0), uint256(0)],
-        public_data: [uint256(0), uint256(0), uint256(0), uint256(0)]
+            ]
     });
 
-    for (uint256 i = 1; i < 64; ++i) {
-        transactions[i] = emptyTx;
-    }
+        // Zero out the rest of the transactions
+        OnChainTransaction memory emptyTx = OnChainTransaction({
+            fee: 0,
+            commitments: [uint256(0), uint256(0), uint256(0), uint256(0)],
+            nullifiers: [uint256(0), uint256(0), uint256(0), uint256(0)],
+            public_data: [uint256(0), uint256(0), uint256(0), uint256(0)]
+        });
+
+        for (uint256 i = 1; i < 64; ++i) {
+            transactions[i] = emptyTx;
+        }
 
         Block memory blk = Block({
             commitments_root: 0x23AB6B16D30640DAE93F621B59871295F63F375E5BF1C218065551D2914761BC,
@@ -97,13 +91,55 @@ contract RollupProofVerifierTest is Test {
             }
         }
         console2.log("transaction_hashes[0]: ", transaction_hashes[0]);
-        // console2.log("transaction_hashes_new[0]: ", transaction_hashes_new[0]);
-        // Jiajie: todo, make this a public function in Nightfall, so we can call it directly without needing to compute the hashes again
         (bool verified, uint256 totalFee) = nightfall.verify_rollup_proof(blk, transaction_hashes[0]);
-        // (bool verified, uint256 totalFee) = nightfall.verify_rollup_proof(blk, uint256(0));
-        // assert that the proof is verified
-        // assertTrue(verified, "Proof verification failed");
-        console2.log("verified: ", verified);
-        console2.log("totalFee: ", totalFee);
+        assertTrue(verified, "Proof verification failed");
     }
+    function testVerifyWrongPublicInputs() public {
+        // Load valid proof and block fields from JSON or hardcoded (for now)
+        string memory hexString = string(vm.readFile("./blockchain_assets/test_contracts/blockRollupProof.json"));
+        bytes memory rollupProof = vm.parseBytes(hexString);
+        OnChainTransaction[] memory transactions = new OnChainTransaction[](64);
+
+        // Zero out the rest of the transactions
+        OnChainTransaction memory emptyTx = OnChainTransaction({
+            fee: 0,
+            commitments: [uint256(0), uint256(0), uint256(0), uint256(0)],
+            nullifiers: [uint256(0), uint256(0), uint256(0), uint256(0)],
+            public_data: [uint256(0), uint256(0), uint256(0), uint256(0)]
+        });
+
+        for (uint256 i = 0; i < 64; ++i) {
+            transactions[i] = emptyTx;
+        }
+
+        Block memory blk = Block({
+            commitments_root: 0x1,
+            nullifier_root: 0x2,
+            commitments_root_root: 0x3,
+            transactions: transactions,
+            rollup_proof: rollupProof
+        });
+
+        // Hash the transactions for the public data
+        uint256 block_transactions_length = 64;
+        // Hash the transactions for the public data
+        uint256[] memory transaction_hashes = new uint256[](
+            block_transactions_length
+        );
+        for (uint256 i = 0; i < block_transactions_length; ++i) {
+             transaction_hashes[i] = nightfall.hash_transaction(blk.transactions[i]);
+        }
+        uint256[] memory transaction_hashes_new = transaction_hashes;
+        for (uint256 length = block_transactions_length; length > 1; length >>= 1) {
+            for (uint256 i = 0; i < (length >> 1); ++i) {
+                // Directly store computed hash in the same array to save memory
+                transaction_hashes_new[i] = nightfall.sha256_and_shift(
+                    abi.encodePacked(transaction_hashes_new[i << 1], transaction_hashes_new[(i << 1) + 1])
+                );
+            }
+        }
+        (bool verified, uint256 totalFee) = nightfall.verify_rollup_proof(blk, transaction_hashes[0]);
+        assertFalse(verified, "Proof verification failed");
+    }
+    
 }
