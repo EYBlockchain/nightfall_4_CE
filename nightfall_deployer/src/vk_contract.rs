@@ -595,7 +595,6 @@ mod tests {
     use super::*;
 
     use ethers::types::Bytes;
-
     use jf_plonk::{
         proof_system::{PlonkKzgSnark, UniversalSNARK},
         transcript::SolidityTranscript,
@@ -616,7 +615,6 @@ mod tests {
         let _ = circuit.create_public_variable(Fq::from(2)).unwrap();
 
         circuit.finalize_for_arithmetization().unwrap();
-
         let mut rng = test_rng();
         let srs_size = circuit.srs_size().unwrap();
         let srs = PlonkKzgSnark::<Bn254>::universal_setup_for_testing(srs_size, &mut rng).unwrap();
@@ -645,6 +643,7 @@ mod tests {
             .parent()
             .unwrap()
             .join("contracts/Nightfall.sol");
+      
 
         let path_out: PathBuf;
         let cwd = std::env::current_dir().unwrap();
