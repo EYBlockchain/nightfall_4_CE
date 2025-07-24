@@ -33,10 +33,7 @@ pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: 
     let omega_inv = U256::from_little_endian(&domain.group_gen_inv().into_bigint().to_bytes_le());
 
     // let open_key = vk.open_key();
-    ark_std::println!(
-        "vk:{:?} ",
-       vk
-    );
+    ark_std::println!("vk:{:?} ", vk);
     // let open_key_x = U256::from_big_endian(&open_key.x.into_bigint().to_bytes_be());
     // let open_key_y = U256::from_big_endian(&open_key.y.into_bigint().to_bytes_be());
     let domain_log_size = domain_size.ilog2();
@@ -122,10 +119,7 @@ pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: 
         vk_vec_u256[68].clone(), // y2
     ];
 
-    ark_std::println!(
-        "h: {:?}",
-        h
-    );
+    ark_std::println!("h: {:?}", h);
 
     let beta_h = vec![
         vk_vec_u256[71].clone(), // x1
@@ -134,10 +128,7 @@ pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: 
         vk_vec_u256[72].clone(), // y2
     ];
 
-    ark_std::println!(
-        "beta_h: {:?}",
-        beta_h
-    );
+    ark_std::println!("beta_h: {:?}", beta_h);
 
     let join_path = Path::new(&settings.contracts.assets)
         .parent()
@@ -620,19 +611,19 @@ pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: 
         table_dom_sep_comm_u256[1], // table_dom_sep_comm.y
         q_dom_sep_comm_u256[0],     // q_dom_sep_comm.x
         q_dom_sep_comm_u256[1],     // q_dom_sep_comm.y
-        size_inv, // size_inv
-        group_gen, // group_gen
-        group_gen_inv, // group_gen_inv
-        open_key_g[0], // open_key.x
-        open_key_g[1], // open_key.y
-        h[0], // h.x1
-        h[1], // h.x2
-        h[2], // h.y1
-        h[3], // h.y2
-        beta_h[0], // beta_h.x1
-        beta_h[1], // beta_h.x2
-        beta_h[2], // beta_h.y1
-        beta_h[3], // beta_h.y2
+        size_inv,                   // size_inv
+        group_gen,                  // group_gen
+        group_gen_inv,              // group_gen_inv
+        open_key_g[0],              // open_key.x
+        open_key_g[1],              // open_key.y
+        h[0],                       // h.x1
+        h[1],                       // h.x2
+        h[2],                       // h.y1
+        h[3],                       // h.y2
+        beta_h[0],                  // beta_h.x1
+        beta_h[1],                  // beta_h.x2
+        beta_h[2],                  // beta_h.y1
+        beta_h[3],                  // beta_h.y2
     ))
     .unwrap();
 }
@@ -651,10 +642,11 @@ mod tests {
     use jf_relation::{Arithmetization, Circuit, PlonkCircuit};
 
     use ark_bn254::{Bn254, Fr as Fr254};
-    use ark_ff::One;
+    use ark_ff::{MontFp, One};
 
     use ark_std::vec::Vec;
     use configuration::settings::Settings;
+    use num_bigint::BigUint;
 
     #[test]
     fn test_verifier_contract() {
@@ -741,5 +733,35 @@ mod tests {
         //     ),
         //     None => panic!("Forge failed with no exit code"),
         // }
+    }
+    #[test]
+    fn test_public_inputs_hash() {
+        use ark_ec::pairing::Pairing;
+        use ark_ed_on_bn254::{Fq, Fr};
+        use ark_ff::{Field, MontFp};
+        let field_pi_out = vec![
+            Fr254::from(0u64),
+            Fr254::from(1u64),
+            // MontFp!("334461540345147061398064863116979985887163306107250048270678237213552564557"),
+            
+        ];
+        let field_pi = field_pi_out
+            .iter()
+            .flat_map(|f| f.into_bigint().to_bytes_be())
+            .collect::<Vec<u8>>();
+        ark_std::println!("field_pi Vec<u8>: {:?}", field_pi);
+        ark_std::println!("field_pi Vec<u8> len: {:?}", field_pi.len());
+        println!("field_pi hex: 0x{}", hex::encode(&field_pi));
+        use sha3::{Digest, Keccak256};
+        let mut hasher = Keccak256::new();
+        hasher.update(&field_pi);
+        let buf = hasher.finalize();
+
+        let result = &buf[..];
+        ark_std::println!("result: {}", BigUint::from_bytes_be(result) );
+
+
+        let pi_hash = Fr254::from_be_bytes_mod_order(&buf);
+        ark_std::println!("Decider circuit pi hash: {}", pi_hash);
     }
 }
