@@ -194,11 +194,8 @@ contract Nightfall is
                 );
             }
         }
-        console2.log("transaction_hashes[0]: ", transaction_hashes[0]);
         // get the output of verify_rollup_proof
         (bool verified, uint256 totalFee) = verify_rollup_proof(blk, transaction_hashes[0]);
-        console2.log("verified: ", verified);
-        console2.log("totalFee: ", totalFee);
         require(verified, "Rollup proof verification failed");
 
         // now we need to decode the public data for each transaction and do something with it
@@ -557,30 +554,18 @@ contract Nightfall is
     ) public  returns (bool, uint256) {
         // We need to split the proof into the public data and the actual proof
         // The first 32 bytes of the proof are the sum of fees
-        console2.logBytes(blk.rollup_proof);
         bytes32 feeSum = abi.decode(blk.rollup_proof[:32], (bytes32));
-        console2.logBytes32(feeSum);
         uint256 feeSumAsNumber = uint256(feeSum);
         bytes32[] memory publicInputs = new bytes32[](16); // we need to pass in 16 public inputs
         publicInputs[0] = feeSum;
         publicInputs[1] = bytes32(public_hash);
-
         publicInputs[2] = bytes32(commitmentRoot);
         publicInputs[3] = bytes32(blk.commitments_root);
         publicInputs[4] = bytes32(nullifierRoot);
         publicInputs[5] = bytes32(blk.nullifier_root);
         publicInputs[6] = bytes32(historicRootsRoot);
         publicInputs[7] = bytes32(blk.commitments_root_root);
-
-        // console2.log("pi0:", uint256(publicInputs[0]));
-        // console2.log("pi1:", uint256(publicInputs[1]));
-        // console2.log("pi2:", uint256(publicInputs[2]));
-        // console2.log("pi3:", uint256(publicInputs[3]));
-        // console2.log("pi4:", uint256(publicInputs[4]));
-        // console2.log("pi5:", uint256(publicInputs[5]));
-        // console2.log("pi6:", uint256(publicInputs[6]));
-        // console2.log("pi7:", uint256(publicInputs[7]));
-
+        // These are accumulators' comm and proof
         publicInputs[8] = abi.decode(blk.rollup_proof[32:64], (bytes32)); //instance1_x;
         publicInputs[9] = abi.decode(blk.rollup_proof[64:96], (bytes32)); //instance1_y;
         publicInputs[10] = abi.decode(blk.rollup_proof[96:128], (bytes32)); //proof1_x;
@@ -590,24 +575,10 @@ contract Nightfall is
         publicInputs[14] = abi.decode(blk.rollup_proof[224:256], (bytes32)); //proof2_x;
         publicInputs[15] = abi.decode(blk.rollup_proof[256:288], (bytes32)); //proof2_y;
 
-        // console2.log("pi8:", uint256(publicInputs[8]));
-        // console2.log("pi9:", uint256(publicInputs[9]));
-        // console2.log("pi10:", uint256(publicInputs[10]));
-        // console2.log("pi11:", uint256(publicInputs[11]));
-        // console2.log("pi12:", uint256(publicInputs[12]));
-        // console2.log("pi13:", uint256(publicInputs[13]));
-        // console2.log("pi14:", uint256(publicInputs[14]));
-        // console2.log("pi15:", uint256(publicInputs[15]));
-
         uint256 publicInputsBytes_computed = uint256(
             keccak256(abi.encodePacked(publicInputs))
         );
-        // mod the publicInputsBytes_computed by 2^256 to get the value
         publicInputsBytes_computed = publicInputsBytes_computed % (21888242871839275222246405745257275088548364400416034343698204186575808495617);
-        console2.log("we want 1850513487845456441605133290000849208866992190553138761106284811236254173220, or 0x4175A801C475E5C0942E1A52903AC7D440BB638E8E025DE289B684B00004824");
-        console2.log("publicInputsBytes_computed is: ",publicInputsBytes_computed);
-        // make 1850513487845456441605133290000849208866992190553138761106284811236254173220 as the publicinputshash
-        uint256 value = 0x4175A801C475E5C0942E1A52903AC7D440BB638E8E025DE289B684B00004824;
         bytes memory publicInputsBytes = abi.encodePacked(value);
 
         // we also need to deserialize the transaction public data bytes into fields - but that's easy in Solidity

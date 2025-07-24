@@ -299,7 +299,6 @@ impl RecursiveProver for RollupProver {
         specific_pis: &[Variable],
         circuit: &mut PlonkCircuit<Fr254>,
     ) -> Result<Vec<Variable>, CircuitError> {
-        ark_std::println!("JJ: am inside the base_bn254_extra_checks function");
         let (first_pis, second_pis) = specific_pis.split_at(specific_pis.len() / 2);
         let root_m_proof_length =
             BigUint::from(circuit.witness(first_pis[0])?).to_u32_digits()[0] as usize;
@@ -393,7 +392,6 @@ impl RecursiveProver for RollupProver {
         specific_pis: &[Vec<Variable>],
         circuit: &mut PlonkCircuit<Fr254>,
     ) -> Result<Vec<Variable>, CircuitError> {
-        ark_std::println!("JJ: am inside the base_bn254_checks function");
         let first_pis = &specific_pis[0];
         let second_pis = &specific_pis[1];
 
@@ -406,7 +404,6 @@ impl RecursiveProver for RollupProver {
         let fee_sum = pi_slices
             .iter()
             .try_fold(circuit.zero(), |acc, slice| circuit.add(acc, slice[0]))?;
-        // ark_std::println!("Fee sum in base_bn254_checks: {}", circuit.witness(fee_sum)?);
 
         let mut lookup_vars = Vec::<(Variable, Variable, Variable)>::new();
         let mut sha_vars = Vec::<Variable>::new();
@@ -450,7 +447,6 @@ impl RecursiveProver for RollupProver {
         specific_pis: &[Vec<Variable>],
         _circuit: &mut PlonkCircuit<Fq254>,
     ) -> Result<Vec<Variable>, CircuitError> {
-        ark_std::println!("JJ: am inside the base_grumpkin_checks function");
         Ok(specific_pis.concat())
     }
 
@@ -458,7 +454,6 @@ impl RecursiveProver for RollupProver {
         specific_pis: &[Vec<Variable>],
         circuit: &mut PlonkCircuit<Fr254>,
     ) -> Result<Vec<Variable>, CircuitError> {
-        ark_std::println!("JJ: am inside the bn254_merge_circuit_checks function");
         let start_root_comm_one = specific_pis[0][0];
         let start_root_comm_two = specific_pis[1][0];
         let end_root_comm_one = specific_pis[0][1];
@@ -478,7 +473,6 @@ impl RecursiveProver for RollupProver {
         circuit.enforce_equal(end_root_null_one, start_root_null_two)?;
 
         let fee_sum = circuit.add(fee_sum_one, fee_sum_two)?;
-        // ark_std::println!("Fee sum in bn254_merge_circuit_checks: {}", circuit.witness(fee_sum)?);
         let mut lookup_vars = Vec::<(Variable, Variable, Variable)>::new();
 
         let (_, sha_left) =
@@ -505,7 +499,6 @@ impl RecursiveProver for RollupProver {
         specific_pis: &[Vec<Variable>],
         circuit: &mut PlonkCircuit<Fq254>,
     ) -> Result<Vec<Variable>, CircuitError> {
-        ark_std::println!("JJ: am inside the grumpkin_merge_circuit_checks function");
         let start_root_comm_one = specific_pis[0][0];
         let start_root_comm_two = specific_pis[1][0];
         let end_root_comm_one = specific_pis[0][1];
@@ -523,7 +516,6 @@ impl RecursiveProver for RollupProver {
         circuit.enforce_equal(end_root_null_one, start_root_null_two)?;
 
         let fee_sum = circuit.add(fee_sum_one, fee_sum_two)?;
-        // ark_std::println!("Fee sum in grumpkin_merge_circuit_checks: {}", circuit.witness(fee_sum)?);
         Ok(vec![
             start_root_comm_one,
             end_root_comm_two,
@@ -539,8 +531,6 @@ impl RecursiveProver for RollupProver {
         specific_pis: &[Vec<Variable>],
         circuit: &mut PlonkCircuit<Fr254>,
     ) -> Result<Vec<Variable>, CircuitError> {
-        ark_std::println!("JJ: am inside the decider_circuit_checks function");
-        ark_std::println!("JJ: specific_pis: {:?}", specific_pis);
         let fee_sum_one = specific_pis[0][4];
         let fee_sum_two = specific_pis[1][4];
         let sha_one = specific_pis[0][5];
@@ -560,18 +550,6 @@ impl RecursiveProver for RollupProver {
         circuit.enforce_equal(end_root_null_one, start_root_null_two)?;
 
         let fee_sum = circuit.add(fee_sum_one, fee_sum_two)?;
-        // ark_std::println!(
-        //     "fee_sum_one in decider_circuit_checks: {:?}",
-        //     circuit.witness(fee_sum_one)?
-        // );
-        // ark_std::println!(
-        //     "fee_sum_two in decider_circuit_checks: {:?}",
-        //     circuit.witness(fee_sum_two)?
-        // );
-        // ark_std::println!(
-        //     "Fee sum in decider_circuit_checks: {:?}",
-        //     circuit.witness(fee_sum)?
-        // );
         let mut lookup_vars = Vec::<(Variable, Variable, Variable)>::new();
 
         let (_, sha_left) =
@@ -726,7 +704,6 @@ impl RecursiveProver for RollupProver {
         ipa_srs: &jf_plonk::nightfall::UnivariateUniversalIpaParams<nf_curves::grumpkin::Grumpkin>,
         kzg_srs: &jf_primitives::pcs::prelude::UnivariateUniversalParams<Bn254>,
     ) -> Result<(), PlonkError> {
-        ark_std::println!("JJ: am inside the preprocess function");
         // First check that we have the same number of outputs and pi's and that they are also non-zero in length
         if outputs.len() != specific_pi.len() {
             return Err(PlonkError::InvalidParameters(format!(
@@ -901,15 +878,6 @@ impl RecursiveProver for RollupProver {
 
         let (decider_pk, decider_vk) =
             PlonkKzgSnark::<Bn254>::preprocess(kzg_srs, &decider_out.circuit)?;
-        ark_std::println!("JJ: Saving the decider_vk to a file in preprocess");
-        use ark_serialize::Write;
-        let mut file = std::fs::File::create("decider_vk_in_preprocess.txt").unwrap();
-        write!(
-            file,
-            "Printing the block todecider_vk.txt{:#?}",
-            &decider_vk
-        )
-        .unwrap();
 
         Self::store_base_grumpkin_pk(base_grumpkin_pk).ok_or(PlonkError::InvalidParameters(
             "Could not store base Grumpkin proving key".to_string(),
@@ -1014,7 +982,6 @@ impl RecursiveProvingEngine<PlonkProof> for RollupProver {
         deposit_transactions: &[(PlonkProof, PublicInputs)],
         transactions: &[ClientTransactionWithMetaData<PlonkProof>],
     ) -> Result<(Self::PreppedInfo, [Fr254; 3]), Self::Error> {
-        ark_std::println!("am inside prepare_state_transition");
         // We retrieve both types of proving keys
         let deposit_pk = get_deposit_proving_key();
         let client_pk = get_client_proving_key();
@@ -1046,8 +1013,6 @@ impl RecursiveProvingEngine<PlonkProof> for RollupProver {
             .into_iter()
             .map(|(output, vk, pi)| ((output, vk), pi))
             .unzip();
-        // ark_std::println!("outputs_and_circuit_type:{:?}", outputs_and_circuit_type);
-        ark_std::println!("public_inputs:{:?}", public_inputs);
 
         // Get all the commitments and nullifiers from the public inputs
         // Flattens all commitments and nullifiers from the public inputs into vectors.
@@ -1071,33 +1036,7 @@ impl RecursiveProvingEngine<PlonkProof> for RollupProver {
             <Client as HistoricRootTree<Fr254>>::TREE_NAME,
         )
         .await?;
-        ark_std::println!("Current historic root: {}", current_historic_root);
         // Create the commitments circuit info
-
-        // pub struct IMTCircuitInsertionInfo<N: PrimeField> {
-        //     /// Root of the tree before any updates.
-        //     pub old_root: N,
-        //     /// The circuit info for the actual subtree insertion.
-        //     pub circuit_info: CircuitInsertionInfo<N>,
-        //     /// The initial index of the first leaf in the inserted subtree.
-        //     pub first_index: u32,
-        //     /// The low nullifiers for the leaves inserted with non_membership proofs.
-        //     pub low_nullifiers: Vec<(LeafDBEntry<N>, MembershipProof<N>)>,
-        //     /// The entries of the nullifiers inserted.
-        //     pub pending_inserts: Vec<LeafDBEntry<N>>,
-        // }
-        // pub struct CircuitInsertionInfo<N> {
-        //     /// The root of the tree before the insertion.
-        //     pub old_root: N,
-        //     /// The root of the tree after the insertion.
-        //     pub new_root: N,
-        //     /// Leaf count pre-insertion.
-        //     pub leaf_count: usize,
-        //     /// The leaves inserted.
-        //     pub leaves: Vec<N>,
-        //     /// The Merkle proof that proves the subtree we are inserting into was empty.
-        //     pub proof: MembershipProof<N>,
-        // }
         debug!("Inserting commitments");
         let commitment_circuit_info =
             <Client as CommitmentTree<Fr254>>::batch_insert_with_circuit_info(db, &new_commitments)
@@ -1116,7 +1055,6 @@ impl RecursiveProvingEngine<PlonkProof> for RollupProver {
             <Client as CommitmentTree<Fr254>>::TREE_NAME,
         )
         .await?;
-        ark_std::println!("new_commitment_root: {}", new_commitment_root);
 
         // We also need check each of the roots in the client proofs is valid so we construct the membership proofs for them here.
         let mut root_proofs = HashMap::<Fr254, Vec<Fr254>>::new();
@@ -1157,15 +1095,12 @@ impl RecursiveProvingEngine<PlonkProof> for RollupProver {
         )
         .await?;
 
-        ark_std::println!("nullifier_root: {}", nullifier_root);
-
         // work out what the new historic root tree root would be if we were to add this new historic root
         let old_historic_root = <Client as MutableTree<Fr254>>::get_root(
             db,
             <Client as HistoricRootTree<Fr254>>::TREE_NAME,
         )
         .await?;
-        ark_std::println!("old_historic_root: {}", old_historic_root);
 
         let metadata_collection_name = format!(
             "{}_{}",
@@ -1288,16 +1223,6 @@ impl RecursiveProvingEngine<PlonkProof> for RollupProver {
         // extra_decider_info:
         // A vector containing extra data for the final "decider" circuit, such as the historic root membership proof and the old root.
         // This is used in the final aggregation step to ensure the block’s state transition is valid.
-        ark_std::println!("JJ: check if the roots are inside info");
-        ark_std::println!("outputs_and_circuit_type: {:?}", outputs_and_circuit_type);
-        ark_std::println!("specific_pi: {:?}", specific_pi);
-        ark_std::println!("extra_info: {:?}", extra_info);
-        ark_std::println!("new_commitment_root: {:?}", new_commitment_root);
-        ark_std::println!("new_commitment_root: {}", new_commitment_root);
-        ark_std::println!("nullifier_root: {:?}", nullifier_root);
-        ark_std::println!("nullifier_root: {}", nullifier_root);
-        ark_std::println!("updated_historic_root: {:?}", updated_historic_root);
-        ark_std::println!("updated_historic_root: {}", updated_historic_root);
         Ok((
             RollupPreppedInfo {
                 outputs_and_circuit_type,

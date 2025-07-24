@@ -31,30 +31,13 @@ pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: 
 
     let omega = U256::from_little_endian(&domain.group_gen().into_bigint().to_bytes_le());
     let omega_inv = U256::from_little_endian(&domain.group_gen_inv().into_bigint().to_bytes_le());
-
-    // let open_key = vk.open_key();
-    ark_std::println!("vk:{:?} ", vk);
-    // let open_key_x = U256::from_big_endian(&open_key.x.into_bigint().to_bytes_be());
-    // let open_key_y = U256::from_big_endian(&open_key.y.into_bigint().to_bytes_be());
     let domain_log_size = domain_size.ilog2();
     let size_inv = U256::from(domain_size_inv);
     let group_gen = U256::from_little_endian(&domain.group_gen().into_bigint().to_bytes_le());
     let group_gen_inv =
         U256::from_little_endian(&domain.group_gen_inv().into_bigint().to_bytes_le());
-    ark_std::println!(
-        "creating vk contract:domain_size:{}, domain_log_size:{}, size_inv:{:#x}, group_gen:{:#x}, group_gen_inv:{:#x}",
-        domain_size,
-        domain_log_size,
-        size_inv,
-        group_gen,
-        group_gen_inv
-    );
 
     let domain_size_u256 = U256::from(domain_size as u32);
-    ark_std::println!(
-        "creating vk contract:domain_size_U256:{:#x} ",
-        domain_size_u256
-    );
     let num_inputs_u256 = U256::from(vk.num_inputs() as u32);
     let sigma_comms_u256: Vec<U256> = vk
         .sigma_comms
@@ -88,8 +71,6 @@ pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: 
         .into_iter()
         .map(|x| U256::from_little_endian(&x.into_bigint().to_bytes_le()))
         .collect::<Vec<_>>();
-    ark_std::println!("vk_vec_u256: {:?}", vk_vec_u256);
-
     let range_table_comm_u256 = vec![
         vk_vec_u256[56].clone(), // x
         vk_vec_u256[57].clone(), // y
@@ -119,17 +100,12 @@ pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: 
         vk_vec_u256[68].clone(), // y2
     ];
 
-    ark_std::println!("h: {:?}", h);
-
     let beta_h = vec![
         vk_vec_u256[71].clone(), // x1
         vk_vec_u256[70].clone(), // x2
         vk_vec_u256[73].clone(), // y1
         vk_vec_u256[72].clone(), // y2
     ];
-
-    ark_std::println!("beta_h: {:?}", beta_h);
-
     let join_path = Path::new(&settings.contracts.assets)
         .parent()
         .unwrap()
@@ -642,21 +618,23 @@ mod tests {
     use jf_relation::{Arithmetization, Circuit, PlonkCircuit};
 
     use ark_bn254::{Bn254, Fr as Fr254};
-    use ark_ff::{MontFp, One};
-
+    use ark_ff::One;
     use ark_std::vec::Vec;
     use configuration::settings::Settings;
     use num_bigint::BigUint;
+    use jf_utils::test_rng;
+    use ark_ed_on_bn254::Fq;
+    use ethers::types::Bytes;
+    use ark_serialize::Write;
 
     #[test]
     fn test_verifier_contract() {
         let settings: Settings = Settings::new().unwrap();
-        use ark_ed_on_bn254::Fq;
         let mut circuit = PlonkCircuit::<Fq>::new_ultra_plonk(8);
         let _ = circuit.create_public_variable(Fq::from(2)).unwrap();
 
         circuit.finalize_for_arithmetization().unwrap();
-        use jf_utils::test_rng;
+        
         let mut rng = test_rng();
         let srs_size = circuit.srs_size().unwrap();
         let srs = PlonkKzgSnark::<Bn254>::universal_setup_for_testing(srs_size, &mut rng).unwrap();
@@ -667,7 +645,6 @@ mod tests {
             &mut rng, &circuit, &pk, None,
         )
         .unwrap();
-        let proof_fr = proof.clone();
 
         // convert proof to bytes
         let proof_vec: Vec<Fq254> = proof.clone().into();
@@ -680,9 +657,8 @@ mod tests {
                 bytes
             })
             .collect::<Vec<u8>>();
-        use ethers::types::Bytes;
+
         let proof_bytes_final = Bytes::from(proof_bytes);
-        use ark_serialize::Write;
         let join_path = Path::new(&settings.contracts.assets)
             .parent()
             .unwrap()
@@ -715,53 +691,20 @@ mod tests {
         file.flush().unwrap();
         file.sync_all().unwrap();
 
-        // // We run `forge test` now to update all the contracts
-        // let output = std::process::Command::new("forge")
-        //     // .args(["test", "--match-test", "UltraPlonkVerifierTest"])
-        //     .args(["test"])
-        //     // .current_dir("blockchain_assets")
-        //     .output()
-        //     .unwrap();
-        // //    std::fs::remove_file(path_out).unwrap();
-        // match output.status.code() {
-        //     Some(0) => (),
-        //     Some(code) => panic!(
-        //         "Forge failed with code {}, stdout is: {}, stderr is : {}",
-        //         code,
-        //         String::from_utf8_lossy(&output.stdout),
-        //         String::from_utf8_lossy(&output.stderr)
-        //     ),
-        //     None => panic!("Forge failed with no exit code"),
-        // }
-    }
-    #[test]
-    fn test_public_inputs_hash() {
-        use ark_ec::pairing::Pairing;
-        use ark_ed_on_bn254::{Fq, Fr};
-        use ark_ff::{Field, MontFp};
-        let field_pi_out = vec![
-            Fr254::from(0u64),
-            Fr254::from(1u64),
-            // MontFp!("334461540345147061398064863116979985887163306107250048270678237213552564557"),
-            
-        ];
-        let field_pi = field_pi_out
-            .iter()
-            .flat_map(|f| f.into_bigint().to_bytes_be())
-            .collect::<Vec<u8>>();
-        ark_std::println!("field_pi Vec<u8>: {:?}", field_pi);
-        ark_std::println!("field_pi Vec<u8> len: {:?}", field_pi.len());
-        println!("field_pi hex: 0x{}", hex::encode(&field_pi));
-        use sha3::{Digest, Keccak256};
-        let mut hasher = Keccak256::new();
-        hasher.update(&field_pi);
-        let buf = hasher.finalize();
-
-        let result = &buf[..];
-        ark_std::println!("result: {}", BigUint::from_bytes_be(result) );
-
-
-        let pi_hash = Fr254::from_be_bytes_mod_order(&buf);
-        ark_std::println!("Decider circuit pi hash: {}", pi_hash);
+        // We run `forge test` now to update all the contracts
+        let output = std::process::Command::new("forge")
+            .args(["test"])
+            .output()
+            .unwrap();
+        match output.status.code() {
+            Some(0) => (),
+            Some(code) => panic!(
+                "Forge failed with code {}, stdout is: {}, stderr is : {}",
+                code,
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            ),
+            None => panic!("Forge failed with no exit code"),
+        }
     }
 }
