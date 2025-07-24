@@ -109,8 +109,6 @@ pub fn generate_proving_keys(settings: &Settings) -> Result<(), PlonkError> {
         .map_err(PlonkError::IoError)?;
 
     // if we're using a mock prover, we don't need an IPA proof at all, if we are using a real prover then we'll generate a real IPA SRS
-    // test how long this if takes
-    let start_time = std::time::Instant::now();
     if !settings.mock_prover {
         // this part will generate base_grumpkin_pk, base_bn254_pk, merge_grumpkin_pk, merge_bn254_pk, decider_vk, decider_pk in fn preprocess() located in nightfall_proposer/src/driven/rollup_prover.rs
         let ipa_srs = UnivariateUniversalIpaParams::gen_srs("Nightfall_4", 1 << 18).unwrap();
@@ -261,11 +259,6 @@ pub fn generate_proving_keys(settings: &Settings) -> Result<(), PlonkError> {
             &kzg_srs,
         )?;
     }
-    let elapsed = start_time.elapsed();
-    ark_std::println!(
-        "Time taken to generate the IPA SRS: {} seconds",
-        elapsed.as_secs()
-    );
     Ok(())
 }
 

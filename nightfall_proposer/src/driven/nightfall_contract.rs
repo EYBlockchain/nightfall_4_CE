@@ -24,7 +24,7 @@ impl<M> NightfallContract for Nightfall<M> {
 
         let blk = NightfallBlock::from(block);
         let receipt = nightfall
-            .propose_block(blk.clone())
+            .propose_block(blk)
             .send()
             .await
             .map_err(|_| NightfallContractError::TransactionError)?

@@ -643,7 +643,6 @@ mod tests {
             .parent()
             .unwrap()
             .join("contracts/Nightfall.sol");
-      
 
         let path_out: PathBuf;
         let cwd = std::env::current_dir().unwrap();

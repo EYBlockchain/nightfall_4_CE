@@ -1030,7 +1030,6 @@ impl RecursiveProvingEngine<PlonkProof> for RollupProver {
         let db = get_db_connection().await;
 
         // get the current historic root
-        // JJ: will this have sync issues, i though historic roots were from chain. or maybe proposer needs to check sync status to make sure its db is correct?
         let current_historic_root = <Client as MutableTree<Fr254>>::get_root(
             db,
             <Client as HistoricRootTree<Fr254>>::TREE_NAME,
