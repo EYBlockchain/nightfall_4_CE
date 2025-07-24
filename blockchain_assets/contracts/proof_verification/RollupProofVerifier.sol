@@ -1,8 +1,4 @@
 // SPDX-License-Identifier: GPL-2.0-only
-// Copyright 2020 Spilsbury Holdings Ltd
-
-// This smart contract is based on the noir plonk smart contract and Jellyfish Ultra plonk
-// Edits for support Jellyfish Ultra plonk proof verification on chain
 
 pragma solidity >=0.6.0;
 pragma experimental ABIEncoderV2;
@@ -15,8 +11,7 @@ import {INFVerifier} from "./INFVerifier.sol";
 
 /**
 @title RollupProofVerifier
-@dev Verifier Implementation for Jellyfish Ultra plonk proof verification
-@notice Change the hardcoded values (beta_h,P2(),vk,open_key_g(), check eval_domain) before using
+@dev Verifier Implementation for Nightfish Ultra plonk proof verification
 */
 
 contract RollupProofVerifier is INFVerifier{
@@ -1342,53 +1337,7 @@ function add_plookup_commitments_helper1_4_2(
         bases[index + 3] = proof.split_quot_poly_comms_4;
         bases[index + 4] = proof.split_quot_poly_comms_5;
         bases[index + 5] = proof.split_quot_poly_comms_6;
-
-        // bases[index] = proof.split_quot_poly_comms_2;
-        // bases[index + 1] = proof.split_quot_poly_comms_3;
-        // bases[index + 2] = proof.split_quot_poly_comms_4;
-        // bases[index + 3] = proof.split_quot_poly_comms_5;
-        // bases[index + 4] = proof.split_quot_poly_comms_6;
-       
-        // index =21;
-    
     }
-
-//     function accumulate_scalar_with_same_base(
-//     Types.G1Point[] memory bases,
-//     uint256[] memory scalars
-// ) internal pure returns (Types.G1Point[] memory, uint256[] memory) {
-//     uint256 p_local = Bn254Crypto.r_mod;
-//     require(bases.length == scalars.length, "Length mismatch");
-
-//     Types.G1Point[] memory tempBases = new Types.G1Point[](bases.length);
-//     uint256[] memory tempScalars = new uint256[](bases.length);
-
-//     uint256 uniqueCount = 0;
-
-//     for (uint256 i = 0; i < bases.length; i++) {
-//         bool found = false;
-//         for (uint256 j = 0; j < uniqueCount && !found; j++) {
-//             if (bases[i].x == tempBases[j].x && bases[i].y == tempBases[j].y) {
-//                 tempScalars[j] = addmod(tempScalars[j], scalars[i], p_local);
-//                 found = true;
-//             }
-//         }
-//         if (!found) {
-//             tempBases[uniqueCount] = bases[i];
-//             tempScalars[uniqueCount] = scalars[i];
-//             uniqueCount++;
-//         }
-//     }
-
-//     Types.G1Point[] memory finalBases = new Types.G1Point[](uniqueCount);
-//     uint256[] memory finalScalars = new uint256[](uniqueCount);
-//     for (uint256 i = 0; i < uniqueCount; i++) {
-//         finalBases[i] = tempBases[i];
-//         finalScalars[i] = tempScalars[i];
-//     }
-
-//     return (finalBases, finalScalars);
-// }
 
     function accumulate_scalar_with_same_base(
         Types.G1Point[] memory bases,

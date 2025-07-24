@@ -1,8 +1,4 @@
 // SPDX-License-Identifier: GPL-2.0-only
-// Copyright 2020 Spilsbury Holdings Ltd
-
-// This smart contract is based on the noir plonk smart contract and Jellyfish Ultra plonk
-// Edits for support Jellyfish Ultra plonk proof verification on chain
 
 pragma solidity >=0.6.0;
 pragma experimental ABIEncoderV2;

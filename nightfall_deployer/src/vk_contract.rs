@@ -1,12 +1,9 @@
 use ark_bn254::{Bn254, Fq as Fq254, Fr as Fr254};
 use ark_ff::{BigInteger, Field, PrimeField};
-use ark_poly::{domain, EvaluationDomain, Radix2EvaluationDomain};
+use ark_poly::{EvaluationDomain, Radix2EvaluationDomain};
 use ark_std::vec::Vec;
 use configuration::settings::Settings;
-use ethers::{
-    core::k256::elliptic_curve::group,
-    types::{H256, U256},
-};
+use ethers::types::U256;
 use jf_plonk::proof_system::structs::{VerifyingKey, VK};
 
 use std::{
@@ -16,8 +13,6 @@ use std::{
 };
 
 pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: &Settings) {
-    let vk_hash_bytes: [u8; 32] = vk.hash().into_bigint().to_bytes_be().try_into().unwrap();
-    let vk_hash = H256::from(vk_hash_bytes);
     let domain_size = vk.domain_size();
     let domain_size_fr = Fr254::from(domain_size as u32);
     let domain_size_inv = U256::from_little_endian(
@@ -28,11 +23,7 @@ pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: 
             .to_bytes_le(),
     );
     let domain = Radix2EvaluationDomain::<Fr254>::new(domain_size).unwrap();
-
-    let omega = U256::from_little_endian(&domain.group_gen().into_bigint().to_bytes_le());
-    let omega_inv = U256::from_little_endian(&domain.group_gen_inv().into_bigint().to_bytes_le());
-    let domain_log_size = domain_size.ilog2();
-    let size_inv = U256::from(domain_size_inv);
+    let size_inv = domain_size_inv;
     let group_gen = U256::from_little_endian(&domain.group_gen().into_bigint().to_bytes_le());
     let group_gen_inv =
         U256::from_little_endian(&domain.group_gen_inv().into_bigint().to_bytes_le());
@@ -62,49 +53,44 @@ pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: 
         vk.k.iter()
             .map(|k| U256::from_big_endian(&k.into_bigint().to_bytes_be()))
             .collect();
-
-    let vk_vec = Vec::<Fq254>::from(vk.clone())
-        .into_iter()
-        .map(|x| U256::from_little_endian(&x.into_bigint().to_bytes_le()))
-        .collect::<Vec<_>>();
     let vk_vec_u256 = Vec::<Fq254>::from(vk.clone())
         .into_iter()
         .map(|x| U256::from_little_endian(&x.into_bigint().to_bytes_le()))
         .collect::<Vec<_>>();
-    let range_table_comm_u256 = vec![
-        vk_vec_u256[56].clone(), // x
-        vk_vec_u256[57].clone(), // y
+    let range_table_comm_u256 = [
+        vk_vec_u256[56], // x
+        vk_vec_u256[57], // y
     ];
-    let key_table_comm_u256 = vec![
-        vk_vec_u256[58].clone(), // x
-        vk_vec_u256[59].clone(), // y
+    let key_table_comm_u256 = [
+        vk_vec_u256[58], // x
+        vk_vec_u256[59], // y
     ];
-    let table_dom_sep_comm_u256 = vec![
-        vk_vec_u256[60].clone(), // x
-        vk_vec_u256[61].clone(), // y
+    let table_dom_sep_comm_u256 = [
+        vk_vec_u256[60], // x
+        vk_vec_u256[61], // y
     ];
-    let q_dom_sep_comm_u256 = vec![
-        vk_vec_u256[62].clone(), // x
-        vk_vec_u256[63].clone(), // y
-    ];
-
-    let open_key_g = vec![
-        vk_vec_u256[64].clone(), // x
-        vk_vec_u256[65].clone(), // y
+    let q_dom_sep_comm_u256 = [
+        vk_vec_u256[62], // x
+        vk_vec_u256[63], // y
     ];
 
-    let h = vec![
-        vk_vec_u256[67].clone(), // x1
-        vk_vec_u256[66].clone(), // x2
-        vk_vec_u256[69].clone(), // y1
-        vk_vec_u256[68].clone(), // y2
+    let open_key_g = [
+        vk_vec_u256[64], // x
+        vk_vec_u256[65], // y
     ];
 
-    let beta_h = vec![
-        vk_vec_u256[71].clone(), // x1
-        vk_vec_u256[70].clone(), // x2
-        vk_vec_u256[73].clone(), // y1
-        vk_vec_u256[72].clone(), // y2
+    let h = [
+        vk_vec_u256[67], // x1
+        vk_vec_u256[66], // x2
+        vk_vec_u256[69], // y1
+        vk_vec_u256[68], // y2
+    ];
+
+    let beta_h = [
+        vk_vec_u256[71], // x1
+        vk_vec_u256[70], // x2
+        vk_vec_u256[73], // y1
+        vk_vec_u256[72], // y2
     ];
     let join_path = Path::new(&settings.contracts.assets)
         .parent()
@@ -611,21 +597,17 @@ mod tests {
     use ethers::types::Bytes;
 
     use jf_plonk::{
-        errors::PlonkError,
         proof_system::{PlonkKzgSnark, UniversalSNARK},
         transcript::SolidityTranscript,
     };
     use jf_relation::{Arithmetization, Circuit, PlonkCircuit};
 
-    use ark_bn254::{Bn254, Fr as Fr254};
-    use ark_ff::One;
+    use ark_bn254::Bn254;
+    use ark_ed_on_bn254::Fq;
+    use ark_serialize::Write;
     use ark_std::vec::Vec;
     use configuration::settings::Settings;
-    use num_bigint::BigUint;
     use jf_utils::test_rng;
-    use ark_ed_on_bn254::Fq;
-    use ethers::types::Bytes;
-    use ark_serialize::Write;
 
     #[test]
     fn test_verifier_contract() {
@@ -634,7 +616,7 @@ mod tests {
         let _ = circuit.create_public_variable(Fq::from(2)).unwrap();
 
         circuit.finalize_for_arithmetization().unwrap();
-        
+
         let mut rng = test_rng();
         let srs_size = circuit.srs_size().unwrap();
         let srs = PlonkKzgSnark::<Bn254>::universal_setup_for_testing(srs_size, &mut rng).unwrap();

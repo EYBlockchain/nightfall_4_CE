@@ -579,7 +579,7 @@ contract Nightfall is
             keccak256(abi.encodePacked(publicInputs))
         );
         publicInputsBytes_computed = publicInputsBytes_computed % (21888242871839275222246405745257275088548364400416034343698204186575808495617);
-        bytes memory publicInputsBytes = abi.encodePacked(value);
+        bytes memory publicInputsBytes = abi.encodePacked(publicInputsBytes_computed);
 
         // we also need to deserialize the transaction public data bytes into fields - but that's easy in Solidity
         bytes memory proof = blk.rollup_proof[288:];

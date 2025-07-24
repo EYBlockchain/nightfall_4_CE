@@ -30,7 +30,7 @@ impl<M> NightfallContract for Nightfall<M> {
             .map_err(|_| NightfallContractError::TransactionError)?
             .await
             .map_err(|_| NightfallContractError::TransactionError)?;
-        
+
         match receipt {
             Some(receipt) => {
                 info!(
