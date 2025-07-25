@@ -1,6 +1,7 @@
 pub mod run_tests;
 pub mod test;
 pub mod test_settings;
+pub mod validate_certs;
 pub mod webhook;
 
 #[derive(Debug)]

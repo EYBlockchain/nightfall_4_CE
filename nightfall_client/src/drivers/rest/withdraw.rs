@@ -4,22 +4,9 @@ use crate::{
     ports::contracts::NightfallContract,
     driven::contract_functions::nightfall_contract::Nightfall,
 };
-use log::{error, info};
+use log::{error, debug};
 use reqwest::StatusCode;
-use std::{error::Error, fmt::Debug};
-use warp::{path, reject, reply, Filter, Reply};
-
-#[derive(Debug)]
-pub struct FailedDeEscrow;
-
-impl Error for FailedDeEscrow {}
-
-impl std::fmt::Display for FailedDeEscrow {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "Failed to de-escrow funds")
-    }
-}
-impl reject::Reject for FailedDeEscrow {}
+use warp::{path, reject, Filter, Reply};
 
 /// GET request for a specific commitment by key
 pub fn de_escrow() -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
@@ -32,36 +19,42 @@ pub async fn handle_de_escrow(data: DeEscrowDataReq) -> Result<impl Reply, warp:
     let token_type = u8::from_str_radix(&data.token_type, 16)
         .map_err(|_| {
             error!("Could not convert token type");
-            reject::custom(FailedDeEscrow)
+            reject::custom(crate::domain::error::ClientRejection::FailedDeEscrow)
         })?.into();
     let withdraw_data:NFWithdrawData = NFWithdrawData::try_from(data.clone()).map_err(|e| {
         error!(
             "Could not convert Withdraw data request to WithdrawData: {}",
             e
         );
-        reject::custom(FailedDeEscrow)
+        reject::custom(crate::domain::error::ClientRejection::FailedDeEscrow)
     })?;
     let available = Nightfall::NightfallCalls::withdraw_available(withdraw_data).await;
         match available {
             Ok(b) => {
-                if b != 0 {
-                    info!("Withdraw is on chain, attempting to de-escrow funds");
+                if b {
+                    debug!("Withdraw is on chain, attempting to de-escrow funds");
                     Nightfall::NightfallCalls::de_escrow_funds(withdraw_data, token_type)
-                   .await
-                   .map_err(|e| {
-                       error!("Failed to de-escrow funds: {}", e);
-                       reject::custom(FailedDeEscrow)
-                   })?;
-                    Ok(reply::with_status(reply::json(&b), StatusCode::OK))
+                        .await
+                        .map_err(|e| {
+                            error!("Could not de-escrow funds: {}", e);
+                            reject::custom(crate::domain::error::ClientRejection::FailedDeEscrow)
+                        })?;
+    
+                    Ok(warp::reply::with_status("OK", StatusCode::OK))
                 } else {
-                    info!("Not yet able to de-escrow funds");
-                    Ok(reply::with_status(reply::json(&b), StatusCode::NOT_FOUND))
+                    debug!("Not yet able to de-escrow funds");
+                    Err(reject::custom(
+                        crate::domain::error::ClientRejection::FailedDeEscrow,
+                    ))
                 }
             }
             Err(e) => {
-                error!("Nightfall contract error: {}", e);
-                Err(reject::custom(FailedDeEscrow))
+                debug!("Nightfall contract error: {}", e);
+                Err(reject::custom(
+                    crate::domain::error::ClientRejection::FailedDeEscrow,
+                ))
             }
         }
     }
+    
     

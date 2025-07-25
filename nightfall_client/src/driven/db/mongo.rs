@@ -1,32 +1,126 @@
 use ark_bn254::Fr as Fr254;
-use ark_ff::{BigInteger, PrimeField};
-use ark_serialize::CanonicalSerialize;
+use ark_ff::PrimeField;
 use async_trait::async_trait;
 use alloy::primitives::{TxHash, I256};
 use futures::TryStreamExt;
-use hex::encode;
-use jf_primitives::poseidon::{FieldHasher, Poseidon};
-use jf_primitives::trees::{Directions, PathElement};
-use log::{debug, error, info};
-use mongodb::error::{ErrorKind, WriteFailure::WriteError};
-use mongodb::{bson::doc, Client};
-use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
-use std::str;
-
-use crate::domain::entities::{
-    CommitmentStatus, Request, RequestCommitmentMapping, RequestStatus, WithdrawData,
+use jf_primitives::{
+    poseidon::{FieldHasher, Poseidon},
+    trees::{Directions, PathElement},
 };
-use crate::ports::db::{CommitmentDB, RequestCommitmentMappingDB, RequestDB, WithdrawalDB};
+use lib::hex_conversion::HexConvertible;
+use log::{debug, error, info};
+use mongodb::{
+    bson::doc,
+    error::{ErrorKind, WriteFailure::WriteError},
+    Client,
+};
+use serde::{Deserialize, Serialize};
+use std::{fmt::Debug, str};
+
 use crate::{
-    domain::entities::Preimage,
+    domain::entities::{
+        CommitmentStatus, Preimage, Request, RequestCommitmentMapping, RequestStatus, WithdrawData,
+    },
     driven::contract_functions::contract_type_conversions::FrBn254,
+    ports::db::{CommitmentDB, RequestCommitmentMappingDB, RequestDB, WithdrawalDB},
     ports::{commitments::Commitment, db::CommitmentEntryDB},
 };
+use alloy::primitives::Address;
 use jf_primitives::{poseidon::PoseidonError, trees::MembershipProof};
 use lib::serialization::{ark_de_hex, ark_se_hex};
+use sha2::Sha256;
+use sha3::Digest;
 
 pub const DB: &str = "nightfall";
+pub const PROPOSED_BLOCKS_COLLECTION: &str = "ProposedBlocks";
+
+// To do, move this to lib, and change proposer to use it as well.
+#[async_trait::async_trait]
+pub trait BlockStorageDB {
+    async fn store_block(&self, block: &StoredBlock) -> Option<()>;
+    async fn get_block_by_number(&self, block_number: u64) -> Option<StoredBlock>;
+    async fn get_all_blocks(&self) -> Option<Vec<StoredBlock>>;
+    async fn delete_block_by_number(&self, block_number: u64) -> Option<()>;
+}
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+/// A struct representing a stored block in the database
+/// To update local mempool so that proposers won't assemble the block with the same transactions onchain, proposers can just check if the commitments for deposit/client_transactions in mempool have appeared in the stored block.
+/// To sync the status, proposers need to check if block is the same as the one it remembers when layer 2 block number expected and onchain are the same, since commitments are unique, it's enought to check the hash of commitments in block.
+/// So we only store commitments and layer2_block_number in the block database.
+pub struct StoredBlock {
+    pub layer2_block_number: u64,
+    pub commitments: Vec<String>,
+    pub proposer_address: Address,
+}
+impl StoredBlock {
+    pub fn hash(&self) -> Fr254 {
+        let mut bytes = Vec::new();
+        for c in &self.commitments {
+            bytes.extend_from_slice(c.as_bytes());
+        }
+        bytes.extend_from_slice(&self.proposer_address.as_slice());
+        let hash = Sha256::digest(&bytes);
+        Fr254::from_be_bytes_mod_order(&hash)
+    }
+}
+#[async_trait::async_trait]
+impl BlockStorageDB for mongodb::Client {
+    async fn store_block(&self, block: &StoredBlock) -> Option<()> {
+        // check if the block already exists
+        let filter = doc! { "layer2_block_number": block.layer2_block_number as i64 };
+        let existing_block = self
+            .database(DB)
+            .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
+            .find_one(filter.clone())
+            .await
+            .ok()?;
+        if existing_block.is_some() {
+            // if the block already exists, we need to update it
+            let update = doc! { "$set": { "commitments": block.commitments.clone() } };
+            self.database(DB)
+                .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
+                .update_one(filter, update)
+                .await
+                .ok()?;
+            return Some(());
+        }
+        // if the block doesn't exist, we need to insert it
+        self.database(DB)
+            .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
+            .insert_one(block)
+            .await
+            .ok()?;
+        Some(())
+    }
+
+    async fn get_block_by_number(&self, block_number: u64) -> Option<StoredBlock> {
+        let filter = doc! { "layer2_block_number": block_number as i64 };
+        self.database(DB)
+            .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
+            .find_one(filter)
+            .await
+            .ok()?
+    }
+
+    async fn get_all_blocks(&self) -> Option<Vec<StoredBlock>> {
+        let cursor = self
+            .database(DB)
+            .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
+            .find(doc! {})
+            .await
+            .ok()?;
+        cursor.try_collect().await.ok()
+    }
+    async fn delete_block_by_number(&self, block_number: u64) -> Option<()> {
+        let filter = doc! { "layer2_block_number": block_number as i64 };
+        self.database(DB)
+            .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
+            .delete_one(filter)
+            .await
+            .ok()?;
+        Some(())
+    }
+}
 
 /// Utility function to convert a MembershipProof<Fr254> to a MemershipProof<FrBn254>
 ///
@@ -78,7 +172,7 @@ impl RequestDB for Client {
         match result {
             Ok(_) => Some(()),
             Err(e) => {
-                info!("{} Got an error inserting request: {}", request.uuid, e);
+                error!("{} Got an error inserting request: {}", request.uuid, e);
                 None
             }
         }
@@ -96,11 +190,15 @@ impl RequestDB for Client {
     async fn update_request(&self, request_id: &str, status: RequestStatus) -> Option<()> {
         let filter = doc! { "uuid": request_id };
         let update = doc! {"$set": { "status": status.to_string() }};
-        self.database(DB)
+        let result = self
+            .database(DB)
             .collection::<Request>("requests")
             .update_one(filter, update)
-            .await
-            .ok()?;
+            .await;
+        if let Err(e) = result {
+            error!("{} Got an error updating request: {}", request_id, e);
+            return None;
+        }
         Some(())
     }
 }
@@ -163,8 +261,12 @@ impl From<DBMembershipProof> for MembershipProof<Fr254> {
 pub struct CommitmentEntry {
     pub preimage: Preimage,
     pub status: CommitmentStatus,
-    
-    #[serde(rename = "_id",serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
+
+    #[serde(
+        rename = "_id",
+        serialize_with = "ark_se_hex",
+        deserialize_with = "ark_de_hex"
+    )]
     pub key: Fr254,
     #[serde(
         serialize_with = "ark_se_hex",
@@ -301,12 +403,8 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
         Ok(result)
     }
     async fn get_available_commitments(&self, nf_token_id: Fr254) -> Option<Vec<CommitmentEntry>> {
-        let mut nf_token_id_serialised = Vec::new();
-        nf_token_id
-            .serialize_compressed(&mut nf_token_id_serialised)
-            .ok();
         let filter = doc! {
-            "preimage.nf_token_id": hex::encode(nf_token_id_serialised),
+            "preimage.nf_token_id": nf_token_id.to_hex_string(),
             "status": "Unspent"
         };
         let mut cursor = self
@@ -329,7 +427,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
     }
 
     async fn get_commitment(&self, k: &Fr254) -> Option<CommitmentEntry> {
-        let filter = doc! { "_id": hex::encode(k.into_bigint().to_bytes_le()) };
+        let filter = doc! { "_id": k.to_hex_string() };
         self.database(DB)
             .collection::<CommitmentEntry>("commitments")
             .find_one(filter)
@@ -339,7 +437,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
 
     async fn get_balance(&self, nf_token_id: &Fr254) -> Option<Fr254> {
         let filter = doc! {
-            "preimage.nf_token_id": hex::encode(nf_token_id.into_bigint().to_bytes_le()),
+            "preimage.nf_token_id": nf_token_id.to_hex_string(),
             "status": "Unspent",
         };
         let mut cursor = self
@@ -364,7 +462,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
     async fn mark_commitments_pending_spend(&self, commitments: Vec<Fr254>) -> Option<()> {
         let commitment_str = commitments
             .into_iter()
-            .map(|c| hex::encode(c.into_bigint().to_bytes_le()))
+            .map(|c| c.to_hex_string())
             .collect::<Vec<_>>();
         let filter = doc! { "_id": { "$in": commitment_str }};
         let update = doc! {"$set": { "status": "PendingSpend" }};
@@ -379,7 +477,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
     async fn mark_commitments_pending_creation(&self, commitments: Vec<Fr254>) -> Option<()> {
         let commitment_str = commitments
             .into_iter()
-            .map(|c| hex::encode(c.into_bigint().to_bytes_le()))
+            .map(|c| c.to_hex_string())
             .collect::<Vec<_>>();
         let filter = doc! { "_id": { "$in": commitment_str }};
         let update = doc! {"$set": { "status": "PendingCreation" }};
@@ -396,7 +494,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
     async fn mark_commitments_spent(&self, nullifiers: Vec<Fr254>) -> Option<()> {
         let nullifiers_str = nullifiers
             .into_iter()
-            .map(|c| hex::encode(c.into_bigint().to_bytes_le()))
+            .map(|c| c.to_hex_string())
             .collect::<Vec<_>>();
         let filter = doc! { "nullifier": { "$in": nullifiers_str }};
         let update = doc! {"$set": { "status": "Spent"}};
@@ -416,7 +514,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
     ) -> Option<()> {
         let commitment_str = commitments
             .iter()
-            .map(|c| hex::encode(c.into_bigint().to_bytes_le()))
+            .map(|c| c.to_hex_string())
             .collect::<Vec<_>>();
         let l1_hash = l1_hash.map(|h| h.to_string());
         let l2_blocknumber = l2_blocknumber.map(|b| b.to_hex_string());
@@ -432,9 +530,8 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
 
     // we compute a nullifier for each spend commitment that we process.
     async fn add_nullifier(&self, key: &Fr254, nullifier: Fr254) -> Option<()> {
-        let filter = doc! { "_id": hex::encode(key.into_bigint().to_bytes_le())};
-        let update =
-            doc! {"$set": { "nullifier": hex::encode(nullifier.into_bigint().to_bytes_le()) }};
+        let filter = doc! { "_id": key.to_hex_string() };
+        let update = doc! {"$set": { "nullifier": nullifier.to_hex_string() }};
 
         self.database(DB)
             .collection::<CommitmentEntry>("commitments")
@@ -444,10 +541,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
         Some(())
     }
 
-    async fn store_commitment(
-        &self, 
-        commitment: CommitmentEntry
-    ) -> Option<()> {
+    async fn store_commitment(&self, commitment: CommitmentEntry) -> Option<()> {
         let result = self
             .database(DB)
             .collection::<CommitmentEntry>("commitments")
@@ -477,6 +571,13 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
         if commitments.is_empty() {
             return Some(());
         }
+        debug!(
+            "Storing commitments with hashes{:?} ",
+            commitments
+                .iter()
+                .map(|c| c.key.to_hex_string())
+                .collect::<Vec<_>>()
+        );
         let res = self
             .database(DB)
             .collection::<CommitmentEntry>("commitments")
@@ -484,19 +585,26 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
             .await;
         match res {
             Ok(_) => Some(()),
-            // unpack the Mongo error and check if it's a duplicate _id error. If so, behave according to dup_key_check
+            // unpack the Mongo errors and check if it's a duplicate _id error. If so, behave according to dup_key_check
             Err(e) => {
                 match e.kind.as_ref() {
                     ErrorKind::Write(WriteError(write_error)) => {
                         if write_error.code == 11000 && !dup_key_check {
-                            println!("Duplicate _id error: {:?}", write_error);
+                            debug!("Duplicate _id error: {:?}", write_error);
                             // duplicate _id error but we don't care
                             Some(())
                         } else {
+                            error!("Unhandled Write Error storing commitments: {} duplicate key check {}", e, dup_key_check);
                             None
                         }
                     }
-                    _ => None,
+                    _ => {
+                        error!(
+                            "Unhandled Error storing commitments: {} duplicate key check {}",
+                            e, dup_key_check
+                        );
+                        None
+                    }
                 }
             }
         }
@@ -572,11 +680,7 @@ impl WithdrawalDB<Fr254, PendingWithdrawal> for Client {
     }
 
     async fn remove_withdrawal(&mut self, key: Fr254) -> Option<()> {
-        let mut bytes = vec![];
-        key.serialize_compressed(&mut bytes).ok()?;
-
-        let hex_str = encode(&bytes);
-        let query = doc! {"key": hex_str};
+        let query = doc! {"key": key.to_hex_string()};
 
         let delete_count = self
             .database(DB)

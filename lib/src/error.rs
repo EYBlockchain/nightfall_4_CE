@@ -8,6 +8,27 @@ use std::{
 };
 use warp::reject::Reject;
 
+#[derive(Debug, PartialEq)]
+pub enum HexError {
+    InvalidStringLength,
+    InvalidString,
+    InvalidHexFormat,
+    InvalidConversion,
+}
+
+impl std::fmt::Display for HexError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            HexError::InvalidStringLength => write!(f, "Invalid string length"),
+            HexError::InvalidString => write!(f, "Invalid string"),
+            HexError::InvalidHexFormat => write!(f, "Invalid hex format"),
+            HexError::InvalidConversion => write!(f, "Invalid conversion"),
+        }
+    }
+}
+
+impl std::error::Error for HexError {}
+
 #[derive(Debug)]
 pub struct CertificateVerificationError {
     message: String,

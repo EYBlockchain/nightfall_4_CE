@@ -5,13 +5,10 @@ use crate::{
         db::TransactionsDB,
         trees::{CommitmentTree, HistoricRootTree, NullifierTree},
     },
-    driven::{ block_assembler::Nightfall,
-    nightfall_event::{ process_nightfall_calldata, 
-        process_deposit_escrowed_event, },
-  }
+    driven::block_assembler::Nightfall,
+    services::process_events::process_events,
 };
 use ark_bn254::Fr as Fr254;
-use alloy::primitives::I256;
 use configuration::{addresses::get_addresses, settings::get_settings};
 use futures::{future::BoxFuture, FutureExt};
 use lib::blockchain_client::BlockchainClientConnection;
@@ -19,14 +16,18 @@ use log::{debug, warn};
 use mongodb::Client as MongoClient;
 //use nightfall_bindings::nightfall::Nightfall;
 use nightfall_client::{
-    domain::{entities::SynchronisationStatus, error::EventHandlerError},
+    domain::{
+        entities::{SynchronisationPhase::Desynchronized, SynchronisationStatus},
+        error::EventHandlerError,
+    },
     ports::proof::{Proof, ProvingEngine},
 };
 use futures::StreamExt;
 use std::time::Duration;
-use tokio::sync::{OnceCell, RwLock};
-use tokio::time::sleep;
-
+use tokio::{
+    sync::{OnceCell, RwLock},
+    time::sleep,
+};
 
 /// This function starts the event handler. It will attempt to restart the event handler in case of errors
 /// with an exponential backoff for a configurable number of attempts. If the event handler
@@ -107,68 +108,55 @@ where
         get_addresses().nightfall,
         blockchain_client.root(),
     );
-    let block_proposed_events = nightfall_instance.event_filter::<Nightfall::BlockProposed>().from_block(start_block as u64);
-
-    let mut block_proposed_stream = block_proposed_events
+    
+    let block_stream = nightfall_instance
+        .event_filter::<Nightfall::BlockProposed>()
+        .from_block(start_block as u64)
         .subscribe()
         .await
-        .map_err(|_| EventHandlerError::NoEventStream)?.into_stream();
-    while let Some(Ok(evt)) = block_proposed_stream.next().await {
-        // process each event in the stream and handle any errors
-        let result = process_nightfall_calldata::<P, E, N>(
-            evt.1.transaction_hash.unwrap(),
-            evt.1.block_number.unwrap().to_string().parse::<I256>().unwrap()
-        ).await;
-        match result {
-            Ok(_) => continue,
-            Err(e) => {
-                match e {
-                    // we're missing blocks, so we need to re-synchronise
-                    EventHandlerError::MissingBlocks(n) => {
-                        warn!("Missing blocks. Last contiguous block was {}. Restarting event listener", n);
-                        restart_event_listener::<P, E, N>(start_block).await;
-                        return Err(EventHandlerError::StreamTerminated);
-                    }
+        .map_err(|_| EventHandlerError::NoEventStream)?
+        .into_stream();
 
-                    EventHandlerError::BlockHashError(expected, found) => {
-                        warn!(
-                            "Block hash mismatch: expected {:?}, found {:?}. Restarting event listener",
-                            expected, found
-                        );
-                        restart_event_listener::<P, E, N>(start_block).await;
-                        return Err(EventHandlerError::StreamTerminated);
-                    }
+    let deposit_stream = nightfall_instance
+        .event_filter::<Nightfall::DepositEscrowed>()
+        .from_block(start_block as u64)
+        .subscribe()
+        .await
+        .map_err(|_| EventHandlerError::NoEventStream)?
+        .into_stream();
 
-                    _ => panic!("Error processing event: {:?}", e),
+    // the event stream is a stream of events, so we need to merge the two streams
+    let mut all_events = futures::stream::select(
+        block_stream.map(|e| e.map(|log| (Nightfall::NightfallEvents::BlockProposed(log.0), log.1))),
+        deposit_stream.map(|e| e.map(|log| (Nightfall::NightfallEvents::DepositEscrowed(log.0), log.1))),
+    );
+    while let Some(Ok((event, log))) = all_events.next().await {
+        let result = process_events::<P, E, N>(event, log).await;
+            match result {
+                Ok(_) => continue,
+                Err(e) => {
+                    match e {
+                        // we're missing blocks, so we need to re-synchronise
+                        EventHandlerError::MissingBlocks(n) => {
+                            warn!("Missing blocks. Last contiguous block was {}. Restarting event listener", n);
+                            restart_event_listener::<P, E, N>(start_block).await;
+                            return Err(EventHandlerError::StreamTerminated);
+                        }
+    
+                        EventHandlerError::BlockHashError(expected, found) => {
+                            warn!(
+                                "Block hash mismatch: expected {:?}, found {:?}. Restarting event listener",
+                                expected, found
+                            );
+                            restart_event_listener::<P, E, N>(start_block).await;
+                            return Err(EventHandlerError::StreamTerminated);
+                        }
+    
+                        _ => panic!("Error processing event: {:?}", e),
+                    }
                 }
-            }
         }
     }
-    let deposit_events = nightfall_instance.event_filter::<Nightfall::DepositEscrowed>().from_block(start_block as u64);
-        let mut deposit_stream = deposit_events
-            .subscribe()
-            .await
-            .map_err(|_| EventHandlerError::NoEventStream)?.into_stream();
-    
-            while let Some(Ok(evt)) = deposit_stream.next().await {
-                // process each event in the stream and handle any errors
-                println!("Processing deposit event: {:?}", evt);
-                let result = process_deposit_escrowed_event::<P,E>(evt.1.transaction_hash.unwrap(), &Nightfall::DepositEscrowed::from(evt.0)).await;
-                match result {
-                    Ok(_) => continue,
-                    Err(e) => {
-                        match e {
-                            // we're missing blocks, so we need to re-synchronise
-                            EventHandlerError::MissingBlocks(n) => {
-                                warn!("Missing blocks. Last contiguous block was {}. Restarting event listener", n);
-                                restart_event_listener::<P, E, N>(start_block).await;
-                                return Err(EventHandlerError::StreamTerminated);
-                            }
-                            _ => panic!("Error processing event: {:?}", e),
-                        }
-                    }
-                }
-            }    
 
     Err(EventHandlerError::StreamTerminated)
 }
@@ -195,7 +183,6 @@ where
     // with the blockchain. We should probably do this in a more elegant way, but this works for now
     // and we can improve it later
     {
-        // let db = &mut get_db_connection().await.write().await;
         let db = get_db_connection().await;
         let _ = <MongoClient as CommitmentTree<Fr254>>::reset_tree(db).await;
         let _ = <MongoClient as HistoricRootTree<Fr254>>::reset_tree(db).await;
@@ -225,6 +212,6 @@ where
 pub async fn get_synchronisation_status() -> &'static RwLock<SynchronisationStatus> {
     static SYNCHRONISATION_STATUS: OnceCell<RwLock<SynchronisationStatus>> = OnceCell::const_new();
     SYNCHRONISATION_STATUS
-        .get_or_init(|| async { RwLock::new(SynchronisationStatus::new(false)) })
+        .get_or_init(|| async { RwLock::new(SynchronisationStatus::new(Desynchronized)) })
         .await
 }

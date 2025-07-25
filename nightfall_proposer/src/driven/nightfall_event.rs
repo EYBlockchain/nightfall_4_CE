@@ -19,11 +19,14 @@ use alloy::{
 };
 use alloy::{consensus::Transaction, sol_types::SolInterface};
 use ark_ff::BigInteger;
-use lib::{blockchain_client::BlockchainClientConnection, merkle_trees::trees::IndexedTree};
+use lib::{
+    blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
+    merkle_trees::trees::IndexedTree,
+};
 use log::{debug, error, info, warn};
 use mongodb::Client;
 use nightfall_client::{
-    domain::{entities::{HexConvertible}, error::EventHandlerError},
+    domain::error::EventHandlerError,
     driven::contract_functions::contract_type_conversions::FrBn254,
     drivers::rest::utils::to_nf_token_id_from_solidity,
     get_fee_token_id,
@@ -188,6 +191,16 @@ async fn process_propose_block_event<N: NightfallContract>(
         return Err(EventHandlerError::MissingBlocks(
             expected_onchain_block_number.as_usize(),
         ));
+    }
+
+    // check if we're ahead of the event, this means we've already seen it and we shouldn't process it again
+    // This could happen if we've missed some blocks and we're re-synchronising
+    if *expected_onchain_block_number > layer_2_block_number_in_event {
+        warn!(
+            "Already processed layer 2 block {} - skipping",
+            layer_2_block_number_in_event
+        );
+        return Ok(());
     }
 
     // if expected_onchain_block_number == layer_2_block_number, we need to check if the block hash is the same

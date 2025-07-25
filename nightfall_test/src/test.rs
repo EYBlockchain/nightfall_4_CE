@@ -1,27 +1,32 @@
-use crate::{test_settings::TestSettings, TestError};
 use ark_bn254::Fr as Fr254;
 use ark_ec::twisted_edwards::Affine as TEAffine;
 use ark_ff::{BigInteger, PrimeField};
-use ark_std::{rand::{self, Rng}, test_rng, UniformRand};
+use ark_std::{collections::HashMap, rand::{self, Rng}, test_rng, UniformRand};
 use configuration::{
-    addresses::{Addresses, AddressesError, Sources},
+    addresses::{get_addresses, Addresses, AddressesError, Sources},
     settings::Settings,
 };
 use alloy::{
-    primitives::{Address, keccak256},
-    signers::{local::PrivateKeySigner as LocalWallet}
+    primitives::{Address, keccak256, I256, B256},
+    signers::{local::PrivateKeySigner as LocalWallet},
+    rpc::types::Filter,
 };
+
 use hex::ToHex;
 use jf_primitives::{
     poseidon::Poseidon,
     trees::{Directions, MembershipProof, PathElement, TreeHasher},
 };
-use lib::models::CertificateReq;
+use lib::{
+    blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
+    initialisation::get_blockchain_client_connection, models::CertificateReq,
+};
 use log::{debug, info};
 use nf_curves::ed_on_bn254::{BabyJubjub as BabyJubJub, Fr as BJJScalar};
 use nightfall_client::{
     domain::{
-        entities::{CommitmentStatus, DepositSecret, HexConvertible, Preimage, Salt},
+        entities::{CommitmentStatus, DepositSecret, Preimage, Salt, TokenData},
+        error::NightfallContractError,
         notifications::NotificationPayload,
     },
     driven::{
@@ -60,6 +65,8 @@ use std::{
 use tokio::{sync::Mutex, time};
 use url::Url;
 use uuid::Uuid;
+
+use crate::{test_settings::TestSettings, TestError};
 
 const REQUEST_ID: &str = "X-Request-ID";
 
@@ -318,6 +325,12 @@ pub struct TransactionDetails {
     pub token_id: String,
 }
 
+#[derive(Debug, Clone)]
+/// Struct used for the deposit request
+pub struct DepositDataReq {
+    pub erc_address: String,
+    pub token_id: String,
+}
 /// Struct used for the four token types supported by Nightfall 4
 #[derive(Debug, Clone, Copy)]
 pub enum TokenType {
@@ -351,7 +364,7 @@ impl Display for TokenType {
 
 impl TokenType {
     /// Gets the relevant mock contract address for the token type
-    fn address(&self) -> String {
+    pub fn address(&self) -> String {
         match self {
             TokenType::ERC20 => hex::encode(TestSettings::retrieve_mock_addresses().erc20.0),
             TokenType::ERC721 => hex::encode(TestSettings::retrieve_mock_addresses().erc721.0),
@@ -359,6 +372,151 @@ impl TokenType {
             TokenType::ERC3525 => hex::encode(TestSettings::retrieve_mock_addresses().erc3525.0),
         }
     }
+}
+
+// Define this struct to hold all data needed for verification
+type UuidCommitment = (Uuid, Fr254);
+
+#[derive(Debug)]
+struct CommitmentValidationData {
+    uuid: Uuid,
+    token_data: TokenData,
+}
+pub async fn verify_deposit_commitments_nf_token_id(
+    http_client: &reqwest::Client,
+    uuid_to_commitments: &HashMap<Uuid, Vec<Fr254>>,
+    expected_token_data: &HashMap<Uuid, Vec<(String, String)>>,
+    settings: &Settings,
+) {
+    info!("Verifying deposit commitments...");
+    // Flatten all UUID/Commitment pairs for batched processing
+    let all_pairs: Vec<UuidCommitment> = uuid_to_commitments
+        .iter()
+        .flat_map(|(uuid, cm_hashes)| cm_hashes.iter().map(move |h| (*uuid, *h)))
+        .collect();
+
+    // Stage 1: Fetch all commitments concurrently
+    let commitment_futures = all_pairs.iter().map(|(_, cm_hash)| {
+        let client = http_client.clone();
+        let url = Url::parse(&settings.nightfall_client.url)
+            .unwrap()
+            .join(&format!("v1/commitment/{}", cm_hash.to_hex_string()))
+            .unwrap();
+
+        async move {
+            let commitment: CommitmentEntry = client
+                .get(url)
+                .send()
+                .await
+                .expect("Failed to query commitment endpoint")
+                .json()
+                .await
+                .expect("Failed to parse commitment entry");
+            commitment
+        }
+    });
+
+    let commitments: Vec<CommitmentEntry> = futures::future::join_all(commitment_futures).await;
+
+    // Stage 2: Fetch token data for all commitments
+    let token_futures = commitments.iter().map(|c| {
+        let client = http_client.clone();
+        let url = Url::parse(&settings.nightfall_client.url)
+            .unwrap()
+            .join(&format!(
+                "v1/token/{}",
+                c.preimage.nf_token_id.to_hex_string()
+            ))
+            .unwrap();
+
+        async move {
+            let token: TokenData = client
+                .get(url)
+                .send()
+                .await
+                .expect("Failed to query token endpoint")
+                .json()
+                .await
+                .expect("Failed to parse token info");
+            token
+        }
+    });
+
+    let token_data_list: Vec<TokenData> = futures::future::join_all(token_futures).await;
+
+    // Stage 3: Zip all into CommitmentValidationData
+    let validation_data: Vec<CommitmentValidationData> = all_pairs
+        .into_iter()
+        .zip(commitments.into_iter())
+        .zip(token_data_list.into_iter())
+        .map(
+            |(((uuid, _cm_hash), _commitment), token_data)| CommitmentValidationData {
+                uuid,
+                token_data,
+            },
+        )
+        .collect();
+
+    // Stage 4: Verify all entries
+    for entry in validation_data {
+        let expected_entries = expected_token_data
+            .get(&entry.uuid)
+            .expect("Missing expected token data");
+        let actual_erc = entry.token_data.erc_address.to_hex_string();
+        let actual_token_id = entry.token_data.token_id.to_hex_string();
+
+        let actual_erc_clean = actual_erc
+            .trim_start_matches("0x")
+            .trim_start_matches('0')
+            .to_lowercase();
+        let actual_token_id_clean = {
+            let s = actual_token_id
+                .trim_start_matches("0x")
+                .trim_start_matches('0');
+            if s.is_empty() {
+                "0"
+            } else {
+                s
+            }
+        }
+        .to_lowercase();
+
+        let mut match_found = false;
+        for (expected_erc, expected_token_id) in expected_entries {
+            let expected_erc_clean = expected_erc
+                .trim_start_matches("0x")
+                .trim_start_matches('0')
+                .to_lowercase();
+            let expected_token_id_clean = {
+                let s = expected_token_id
+                    .trim_start_matches("0x")
+                    .trim_start_matches('0');
+                if s.is_empty() {
+                    "0"
+                } else {
+                    s
+                }
+            }
+            .to_lowercase();
+
+            if actual_erc_clean == expected_erc_clean
+                && actual_token_id_clean == expected_token_id_clean
+            {
+                match_found = true;
+                break;
+            }
+        }
+        assert!(
+            match_found,
+            "No matching expected token data found for UUID: {}\nActual ERC: {}\nActual TokenID: {}\nExpected entries: {:?}",
+            entry.uuid,
+            actual_erc_clean,
+            actual_token_id_clean,
+            expected_entries
+        );
+    }
+
+    info!("All token data matched successfully.");
 }
 
 // get a ZKP key object from the client container (client knows how to generate them)
@@ -449,54 +607,113 @@ pub async fn get_latest_l2_block_number(responses: Arc<Mutex<Vec<Value>>>) -> Op
 
 /// This function waits until a Webhook response is received for every Request ID
 pub async fn wait_for_all_responses(
-    large_block_deposit_ids: &[String],
+    request_ids: &[Uuid],
     responses: Arc<Mutex<Vec<Value>>>,
-) -> Vec<String> {
+) -> Vec<(Uuid, String)> {
     // compare the response IDs with the request IDs
-    // if we find everything we need, we can break out of the loop and return the json data in the responses (ignoring the ID)
-    let response_data = loop {
-        // get a lock on the current response vectore
+    // if we find everything we need, we can break out of the loop and return the json data in the responses
+    let response_payloads = loop {
+        // get a lock on the current response vector
         let mut response_values = responses.lock().await;
         // destructure the vector to get the responses and the request IDs
         let response_payloads = response_values
             .iter()
             .map(|r| serde_json::from_value::<NotificationPayload>(r.clone()).unwrap())
-            .collect::<Vec<_>>();
-        let (response_data, response_ids): (Vec<_>, Vec<_>) = response_payloads
-            .iter()
-            .cloned()
             .filter_map(|r| match r {
                 NotificationPayload::TransactionEvent { uuid, response } => Some((
+                    serde_json::from_str::<Uuid>(&uuid).expect("Could not parse uuid"),
                     response,
-                    serde_json::from_str::<String>(&uuid).expect("Could not parse uuid"),
                 )),
                 _ => None,
             })
-            .unzip();
-        debug!("Response IDs: {:?}", response_ids);
-        debug!("Request IDs: {:?}", large_block_deposit_ids);
+            .collect::<Vec<_>>();
+
         info!(
             "Have {} IDs and {} processed client transactions",
-            large_block_deposit_ids.len(),
-            response_ids.len()
+            request_ids.len(),
+            response_payloads.len()
         );
         // check if the response IDs contain all the request IDs
         // we'll do a simple O(n^2) search for the request IDs in the responses as the vector is small
-        let same = large_block_deposit_ids
-            .iter()
-            .all(|id| response_ids.contains(id));
+        let response_ids: HashSet<Uuid> = response_payloads.iter().map(|(uuid, _)| *uuid).collect();
+        let same = request_ids.iter().all(|id| response_ids.contains(id));
         // if we find everything we need, we can break out of the loop and return the json data in the responses (ignoring the ID)
         if same {
             response_values.clear(); // clear the responses so we can reuse the vector
-            break response_data;
+            break response_payloads;
         }
         // if we get here, we haven't found everything we need yet
         drop(response_values); // free the mutex lock while we wait for more responses
         time::sleep(time::Duration::from_secs(10)).await;
     };
     info!("All expected responses from the clients' webhooks have been received");
-    debug!("{:#?}", response_data);
-    response_data
+    // sort the responses by the request ID (UUID)
+    let mut response_payloads = response_payloads;
+    response_payloads.sort_by_key(|(uuid, _)| *uuid);
+    response_payloads
+}
+
+/// Function to get the L1 block hash of a given layer 2 block number
+pub async fn get_l1_block_hash_of_layer2_block(
+    block_number: I256,
+) -> Result<B256, NightfallContractError> {
+    let block_number = block_number - I256::ONE;
+    let client = get_blockchain_client_connection()
+        .await
+        .read()
+        .await
+        .get_client();
+    let nightfall_address = get_addresses().nightfall();
+    let block_topic = B256::from_slice(&block_number.to_be_bytes::<32>());
+
+    let latest_block = client.get_block_number().await.map_err(|e| {
+        NightfallContractError::ProviderError(format!("get_block_number error: {}", e))
+    })?;
+
+    let event_sig = B256::from(keccak256("BlockProposed(int256)"));
+    let filter = Filter::new()
+        .address(nightfall_address)
+        .from_block(0u64)
+        .to_block(latest_block)
+        .event_signature(event_sig)
+        .topic1(block_topic);
+
+    let logs = client
+        .get_logs(&filter)
+        .await
+        .map_err(|e| NightfallContractError::ProviderError(format!("Provider error: {}", e)))?;
+
+    // get the first log, as we only check first l1 block which contains the block number
+    let log = logs
+        .first()
+        .ok_or_else(|| NightfallContractError::BlockNotFound(block_number.as_u64()))?;
+    let tx_hash = log.transaction_hash.ok_or_else(|| {
+        NightfallContractError::MissingTransactionHash("Log has no transaction hash".to_string())
+    })?;
+
+    // Fetch the full transaction to get block hash
+    let tx = client
+        .get_transaction_by_hash(tx_hash)
+        .await
+        .map_err(|e| {
+            NightfallContractError::ProviderError(format!("get_transaction error: {}", e))
+        })?
+        .ok_or(NightfallContractError::TransactionNotFound(tx_hash))?;
+
+    let block_hash = tx.block_hash.ok_or_else(|| {
+        NightfallContractError::MissingTransactionHash(
+            "Transaction does not have a block hash (possibly pending)".to_string(),
+        )
+    })?;
+
+    debug!(
+        "L2 block {} was submitted in L1 block {} with L1 block hash : {}",
+        block_number,
+        tx.block_number.unwrap_or_default(),
+        block_hash
+    );
+
+    Ok(block_hash)
 }
 
 /// this function returns a Future that resolves when all commitments in the slice are available on-chain
@@ -557,7 +774,7 @@ pub async fn wait_on_chain(
 }
 
 /// Function to submit a request to de-escrow funds after a withdraw
-pub async fn de_escrow_request(req: &DeEscrowDataReq, client_url: &str) -> Result<u8, TestError> {
+pub async fn de_escrow_request(req: &DeEscrowDataReq, client_url: &str) -> Result<bool, TestError> {
     let client = reqwest::Client::new();
     let url = Url::parse(client_url)
         .map_err(|e| TestError::new(e.to_string()))?
@@ -570,9 +787,11 @@ pub async fn de_escrow_request(req: &DeEscrowDataReq, client_url: &str) -> Resul
         .send()
         .await
         .map_err(|e| TestError::new(e.to_string()))?;
-    res.json::<u8>()
-        .await
-        .map_err(|e| TestError::new(e.to_string()))
+    if res.status() == StatusCode::OK {
+        Ok(true)
+    } else {
+        Ok(false)
+    }
 }
 
 /// Function to generate proof and inputs for a random transaction
@@ -594,7 +813,7 @@ pub async fn create_nf3_deposit_transaction(
     token_type: TokenType,
     tx_details: TransactionDetails,
     deposit_fee: String,
-) -> Result<String, TestError> {
+) -> Result<(Uuid, Vec<DepositDataReq>), TestError> {
     let id = Uuid::new_v4().to_string();
     info!("Creating deposit transaction onchain {}", &id);
     let deposit_request = create_nf3_deposit_request(
@@ -602,7 +821,7 @@ pub async fn create_nf3_deposit_transaction(
         tx_details.fee,
         deposit_fee.clone(),
         token_type,
-        tx_details.token_id,
+        tx_details.token_id.clone(),
     );
     let res = client
         .post(url.clone())
@@ -627,7 +846,23 @@ pub async fn create_nf3_deposit_transaction(
         "Deposit transaction {} has been accepted by the client",
         returned_id
     );
-    Ok(returned_id)
+    let mut deposit_data = vec![];
+
+    // Value token
+    deposit_data.push(DepositDataReq {
+        erc_address: token_type.address(),
+        token_id: tx_details.token_id.clone(),
+    });
+
+    // Fee token (if non-zero)
+    let is_fee_nonzero = deposit_fee != "0" && deposit_fee != "0x0" && deposit_fee != "0x00";
+    if is_fee_nonzero {
+        deposit_data.push(DepositDataReq {
+            erc_address: format!("0x{}", hex::encode(get_addresses().nightfall())),
+            token_id: "0x00".to_string(), // The "dummy" ID used for fee tokens
+        });
+    }
+    Ok((Uuid::parse_str(&returned_id).unwrap(), deposit_data))
 }
 
 pub async fn create_nf3_transfer_transaction(
@@ -636,7 +871,7 @@ pub async fn create_nf3_transfer_transaction(
     url: Url,
     token_type: TokenType,
     tx_details: TransactionDetails,
-) -> Result<String, TestError> {
+) -> Result<Uuid, TestError> {
     let id = Uuid::new_v4().to_string();
     info!("Creating transfer transaction offchain {}", &id);
     let transfer_request = create_nf3_transfer_request(
@@ -668,7 +903,7 @@ pub async fn create_nf3_transfer_transaction(
         "Transfer transaction {} has been accepted by the client",
         returned_id
     );
-    Ok(returned_id)
+    Ok(Uuid::parse_str(&returned_id).unwrap())
 }
 
 pub async fn create_nf3_withdraw_transaction(
@@ -677,7 +912,7 @@ pub async fn create_nf3_withdraw_transaction(
     token_type: TokenType,
     tx_details: TransactionDetails,
     recipient_address: String,
-) -> Result<(String, WithdrawDataReq), TestError> {
+) -> Result<(Uuid, WithdrawDataReq), TestError> {
     let id = Uuid::new_v4().to_string();
     info!("Creating withdraw transaction offchain {}", &id);
     let withdraw_request = create_nf3_withdraw_request(
@@ -727,7 +962,10 @@ pub async fn create_nf3_withdraw_transaction(
         "Withdraw transaction {} has been accepted by the client",
         returned_id
     );
-    Ok((returned_id, withdraw_data_request))
+    Ok((
+        Uuid::parse_str(&returned_id).unwrap(),
+        withdraw_data_request,
+    ))
 }
 
 pub async fn get_balance(
@@ -1066,7 +1304,6 @@ pub fn build_valid_transfer_inputs(rng: &mut impl Rng) -> (PublicInputs, Private
 
     (public_inputs, private_inputs)
 }
-
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;

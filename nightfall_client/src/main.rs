@@ -57,7 +57,7 @@ async fn main() -> Result<(), JoinError> {
         max_event_listener_attempts_client,
     ));
     // set up the warp server
-    let routes = routes::<PlonkProof, PlonkProvingEngine, Nightfall::NightfallCalls>();
+    let routes = routes::<PlonkProof, Nightfall::NightfallCalls>();
     let task_2 = tokio::spawn(warp::serve(routes).run(([0, 0, 0, 0], 3000)));
     let task_3 = tokio::spawn(process_queue::<
         PlonkProof,

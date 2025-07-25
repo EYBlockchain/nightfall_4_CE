@@ -89,10 +89,8 @@ pub mod initialisation {
     use ark_bn254::Fr as Fr254;
     use configuration::settings::get_settings;
     use mongodb::Client as MongoClient;
-    use reqwest::Client as HttpClient;
-    use reqwest::ClientBuilder;
-    use std::sync::OnceLock;
-    use std::time::Duration;
+    use reqwest::{Client as HttpClient, ClientBuilder};
+    use std::{sync::OnceLock, time::Duration};
     use tokio::sync::OnceCell;
     use url::Url;
 

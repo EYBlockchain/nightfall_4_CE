@@ -2,7 +2,7 @@
 use super::contract_type_conversions::{Addr, FrBn254, Uint256, Nightfall::WithdrawData as NFWithdrawData};
 use crate::{
     domain::{
-        entities::{DepositSecret, TokenType, WithdrawData},
+        entities::{DepositSecret, TokenData, TokenType, WithdrawData},
         error::NightfallContractError,
     }, 
    drivers::rest::utils::to_nf_token_id_from_solidity, ports::{contracts::NightfallContract, secret_hash::SecretHash}
@@ -11,16 +11,18 @@ use ark_bn254::Fr as Fr254;
 use ark_ff::BigInteger256;
 use ark_std::Zero;
 use configuration::addresses::get_addresses;
-use alloy::{dyn_abi::abi::encode,  sol_types::SolValue};
-use alloy::primitives::{I256, keccak256};
+use alloy::{consensus::Transaction, dyn_abi::abi::encode, providers::Provider, sol_types::{SolInterface, SolValue}};
+use alloy::primitives::{I256, keccak256, B256, Address};
+use alloy::rpc::types::Filter;
+
 use lib::{
     blockchain_client::{BlockchainClientConnection}, initialisation::get_blockchain_client_connection,
 };
-use log::info;
+use log::{info, debug};
 use alloy::sol;
 use num::BigUint;
 sol!(
-    #[sol(rpc)]    
+    #[sol(rpc)]     
     Nightfall, "../blockchain_assets/artifacts/Nightfall.sol/Nightfall.json"
 );
 sol!(
@@ -189,26 +191,25 @@ impl NightfallContract for Nightfall::NightfallCalls {
         Ok(())
     }
 
-    async fn withdraw_available(withdraw_data: WithdrawData) -> Result<u8, NightfallContractError> {
+    async fn withdraw_available(withdraw_data: WithdrawData) -> Result<bool, NightfallContractError> {
         let blockchain_client = get_blockchain_client_connection()
             .await
             .read()
             .await
             .get_client();
         let client = blockchain_client.root();
+            let nightfall_instance = Nightfall::new(get_addresses().nightfall(), client.clone());
 
-        let nightfall_instance = Nightfall::new(get_addresses().nightfall(), client.clone());
-
-        let data  = NFWithdrawData::from(withdraw_data);
-        let decode_data = Nightfall::WithdrawData {
-            nf_token_id: data.nf_token_id,
-            recipient_address: data.recipient_address,
-            value: data.value,
-            withdraw_fund_salt: data.withdraw_fund_salt,
-        };
-        let result = nightfall_instance.withdraw_processed(decode_data).call().await.map_err(|e| NightfallContractError::EscrowError(format!("{}", e)))?._0;
-        Ok(result)
-    }
+            let data  = NFWithdrawData::from(withdraw_data);
+            let decode_data = Nightfall::WithdrawData {
+                nf_token_id: data.nf_token_id,
+                recipient_address: data.recipient_address,
+                value: data.value,
+                withdraw_fund_salt: data.withdraw_fund_salt,
+            };
+            let result = nightfall_instance.withdraw_processed(decode_data).call().await.map_err(|e| NightfallContractError::EscrowError(format!("{}", e)))?._0;
+            Ok(result)
+        }
 
     async fn get_current_layer2_blocknumber() -> Result<I256, NightfallContractError> {
         let blockchain_client = get_blockchain_client_connection()
@@ -222,5 +223,96 @@ impl NightfallContract for Nightfall::NightfallCalls {
 
         let l2_block = nightfall.layer2_block_number().call().await.map_err( |e| NightfallContractError::EscrowError(format!("{}", e)))?._0;
         Ok(l2_block)
+    }
+    async fn get_token_info(nf_token_id: Fr254) -> Result<TokenData, NightfallContractError> {
+        let blockchain_client = get_blockchain_client_connection()
+            .await
+            .read()
+            .await
+            .get_client();
+
+            let client = blockchain_client.root();
+            let nightfall_address = get_addresses().nightfall();
+            let nightfall = Nightfall::new(nightfall_address, client);
+
+
+        let token_info = nightfall.getTokenInfo(Uint256::from(nf_token_id).0)
+            .call()
+            .await
+            .map_err(|e| NightfallContractError::EscrowError(format!("Error getting token info: {}", e)))?;
+
+        Ok(TokenData {
+            erc_address: FrBn254::from(token_info.ercAddress).into(),
+            token_id: BigInteger256::from(Uint256(token_info.tokenId)),
+        })
+    }
+
+    // given a layer 2 block number, return the layer 2 block and the sender address
+    async fn get_layer2_block_by_number(
+        block_number: I256,
+    ) -> Result<(Address, Nightfall::Block), NightfallContractError> {
+        let block_number = block_number - I256::ONE;
+        let blockchain_client = get_blockchain_client_connection()
+            .await
+            .read()
+            .await
+            .get_client();
+        let client = blockchain_client.root();
+        let nightfall_address = get_addresses().nightfall();
+        let block_topic = B256::from_slice(&block_number.to_be_bytes::<32>());
+
+        let latest_block = client.get_block_number().await.map_err(|e| {
+            NightfallContractError::ProviderError(format!("get_block_number error: {}", e))
+        })?;
+
+        let event_sig = B256::from(keccak256("BlockProposed(int256)"));
+        let filter = Filter::new()
+            .address(nightfall_address)
+            .from_block(0u64)
+            .to_block(latest_block)
+            .event_signature(event_sig)
+            .topic1(block_topic);
+
+        let logs = client
+            .get_logs(&filter)
+            .await
+            .map_err(|e| NightfallContractError::ProviderError(format!("Provider error: {}", e)))?;
+
+        let log = logs
+            .first()
+            .ok_or_else(|| NightfallContractError::BlockNotFound(block_number.as_u64()))?;
+
+        let tx_hash = log.transaction_hash.ok_or_else(|| {
+            NightfallContractError::MissingTransactionHash(
+                "Log has no transaction hash".to_string(),
+            )
+        })?;
+        let tx = client
+            .get_transaction_by_hash(tx_hash)
+            .await
+            .map_err(|e| {
+                NightfallContractError::ProviderError(format!("get_transaction error: {}", e))
+            })?
+            .ok_or(NightfallContractError::TransactionNotFound(tx_hash))?;
+
+        let sender_address = tx.inner.signer();
+        debug!("Sender of transaction {} is {}", tx_hash, sender_address);
+
+        let decoded = Nightfall::NightfallCalls::abi_decode(tx.input(), true).map_err(|e| {
+            NightfallContractError::AbiDecodeError(format!("ABI decode error: {:?}", e))
+        })?;
+
+        match decoded {
+            Nightfall::NightfallCalls::propose_block(decoded) => {
+                debug!(
+                    "Successfully decoded block {} from tx {}",
+                    block_number, tx_hash
+                );
+                Ok((sender_address, decoded.blk))
+            }
+            _ => Err(NightfallContractError::DecodedCallError(
+                "Decoded call was not propose_block".to_string(),
+            )),
+        }
     }
 }

@@ -5,9 +5,8 @@ use alloy::providers::{Provider};
 use alloy::primitives::{Address, U256};
 use alloy::signers::local::PrivateKeySigner;
 use serde::Deserialize;
-use std::marker::Sync;
+use std::{marker::Sync, sync::Arc};
 use url::Url;
-use std::sync::Arc;
 
 use crate::error::BlockchainClientConnectionError;
 

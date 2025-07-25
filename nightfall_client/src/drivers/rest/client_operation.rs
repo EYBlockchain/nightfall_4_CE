@@ -1,14 +1,11 @@
 use crate::{
     domain::{
-        entities::{ClientTransaction, CommitmentStatus, HexConvertible, Operation, RequestStatus},
+        entities::{ClientTransaction, CommitmentStatus, Operation, Preimage, RequestStatus},
         error::TransactionHandlerError,
         notifications::NotificationPayload,
     },
     driven::db::mongo::CommitmentEntry,
-    drivers::{
-        blockchain::nightfall_event_listener::get_synchronisation_status, derive_key::ZKPKeys,
-        rest::models::NullifierKey,
-    },
+    drivers::{derive_key::ZKPKeys, rest::models::NullifierKey},
     get_zkp_keys,
     initialisation::get_db_connection,
     ports::{
@@ -26,7 +23,8 @@ use alloy::rpc::types::TransactionReceipt;
 use alloy::sol;
 use futures::future::join_all;
 use lib::{
-    blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
+    blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
+    initialisation::get_blockchain_client_connection,
 };
 use log::{debug, error, info, warn};
 use nf_curves::ed_on_bn254::Fr as BJJScalar;
@@ -64,15 +62,6 @@ where
 {
     debug!("{id} Handling client operation: {:?}", operation);
 
-    let sync_state = get_synchronisation_status::<N>()
-        .await
-        .map_err(|e| TransactionHandlerError::CustomError(e.to_string()))?
-        .is_synchronised();
-    if !sync_state {
-        warn!("{id} Rejecting request - Proposer is not synchronised with the blockchain");
-        return Err(TransactionHandlerError::ClientNotSynchronized);
-    }
-
     // get the zkp keys from the global state. They will have been created when the keys were requested using a mnemonic
     let ZKPKeys {
         zkp_private_key,
@@ -81,15 +70,24 @@ where
         ..
     } = *get_zkp_keys().lock().expect("Poisoned Mutex lock");
 
-    debug!("{id} Calling client_operation");
     // We should store the change commitments, so that when they appear on-chain, we can add them to the commitments DB.
     // That will mean that they could potentially be spent.
     {
         let db = get_db_connection().await;
         let mut commitment_entries = vec![];
-        for commitment in new_commitments.iter() {
-            if commitment.get_public_key() == zkp_public_key {
-                let commitment_hash = commitment.hash().expect("Commitments must be hashable");
+        for (i, commitment) in new_commitments.iter().enumerate() {
+            let commitment_hash = commitment.hash().expect("Commitments must be hashable");
+            let commitment_hex = commitment_hash.to_hex_string();
+            // Add mapping between request and commitment
+            match db.add_mapping(id, &commitment_hex).await {
+                Ok(_) => debug!("{id} Mapped commitment to request"),
+                Err(e) => error!("{id} Failed to  map commitment to request: {e}"),
+            }
+            // we only store the change commitments and only the ones that aren't default
+            if commitment.get_public_key() == zkp_public_key
+                && i != 0
+                && commitment.get_preimage() != Preimage::default()
+            {
                 let nullifier = commitment
                     .nullifier_hash(&nullifier_key)
                     .expect("Nullifiers must be hashable");
@@ -99,18 +97,13 @@ where
                     CommitmentStatus::PendingCreation,
                 );
                 commitment_entries.push(commitment_entry);
-
-                // Add mapping between request and commitment
-                let commitment_hex = commitment_hash.to_hex_string();
-                match db.add_mapping(id, &commitment_hex).await {
-                    Ok(_) => debug!("{id} Mapped commitment to request"),
-                    Err(e) => error!("{id} Failed to  map commitment to request: {e}"),
-                }
             }
         }
-        db.store_commitments(&commitment_entries, true)
-            .await
-            .ok_or(TransactionHandlerError::DatabaseError)?;
+        if !commitment_entries.is_empty() {
+            db.store_commitments(&commitment_entries, true)
+                .await
+                .ok_or(TransactionHandlerError::DatabaseError)?;
+        }
     }
     // we should now have a situation where:
     // new_commitments[0] is the token commitment

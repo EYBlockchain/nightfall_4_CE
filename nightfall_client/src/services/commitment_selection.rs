@@ -12,6 +12,7 @@ use crate::{
 };
 use ark_bn254::Fr as Fr254;
 use ark_ff::{BigInteger256, PrimeField, Zero};
+use lib::hex_conversion::HexConvertible;
 use log::{debug, trace};
 use mongodb::{Client, Database};
 use nf_curves::ed_on_bn254::BJJTEAffine as JubJub;
@@ -57,10 +58,13 @@ pub async fn find_usable_commitments(
         .map_err(|_| "Preimage hashing failed during commitment selection")?;
 
     // Mark Pending
-    debug!("Marking these commitments as pending: {:?}", pending_keys);
-    for key in pending_keys.iter() {
-        debug!("{}", key);
-    }
+    debug!(
+        "Marking these commitments as pending: {:?}",
+        pending_keys
+            .iter()
+            .map(|k| k.to_hex_string())
+            .collect::<Vec<_>>()
+    );
     db.mark_commitments_pending_spend(pending_keys).await;
 
     Ok([old_commitments[0], old_commitments[1]])
@@ -249,36 +253,10 @@ async fn verify_enough_commitments(
 #[cfg(test)]
 mod test {
     use super::*;
+    use lib::tests_utils::{get_db_connection, get_mongo, get_db_connection_uri};
     use crate::domain::entities::CommitmentStatus;
     use ark_bn254::Fr as Fr254;
-    use testcontainers::{
-        core::IntoContainerPort, runners::AsyncRunner, ContainerAsync, GenericImage,
-    };
-    use tokio::io::AsyncReadExt;
     use url::Host;
-    
-
-    fn get_db_connection_uri(host: Host, port: u16) -> String {
-        format!("mongodb://{}:{}", host, port)
-    }
-
-    /// This function creates a mongo container and returns it
-    async fn get_mongo() -> ContainerAsync<GenericImage> {
-        GenericImage::new("mongo", "4.4.1-bionic")
-            .with_exposed_port(27017.udp())
-            .start()
-            .await
-            .unwrap()
-    }
-
-    /// This function is used to provide a database connection to the tests
-    async fn get_db_connection(container: &ContainerAsync<GenericImage>) -> mongodb::Client {
-        let host = container.get_host().await.unwrap();
-        let port = container.get_host_port_ipv4(27017).await.unwrap();
-        mongodb::Client::with_uri_str(&get_db_connection_uri(host, port))
-            .await
-            .expect("Could not create database connection")
-    }
 
     #[tokio::test]
     async fn test_commitment_selection_case_1_2() {
@@ -295,92 +273,91 @@ mod test {
             let database = db.database("nightfall");
             let commitments_collection = database.collection::<CommitmentEntry>("commitments");
 
-            
-let commitments = vec![
-    // Value commitments for nf_token_id: 1
-    CommitmentEntry::new(
-        Preimage {
-            value: Fr254::from(1u64),
-            nf_token_id: Fr254::from(1u64),
-            ..Default::default()
-        },
-        Fr254::default(),
-        CommitmentStatus::Unspent,
-    ),
-    CommitmentEntry::new(
-        Preimage {
-            value: Fr254::from(2u64),
-            nf_token_id: Fr254::from(1u64),
-            ..Default::default()
-        },
-        Fr254::default(),
-        CommitmentStatus::Unspent,
-    ),
-    CommitmentEntry::new(
-        Preimage {
-            value: Fr254::from(3u64),
-            nf_token_id: Fr254::from(1u64),
-            ..Default::default()
-        },
-        Fr254::default(),
-        CommitmentStatus::Unspent,
-    ),
-    CommitmentEntry::new(
-        Preimage {
-            value: Fr254::from(4u64),
-            nf_token_id: Fr254::from(1u64),
-            ..Default::default()
-        },
-        Fr254::default(),
-        CommitmentStatus::Unspent,
-    ),
-    // Fee commitments for nf_token_id: 2
-    CommitmentEntry::new(
-        Preimage {
-            value: Fr254::from(1u64),
-            nf_token_id: Fr254::from(2u64),
-            ..Default::default()
-        },
-        Fr254::default(),
-        CommitmentStatus::Unspent,
-    ),
-    CommitmentEntry::new(
-        Preimage {
-            value: Fr254::from(2u64),
-            nf_token_id: Fr254::from(2u64),
-            ..Default::default()
-        },
-        Fr254::default(),
-        CommitmentStatus::Unspent,
-    ),
-    CommitmentEntry::new(
-        Preimage {
-            value: Fr254::from(5u64),
-            nf_token_id: Fr254::from(2u64),
-            ..Default::default()
-        },
-        Fr254::default(),
-        CommitmentStatus::Unspent,
-    ),
-    CommitmentEntry::new(
-        Preimage {
-            value: Fr254::from(3u64),
-            nf_token_id: Fr254::from(2u64),
-            ..Default::default()
-        },
-        Fr254::default(),
-        CommitmentStatus::Unspent,
-    ),
-    CommitmentEntry::new(
-        Preimage {
-            value: Fr254::from(6u64),
-            nf_token_id: Fr254::from(2u64),
-            ..Default::default()
-        },
-        Fr254::default(),
-        CommitmentStatus::Unspent,
-    ),
-];
+            let commitments = vec![
+                // Value commitments for nf_token_id: 1
+                CommitmentEntry::new(
+                    Preimage {
+                        value: Fr254::from(1u64),
+                        nf_token_id: Fr254::from(1u64),
+                        ..Default::default()
+                    },
+                    Fr254::default(),
+                    CommitmentStatus::Unspent,
+                ),
+                CommitmentEntry::new(
+                    Preimage {
+                        value: Fr254::from(2u64),
+                        nf_token_id: Fr254::from(1u64),
+                        ..Default::default()
+                    },
+                    Fr254::default(),
+                    CommitmentStatus::Unspent,
+                ),
+                CommitmentEntry::new(
+                    Preimage {
+                        value: Fr254::from(3u64),
+                        nf_token_id: Fr254::from(1u64),
+                        ..Default::default()
+                    },
+                    Fr254::default(),
+                    CommitmentStatus::Unspent,
+                ),
+                CommitmentEntry::new(
+                    Preimage {
+                        value: Fr254::from(4u64),
+                        nf_token_id: Fr254::from(1u64),
+                        ..Default::default()
+                    },
+                    Fr254::default(),
+                    CommitmentStatus::Unspent,
+                ),
+                // Fee commitments for nf_token_id: 2
+                CommitmentEntry::new(
+                    Preimage {
+                        value: Fr254::from(1u64),
+                        nf_token_id: Fr254::from(2u64),
+                        ..Default::default()
+                    },
+                    Fr254::default(),
+                    CommitmentStatus::Unspent,
+                ),
+                CommitmentEntry::new(
+                    Preimage {
+                        value: Fr254::from(2u64),
+                        nf_token_id: Fr254::from(2u64),
+                        ..Default::default()
+                    },
+                    Fr254::default(),
+                    CommitmentStatus::Unspent,
+                ),
+                CommitmentEntry::new(
+                    Preimage {
+                        value: Fr254::from(5u64),
+                        nf_token_id: Fr254::from(2u64),
+                        ..Default::default()
+                    },
+                    Fr254::default(),
+                    CommitmentStatus::Unspent,
+                ),
+                CommitmentEntry::new(
+                    Preimage {
+                        value: Fr254::from(3u64),
+                        nf_token_id: Fr254::from(2u64),
+                        ..Default::default()
+                    },
+                    Fr254::default(),
+                    CommitmentStatus::Unspent,
+                ),
+                CommitmentEntry::new(
+                    Preimage {
+                        value: Fr254::from(6u64),
+                        nf_token_id: Fr254::from(2u64),
+                        ..Default::default()
+                    },
+                    Fr254::default(),
+                    CommitmentStatus::Unspent,
+                ),
+            ];
             // Insert the commitments into the database
             commitments_collection
                 .insert_many(commitments)
@@ -488,12 +465,10 @@ let commitments = vec![
                 ),
             ];
 
-
             commitments_collection
                 .insert_many(commitments)
                 .await
                 .expect("Failed to insert commitments into the database");
-    
         }
 
         // Call the function under test

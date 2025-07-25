@@ -1,5 +1,6 @@
-use crate::blockchain_client::BlockchainClientConnection;
-use crate::error::BlockchainClientConnectionError;
+use crate::{
+    blockchain_client::BlockchainClientConnection, error::BlockchainClientConnectionError,
+};
 use async_trait::async_trait;
 use azure_security_keyvault::SecretClient;
 use alloy::providers::{Provider, ProviderBuilder};
@@ -7,8 +8,7 @@ use alloy::primitives::Address;
 use alloy::transports::ws::WsConnect;
 use alloy::signers::local::PrivateKeySigner;
 use log::{debug, info};
-use std::error::Error;
-use std::sync::Arc;
+use std::{error::Error, sync::Arc};
 use url::Url;
 
 #[derive(Clone, Debug)]

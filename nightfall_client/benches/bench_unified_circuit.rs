@@ -13,10 +13,9 @@ use jf_primitives::{
     trees::{Directions, MembershipProof, PathElement, TreeHasher},
 };
 use jf_relation::{Arithmetization, Circuit};
+use lib::hex_conversion::HexConvertible;
 use nf_curves::ed_on_bn254::{BabyJubjub, Fq as Fr254, Fr as BJJScalar};
-use nightfall_client::{
-    domain::entities::HexConvertible, drivers::rest::utils::to_nf_token_id_from_str,
-};
+use nightfall_client::drivers::rest::utils::to_nf_token_id_from_str;
 use nightfall_client::{
     domain::entities::{DepositSecret, Preimage, Salt},
     driven::{
@@ -161,7 +160,7 @@ fn build_valid_transfer_inputs() -> CircuitTestInfo {
 
     let token_id = Fr254::from_hex_string(&token_id_string).unwrap();
 
-    let withdraw_address_bytes: [u8; 20] = [rand::thread_rng().gen(); 20];
+    let withdraw_address_bytes: [u8; 20] = [0; 20];
 
     let withdraw_address = Fr254::from_be_bytes_mod_order(&withdraw_address_bytes);
     // make a random Nightfall address, and create fee_token_id from it
@@ -187,7 +186,7 @@ fn build_valid_transfer_inputs() -> CircuitTestInfo {
     let keys = ZKPKeys::new(root_key).unwrap();
 
     // Set recipient public key to neutral point
-    let recipient_public_key = Affine::<BabyJubjub>::zero();
+    let recipient_public_key = Affine::<BabyJubjub>::generator();
 
     // Generate random ephemeral private key
     let ephemeral_key = BJJScalar::rand(&mut rng);
@@ -375,7 +374,6 @@ fn benchmark_unified_circuit(c: &mut Criterion) {
     circuit.finalize_for_arithmetization().unwrap();
     let mut rng = ark_std::rand::thread_rng();
     let srs_size = circuit.srs_size().unwrap();
-    ark_std::println!("SRS size: {}", srs_size);
     let srs = FFTPlonk::<UnivariateKzgPCS<Bn254>>::universal_setup_for_testing(srs_size, &mut rng)
         .unwrap();
     let (pk, vk) = FFTPlonk::<UnivariateKzgPCS<Bn254>>::preprocess(&srs, &circuit).unwrap();

@@ -3,9 +3,10 @@ use crate::{
     ports::db::{BlockStorageDB, HistoricRootsDB, TransactionsDB},
 };
 use ark_bn254::Fr as Fr254;
-use ark_ff::{BigInteger, PrimeField, Zero};
+use ark_ff::{PrimeField, Zero};
 use alloy::primitives::Address;
 use futures::TryStreamExt;
+use lib::hex_conversion::HexConvertible;
 use mongodb::bson::doc;
 use nightfall_client::{
     domain::{entities::ClientTransaction, error::ConversionError},
@@ -92,44 +93,6 @@ where
             .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
             .count_documents(filter)
             .await
-    }
-
-    async fn is_transaction_in_mempool(&self, k: &'a [u32]) -> bool {
-        let filter = doc! {"hash": k};
-        let result = self
-            .database(DB)
-            .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
-            .find_one(filter)
-            .await
-            .expect("Database error"); // we can't really proceed at this point
-        match result {
-            Some(_v) => true,
-            None => false,
-        }
-    }
-
-    async fn check_nullifier(&self, _nullifier: Fr254) -> bool {
-        todo!()
-    }
-
-    async fn check_commitment(&self, _commitment: Fr254) -> bool {
-        todo!()
-    }
-
-    async fn update_commitment<M>(&self, mutator: M, key: &'a [u32]) -> Option<()>
-    where
-        M: Fn(&ClientTransactionWithMetaData<P>) -> ClientTransactionWithMetaData<P> + Send,
-    {
-        let filter = doc! {"hash": key};
-        let old_tx = self.get_transaction(key).await?;
-        let new_tx = mutator(&old_tx);
-
-        self.database(DB)
-            .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
-            .replace_one(filter, new_tx)
-            .await
-            .expect("Database error"); // we can't really proceed at this point
-        Some(())
     }
 
     async fn set_in_mempool(
@@ -241,8 +204,8 @@ where
             .iter()
             .map(|d| {
                 doc! {
-                    "deposit_data.secret_hash": hex::encode(d.deposit_data.secret_hash.into_bigint().to_bytes_le()),
-                    "deposit_data.nf_slot_id": hex::encode(d.deposit_data.nf_slot_id.into_bigint().to_bytes_le()),
+                    "deposit_data.secret_hash": d.deposit_data.secret_hash.to_hex_string(),
+                    "deposit_data.nf_slot_id": d.deposit_data.nf_slot_id.to_hex_string(),
                 }
             })
             .collect();
@@ -423,6 +386,7 @@ mod test {
     use super::*;
     use ark_bn254::Fr as Fr254;
     use ark_std::UniformRand;
+
     #[test]
     fn test_historic_root_type_conversion() {
         let rng = &mut ark_std::test_rng();

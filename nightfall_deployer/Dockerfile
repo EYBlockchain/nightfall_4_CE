@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1-labs
 FROM ghcr.io/foundry-rs/foundry:v0.3.0 AS foundry
-FROM rust:1.84.1 AS builder
+FROM rust:1.88.0 AS builder
 
 # install additional ca-certificates e.g. zscaler certificate (can be removed if not needed)
 COPY ./configuration/trust/* /usr/local/share/ca-certificates/
@@ -24,7 +24,7 @@ COPY --from=builder /app/bin/deployer bin/
 COPY configuration/bin/*_vk configuration/bin/
 # COPY configuration/toml/addresses.toml configuration/toml/
 COPY blockchain_assets blockchain_assets/
-COPY .env *.env nightfall.toml foundry.toml .
+COPY .env *.env nightfall.toml foundry.toml ./
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl3
 COPY --from=foundry /usr/local/bin/forge ./forge    

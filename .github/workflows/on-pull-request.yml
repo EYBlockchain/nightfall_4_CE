@@ -5,7 +5,6 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  NF4_BLOCK_SIZE: 64  
   NF4_LARGE_BLOCK_TEST: "true"
   
 jobs:
@@ -46,6 +45,8 @@ jobs:
         run: docker compose --profile sync_test build
       - name: Run Integration Test
         run: docker compose --profile development run test
+      - name: Print logs
+        run: docker compose --profile development logs
       - name: Remove databases
         run: docker compose --profile development rm -fvs client client2 proposer db_client db_client2 db_proposer
       - name: Shut Down Containers
@@ -88,6 +89,8 @@ jobs:
         run: docker compose --profile sync_test build
       - name: Run Integration Test
         run: docker compose --profile sync_test run test
+      - name: Print logs
+        run: docker compose --profile development logs
       - name: Shut Down Containers
         run: |
           docker compose --profile sync_test down -v

@@ -1,21 +1,32 @@
-use crate::domain::{entities::SynchronisationStatus, error::EventHandlerError};
-use crate::driven::{
-    event_handlers::nightfall_event::{
-    get_expected_layer2_blocknumber, 
-    process_nightfall_calldata, process_deposit_escrowed_event,
+use crate::{
+    domain::{
+        entities::{OnChainTransaction, SynchronisationPhase, SynchronisationStatus},
+        error::EventHandlerError,
     },
-    contract_functions::nightfall_contract::{Nightfall, Nightfall::BlockProposed as NFBlockProposed, Nightfall::DepositEscrowed as NFDepositRequest},
-    };
-use crate::ports::contracts::NightfallContract;
+    driven::db::mongo::{BlockStorageDB, StoredBlock},
+    driven::{
+        event_handlers::nightfall_event::{
+        get_expected_layer2_blocknumber, 
+        },
+        contract_functions::nightfall_contract::{Nightfall, Nightfall::BlockProposed as NFBlockProposed, Nightfall::DepositEscrowed as NFDepositRequest},
+        },
+    services::process_events::process_events,    
+    drivers::blockchain::nightfall_event_listener::SynchronisationPhase::Synchronized,
+    initialisation::get_db_connection,
+    ports::{contracts::NightfallContract, trees::CommitmentTree},
+};
+use alloy::primitives::I256;
+use ark_bn254::Fr as Fr254;
 use configuration::{addresses::get_addresses, settings::get_settings};
 use futures::StreamExt;
 use futures::{future::BoxFuture, FutureExt};
 use lib::{
-    blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
+    blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
+    initialisation::get_blockchain_client_connection,
 };
 use log::{debug, warn};
-use std::panic;
-use std::time::Duration;
+use mongodb::Client as MongoClient;
+use std::{panic, time::Duration};
 use tokio::time::sleep;
 /// This function starts the event handler. It will attempt to restart the event handler in case of errors
 /// with an exponential backoff  for a configurable number of attempts. If the event handler
@@ -87,56 +98,47 @@ pub async fn listen_for_events<N: NightfallContract>(
         "Listening for events on the Nightfall contract at address: {}",
         get_addresses().nightfall()
     );
-    
-    let events = nightfall_instance.event_filter::<NFBlockProposed>().from_block(start_block as u64);
-    let mut stream = events
+
+    let block_stream = nightfall_instance
+        .event_filter::<NFBlockProposed>()
+        .from_block(start_block as u64)
         .subscribe()
         .await
-        .map_err(|_| EventHandlerError::NoEventStream)?.into_stream();
+        .map_err(|_| EventHandlerError::NoEventStream)?
+        .into_stream();
 
-        while let Some(Ok(evt)) = stream.next().await {
-            // process each event in the stream and handle any errors
-            let result = process_nightfall_calldata::<N>(evt.1.transaction_hash, &evt.0).await;
-            match result {
-                Ok(_) => continue,
-                Err(e) => {
-                    match e {
-                        // we're missing blocks, so we need to re-synchronise
-                        EventHandlerError::MissingBlocks(n) => {
-                            warn!("Missing blocks. Last contiguous block was {}. Restarting event listener", n);
-                            restart_event_listener::<N>(start_block).await;
-                            return Err(EventHandlerError::StreamTerminated);
-                        }
-                        _ => panic!("Error processing event: {:?}", e),
+    let deposit_stream = nightfall_instance
+        .event_filter::<NFDepositRequest>()
+        .from_block(start_block as u64)
+        .subscribe()
+        .await
+        .map_err(|_| EventHandlerError::NoEventStream)?
+        .into_stream();
+    
+    // the event stream is a stream of events, so we need to merge the two streams
+    let mut all_events = futures::stream::select(
+        block_stream.map(|e| e.map(|log| (Nightfall::NightfallEvents::BlockProposed(log.0), log.1))),
+        deposit_stream.map(|e| e.map(|log| (Nightfall::NightfallEvents::DepositEscrowed(log.0), log.1))),
+    );
+
+    while let Some(Ok((event, log))) = all_events.next().await {
+        // process each event in the stream and handle any errors
+        let result = process_events::<N>(event, log).await;
+        match result {
+            Ok(_) => continue,
+            Err(e) => {
+                match e {
+                    // we're missing blocks, so we need to re-synchronise
+                    EventHandlerError::MissingBlocks(n) => {
+                        warn!("Missing blocks. Last contiguous block was {}. Restarting event listener", n);
+                        restart_event_listener::<N>(start_block).await;
+                        return Err(EventHandlerError::StreamTerminated);
                     }
+                    _ => panic!("Error processing event: {:?}", e),
                 }
             }
         }
-        let deposit_events = nightfall_instance.event_filter::<NFDepositRequest>().from_block(start_block as u64);
-        let mut deposit_stream = deposit_events
-            .subscribe()
-            .await
-            .map_err(|_| EventHandlerError::NoEventStream)?.into_stream();
-    
-            while let Some(Ok(evt)) = deposit_stream.next().await {
-                // process each event in the stream and handle any errors
-                let result = process_deposit_escrowed_event(evt.1.transaction_hash, &evt.0).await;
-                match result {
-                    Ok(_) => continue,
-                    Err(e) => {
-                        match e {
-                            // we're missing blocks, so we need to re-synchronise
-                            EventHandlerError::MissingBlocks(n) => {
-                                warn!("Missing blocks. Last contiguous block was {}. Restarting event listener", n);
-                                restart_event_listener::<N>(start_block).await;
-                                return Err(EventHandlerError::StreamTerminated);
-                            }
-                            _ => panic!("Error processing event: {:?}", e),
-                        }
-                    }
-                }
-            }    
-
+    }
     Err(EventHandlerError::StreamTerminated)
 }
 
@@ -150,8 +152,8 @@ where
     let sync_state = get_synchronisation_status::<N>()
         .await
         .expect("Could not check synchronisation state")
-        .is_synchronised();
-    if sync_state {
+        .phase();
+    if sync_state == Synchronized {
         panic!("Restarting event listener while synchronised. This should not happen");
     }
     let settings = get_settings();
@@ -160,18 +162,118 @@ where
         .max_event_listener_attempts
         .unwrap_or(10);
 
+    // clean the database and reset the trees
+    // this is a bit of a hack, but we need to reset the trees to get them back in sync
+    // with the blockchain. We should probably do this in a more elegant way, but this works for now
+    // and we can improve it later
+    {
+        let db = get_db_connection().await;
+        let _ = <MongoClient as CommitmentTree<Fr254>>::reset_tree(db).await;
+    }
+
     start_event_listener::<N>(start_block, max_attempts).await;
 }
 
 pub async fn get_synchronisation_status<N: NightfallContract>(
 ) -> Result<SynchronisationStatus, EventHandlerError> {
-    let expected_block = get_expected_layer2_blocknumber().lock().await;
-    let current_block = N::get_current_layer2_blocknumber()
+    let expected_block_number = get_expected_layer2_blocknumber().lock().await;
+    let current_block_number = N::get_current_layer2_blocknumber()
         .await
         .map_err(|_| EventHandlerError::IOError("Could not read current block".to_string()))?;
-    debug!(
-        "Expected block: {}, Current block: {}",
-        *expected_block, current_block
+
+    if *expected_block_number < current_block_number {
+        warn!(
+            "Client is behind chain: expected block {} < current block {}",
+            *expected_block_number, current_block_number
+        );
+        return Ok(SynchronisationStatus::new(
+            SynchronisationPhase::Desynchronized,
+        ));
+    }
+
+    if *expected_block_number > current_block_number {
+        let delta = *expected_block_number - current_block_number;
+        warn!(
+            "Client is ahead of chain: expected block {} > current block {}",
+            *expected_block_number, current_block_number
+        );
+        return Ok(SynchronisationStatus::new(
+            SynchronisationPhase::AheadOfChain {
+                blocks_ahead: delta.as_usize(),
+            },
+        ));
+    }
+
+    // expected == current
+    let i256_val = *expected_block_number;
+    assert!(
+        i256_val >= I256::ZERO,
+        "expected_block_number is negative: {}",
+        i256_val
     );
-    Ok(SynchronisationStatus::new(*expected_block == current_block))
+
+    let expected_u64: u64 = i256_val
+        .try_into()
+        .expect("expected_block_number must be within u64 range");
+
+    let db = get_db_connection().await;
+
+    match db.get_block_by_number(expected_u64).await {
+        Some(stored_block) => {
+            let stored_hash = stored_block.hash();
+            let (proposer_address, block_onchain) =
+                N::get_layer2_block_by_number(current_block_number)
+                    .await
+                    .map_err(|_| {
+                        EventHandlerError::IOError(
+                            "Could not read block from blockchain".to_string(),
+                        )
+                    })?;
+
+            let store_block_pending = StoredBlock {
+                layer2_block_number: expected_u64,
+                commitments: block_onchain
+                    .transactions
+                    .iter()
+                    .flat_map(|ntx| {
+                        let tx: OnChainTransaction = (*ntx).clone().into();
+                        tx.commitments
+                            .iter()
+                            .map(|c| c.to_hex_string())
+                            .collect::<Vec<_>>()
+                    })
+                    .collect(),
+                proposer_address,
+            };
+
+            let expected_hash = store_block_pending.hash();
+
+            if expected_hash != stored_hash {
+                warn!(
+                    "Hash mismatch at block {}: expected {}, found {}",
+                    expected_u64, expected_hash, stored_hash
+                );
+                return Ok(SynchronisationStatus::new(
+                    SynchronisationPhase::Desynchronized,
+                ));
+            }
+            // If hashes match, fall through and return Synchronized
+            debug!(
+                "Block {} verified in local DB with matching hash.",
+                expected_u64
+            );
+            Ok(SynchronisationStatus::new(
+                SynchronisationPhase::Synchronized,
+            ))
+        }
+        None => {
+            debug!(
+                "Block {} not found in local DB. Assuming client is still in sync.",
+                expected_u64
+            );
+            Ok(SynchronisationStatus::new(
+                SynchronisationPhase::Synchronized,
+            ))
+        }
+    }
 }

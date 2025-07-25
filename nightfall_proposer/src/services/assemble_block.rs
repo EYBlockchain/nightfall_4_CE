@@ -11,15 +11,15 @@ use crate::{
 use ark_bn254::Fr as Fr254;
 use ark_std::{collections::HashSet, Zero};
 use bson::doc;
+use configuration::settings::get_settings;
 use jf_primitives::poseidon::{FieldHasher, Poseidon};
-use lib::blockchain_client::BlockchainClientConnection;
+use lib::{blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible};
 use log::{info, warn};
 use nightfall_client::{
-    domain::{entities::HexConvertible},
     driven::db::mongo::DB,
     ports::proof::{Proof, PublicInputs},
 };
-use std::{cmp::Reverse, env};
+use std::cmp::Reverse;
 use tokio::time::Instant;
 
 // Define a type alias for better readability
@@ -39,16 +39,15 @@ pub(crate) fn transactions_to_include_in_block<K, V>(
     mempool_transactions.unwrap_or_default()
 }
 
-/// Fetch the block size from the environment and ensure it's an allowed number
+/// Fetch the block size from the nightfall toml and ensure it's an allowed number
 pub fn get_block_size() -> Result<usize, BlockAssemblyError> {
+    let settings = get_settings();
     // get the block size from the environment, if it's not set, default to 64
-    let block_size_str = env::var("NF4_BLOCK_SIZE").unwrap_or_else(|_| "64".to_string());
-    let block_size: usize = block_size_str.parse().map_err(|_| {
-        BlockAssemblyError::ProvingError("Invalid block size parameter".to_string())
-    })?;
+    let block_size = settings.nightfall_proposer.block_size;
     // Allowed block sizes: 64, 256, 1024
     match block_size {
-        64 | 256 | 1024 => Ok(block_size),
+        // safe to unwrap as we know it's a usize
+        64 | 256 | 1024 => Ok(block_size.try_into().unwrap()),
         _ => Err(BlockAssemblyError::ProvingError(
             "Block size must be one of 64, 256, or 1024".to_string(),
         )),
@@ -394,26 +393,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use lib::tests_utils::{get_db_connection, get_mongo};
     use nightfall_client::driven::plonk_prover::plonk_proof::PlonkProof;
-    use testcontainers::{
-        core::IntoContainerPort, runners::AsyncRunner, ContainerAsync, GenericImage,
-    };
-
-    async fn get_mongo() -> ContainerAsync<GenericImage> {
-        GenericImage::new("mongo", "4.4.1-bionic")
-            .with_exposed_port(27017_u16.udp())
-            .start()
-            .await
-            .unwrap()
-    }
-
-    async fn get_db_connection(container: &ContainerAsync<GenericImage>) -> mongodb::Client {
-        let host = container.get_host().await.unwrap();
-        let port = container.get_host_port_ipv4(27017).await.unwrap();
-        mongodb::Client::with_uri_str(&format!("mongodb://{}:{}", host, port))
-            .await
-            .expect("Could not create database connection")
-    }
 
     #[tokio::test]
     async fn test_prepare_block_data_simple_case() {

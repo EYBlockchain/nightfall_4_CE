@@ -1,4 +1,32 @@
+
 # Nightfall 4 Documentation
+
+## Contents
+
+- [Overview](#overview)
+- [How it works](#how-it-works)
+- [Handling Fees in Transactions](#handling-fees-in-transactions)
+- [Handling chain reorganisations](#handling-chain-reorganisations)
+- [Local installation and testing](#local-installation-and-testing)
+  - [Prerequisites for local installation](#prerequisites-for-local-installation)
+  - [Download and test](#download-and-test)
+- [Configuration](#configuration)
+- [Deployment on a testnet for integration testing](#deployment-on-a-testnet-for-integration-testing)
+- [Deployment on a testnet for beta testing](#deployment-on-a-testnet-for-beta-testing)
+- [Architecture](#architecture)
+  - [Comparison with Nightfall_3](#comparison-with-nightfall_3)
+  - [Nightfall_4 containers](#nightfall_4-containers)
+  - [Client Webhook](#client-webhook)
+- [APIs](#apis)
+  - [Client APIs](#client-apis)
+    - [X509 Certificates for Client](#x509-certificates-for-client)
+    - [Value transactions](#value-transactions)
+  - [Proposer APIs](#proposer-apis)
+    - [X509 Certificates for Proposer](#x509-certificates-for-proposer)
+- [Test UI: Using the Menu Application](#test-ui-using-the-menu-application)
+- [Production deployment](#production-deployment)
+- [Appendix](#appendix)
+
 
 ## Overview
 
@@ -39,6 +67,23 @@ For a deposit transaction, the user deposits a token with a specific `value` int
 
 2. **Transfer/Withdraw Transactions:**
 If `fee` is not zero, for transfer and withdraw transactions, `fee` will be deducted from the user's available `fee` commitments. If the user does not have enough `fee` commitments to cover the required amount, the transaction will fail. It is important to note that the circuit allows the use of a maximum of two fee commitments to pay the fee. If the user has only one fee commitment available to cover the required amount, a zero-value commitment will be created, as the circuit operates with a fixed number of commitments (two for value and two for fee).
+
+## Handling chain reorganisations
+
+If the layer 1 chain experiences a reorganisation, then there is the possibility that the layer 2 state, as stored in the Clients' and Proposers' Merkle trees, will not be consistent with the Layer 1 state. This can be corrected by resynchronising from the Genesis block, but in most cases that is not a preferable option, given the time it takes. Instead, Nightfall brings its layer 2 state into agreement with the blockchain through replaying.
+
+A chain reorganisation happens when two or more sets of nodes no longer agree on what the canonical chain looks like; there is a fork in the chain, with each set of nodes accepting a different chain segment as the truth. The consensus protocol will bring them back into agreement and one of the forks will become the new canonical chain, with the other chain segment being dropped.
+
+In such a circumstance, most blockchain nodes (and certainly Geth) will replay any transactions that were on the dropped chain segment, but are not on the canonical segment. Thus, eventually, all transactions will appear on-chain and none will be lost. Note that this does not necessarily mean that all replayed transactions will succeed; some may fail because of a mutually exclusive transaction on the canonical chain (for example, if two transactions, one on each fork, spend the same token).
+
+Nightfall makes use of the replay by applying two rules:
+
+1. It guarantees that there is never more than one proposer creating Layer 2 blocks at any time, even in the event of a fork. It does this by waiting for the `rotate_proposer` call to finalise before the new proposer submits any blocks (note, the new proposer can compute blocks, just not submit them, so this doesn't reduce throughput).
+2. The Client and Proposer will ignore layer 2 blocks that they've seen before.
+
+This means that when a chain reorg occurs, the Clients and Proposers see a new sequence of `BlockProposed` events arrive, as the blockchain node replays the lost transactions. These transactions will be in the correct order (guaranteed by the transaction nonce), and so the Client or Proposer just waits until they get a Layer 2 block that they haven't seen before, and then processes it. They will soon catch up with the blockchain's current state.
+
+This approach avoids the complexity of reverting the state of the Merkle trees in the event of a chain fork, and seems less complex than the other alternative of having Nightfall instances share layer 2 blocks directly using an 'instant finality' consensus mechanism.
 
 ## Local installation and testing
 
@@ -118,7 +163,7 @@ Most of NF_4 is configured using a single file (`nightfall.toml`) in the project
 
 Do not confuse NF4_RUN_MODE, which selects the top-level section of `nightfall.toml` that will be used by the applications, and the docker compose `--profile`, which selects the containers that will be run (different profiles generally select different test containers, but they have wider applicability).
 
-Additonally, any configuration item can also be overridden via an enviroment variable by naming an environment variable `NF4_<name of variable in nightfall.toml>`. You do not need to include the main section name: that is taken from the environment variable `NF4_RUN_MODE`. It defaults to `development` if `NF4_RUN_MODE` is not set. Some configuration variables are in sub-categories, for example under `[development.nightfall_deployer]`. Use a double underscore to identify a variable within a sub-category (replacing the dot that would be used in the equivalent Rust struct). For example, the `log_level` variable in `nightfall.toml` that is under `[development]` under `[development.nightfall_deployer]` would be overridden by the environment variable `NF4_NIGHTFALL_DEPLOYER__LOG_LEVEL`, provided of course that `NF4_RUN_MODE` is set to `development` (or left unset).
+Additonally, any configuration item can also be overridden via an enviroment variable by naming an environment variable `NF4_<name of variable in nightfall.toml>`. You do not need to include the main section name: that is taken from the environment variable `NF4_RUN_MODE`. It defaults to `development` if `NF4_RUN_MODE` is not set. Some configuration variables are in sub-categories, for example under `[development.nightfall_deployer]`. Use a double __ to identify a variable within a sub-category (replacing the dot that would be used in the equivalent Rust struct). For example, the `log_level` variable in `nightfall.toml` that is under `[development]` under `[development.nightfall_deployer]` would be overridden by the environment variable `NF4_NIGHTFALL_DEPLOYER__LOG_LEVEL`, provided of course that `NF4_RUN_MODE` is set to `development` (or left unset).
 
 Finally, secret items, such as keys, do not appear in `nightfall.toml` (except for one signing key used for basic testing - which will be removed soon). Depending on the wallet type being used, keys should instead be set via environment variables, a key-store or an HSM. Test keys are currently provided via a `.env` file in the project root, using the LocalWallet type, that sets its keys as environment variables.
 NF_4 also supports the AzureWallet type, allowing keys to be securely stored in Azure Key Vault. To use this feature, you can register an NF_4 application in Azure App Registration and grant it access to the stored keys. When enabling this functionality, make sure to set the following environment variables:
@@ -564,6 +609,18 @@ curl -i 'http://localhost:3000/v1/fee_balance
 Returns: on success, the balance of the fee tokens in the user's layer 2 wallet. Note that, for consistency with other endpoints, the fee balance will be encoded as a big-endian hex string.
 ***
 
+GET /v1/l1_balance
+
+```sh
+curl -i 'http://localhost:3000/v1/l1_balance'
+```
+
+Returns: on success, the balance of the user's Layer 1 wallet (Ethereum address) as a big-endian hex string. This value is the current on-chain balance of the wallet used by the client, and is returned as a hexadecimal string for consistency with other endpoints.
+
+If the wallet is not found or there is an error retrieving the balance, a `404 NOT FOUND` status code will be returned.
+
+***
+
 GET /v1/requests/:uuid
 
 ```sh
@@ -577,6 +634,42 @@ Returns the status of a deposit/transfer or withdraw request when provided with 
 - Failed: The hand off to the next stage did not succeed.
 
 Note that internal failures of the client will cause the request state to be unreliable so the request status is not an alternative to error logs.
+
+***
+
+GET /v1/token/:nf_token_id
+
+```sh
+curl -i 'http://localhost:3000/v1/token/0x1234abcd...'
+```
+
+Returns: on success, a JSON object describing the token corresponding to the given Nightfall token ID. On error, returns `400 BAD REQUEST` if the token ID is invalid, or `404 NOT FOUND` if the token does not exist.
+
+This endpoint allows you to retrieve detailed information about a token using its Nightfall token ID. The token ID should be provided as a hexadecimal string in the URL path. This is useful if you want to Withdraw a token that someone has sent you but you don't know the Layer 1 contract address and Token ID.
+
+**Parameters:**
+
+- `nf_token_id`: The Nightfall token ID as a hex string (e.g., `0x1234abcd...`).
+
+**Response:**
+
+- `200 OK`: Returns a JSON object with token information, derived from the `TokenData` struct:
+    - `erc_address`: The ERC contract address for the token, as a hex string.
+    - `token_id`: The token ID (for ERC721/1155/3525), as a hex string.
+- `400 BAD REQUEST`: Returned if the provided token ID is not a valid field element.
+- `404 NOT FOUND`: Returned if no token exists for the given ID.
+
+**Example Response:**
+
+```json
+{
+  "erc_address": "0x6fcb6af7f7947f8480c36e8ffca0c66f6f2be32b",
+  "token_id": "0x00"
+}
+```
+
+Use this endpoint to look up metadata and contract details for any token registered in Nightfall, provided you know its Nightfall token ID.
+***
 
 ### Proposer APIs
 
@@ -678,6 +771,52 @@ Returns: on success `200 OK`
 Withdraws the stake of a de-registered proposer, actually, the amount withdrawn can be up to the amount of the stake. This can only be called by the de-registered proposer, otherwise the withdraw will fail.
 
 ***
+
+
+## Test UI: Using the Menu Application
+
+### 1. Build the Menu Application
+
+From the project root, build the CLI menu application:
+
+```sh
+cargo build --bin menu --release
+```
+
+This will produce the executable at `target/release/menu`.
+
+### 2. Prepare Environment Variables
+
+Ensure you have a `.env` file in the project root with the required variables, especially `CLIENT_ADDRESS` (the Ethereum address for the client wallet). Example:
+
+```env
+CLIENT_ADDRESS=0xYourEthereumAddress
+# ...other required variables...
+```
+
+### 3. Start the Nightfall Containers (no-test profile)
+
+To start the main Nightfall services (client, proposer, deployer, databases, etc.) for integration with the menu application, use the `no-test` profile:
+
+```sh
+docker compose --profile no_test down -v
+docker compose --profile no_test build # This only needs doing once
+docker compose --profile no_test up
+```
+
+Wait until the containers are healthy (the client should be reachable at http://localhost:3000/v1/health).
+
+### 4. Run the Menu Application
+
+In a new terminal, from the project root, run:
+
+```sh
+./target/release/menu
+```
+
+The menu application will load environment variables, connect to the running client, and present an interactive CLI for deposit, transfer, withdraw, and balance queries.
+
+---
 
 ## Production deployment
 

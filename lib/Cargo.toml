@@ -36,7 +36,7 @@ serde = "1.0.219"
 serde_json = "1.0.140"
 log = "0.4.27"
 url = "2.5.4"
-testcontainers = { version = "0.19.0", features = ["blocking"] }
+testcontainers = { version = "0.24.0", features = ["blocking"] }
 futures = "0.3.31"
 azure_identity = "0.21.0"
 azure_security_keyvault = "0.21.0"

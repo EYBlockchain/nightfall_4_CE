@@ -1,12 +1,7 @@
-use crate::driven::queue::get_queue;
-use crate::initialisation::get_db_connection;
-use crate::ports::db::RequestDB;
+use crate::{driven::queue::get_queue, initialisation::get_db_connection, ports::db::RequestDB};
 use log::debug;
 use uuid::Uuid;
-use warp::http::StatusCode;
-use warp::path;
-use warp::reply::Reply;
-use warp::Filter;
+use warp::{http::StatusCode, path, reply::Reply, Filter};
 
 /// This module provides an end point for querying the status of a request
 pub fn get_request_status(
@@ -21,10 +16,9 @@ pub async fn handle_get_request_status(id: String) -> Result<impl Reply, warp::R
     match Uuid::parse_str(&id) {
         Ok(_) => {}
         Err(_) => {
-            return Ok(warp::reply::with_status(
-                "Invalid request id".to_string(),
-                StatusCode::BAD_REQUEST,
-            ))
+            return Err(warp::reject::custom(
+                crate::domain::error::ClientRejection::InvalidRequestId,
+            ));
         }
     };
     let db = get_db_connection().await;
@@ -38,10 +32,8 @@ pub async fn handle_get_request_status(id: String) -> Result<impl Reply, warp::R
             StatusCode::OK,
         ))
     } else {
-        // if we don't find a request, return an 404 error
-        Ok(warp::reply::with_status(
-            "No such request".to_string(),
-            StatusCode::NOT_FOUND,
+        Err(warp::reject::custom(
+            crate::domain::error::ClientRejection::RequestNotFound,
         ))
     }
 }

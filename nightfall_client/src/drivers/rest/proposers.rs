@@ -57,7 +57,9 @@ async fn handle_get_proposers() -> Result<impl Reply, warp::Rejection> {
     let proposer_list = proposer_manager.get_proposers()
         .call()
         .await
-        .map_err(|_| ProposerError::FailedToGetProposers)?._0;
+        .map_err(|_| {
+            warp::reject::custom(crate::domain::error::ClientRejection::ProposerError)
+        })?._0;
     let list  = proposer_list
         .into_iter()
         .map(|p| Proposer {
