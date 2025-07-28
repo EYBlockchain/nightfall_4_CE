@@ -64,7 +64,7 @@ where
                 process_nightfall_calldata::<N>(tx_hash, filter)
                     .await
                     .map_err(|e| {
-                        debug!("{}", e);
+                        debug!("{e}");
                         EventHandlerError::InvalidCalldata
                     })?;
             }
@@ -73,7 +73,7 @@ where
                 process_deposit_escrowed_event(tx_hash, filter)
                     .await
                     .map_err(|e| {
-                        debug!("{}", e);
+                        debug!("{e}");
                         EventHandlerError::InvalidCalldata
                     })?;
             }
@@ -134,8 +134,7 @@ async fn process_propose_block_event<N: NightfallContract>(
     let mut expected_onchain_block_number = get_expected_layer2_blocknumber().lock().await;
     if *expected_onchain_block_number < layer_2_block_number_in_event {
         warn!(
-            "Out of sync with blockchain. Blockchain has block number {}, expected {}",
-            layer_2_block_number_in_event, expected_onchain_block_number
+            "Out of sync with blockchain. Blockchain has block number {layer_2_block_number_in_event}, expected {expected_onchain_block_number}"
         );
         return Err(EventHandlerError::MissingBlocks(
             expected_onchain_block_number.as_usize(),
@@ -147,8 +146,7 @@ async fn process_propose_block_event<N: NightfallContract>(
 
     if *expected_onchain_block_number > layer_2_block_number_in_event {
         warn!(
-            "Already processed layer 2 block {} - skipping",
-            layer_2_block_number_in_event
+            "Already processed layer 2 block {layer_2_block_number_in_event} - skipping"
         );
         return Ok(());
     }
@@ -209,8 +207,7 @@ if *expected_onchain_block_number == layer_2_block_number_in_event
 
     if existing_block.hash() != store_block_pending.hash() {
         warn!(
-            "Block hash mismatch. Expected {}, got {} in layer 2 block {}",
-            existing_block_stored_hash, block_store_pending_hash, layer_2_block_number_in_event
+            "Block hash mismatch. Expected {existing_block_stored_hash}, got {block_store_pending_hash} in layer 2 block {layer_2_block_number_in_event}"
         );
         // Delete the invalid block and clear sync status
         db.delete_block_by_number(layer_2_block_number_in_event_u64)
@@ -221,8 +218,7 @@ if *expected_onchain_block_number == layer_2_block_number_in_event
         ));
     } else {
         debug!(
-            "Block hash matches for layer 2 block {}: {}",
-            layer_2_block_number_in_event, existing_block_stored_hash
+            "Block hash matches for layer 2 block {layer_2_block_number_in_event}: {existing_block_stored_hash}"
         );
     }
 }
@@ -235,14 +231,12 @@ if *expected_onchain_block_number == layer_2_block_number_in_event
 
     let delta = current_block_number - filter.layer2_block_number - I256::ONE;
     println!(
-        "Current block number is {}, delta is {}",
-        current_block_number, delta
+        "Current block number is {current_block_number}, delta is {delta}"
     );
     // if we"re synchronising, we don"t want to check for duplicate keys because we expect to overwrite commitments already in the commitment collection
     let dup_key_check = if delta != I256::ZERO {
         warn!(
-            "Synchronising - behind blockchain by {} layer 2 blocks ",
-            delta
+            "Synchronising - behind blockchain by {delta} layer 2 blocks "
         );
         false
     } else {
@@ -292,8 +286,7 @@ if *expected_onchain_block_number == layer_2_block_number_in_event
                 EventHandlerError::IOError("Could not append commitments to tree".to_string())
             })?;
     debug!(
-        "New commitments tree root is {}, old root was {}",
-        root, old_root
+        "New commitments tree root is {root}, old root was {old_root}"
     );
     // The root should be the same as the one in the block. This is worth checking
     let historic_root = FrBn254::try_from(blk.commitments_root)
@@ -302,7 +295,7 @@ if *expected_onchain_block_number == layer_2_block_number_in_event
         })?
         .into();
     if root != historic_root {
-        error!("Commitment root in block does not match calculated root. historic root is {}, calculated root is {}", historic_root, root);
+        error!("Commitment root in block does not match calculated root. historic root is {historic_root}, calculated root is {root}");
     } else {
         debug!("Commitment root in block matches calculated root");
     }
@@ -347,7 +340,7 @@ if *expected_onchain_block_number == layer_2_block_number_in_event
         let commitment_hex = commitment_hash.to_hex_string();
         if let Some(request_ids) = db.get_requests_by_commitment(&commitment_hex).await {
             for request_id in request_ids {
-                debug!("Marking request {} as confirmed", request_id);
+                debug!("Marking request {request_id} as confirmed");
                 db.update_request(&request_id, RequestStatus::Confirmed)
                     .await;
             }
@@ -429,14 +422,14 @@ if *expected_onchain_block_number == layer_2_block_number_in_event
     // Let's use the Data Publisher to publish notification
     // if the WEBHOOK_URL is set
     let webhook_url = &get_settings().nightfall_client.webhook_url;
-    debug!("Using webhook URL: {}", webhook_url);
+    debug!("Using webhook URL: {webhook_url}");
     let mut publisher = DataPublisher::new();
     let notifier = WebhookNotifier::new(webhook_url);
 
     publisher.register_notifier(Box::new(notifier));
 
     // Let's get the full hash as it gets truncated otherwise
-    let l1_txn_hash = format!("{:#x}", transaction_hash);
+    let l1_txn_hash = format!("{transaction_hash:#x}");
     let owned_commitment_hashes: Vec<String> = commitment_hashes
         .iter()
         .filter(|&c| !c.0.is_zero())

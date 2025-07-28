@@ -55,7 +55,7 @@ async fn handle_certificate_validation(
             Some(filename) => filename.to_string(),
             None => return Ok(StatusCode::BAD_REQUEST),
         };
-        info!("Receiving certificate validation file: {}", filename);
+        info!("Receiving certificate validation file: {filename}");
 
         let mut data = Vec::new();
         let mut stream = part.stream();
@@ -75,10 +75,10 @@ async fn handle_certificate_validation(
     .await
     .get_address();
 
-    trace!("Requestor address: {}", requestor_address);
+    trace!("Requestor address: {requestor_address}");
     let x509_instance = X509::new(get_addresses().x509, blockchain_client);
     let is_certified  = x509_instance.x509Check(requestor_address).call().await.map_err(|e| {
-        error!("x_509_check transaction failed {}", e);
+        error!("x_509_check transaction failed {e}");
         warp::reject::custom(CertificateVerificationError::new(
             "Invalid certificate provided",
         ))
@@ -86,15 +86,13 @@ async fn handle_certificate_validation(
     if !is_certified._0 {
         // compute the signature and validate the certificate
         debug!(
-            "Signing ethereum address {} with certificate private key",
-            requestor_address
+            "Signing ethereum address {requestor_address} with certificate private key"
         );
         let ethereum_address_signature =
             sign_ethereum_address(&certificate_req.certificate_private_key, &requestor_address)
                 .map_err(|e| {
                     error!(
-                        "Could not sign ethereum address with certificate private key: {}",
-                        e
+                        "Could not sign ethereum address with certificate private key: {e}"
                     );
                     warp::reject::custom(CertificateVerificationError::new(
                         "Invalid certificate provided",
@@ -106,8 +104,7 @@ async fn handle_certificate_validation(
          .await
          .get_address();
         println!(
-            "Sender address: {}",
-            sender_address
+            "Sender address: {sender_address}"
         );
       
         validate_certificate(
@@ -121,7 +118,7 @@ async fn handle_certificate_validation(
         )
         .await
         .map_err(|err| {
-            error!("Certificate or signature verification failed: {}", err);
+            error!("Certificate or signature verification failed: {err}");
             warp::reject::custom(CertificateVerificationError::new(
                 "Invalid certificate provided",
             ))
@@ -171,7 +168,7 @@ async fn validate_certificate(
         .send()
         .await
         .map_err(|e| {
-            warn!("{}", e);
+            warn!("{e}");
             X509ValidationError
         })?;
         //println!("Transaction hash: {:?}", tx_receipt.get_receipt().await.unwrap());

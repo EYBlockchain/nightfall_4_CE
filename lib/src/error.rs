@@ -65,11 +65,11 @@ pub enum BlockchainClientConnectionError {
 impl Display for BlockchainClientConnectionError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            BlockchainClientConnectionError::RpcError(e) => write!(f, "RPC error: {}", e),
-            BlockchainClientConnectionError::TransportError(e) => write!(f, "Transport error: {}", e),
-            BlockchainClientConnectionError::ProviderError(e) => write!(f, "Provider error: {}", e),
-            BlockchainClientConnectionError::WalletError(e) => write!(f, "Wallet error: {}", e),
-            BlockchainClientConnectionError::AzureError(e) => write!(f, "Azure error: {}", e),
+            BlockchainClientConnectionError::RpcError(e) => write!(f, "RPC error: {e}"),
+            BlockchainClientConnectionError::TransportError(e) => write!(f, "Transport error: {e}"),
+            BlockchainClientConnectionError::ProviderError(e) => write!(f, "Provider error: {e}"),
+            BlockchainClientConnectionError::WalletError(e) => write!(f, "Wallet error: {e}"),
+            BlockchainClientConnectionError::AzureError(e) => write!(f, "Azure error: {e}"),
         }
     }
 }

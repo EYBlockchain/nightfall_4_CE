@@ -63,7 +63,7 @@ impl TokenContract for IERC20::IERC20Calls {
             .approve(solidity_approval_address, solidity_value.0)
             .send()
             .await
-            .map_err(|e| BlockchainClientConnectionError::ProviderError(format!("Contract error: {}", e)))?.get_receipt().await;
+            .map_err(|e| BlockchainClientConnectionError::ProviderError(format!("Contract error: {e}")))?.get_receipt().await;
 
         if tx_receipt.is_err() {
             return Err(BlockchainClientConnectionError::ProviderError("Failed to get transaction receipt".to_string()).into());
@@ -101,7 +101,7 @@ impl TokenContract for IERC721::IERC721Calls {
             .approve(solidity_approval_address, solidity_token_id.0)
             .send()
             .await
-            .map_err(|e| BlockchainClientConnectionError::ProviderError(format!("Contract error: {}", e)))?.get_receipt().await;
+            .map_err(|e| BlockchainClientConnectionError::ProviderError(format!("Contract error: {e}")))?.get_receipt().await;
 
         if tx_receipt.is_err() {
             return Err(BlockchainClientConnectionError::ProviderError("Failed to get transaction receipt".to_string()).into());
@@ -138,7 +138,7 @@ impl TokenContract for IERC1155::IERC1155Calls {
             .setApprovalForAll(solidity_approval_address, true)
             .send()
             .await
-            .map_err(|e| BlockchainClientConnectionError::ProviderError(format!("Contract error: {}", e)))?.get_receipt().await;
+            .map_err(|e| BlockchainClientConnectionError::ProviderError(format!("Contract error: {e}")))?.get_receipt().await;
 
 
         if tx_receipt.is_err() {
@@ -171,7 +171,7 @@ impl TokenContract for IERC3525::IERC3525Calls {
             .approve_0(solidity_approval_address, solidity_token_id.0)
             .send()
             .await
-            .map_err(|e| BlockchainClientConnectionError::ProviderError(format!("Contract error: {}", e)))?.get_receipt().await;
+            .map_err(|e| BlockchainClientConnectionError::ProviderError(format!("Contract error: {e}")))?.get_receipt().await;
 
         if tx_receipt.is_err() {
             return Err(BlockchainClientConnectionError::ProviderError("Failed to get transaction receipt".to_string()).into());

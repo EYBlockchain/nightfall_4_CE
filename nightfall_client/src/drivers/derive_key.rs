@@ -56,8 +56,8 @@ impl fmt::Display for KeyError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::BadKeyDerivation => write!(f, "BadKeyDerivation"),
-            Self::BadPublicKey(serialization_error) => write!(f, "{}", serialization_error),
-            Self::PrimeFieldRepr(decoding_error) => write!(f, "{}", decoding_error),
+            Self::BadPublicKey(serialization_error) => write!(f, "{serialization_error}"),
+            Self::PrimeFieldRepr(decoding_error) => write!(f, "{decoding_error}"),
             Self::HashError => write!(f, "HashError"),
             Self::NotFound => write!(f, "Key lookup failed"),
         }

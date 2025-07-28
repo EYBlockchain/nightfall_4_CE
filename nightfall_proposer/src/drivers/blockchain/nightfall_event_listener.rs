@@ -50,7 +50,7 @@ where
 
         loop {
             attempts += 1;
-            log::info!("Proposer event listener (attempt {})...", attempts);
+            log::info!("Proposer event listener (attempt {attempts})...");
             let result = listen_for_events::<P, E, N>(start_block).await;
 
             match result {
@@ -60,9 +60,7 @@ where
                 }
                 Err(e) => {
                     log::error!(
-                        "Proposer event listener terminated with error: {:?}. Restarting in {:?}",
-                        e,
-                        backoff_delay
+                        "Proposer event listener terminated with error: {e:?}. Restarting in {backoff_delay:?}"
                     );
                     if attempts >= max_attempts {
                         log::error!("Proposer event listener: max attempts reached. Giving up.");
@@ -72,8 +70,7 @@ where
                         .await
                         {
                             log::error!(
-                                "Failed to send failure notification (proposer): {:?}",
-                                err
+                                "Failed to send failure notification (proposer): {err:?}"
                             );
                         }
                         break;
@@ -87,7 +84,7 @@ where
     .boxed()
 }
 async fn notify_failure_proposer(message: &str) -> Result<(), ()> {
-    log::error!("ALERT (Proposer): {}", message);
+    log::error!("ALERT (Proposer): {message}");
     Ok(())
 }
 
@@ -98,6 +95,8 @@ where
     E: ProvingEngine<P>,
     N: NightfallContract,
 {
+
+    println!("Listening for events from block {start_block}...");
     let blockchain_client = get_blockchain_client_connection()
     .await
     .read()
@@ -124,13 +123,14 @@ where
         .await
         .map_err(|_| EventHandlerError::NoEventStream)?
         .into_stream();
-
+    println!("Listening for events from block {start_block}...");
     // the event stream is a stream of events, so we need to merge the two streams
     let mut all_events = futures::stream::select(
         block_stream.map(|e| e.map(|log| (Nightfall::NightfallEvents::BlockProposed(log.0), log.1))),
         deposit_stream.map(|e| e.map(|log| (Nightfall::NightfallEvents::DepositEscrowed(log.0), log.1))),
     );
     while let Some(Ok((event, log))) = all_events.next().await {
+        println!("Received event: {:?}", event);
         let result = process_events::<P, E, N>(event, log).await;
             match result {
                 Ok(_) => continue,
@@ -138,21 +138,20 @@ where
                     match e {
                         // we're missing blocks, so we need to re-synchronise
                         EventHandlerError::MissingBlocks(n) => {
-                            warn!("Missing blocks. Last contiguous block was {}. Restarting event listener", n);
+                            warn!("Missing blocks. Last contiguous block was {n}. Restarting event listener");
                             restart_event_listener::<P, E, N>(start_block).await;
                             return Err(EventHandlerError::StreamTerminated);
                         }
     
                         EventHandlerError::BlockHashError(expected, found) => {
                             warn!(
-                                "Block hash mismatch: expected {:?}, found {:?}. Restarting event listener",
-                                expected, found
+                                "Block hash mismatch: expected {expected:?}, found {found:?}. Restarting event listener"
                             );
                             restart_event_listener::<P, E, N>(start_block).await;
                             return Err(EventHandlerError::StreamTerminated);
                         }
     
-                        _ => panic!("Error processing event: {:?}", e),
+                        _ => panic!("Error processing event: {e:?}"),
                     }
                 }
         }

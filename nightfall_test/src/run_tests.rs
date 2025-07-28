@@ -408,8 +408,7 @@ pub async fn run_tests(
     for (i, response) in responses_by_uuid.clone().iter().enumerate() {
         assert_eq!(
             response.0, transaction_data[i].0,
-            "{}th Deposit response Uuid does not match deposit data Uuid",
-            i
+            "{i}th Deposit response Uuid does not match deposit data Uuid"
         );
     }
     // Extract commitment hashes
@@ -452,8 +451,7 @@ pub async fn run_tests(
     )
     .await;
     info!(
-        "Fee Commitment Balance  held as layer 2 commitments by client1: {}",
-        fee_balance
+        "Fee Commitment Balance  held as layer 2 commitments by client1: {fee_balance}"
     );
     assert_eq!(fee_balance, 137 + client1_starting_fee_balance);
     // call verify_deposit_commitments_nf_token_id
@@ -550,15 +548,13 @@ pub async fn run_tests(
     )
     .await;
     info!(
-        "Balance of ERC20 tokens held as layer 2 commitments by client 1: {}",
-        balance
+        "Balance of ERC20 tokens held as layer 2 commitments by client 1: {balance}"
     );
     assert_eq!(balance, 14 + client1_starting_balance);
 
     let balance = get_erc20_balance(&http_client, Url::parse("http://client2:3000").unwrap()).await;
     info!(
-        "Balance of ERC20 tokens held as layer 2 commitments by client 2: {}",
-        balance
+        "Balance of ERC20 tokens held as layer 2 commitments by client 2: {balance}"
     );
     assert_eq!(balance, 7 + client2_starting_balance);
 
@@ -659,7 +655,7 @@ pub async fn run_tests(
         .count()
         + nullified_count;
 
-    info!("Expected spent commitment count: {}", nullifier_count);
+    info!("Expected spent commitment count: {nullifier_count}");
     let spent_commitments = count_spent_commitments(&http_client, url.clone())
         .await
         .unwrap();
@@ -745,16 +741,14 @@ pub async fn run_tests(
     )
     .await;
     info!(
-        "Balance of ERC20 tokens held as layer 2 commitments by client 1: {}",
-        balance
+        "Balance of ERC20 tokens held as layer 2 commitments by client 1: {balance}"
     );
 
     assert_eq!(balance, 1 + client1_starting_balance);
 
     let balance = get_erc20_balance(&http_client, Url::parse("http://client2:3000").unwrap()).await;
     info!(
-        "Balance of ERC20 tokens held as layer 2 commitments by client2: {}",
-        balance
+        "Balance of ERC20 tokens held as layer 2 commitments by client2: {balance}"
     );
     assert_eq!(balance, 20 + client2_starting_balance);
 
@@ -825,8 +819,7 @@ pub async fn run_tests(
     for (i, response) in withdraw_responses.iter().enumerate() {
         assert_eq!(
             response.0, withdraw_data[i].0,
-            "{}th Withdraw response Uuid does not match withdraw data Uuid",
-            i
+            "{i}th Withdraw response Uuid does not match withdraw data Uuid"
         );
     }
 
@@ -855,7 +848,7 @@ pub async fn run_tests(
             .await
             .unwrap()
         {
-            info!("Not yet able to withdraw funds {:?}", request);
+            info!("Not yet able to withdraw funds {request:?}");
             tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
         }
     }
@@ -864,8 +857,7 @@ pub async fn run_tests(
     //check the balance of the ERC20 tokens after the withdraws
     let balance = get_erc20_balance(&http_client, Url::parse("http://client2:3000").unwrap()).await;
     info!(
-        "Balance of ERC20 tokens held as layer 2 commitments by client2: {}",
-        balance
+        "Balance of ERC20 tokens held as layer 2 commitments by client2: {balance}"
     );
     assert_eq!(balance, 17 + client2_starting_balance);
 
@@ -937,8 +929,7 @@ pub async fn run_tests(
     for (i, response) in withdraw_responses.iter().enumerate() {
         assert_eq!(
             response.0, withdraw_data[i].0,
-            "{}th Withdraw response Uuid does not match withdraw data Uuid",
-            i
+            "{i}th Withdraw response Uuid does not match withdraw data Uuid"
         );
     }
 
@@ -967,7 +958,7 @@ pub async fn run_tests(
             .await
             .unwrap()
         {
-            info!("Not yet able to withdraw funds {:?}", request);
+            info!("Not yet able to withdraw funds {request:?}");
             tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
         }
     }
@@ -994,7 +985,7 @@ pub async fn run_tests(
         .map(|b| format_units(*b, "ether").unwrap())
         .collect::<Vec<_>>();
     let total = final_balances.iter().fold(U256::ZERO, |acc, b| acc + b);
-    info!("Eth spent was {:#?}", final_balances_str);
+    info!("Eth spent was {final_balances_str:#?}");
     info!(
         "Total spent was {:#?}",
         format_units(total, "ether").unwrap()

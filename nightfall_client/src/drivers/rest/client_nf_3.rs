@@ -203,7 +203,7 @@ pub async fn handle_deposit<N: NightfallContract>(
     req: NF3DepositRequest,
     id: &str,
 ) -> Result<NotificationPayload, TransactionHandlerError> {
-    info!("Deposit raw request: {:?}", req);
+    info!("Deposit raw request: {req:?}");
 
     // We convert the request into values
     let NF3DepositRequest {
@@ -220,7 +220,7 @@ pub async fn handle_deposit<N: NightfallContract>(
     } = req;
 
     let erc_address = ERCAddress::try_from_hex_string(&erc_address).map_err(|err| {
-        error!("{id} Could not convert ERC address {}", err);
+        error!("{id} Could not convert ERC address {err}");
         TransactionHandlerError::CustomError(err.to_string())
     })?;
 
@@ -248,7 +248,7 @@ pub async fn handle_deposit<N: NightfallContract>(
     })?;
 
     let value: Fr254 = Fr254::from_hex_string(value.as_str()).map_err(|err| {
-        error!("{id} Could not wrangle value {}", err);
+        error!("{id} Could not wrangle value {err}");
         TransactionHandlerError::CustomError(err.to_string())
     })?;
     let (secret_preimage_one, secret_preimage_two, secret_preimage_three) =
@@ -259,14 +259,14 @@ pub async fn handle_deposit<N: NightfallContract>(
         ) {
             let secret_preimage_one: Fr254 =
                 Fr254::from_hex_string(p1.as_str()).map_err(|err| {
-                    error!("{id} Could not wrangle secret preimage one {}", err);
+                    error!("{id} Could not wrangle secret preimage one {err}");
                     TransactionHandlerError::CustomError(err.to_string())
                 })?;
             let secret_preimage_two: Fr254 = Fr254::from_hex_string(p2.as_str())
                 .map_err(|err| TransactionHandlerError::CustomError(err.to_string()))?;
             let secret_preimage_three: Fr254 =
                 Fr254::from_hex_string(p3.as_str()).map_err(|err| {
-                    error!("{id} Could not wrangle secret preimage three {}", err);
+                    error!("{id} Could not wrangle secret preimage three {err}");
                     TransactionHandlerError::CustomError(err.to_string())
                 })?;
             (
@@ -416,11 +416,11 @@ pub async fn handle_deposit<N: NightfallContract>(
     debug!("{id} Deposit request completed successfully - returning reply to caller");
 
     let response = serde_json::to_string(&response_data).map_err(|e| {
-        error!("{id} Error when serialising response: {}", e);
+        error!("{id} Error when serialising response: {e}");
         TransactionHandlerError::JsonConversionError(e)
     })?;
     let uuid = serde_json::to_string(&id).map_err(|e| {
-        error!("{id} Error when serialising request ID: {}", e);
+        error!("{id} Error when serialising request ID: {e}");
         TransactionHandlerError::JsonConversionError(e)
     })?;
 
@@ -436,7 +436,7 @@ where
     E: ProvingEngine<P>,
     N: NightfallContract,
 {
-    debug!("Handling transfer request: {:?}", transfer_req);
+    debug!("Handling transfer request: {transfer_req:?}");
     let NF3TransferRequest {
         erc_address,
         token_id,
@@ -455,8 +455,7 @@ where
     let nf_token_id =
         to_nf_token_id_from_str(erc_address.as_str(), token_id.as_str()).map_err(|e| {
             error!(
-                "{id} Error when retrieving the Nightfall token id from the erc address and token ID {}",
-                e
+                "{id} Error when retrieving the Nightfall token id from the erc address and token ID {e}"
             );
             TransactionHandlerError::CustomError(e.to_string())
         })?;
@@ -464,12 +463,12 @@ where
 
     let value =
         Fr254::from_hex_string(recipient_data.values.first().unwrap().as_str()).map_err(|e| {
-            error!("{id} Error when reading value: {}", e);
+            error!("{id} Error when reading value: {e}");
             TransactionHandlerError::CustomError(e.to_string())
         })?;
 
     let fee: Fr254 = Fr254::from_hex_string(fee.as_str()).map_err(|e| {
-        error!("{id} Error when reading fee: {}", e);
+        error!("{id} Error when reading fee: {e}");
         TransactionHandlerError::CustomError(e.to_string())
     })?;
 
@@ -481,8 +480,7 @@ where
     )
     .map_err(|e| {
         error!(
-            "{id} Could not parse compressed recipient public key from String: {}",
-            e
+            "{id} Could not parse compressed recipient public key from String: {e}"
         );
         TransactionHandlerError::CustomError(e.to_string())
     })?;
@@ -491,7 +489,7 @@ where
         decoded_recipient_key.as_slice(),
     )
     .map_err(|e| {
-        error!("{id} Could not deserialize recipient public key: {}", e);
+        error!("{id} Could not deserialize recipient public key: {e}");
         TransactionHandlerError::CustomError(e.to_string())
     })?;
 
@@ -508,7 +506,7 @@ where
         let fee_token_id = get_fee_token_id();
         let spend_value_commitments = find_usable_commitments(nf_token_id, value,db)
         .await.map_err(|e|{
-            error!("{id} Could not find enough usable value commitments to complete this transfer, suggest depositing more tokens: {}", e); 
+            error!("{id} Could not find enough usable value commitments to complete this transfer, suggest depositing more tokens: {e}"); 
             TransactionHandlerError::CustomError(e.to_string())})?;
         let spend_fee_commitments = if fee.is_zero() {
             [Preimage::default(), Preimage::default()]
@@ -517,7 +515,7 @@ where
             .await
             .map_err(|e| {
                 error!(
-                    "{id} Could not find enough usable fee commitments to complete this transfer, suggest depositing more fee: {}", e);
+                    "{id} Could not find enough usable fee commitments to complete this transfer, suggest depositing more fee: {e}");
                 TransactionHandlerError::CustomError(e.to_string())
             })?
         };
@@ -654,25 +652,25 @@ where
     let nf_token_id =
         to_nf_token_id_from_str(erc_address.as_str(), token_id.as_str()).map_err(|e| {
             error!(
-                "{id} Error when retrieving the Nightfall token id from the erc address and token ID {}",e);
+                "{id} Error when retrieving the Nightfall token id from the erc address and token ID {e}");
             TransactionHandlerError::CustomError(e.to_string())
         })?;
 
     let keys = *get_zkp_keys().lock().expect("Poisoned Mutex lock");
 
     let value = Fr254::from_hex_string(value.as_str()).map_err(|e| {
-        error!("{id} Error when reading value: {}", e);
+        error!("{id} Error when reading value: {e}");
         TransactionHandlerError::CustomError(e.to_string())
     })?;
 
     let fee: Fr254 = Fr254::from_hex_string(fee.as_str()).map_err(|e| {
-        error!("{id} Error when reading fee: {}", e);
+        error!("{id} Error when reading fee: {e}");
         TransactionHandlerError::CustomError(e.to_string())
     })?;
 
     let recipient_address: Fr254 =
         Fr254::from_hex_string(recipient_address.as_str()).map_err(|e| {
-            error!("{id} Error when reading recipeint address: {}", e);
+            error!("{id} Error when reading recipeint address: {e}");
             TransactionHandlerError::CustomError(e.to_string())
         })?;
     // TODO: update APIs so that we allow passing in specific commitments.
@@ -684,7 +682,7 @@ where
         let fee_token_id = get_fee_token_id();
         let spend_value_commitments = find_usable_commitments(nf_token_id, value,db)
         .await.map_err(|e|{
-            error!("{id} Could not find enough usable value commitments to complete this withdraw, suggest depositing more tokens: {}", e); 
+            error!("{id} Could not find enough usable value commitments to complete this withdraw, suggest depositing more tokens: {e}"); 
             TransactionHandlerError::CustomError(e.to_string())})?;
         let spend_fee_commitments = if fee.is_zero() {
             [Preimage::default(), Preimage::default()]
@@ -693,8 +691,7 @@ where
             .await
             .map_err(|e| {
                 error!(
-                    "{id} Could not find enough usable fee commitments to complete this withdraw, suggest depositing more fee: {}",
-                    e
+                    "{id} Could not find enough usable fee commitments to complete this withdraw, suggest depositing more fee: {e}"
                 );
                 TransactionHandlerError::CustomError(e.to_string())
             })?
@@ -814,11 +811,11 @@ where
     };
 
     let response = serde_json::to_string(&withdraw_response).map_err(|e| {
-        error!("{id} Error when serialising response: {}", e);
+        error!("{id} Error when serialising response: {e}");
         TransactionHandlerError::JsonConversionError(e)
     })?;
     let uuid = serde_json::to_string(&id).map_err(|e| {
-        error!("{id} Error when serialising request ID: {}", e);
+        error!("{id} Error when serialising request ID: {e}");
         TransactionHandlerError::JsonConversionError(e)
     })?;
 

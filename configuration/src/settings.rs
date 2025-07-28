@@ -125,13 +125,13 @@ impl Settings {
             .merge(Toml::file("nightfall.toml").nested())
             .merge(Env::prefixed("NF4_").profile(run_mode.as_str()).split("__"))
             .select(run_mode);
-        let mut settings: Settings = figment.extract().map_err(|e| format!("{}", e))?;
+        let mut settings: Settings = figment.extract().map_err(|e| format!("{e}"))?;
         // Check the wallet type and read additional Azure-specific settings
         if settings.nightfall_client.wallet_type == "azure" {
             settings.azure_vault_url = env::var("AZURE_VAULT_URL").unwrap_or_default();
             settings.azure_key_name = env::var("AZURE_KEY_NAME").unwrap_or_default();
         }
-        trace!("The settings values read were {:#?}", settings);
+        trace!("The settings values read were {settings:#?}");
         Ok(settings)
     }
 }

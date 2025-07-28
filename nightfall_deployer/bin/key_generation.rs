@@ -83,7 +83,7 @@ pub fn generate_proving_keys(settings: &Settings) -> Result<(), PlonkError> {
         .unwrap()
     } else {
         // Unless we already have a local copy, read a remote perpetual powers of Tau file and save, then extract a KZG structured reference string
-        let ptau_file = path.join(format!("bin/ppot_{}.ptau", MAX_KZG_DEGREE));
+        let ptau_file = path.join(format!("bin/ppot_{MAX_KZG_DEGREE}.ptau"));
         UnivariateKzgPCS::download_ptau_file_if_needed(MAX_KZG_DEGREE, &ptau_file).unwrap();
         UnivariateKzgPCS::universal_setup_bn254(&ptau_file, 1 << MAX_KZG_DEGREE).unwrap()
     };
@@ -310,7 +310,7 @@ pub fn build_valid_transfer_inputs(rng: &mut impl Rng) -> (PublicInputs, Private
     let nf_slot_id = nf_token_id;
 
     // generate a 'random' fee token ID (we just use the keccak hash of 1)
-    let fee_token_id = Fr254::from(BigUint::from_bytes_be(&keccak256([1]).as_slice()) >> 4);
+    let fee_token_id = Fr254::from(BigUint::from_bytes_be(keccak256([1]).as_slice()) >> 4);
 
     // Random values for fee and value
     let mut nullified_fee_one = rand_96_bit(rng);

@@ -88,11 +88,11 @@ impl fmt::Display for AddressesError {
         match self {
             Self::Settings => write!(f, "Settings"),
             Self::Io => write!(f, "Io"),
-            Self::Toml(s) => write!(f, "Toml: {}", s),
+            Self::Toml(s) => write!(f, "Toml: {s}"),
             Self::CouldNotGetUrl => write!(f, "CouldNotGetUrl"),
             Self::BadResponse => write!(f, "BadResponse"),
-            Self::CouldNotWriteFile(s) => write!(f, "CouldNotWriteFile: {}", s),
-            Self::CouldNotWriteDirectory(s) => write!(f, "CouldNotWriteDirectory: {}", s),
+            Self::CouldNotWriteFile(s) => write!(f, "CouldNotWriteFile: {s}"),
+            Self::CouldNotWriteDirectory(s) => write!(f, "CouldNotWriteDirectory: {s}"),
             Self::CouldNotReadFile => write!(f, "CouldNotReadFile"),
             Self::CouldNotPostUrl => write!(f, "CouldNotPostUrl"),
         }
@@ -127,7 +127,7 @@ impl Error for SourcesError {}
 impl fmt::Display for SourcesError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::PathDoesNotExist(s) => write!(f, "PathDoesNotExist, path: {}", s),
+            Self::PathDoesNotExist(s) => write!(f, "PathDoesNotExist, path: {s}"),
         }
     }
 }
@@ -140,7 +140,7 @@ impl Addresses {
                     let addresses: Self = Figment::new()
                         .merge(Toml::file(p.as_os_str()))
                         .extract()
-                        .map_err(|e| AddressesError::Toml(format!("{}", e)))?;
+                        .map_err(|e| AddressesError::Toml(format!("{e}")))?;
                     Ok(addresses)
                 } else {
                     let mut json_file = fs::File::open(p).map_err(|_| AddressesError::Io)?;
@@ -169,7 +169,7 @@ impl Addresses {
                                         .trim_start_matches("0x"),
                                 )
                                 .map_err(|e| {
-                                    AddressesError::CouldNotWriteFile(format!("hex: {}", e))
+                                    AddressesError::CouldNotWriteFile(format!("hex: {e}"))
                                 })?
                                 .try_into()
                                 .map_err(|_| AddressesError::BadResponse)?;
@@ -183,7 +183,7 @@ impl Addresses {
                                         .trim_start_matches("0x"),
                                 )
                                 .map_err(|e| {
-                                    AddressesError::CouldNotWriteFile(format!("hex: {}", e))
+                                    AddressesError::CouldNotWriteFile(format!("hex: {e}"))
                                 })?
                                 .try_into()
                                 .map_err(|_| AddressesError::BadResponse)?;
@@ -197,7 +197,7 @@ impl Addresses {
                                         .trim_start_matches("0x"),
                                 )
                                 .map_err(|e| {
-                                    AddressesError::CouldNotWriteFile(format!("hex: {}", e))
+                                    AddressesError::CouldNotWriteFile(format!("hex: {e}"))
                                 })?
                                 .try_into()
                                 .map_err(|_| AddressesError::BadResponse)?;
@@ -218,7 +218,7 @@ impl Addresses {
                 let resp = blocking::get(u).map_err(|_| AddressesError::CouldNotGetUrl)?;
                 let data = resp.text().map_err(|_| AddressesError::BadResponse)?;
                 let addresses: Self =
-                    toml::from_str(&data).map_err(|e| AddressesError::Toml(format!("{}", e)))?;
+                    toml::from_str(&data).map_err(|e| AddressesError::Toml(format!("{e}")))?;
                 Ok(addresses)
             }
         }
@@ -227,19 +227,19 @@ impl Addresses {
         match s {
             Sources::File(p) => {
                 let data =
-                    toml::to_string(&self).map_err(|e| AddressesError::Toml(format!("{}", e)))?;
+                    toml::to_string(&self).map_err(|e| AddressesError::Toml(format!("{e}")))?;
                 // create a path if it doesn't exist
                 if let Some(path) = p.parent() {
                     fs::create_dir_all(path)
-                        .map_err(|e| AddressesError::CouldNotWriteDirectory(format!("{}", e)))?;
+                        .map_err(|e| AddressesError::CouldNotWriteDirectory(format!("{e}")))?;
                 }
                 fs::write(p, data)
-                    .map_err(|e| AddressesError::CouldNotWriteFile(format!("{}", e)))?;
+                    .map_err(|e| AddressesError::CouldNotWriteFile(format!("{e}")))?;
                 Ok(StatusCode::OK)
             }
             Sources::Http(u) => {
                 let data =
-                    toml::to_string(&self).map_err(|e| AddressesError::Toml(format!("{}", e)))?;
+                    toml::to_string(&self).map_err(|e| AddressesError::Toml(format!("{e}")))?;
                 let client = reqwest::Client::new();
                 let resp = client
                     .put(u)

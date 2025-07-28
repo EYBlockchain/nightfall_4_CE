@@ -71,7 +71,7 @@ where
         let result = prepare_block_data::<P>(db).await;
         match &result {
             Ok(_) => info!("Block data prepared successfully"),
-            Err(e) => warn!("Failed to prepare block data: {:?}", e),
+            Err(e) => warn!("Failed to prepare block data: {e:?}"),
         }
         (included_depositinfos_group, selected_client_transactions) = result?;
     }
@@ -102,8 +102,7 @@ where
             });
 
     info!(
-        "This block has {} deposit(s), {} transfer(s), and {} withdrawal(s)",
-        real_deposit_number, transfer_count, withdraw_count
+        "This block has {real_deposit_number} deposit(s), {transfer_count} transfer(s), and {withdraw_count} withdrawal(s)"
     );
 
     let block = make_block::<P, R>(included_deposits, selected_client_transactions).await?;
@@ -192,7 +191,7 @@ where
             info!("Creating deposit proof for a group of 4 deposits");
             // Generate proof for this group of 4 deposits
             let proof = R::create_deposit_proof(&deposit_array, &mut public_inputs)
-                .map_err(|e| BlockAssemblyError::ProvingError(format!("Proving Error: {}", e)))?;
+                .map_err(|e| BlockAssemblyError::ProvingError(format!("Proving Error: {e}")))?;
 
             Result::<(P, PublicInputs), BlockAssemblyError>::Ok((proof, public_inputs))
         })
@@ -200,7 +199,7 @@ where
 
     match &deposit_proofs_result {
         Ok(proofs) => info!("Generated {} deposit proofs", proofs.len()),
-        Err(e) => warn!("Failed to generate deposit proofs: {:?}", e),
+        Err(e) => warn!("Failed to generate deposit proofs: {e:?}"),
     }
 
     let mut deposit_proofs = deposit_proofs_result?;
@@ -208,8 +207,7 @@ where
     let block_size = get_block_size()?;
     let transaction_count = deposit_proofs.len() + client_transactions.len();
     info!(
-        "Current transaction count: {}, block size: {}",
-        transaction_count, block_size
+        "Current transaction count: {transaction_count}, block size: {block_size}"
     );
     // append default deposit proof if the transaction count is less than block size
     if transaction_count < block_size {
@@ -221,7 +219,7 @@ where
         let mut public_inputs = PublicInputs::new();
         let deposit_array: [DepositData; 4] = [DepositData::default(); 4];
         let proof = R::create_deposit_proof(&deposit_array, &mut public_inputs)
-            .map_err(|e| BlockAssemblyError::ProvingError(format!("Proving Error: {}", e)))?;
+            .map_err(|e| BlockAssemblyError::ProvingError(format!("Proving Error: {e}")))?;
         (0..default_deposits_count).for_each(|_| {
             deposit_proofs.push((proof.clone(), public_inputs));
         });
@@ -489,7 +487,7 @@ mod tests {
         assert!(
             remaining_deposits
                 .as_ref()
-                .map_or(true, |deposits| deposits.is_empty()),
+                .is_none_or(|deposits| deposits.is_empty()),
             "Remaining deposits are not empty"
         );
     }

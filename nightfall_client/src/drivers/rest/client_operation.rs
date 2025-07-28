@@ -34,7 +34,6 @@ use std::{error::Error, fmt::Debug, time::Duration};
 use tokio::time::sleep;
 use url::Url;
 use warp::hyper::StatusCode;
-
 sol!(
     #[sol(rpc)]    
     RoundRobin, "../blockchain_assets/artifacts/RoundRobin.sol/RoundRobin.json"
@@ -60,7 +59,7 @@ where
     E: ProvingEngine<P> + Send + Sync,
     N: NightfallContract,
 {
-    debug!("{id} Handling client operation: {:?}", operation);
+    debug!("{id} Handling client operation: {operation:?}");
 
     // get the zkp keys from the global state. They will have been created when the keys were requested using a mnemonic
     let ZKPKeys {
@@ -128,7 +127,7 @@ where
     )
     .await
     .map_err(|e| {
-        error!("{id} {}", e);
+        error!("{id} {e}");
         TransactionHandlerError::CustomError(e.to_string())
     })?;
     // having done that, we can submit the nighfall transaction, either on or off chain, normally the latter
@@ -191,7 +190,7 @@ async fn send_to_proposer_with_retry<P: Serialize + Sync>(
         Ok(u) => u,
         Err(e) => {
             warn!("Skipping proposer with invalid URL {}: {}", proposer.url, e);
-            return Err((format!("Invalid URL: {}", e), false));
+            return Err((format!("Invalid URL: {e}"), false));
         }
     };
 
@@ -200,11 +199,11 @@ async fn send_to_proposer_with_retry<P: Serialize + Sync>(
             Ok(response) => {
                 let status = response.status();
                 if status.is_success() {
-                    debug!("{id} Successfully sent transaction to proposer at {}", url);
+                    debug!("{id} Successfully sent transaction to proposer at {url}");
                     return Ok(());
                 } else {
                     let body = response.text().await.unwrap_or_default();
-                    error!("{id} Error from proposer: HTTP {} — Body: {}", status, body);
+                    error!("{id} Error from proposer: HTTP {status} — Body: {body}");
                     if matches!(
                         status,
                         StatusCode::BAD_GATEWAY
@@ -224,21 +223,21 @@ async fn send_to_proposer_with_retry<P: Serialize + Sync>(
                                 | StatusCode::GATEWAY_TIMEOUT
                         );
                         return Err((
-                            format!("Proposer returned HTTP {}: {}", status, body),
+                            format!("Proposer returned HTTP {status}: {body}"),
                             retriable,
                         ));
                     }
                 }
             }
             Err(err) => {
-                error!("{id} Network error sending to proposer {}: {:?}", url, err);
+                error!("{id} Network error sending to proposer {url}: {err:?}");
                 if is_retriable_error(&err) && attempt < max_retries {
                     let backoff = initial_backoff * 2u32.pow(attempt - 1);
-                    warn!("{id} Retrying network error in {:?}", backoff);
+                    warn!("{id} Retrying network error in {backoff:?}");
                     sleep(backoff).await;
                     continue;
                 } else {
-                    return Err((format!("Network error: {}", err), true));
+                    return Err((format!("Network error: {err}"), true));
                 }
             }
         }
@@ -297,7 +296,7 @@ pub async fn process_transaction_offchain<P: Serialize + Sync>(
                 any_success = true;
             }
             Err((msg, retriable)) => {
-                warn!("{id} Proposer error: {}", msg);
+                warn!("{id} Proposer error: {msg}");
                 if retriable {
                     any_retriable_failures = true;
                 }
@@ -317,8 +316,7 @@ pub async fn process_transaction_offchain<P: Serialize + Sync>(
         )))
     } else {
         db.update_request(id, RequestStatus::Failed).await;
-        Err(Box::new(std::io::Error::new(
-            std::io::ErrorKind::Other,
+        Err(Box::new(std::io::Error::other(
             format!("{id} All proposers rejected the transaction."),
         )))
     }

@@ -45,8 +45,7 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn Error>>
 
     if !path_out.is_file() {
         return Err(format!(
-            "Deployment log file not found at the expected location: {:?}",
-            path_out
+            "Deployment log file not found at the expected location: {path_out:?}"
         ).into());
     }
     let addresses = Addresses::load(Sources::parse(
@@ -86,7 +85,7 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn Error>>
 
 /// Function should only be called after we have checked forge is installed by running 'which forge'
 pub fn forge_command(command: &[&str]) {
-    info!("DEBUG: Running forge command: {:?}", command); // Use info! as forge_command already uses info!
+    info!("DEBUG: Running forge command: {command:?}"); // Use info! as forge_command already uses info!
     let output = std::process::Command::new("forge").args(command).output();
    
     match output {
@@ -109,8 +108,7 @@ pub fn forge_command(command: &[&str]) {
         }
         Err(e) => {
             panic!(
-                "Command 'forge {:?}' ran into an error without executing: {}",
-                command, e
+                "Command 'forge {command:?}' ran into an error without executing: {e}"
             );
         }
     }

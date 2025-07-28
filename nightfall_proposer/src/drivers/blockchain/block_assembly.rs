@@ -59,7 +59,7 @@ impl Error for BlockAssemblyError {}
 impl Display for BlockAssemblyError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::FailedToAssembleBlock(s) => write!(f, "Failed to assemble block: {}", s),
+            Self::FailedToAssembleBlock(s) => write!(f, "Failed to assemble block: {s}"),
             Self::FailedToProposeBlock => write!(f, "Failed to propose block"),
             Self::FailedToGetReceipt => write!(f, "Failed to get receipt for block"),
             Self::FailedToGetCalldata => write!(f, "Failed to get calldata for block"),
@@ -72,13 +72,13 @@ impl Display for BlockAssemblyError {
             Self::ConversionError(e) => {
                 write!(f, "{e}")
             }
-            Self::FailedToGetDepositData(e) => write!(f, "Failed to acquire deposit data: {}", e),
-            Self::ProvingError(s) => write!(f, "Error occurred while proving: {} ", s),
-            Self::ContractError(s) => write!(f, "Contract error: {}", s),
-            Self::ProviderError(s) => write!(f, "Provider error: {}", s),
-            Self::EventHandlerError(e) => write!(f, "Event handling error: {}", e),
-            Self::QueueError(s) => write!(f, "Queued error: {}", s),
-            Self::Other(s) => write!(f, "Other error: {}", s),
+            Self::FailedToGetDepositData(e) => write!(f, "Failed to acquire deposit data: {e}"),
+            Self::ProvingError(s) => write!(f, "Error occurred while proving: {s} "),
+            Self::ContractError(s) => write!(f, "Contract error: {s}"),
+            Self::ProviderError(s) => write!(f, "Provider error: {s}"),
+            Self::EventHandlerError(e) => write!(f, "Event handling error: {e}"),
+            Self::QueueError(s) => write!(f, "Queued error: {s}"),
+            Self::Other(s) => write!(f, "Other error: {s}"),
             Self::FinalityTimeout => write!(f, "Finality timeout occurred."),
         }
     }
@@ -104,7 +104,7 @@ impl From<NightfallContractError> for BlockAssemblyError {
 
 impl From<PlonkError> for BlockAssemblyError {
     fn from(e: PlonkError) -> Self {
-        BlockAssemblyError::ProvingError(format!("PlonkError: {}", e))
+        BlockAssemblyError::ProvingError(format!("PlonkError: {e}"))
     }
 }
 
@@ -153,8 +153,7 @@ async fn check_l1_finality(
                     }
 
                     // Can never be finalized (tx too new)
-                    println!("Receipt block number: {}, Finalized block number: {}, Confirmations required: {}",
-                        receipt_block_number, finalized_block_number, confirmations_required);
+                    println!("Receipt block number: {receipt_block_number}, Finalized block number: {finalized_block_number}, Confirmations required: {confirmations_required}");
                         println!("additional confirmations required: {}",
                         U64::from(receipt_block_number) + confirmations_required);
                     if U64::from(receipt_block_number) + confirmations_required > U64::from(finalized_block_number)
@@ -232,17 +231,21 @@ where
                 };
                 let mut blocks = pending_blocks.lock().await;
                 // If start_block is zero, then we assume the contract has just been deployed and rotation has not yet started.
-                if start_block._0.is_zero() && blocks.len() > 0 {
+                if start_block._0.is_zero() && !blocks.is_empty() {
                     info!("Proposing {} pending blocks", blocks.len());
                     for block in blocks.drain(..) {
                         if let Err(e) = N::propose_block(block).await {
-                            error!("Failed to propose block: {}", e);
+                            error!("Failed to propose block: {e}");
                         }
                     }
                 }
+                // let u256_bytes = start_block._0.to_be_bytes();
+                // let last_8_bytes = &u256_bytes[24..]; // Take last 8 bytes (MSB-first for big-endian)
+                // let start_block_1 = u64::from_be_bytes(last_8_bytes.try_into().unwrap());
+                //println!("Start block for round robin: {start_block_1}");
                 let round_robin_events = round_robin_instance
                     .event_filter::<RoundRobin::ProposerRotated>()
-                    .from_block(u64::from_be_bytes(start_block._0.to_be_bytes()));
+                    .from_block(0u64);
                 let rotate_proposer_log=
                     match round_robin_events.query().await {
                         Ok(logs) => logs,
@@ -264,11 +267,11 @@ where
                     {
                         Ok(true) => {
                             // Process all pending blocks
-                            info!("Rotate Proposer Transaction finalized: {:?}", tx_hash);
+                            info!("Rotate Proposer Transaction finalized: {tx_hash:?}");
                             info!("Proposing {} pending blocks", blocks.len());
                             for block in blocks.drain(..) {
                                 if let Err(e) = N::propose_block(block).await {
-                                    error!("Failed to propose block: {}", e);
+                                    error!("Failed to propose block: {e}");
                                 }
                             }
                         }
@@ -276,7 +279,7 @@ where
                             debug!("Transaction not yet finalized");
                         }
                         Err(e) => {
-                            error!("Finality check error: {}", e);
+                            error!("Finality check error: {e}");
                         }
                     }
                 }
@@ -295,7 +298,7 @@ where
         {
             Ok(addr) => addr,
             Err(e) => {
-                error!("Failed to get current proposer: {}", e);
+                error!("Failed to get current proposer: {e}");
                 tokio::time::sleep(std::time::Duration::from_secs(5)).await;
                 continue;
             }
@@ -310,8 +313,7 @@ where
         // Step 2: If we are not the proposer, wait and retry
         if current_proposer != our_address {
             info!(
-                "We are not the current proposer. Current proposer is: {:?}",
-                current_proposer
+                "We are not the current proposer. Current proposer is: {current_proposer:?}"
             );
             tokio::time::sleep(std::time::Duration::from_secs(5)).await;
             continue;
@@ -332,7 +334,7 @@ where
         {
             Ok(addr) => addr,
             Err(e) => {
-                error!("Failed to get current proposer after trigger: {}", e);
+                error!("Failed to get current proposer after trigger: {e}");
                 continue;
             }
         }._0;
@@ -345,8 +347,7 @@ where
 
         if current_proposer_after_trigger != our_address {
             info!(
-        "Proposer has changed after trigger. Skipping block assembly. New proposer is: {:?}",
-        current_proposer_after_trigger
+        "Proposer has changed after trigger. Skipping block assembly. New proposer is: {current_proposer_after_trigger:?}"
     );
             continue;
         }
@@ -373,7 +374,7 @@ where
             Err(e) => match e {
                 BlockAssemblyError::InsufficientTransactions => continue,
                 _ => {
-                    error!("Block assembly failed with error {}", e);
+                    error!("Block assembly failed with error {e}");
                     continue;
                 }
             },

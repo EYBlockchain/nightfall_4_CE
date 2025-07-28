@@ -85,7 +85,7 @@ where
                 process_deposit_escrowed_event::<P, E>(tx_hash, filter)
                     .await
                     .map_err(|e| {
-                        debug!("{}", e);
+                        debug!("{e}");
                         EventHandlerError::InvalidCalldata
                     })?;
             }
@@ -150,8 +150,7 @@ async fn process_propose_block_event<N: NightfallContract>(
     // we're done here
     let db = get_db_connection().await;
     info!(
-        "Decoded Proposed block call from transaction {:?}",
-        transaction_hash
+        "Decoded Proposed block call from transaction {transaction_hash:?}"
     );
     let blk = decode.blk;
 
@@ -183,8 +182,7 @@ async fn process_propose_block_event<N: NightfallContract>(
     if *expected_onchain_block_number < layer_2_block_number_in_event {
         // we've missed at least one block
         warn!(
-            "Out of sync with blockchain. Blocknumber of event was {}, expected {}",
-            layer_2_block_number_in_event, expected_onchain_block_number
+            "Out of sync with blockchain. Blocknumber of event was {layer_2_block_number_in_event}, expected {expected_onchain_block_number}"
         );
         sync_status.clear_synchronised();
         //The event listener infrastructure (via start_event_listener and restart_event_listener) is responsible for replaying historical events to fill in the gap.
@@ -197,8 +195,7 @@ async fn process_propose_block_event<N: NightfallContract>(
     // This could happen if we've missed some blocks and we're re-synchronising
     if *expected_onchain_block_number > layer_2_block_number_in_event {
         warn!(
-            "Already processed layer 2 block {} - skipping",
-            layer_2_block_number_in_event
+            "Already processed layer 2 block {layer_2_block_number_in_event} - skipping"
         );
         return Ok(());
     }
@@ -226,10 +223,7 @@ async fn process_propose_block_event<N: NightfallContract>(
                 && current_block_stored_hash != block_store_pending_hash
             {
                 warn!(
-                    "Block hash mismatch. Expected {}, got {} in layer 2 block {}",
-                    current_block_stored_hash,
-                    block_store_pending_hash,
-                    layer_2_block_number_in_event
+                    "Block hash mismatch. Expected {current_block_stored_hash}, got {block_store_pending_hash} in layer 2 block {layer_2_block_number_in_event}"
                 );
 
                 // Delete the invalid block and clear sync status
@@ -245,8 +239,7 @@ async fn process_propose_block_event<N: NightfallContract>(
 
         None => {
             warn!(
-                "No block found in DB at expected height {}. Assuming fresh state or first sync.",
-                expected_block_number_u64
+                "No block found in DB at expected height {expected_block_number_u64}. Assuming fresh state or first sync."
             );
         }
     }
@@ -325,8 +318,7 @@ async fn process_propose_block_event<N: NightfallContract>(
         .await
         .map_err(|_| EventHandlerError::IOError("Could not store historic root".to_string()))?;
     debug!(
-        "Stored new commitments tree root in historic root timber tree: {}",
-        historic_root
+        "Stored new commitments tree root in historic root timber tree: {historic_root}"
     );
 
     // it's worth checking that the historic root agrees with what's in the commitment tree
@@ -337,8 +329,7 @@ async fn process_propose_block_event<N: NightfallContract>(
         })?;
     if commitment_root != historic_root {
         error!(
-            "Historic root does not match commitment tree root. Historic root: {}, Commitment tree root: {}",
-            historic_root, commitment_root
+            "Historic root does not match commitment tree root. Historic root: {historic_root}, Commitment tree root: {commitment_root}"
         );
     } else {
         debug!("Historic root matches commitment tree root");
@@ -350,8 +341,7 @@ async fn process_propose_block_event<N: NightfallContract>(
     let delta = current_block_number_in_contract - layer_2_block_number_in_event - I256::ONE;
     if delta != I256::ZERO {
         warn!(
-            "Synchronising - behind blockchain by {} layer 2 blocks ",
-            delta
+            "Synchronising - behind blockchain by {delta} layer 2 blocks "
         );
         sync_status.clear_synchronised();
     } else {
@@ -440,7 +430,7 @@ where
                 secret_hash,
             };
             let deposit_data = DepositDatawithFee { fee, deposit_data };
-println!("Processing deposit data: {:?}", deposit_data);
+println!("Processing deposit data: {deposit_data:?}");
             process_deposit_transaction::<P, E>(deposit_data)
                 .await
                 .map_err(|_| {

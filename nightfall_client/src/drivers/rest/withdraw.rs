@@ -23,8 +23,7 @@ pub async fn handle_de_escrow(data: DeEscrowDataReq) -> Result<impl Reply, warp:
         })?.into();
     let withdraw_data:NFWithdrawData = NFWithdrawData::try_from(data.clone()).map_err(|e| {
         error!(
-            "Could not convert Withdraw data request to WithdrawData: {}",
-            e
+            "Could not convert Withdraw data request to WithdrawData: {e}"
         );
         reject::custom(crate::domain::error::ClientRejection::FailedDeEscrow)
     })?;
@@ -36,7 +35,7 @@ pub async fn handle_de_escrow(data: DeEscrowDataReq) -> Result<impl Reply, warp:
                     Nightfall::NightfallCalls::de_escrow_funds(withdraw_data, token_type)
                         .await
                         .map_err(|e| {
-                            error!("Could not de-escrow funds: {}", e);
+                            error!("Could not de-escrow funds: {e}");
                             reject::custom(crate::domain::error::ClientRejection::FailedDeEscrow)
                         })?;
     
@@ -49,7 +48,7 @@ pub async fn handle_de_escrow(data: DeEscrowDataReq) -> Result<impl Reply, warp:
                 }
             }
             Err(e) => {
-                debug!("Nightfall contract error: {}", e);
+                debug!("Nightfall contract error: {e}");
                 Err(reject::custom(
                     crate::domain::error::ClientRejection::FailedDeEscrow,
                 ))

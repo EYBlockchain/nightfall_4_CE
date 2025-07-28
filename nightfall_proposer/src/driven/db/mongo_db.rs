@@ -317,7 +317,7 @@ impl StoredBlock {
         for c in &self.commitments {
             bytes.extend_from_slice(c.as_bytes());
         }
-        bytes.extend_from_slice(&self.proposer_address.as_slice());
+        bytes.extend_from_slice(self.proposer_address.as_slice());
         let hash = Sha256::digest(&bytes);
         Fr254::from_be_bytes_mod_order(&hash)
     }

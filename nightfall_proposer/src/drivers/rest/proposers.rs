@@ -45,7 +45,7 @@ async fn handle_rotate_proposer() -> Result<impl Reply, warp::Rejection> {
     match tx_result {
         Ok(tx) => {
             tx.get_receipt().await.map_err(|e| {
-                warn!("Failed to get transaction receipt: {}", e);
+                warn!("Failed to get transaction receipt: {e}");
                 ProposerError::ProviderError(e.to_string())
             })?;
             Ok(StatusCode::OK)
@@ -81,10 +81,10 @@ async fn handle_add_proposer(url: String) -> Result<impl Reply, warp::Rejection>
         .send()
         .await
         .map_err(|e| {
-            warn!("{}", e);
+            warn!("{e}");
             ProposerRejection::FailedToAddProposer
         })?.get_receipt().await.map_err(| e | {
-            warn!("Failed to get transaction receipt: {}", e);
+            warn!("Failed to get transaction receipt: {e}");
             ProposerError::ProviderError(e.to_string())
         })?;
         if tx.status() {
@@ -132,16 +132,14 @@ async fn handle_remove_proposer() -> Result<impl Reply, warp::Rejection> {
         Ok(current_proposer) => {
             if current_proposer._0 == signer_address {
                 warn!(
-                    "You are removing yourself as the active proposer — this will deduct an exit penalty of {} units and start a cooldown period of {} L1 blocks before you can re-register.",
-                    penalty,
-                    cooling_blocks
+                    "You are removing yourself as the active proposer — this will deduct an exit penalty of {penalty} units and start a cooldown period of {cooling_blocks} L1 blocks before you can re-register."
                 );
             } else {
                 info!("You are removing yourself, but you are not the active proposer — no penalty will be applied.");
             }
         }
         Err(e) => {
-            warn!("Could not check current proposer before removal: {:?}", e);
+            warn!("Could not check current proposer before removal: {e:?}");
         }
     }
 
@@ -156,17 +154,17 @@ async fn handle_remove_proposer() -> Result<impl Reply, warp::Rejection> {
         })?
         .get_receipt()
         .await.map_err(| e | {
-            warn!("Failed to get transaction receipt: {}", e);
+            warn!("Failed to get transaction receipt: {e}");
             ProposerError::ProviderError(e.to_string())
         })?;
         if tx.status() {
             info!("Removed proposer with address: {:?}", tx.from);
-            return Ok(StatusCode::OK);
+            Ok(StatusCode::OK)
         } else {
             warn!("Failed to remove proposer");
-            return Err(warp::reject::custom(
+            Err(warp::reject::custom(
                 ProposerRejection::FailedToRemoveProposer,
-            ));
+            ))
         }
     }
 
@@ -196,20 +194,20 @@ async fn handle_withdraw(amount: u64) -> Result<impl Reply, warp::Rejection> {
         .send()
         .await
         .map_err(|e| {
-            warn!("{}", e);
+            warn!("{e}");
             ProposerRejection::FailedToWithdrawStake
         })?.get_receipt().await.map_err(| e | {
-            warn!("Failed to get transaction receipt: {}", e);
+            warn!("Failed to get transaction receipt: {e}");
             ProposerError::ProviderError(e.to_string())
         })?;
         if tx.status() {
             info!("Withdrew {} to address: {:?}", amount, tx.from);
-            return Ok(StatusCode::OK);
+            Ok(StatusCode::OK)
         } else {
             warn!("Failed to withdraw funds");
-            return Err(warp::reject::custom(
+            Err(warp::reject::custom(
                 ProposerRejection::FailedToWithdrawStake,
-            ));
+            ))
         }
     }
 
