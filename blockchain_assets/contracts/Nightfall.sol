@@ -13,6 +13,7 @@ import "./ProposerManager.sol";
 import "./X509/Certified.sol";
 import "./X509/X509.sol";
 
+
 pragma solidity ^0.8.20;
 
 enum OperationType {
@@ -98,7 +99,7 @@ contract Nightfall is
     // withdrawalIncluded[key] == 0 means this withdraw transaction either hasn't showed on chain or there is no fund to withdraw regarding to this withdraw data
     mapping(uint256 => TokenIdValue) private tokenIdMapping; // Maps Nightfall tokenId to the original ercAddress and tokenId
     uint256 private commitmentRoot = 0;
-    uint256 private nullifierRoot = 0;
+    uint256 private nullifierRoot = 5626012003977595441102792096342856268135928990590954181023475305010363075697;
     uint256 private historicRootsRoot = 0;
     // instance of the proposer_manager interface
     ProposerManager private proposer_manager;
@@ -192,7 +193,6 @@ contract Nightfall is
                 );
             }
         }
-
         // get the output of verify_rollup_proof
         (bool verified, uint256 totalFee) = verify_rollup_proof(blk, transaction_hashes[0]);
         require(verified, "Rollup proof verification failed");
@@ -508,7 +508,7 @@ contract Nightfall is
     // Hashes a string of bytes and right-shifts the output by 4
     function sha256_and_shift(
         bytes memory inputs
-    ) private view returns (uint256 result) {
+    ) public view returns (uint256 result) {
         assembly {
             // Allocate memory for hash result (32 bytes)
             let freePtr := mload(0x40)
@@ -527,7 +527,7 @@ contract Nightfall is
     // hashes the public data in a transaction, for use by the rollup proof
     function hash_transaction(
         OnChainTransaction memory txn
-    ) private view returns (uint256) {
+    ) public view returns (uint256) {
         uint256 lastData = txn.public_data[3] & ((1 << 255) - 1);
         bytes memory concatenatedInputs = abi.encode(
             txn.commitments[0],
@@ -550,22 +550,11 @@ contract Nightfall is
     function verify_rollup_proof(
         Block calldata blk,
         uint256 public_hash
-    ) private view returns (bool, uint256) {
+    ) public  returns (bool, uint256) {
         // We need to split the proof into the public data and the actual proof
         // The first 32 bytes of the proof are the sum of fees
         bytes32 feeSum = abi.decode(blk.rollup_proof[:32], (bytes32));
-        // convert feeSum to uint256
         uint256 feeSumAsNumber = uint256(feeSum);
-        // Then its instance1 x, instance 1y, proof1 x, proof1y, instance2 x, instance2 y, proof2 x, proof2 y
-        bytes32 instance1_x = abi.decode(blk.rollup_proof[32:64], (bytes32));
-        bytes32 instance1_y = abi.decode(blk.rollup_proof[64:96], (bytes32));
-        bytes32 proof1_x = abi.decode(blk.rollup_proof[96:128], (bytes32));
-        bytes32 proof1_y = abi.decode(blk.rollup_proof[128:160], (bytes32));
-        bytes32 instance2_x = abi.decode(blk.rollup_proof[160:192], (bytes32));
-        bytes32 instance2_y = abi.decode(blk.rollup_proof[192:224], (bytes32));
-        bytes32 proof2_x = abi.decode(blk.rollup_proof[224:256], (bytes32));
-        bytes32 proof2_y = abi.decode(blk.rollup_proof[256:288], (bytes32));
-
         bytes32[] memory publicInputs = new bytes32[](16); // we need to pass in 16 public inputs
         publicInputs[0] = feeSum;
         publicInputs[1] = bytes32(public_hash);
@@ -575,19 +564,27 @@ contract Nightfall is
         publicInputs[5] = bytes32(blk.nullifier_root);
         publicInputs[6] = bytes32(historicRootsRoot);
         publicInputs[7] = bytes32(blk.commitments_root_root);
-        publicInputs[8] = instance1_x;
-        publicInputs[9] = instance1_y;
-        publicInputs[10] = proof1_x;
-        publicInputs[11] = proof1_y;
-        publicInputs[12] = instance2_x;
-        publicInputs[13] = instance2_y;
-        publicInputs[14] = proof2_x;
-        publicInputs[15] = proof2_y;
+        // These are accumulators' comm and proof
+        publicInputs[8] = abi.decode(blk.rollup_proof[32:64], (bytes32)); //instance1_x;
+        publicInputs[9] = abi.decode(blk.rollup_proof[64:96], (bytes32)); //instance1_y;
+        publicInputs[10] = abi.decode(blk.rollup_proof[96:128], (bytes32)); //proof1_x;
+        publicInputs[11] = abi.decode(blk.rollup_proof[128:160], (bytes32)); //proof1_y;
+        publicInputs[12] = abi.decode(blk.rollup_proof[160:192], (bytes32)); //instance2_x;
+        publicInputs[13] = abi.decode(blk.rollup_proof[192:224], (bytes32)); //instance2_y;
+        publicInputs[14] = abi.decode(blk.rollup_proof[224:256], (bytes32)); //proof2_x;
+        publicInputs[15] = abi.decode(blk.rollup_proof[256:288], (bytes32)); //proof2_y;
+
+        uint256 publicInputsBytes_computed = uint256(
+            keccak256(abi.encodePacked(publicInputs))
+        );
+        publicInputsBytes_computed = publicInputsBytes_computed % (21888242871839275222246405745257275088548364400416034343698204186575808495617);
+        bytes memory publicInputsBytes = abi.encodePacked(publicInputsBytes_computed);
 
         // we also need to deserialize the transaction public data bytes into fields - but that's easy in Solidity
         bytes memory proof = blk.rollup_proof[288:];
-        return (verifier.verify(proof, publicInputs), feeSumAsNumber);
+        return (verifier.verify(proof, publicInputsBytes), feeSumAsNumber);
     }
+
 
     /// Function that can be called to see if funds are able to be de-escrowed following a withdraw transaction.
     function withdraw_processed(

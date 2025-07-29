@@ -1,4 +1,4 @@
-pub use panic::*;
+pub use transcript::*;
 /// This module was auto-generated with ethers-rs Abigen.
 /// More information at: <https://github.com/gakonst/ethers-rs>
 #[allow(
@@ -9,7 +9,7 @@ pub use panic::*;
     dead_code,
     non_camel_case_types,
 )]
-pub mod panic {
+pub mod transcript {
     #[allow(deprecated)]
     fn __abi() -> ::ethers::core::abi::Abi {
         ::ethers::core::abi::ethabi::Contract {
@@ -22,44 +22,44 @@ pub mod panic {
         }
     }
     ///The parsed JSON ABI of the contract.
-    pub static PANIC_ABI: ::ethers::contract::Lazy<::ethers::core::abi::Abi> = ::ethers::contract::Lazy::new(
+    pub static TRANSCRIPT_ABI: ::ethers::contract::Lazy<::ethers::core::abi::Abi> = ::ethers::contract::Lazy::new(
         __abi,
     );
     #[rustfmt::skip]
-    const __BYTECODE: &[u8] = b"`U`2`\x0B\x82\x82\x829\x80Q_\x1A`s\x14`&WcNH{q`\xE0\x1B_R_`\x04R`$_\xFD[0_R`s\x81S\x82\x81\xF3\xFEs\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x000\x14`\x80`@R_\x80\xFD\xFE\xA2dipfsX\"\x12 mn\x9E\x8CCbs\x05\x89+\x97#\xF4\xED\xE5\x02\xF3\xB1C\xB2\xA3\x13t\xB9\x03O]l\x06\x82\n'dsolcC\0\x08\x18\x003";
+    const __BYTECODE: &[u8] = b"`U`2`\x0B\x82\x82\x829\x80Q_\x1A`s\x14`&WcNH{q`\xE0\x1B_R_`\x04R`$_\xFD[0_R`s\x81S\x82\x81\xF3\xFEs\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x000\x14`\x80`@R_\x80\xFD\xFE\xA2dipfsX\"\x12 [\x90\xDB\xF8\x9A\xDCZ\xE4K\xA8Q\x8D\xD2\xE7g\x96JC\xDB\xF6'a\x92\x08a\xBD\xD6\xCA\xF5\x98\xE6\xBFdsolcC\0\x08\x18\x003";
     /// The bytecode of the contract.
-    pub static PANIC_BYTECODE: ::ethers::core::types::Bytes = ::ethers::core::types::Bytes::from_static(
+    pub static TRANSCRIPT_BYTECODE: ::ethers::core::types::Bytes = ::ethers::core::types::Bytes::from_static(
         __BYTECODE,
     );
     #[rustfmt::skip]
-    const __DEPLOYED_BYTECODE: &[u8] = b"s\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x000\x14`\x80`@R_\x80\xFD\xFE\xA2dipfsX\"\x12 mn\x9E\x8CCbs\x05\x89+\x97#\xF4\xED\xE5\x02\xF3\xB1C\xB2\xA3\x13t\xB9\x03O]l\x06\x82\n'dsolcC\0\x08\x18\x003";
+    const __DEPLOYED_BYTECODE: &[u8] = b"s\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x000\x14`\x80`@R_\x80\xFD\xFE\xA2dipfsX\"\x12 [\x90\xDB\xF8\x9A\xDCZ\xE4K\xA8Q\x8D\xD2\xE7g\x96JC\xDB\xF6'a\x92\x08a\xBD\xD6\xCA\xF5\x98\xE6\xBFdsolcC\0\x08\x18\x003";
     /// The deployed bytecode of the contract.
-    pub static PANIC_DEPLOYED_BYTECODE: ::ethers::core::types::Bytes = ::ethers::core::types::Bytes::from_static(
+    pub static TRANSCRIPT_DEPLOYED_BYTECODE: ::ethers::core::types::Bytes = ::ethers::core::types::Bytes::from_static(
         __DEPLOYED_BYTECODE,
     );
-    pub struct Panic<M>(::ethers::contract::Contract<M>);
-    impl<M> ::core::clone::Clone for Panic<M> {
+    pub struct Transcript<M>(::ethers::contract::Contract<M>);
+    impl<M> ::core::clone::Clone for Transcript<M> {
         fn clone(&self) -> Self {
             Self(::core::clone::Clone::clone(&self.0))
         }
     }
-    impl<M> ::core::ops::Deref for Panic<M> {
+    impl<M> ::core::ops::Deref for Transcript<M> {
         type Target = ::ethers::contract::Contract<M>;
         fn deref(&self) -> &Self::Target {
             &self.0
         }
     }
-    impl<M> ::core::ops::DerefMut for Panic<M> {
+    impl<M> ::core::ops::DerefMut for Transcript<M> {
         fn deref_mut(&mut self) -> &mut Self::Target {
             &mut self.0
         }
     }
-    impl<M> ::core::fmt::Debug for Panic<M> {
+    impl<M> ::core::fmt::Debug for Transcript<M> {
         fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-            f.debug_tuple(::core::stringify!(Panic)).field(&self.address()).finish()
+            f.debug_tuple(::core::stringify!(Transcript)).field(&self.address()).finish()
         }
     }
-    impl<M: ::ethers::providers::Middleware> Panic<M> {
+    impl<M: ::ethers::providers::Middleware> Transcript<M> {
         /// Creates a new contract instance with the specified `ethers` client at
         /// `address`. The contract derefs to a `ethers::Contract` object.
         pub fn new<T: Into<::ethers::core::types::Address>>(
@@ -69,7 +69,7 @@ pub mod panic {
             Self(
                 ::ethers::contract::Contract::new(
                     address.into(),
-                    PANIC_ABI.clone(),
+                    TRANSCRIPT_ABI.clone(),
                     client,
                 ),
             )
@@ -105,8 +105,8 @@ pub mod panic {
             ::ethers::contract::ContractError<M>,
         > {
             let factory = ::ethers::contract::ContractFactory::new(
-                PANIC_ABI.clone(),
-                PANIC_BYTECODE.clone().into(),
+                TRANSCRIPT_ABI.clone(),
+                TRANSCRIPT_BYTECODE.clone().into(),
                 client,
             );
             let deployer = factory.deploy(constructor_args)?;
@@ -115,7 +115,7 @@ pub mod panic {
         }
     }
     impl<M: ::ethers::providers::Middleware> From<::ethers::contract::Contract<M>>
-    for Panic<M> {
+    for Transcript<M> {
         fn from(contract: ::ethers::contract::Contract<M>) -> Self {
             Self::new(contract.address(), contract.client())
         }

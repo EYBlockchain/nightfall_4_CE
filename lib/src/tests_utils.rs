@@ -1,13 +1,13 @@
-
-use testcontainers::{
-    core::{IntoContainerPort, WaitFor}, runners::AsyncRunner, ContainerAsync, GenericImage, ImageExt
-};
-use std::time::Duration;
-use tokio::io::AsyncReadExt;
-use mongodb::bson::doc;
-use url::Host;
 use log::{info, warn};
-
+use mongodb::bson::doc;
+use std::time::Duration;
+use testcontainers::{
+    core::{IntoContainerPort, WaitFor},
+    runners::AsyncRunner,
+    ContainerAsync, GenericImage, ImageExt,
+};
+use tokio::io::AsyncReadExt;
+use url::Host;
 
 pub fn get_db_connection_uri(host: Host, port: u16) -> String {
     format!("mongodb://{}:{}", host, port)
@@ -28,34 +28,34 @@ pub async fn get_db_connection(container: &ContainerAsync<GenericImage>) -> mong
     let host = container.get_host().await.unwrap();
     let port = container.get_host_port_ipv4(27017).await.unwrap();
     let uri = get_db_connection_uri(host, port);
-   
+
     let mut attempts = 0;
     let client;
-        loop {
-            match mongodb::Client::with_uri_str(&uri).await {
-                Ok(c) => match c.database("admin").run_command(doc! {"ping": 1}).await {
-                    Ok(_) => {
-                        info!(" Mongo is ready!");
-                        client = c;
-                        break;
-                    }
-                    Err(e) => {
-                        warn!("Ping failed: {e}, retrying...");
-                    }
-                },
-                Err(e) => {
-                    warn!("Connection failed: {e}, retrying...");
+    loop {
+        match mongodb::Client::with_uri_str(&uri).await {
+            Ok(c) => match c.database("admin").run_command(doc! {"ping": 1}).await {
+                Ok(_) => {
+                    info!(" Mongo is ready!");
+                    client = c;
+                    break;
                 }
+                Err(e) => {
+                    warn!("Ping failed: {e}, retrying...");
+                }
+            },
+            Err(e) => {
+                warn!("Connection failed: {e}, retrying...");
             }
-
-            attempts += 1;
-            if attempts >= 10 {
-                panic!(" MongoDB not ready after 10 attempts");
-            }
-            sleep(Duration::from_secs(1)).await;
         }
-        client
+
+        attempts += 1;
+        if attempts >= 10 {
+            panic!(" MongoDB not ready after 10 attempts");
+        }
+        sleep(Duration::from_secs(1)).await;
     }
+    client
+}
 
 #[allow(dead_code)]
 /// This function is used to print the stdout of a container for test debugging

@@ -146,7 +146,6 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
         // Calculate new commitments
         let withdraw_flag = self.is_zero(withdraw_address)?;
         let withdraw_flag = self.logic_neg(withdraw_flag)?;
-   
 
         let commitments = self.verify_commitments(
             fee_token_id,
@@ -773,10 +772,10 @@ mod tests {
 
         // Generate a random withdraw address
         let mut withdraw_address_bytes: [u8; 20] = [0; 20]; // Initialize with zeros
-                rand::thread_rng().fill(&mut withdraw_address_bytes);
-                if withdraw_address_bytes == [0; 20] {
-                    withdraw_address_bytes[0] = 1;
-                }
+        rand::thread_rng().fill(&mut withdraw_address_bytes);
+        if withdraw_address_bytes == [0; 20] {
+            withdraw_address_bytes[0] = 1;
+        }
 
         let withdraw_address = Fr254::from_be_bytes_mod_order(&withdraw_address_bytes);
         // make a random Nightfall address, and create fee_token_id from it
@@ -967,7 +966,7 @@ mod tests {
             poseidon
                 .hash(&[keys.nullifier_key, c.hash().unwrap()])
                 .unwrap()
-        }); 
+        });
 
         let expected_compressed_secrets: [Fr254; 5] = kemdem_encrypt::<true>(
             ephemeral_key,

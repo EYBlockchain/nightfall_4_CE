@@ -253,9 +253,9 @@ async fn verify_enough_commitments(
 #[cfg(test)]
 mod test {
     use super::*;
-    use lib::tests_utils::{get_db_connection, get_mongo, get_db_connection_uri};
     use crate::domain::entities::CommitmentStatus;
     use ark_bn254::Fr as Fr254;
+    use lib::tests_utils::{get_db_connection, get_db_connection_uri, get_mongo};
     use url::Host;
 
     #[tokio::test]
