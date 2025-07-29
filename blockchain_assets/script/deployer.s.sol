@@ -6,7 +6,7 @@ import "@forge-std/StdToml.sol";
 import "../contracts/Nightfall.sol";
 import "../contracts/RoundRobin.sol";
 import "../contracts/proof_verification/MockVerifier.sol";
-import "../contracts/proof_verification/RollupVerifier.sol";
+import "../contracts/proof_verification/RollupProofVerifier.sol";
 import "../contracts/proof_verification/INFVerifier.sol";
 import "../contracts/X509/X509.sol";
 import "../contracts/SanctionsListMock.sol";
@@ -110,7 +110,7 @@ contract Deployer is Script {
         if (toml.readBool(mockProver)) {
             verifier = new MockVerifier();
         } else {
-            verifier = new RollupVerifier();
+            verifier = new RollupProofVerifier();
         }
     }
 

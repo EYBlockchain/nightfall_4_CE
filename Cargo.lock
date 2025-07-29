@@ -3667,7 +3667,7 @@ checksum = "4a5f13b858c8d314ee3e8f639011f7ccefe71f97f96e50151fb991f267928e2c"
 [[package]]
 name = "jf-plonk"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#e3466f8daddea9403666283b09f0e6e804ff07aa"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#1e8c897d8d594029aa3aa7472efeb22a6572d195"
 dependencies = [
  "ark-bn254",
  "ark-crypto-primitives",
@@ -3703,7 +3703,7 @@ dependencies = [
 [[package]]
 name = "jf-primitives"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#e3466f8daddea9403666283b09f0e6e804ff07aa"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#1e8c897d8d594029aa3aa7472efeb22a6572d195"
 dependencies = [
  "anyhow",
  "arithmetic",
@@ -3753,7 +3753,7 @@ dependencies = [
 [[package]]
 name = "jf-relation"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#e3466f8daddea9403666283b09f0e6e804ff07aa"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#1e8c897d8d594029aa3aa7472efeb22a6572d195"
 dependencies = [
  "ark-bls12-377",
  "ark-bls12-381",
@@ -3785,7 +3785,7 @@ dependencies = [
 [[package]]
 name = "jf-utils"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#e3466f8daddea9403666283b09f0e6e804ff07aa"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#1e8c897d8d594029aa3aa7472efeb22a6572d195"
 dependencies = [
  "ark-ec",
  "ark-ff 0.4.2",
@@ -4284,7 +4284,7 @@ dependencies = [
 [[package]]
 name = "nf-curves"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#e3466f8daddea9403666283b09f0e6e804ff07aa"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#1e8c897d8d594029aa3aa7472efeb22a6572d195"
 dependencies = [
  "ark-bn254",
  "ark-ec",
@@ -4373,6 +4373,7 @@ version = "0.1.0"
 dependencies = [
  "ark-bn254",
  "ark-ec",
+ "ark-ed-on-bn254",
  "ark-ff 0.4.2",
  "ark-poly",
  "ark-serialize 0.4.2",
@@ -4381,6 +4382,7 @@ dependencies = [
  "dotenv",
  "ethers",
  "ethers-solc",
+ "hex",
  "itertools 0.10.5",
  "jf-plonk",
  "jf-primitives",
@@ -4397,6 +4399,7 @@ dependencies = [
  "reqwest 0.11.27",
  "serde",
  "sha2 0.10.9",
+ "sha3",
  "tokio",
  "toml 0.8.22",
  "url",

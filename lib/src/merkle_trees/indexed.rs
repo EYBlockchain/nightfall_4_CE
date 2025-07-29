@@ -631,8 +631,8 @@ impl<F: PrimeField + PoseidonParams> IndexedLeaves<F> for mongodb::Client {
 
 #[cfg(test)]
 mod test {
-    use crate::merkle_trees::trees::helper_functions::make_complete_tree;
     use super::*;
+    use crate::merkle_trees::trees::helper_functions::make_complete_tree;
     use crate::tests_utils::*;
     use ark_bn254::Fr as Fr254;
     use ark_ff::Zero;

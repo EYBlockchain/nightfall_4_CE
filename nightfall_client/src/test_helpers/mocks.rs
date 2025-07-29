@@ -1,6 +1,5 @@
 #![cfg(test)]
 
-use std::fmt::Debug;
 use crate::{
     domain::entities::{ClientTransaction, Preimage, Salt},
     drivers::{derive_key::ZKPKeys, rest::models::PreimageReq},
@@ -21,8 +20,8 @@ use nf_curves::ed_on_bn254::{
     BJJTEAffine as JubJubAffine, BJJTEProjective as JubJub, Fr as FqJubJub,
 };
 use serde::{Deserialize, Serialize};
+use std::fmt::Debug;
 use std::fmt::Error;
-
 
 // define a mock proof, a bit G16-like, which returns a fixed answer
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -194,4 +193,3 @@ impl Mocks {
         }
     }
 }
-
