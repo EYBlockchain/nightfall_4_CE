@@ -462,7 +462,9 @@ contract Nightfall is
 
             return;
         }
+        // To avoid re-entrancy attacks, we set the withdrawalIncluded[key] to 0 before transferring the funds.
 
+        withdrawalIncluded[key] = 0;
         bool success;
         if (token_type == TokenType.ERC1155) {
             IERC1155(original.erc_address).safeTransferFrom(
@@ -496,8 +498,10 @@ contract Nightfall is
             );
         }
 
-        if (success) {
-            withdrawalIncluded[key] = 0;
+        if (!success) {
+            // If the transfer failed, we revert the state change
+            // and set withdrawalIncluded[key] back to 1 so that the withdraw can be retried.
+            withdrawalIncluded[key] = 1;
         }
     }
 
