@@ -239,10 +239,7 @@ where
                         }
                     }
                 }
-                // let u256_bytes = start_block._0.to_be_bytes();
-                // let last_8_bytes = &u256_bytes[24..]; // Take last 8 bytes (MSB-first for big-endian)
-                // let start_block_1 = u64::from_be_bytes(last_8_bytes.try_into().unwrap());
-                //println!("Start block for round robin: {start_block_1}");
+
                 let round_robin_events = round_robin_instance
                     .event_filter::<RoundRobin::ProposerRotated>()
                     .from_block(0u64);

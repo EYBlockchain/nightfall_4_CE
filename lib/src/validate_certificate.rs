@@ -103,10 +103,6 @@ async fn handle_certificate_validation(
          .read()
          .await
          .get_address();
-        println!(
-            "Sender address: {sender_address}"
-        );
-      
         validate_certificate(
             get_addresses().x509,
             certificate_req.certificate,
@@ -171,7 +167,6 @@ async fn validate_certificate(
             warn!("{e}");
             X509ValidationError
         })?;
-        //println!("Transaction hash: {:?}", tx_receipt.get_receipt().await.unwrap());
     if tx_receipt.get_receipt().await.is_err() {
         error!("X509Validation transaction failed");
         return Err(Box::new(X509ValidationError));

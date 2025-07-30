@@ -15,7 +15,7 @@ use crate::{
     initialisation::get_db_connection,
     ports::{contracts::NightfallContract, trees::CommitmentTree},
 };
-use alloy::{primitives::I256, rpc::types::Filter};
+use alloy::{primitives::I256, rpc::types::Filter, sol_types::{SolEvent, SolEventInterface}};
 use ark_bn254::Fr as Fr254;
 use configuration::{addresses::get_addresses, settings::get_settings};
 use futures::{StreamExt, TryStreamExt};
@@ -25,7 +25,7 @@ use lib::{
     initialisation::get_blockchain_client_connection,
 };
 use log::{debug, warn};
-use mongodb::Client as MongoClient;
+use mongodb::{Client as MongoClient};
 use std::{panic, time::Duration};
 use tokio::time::sleep;
 /// This function starts the event handler. It will attempt to restart the event handler in case of errors
@@ -96,55 +96,45 @@ pub async fn listen_for_events<N: NightfallContract>(
         "Listening for events on the Nightfall contract at address: {}",
         get_addresses().nightfall()
     );
-// BlockProposed stream
-// let filter = Filter::new()
-// .address( get_addresses().nightfall())
-// .from_block(start_block as u64);
-
-// let mut sub = blockchain_client.subscribe_logs(&filter).await.map_err(|_| EventHandlerError::NoEventStream)?.into_stream();
-
-let events = nightfall_instance.event_filter()
+    // BlockProposed stream
+    let block_stream = nightfall_instance
+    .event_filter::<Nightfall::BlockProposed>()
     .from_block(start_block as u64)
     .subscribe()
     .await
-    .map_err(|_| EventHandlerError::NoEventStream)?;
-let mut stream = events.into_stream();
-    let block_events = nightfall_instance.BlockProposed_filter()
+    .map_err(|_| EventHandlerError::NoEventStream)?
+    .into_stream();
+
+    let deposit_stream = nightfall_instance
+    .event_filter::<Nightfall::DepositEscrowed>()
     .from_block(start_block as u64)
     .subscribe()
     .await
-    .map_err(|_| EventHandlerError::NoEventStream)?;
-let block_stream = block_events.into_stream().map(|e| e.map(|log| (Nightfall::NightfallEvents::BlockProposed(log.0), log.1)));
+    .map_err(|_| EventHandlerError::NoEventStream)?
+    .into_stream();
 
-// DepositEscrowed stream
-let  deposit_event = nightfall_instance
-    .DepositEscrowed_filter()
-    .from_block(start_block as u64)
-    .subscribe()
-    .await
-    .map_err(|_| EventHandlerError::NoEventStream)?;
-let mut deposit_stream = deposit_event.into_stream().map(|e| e.map(|log| (Nightfall::NightfallEvents::DepositEscrowed(log.0), log.1)));;
-//println!("check if event is correct: {:?}", deposit_stream.next().await.unwrap().unwrap().0.value);
-// Combine both streams
-let mut all_events = futures::stream::select(block_stream, deposit_stream);
-
-while let Some(evt) = all_events.next().await {
-    // process each event in the stream and handle any errors
-    let result = process_events::<N>(evt., evt.1).await;
-    match result {
-        Ok(_) => continue,
-        Err(e) => {
-            match e {
-                // we're missing blocks, so we need to re-synchronise
-                EventHandlerError::MissingBlocks(n) => {
-                    warn!("Missing blocks. Last contiguous block was {}. Restarting event listener", n);
-                    restart_event_listener::<N>(start_block).await;
-                    return Err(EventHandlerError::StreamTerminated);
+    // the event stream is a stream of events, so we need to merge the two streams
+    let mut all_events = futures::stream::select(
+    block_stream.map(|e| e.map(|log| (Nightfall::NightfallEvents::BlockProposed(log.0), log.1))),
+    deposit_stream.map(|e| e.map(|log| (Nightfall::NightfallEvents::DepositEscrowed(log.0), log.1))),
+    );
+    while let Some(Ok((event,logs))) = all_events.next().await {
+        // process each event in the stream and handle any errors
+        let result = process_events::<N>(event, logs).await;
+        match result {
+            Ok(_) => continue,
+            Err(e) => {
+                match e {
+                    // we're missing blocks, so we need to re-synchronise
+                    EventHandlerError::MissingBlocks(n) => {
+                        warn!("Missing blocks. Last contiguous block was {}. Restarting event listener", n);
+                        restart_event_listener::<N>(start_block).await;
+                        return Err(EventHandlerError::StreamTerminated);
+                    }
+                    _ => panic!("Error processing event: {:?}", e),
                 }
-                _ => panic!("Error processing event: {:?}", e),
             }
         }
-    }
 }
 Err(EventHandlerError::StreamTerminated)
 }

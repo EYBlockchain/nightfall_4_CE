@@ -180,7 +180,6 @@ mod test {
             0x302b6d99eae12fb5,
         ]));
         let hex_from_fr254 = Fr254::to_hex_string(&test_fr254);
-        println!("Hex from Fr254: {hex_from_fr254}");
         let fr254_from_hex = Fr254::from_hex_string(&hex_from_fr254).unwrap();
         assert_eq!(test_fr254, fr254_from_hex);
     }

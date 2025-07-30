@@ -1354,9 +1354,7 @@ mod tests {
         let mut found_hashes = Vec::new();
         for block_txs in txs_json.as_array().unwrap() {
             for tx in block_txs.as_array().unwrap() {
-                println!("Found transaction: {:?}", tx["hash"]);
                 let hash_str = tx["hash"].as_str().unwrap();
-                println!("Transaction hash: {hash_str}");
                 let hash = Address::from_word(alloy::primitives::FixedBytes::from_str(hash_str).unwrap());
                 found_hashes.push(hash);
             }

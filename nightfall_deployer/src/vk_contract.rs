@@ -18,9 +18,7 @@ pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: 
         .to_bytes_be()
         .try_into()
         .expect("Failed to convert Vec<u8> to [u8; 32]");
-    println!("vk_hash_bytes: {vk_hash_bytes:?}");
     let vk_hash = B256::from_slice(&vk_hash_bytes);
-    println!("vk_hash: {vk_hash:?}");
     let domain_size = vk.domain_size();
     let domain_size_fr = Fr254::from(domain_size as u32);
     let domain_size_inv = U256::from_le_bytes::<32>(
