@@ -279,15 +279,17 @@ contract Nightfall is
                 continue;
             }
         }
+        // Now we update the roots
+        commitmentRoot = blk.commitments_root;
+        nullifierRoot = blk.nullifier_root;
+        historicRootsRoot = blk.commitments_root_root;
+        
         // Pay the proposer totalFee
         address proposer = proposer_manager.get_current_proposer_address();
         (bool success, ) = proposer.call{value: totalFee}("");
         require(success, "Failed to transfer the fee to the proposer");
 
-        // Now we update the roots
-        commitmentRoot = blk.commitments_root;
-        nullifierRoot = blk.nullifier_root;
-        historicRootsRoot = blk.commitments_root_root;
+        
         emit BlockProposed(layer2_block_number++);
     }
 

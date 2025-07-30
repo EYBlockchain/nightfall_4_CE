@@ -69,6 +69,10 @@ contract RoundRobin is ProposerManager, Certified {
             stake >= exit_penalty,
             "Stake must be greater than exit penalty"
         );
+        require(
+            ding > exit_penalty, 
+            "Ding must be greater than exit penalty"
+        );
         ROTATION_BlOCKS = rotation_blocks;
         require(
             msg.value == STAKE,
