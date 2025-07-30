@@ -530,6 +530,7 @@ impl RecursiveProver for RollupProver {
     fn decider_circuit_checks(
         specific_pis: &[Vec<Variable>],
         circuit: &mut PlonkCircuit<Fr254>,
+        lookup_vars: &mut Vec::<(Variable, Variable, Variable)>,
     ) -> Result<Vec<Variable>, CircuitError> {
         let fee_sum_one = specific_pis[0][4];
         let fee_sum_two = specific_pis[1][4];
@@ -550,7 +551,6 @@ impl RecursiveProver for RollupProver {
         circuit.enforce_equal(end_root_null_one, start_root_null_two)?;
 
         let fee_sum = circuit.add(fee_sum_one, fee_sum_two)?;
-        let mut lookup_vars = Vec::<(Variable, Variable, Variable)>::new();
 
         let (_, sha_left) =
             circuit.full_shifted_sha256_hash(&[sha_one, sha_two], &mut lookup_vars)?;
@@ -561,7 +561,6 @@ impl RecursiveProver for RollupProver {
         let (_, final_sha) =
             circuit.full_shifted_sha256_hash(&[sha_left, sha_right], &mut lookup_vars)?;
 
-        circuit.finalize_for_sha256_hash(&mut lookup_vars)?;
         let root_m_proof_length =
             BigUint::from(circuit.witness(specific_pis[2][0])?).to_u32_digits()[0] as usize;
 

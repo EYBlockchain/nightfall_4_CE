@@ -49,6 +49,7 @@ pub mod panic;
 pub mod polynomial_eval;
 pub mod proposer_manager;
 pub mod rollup_proof_verifier;
+pub mod rollup_verifier;
 pub mod round_robin;
 pub mod safe_cast;
 pub mod sanctions_list_interface;
