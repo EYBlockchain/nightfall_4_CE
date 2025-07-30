@@ -6,12 +6,12 @@ pub mod services;
 pub mod test_helpers;
 
 use alloy::dyn_abi::abi::encode;
+use alloy::primitives::{keccak256, U256};
 use alloy::sol_types::SolValue;
 use ark_bn254::{Bn254, Fr as Fr254};
 use ark_serialize::CanonicalDeserialize;
 use configuration::addresses::get_addresses;
 use drivers::derive_key::ZKPKeys;
-use alloy::primitives::{U256, keccak256};
 use jf_plonk::nightfall::ipa_structs::ProvingKey;
 use jf_primitives::pcs::prelude::UnivariateKzgPCS;
 use lib::utils::load_key_from_server;
@@ -35,7 +35,7 @@ pub fn get_fee_token_id() -> Fr254 {
 
     let nf_address_token = nf_address.tokenize();
     let u256_zero = U256::ZERO.tokenize();
-     let fee_token_id_biguint =
+    let fee_token_id_biguint =
         BigUint::from_bytes_be(keccak256(encode(&(nf_address_token, u256_zero))).as_slice()) >> 4;
     Fr254::from(fee_token_id_biguint)
 }

@@ -1,15 +1,19 @@
+use alloy::{
+    primitives::{keccak256, Address, B256, I256},
+    rpc::types::Filter,
+    signers::local::PrivateKeySigner as LocalWallet,
+};
 use ark_bn254::Fr as Fr254;
 use ark_ec::twisted_edwards::Affine as TEAffine;
 use ark_ff::{BigInteger, PrimeField};
-use ark_std::{collections::HashMap, rand::{self, Rng}, test_rng, UniformRand};
+use ark_std::{
+    collections::HashMap,
+    rand::{self, Rng},
+    test_rng, UniformRand,
+};
 use configuration::{
     addresses::{get_addresses, Addresses, AddressesError, Sources},
     settings::Settings,
-};
-use alloy::{
-    primitives::{Address, keccak256, I256, B256},
-    signers::{local::PrivateKeySigner as LocalWallet},
-    rpc::types::Filter,
 };
 
 use hex::ToHex;
@@ -578,9 +582,7 @@ pub fn forge_command(command: &[&str]) {
             }
         }
         Err(e) => {
-            panic!(
-                "Command 'forge {command:?}' ran into an error without executing: {e}"
-            );
+            panic!("Command 'forge {command:?}' ran into an error without executing: {e}");
         }
     }
 }
@@ -694,9 +696,7 @@ pub async fn get_l1_block_hash_of_layer2_block(
     let tx = client
         .get_transaction_by_hash(tx_hash)
         .await
-        .map_err(|e| {
-            NightfallContractError::ProviderError(format!("get_transaction error: {e}"))
-        })?
+        .map_err(|e| NightfallContractError::ProviderError(format!("get_transaction error: {e}")))?
         .ok_or(NightfallContractError::TransactionNotFound(tx_hash))?;
 
     let block_hash = tx.block_hash.ok_or_else(|| {
@@ -841,9 +841,7 @@ pub async fn create_nf3_deposit_transaction(
         .to_str()
         .map_err(|e| TestError::new(e.to_string()))?
         .to_string();
-    info!(
-        "Deposit transaction {returned_id} has been accepted by the client"
-    );
+    info!("Deposit transaction {returned_id} has been accepted by the client");
     let mut deposit_data = vec![];
 
     // Value token
@@ -897,9 +895,7 @@ pub async fn create_nf3_transfer_transaction(
         .to_str()
         .map_err(|e| TestError::new(e.to_string()))?
         .to_string();
-    info!(
-        "Transfer transaction {returned_id} has been accepted by the client"
-    );
+    info!("Transfer transaction {returned_id} has been accepted by the client");
     Ok(Uuid::parse_str(&returned_id).unwrap())
 }
 
@@ -954,9 +950,7 @@ pub async fn create_nf3_withdraw_transaction(
         withdraw_fund_salt: String::default(),
     };
 
-    info!(
-        "Withdraw transaction {returned_id} has been accepted by the client"
-    );
+    info!("Withdraw transaction {returned_id} has been accepted by the client");
     Ok((
         Uuid::parse_str(&returned_id).unwrap(),
         withdraw_data_request,
@@ -1304,11 +1298,9 @@ mod tests {
     use std::str::FromStr;
 
     use super::*;
-    use alloy::primitives::{U256};
+    use alloy::primitives::U256;
+    use alloy::providers::{Provider, ProviderBuilder};
     use alloy::rpc::types::TransactionRequest;
-    use alloy::{
-        providers::{Provider, ProviderBuilder}
-    };
     use alloy_node_bindings::Anvil;
     use reqwest::Client;
     #[tokio::test]
@@ -1321,9 +1313,9 @@ mod tests {
 
         // Set up ethers provider and wallet
         let provider = ProviderBuilder::new()
-        .disable_recommended_fillers()
-        .on_http(anvil.endpoint_url());
-       
+            .disable_recommended_fillers()
+            .on_http(anvil.endpoint_url());
+
         // Get two accounts
         let accounts = provider.get_accounts().await.unwrap();
         let from = accounts[0];
@@ -1355,7 +1347,8 @@ mod tests {
         for block_txs in txs_json.as_array().unwrap() {
             for tx in block_txs.as_array().unwrap() {
                 let hash_str = tx["hash"].as_str().unwrap();
-                let hash = Address::from_word(alloy::primitives::FixedBytes::from_str(hash_str).unwrap());
+                let hash =
+                    Address::from_word(alloy::primitives::FixedBytes::from_str(hash_str).unwrap());
                 found_hashes.push(hash);
             }
         }
@@ -1374,19 +1367,16 @@ mod tests {
         let anvil = Anvil::new().spawn();
         let endpoint = anvil.endpoint();
         let provider = ProviderBuilder::new()
-        .disable_recommended_fillers()
-        .on_http(anvil.endpoint_url());
+            .disable_recommended_fillers()
+            .on_http(anvil.endpoint_url());
 
         // Mine three blocks to ensure there is some chain history before reorg
-        
+
         provider
             .raw_request::<_, ()>("anvil_mine".into(), serde_json::json!([3]))
             .await
             .unwrap();
-        assert_eq!(
-            provider.get_block_number().await.unwrap(),
-            3u64
-        );
+        assert_eq!(provider.get_block_number().await.unwrap(), 3u64);
 
         // get the balances of the first two accounts
         let accounts = provider.get_accounts().await.unwrap();
@@ -1400,26 +1390,24 @@ mod tests {
                 TransactionRequest::default()
                     .from(from)
                     .to(to)
-                    .value(U256::from(1_000_000_000_000_000u128))
+                    .value(U256::from(1_000_000_000_000_000u128)),
             )
             .await
             .unwrap();
         // wait for the transaction to be mined
         let tx_receipt = tx.get_receipt().await.unwrap();
         // check that the block number is 4
-        assert_eq!(
-            tx_receipt.block_number.unwrap(),
-            4u64
-        );
+        assert_eq!(tx_receipt.block_number.unwrap(), 4u64);
         // check that the node also thinks the block number is 4
-        assert_eq!(
-            provider.get_block_number().await.unwrap(),
-            4u64
-        );
+        assert_eq!(provider.get_block_number().await.unwrap(), 4u64);
         // check that the transaction is in the block
         let block = provider
-            .get_block_by_number(alloy::eips::BlockNumberOrTag::Number(tx_receipt.block_number.unwrap())).await
-            .unwrap().unwrap();
+            .get_block_by_number(alloy::eips::BlockNumberOrTag::Number(
+                tx_receipt.block_number.unwrap(),
+            ))
+            .await
+            .unwrap()
+            .unwrap();
 
         assert!(block
             .transactions
@@ -1463,19 +1451,15 @@ mod tests {
         let anvil = Anvil::new().spawn();
         let endpoint = anvil.endpoint();
         let provider = ProviderBuilder::new()
-        .disable_recommended_fillers()
-        .on_http(anvil.endpoint_url());
-
+            .disable_recommended_fillers()
+            .on_http(anvil.endpoint_url());
 
         // Mine three blocks to ensure there is some chain history before reorg
         provider
             .raw_request::<_, ()>("anvil_mine".into(), serde_json::json!([3]))
             .await
             .unwrap();
-        assert_eq!(
-            provider.get_block_number().await.unwrap(),
-           3u64
-        );
+        assert_eq!(provider.get_block_number().await.unwrap(), 3u64);
 
         // Get the balances of the first two accounts
         let accounts = provider.get_accounts().await.unwrap();
@@ -1487,28 +1471,24 @@ mod tests {
         let to = accounts[1];
         let tx = provider
             .send_transaction(
-               TransactionRequest::default()
+                TransactionRequest::default()
                     .from(from)
                     .to(to)
-                    .value(U256::from(100_000_000_000_000_000u128))
+                    .value(U256::from(100_000_000_000_000_000u128)),
             )
             .await
             .unwrap();
         // Wait for the transaction to be mined
         let tx_receipt = tx.get_receipt().await.unwrap();
         // Check that the block number is 4
-        assert_eq!(
-            tx_receipt.block_number.unwrap(),
-            4u64
-        );
+        assert_eq!(tx_receipt.block_number.unwrap(), 4u64);
         // Check that the node also thinks the block number is 4
-        assert_eq!(
-            provider.get_block_number().await.unwrap(),
-            4u64
-        );
+        assert_eq!(provider.get_block_number().await.unwrap(), 4u64);
         // Check that the transaction is in the block
         let block = provider
-            .get_block_by_number(alloy::eips::BlockNumberOrTag::Number(tx_receipt.block_number.unwrap()))
+            .get_block_by_number(alloy::eips::BlockNumberOrTag::Number(
+                tx_receipt.block_number.unwrap(),
+            ))
             .await
             .unwrap()
             .unwrap();

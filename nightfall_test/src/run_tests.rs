@@ -8,15 +8,16 @@ use crate::{
     test_settings::TestSettings,
     validate_certs::validate_all_certificates,
 };
+use alloy::{
+    primitives::{
+        utils::{format_units, parse_units},
+        U256,
+    },
+    rpc::types::TransactionReceipt,
+};
 use ark_bn254::Fr as Fr254;
 use ark_std::{collections::HashMap, Zero};
 use configuration::settings::{get_settings, Settings};
-use alloy::{
-    primitives::{U256,
-    utils::{format_units, parse_units}},
-    rpc::types::TransactionReceipt,
-
-};
 use futures::future::try_join_all;
 use lib::{
     blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
@@ -450,9 +451,7 @@ pub async fn run_tests(
         Url::parse(&settings.nightfall_client.url).unwrap(),
     )
     .await;
-    info!(
-        "Fee Commitment Balance  held as layer 2 commitments by client1: {fee_balance}"
-    );
+    info!("Fee Commitment Balance  held as layer 2 commitments by client1: {fee_balance}");
     assert_eq!(fee_balance, 137 + client1_starting_fee_balance);
     // call verify_deposit_commitments_nf_token_id
     info!("Verifying deposit commitments");
@@ -547,15 +546,11 @@ pub async fn run_tests(
         Url::parse(&settings.nightfall_client.url).unwrap(),
     )
     .await;
-    info!(
-        "Balance of ERC20 tokens held as layer 2 commitments by client 1: {balance}"
-    );
+    info!("Balance of ERC20 tokens held as layer 2 commitments by client 1: {balance}");
     assert_eq!(balance, 14 + client1_starting_balance);
 
     let balance = get_erc20_balance(&http_client, Url::parse("http://client2:3000").unwrap()).await;
-    info!(
-        "Balance of ERC20 tokens held as layer 2 commitments by client 2: {balance}"
-    );
+    info!("Balance of ERC20 tokens held as layer 2 commitments by client 2: {balance}");
     assert_eq!(balance, 7 + client2_starting_balance);
 
     info!("Sending transfer transactions");
@@ -740,16 +735,12 @@ pub async fn run_tests(
         Url::parse(&settings.nightfall_client.url).unwrap(),
     )
     .await;
-    info!(
-        "Balance of ERC20 tokens held as layer 2 commitments by client 1: {balance}"
-    );
+    info!("Balance of ERC20 tokens held as layer 2 commitments by client 1: {balance}");
 
     assert_eq!(balance, 1 + client1_starting_balance);
 
     let balance = get_erc20_balance(&http_client, Url::parse("http://client2:3000").unwrap()).await;
-    info!(
-        "Balance of ERC20 tokens held as layer 2 commitments by client2: {balance}"
-    );
+    info!("Balance of ERC20 tokens held as layer 2 commitments by client2: {balance}");
     assert_eq!(balance, 20 + client2_starting_balance);
 
     // create withdraw requests
@@ -856,9 +847,7 @@ pub async fn run_tests(
 
     //check the balance of the ERC20 tokens after the withdraws
     let balance = get_erc20_balance(&http_client, Url::parse("http://client2:3000").unwrap()).await;
-    info!(
-        "Balance of ERC20 tokens held as layer 2 commitments by client2: {balance}"
-    );
+    info!("Balance of ERC20 tokens held as layer 2 commitments by client2: {balance}");
     assert_eq!(balance, 17 + client2_starting_balance);
 
     // withdraw the other token types
@@ -967,19 +956,21 @@ pub async fn run_tests(
     // get the final balance of all the addresses used. As these are all addresses funded by Anvil,
     // we can simple print those balances
     let client = get_blockchain_client_connection()
-    .await
-    .read()
-    .await
-    .get_client();
+        .await
+        .read()
+        .await
+        .get_client();
     let accounts = client.get_accounts().await.unwrap();
     let initial_balance: U256 = parse_units("10000.0", "ether").unwrap().into();
     let final_balances = futures::future::join_all(
-            accounts.iter().map(|a| async { client.get_balance(*a).await.unwrap() }),
-        )
-        .await
-        .iter()
-        .map(|b| initial_balance - b)
-        .collect::<Vec<_>>();
+        accounts
+            .iter()
+            .map(|a| async { client.get_balance(*a).await.unwrap() }),
+    )
+    .await
+    .iter()
+    .map(|b| initial_balance - b)
+    .collect::<Vec<_>>();
     let final_balances_str = final_balances
         .iter()
         .map(|b| format_units(*b, "ether").unwrap())

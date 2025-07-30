@@ -1,11 +1,13 @@
+use alloy::{
+    dyn_abi::abi::encode,
+    primitives::{keccak256, Address, U256},
+    sol_types::SolValue,
+};
 use ark_bn254::Bn254;
 use ark_ec::{twisted_edwards::Affine, AffineRepr};
 use ark_ff::{PrimeField, Zero};
 use ark_std::{rand::rngs::StdRng, UniformRand};
 use criterion::{criterion_group, criterion_main, Criterion};
-use alloy::{
-    dyn_abi::abi::encode, primitives::{keccak256, Address, U256}, sol_types::SolValue
-};
 use jf_plonk::{nightfall::FFTPlonk, proof_system::UniversalSNARK, transcript::StandardTranscript};
 use jf_primitives::{
     pcs::prelude::UnivariateKzgPCS,

@@ -1,6 +1,5 @@
 #![cfg(test)]
 
-use std::fmt::Debug;
 use crate::{
     domain::entities::{ClientTransaction, Preimage, Salt},
     drivers::{derive_key::ZKPKeys, rest::models::PreimageReq},
@@ -10,19 +9,19 @@ use crate::{
         proof::{PrivateInputs, Proof, ProvingEngine, PublicInputs},
     },
 };
+use alloy::primitives::Bytes;
 use ark_bn254::Fr as Fr254;
 use ark_ec::AffineRepr;
 use ark_ff::{BigInt, BigInteger, Field};
 use ark_serialize::SerializationError;
 use ark_std::Zero;
-use alloy::primitives::{Bytes};
 use lib::hex_conversion::HexConvertible;
 use nf_curves::ed_on_bn254::{
     BJJTEAffine as JubJubAffine, BJJTEProjective as JubJub, Fr as FqJubJub,
 };
 use serde::{Deserialize, Serialize};
+use std::fmt::Debug;
 use std::fmt::Error;
-
 
 // define a mock proof, a bit G16-like, which returns a fixed answer
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -194,4 +193,3 @@ impl Mocks {
         }
     }
 }
-

@@ -1,10 +1,10 @@
 /// This module provides functionality to convert various types to and from hexadecimal strings.
 /// It uses a bigendian representation for the conversions.
 use crate::error::HexError;
+use alloy::primitives::U256;
 use ark_bn254::Fr as Fr254;
 use ark_ff::PrimeField;
 use ark_ff::{BigInteger, BigInteger256};
-use alloy::primitives::U256;
 use nf_curves::ed_on_bn254::Fr as BJJScalar;
 use num_bigint::BigUint;
 
@@ -115,19 +115,35 @@ impl HexConvertible for Vec<u8> {
 // Implement the trait foralloy::primitives::U256
 impl HexConvertible for U256 {
     fn to_hex_string(&self) -> String {
-        let bytes = self.to_be_bytes::<4>(); 
+        let bytes = self.to_be_bytes::<32>();
         hex::encode(bytes)
     }
 
     fn from_hex_string(hex_str: &str) -> Result<U256, HexError> {
-        let hex_str = hex_str.strip_prefix("0x").unwrap_or(hex_str);
-        let decoded_bytes = hex::decode(hex_str).map_err(|_| HexError::InvalidHexFormat)?;
-        if decoded_bytes.len() > 32 {
-            return Err(HexError::InvalidStringLength);
-        }
-        let mut padded_bytes = [0u8; 32];
-        padded_bytes[32 - decoded_bytes.len()..].copy_from_slice(&decoded_bytes);
-        Ok(U256::from_be_bytes(padded_bytes))
+        // Remove the "0x" prefix if it exists
+    let hex_str = hex_str.strip_prefix("0x").unwrap_or(hex_str);
+
+    // Decode the hex string into bytes
+    let decoded_bytes = hex::decode(hex_str).map_err(|_| HexError::InvalidHexFormat)?;
+
+    // Debugging: Log the length and contents of decoded_bytes
+    println!("Decoded bytes: {:?}", decoded_bytes);
+    println!("Length of decoded bytes: {}", decoded_bytes.len());
+
+    // Ensure the decoded bytes do not exceed 32 bytes (U256 size)
+    if decoded_bytes.len() > 32 {
+        return Err(HexError::InvalidStringLength);
+    }
+
+    // Create a 32-byte array and pad it with zeros
+    let mut padded_bytes = [0u8; 32];
+    padded_bytes[32 - decoded_bytes.len()..].copy_from_slice(&decoded_bytes);
+
+    // Debugging: Log the padded bytes
+    println!("Padded bytes: {:?}", padded_bytes);
+
+    // Convert the padded bytes into a U256
+    Ok(U256::from_be_bytes(padded_bytes))
     }
 }
 

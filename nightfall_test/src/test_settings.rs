@@ -1,5 +1,5 @@
-use configuration::settings::Settings;
 use alloy::primitives::Address;
+use configuration::settings::Settings;
 use figment::{
     providers::{Format, Toml},
     Figment,
@@ -203,31 +203,34 @@ mod tests {
     use super::*;
     use crate::test::forge_command;
     use alloy::{
-         providers::{Provider, ProviderBuilder},
-         sol,
+        providers::{Provider, ProviderBuilder},
+        sol,
     };
     use alloy_node_bindings::Anvil;
 
-
     sol!(
-        #[sol(rpc)]    
-        #[derive(Debug)] 
-        erc1155_mock, "../blockchain_assets/artifacts/ERC1155Mock.sol/ERC1155Mock.json"
-    );
-    sol!(
-        #[sol(rpc)]    
+        #[sol(rpc)]
         #[derive(Debug)]
-        erc20_mock, "../blockchain_assets/artifacts/ERC20Mock.sol/ERC20Mock.json"
+        erc1155_mock,
+        "../blockchain_assets/artifacts/ERC1155Mock.sol/ERC1155Mock.json"
     );
     sol!(
-        #[sol(rpc)]    
-        #[derive(Debug)] 
-        erc3525_mock, "../blockchain_assets/artifacts/ERC3525Mock.sol/ERC3525Mock.json"
+        #[sol(rpc)]
+        #[derive(Debug)]
+        erc20_mock,
+        "../blockchain_assets/artifacts/ERC20Mock.sol/ERC20Mock.json"
     );
     sol!(
-        #[sol(rpc)]    
-        #[derive(Debug)] 
-        erc721_mock, "../blockchain_assets/artifacts/ERC721Mock.sol/ERC721Mock.json"
+        #[sol(rpc)]
+        #[derive(Debug)]
+        erc3525_mock,
+        "../blockchain_assets/artifacts/ERC3525Mock.sol/ERC3525Mock.json"
+    );
+    sol!(
+        #[sol(rpc)]
+        #[derive(Debug)]
+        erc721_mock,
+        "../blockchain_assets/artifacts/ERC721Mock.sol/ERC721Mock.json"
     );
 
     #[tokio::test]
@@ -253,21 +256,12 @@ mod tests {
 
         // get a blockchain provider so we can interrogate the deployed code
         let provider = ProviderBuilder::new()
-        .disable_recommended_fillers()
-        .on_http(anvil.endpoint_url());
+            .disable_recommended_fillers()
+            .on_http(anvil.endpoint_url());
         let erc20_code = provider.get_code_at(mock_addresses.erc20).await.unwrap();
-        let erc721_code = provider
-            .get_code_at(mock_addresses.erc721)
-            .await
-            .unwrap();
-        let erc1155_code = provider
-            .get_code_at(mock_addresses.erc1155)
-            .await
-            .unwrap();
-        let erc3525_code = provider
-            .get_code_at(mock_addresses.erc3525)
-            .await
-            .unwrap();
+        let erc721_code = provider.get_code_at(mock_addresses.erc721).await.unwrap();
+        let erc1155_code = provider.get_code_at(mock_addresses.erc1155).await.unwrap();
+        let erc3525_code = provider.get_code_at(mock_addresses.erc3525).await.unwrap();
         assert_eq!(erc20_code, erc20_mock::DEPLOYED_BYTECODE);
         assert_eq!(erc721_code, erc721_mock::DEPLOYED_BYTECODE);
         assert_eq!(erc1155_code, erc1155_mock::DEPLOYED_BYTECODE);

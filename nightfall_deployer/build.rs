@@ -17,7 +17,7 @@ fn main() {
     }
 
     forge_command(&["install"]);
-    }
+}
 
 fn is_foundry_installed() -> bool {
     // Check if foundry is installed
@@ -66,9 +66,7 @@ fn forge_command(command: &[&str]) {
             }
         }
         Err(e) => {
-            panic!(
-                "Command 'forge {command:?}' ran into an error without executing: {e}"
-            );
+            panic!("Command 'forge {command:?}' ran into an error without executing: {e}");
         }
     }
 }

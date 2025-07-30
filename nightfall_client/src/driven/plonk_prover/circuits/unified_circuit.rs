@@ -7,11 +7,13 @@ use crate::{
     },
     ports::proof::{PrivateInputs, PrivateInputsVar, PublicInputs},
 };
+use alloy::{
+    dyn_abi::abi::encode,
+    primitives::{keccak256, U256},
+    sol_types::SolValue,
+};
 use ark_ec::{twisted_edwards::Affine, AffineRepr};
 use ark_ff::{One, Zero};
-use alloy::{
-    dyn_abi::abi::encode, primitives::{keccak256, U256}, sol_types::SolValue
-};
 use jf_plonk::errors::PlonkError;
 use jf_relation::{errors::CircuitError, gadgets::ecc::Point, Circuit, PlonkCircuit, Variable};
 use nf_curves::ed_on_bn254::{BabyJubjub, Fq as Fr254};
@@ -66,7 +68,8 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
         let nf_address_token = private_inputs.nf_address.tokenize();
         let u256_zero = U256::ZERO.tokenize();
         let fee_token_id_biguint =
-            BigUint::from_bytes_be(keccak256(encode(&(nf_address_token, u256_zero))).as_slice()) >> 4;
+            BigUint::from_bytes_be(keccak256(encode(&(nf_address_token, u256_zero))).as_slice())
+                >> 4;
         let fee_token_id_field = Fr254::from(fee_token_id_biguint);
         private_inputs.fee_token_id = fee_token_id_field;
 
@@ -144,7 +147,6 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
         // Calculate new commitments
         let withdraw_flag = self.is_zero(withdraw_address)?;
         let withdraw_flag = self.logic_neg(withdraw_flag)?;
-   
 
         let commitments = self.verify_commitments(
             fee_token_id,
@@ -309,15 +311,14 @@ mod tests {
         drivers::{derive_key::ZKPKeys, rest::utils::to_nf_token_id_from_str},
         ports::{commitments::Commitment, secret_hash::SecretHash},
     };
+    use alloy::{
+        dyn_abi::abi::encode,
+        primitives::{keccak256, Address, U256},
+    };
     use ark_bn254::Bn254;
     use ark_ec::CurveGroup;
     use ark_ff::{PrimeField, Zero};
     use ark_std::{rand::rngs::StdRng, UniformRand};
-    use alloy::{
-        primitives::{Address, U256, keccak256},
-        dyn_abi::abi::encode
-
-    };
     use jf_plonk::{
         nightfall::FFTPlonk, proof_system::UniversalSNARK, transcript::StandardTranscript,
     };
@@ -543,7 +544,8 @@ mod tests {
         let nf_address_token = nf_address_h160.tokenize();
         let u256_zero = U256::ZERO.tokenize();
         let fee_token_id_biguint =
-            BigUint::from_bytes_be(keccak256(encode(&(nf_address_token, u256_zero))).as_slice()) >> 4;
+            BigUint::from_bytes_be(keccak256(encode(&(nf_address_token, u256_zero))).as_slice())
+                >> 4;
         let fee_token_id = Fr254::from(fee_token_id_biguint);
 
         let FeesAndValues {
@@ -772,10 +774,10 @@ mod tests {
 
         // Generate a random withdraw address
         let mut withdraw_address_bytes: [u8; 20] = [0; 20]; // Initialize with zeros
-                rand::thread_rng().fill(&mut withdraw_address_bytes);
-                if withdraw_address_bytes == [0; 20] {
-                    withdraw_address_bytes[0] = 1;
-                }
+        rand::thread_rng().fill(&mut withdraw_address_bytes);
+        if withdraw_address_bytes == [0; 20] {
+            withdraw_address_bytes[0] = 1;
+        }
 
         let withdraw_address = Fr254::from_be_bytes_mod_order(&withdraw_address_bytes);
         // make a random Nightfall address, and create fee_token_id from it
@@ -786,7 +788,8 @@ mod tests {
         let nf_address_token = nf_address_h160.tokenize();
         let u256_zero = U256::ZERO.tokenize();
         let fee_token_id_biguint =
-            BigUint::from_bytes_be(keccak256(encode(&(nf_address_token, u256_zero))).as_slice()) >> 4;
+            BigUint::from_bytes_be(keccak256(encode(&(nf_address_token, u256_zero))).as_slice())
+                >> 4;
         let fee_token_id = Fr254::from(fee_token_id_biguint);
 
         let FeesAndValues {
@@ -968,7 +971,7 @@ mod tests {
             poseidon
                 .hash(&[keys.nullifier_key, c.hash().unwrap()])
                 .unwrap()
-        }); 
+        });
 
         let expected_compressed_secrets: [Fr254; 5] = kemdem_encrypt::<true>(
             ephemeral_key,

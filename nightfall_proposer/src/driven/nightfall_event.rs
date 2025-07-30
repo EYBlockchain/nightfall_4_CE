@@ -1,8 +1,8 @@
 use crate::{
     domain::entities::{DepositData, DepositDatawithFee, OnChainTransaction},
     driven::{
-        db::mongo_db::StoredBlock, nightfall_client_transaction::process_deposit_transaction,
-        block_assembler::Nightfall
+        block_assembler::Nightfall, db::mongo_db::StoredBlock,
+        nightfall_client_transaction::process_deposit_transaction,
     },
     drivers::blockchain::nightfall_event_listener::get_synchronisation_status,
     initialisation::{get_blockchain_client_connection, get_db_connection},
@@ -13,11 +13,9 @@ use crate::{
         trees::{CommitmentTree, HistoricRootTree, NullifierTree},
     },
 };
-use ark_bn254::Fr as Fr254;
-use alloy::{
-    primitives::{TxHash, I256}, 
-};
+use alloy::primitives::{TxHash, I256};
 use alloy::{consensus::Transaction, sol_types::SolInterface};
+use ark_bn254::Fr as Fr254;
 use ark_ff::BigInteger;
 use lib::{
     blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
@@ -37,7 +35,7 @@ use std::{
     error::Error,
     fmt::{Debug, Display},
 };
-use tokio::sync::{OnceCell, RwLock};   
+use tokio::sync::{OnceCell, RwLock};
 // Define a mutable lazy static to hold the layer 2 blocknumber. We need this to
 // check if we're still in sync, but putting it in the context would mean passing it around too much
 pub async fn get_expected_layer2_blocknumber() -> &'static RwLock<I256> {
@@ -110,13 +108,14 @@ where
         .read()
         .await
         .get_client()
-        .get_transaction_by_hash(transaction_hash).await
+        .get_transaction_by_hash(transaction_hash)
+        .await
         .map_err(|_| EventHandlerError::IOError("Could not retrieve transaction".to_string()))?;
-        
+
     // if there is one, decode it. If not, throw.
     if let Some(tx) = tx {
-        let decoded =
-           Nightfall::NightfallCalls::abi_decode(tx.input(), true).map_err(|_| EventHandlerError::InvalidCalldata)?;
+        let decoded = Nightfall::NightfallCalls::abi_decode(tx.input(), true)
+            .map_err(|_| EventHandlerError::InvalidCalldata)?;
         if let Nightfall::NightfallCalls::propose_block(decode) = decoded {
             // OK to use unwrap because the smart contract has to provide a block number
             process_propose_block_event::<N>(decode, transaction_hash, block_number).await?;
@@ -143,15 +142,17 @@ async fn process_propose_block_event<N: NightfallContract>(
         .read()
         .await
         .get_client()
-        .get_transaction_by_hash(transaction_hash).await
-        .map_err(|_| EventHandlerError::IOError("Could not retrieve transaction".to_string()))?.unwrap().inner.signer();
+        .get_transaction_by_hash(transaction_hash)
+        .await
+        .map_err(|_| EventHandlerError::IOError("Could not retrieve transaction".to_string()))?
+        .unwrap()
+        .inner
+        .signer();
 
     // get a lock on the db, we don't want anything else updating or reading the DB until
     // we're done here
     let db = get_db_connection().await;
-    info!(
-        "Decoded Proposed block call from transaction {transaction_hash:?}"
-    );
+    info!("Decoded Proposed block call from transaction {transaction_hash:?}");
     let blk = decode.blk;
 
     let layer_2_block_number_in_event_u64: u64 = layer_2_block_number_in_event
@@ -194,9 +195,7 @@ async fn process_propose_block_event<N: NightfallContract>(
     // check if we're ahead of the event, this means we've already seen it and we shouldn't process it again
     // This could happen if we've missed some blocks and we're re-synchronising
     if *expected_onchain_block_number > layer_2_block_number_in_event {
-        warn!(
-            "Already processed layer 2 block {layer_2_block_number_in_event} - skipping"
-        );
+        warn!("Already processed layer 2 block {layer_2_block_number_in_event} - skipping");
         return Ok(());
     }
 
@@ -273,7 +272,9 @@ async fn process_propose_block_event<N: NightfallContract>(
         .map_err(|_| {
             EventHandlerError::IOError("Could not retrieve commitment root".to_string())
         })?;
-    if our_address != sender_address || !sync_status.is_synchronised() || commitment_root.0.is_zero()
+    if our_address != sender_address
+        || !sync_status.is_synchronised()
+        || commitment_root.0.is_zero()
     {
         let commitments = &blk
             .transactions
@@ -317,9 +318,7 @@ async fn process_propose_block_event<N: NightfallContract>(
     db.append_historic_commitment_root(&historic_root, true)
         .await
         .map_err(|_| EventHandlerError::IOError("Could not store historic root".to_string()))?;
-    debug!(
-        "Stored new commitments tree root in historic root timber tree: {historic_root}"
-    );
+    debug!("Stored new commitments tree root in historic root timber tree: {historic_root}");
 
     // it's worth checking that the historic root agrees with what's in the commitment tree
     let commitment_root = <Client as CommitmentTree<Fr254>>::get_root(db)
@@ -340,9 +339,7 @@ async fn process_propose_block_event<N: NightfallContract>(
 
     let delta = current_block_number_in_contract - layer_2_block_number_in_event - I256::ONE;
     if delta != I256::ZERO {
-        warn!(
-            "Synchronising - behind blockchain by {delta} layer 2 blocks "
-        );
+        warn!("Synchronising - behind blockchain by {delta} layer 2 blocks ");
         sync_status.clear_synchronised();
     } else {
         debug!("Synchronised with blockchain");
@@ -356,7 +353,7 @@ async fn process_propose_block_event<N: NightfallContract>(
     Ok(())
 }
 
- pub async fn process_deposit_escrowed_event<P, E>(
+pub async fn process_deposit_escrowed_event<P, E>(
     transaction_hash: TxHash,
     filter: &Nightfall::DepositEscrowed,
 ) -> Result<(), EventHandlerError>
@@ -380,8 +377,8 @@ where
 
     // If there is one, decode it. If not, throw.
     if let Some(tx) = tx {
-        let decoded =
-            Nightfall::NightfallCalls::abi_decode(tx.input(), true).map_err(|_| EventHandlerError::InvalidCalldata)?;
+        let decoded = Nightfall::NightfallCalls::abi_decode(tx.input(), true)
+            .map_err(|_| EventHandlerError::InvalidCalldata)?;
 
         if let Nightfall::NightfallCalls::escrow_funds(decode) = decoded {
             // Get the information from the calldata
@@ -430,7 +427,7 @@ where
                 secret_hash,
             };
             let deposit_data = DepositDatawithFee { fee, deposit_data };
-println!("Processing deposit data: {deposit_data:?}");
+            println!("Processing deposit data: {deposit_data:?}");
             process_deposit_transaction::<P, E>(deposit_data)
                 .await
                 .map_err(|_| {

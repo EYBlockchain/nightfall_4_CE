@@ -1,6 +1,5 @@
-
-use alloy::signers::local::LocalSignerError as WalletError;
 use alloy::rpc::json_rpc::RpcError;
+use alloy::signers::local::LocalSignerError as WalletError;
 use alloy::transports::TransportError;
 use std::{
     error::Error,

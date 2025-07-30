@@ -1,12 +1,12 @@
 use crate::{
     blockchain_client::BlockchainClientConnection, error::BlockchainClientConnectionError,
 };
+use alloy::primitives::Address;
+use alloy::providers::{Provider, ProviderBuilder};
+use alloy::signers::local::PrivateKeySigner;
+use alloy::transports::ws::WsConnect;
 use async_trait::async_trait;
 use azure_security_keyvault::SecretClient;
-use alloy::providers::{Provider, ProviderBuilder};
-use alloy::primitives::Address;
-use alloy::transports::ws::WsConnect;
-use alloy::signers::local::PrivateKeySigner;
 use log::{debug, info};
 use std::{error::Error, sync::Arc};
 use url::Url;
@@ -56,16 +56,14 @@ impl BlockchainClientConnection for LocalWsClient {
     type T = WsConnect;
     type S = configuration::settings::Settings;
 
-    async fn new(
-        url: Url,
-        local_signer: Self::W,
-    ) -> Result<Self, BlockchainClientConnectionError> {
+    async fn new(url: Url, local_signer: Self::W) -> Result<Self, BlockchainClientConnectionError> {
         let ws = WsConnect::new(url);
-        let provider = ProviderBuilder::new().wallet(local_signer.clone())
-        .on_ws(ws)
-        .await
-        .map_err(|e| BlockchainClientConnectionError::ProviderError(e.to_string()))?;
-            
+        let provider = ProviderBuilder::new()
+            .wallet(local_signer.clone())
+            .on_ws(ws)
+            .await
+            .map_err(|e| BlockchainClientConnectionError::ProviderError(e.to_string()))?;
+
         Ok(Self {
             provider: Arc::new(provider),
             signer: local_signer,
@@ -93,13 +91,15 @@ impl BlockchainClientConnection for LocalWsClient {
         self.signer.clone()
     }
 
-    async fn try_from_settings(settings: &Self::S) -> Result<Self, BlockchainClientConnectionError> {
+    async fn try_from_settings(
+        settings: &Self::S,
+    ) -> Result<Self, BlockchainClientConnectionError> {
         // get the signer
         let local_signer = match settings.nightfall_client.wallet_type.as_str() {
             "local" => settings
-            .signing_key
-            .parse::<PrivateKeySigner>()
-            .map_err(BlockchainClientConnectionError::WalletError)?,
+                .signing_key
+                .parse::<PrivateKeySigner>()
+                .map_err(BlockchainClientConnectionError::WalletError)?,
             "azure" => {
                 let azure_wallet =
                     AzureWallet::new(&settings.azure_vault_url, &settings.azure_key_name).await?;
@@ -120,7 +120,8 @@ impl BlockchainClientConnection for LocalWsClient {
 
         // create provider
         let ws = WsConnect::new(settings.ethereum_client_url.clone());
-        let provider = ProviderBuilder::new().wallet(local_signer.clone())
+        let provider = ProviderBuilder::new()
+            .wallet(local_signer.clone())
             .on_ws(ws)
             .await
             .map_err(|e| BlockchainClientConnectionError::ProviderError(e.to_string()))?;

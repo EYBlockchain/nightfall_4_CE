@@ -1,7 +1,7 @@
+use alloy::primitives::{TxHash, I256};
 use ark_bn254::Fr as Fr254;
 use ark_ff::PrimeField;
 use async_trait::async_trait;
-use alloy::primitives::{TxHash, I256};
 use futures::TryStreamExt;
 use jf_primitives::{
     poseidon::{FieldHasher, Poseidon},
@@ -553,9 +553,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
                 Some(())
             }
             Err(e) => {
-                error!(
-                    "Got an error inserting commitment: {commitment:#?}, {e}"
-                );
+                error!("Got an error inserting commitment: {commitment:#?}, {e}");
                 None
             }
         }

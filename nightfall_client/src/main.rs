@@ -7,10 +7,9 @@ use ark_bn254::Fr as Fr254;
 use nightfall_client::{
     domain::entities::{Node, Request},
     driven::{
+        contract_functions::nightfall_contract::Nightfall,
         plonk_prover::plonk_proof::{PlonkProof, PlonkProvingEngine},
         queue::process_queue,
-        contract_functions::nightfall_contract::Nightfall,
-
     },
     drivers::{blockchain::nightfall_event_listener::start_event_listener, rest::routes},
 };

@@ -24,10 +24,10 @@ use crate::{
     },
     services::data_publisher::DataPublisher,
 };
+use alloy::consensus::Transaction;
 use ark_bn254::Fr as Fr254;
 use ark_ff::BigInteger;
 use configuration::settings::get_settings;
-use alloy::{consensus::Transaction};
 
 use alloy::primitives::{TxHash, I256, U256};
 use alloy::sol_types::SolInterface;
@@ -95,7 +95,8 @@ pub async fn process_nightfall_calldata<N: NightfallContract>(
         .await
         .get_client()
         .get_transaction_by_hash(transaction_hash.unwrap())
-        .await.map_err(|e| EventHandlerError::IOError(e.to_string()))?;
+        .await
+        .map_err(|e| EventHandlerError::IOError(e.to_string()))?;
     // if there is one, decode it. If not, warn someone.
     match tx {
         Some(tx) => {
@@ -105,7 +106,8 @@ pub async fn process_nightfall_calldata<N: NightfallContract>(
             match decoded {
                 Nightfall::NightfallCalls::propose_block(decode) => {
                     info!("Processing a block proposed event");
-                    process_propose_block_event::<N>(decode, transaction_hash.unwrap(), filter).await?
+                    process_propose_block_event::<N>(decode, transaction_hash.unwrap(), filter)
+                        .await?
                 }
                 _ => (),
             }
@@ -145,83 +147,82 @@ async fn process_propose_block_event<N: NightfallContract>(
     // This could happen if we've missed some blocks and we're re-synchronising
 
     if *expected_onchain_block_number > layer_2_block_number_in_event {
-        warn!(
-            "Already processed layer 2 block {layer_2_block_number_in_event} - skipping"
-        );
+        warn!("Already processed layer 2 block {layer_2_block_number_in_event} - skipping");
         return Ok(());
     }
     let layer_2_block_number_in_event_u64: u64 = layer_2_block_number_in_event
-    .try_into()
-    .expect("I256 to u64 conversion failed");
-let proposer_address = get_blockchain_client_connection()
-    .await
-    .read()
-    .await
-    .get_client()
-    .get_transaction_by_hash(transaction_hash)
-    .await
-    .map_err(|_| EventHandlerError::IOError("Could not retrieve transaction".to_string()))?
-    .ok_or(EventHandlerError::IOError(
-        "Could not retrieve transaction".to_string(),
-    ))?
-    .inner.signer();
-
-let store_block_pending = StoredBlock {
-    layer2_block_number: layer_2_block_number_in_event_u64,
-    commitments: blk
-        .transactions
-        .iter()
-        .flat_map(|ntx| {
-            let tx: OnChainTransaction = (*ntx).clone().into();
-            tx.commitments
-                .iter()
-                .map(|c| c.to_hex_string())
-                .collect::<Vec<_>>()
-        })
-        .collect(),
-    proposer_address,
-};
-// get a lock on the db, we don't want anything else updating or reading the DB until
-// we're done here
-let db = &mut get_db_connection().await;
-let layer_2_block_number_in_event_u64: u64 = layer_2_block_number_in_event
-    .try_into()
-    .expect("I256 to u64 conversion failed");
-
-if *expected_onchain_block_number == layer_2_block_number_in_event
-    && db
-        .get_block_by_number(layer_2_block_number_in_event_u64)
+        .try_into()
+        .expect("I256 to u64 conversion failed");
+    let proposer_address = get_blockchain_client_connection()
         .await
-        .is_some()
-{
-    // compute the expected block hash and the block hash saved before in other proposed block event
-
-    let existing_block = db
-        .get_block_by_number(layer_2_block_number_in_event_u64)
+        .read()
         .await
+        .get_client()
+        .get_transaction_by_hash(transaction_hash)
+        .await
+        .map_err(|_| EventHandlerError::IOError("Could not retrieve transaction".to_string()))?
         .ok_or(EventHandlerError::IOError(
-            "Could not retrieve block from database".to_string(),
-        ))?;
-    let existing_block_stored_hash = existing_block.hash();
-    let block_store_pending_hash = store_block_pending.hash();
+            "Could not retrieve transaction".to_string(),
+        ))?
+        .inner
+        .signer();
 
-    if existing_block.hash() != store_block_pending.hash() {
-        warn!(
+    let store_block_pending = StoredBlock {
+        layer2_block_number: layer_2_block_number_in_event_u64,
+        commitments: blk
+            .transactions
+            .iter()
+            .flat_map(|ntx| {
+                let tx: OnChainTransaction = (*ntx).clone().into();
+                tx.commitments
+                    .iter()
+                    .map(|c| c.to_hex_string())
+                    .collect::<Vec<_>>()
+            })
+            .collect(),
+        proposer_address,
+    };
+    // get a lock on the db, we don't want anything else updating or reading the DB until
+    // we're done here
+    let db = &mut get_db_connection().await;
+    let layer_2_block_number_in_event_u64: u64 = layer_2_block_number_in_event
+        .try_into()
+        .expect("I256 to u64 conversion failed");
+
+    if *expected_onchain_block_number == layer_2_block_number_in_event
+        && db
+            .get_block_by_number(layer_2_block_number_in_event_u64)
+            .await
+            .is_some()
+    {
+        // compute the expected block hash and the block hash saved before in other proposed block event
+
+        let existing_block = db
+            .get_block_by_number(layer_2_block_number_in_event_u64)
+            .await
+            .ok_or(EventHandlerError::IOError(
+                "Could not retrieve block from database".to_string(),
+            ))?;
+        let existing_block_stored_hash = existing_block.hash();
+        let block_store_pending_hash = store_block_pending.hash();
+
+        if existing_block.hash() != store_block_pending.hash() {
+            warn!(
             "Block hash mismatch. Expected {existing_block_stored_hash}, got {block_store_pending_hash} in layer 2 block {layer_2_block_number_in_event}"
         );
-        // Delete the invalid block and clear sync status
-        db.delete_block_by_number(layer_2_block_number_in_event_u64)
-            .await;
-        return Err(EventHandlerError::BlockHashError(
-            existing_block_stored_hash,
-            block_store_pending_hash,
-        ));
-    } else {
-        debug!(
+            // Delete the invalid block and clear sync status
+            db.delete_block_by_number(layer_2_block_number_in_event_u64)
+                .await;
+            return Err(EventHandlerError::BlockHashError(
+                existing_block_stored_hash,
+                block_store_pending_hash,
+            ));
+        } else {
+            debug!(
             "Block hash matches for layer 2 block {layer_2_block_number_in_event}: {existing_block_stored_hash}"
         );
+        }
     }
-}
     *expected_onchain_block_number += I256::ONE;
 
     // warn that we're not synced with the blockchain if we're behind
@@ -230,14 +231,10 @@ if *expected_onchain_block_number == layer_2_block_number_in_event
     })?;
 
     let delta = current_block_number - filter.layer2_block_number - I256::ONE;
-    println!(
-        "Current block number is {current_block_number}, delta is {delta}"
-    );
+    println!("Current block number is {current_block_number}, delta is {delta}");
     // if we"re synchronising, we don"t want to check for duplicate keys because we expect to overwrite commitments already in the commitment collection
     let dup_key_check = if delta != I256::ZERO {
-        warn!(
-            "Synchronising - behind blockchain by {delta} layer 2 blocks "
-        );
+        warn!("Synchronising - behind blockchain by {delta} layer 2 blocks ");
         false
     } else {
         debug!("Synchronised with blockchain");
@@ -285,9 +282,7 @@ if *expected_onchain_block_number == layer_2_block_number_in_event
             .map_err(|_| {
                 EventHandlerError::IOError("Could not append commitments to tree".to_string())
             })?;
-    debug!(
-        "New commitments tree root is {root}, old root was {old_root}"
-    );
+    debug!("New commitments tree root is {root}, old root was {old_root}");
     // The root should be the same as the one in the block. This is worth checking
     let historic_root = FrBn254::try_from(blk.commitments_root)
         .map_err(|_| {

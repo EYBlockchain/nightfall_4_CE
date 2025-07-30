@@ -4,28 +4,30 @@ use crate::{
     ports::{contracts::NightfallContract, proving::RecursiveProvingEngine},
     services::assemble_block::assemble_block,
 };
+use alloy::sol;
+use alloy::{
+    primitives::{TxHash, U64},
+    providers::{Provider, RootProvider},
+    rpc::types::{BlockId, BlockNumberOrTag},
+};
 use ark_serialize::SerializationError;
-use configuration::{addresses::get_addresses};
+use configuration::addresses::get_addresses;
 use jf_plonk::errors::PlonkError;
-use lib::{blockchain_client::BlockchainClientConnection};
+use lib::blockchain_client::BlockchainClientConnection;
 use log::{debug, error, info, warn};
 use nightfall_client::{
     domain::error::{ConversionError, EventHandlerError, NightfallContractError},
     ports::proof::Proof,
 };
-use alloy::{
-    primitives::{TxHash, U64}, 
-    providers::{Provider, RootProvider}, 
-    rpc::types::{BlockId, BlockNumberOrTag},
-};
 use std::{
     error::Error,
     fmt::{Debug, Display, Formatter},
 };
-use alloy::sol;
 sol!(
-    #[sol(rpc)]     
-    RoundRobin, "../blockchain_assets/artifacts/RoundRobin.sol/RoundRobin.json"
+    #[sol(rpc)]
+    #[allow(clippy::too_many_arguments)]
+    RoundRobin,
+    "../blockchain_assets/artifacts/RoundRobin.sol/RoundRobin.json"
 );
 use std::{sync::Arc, time::Duration};
 use tokio::sync::Mutex;
@@ -110,7 +112,7 @@ impl From<PlonkError> for BlockAssemblyError {
 
 async fn check_l1_finality(
     client: &RootProvider,
-    tx_hash_l1:TxHash,
+    tx_hash_l1: TxHash,
     confirmations_required: U64,
     wait_timeout: Option<Duration>,
 ) -> Result<bool, BlockAssemblyError> {
@@ -154,9 +156,12 @@ async fn check_l1_finality(
 
                     // Can never be finalized (tx too new)
                     println!("Receipt block number: {receipt_block_number}, Finalized block number: {finalized_block_number}, Confirmations required: {confirmations_required}");
-                        println!("additional confirmations required: {}",
-                        U64::from(receipt_block_number) + confirmations_required);
-                    if U64::from(receipt_block_number) + confirmations_required > U64::from(finalized_block_number)
+                    println!(
+                        "additional confirmations required: {}",
+                        U64::from(receipt_block_number) + confirmations_required
+                    );
+                    if U64::from(receipt_block_number) + confirmations_required
+                        > U64::from(finalized_block_number)
                         && wait_timeout.is_none()
                     {
                         return Ok(false);
@@ -201,10 +206,8 @@ where
         .get_client()
         .clone();
     let client = blockchain_client.root().clone();
-    let round_robin_instance = Arc::new(RoundRobin::new(
-        get_addresses().round_robin,
-        client.clone(),
-    ));
+    let round_robin_instance =
+        Arc::new(RoundRobin::new(get_addresses().round_robin, client.clone()));
 
     // Shared queue for blocks waiting for finality confirmation
     let pending_blocks = Arc::new(Mutex::new(Vec::new()));
@@ -243,15 +246,14 @@ where
                 let round_robin_events = round_robin_instance
                     .event_filter::<RoundRobin::ProposerRotated>()
                     .from_block(0u64);
-                let rotate_proposer_log=
-                    match round_robin_events.query().await {
-                        Ok(logs) => logs,
-                        Err(_) => {
-                            return Err(BlockAssemblyError::FailedToAssembleBlock(
-                                "Failed to query round robin rotate proposer events".to_string(),
-                            ));
-                        }
-                    };
+                let rotate_proposer_log = match round_robin_events.query().await {
+                    Ok(logs) => logs,
+                    Err(_) => {
+                        return Err(BlockAssemblyError::FailedToAssembleBlock(
+                            "Failed to query round robin rotate proposer events".to_string(),
+                        ));
+                    }
+                };
                 for (_, log_meta) in rotate_proposer_log {
                     let tx_hash = log_meta.transaction_hash;
                     match check_l1_finality(
@@ -299,7 +301,8 @@ where
                 tokio::time::sleep(std::time::Duration::from_secs(5)).await;
                 continue;
             }
-        }._0;
+        }
+        ._0;
 
         let our_address = get_blockchain_client_connection()
             .await
@@ -309,9 +312,7 @@ where
 
         // Step 2: If we are not the proposer, wait and retry
         if current_proposer != our_address {
-            info!(
-                "We are not the current proposer. Current proposer is: {current_proposer:?}"
-            );
+            info!("We are not the current proposer. Current proposer is: {current_proposer:?}");
             tokio::time::sleep(std::time::Duration::from_secs(5)).await;
             continue;
         }
@@ -334,7 +335,8 @@ where
                 error!("Failed to get current proposer after trigger: {e}");
                 continue;
             }
-        }._0;
+        }
+        ._0;
 
         let our_address = get_blockchain_client_connection()
             .await

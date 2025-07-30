@@ -5,9 +5,9 @@ use super::{
     keys::{ProvingKey, VerifyingKey},
 };
 
+use alloy::primitives::{TxHash, I256};
 use ark_bn254::Fr as Fr254;
 use async_trait::async_trait;
-use alloy::primitives::{TxHash, I256};
 use futures::Future;
 
 #[async_trait]

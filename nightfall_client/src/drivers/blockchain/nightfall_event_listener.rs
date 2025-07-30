@@ -5,27 +5,27 @@ use crate::{
     },
     driven::db::mongo::{BlockStorageDB, StoredBlock},
     driven::{
-        event_handlers::nightfall_event::{
-        get_expected_layer2_blocknumber, 
-        },
-        contract_functions::nightfall_contract::{Nightfall},
-        },
-    services::process_events::process_events,    
+        contract_functions::nightfall_contract::Nightfall,
+        event_handlers::nightfall_event::get_expected_layer2_blocknumber,
+    },
     drivers::blockchain::nightfall_event_listener::SynchronisationPhase::Synchronized,
     initialisation::get_db_connection,
     ports::{contracts::NightfallContract, trees::CommitmentTree},
+    services::process_events::process_events,
 };
-use alloy::{primitives::I256, rpc::types::Filter, sol_types::{SolEvent, SolEventInterface}};
+use alloy::{
+    primitives::I256,
+};
 use ark_bn254::Fr as Fr254;
 use configuration::{addresses::get_addresses, settings::get_settings};
-use futures::{StreamExt, TryStreamExt};
 use futures::{future::BoxFuture, FutureExt};
+use futures::{StreamExt};
 use lib::{
     blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
     initialisation::get_blockchain_client_connection,
 };
 use log::{debug, warn};
-use mongodb::{Client as MongoClient};
+use mongodb::Client as MongoClient;
 use std::{panic, time::Duration};
 use tokio::time::sleep;
 /// This function starts the event handler. It will attempt to restart the event handler in case of errors
@@ -84,41 +84,40 @@ pub async fn listen_for_events<N: NightfallContract>(
     start_block: usize,
 ) -> Result<(), EventHandlerError> {
     let blockchain_client = get_blockchain_client_connection()
-    .await
-    .read()
-    .await
-    .get_client();
-    let nightfall_instance = Nightfall::new(
-        get_addresses().nightfall(),
-        blockchain_client.root(),
-    );
+        .await
+        .read()
+        .await
+        .get_client();
+    let nightfall_instance = Nightfall::new(get_addresses().nightfall(), blockchain_client.root());
     log::info!(
         "Listening for events on the Nightfall contract at address: {}",
         get_addresses().nightfall()
     );
     // BlockProposed stream
     let block_stream = nightfall_instance
-    .event_filter::<Nightfall::BlockProposed>()
-    .from_block(start_block as u64)
-    .subscribe()
-    .await
-    .map_err(|_| EventHandlerError::NoEventStream)?
-    .into_stream();
+        .event_filter::<Nightfall::BlockProposed>()
+        .from_block(start_block as u64)
+        .subscribe()
+        .await
+        .map_err(|_| EventHandlerError::NoEventStream)?
+        .into_stream();
 
     let deposit_stream = nightfall_instance
-    .event_filter::<Nightfall::DepositEscrowed>()
-    .from_block(start_block as u64)
-    .subscribe()
-    .await
-    .map_err(|_| EventHandlerError::NoEventStream)?
-    .into_stream();
+        .event_filter::<Nightfall::DepositEscrowed>()
+        .from_block(start_block as u64)
+        .subscribe()
+        .await
+        .map_err(|_| EventHandlerError::NoEventStream)?
+        .into_stream();
 
     // the event stream is a stream of events, so we need to merge the two streams
     let mut all_events = futures::stream::select(
-    block_stream.map(|e| e.map(|log| (Nightfall::NightfallEvents::BlockProposed(log.0), log.1))),
-    deposit_stream.map(|e| e.map(|log| (Nightfall::NightfallEvents::DepositEscrowed(log.0), log.1))),
+        block_stream
+            .map(|e| e.map(|log| (Nightfall::NightfallEvents::BlockProposed(log.0), log.1))),
+        deposit_stream
+            .map(|e| e.map(|log| (Nightfall::NightfallEvents::DepositEscrowed(log.0), log.1))),
     );
-    while let Some(Ok((event,logs))) = all_events.next().await {
+    while let Some(Ok((event, logs))) = all_events.next().await {
         // process each event in the stream and handle any errors
         let result = process_events::<N>(event, logs).await;
         match result {
@@ -127,16 +126,16 @@ pub async fn listen_for_events<N: NightfallContract>(
                 match e {
                     // we're missing blocks, so we need to re-synchronise
                     EventHandlerError::MissingBlocks(n) => {
-                        warn!("Missing blocks. Last contiguous block was {}. Restarting event listener", n);
+                        warn!("Missing blocks. Last contiguous block was {n}. Restarting event listener");
                         restart_event_listener::<N>(start_block).await;
                         return Err(EventHandlerError::StreamTerminated);
                     }
-                    _ => panic!("Error processing event: {:?}", e),
+                    _ => panic!("Error processing event: {e:?}"),
                 }
             }
         }
-}
-Err(EventHandlerError::StreamTerminated)
+    }
+    Err(EventHandlerError::StreamTerminated)
 }
 // We might need to restart the event listener if we fall out of sync and lose blocks
 // This does not erase aleady synchronised data
@@ -252,17 +251,13 @@ pub async fn get_synchronisation_status<N: NightfallContract>(
                 ));
             }
             // If hashes match, fall through and return Synchronized
-            debug!(
-                "Block {expected_u64} verified in local DB with matching hash."
-            );
+            debug!("Block {expected_u64} verified in local DB with matching hash.");
             Ok(SynchronisationStatus::new(
                 SynchronisationPhase::Synchronized,
             ))
         }
         None => {
-            debug!(
-                "Block {expected_u64} not found in local DB. Assuming client is still in sync."
-            );
+            debug!("Block {expected_u64} not found in local DB. Assuming client is still in sync.");
             Ok(SynchronisationStatus::new(
                 SynchronisationPhase::Synchronized,
             ))

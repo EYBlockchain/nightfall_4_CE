@@ -231,9 +231,7 @@ async fn verify_enough_commitments(
     let mut on_chain_old_value_commitments =
         fetch_on_chain_commitments(db, target_token_id).await?;
     on_chain_old_value_commitments.sort_by_key(|a| a.get_value());
-    trace!(
-        "On-chain commitments for value: {on_chain_old_value_commitments:?}"
-    );
+    trace!("On-chain commitments for value: {on_chain_old_value_commitments:?}");
 
     // Calculate the minimum number of commitments required for the value
     let min_c =
@@ -252,9 +250,9 @@ async fn verify_enough_commitments(
 #[cfg(test)]
 mod test {
     use super::*;
-    use lib::tests_utils::{get_db_connection, get_mongo, get_db_connection_uri};
     use crate::domain::entities::CommitmentStatus;
     use ark_bn254::Fr as Fr254;
+    use lib::tests_utils::{get_db_connection, get_db_connection_uri, get_mongo};
     use url::Host;
 
     #[tokio::test]

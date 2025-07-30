@@ -1,9 +1,9 @@
+use alloy::primitives::{Address, Bytes};
 use ark_bn254::Fr as Fr254;
 use ark_ec::{twisted_edwards::Affine as TEAffine, AffineRepr};
 use ark_ff::{BigInteger, PrimeField};
 use ark_serialize::SerializationError;
 use ark_std::Zero;
-use alloy::primitives::{Bytes, Address};
 use jf_primitives::{
     circuit::tree::structs::MembershipProofVar,
     trees::{MembershipProof, PathElement},
@@ -17,7 +17,7 @@ use jf_utils::fr_to_fq;
 use nf_curves::ed_on_bn254::{BabyJubjub, Fr as BJJScalar};
 use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
-use std::{fmt::Debug};
+use std::fmt::Debug;
 
 pub trait Proof:
     Serialize + Debug + Clone + Sync + Send + 'static + for<'a> Deserialize<'a> + Unpin

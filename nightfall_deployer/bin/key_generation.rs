@@ -1,3 +1,4 @@
+use alloy::primitives::{hex, keccak256};
 use ark_bn254::{Bn254, Fq as Fq254, Fr as Fr254};
 use ark_ec::twisted_edwards::Affine as TEAffine;
 use ark_serialize::{CanonicalSerialize, Write};
@@ -6,7 +7,6 @@ use ark_std::{
     UniformRand, Zero,
 };
 use configuration::settings::{self, Settings};
-use alloy::primitives::{hex, keccak256};
 use itertools::izip;
 use jf_plonk::{
     errors::PlonkError,

@@ -14,14 +14,16 @@ use crate::{
     },
     driven::{
         contract_functions::{
-        contract_type_conversions::FrBn254,
-        token_contracts::{IERC20, IERC1155, IERC721, IERC3525},
-        nightfall_contract::Nightfall,
+            contract_type_conversions::FrBn254,
+            nightfall_contract::Nightfall,
+            token_contracts::{IERC1155, IERC20, IERC3525, IERC721},
         },
         db::mongo::CommitmentEntry,
         queue::{get_queue, QueuedRequest, TransactionRequest},
     },
-    get_zkp_keys, get_fee_token_id,
+    drivers::derive_key::ZKPKeys,
+    get_fee_token_id, get_zkp_keys,
+    initialisation::get_db_connection,
     ports::{
         commitments::{Commitment, Nullifiable},
         contracts::NightfallContract,
@@ -29,8 +31,6 @@ use crate::{
         keys::KeySpending,
         proof::{Proof, ProvingEngine},
     },
-    drivers::derive_key::ZKPKeys,
-    initialisation::get_db_connection,
     services::{
         client_operation::deposit_operation, commitment_selection::find_usable_commitments,
     },
@@ -42,7 +42,7 @@ use ark_serialize::CanonicalDeserialize;
 use ark_std::{rand::thread_rng, UniformRand};
 use configuration::addresses::get_addresses;
 use jf_primitives::poseidon::{FieldHasher, Poseidon};
-use lib::{hex_conversion::HexConvertible};
+use lib::hex_conversion::HexConvertible;
 use log::{debug, error, info};
 use nf_curves::ed_on_bn254::{BabyJubjub, Fr as BJJScalar};
 use serde::{Deserialize, Serialize};
@@ -296,7 +296,7 @@ pub async fn handle_deposit<N: NightfallContract>(
     // Then match on the token type and call the correct function
     let (preimage_value, preimage_fee_option) = match token_type {
         TokenType::ERC20 => {
-            deposit_operation::<IERC20::IERC20Calls, Nightfall::NightfallCalls >(
+            deposit_operation::<IERC20::IERC20Calls, Nightfall::NightfallCalls>(
                 erc_address,
                 value,
                 fee,
@@ -479,9 +479,7 @@ where
             .unwrap(),
     )
     .map_err(|e| {
-        error!(
-            "{id} Could not parse compressed recipient public key from String: {e}"
-        );
+        error!("{id} Could not parse compressed recipient public key from String: {e}");
         TransactionHandlerError::CustomError(e.to_string())
     })?;
 

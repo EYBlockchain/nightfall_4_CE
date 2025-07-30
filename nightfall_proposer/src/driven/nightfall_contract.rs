@@ -1,12 +1,11 @@
 //! Implementation of the [`NightfallContract`] trait from `nightfall_proposer/src/ports/contracts.rs`.
 
 use crate::{
-    domain::entities::Block, initialisation::get_blockchain_client_connection,
-    ports::contracts::NightfallContract,
-    driven::block_assembler::Nightfall
+    domain::entities::Block, driven::block_assembler::Nightfall,
+    initialisation::get_blockchain_client_connection, ports::contracts::NightfallContract,
 };
+use alloy::primitives::I256;
 use configuration::addresses::get_addresses;
-use alloy::{primitives::I256};
 use lib::blockchain_client::BlockchainClientConnection;
 use log::info;
 use nightfall_client::domain::error::NightfallContractError;
@@ -28,13 +27,15 @@ impl NightfallContract for Nightfall::NightfallCalls {
             .propose_block(blk)
             .send()
             .await
-            .map_err(|_| NightfallContractError::TransactionError)?.get_receipt().await.map_err(|_| NightfallContractError::TransactionError)?;
+            .map_err(|_| NightfallContractError::TransactionError)?
+            .get_receipt()
+            .await
+            .map_err(|_| NightfallContractError::TransactionError)?;
 
         info!(
             "Received receipt for submitted block with hash: {}, gas used was: {}",
-            receipt.transaction_hash,
-            receipt.gas_used
-        );     
+            receipt.transaction_hash, receipt.gas_used
+        );
         Ok(())
     }
 
@@ -52,6 +53,7 @@ impl NightfallContract for Nightfall::NightfallCalls {
             .layer2_block_number()
             .call()
             .await
-            .map_err(|_| NightfallContractError::TransactionError)?._0)
+            .map_err(|_| NightfallContractError::TransactionError)?
+            ._0)
     }
 }

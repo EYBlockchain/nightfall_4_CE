@@ -1,5 +1,5 @@
-use configuration::addresses::get_addresses;
 use alloy::sol;
+use configuration::addresses::get_addresses;
 use warp::reply;
 use warp::{path, reply::Reply, Filter};
 
@@ -8,8 +8,10 @@ use lib::{
     blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
 };
 sol!(
-    #[sol(rpc)]    
-    RoundRobin, "../blockchain_assets/artifacts/RoundRobin.sol/RoundRobin.json"
+    #[sol(rpc)]
+    #[allow(clippy::too_many_arguments)]
+    RoundRobin,
+    "../blockchain_assets/artifacts/RoundRobin.sol/RoundRobin.json"
 );
 /// Error type for proposer rotation
 #[derive(Debug)]
@@ -45,29 +47,26 @@ pub fn get_proposers() -> impl Filter<Extract = impl warp::Reply, Error = warp::
 async fn handle_get_proposers() -> Result<impl Reply, warp::Rejection> {
     // get a ManageProposers instance
     let blcokchain_client = get_blockchain_client_connection()
-    .await
-    .read()
-    .await
-    .get_client();
-    let proposer_manager = RoundRobin::new(
-        get_addresses().round_robin,
-        blcokchain_client.root() 
-    );
+        .await
+        .read()
+        .await
+        .get_client();
+    let proposer_manager = RoundRobin::new(get_addresses().round_robin, blcokchain_client.root());
     // get the proposers
-    let proposer_list = proposer_manager.get_proposers()
+    let proposer_list = proposer_manager
+        .get_proposers()
         .call()
         .await
-        .map_err(|_| {
-            warp::reject::custom(crate::domain::error::ClientRejection::ProposerError)
-        })?._0;
-    let list  = proposer_list
+        .map_err(|_| warp::reject::custom(crate::domain::error::ClientRejection::ProposerError))?
+        ._0;
+    let list = proposer_list
         .into_iter()
         .map(|p| Proposer {
-           stake: p.stake,
-           addr: p.addr,
-           url: p.url,
-           next_addr: p.next_addr,
-           previous_addr: p.previous_addr
+            stake: p.stake,
+            addr: p.addr,
+            url: p.url,
+            next_addr: p.next_addr,
+            previous_addr: p.previous_addr,
         })
         .collect::<Vec<Proposer>>();
     Ok(reply::json(&list))

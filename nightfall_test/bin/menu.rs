@@ -1,7 +1,7 @@
+use alloy::primitives::U256;
 use ark_std::rand;
 use bip32::Mnemonic;
 use dotenv::dotenv;
-use alloy::primitives::U256;
 use inquire::Select;
 use inquire::Text;
 use lib::hex_conversion::HexConvertible;

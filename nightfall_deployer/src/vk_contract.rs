@@ -1,19 +1,20 @@
+use alloy::primitives::{B256, U256};
 use ark_bn254::{Bn254, Fq as Fq254, Fr as Fr254};
 use ark_ff::{BigInteger, Field, PrimeField};
 use ark_poly::{EvaluationDomain, Radix2EvaluationDomain};
 use ark_std::vec::Vec;
 use configuration::settings::Settings;
-use alloy::{primitives::{B256, U256}};
 use jf_plonk::proof_system::structs::{VerifyingKey, VK};
 
 use std::{
     fs::File,
-    io::{Write},
+    io::Write,
     path::{Path, PathBuf},
 };
 
 pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: &Settings) {
-    let vk_hash_bytes: [u8; 32] = vk.hash()
+    let vk_hash_bytes: [u8; 32] = vk
+        .hash()
         .into_bigint()
         .to_bytes_be()
         .try_into()
@@ -26,14 +27,37 @@ pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: 
             .inverse()
             .unwrap()
             .into_bigint()
-            .to_bytes_le().try_into().expect("Failed to convert Vec<u8> to [u8; 32]"),
+            .to_bytes_le()
+            .try_into()
+            .expect("Failed to convert Vec<u8> to [u8; 32]"),
     );
     let domain = Radix2EvaluationDomain::<Fr254>::new(domain_size).unwrap();
-    let omega = U256::from_le_bytes::<32>(domain.group_gen().into_bigint().to_bytes_le().try_into().expect("Failed to convert Vec<u8> to [u8; 32]"));
-    let omega_inv = U256::from_le_bytes::<32>(domain.group_gen_inv().into_bigint().to_bytes_le().try_into().expect("Failed to convert Vec<u8> to [u8; 32]"));
+    let omega = U256::from_le_bytes::<32>(
+        domain
+            .group_gen()
+            .into_bigint()
+            .to_bytes_le()
+            .try_into()
+            .expect("Failed to convert Vec<u8> to [u8; 32]"),
+    );
+    let omega_inv = U256::from_le_bytes::<32>(
+        domain
+            .group_gen_inv()
+            .into_bigint()
+            .to_bytes_le()
+            .try_into()
+            .expect("Failed to convert Vec<u8> to [u8; 32]"),
+    );
     let vk_vec = Vec::<Fq254>::from(vk.clone())
         .into_iter()
-        .map(|x| U256::from_le_bytes::<32>(x.into_bigint().to_bytes_le().try_into().expect("Failed to convert Vec<u8> to [u8; 32]")))
+        .map(|x| {
+            U256::from_le_bytes::<32>(
+                x.into_bigint()
+                    .to_bytes_le()
+                    .try_into()
+                    .expect("Failed to convert Vec<u8> to [u8; 32]"),
+            )
+        })
         .collect::<Vec<_>>();
 
     let join_path = Path::new(&settings.contracts.assets)
@@ -514,13 +538,10 @@ mod tests {
 
         let bytes = Bytes::from_iter(proof_vec);
 
-
-
         let join_path = Path::new(&settings.contracts.assets)
             .parent()
             .unwrap()
             .join("contracts/Nightfall.sol");
-      
 
         let path_out: PathBuf;
         let cwd = std::env::current_dir().unwrap();
@@ -544,7 +565,7 @@ mod tests {
             std::fs::create_dir_all(parent)
                 .unwrap_or_else(|e| panic!("Failed to create test_contracts folder: {e}"));
         }
-    
+
         let mut file = File::create(&path_out).unwrap();
         file.write_fmt(format_args!("{bytes:0x}")).unwrap();
         file.flush().unwrap();
@@ -556,7 +577,7 @@ mod tests {
             .output()
             .unwrap();
         //    std::fs::remove_file(path_out).unwrap();
-   
+
         match output.status.code() {
             Some(0) => (),
             Some(code) => panic!(

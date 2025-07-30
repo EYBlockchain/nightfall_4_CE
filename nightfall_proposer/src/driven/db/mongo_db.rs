@@ -2,9 +2,9 @@ use crate::{
     domain::entities::{ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot},
     ports::db::{BlockStorageDB, HistoricRootsDB, TransactionsDB},
 };
+use alloy::primitives::Address;
 use ark_bn254::Fr as Fr254;
 use ark_ff::{PrimeField, Zero};
-use alloy::primitives::Address;
 use futures::TryStreamExt;
 use lib::hex_conversion::HexConvertible;
 use mongodb::bson::doc;
@@ -169,7 +169,7 @@ where
             result.push(deposit);
         }
         println!("Found {} deposits in mempool", result.len());
-        
+
         if result.is_empty() {
             None
         } else {

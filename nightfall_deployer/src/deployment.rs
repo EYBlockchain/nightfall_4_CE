@@ -6,10 +6,7 @@ use configuration::{
 use log::{info, warn};
 
 use nightfall_proposer::driven::rollup_prover::RollupProver;
-use std::{
-    error::Error,
-    os::unix::process::ExitStatusExt,
-};
+use std::{error::Error, os::unix::process::ExitStatusExt};
 use url::Url;
 
 use crate::vk_contract::create_vk_contract;
@@ -23,7 +20,6 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn Error>>
         forge_command(&["build", "--force"]);
         let vk = RollupProver::get_decider_vk();
         create_vk_contract::<false>(&vk, settings);
-        
     }
 
     forge_command(&[
@@ -34,7 +30,7 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn Error>>
         "--broadcast",
         "--force",
     ]);
-   
+
     // read the deployment log file to extract the contract addresses
     let cwd = std::env::current_dir()?;
 
@@ -46,7 +42,8 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn Error>>
     if !path_out.is_file() {
         return Err(format!(
             "Deployment log file not found at the expected location: {path_out:?}"
-        ).into());
+        )
+        .into());
     }
     let addresses = Addresses::load(Sources::parse(
         path_out.to_str().ok_or("Couldn't convert path to str")?,
@@ -87,7 +84,7 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn Error>>
 pub fn forge_command(command: &[&str]) {
     info!("DEBUG: Running forge command: {command:?}"); // Use info! as forge_command already uses info!
     let output = std::process::Command::new("forge").args(command).output();
-   
+
     match output {
         Ok(o) => {
             if o.status.success() {
@@ -107,26 +104,25 @@ pub fn forge_command(command: &[&str]) {
             }
         }
         Err(e) => {
-            panic!(
-                "Command 'forge {command:?}' ran into an error without executing: {e}"
-            );
+            panic!("Command 'forge {command:?}' ran into an error without executing: {e}");
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::{fs, path::Path};
     use super::*;
-    use configuration::addresses::get_addresses;
     use alloy::providers::{Provider, ProviderBuilder};
     use alloy::sol;
     use alloy_node_bindings::Anvil;
-    
+    use configuration::addresses::get_addresses;
+    use std::{fs, path::Path};
+
     use tokio::task::spawn_blocking;
     sol!(
-        #[sol(rpc)]     // Add Debug trait to x509CheckReturn
-        Nightfall, "../blockchain_assets/artifacts/Nightfall.sol/Nightfall.json"
+        #[sol(rpc)] // Add Debug trait to x509CheckReturn
+        Nightfall,
+        "../blockchain_assets/artifacts/Nightfall.sol/Nightfall.json"
     );
 
     // NB: This test requires Anvil to be installed (it will use Anvil to simulate a blockchain).
@@ -151,20 +147,18 @@ mod tests {
         // set the current working directory to be the project root
         let root = "../";
         std::env::set_current_dir(root).unwrap();
-  
+
         // run the deploy function and get the contract addresses
-      
+
         deploy_contracts(&settings).await.unwrap();
         // get a blockchain provider so we can interrogate the deployed code
         let provider = ProviderBuilder::new()
-        .disable_recommended_fillers()
-        .on_http(anvil.endpoint_url());
+            .disable_recommended_fillers()
+            .on_http(anvil.endpoint_url());
 
         let code = provider
             // use spawn blocking because the blocking reqwest client is not async and it complains (but we need loading the addresses to be sync elsewhere)
-            .get_code_at(
-                spawn_blocking(get_addresses).await.unwrap().nightfall(),
-            )
+            .get_code_at(spawn_blocking(get_addresses).await.unwrap().nightfall())
             .await
             .unwrap();
         assert_eq!(code, Nightfall::DEPLOYED_BYTECODE);

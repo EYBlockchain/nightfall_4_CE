@@ -5,12 +5,12 @@ use crate::{
     },
     ports::db::ToHexString,
 };
+use alloy::primitives::{Address, U256};
+use alloy::sol;
 use ark_bn254::Fr as Fr254;
 use ark_ff::{BigInt, BigInteger, BigInteger256, PrimeField};
 use ark_std::Zero;
 use core::fmt::Debug;
-use alloy::primitives::{Address, U256};
-use alloy::sol;
 use num_bigint::BigUint;
 use serde::{
     de::{self, Visitor},
@@ -18,13 +18,16 @@ use serde::{
 };
 use std::{fmt, ops::Add, str::FromStr};
 sol!(
-    #[sol(rpc)]    
-    Nightfall, "../blockchain_assets/artifacts/Nightfall.sol/Nightfall.json"
+    #[sol(rpc)]
+    Nightfall,
+    "../blockchain_assets/artifacts/Nightfall.sol/Nightfall.json"
 );
 sol!(
-    #[sol(rpc)]    
+    #[sol(rpc)]
     #[derive(Debug)]
-RoundRobin, "../blockchain_assets/artifacts/RoundRobin.sol/RoundRobin.json"
+    #[allow(clippy::too_many_arguments)]
+    RoundRobin,
+    "../blockchain_assets/artifacts/RoundRobin.sol/RoundRobin.json"
 );
 /// enables conversion between a Proposer as used in the ProposerManager contract, and a for suitable for serialisation
 impl From<RoundRobin::Proposer> for Proposer {
@@ -100,8 +103,8 @@ impl Add for FrBn254 {
 
 impl From<Uint256> for BigInt<4> {
     fn from(uint256: Uint256) -> Self {
-            BigInt::<4>::new(*uint256.0.as_limbs())
-        }
+        BigInt::<4>::new(*uint256.0.as_limbs())
+    }
 }
 
 /// Enables a wrapped Fr254 field to be deserialised with Serde. Fr254 itself does not appear to implement Serde
@@ -257,7 +260,12 @@ impl From<CompressedSecrets> for [U256; 4] {
 
         let compressed_point: BigUint = secrets_4 + (flag << 255);
 
-        let final_secret = U256::from_le_bytes::<32>(compressed_point.to_bytes_le().try_into().expect("Failed to convert Vec<u8> to [u8; 32]"));
+        let final_secret = U256::from_le_bytes::<32>(
+            compressed_point
+                .to_bytes_le()
+                .try_into()
+                .expect("Failed to convert Vec<u8> to [u8; 32]"),
+        );
         [
             Uint256::from(compressed_secrets.cipher_text[0]).0,
             Uint256::from(compressed_secrets.cipher_text[1]).0,

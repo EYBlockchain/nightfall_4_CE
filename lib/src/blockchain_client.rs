@@ -1,9 +1,9 @@
-use alloy::pubsub::PubSubConnect;
-use async_trait::async_trait;
-use alloy::signers::Signer;
-use alloy::providers::{Provider};
 use alloy::primitives::{Address, U256};
+use alloy::providers::Provider;
+use alloy::pubsub::PubSubConnect;
 use alloy::signers::local::PrivateKeySigner;
+use alloy::signers::Signer;
+use async_trait::async_trait;
 use serde::Deserialize;
 use std::{marker::Sync, sync::Arc};
 use url::Url;
@@ -17,7 +17,7 @@ use crate::error::BlockchainClientConnectionError;
 #[async_trait]
 pub trait BlockchainClientConnection: Clone + Send + Sync {
     type W: Signer + 'static;
-    type T: PubSubConnect  + 'static;
+    type T: PubSubConnect + 'static;
     type S: for<'a> Deserialize<'a>;
 
     async fn is_connected(&self) -> bool;
@@ -32,10 +32,7 @@ pub trait BlockchainClientConnection: Clone + Send + Sync {
     where
         Self: Sized;
 
-    async fn new(
-        url: Url,
-        wallet: Self::W,
-    ) -> Result<Self, BlockchainClientConnectionError>
+    async fn new(url: Url, wallet: Self::W) -> Result<Self, BlockchainClientConnectionError>
     where
         Self: Sized;
 

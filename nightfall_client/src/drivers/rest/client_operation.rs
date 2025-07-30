@@ -17,10 +17,10 @@ use crate::{
     },
     services::client_operation::client_operation,
 };
-use ark_bn254::Fr as Fr254;
-use configuration::addresses::get_addresses;
 use alloy::rpc::types::TransactionReceipt;
 use alloy::sol;
+use ark_bn254::Fr as Fr254;
+use configuration::addresses::get_addresses;
 use futures::future::join_all;
 use lib::{
     blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
@@ -35,13 +35,16 @@ use tokio::time::sleep;
 use url::Url;
 use warp::hyper::StatusCode;
 sol!(
-    #[sol(rpc)]    
-    RoundRobin, "../blockchain_assets/artifacts/RoundRobin.sol/RoundRobin.json"
+    #[sol(rpc)]
+    #[allow(clippy::too_many_arguments)]
+    RoundRobin,
+    "../blockchain_assets/artifacts/RoundRobin.sol/RoundRobin.json"
 );
 sol!(
-    #[sol(rpc)]    
-    #[derive(Debug)] 
-    X509, "../blockchain_assets/artifacts/X509.sol/X509.json"
+    #[sol(rpc)]
+    #[derive(Debug)]
+    X509,
+    "../blockchain_assets/artifacts/X509.sol/X509.json"
 );
 
 #[allow(clippy::too_many_arguments)]
@@ -257,18 +260,17 @@ pub async fn process_transaction_offchain<P: Serialize + Sync>(
     const MAX_RETRIES: u32 = 3;
     const INITIAL_BACKOFF: Duration = Duration::from_millis(500);
 
-    let client = Client::new(); 
+    let client = Client::new();
     let blockchain_client = get_blockchain_client_connection()
-    .await
-    .read()
-    .await
-    .get_client();
-    let round_robin_instance = RoundRobin::new(
-        get_addresses().round_robin,
-        blockchain_client.root(), 
-    );
+        .await
+        .read()
+        .await
+        .get_client();
+    let round_robin_instance =
+        RoundRobin::new(get_addresses().round_robin, blockchain_client.root());
 
-    let proposers_struct: Vec<RoundRobin::Proposer> = round_robin_instance.get_proposers().call().await?._0;
+    let proposers_struct: Vec<RoundRobin::Proposer> =
+        round_robin_instance.get_proposers().call().await?._0;
     let db = get_db_connection().await;
 
     let futures: Vec<_> = proposers_struct
@@ -316,8 +318,8 @@ pub async fn process_transaction_offchain<P: Serialize + Sync>(
         )))
     } else {
         db.update_request(id, RequestStatus::Failed).await;
-        Err(Box::new(std::io::Error::other(
-            format!("{id} All proposers rejected the transaction."),
-        )))
+        Err(Box::new(std::io::Error::other(format!(
+            "{id} All proposers rejected the transaction."
+        ))))
     }
 }

@@ -6,11 +6,10 @@ use nightfall_client::driven::{
     plonk_prover::plonk_proof::{PlonkProof, PlonkProvingEngine},
 };
 use nightfall_proposer::{
-    driven::{mock_prover::MockProver, rollup_prover::RollupProver, block_assembler::Nightfall},
+    driven::{block_assembler::Nightfall, mock_prover::MockProver, rollup_prover::RollupProver},
     drivers::{
         blockchain::{
             block_assembly::start_block_assembly, nightfall_event_listener::start_event_listener,
-            
         },
         rest::routes,
     },

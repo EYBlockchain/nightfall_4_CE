@@ -1,9 +1,9 @@
 //! File contains utility functions used by the REST API, such as ones for converting from erc address and token id to
 //! Nightfall token id.
-use crate::domain::{error::ConversionError};
+use crate::domain::error::ConversionError;
+use alloy::primitives::{Address, U256};
 use ark_bn254::Fr as Fr254;
 use ark_ff::{BigInteger, PrimeField};
-use alloy::primitives::{Address, U256};
 use lib::hex_conversion::HexConvertible;
 use log::debug;
 use num::BigUint;
@@ -14,9 +14,7 @@ pub fn to_nf_token_id_from_str(
     erc_address: &str,
     token_id: &str,
 ) -> Result<Fr254, ConversionError> {
-    debug!(
-        "Converting erc_address: {erc_address} and token_id: {token_id}"
-    );
+    debug!("Converting erc_address: {erc_address} and token_id: {token_id}");
     let mut erc_vec =
         Vec::<u8>::from_hex_string(erc_address).map_err(|_| ConversionError::ParseFailed)?;
 

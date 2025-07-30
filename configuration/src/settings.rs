@@ -138,8 +138,8 @@ impl Settings {
 
 #[cfg(test)]
 mod tests {
-    use serial_test::serial;
     use super::*;
+    use serial_test::serial;
     #[test]
     #[serial]
     fn test_config() {
@@ -159,8 +159,7 @@ mod tests {
             "The signing key should be overridden by the environment variable."
         );
         assert_eq!(
-            s.run_mode,
-            "development",
+            s.run_mode, "development",
             "The run mode should be set to development."
         );
 
@@ -200,8 +199,7 @@ mod tests {
         );
 
         assert_eq!(
-            s.run_mode,
-            "development",
+            s.run_mode, "development",
             "The run mode should be set to development."
         );
 
@@ -224,7 +222,10 @@ mod tests {
         let tmp_run_mode = env::var("NF4_RUN_MODE").ok();
 
         // Set environment variables for the test
-        env::set_var("NF4_NIGHTFALL_CLIENT__DB_URL", "mongodb://nf4_db_client2:27017");
+        env::set_var(
+            "NF4_NIGHTFALL_CLIENT__DB_URL",
+            "mongodb://nf4_db_client2:27017",
+        );
         env::set_var("NF4_RUN_MODE", "development");
 
         // Load settings *after* setting environment variables
@@ -238,8 +239,7 @@ mod tests {
         );
 
         assert_eq!(
-            s.run_mode,
-            "development",
+            s.run_mode, "development",
             "The run mode should be set to development."
         );
 
@@ -254,5 +254,4 @@ mod tests {
             None => env::remove_var("NF4_RUN_MODE"),
         }
     }
-
 }

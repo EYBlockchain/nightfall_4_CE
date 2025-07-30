@@ -3,18 +3,19 @@ use crate::{
     blockchain_client::BlockchainClientConnection, error::CertificateVerificationError,
     initialisation::get_blockchain_client_connection,
 };
-use configuration::addresses::get_addresses;
 use alloy::primitives::{Address, U256};
+use alloy::sol;
+use configuration::addresses::get_addresses;
 use futures::stream::TryStreamExt;
 use log::{debug, error, info, trace, warn};
 use reqwest::StatusCode;
-use x509_parser::nom::AsBytes;
 use std::{ffi::OsStr, io::Read, path::Path};
 use warp::{filters::multipart::FormData, path, reply::Reply, Buf, Filter};
-use alloy::sol;
+use x509_parser::nom::AsBytes;
 sol!(
     #[sol(rpc)]
-    X509, "../blockchain_assets/artifacts/X509.sol/X509.json"
+    X509,
+    "../blockchain_assets/artifacts/X509.sol/X509.json"
 );
 #[derive(Debug)]
 pub struct X509ValidationError;
@@ -70,39 +71,39 @@ async fn handle_certificate_validation(
         }
     }
     let requestor_address = get_blockchain_client_connection()
-    .await
-    .read()
-    .await
-    .get_address();
+        .await
+        .read()
+        .await
+        .get_address();
 
     trace!("Requestor address: {requestor_address}");
     let x509_instance = X509::new(get_addresses().x509, blockchain_client);
-    let is_certified  = x509_instance.x509Check(requestor_address).call().await.map_err(|e| {
-        error!("x_509_check transaction failed {e}");
-        warp::reject::custom(CertificateVerificationError::new(
-            "Invalid certificate provided",
-        ))
-    })?;
+    let is_certified = x509_instance
+        .x509Check(requestor_address)
+        .call()
+        .await
+        .map_err(|e| {
+            error!("x_509_check transaction failed {e}");
+            warp::reject::custom(CertificateVerificationError::new(
+                "Invalid certificate provided",
+            ))
+        })?;
     if !is_certified._0 {
         // compute the signature and validate the certificate
-        debug!(
-            "Signing ethereum address {requestor_address} with certificate private key"
-        );
+        debug!("Signing ethereum address {requestor_address} with certificate private key");
         let ethereum_address_signature =
             sign_ethereum_address(&certificate_req.certificate_private_key, &requestor_address)
                 .map_err(|e| {
-                    error!(
-                        "Could not sign ethereum address with certificate private key: {e}"
-                    );
+                    error!("Could not sign ethereum address with certificate private key: {e}");
                     warp::reject::custom(CertificateVerificationError::new(
                         "Invalid certificate provided",
                     ))
                 })?;
-         let sender_address =   get_blockchain_client_connection()
-         .await
-         .read()
-         .await
-         .get_address();
+        let sender_address = get_blockchain_client_connection()
+            .await
+            .read()
+            .await
+            .get_address();
         validate_certificate(
             get_addresses().x509,
             certificate_req.certificate,
@@ -140,7 +141,7 @@ async fn validate_certificate(
         .await
         .get_client();
     let blockchain_client = client.root();
-    
+
     let x509_instance = X509::new(x509_contract_address, blockchain_client);
 
     let compute_result = x509_instance

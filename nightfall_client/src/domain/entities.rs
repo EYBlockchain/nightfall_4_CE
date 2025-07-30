@@ -1,5 +1,7 @@
 use crate::{
-    driven::contract_functions::{contract_type_conversions::FrBn254, nightfall_contract::Nightfall},
+    driven::contract_functions::{
+        contract_type_conversions::FrBn254, nightfall_contract::Nightfall,
+    },
     ports::{
         commitments::{Commitment, Nullifiable},
         key_provider::KeyProvider,
@@ -342,9 +344,7 @@ impl From<u8> for TokenType {
             2 => TokenType::ERC721,
             3 => TokenType::ERC3525,
             _ => {
-                warn!(
-                    "TokenType value {value} not supported, defaulting to ERC20"
-                );
+                warn!("TokenType value {value} not supported, defaulting to ERC20");
                 TokenType::ERC20
             }
         }
