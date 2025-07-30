@@ -4,7 +4,6 @@ use configuration::{
 };
 
 use log::{info, warn};
-
 use nightfall_proposer::driven::rollup_prover::RollupProver;
 use std::{error::Error, os::unix::process::ExitStatusExt};
 use url::Url;

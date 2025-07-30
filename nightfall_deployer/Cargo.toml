@@ -52,7 +52,9 @@ log = "0.4.27"
 
 [dev-dependencies]
 url = "2.5.4"
+sha3 = "^0.10"
 jf-utils = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git" }
-
+ark-ed-on-bn254 = "0.4.0"
+hex = "0.4.3"
 [features]
 test-srs = ["jf-plonk/test-srs"]

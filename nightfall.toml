@@ -99,6 +99,9 @@ url = "http://proposer:3000"
 log_level = "info"
 wallet_type = "local"
 db_url = "mongodb://nf4_db_proposer:27017"
+block_assembly_max_wait_secs = 120 
+block_assembly_target_fill_ratio = 0.25 
+block_assembly_initial_interval_secs = 15
 max_event_listener_attempts = 10
 block_size = 64
 

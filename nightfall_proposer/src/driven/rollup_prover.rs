@@ -294,6 +294,7 @@ impl RollupProver {
 }
 
 impl RecursiveProver for RollupProver {
+    // these checks are implementation of RecursiveProver in Nightfish and will be called by each corresponding circuit
     fn base_bn254_extra_checks(
         specific_pis: &[Variable],
         circuit: &mut PlonkCircuit<Fr254>,
@@ -986,6 +987,12 @@ impl RecursiveProvingEngine<PlonkProof> for RollupProver {
         let client_pk = get_client_proving_key();
 
         // First lets get all the public inputs from the deposit transactions and the client transactions
+        // RecursiveOutput {
+        //     proof,
+        //     pi_hash,
+        //     transcript,
+        // }
+        // get <outputs_and_circuit_type({proofs, pi_hashes, transcriptes},vks), public inputs> from the deposit transactions and client transactions
         let (outputs_and_circuit_type, public_inputs): (
             Vec<(Bn254Output, VerifyingKey<Kzg>)>,
             Vec<PublicInputs>,
@@ -1008,6 +1015,7 @@ impl RecursiveProvingEngine<PlonkProof> for RollupProver {
             .unzip();
 
         // Get all the commitments and nullifiers from the public inputs
+        // Flattens all commitments and nullifiers from the public inputs into vectors.
         let new_commitments = public_inputs
             .iter()
             .flat_map(|pi| pi.commitments)
@@ -1028,6 +1036,7 @@ impl RecursiveProvingEngine<PlonkProof> for RollupProver {
         )
         .await?;
         // Create the commitments circuit info
+        debug!("Inserting commitments");
         let commitment_circuit_info =
             <Client as CommitmentTree<Fr254>>::batch_insert_with_circuit_info(db, &new_commitments)
                 .await?;
@@ -1113,6 +1122,7 @@ impl RecursiveProvingEngine<PlonkProof> for RollupProver {
             )
             .await?;
 
+        // Historic Root Membership Proof
         let historic_root_proof = <Client as HistoricRootTree<Fr254>>::get_membership_proof(
             db,
             None,
@@ -1120,6 +1130,18 @@ impl RecursiveProvingEngine<PlonkProof> for RollupProver {
         )
         .await?;
         let root_proof_len_field = Fr254::from(root_m_proof_len as u64);
+
+        //Zips together chunks of public inputs, membership proofs, and circuit info to build the extra info needed for the recursive circuits.
+        // Structure of extra_info: Vec<Vec<Fr254>>
+        // The outer Vec: Each element represents a chunk (typically a group of 4 transactions, matching the recursion tree's arity).
+        // The inner Vec<Fr254>: This is not just 4 elements!
+        // It is a flattened, concatenated vector containing all the auxiliary data needed for that chunk of transactions.
+        // This includes:
+        // Length fields (for parsing)
+        // Roots for the transactions in the chunk
+        // Membership proofs for those roots
+        // Commitment insertion info
+        // Nullifier insertion info
 
         let extra_info = izip!(
             public_inputs.chunks(4),
@@ -1170,14 +1192,36 @@ impl RecursiveProvingEngine<PlonkProof> for RollupProver {
         )
         .collect::<Vec<Vec<Fr254>>>();
 
+        // Format Public Inputs for Circuits
+        // Converts each public input into a vector of field elements for use in the circuits.
         let specific_pi = public_inputs
             .iter()
             .map(Vec::from)
             .collect::<Vec<Vec<Fr254>>>();
+        // Prepares the extra info for the decider circuit, including the historic_root_proof and old_historic_root.
         let mut extra_info_vec: Vec<Fr254> = historic_root_proof.into();
         let historic_root_proof_length = Fr254::from(extra_info_vec.len() as u64);
         extra_info_vec.insert(0, historic_root_proof_length);
         extra_info_vec.push(old_historic_root);
+        // 1. RollupPreppedInfo
+        // This struct contains all the data needed to generate the recursive rollup proof for a block. It includes:
+
+        // outputs_and_circuit_type:
+        // A vector of tuples, each containing:
+
+        // The recursive proof output for a transaction (used in recursive aggregation).
+        // The verifying key for the circuit that produced the proof. This is used to verify and aggregate all the individual transaction proofs into a single block proof.
+        // specific_pi:
+        // A vector of vectors, where each inner vector contains the public inputs for a transaction, formatted as field elements.
+        // These are the public data (like commitments, nullifiers, roots, etc.) that the circuits use as inputs.
+
+        // extra_info:
+        // A vector of vectors, each containing additional circuit-specific data needed for the recursive circuits.
+        // This typically includes membership proofs, insertion info, and other auxiliary data required by the circuits to validate the state transitions.
+
+        // extra_decider_info:
+        // A vector containing extra data for the final "decider" circuit, such as the historic root membership proof and the old root.
+        // This is used in the final aggregation step to ensure the block’s state transition is valid.
         Ok((
             RollupPreppedInfo {
                 outputs_and_circuit_type,

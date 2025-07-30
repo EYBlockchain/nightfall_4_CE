@@ -5,7 +5,6 @@ import "../contracts/RoundRobin.sol";
 import "../contracts/Nightfall.sol";
 import "../contracts/proof_verification/MockVerifier.sol";
 import "forge-std/Test.sol";
-import "forge-std/console2.sol";
 import "../contracts/SanctionsListMock.sol";
 import "../contracts/X509/X509.sol";
 

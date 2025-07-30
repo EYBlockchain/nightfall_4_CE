@@ -87,7 +87,9 @@ pub fn generate_proving_keys(settings: &Settings) -> Result<(), PlonkError> {
         UnivariateKzgPCS::download_ptau_file_if_needed(MAX_KZG_DEGREE, &ptau_file).unwrap();
         UnivariateKzgPCS::universal_setup_bn254(&ptau_file, 1 << MAX_KZG_DEGREE).unwrap()
     };
+    // transfer/withdraw pk vk
     let (pk, _vk) = FFTPlonk::<UnivariateKzgPCS<Bn254>>::preprocess(&kzg_srs, &circuit)?;
+    // deposit pk vk
     let (deposit_pk, _) =
         FFTPlonk::<UnivariateKzgPCS<Bn254>>::preprocess(&kzg_srs, &deposit_circuit)?;
 
@@ -108,6 +110,7 @@ pub fn generate_proving_keys(settings: &Settings) -> Result<(), PlonkError> {
 
     // if we're using a mock prover, we don't need an IPA proof at all, if we are using a real prover then we'll generate a real IPA SRS
     if !settings.mock_prover {
+        // this part will generate base_grumpkin_pk, base_bn254_pk, merge_grumpkin_pk, merge_bn254_pk, decider_vk, decider_pk in fn preprocess() located in nightfall_proposer/src/driven/rollup_prover.rs
         let ipa_srs = UnivariateUniversalIpaParams::gen_srs("Nightfall_4", 1 << 18).unwrap();
 
         let mut d_proofs = Vec::new();
