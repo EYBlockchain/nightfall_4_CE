@@ -47,6 +47,7 @@ pub mod mock_verifier;
 pub mod nightfall;
 pub mod panic;
 pub mod polynomial_eval;
+pub mod polynomial_eval;
 pub mod proposer_manager;
 pub mod rollup_proof_verifier;
 pub mod rollup_verifier;

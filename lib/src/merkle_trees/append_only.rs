@@ -185,8 +185,8 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use ark_bn254::Fr as Fr254;
     use crate::tests_utils::*;
+    use ark_bn254::Fr as Fr254;
     use ark_std::{rand::Rng, UniformRand};
     /// makes a vector of n leaves with random values.
     fn make_rnd_leaves<N: UniformRand>(n: usize, mut rng: impl Rng) -> Vec<N> {

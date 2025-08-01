@@ -8,8 +8,8 @@ contract MockVerifier is INFVerifier {
     bool private defaultResult = true;
 
     function verify(
-        bytes calldata,
-        bytes32[] calldata
+        bytes calldata proofBytes, 
+        bytes calldata publicInputsHashBytes
     ) external view override returns (bool result) {
         result = defaultResult;
         return result;

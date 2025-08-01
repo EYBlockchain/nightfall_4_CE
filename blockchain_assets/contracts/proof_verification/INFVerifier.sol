@@ -3,7 +3,7 @@ pragma solidity >=0.6.0;
 
 interface INFVerifier {
     function verify(
-        bytes calldata,
-        bytes32[] calldata publicInputs
-    ) external view returns (bool result);
+        bytes calldata proofBytes, 
+        bytes calldata publicInputsHashBytes
+    ) external returns (bool result);
 }
