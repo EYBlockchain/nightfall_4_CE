@@ -204,34 +204,14 @@ mod tests {
     use crate::test::forge_command;
     use alloy::{
         providers::{Provider, ProviderBuilder},
-        sol,
     };
     use alloy_node_bindings::Anvil;
-
-    sol!(
-        #[sol(rpc)]
-        #[derive(Debug)]
-        erc1155_mock,
-        "../blockchain_assets/artifacts/ERC1155Mock.sol/ERC1155Mock.json"
-    );
-    sol!(
-        #[sol(rpc)]
-        #[derive(Debug)]
-        erc20_mock,
-        "../blockchain_assets/artifacts/ERC20Mock.sol/ERC20Mock.json"
-    );
-    sol!(
-        #[sol(rpc)]
-        #[derive(Debug)]
-        erc3525_mock,
-        "../blockchain_assets/artifacts/ERC3525Mock.sol/ERC3525Mock.json"
-    );
-    sol!(
-        #[sol(rpc)]
-        #[derive(Debug)]
-        erc721_mock,
-        "../blockchain_assets/artifacts/ERC721Mock.sol/ERC721Mock.json"
-    );
+    use nightfall_bindings::artifacts::{
+        ERC20Mock as erc20_mock,
+        ERC1155Mock as erc1155_mock,
+        ERC3525Mock as erc3525_mock,
+        ERC721Mock as erc721_mock,
+    };
 
     #[tokio::test]
     async fn test_mock_addresses() {

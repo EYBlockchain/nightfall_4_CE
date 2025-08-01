@@ -18,7 +18,6 @@ use crate::{
     services::client_operation::client_operation,
 };
 use alloy::rpc::types::TransactionReceipt;
-use alloy::sol;
 use ark_bn254::Fr as Fr254;
 use configuration::addresses::get_addresses;
 use futures::future::join_all;
@@ -34,18 +33,8 @@ use std::{error::Error, fmt::Debug, time::Duration};
 use tokio::time::sleep;
 use url::Url;
 use warp::hyper::StatusCode;
-sol!(
-    #[sol(rpc)]
-    #[allow(clippy::too_many_arguments)]
-    RoundRobin,
-    "../blockchain_assets/artifacts/RoundRobin.sol/RoundRobin.json"
-);
-sol!(
-    #[sol(rpc)]
-    #[derive(Debug)]
-    X509,
-    "../blockchain_assets/artifacts/X509.sol/X509.json"
-);
+use nightfall_bindings::artifacts::RoundRobin;
+
 
 #[allow(clippy::too_many_arguments)]
 pub async fn handle_client_operation<P, E, N>(
@@ -270,7 +259,7 @@ pub async fn process_transaction_offchain<P: Serialize + Sync>(
         RoundRobin::new(get_addresses().round_robin, blockchain_client.root());
 
     let proposers_struct: Vec<RoundRobin::Proposer> =
-        round_robin_instance.get_proposers().call().await?._0;
+        round_robin_instance.get_proposers().call().await?;
     let db = get_db_connection().await;
 
     let futures: Vec<_> = proposers_struct

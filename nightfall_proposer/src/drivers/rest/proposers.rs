@@ -2,12 +2,12 @@ use alloy::primitives::U256;
 use configuration::{addresses::get_addresses, settings::get_settings};
 use log::{info, warn};
 use nightfall_client::drivers::rest::proposers::ProposerError;
-//use nightfall_bindings::round_robin::RoundRobin;
+use nightfall_bindings::artifacts::RoundRobin;
 /// APIs for managing proposers
 use warp::{hyper::StatusCode, path, reply::Reply, Filter};
 
 use crate::{
-    domain::error::ProposerRejection, driven::block_assembler::RoundRobin,
+    domain::error::ProposerRejection,
     initialisation::get_blockchain_client_connection,
 };
 use lib::blockchain_client::BlockchainClientConnection;
@@ -30,7 +30,7 @@ async fn handle_rotate_proposer() -> Result<impl Reply, warp::Rejection> {
     let proposer_manager = RoundRobin::new(get_addresses().round_robin, blockchain_client.root());
     match proposer_manager.proposer_count().call().await {
         Ok(count) => {
-            if count._0 <= U256::ONE {
+            if count <= U256::ONE {
                 warn!("Rotation requested, but only one active proposer; rotation will have no effect.");
             }
         }
@@ -125,7 +125,7 @@ async fn handle_remove_proposer() -> Result<impl Reply, warp::Rejection> {
     // Fetch the current proposer address on-chain
     match proposer_manager.get_current_proposer_address().call().await {
         Ok(current_proposer) => {
-            if current_proposer._0 == signer_address {
+            if current_proposer == signer_address {
                 warn!(
                     "You are removing yourself as the active proposer — this will deduct an exit penalty of {penalty} units and start a cooldown period of {cooling_blocks} L1 blocks before you can re-register."
                 );

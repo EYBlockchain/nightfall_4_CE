@@ -1,13 +1,11 @@
 use crate::{
-    driven::block_assembler::Nightfall,
     initialisation::{get_blockchain_client_connection, get_db_connection},
     ports::{
-        contracts::NightfallContract,
-        db::TransactionsDB,
-        trees::{CommitmentTree, HistoricRootTree, NullifierTree},
+        contracts::NightfallContract, db::TransactionsDB,trees::{CommitmentTree, HistoricRootTree, NullifierTree}
     },
     services::process_events::process_events,
 };
+use nightfall_bindings::artifacts::Nightfall;
 use ark_bn254::Fr as Fr254;
 use configuration::{addresses::get_addresses, settings::get_settings};
 use futures::{future::BoxFuture, FutureExt};
@@ -103,6 +101,7 @@ where
         .get_client();
 
     let nightfall_instance = Nightfall::new(get_addresses().nightfall, blockchain_client.root());
+
 
     let block_stream = nightfall_instance
         .event_filter::<Nightfall::BlockProposed>()

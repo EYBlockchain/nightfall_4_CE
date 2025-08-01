@@ -6,7 +6,6 @@ use crate::{
     ports::db::ToHexString,
 };
 use alloy::primitives::{Address, U256};
-use alloy::sol;
 use ark_bn254::Fr as Fr254;
 use ark_ff::{BigInt, BigInteger, BigInteger256, PrimeField};
 use ark_std::Zero;
@@ -17,18 +16,7 @@ use serde::{
     {Deserialize, Deserializer, Serialize},
 };
 use std::{fmt, ops::Add, str::FromStr};
-sol!(
-    #[sol(rpc)]
-    Nightfall,
-    "../blockchain_assets/artifacts/Nightfall.sol/Nightfall.json"
-);
-sol!(
-    #[sol(rpc)]
-    #[derive(Debug)]
-    #[allow(clippy::too_many_arguments)]
-    RoundRobin,
-    "../blockchain_assets/artifacts/RoundRobin.sol/RoundRobin.json"
-);
+use nightfall_bindings::artifacts::{Nightfall, RoundRobin};
 /// enables conversion between a Proposer as used in the ProposerManager contract, and a for suitable for serialisation
 impl From<RoundRobin::Proposer> for Proposer {
     fn from(proposer: RoundRobin::Proposer) -> Self {

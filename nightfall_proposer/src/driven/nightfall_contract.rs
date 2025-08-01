@@ -1,9 +1,10 @@
 //! Implementation of the [`NightfallContract`] trait from `nightfall_proposer/src/ports/contracts.rs`.
 
 use crate::{
-    domain::entities::Block, driven::block_assembler::Nightfall,
+    domain::entities::Block,
     initialisation::get_blockchain_client_connection, ports::contracts::NightfallContract,
 };
+use nightfall_bindings::artifacts::Nightfall;
 use alloy::primitives::I256;
 use configuration::addresses::get_addresses;
 use lib::blockchain_client::BlockchainClientConnection;
@@ -53,7 +54,6 @@ impl NightfallContract for Nightfall::NightfallCalls {
             .layer2_block_number()
             .call()
             .await
-            .map_err(|_| NightfallContractError::TransactionError)?
-            ._0)
+            .map_err(|_| NightfallContractError::TransactionError)?)
     }
 }

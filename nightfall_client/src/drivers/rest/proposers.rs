@@ -1,4 +1,3 @@
-use alloy::sol;
 use configuration::addresses::get_addresses;
 use warp::reply;
 use warp::{path, reply::Reply, Filter};
@@ -7,12 +6,8 @@ use crate::domain::entities::Proposer;
 use lib::{
     blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
 };
-sol!(
-    #[sol(rpc)]
-    #[allow(clippy::too_many_arguments)]
-    RoundRobin,
-    "../blockchain_assets/artifacts/RoundRobin.sol/RoundRobin.json"
-);
+use nightfall_bindings::artifacts::RoundRobin;
+
 /// Error type for proposer rotation
 #[derive(Debug)]
 pub enum ProposerError {
@@ -57,8 +52,7 @@ async fn handle_get_proposers() -> Result<impl Reply, warp::Rejection> {
         .get_proposers()
         .call()
         .await
-        .map_err(|_| warp::reject::custom(crate::domain::error::ClientRejection::ProposerError))?
-        ._0;
+        .map_err(|_| warp::reject::custom(crate::domain::error::ClientRejection::ProposerError))?;
     let list = proposer_list
         .into_iter()
         .map(|p| Proposer {

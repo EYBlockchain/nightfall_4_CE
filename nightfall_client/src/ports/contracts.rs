@@ -6,8 +6,8 @@ use crate::{
         entities::{DepositSecret, TokenData, TokenType, WithdrawData},
         error::{NightfallContractError, TokenContractError},
     },
-    driven::contract_functions::nightfall_contract::Nightfall,
 };
+use nightfall_bindings::artifacts::Nightfall;
 use alloy::primitives::{Address, I256};
 use ark_bn254::Fr as Fr254;
 use ark_ff::BigInteger256;

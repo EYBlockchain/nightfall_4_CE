@@ -2,7 +2,6 @@
 
 use super::contract_type_conversions::{Addr, Uint256};
 use crate::{domain::error::TokenContractError, ports::contracts::TokenContract};
-use alloy::sol;
 use ark_bn254::Fr as Fr254;
 use ark_ff::{BigInteger, BigInteger256};
 use ark_std::Zero;
@@ -11,31 +10,10 @@ use lib::{
     blockchain_client::BlockchainClientConnection, error::BlockchainClientConnectionError,
     initialisation::get_blockchain_client_connection,
 };
+use nightfall_bindings::artifacts::{
+    IERC1155, IERC20, IERC3525, IERC721,
+};
 
-sol!(
-    #[sol(rpc)]
-    #[derive(Debug)]
-    IERC1155,
-    "../blockchain_assets/artifacts/IERC1155.sol/IERC1155.json"
-);
-sol!(
-    #[sol(rpc)]
-    #[derive(Debug)]
-    IERC20,
-    "../blockchain_assets/artifacts/IERC20.sol/IERC20.json"
-);
-sol!(
-    #[sol(rpc)]
-    #[derive(Debug)]
-    IERC3525,
-    "../blockchain_assets/artifacts/IERC3525.sol/IERC3525.json"
-);
-sol!(
-    #[sol(rpc)]
-    #[derive(Debug)]
-    IERC721,
-    "../blockchain_assets/artifacts/IERC721.sol/IERC721.json"
-);
 
 impl TokenContract for IERC20::IERC20Calls {
     async fn set_approval(

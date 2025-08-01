@@ -1,6 +1,6 @@
 //! Implementation of the [`NightfallContract`] trait from `ports/contracts.rs`.
 use super::contract_type_conversions::{
-    Addr, FrBn254, Nightfall::WithdrawData as NFWithdrawData, Uint256,
+    Addr, FrBn254, Uint256,
 };
 use crate::{
     domain::{
@@ -22,29 +22,13 @@ use ark_bn254::Fr as Fr254;
 use ark_ff::BigInteger256;
 use ark_std::Zero;
 use configuration::addresses::get_addresses;
-
-use alloy::sol;
 use lib::{
     blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
 };
 use log::{debug, info};
 use num::BigUint;
-sol!(
-    #[sol(rpc)]
-    Nightfall,
-    "../blockchain_assets/artifacts/Nightfall.sol/Nightfall.json"
-);
-sol!(
-    #[sol(rpc)]
-    IERC3525,
-    "../blockchain_assets/artifacts/IERC3525.sol/IERC3525.json"
-);
-sol!(
-    #[sol(rpc)]
-    #[derive(Debug)]
-    ERC20Mock,
-    "../blockchain_assets/artifacts/ERC20Mock.sol/ERC20Mock.json"
-);
+use nightfall_bindings::artifacts::{Nightfall, IERC3525, ERC20Mock};
+
 
 impl NightfallContract for Nightfall::NightfallCalls {
     async fn escrow_funds(
@@ -130,7 +114,6 @@ impl NightfallContract for Nightfall::NightfallCalls {
                         "Could not retrieve ERC3525 slot".to_string(),
                     )
                 })?
-                ._0
         } else {
             solidity_token_id.0
         };
@@ -160,7 +143,7 @@ impl NightfallContract for Nightfall::NightfallCalls {
         withdraw_data: WithdrawData,
         token_type: TokenType,
     ) -> Result<(), NightfallContractError> {
-        let data = NFWithdrawData::from(withdraw_data);
+        let data = Nightfall::WithdrawData::from(withdraw_data);
         let decode_data = Nightfall::WithdrawData {
             nf_token_id: data.nf_token_id,
             recipient_address: data.recipient_address,
@@ -217,7 +200,7 @@ impl NightfallContract for Nightfall::NightfallCalls {
         let client = blockchain_client.root();
         let nightfall_instance = Nightfall::new(get_addresses().nightfall(), client.clone());
 
-        let data = NFWithdrawData::from(withdraw_data);
+        let data = Nightfall::WithdrawData::from(withdraw_data);
         let decode_data = Nightfall::WithdrawData {
             nf_token_id: data.nf_token_id,
             recipient_address: data.recipient_address,
@@ -228,8 +211,7 @@ impl NightfallContract for Nightfall::NightfallCalls {
             .withdraw_processed(decode_data)
             .call()
             .await
-            .map_err(|e| NightfallContractError::EscrowError(format!("{e}")))?
-            ._0;
+            .map_err(|e| NightfallContractError::EscrowError(format!("{e}")))?;
         Ok(result)
     }
 
@@ -247,8 +229,8 @@ impl NightfallContract for Nightfall::NightfallCalls {
             .layer2_block_number()
             .call()
             .await
-            .map_err(|e| NightfallContractError::EscrowError(format!("{e}")))?
-            ._0;
+            .map_err(|e| NightfallContractError::EscrowError(format!("{e}")))?;
+
         Ok(l2_block)
     }
     async fn get_token_info(nf_token_id: Fr254) -> Result<TokenData, NightfallContractError> {
@@ -327,7 +309,7 @@ impl NightfallContract for Nightfall::NightfallCalls {
         let sender_address = tx.inner.signer();
         debug!("Sender of transaction {tx_hash} is {sender_address}");
 
-        let decoded = Nightfall::NightfallCalls::abi_decode(tx.input(), true).map_err(|e| {
+        let decoded = Nightfall::NightfallCalls::abi_decode(tx.input()).map_err(|e| {
             NightfallContractError::AbiDecodeError(format!("ABI decode error: {e:?}"))
         })?;
 

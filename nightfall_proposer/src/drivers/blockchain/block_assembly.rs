@@ -4,7 +4,6 @@ use crate::{
     ports::{contracts::NightfallContract, proving::RecursiveProvingEngine},
     services::assemble_block::assemble_block,
 };
-use alloy::sol;
 use alloy::{
     primitives::{TxHash, U64},
     providers::{Provider, RootProvider},
@@ -23,12 +22,7 @@ use std::{
     error::Error,
     fmt::{Debug, Display, Formatter},
 };
-sol!(
-    #[sol(rpc)]
-    #[allow(clippy::too_many_arguments)]
-    RoundRobin,
-    "../blockchain_assets/artifacts/RoundRobin.sol/RoundRobin.json"
-);
+use nightfall_bindings::artifacts::RoundRobin;
 use std::{sync::Arc, time::Duration};
 use tokio::sync::Mutex;
 
@@ -234,7 +228,7 @@ where
                 };
                 let mut blocks = pending_blocks.lock().await;
                 // If start_block is zero, then we assume the contract has just been deployed and rotation has not yet started.
-                if start_block._0.is_zero() && !blocks.is_empty() {
+                if start_block.is_zero() && !blocks.is_empty() {
                     info!("Proposing {} pending blocks", blocks.len());
                     for block in blocks.drain(..) {
                         if let Err(e) = N::propose_block(block).await {
@@ -301,8 +295,7 @@ where
                 tokio::time::sleep(std::time::Duration::from_secs(5)).await;
                 continue;
             }
-        }
-        ._0;
+        };
 
         let our_address = get_blockchain_client_connection()
             .await
@@ -335,8 +328,7 @@ where
                 error!("Failed to get current proposer after trigger: {e}");
                 continue;
             }
-        }
-        ._0;
+        };
 
         let our_address = get_blockchain_client_connection()
             .await

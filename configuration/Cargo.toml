@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 config = "0.13.4"
-alloy = { version = "0.13.0", features = ["transport-ws"] }
+alloy = { version = "1.0.23", features = ["transport-ws"] }
 rand = "0.8"
 serde = { version = "1.0.219", features = ["derive"] }
 serial_test = "3.2.0"

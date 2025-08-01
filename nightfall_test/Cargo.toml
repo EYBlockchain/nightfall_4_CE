@@ -12,6 +12,7 @@ path = "bin/menu.rs"
 tracing = "0.1.41"
 dotenv = "0.15.0"
 nightfall_client = { path = "../nightfall_client" }
+nightfall_bindings = {path = "../nightfall_bindings"}
 configuration = { path = "../configuration" }
 lib = { path = "../lib" }
 serde = { version = "1.0.219", features = ["derive"] }
@@ -20,13 +21,13 @@ url = "2.5.4"
 ark-ff = { version = "0.4.2", features = ["parallel"] }
 serde_json = "1.0.140"
 k256 = "0.13.4"
-alloy-node-bindings = { version = "0.13.0" }
+alloy-node-bindings = { version = "1.0.23" }
 tokio = { version = "1.45.0", features = ["full"] }
 ark-serialize = "0.4.2"
 ark-std = { version = "0.4.0", default-features = false }
 arkworks-utils = "1.0.1"
 ark-bn254 = "0.4.0"
-alloy = { version = "0.13.0", features = ["full"] }
+alloy = { version = "1.0.23", features = ["full"] }
 hex = "0.4.3"
 log = "0.4.27"
 sha2 = "0.10.9"

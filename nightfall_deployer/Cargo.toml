@@ -15,8 +15,8 @@ jf-utils = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", featu
 ] }
 itertools = "0.10.5"
 dotenv = "0.15.0"
-alloy = { version = "0.13.0", features = ["full"] }
-alloy-node-bindings =  "0.13.0"
+alloy = { version = "1.0.23", features = ["full"] }
+alloy-node-bindings =  "1.0.23"
 tokio = { version = "1.45.0", features = ["full"] }
 ethers-solc = "2.0.14"
 serde_json = "1.0.140"
@@ -28,6 +28,7 @@ serde = "1.0.219"
 log = "0.4.27"
 warp = "0.3.7"
 sha2 = "0.10"
+nightfall_bindings = {path = "../nightfall_bindings"}
 nightfall_client = { path = "../nightfall_client" }
 nightfall_proposer = { path = "../nightfall_proposer" }
 ark-serialize = "0.4.2"

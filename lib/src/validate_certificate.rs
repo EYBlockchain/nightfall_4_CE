@@ -4,7 +4,6 @@ use crate::{
     initialisation::get_blockchain_client_connection,
 };
 use alloy::primitives::{Address, U256};
-use alloy::sol;
 use configuration::addresses::get_addresses;
 use futures::stream::TryStreamExt;
 use log::{debug, error, info, trace, warn};
@@ -12,11 +11,7 @@ use reqwest::StatusCode;
 use std::{ffi::OsStr, io::Read, path::Path};
 use warp::{filters::multipart::FormData, path, reply::Reply, Buf, Filter};
 use x509_parser::nom::AsBytes;
-sol!(
-    #[sol(rpc)]
-    X509,
-    "../blockchain_assets/artifacts/X509.sol/X509.json"
-);
+use nightfall_bindings::artifacts::X509;
 #[derive(Debug)]
 pub struct X509ValidationError;
 
@@ -88,7 +83,7 @@ async fn handle_certificate_validation(
                 "Invalid certificate provided",
             ))
         })?;
-    if !is_certified._0 {
+    if !is_certified {
         // compute the signature and validate the certificate
         debug!("Signing ethereum address {requestor_address} with certificate private key");
         let ethereum_address_signature =
@@ -148,7 +143,7 @@ async fn validate_certificate(
         .computeNumberOfTlvs(certificate.clone().into(), U256::ZERO)
         .call()
         .await?;
-    let number_of_tlvs: U256 = compute_result._0; // Convert computeNumberOfTlvsReturn to U256
+    let number_of_tlvs: U256 = compute_result; // Convert computeNumberOfTlvsReturn to U256
 
     let certificate_args = X509::CertificateArgs {
         certificate: certificate.clone().into(),

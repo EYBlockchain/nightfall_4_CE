@@ -60,7 +60,7 @@ impl BlockchainClientConnection for LocalWsClient {
         let ws = WsConnect::new(url);
         let provider = ProviderBuilder::new()
             .wallet(local_signer.clone())
-            .on_ws(ws)
+            .connect_ws(ws)
             .await
             .map_err(|e| BlockchainClientConnectionError::ProviderError(e.to_string()))?;
 
@@ -122,7 +122,7 @@ impl BlockchainClientConnection for LocalWsClient {
         let ws = WsConnect::new(settings.ethereum_client_url.clone());
         let provider = ProviderBuilder::new()
             .wallet(local_signer.clone())
-            .on_ws(ws)
+            .connect_ws(ws)
             .await
             .map_err(|e| BlockchainClientConnectionError::ProviderError(e.to_string()))?;
 

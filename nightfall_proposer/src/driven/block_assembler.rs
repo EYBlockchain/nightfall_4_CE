@@ -7,7 +7,6 @@ use crate::{
 use async_trait::async_trait;
 
 use alloy::primitives::Bytes;
-use alloy::sol;
 use configuration::addresses::get_addresses;
 use lib::blockchain_client::BlockchainClientConnection;
 use log::{debug, error, warn};
@@ -21,18 +20,9 @@ use tokio::{
     sync::RwLock,
     time::{self, Duration, Instant},
 };
-sol!(
-    #[sol(rpc)] // Add Debug trait to x509CheckReturn
-    #[allow(clippy::too_many_arguments)]
-    RoundRobin,
-    "../blockchain_assets/artifacts/RoundRobin.sol/RoundRobin.json"
-);
-sol!(
-    #[sol(rpc)]
-    #[derive(Debug)]
-    Nightfall,
-    "../blockchain_assets/artifacts/Nightfall.sol/Nightfall.json"
-);
+use nightfall_bindings::artifacts::{
+    Nightfall, RoundRobin,
+};
 /// SmartTrigger is responsible for deciding when to trigger block assembly,
 /// based on time constraints and mempool state.
 ///
@@ -104,8 +94,8 @@ impl<P: Proof + Send + Sync> BlockAssemblyTrigger for SmartTrigger<P> {
                     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
                     continue;
                 }
-            }
-            ._0;
+            };
+
             let our_address = get_blockchain_client_connection()
                 .await
                 .read()

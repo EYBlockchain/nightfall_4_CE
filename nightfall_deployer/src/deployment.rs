@@ -112,17 +112,12 @@ pub fn forge_command(command: &[&str]) {
 mod tests {
     use super::*;
     use alloy::providers::{Provider, ProviderBuilder};
-    use alloy::sol;
     use alloy_node_bindings::Anvil;
     use configuration::addresses::get_addresses;
     use std::{fs, path::Path};
 
     use tokio::task::spawn_blocking;
-    sol!(
-        #[sol(rpc)] // Add Debug trait to x509CheckReturn
-        Nightfall,
-        "../blockchain_assets/artifacts/Nightfall.sol/Nightfall.json"
-    );
+    use nightfall_bindings::artifacts::Nightfall;
 
     // NB: This test requires Anvil to be installed (it will use Anvil to simulate a blockchain).
     // Restart VS Code after installing Anvil so that it's in your PATH otherwise VS Code won't find it!

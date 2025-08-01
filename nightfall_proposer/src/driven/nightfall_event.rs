@@ -1,7 +1,7 @@
 use crate::{
     domain::entities::{DepositData, DepositDatawithFee, OnChainTransaction},
     driven::{
-        block_assembler::Nightfall, db::mongo_db::StoredBlock,
+         db::mongo_db::StoredBlock,
         nightfall_client_transaction::process_deposit_transaction,
     },
     drivers::blockchain::nightfall_event_listener::get_synchronisation_status,
@@ -13,6 +13,7 @@ use crate::{
         trees::{CommitmentTree, HistoricRootTree, NullifierTree},
     },
 };
+use nightfall_bindings::artifacts::Nightfall;
 use alloy::primitives::{TxHash, I256};
 use alloy::{consensus::Transaction, sol_types::SolInterface};
 use ark_bn254::Fr as Fr254;
@@ -114,7 +115,7 @@ where
 
     // if there is one, decode it. If not, throw.
     if let Some(tx) = tx {
-        let decoded = Nightfall::NightfallCalls::abi_decode(tx.input(), true)
+        let decoded = Nightfall::NightfallCalls::abi_decode(tx.input())
             .map_err(|_| EventHandlerError::InvalidCalldata)?;
         if let Nightfall::NightfallCalls::propose_block(decode) = decoded {
             // OK to use unwrap because the smart contract has to provide a block number
@@ -377,7 +378,7 @@ where
 
     // If there is one, decode it. If not, throw.
     if let Some(tx) = tx {
-        let decoded = Nightfall::NightfallCalls::abi_decode(tx.input(), true)
+        let decoded = Nightfall::NightfallCalls::abi_decode(tx.input())
             .map_err(|_| EventHandlerError::InvalidCalldata)?;
 
         if let Nightfall::NightfallCalls::escrow_funds(decode) = decoded {

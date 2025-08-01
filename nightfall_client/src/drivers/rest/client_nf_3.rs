@@ -13,11 +13,7 @@ use crate::{
         notifications::NotificationPayload,
     },
     driven::{
-        contract_functions::{
-            contract_type_conversions::FrBn254,
-            nightfall_contract::Nightfall,
-            token_contracts::{IERC1155, IERC20, IERC3525, IERC721},
-        },
+        contract_functions::contract_type_conversions::FrBn254,
         db::mongo::CommitmentEntry,
         queue::{get_queue, QueuedRequest, TransactionRequest},
     },
@@ -34,6 +30,10 @@ use crate::{
     services::{
         client_operation::deposit_operation, commitment_selection::find_usable_commitments,
     },
+};
+use nightfall_bindings::artifacts::{
+    IERC1155, IERC20, IERC3525, IERC721,
+    Nightfall,
 };
 use ark_bn254::Fr as Fr254;
 use ark_ec::twisted_edwards::Affine;

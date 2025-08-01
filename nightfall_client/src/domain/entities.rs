@@ -1,6 +1,6 @@
 use crate::{
     driven::contract_functions::{
-        contract_type_conversions::FrBn254, nightfall_contract::Nightfall,
+        contract_type_conversions::FrBn254,
     },
     ports::{
         commitments::{Commitment, Nullifiable},
@@ -18,6 +18,7 @@ use lib::{
     error::HexError,
     serialization::{ark_de_hex, ark_se_hex},
 };
+use nightfall_bindings::artifacts::Nightfall;
 
 use jf_primitives::poseidon::{FieldHasher, Poseidon, PoseidonError};
 use lib::hex_conversion::HexConvertible;

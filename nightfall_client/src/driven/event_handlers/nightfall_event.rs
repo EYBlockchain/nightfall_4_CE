@@ -7,7 +7,7 @@ use crate::{
         notifications::NotificationPayload,
     },
     driven::{
-        contract_functions::{contract_type_conversions::FrBn254, nightfall_contract::Nightfall},
+        contract_functions::{contract_type_conversions::FrBn254},
         db::mongo::{BlockStorageDB, CommitmentEntry, StoredBlock},
         notifier::webhook_notifier::WebhookNotifier,
         primitives::kemdem_functions::kemdem_decrypt,
@@ -25,12 +25,12 @@ use crate::{
     services::data_publisher::DataPublisher,
 };
 use alloy::consensus::Transaction;
+use alloy::sol_types::SolInterface;
 use ark_bn254::Fr as Fr254;
 use ark_ff::BigInteger;
 use configuration::settings::get_settings;
 
 use alloy::primitives::{TxHash, I256, U256};
-use alloy::sol_types::SolInterface;
 use lib::{
     blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
     initialisation::get_blockchain_client_connection,
@@ -38,6 +38,7 @@ use lib::{
 use log::{debug, error, info, warn};
 use std::{collections::HashSet, sync::OnceLock};
 use tokio::{join, sync::Mutex};
+use nightfall_bindings::artifacts::Nightfall;
 
 // Define a mutable lazy static to hold the layer 2 blocknumber. We need this to
 // check if we're still in sync.
@@ -100,7 +101,7 @@ pub async fn process_nightfall_calldata<N: NightfallContract>(
     // if there is one, decode it. If not, warn someone.
     match tx {
         Some(tx) => {
-            let decoded = Nightfall::NightfallCalls::abi_decode(tx.input(), true)
+            let decoded = Nightfall::NightfallCalls::abi_decode(tx.input())
                 .map_err(|e| EventHandlerError::IOError(e.to_string()))?;
             #[allow(clippy::single_match)] // we may add more events later
             match decoded {

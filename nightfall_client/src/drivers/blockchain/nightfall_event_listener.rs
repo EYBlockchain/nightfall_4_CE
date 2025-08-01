@@ -5,7 +5,6 @@ use crate::{
     },
     driven::db::mongo::{BlockStorageDB, StoredBlock},
     driven::{
-        contract_functions::nightfall_contract::Nightfall,
         event_handlers::nightfall_event::get_expected_layer2_blocknumber,
     },
     drivers::blockchain::nightfall_event_listener::SynchronisationPhase::Synchronized,
@@ -28,6 +27,7 @@ use log::{debug, warn};
 use mongodb::Client as MongoClient;
 use std::{panic, time::Duration};
 use tokio::time::sleep;
+use nightfall_bindings::artifacts::Nightfall;
 /// This function starts the event handler. It will attempt to restart the event handler in case of errors
 /// with an exponential backoff  for a configurable number of attempts. If the event handler
 /// fails after the maximum number of attempts, it will log an error and send a notification (if configured).
@@ -93,33 +93,53 @@ pub async fn listen_for_events<N: NightfallContract>(
         "Listening for events on the Nightfall contract at address: {}",
         get_addresses().nightfall()
     );
-    // BlockProposed stream
+    println!("Creating event streams...");
     let block_stream = nightfall_instance
-        .event_filter::<Nightfall::BlockProposed>()
+        .BlockProposed_filter()
         .from_block(start_block as u64)
         .subscribe()
         .await
-        .map_err(|_| EventHandlerError::NoEventStream)?
-        .into_stream();
+        .map_err(|e| {
+            println!("BlockProposed subscription failed: {:?}", e);
+            EventHandlerError::NoEventStream
+        })?
+        .into_stream()
+        .inspect(|res| match res {
+            Ok(_) => println!("Received BlockProposed event"),
+            Err(e) => println!("BlockProposed stream error: {:?}", e),
+        }).map(|res| {
+            // Map the event to a tuple of (event, log)
+            res.map(|log| (Nightfall::NightfallEvents::BlockProposed(log.0), log.1))
+        });
 
     let deposit_stream = nightfall_instance
-        .event_filter::<Nightfall::DepositEscrowed>()
+        .DepositEscrowed_filter()
         .from_block(start_block as u64)
         .subscribe()
         .await
-        .map_err(|_| EventHandlerError::NoEventStream)?
-        .into_stream();
+        .map_err(|e| {
+            println!("DepositEscrowed subscription failed: {:?}", e);
+            EventHandlerError::NoEventStream
+        })?
+        .into_stream()
+        .inspect(|res| match res {
+            Ok(_) => println!("Received DepositEscrowed event"),
+            Err(e) => println!("Deposit stream error: {:?}", e),
+        }).map(|res| {
+            // Map the event to a tuple of (event, log)
+            res.map(|log| (Nightfall::NightfallEvents::DepositEscrowed(log.0), log.1))
+        });
 
-    // the event stream is a stream of events, so we need to merge the two streams
+    // 5. Process events
+    println!("Entering event processing loop...");
     let mut all_events = futures::stream::select(
+        deposit_stream,
         block_stream
-            .map(|e| e.map(|log| (Nightfall::NightfallEvents::BlockProposed(log.0), log.1))),
-        deposit_stream
-            .map(|e| e.map(|log| (Nightfall::NightfallEvents::DepositEscrowed(log.0), log.1))),
     );
-    while let Some(Ok((event, logs))) = all_events.next().await {
-        // process each event in the stream and handle any errors
-        let result = process_events::<N>(event, logs).await;
+    println!("Going to process events from block {start_block}...");
+    while let Some(Ok((event, log))) = all_events.next().await {
+        println!("Received event: {event:?}");
+        let result = process_events::<N>(event, log).await;
         match result {
             Ok(_) => continue,
             Err(e) => {
@@ -130,13 +150,24 @@ pub async fn listen_for_events<N: NightfallContract>(
                         restart_event_listener::<N>(start_block).await;
                         return Err(EventHandlerError::StreamTerminated);
                     }
+
+                    EventHandlerError::BlockHashError(expected, found) => {
+                        warn!(
+                                "Block hash mismatch: expected {expected:?}, found {found:?}. Restarting event listener"
+                            );
+                        restart_event_listener::<N>(start_block).await;
+                        return Err(EventHandlerError::StreamTerminated);
+                    }
+
                     _ => panic!("Error processing event: {e:?}"),
                 }
             }
         }
     }
+
     Err(EventHandlerError::StreamTerminated)
 }
+
 // We might need to restart the event listener if we fall out of sync and lose blocks
 // This does not erase aleady synchronised data
 pub async fn restart_event_listener<N>(start_block: usize)

@@ -16,7 +16,7 @@ rand_core = { version = "0.6.4", features = ["getrandom"] }
 ark-serialize = "0.4.2"
 sha3 = "0.10.8"
 sha2 = "0.10"
-alloy = { version = "0.13.0", features = ["transport-ws", "json-rpc", "serde"] }
+alloy = { version = "1.0.23", features = ["transport-ws", "json-rpc", "serde"] }
 warp = "0.3.7"
 serde = { version = "1.0.219", features = ["derive"] }
 tokio = { version = "1.45.0", features = ["full"] }
@@ -44,6 +44,7 @@ serde_bytes = "0.11"
 serde_with = "2.3.3"
 config = "0.13.4"
 configuration = { path = "../configuration" }
+nightfall_bindings = {path = "../nightfall_bindings"}
 log = "0.4.27"
 nf-curves = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git"}
 reqwest = "0.11.27"

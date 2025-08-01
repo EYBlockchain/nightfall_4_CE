@@ -1,11 +1,12 @@
 use super::models::DeEscrowDataReq;
 use crate::{
     domain::entities::WithdrawData as NFWithdrawData,
-    driven::contract_functions::nightfall_contract::Nightfall, ports::contracts::NightfallContract,
+    ports::contracts::NightfallContract,
 };
 use log::{debug, error};
 use reqwest::StatusCode;
 use warp::{path, reject, Filter, Reply};
+use::nightfall_bindings::artifacts::Nightfall;
 
 /// GET request for a specific commitment by key
 pub fn de_escrow() -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
