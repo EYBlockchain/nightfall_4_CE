@@ -279,16 +279,17 @@ contract Nightfall is
                 continue;
             }
         }
+        // Now we update the roots
+        commitmentRoot = blk.commitments_root;
+        nullifierRoot = blk.nullifier_root;
+        historicRootsRoot = blk.commitments_root_root;
+        
         // Pay the proposer totalFee
         address proposer = proposer_manager.get_current_proposer_address();
         (bool success, ) = proposer.call{value: totalFee}("");
         require(success, "Failed to transfer the fee to the proposer");
 
-        // Now we update the roots
-        commitmentRoot = blk.commitments_root;
-        nullifierRoot = blk.nullifier_root;
-        historicRootsRoot = blk.commitments_root_root;
-        // Emit the event to indicate a block has been proposed with a log as well
+        
         emit BlockProposed(layer2_block_number++);
     }
 
@@ -463,7 +464,9 @@ contract Nightfall is
 
             return;
         }
+        // To avoid re-entrancy attacks, we set the withdrawalIncluded[key] to 0 before transferring the funds.
 
+        withdrawalIncluded[key] = 0;
         bool success;
         if (token_type == TokenType.ERC1155) {
             IERC1155(original.erc_address).safeTransferFrom(
@@ -497,8 +500,10 @@ contract Nightfall is
             );
         }
 
-        if (success) {
-            withdrawalIncluded[key] = 0;
+        if (!success) {
+            // If the transfer failed, we revert the state change
+            // and set withdrawalIncluded[key] back to 1 so that the withdraw can be retried.
+            withdrawalIncluded[key] = 1;
         }
     }
 
