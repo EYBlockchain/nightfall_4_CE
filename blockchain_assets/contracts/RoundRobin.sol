@@ -69,6 +69,10 @@ contract RoundRobin is ProposerManager, Certified {
             stake >= exit_penalty,
             "Stake must be greater than exit penalty"
         );
+        require(
+            ding > exit_penalty, 
+            "Ding must be greater than exit penalty"
+        );
         ROTATION_BlOCKS = rotation_blocks;
         require(
             msg.value == STAKE,
@@ -104,7 +108,7 @@ contract RoundRobin is ProposerManager, Certified {
 
     function rotate_proposer() external override {
         require(can_rotate(), "It is not time to rotate the proposer");
-        if (nightfall.layer2_block_number() == start_l2_block)
+        if (nightfall.layer2_block_number() == start_l2_block + int(FINALIZATION_BLOCKS))
             ding_proposer(current.addr);
         current = proposers[current.next_addr];
         start_l1_block = block.number;

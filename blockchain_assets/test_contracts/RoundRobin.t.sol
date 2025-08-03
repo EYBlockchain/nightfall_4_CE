@@ -5,6 +5,7 @@ import "../contracts/RoundRobin.sol";
 import "../contracts/Nightfall.sol";
 import "../contracts/proof_verification/MockVerifier.sol";
 import "forge-std/Test.sol";
+import "forge-std/console2.sol";
 import "../contracts/SanctionsListMock.sol";
 import "../contracts/X509/X509.sol";
 
@@ -34,7 +35,7 @@ contract RoundRobinTest is Test {
             default_proposer_address,
             default_proposer_url,
             5, // stake
-            0, // ding
+            3, // ding
             2, // exit_penalty
             1, // allow to reregister immediately (no cooling_blocks)
             0 // allow to rotate immediately
@@ -138,7 +139,7 @@ contract RoundRobinTest is Test {
         );
         // check the current proposer is the only one in the list and is linked to itself
         assertEq(roundRobin.get_proposers().length, 1);
-        assertEq(roundRobin.get_proposers()[0].url, default_proposer_url);
+        assertEq(roundRobin.get_proposers()[0].url, default_proposer_url );
         assertEq(roundRobin.get_proposers()[0].addr, default_proposer_address);
         assertEq(
             roundRobin.get_proposers()[0].next_addr,
