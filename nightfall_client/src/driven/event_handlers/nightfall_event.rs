@@ -232,7 +232,6 @@ async fn process_propose_block_event<N: NightfallContract>(
     })?;
 
     let delta = current_block_number - filter.layer2_block_number - I256::ONE;
-    println!("Current block number is {current_block_number}, delta is {delta}");
     // if we"re synchronising, we don"t want to check for duplicate keys because we expect to overwrite commitments already in the commitment collection
     let dup_key_check = if delta != I256::ZERO {
         warn!("Synchronising - behind blockchain by {delta} layer 2 blocks ");

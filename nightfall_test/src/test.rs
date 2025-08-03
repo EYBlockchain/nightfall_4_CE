@@ -1314,7 +1314,7 @@ mod tests {
         // Set up ethers provider and wallet
         let provider = ProviderBuilder::new()
             .disable_recommended_fillers()
-            .on_http(anvil.endpoint_url());
+            .connect_http(anvil.endpoint_url());
 
         // Get two accounts
         let accounts = provider.get_accounts().await.unwrap();
@@ -1368,7 +1368,7 @@ mod tests {
         let endpoint = anvil.endpoint();
         let provider = ProviderBuilder::new()
             .disable_recommended_fillers()
-            .on_http(anvil.endpoint_url());
+            .connect_http(anvil.endpoint_url());
 
         // Mine three blocks to ensure there is some chain history before reorg
 
@@ -1452,7 +1452,7 @@ mod tests {
         let endpoint = anvil.endpoint();
         let provider = ProviderBuilder::new()
             .disable_recommended_fillers()
-            .on_http(anvil.endpoint_url());
+            .connect_http(anvil.endpoint_url());
 
         // Mine three blocks to ensure there is some chain history before reorg
         provider

@@ -126,10 +126,6 @@ impl HexConvertible for U256 {
     // Decode the hex string into bytes
     let decoded_bytes = hex::decode(hex_str).map_err(|_| HexError::InvalidHexFormat)?;
 
-    // Debugging: Log the length and contents of decoded_bytes
-    println!("Decoded bytes: {:?}", decoded_bytes);
-    println!("Length of decoded bytes: {}", decoded_bytes.len());
-
     // Ensure the decoded bytes do not exceed 32 bytes (U256 size)
     if decoded_bytes.len() > 32 {
         return Err(HexError::InvalidStringLength);
@@ -138,11 +134,6 @@ impl HexConvertible for U256 {
     // Create a 32-byte array and pad it with zeros
     let mut padded_bytes = [0u8; 32];
     padded_bytes[32 - decoded_bytes.len()..].copy_from_slice(&decoded_bytes);
-
-    // Debugging: Log the padded bytes
-    println!("Padded bytes: {:?}", padded_bytes);
-
-    // Convert the padded bytes into a U256
     Ok(U256::from_be_bytes(padded_bytes))
     }
 }

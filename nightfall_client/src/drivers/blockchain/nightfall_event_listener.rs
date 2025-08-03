@@ -99,15 +99,11 @@ pub async fn listen_for_events<N: NightfallContract>(
         .from_block(start_block as u64)
         .subscribe()
         .await
-        .map_err(|e| {
-            println!("BlockProposed subscription failed: {:?}", e);
+        .map_err(|_|{
             EventHandlerError::NoEventStream
         })?
         .into_stream()
-        .inspect(|res| match res {
-            Ok(_) => println!("Received BlockProposed event"),
-            Err(e) => println!("BlockProposed stream error: {:?}", e),
-        }).map(|res| {
+        .map(|res| {
             // Map the event to a tuple of (event, log)
             res.map(|log| (Nightfall::NightfallEvents::BlockProposed(log.0), log.1))
         });
@@ -117,28 +113,20 @@ pub async fn listen_for_events<N: NightfallContract>(
         .from_block(start_block as u64)
         .subscribe()
         .await
-        .map_err(|e| {
-            println!("DepositEscrowed subscription failed: {:?}", e);
+        .map_err( |_|{
             EventHandlerError::NoEventStream
         })?
         .into_stream()
-        .inspect(|res| match res {
-            Ok(_) => println!("Received DepositEscrowed event"),
-            Err(e) => println!("Deposit stream error: {:?}", e),
-        }).map(|res| {
+        .map(|res| {
             // Map the event to a tuple of (event, log)
             res.map(|log| (Nightfall::NightfallEvents::DepositEscrowed(log.0), log.1))
         });
     // 5. Process events
-    println!("Entering event processing loop...");
     let mut all_events = futures::stream::select(
         deposit_stream,
         block_stream
     );
-    
-    println!("Going to process events from block {start_block}...");
     while let Some(Ok((event, log))) = all_events.next().await {
-        println!("Received event: {event:?}");
         let result = process_events::<N>(event, log).await;
         match result {
             Ok(_) => continue,

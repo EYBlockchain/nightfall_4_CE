@@ -237,7 +237,7 @@ mod tests {
         // get a blockchain provider so we can interrogate the deployed code
         let provider = ProviderBuilder::new()
             .disable_recommended_fillers()
-            .on_http(anvil.endpoint_url());
+            .connect_http(anvil.endpoint_url());
         let erc20_code = provider.get_code_at(mock_addresses.erc20).await.unwrap();
         let erc721_code = provider.get_code_at(mock_addresses.erc721).await.unwrap();
         let erc1155_code = provider.get_code_at(mock_addresses.erc1155).await.unwrap();

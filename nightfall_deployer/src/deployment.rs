@@ -148,7 +148,7 @@ mod tests {
         // get a blockchain provider so we can interrogate the deployed code
         let provider = ProviderBuilder::new()
             .disable_recommended_fillers()
-            .on_http(anvil.endpoint_url());
+            .connect_http(anvil.endpoint_url());
 
         let code = provider
             // use spawn blocking because the blocking reqwest client is not async and it complains (but we need loading the addresses to be sync elsewhere)
