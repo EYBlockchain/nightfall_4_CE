@@ -7,6 +7,5 @@ use super::contracts::NightfallContract;
 // the transaction that triggered the event from the blockchain record
 #[async_trait::async_trait]
 pub trait EventHandler<N: NightfallContract> {
-    async fn handle_event(&self, transaction_hash: Option<TxHash>)
-        -> Result<(), EventHandlerError>;
+    async fn handle_event(&self, transaction_hash: Option<TxHash>) -> Result<(), EventHandlerError>;
 }

@@ -13,7 +13,7 @@ use crate::{
     services::process_events::process_events,
 };
 use alloy::{
-    primitives::I256,
+    primitives::I256, 
 };
 use ark_bn254::Fr as Fr254;
 use configuration::{addresses::get_addresses, settings::get_settings};
@@ -93,7 +93,7 @@ pub async fn listen_for_events<N: NightfallContract>(
         "Listening for events on the Nightfall contract at address: {}",
         get_addresses().nightfall()
     );
-    println!("Creating event streams...");
+   // get the events from the Nightfall contract from the specified start block
     let block_stream = nightfall_instance
         .BlockProposed_filter()
         .from_block(start_block as u64)
@@ -111,7 +111,7 @@ pub async fn listen_for_events<N: NightfallContract>(
             // Map the event to a tuple of (event, log)
             res.map(|log| (Nightfall::NightfallEvents::BlockProposed(log.0), log.1))
         });
-
+        
     let deposit_stream = nightfall_instance
         .DepositEscrowed_filter()
         .from_block(start_block as u64)
@@ -129,13 +129,13 @@ pub async fn listen_for_events<N: NightfallContract>(
             // Map the event to a tuple of (event, log)
             res.map(|log| (Nightfall::NightfallEvents::DepositEscrowed(log.0), log.1))
         });
-
     // 5. Process events
     println!("Entering event processing loop...");
     let mut all_events = futures::stream::select(
         deposit_stream,
         block_stream
     );
+    
     println!("Going to process events from block {start_block}...");
     while let Some(Ok((event, log))) = all_events.next().await {
         println!("Received event: {event:?}");

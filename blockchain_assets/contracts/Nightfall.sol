@@ -288,6 +288,7 @@ contract Nightfall is
         commitmentRoot = blk.commitments_root;
         nullifierRoot = blk.nullifier_root;
         historicRootsRoot = blk.commitments_root_root;
+        // Emit the event to indicate a block has been proposed with a log as well
         emit BlockProposed(layer2_block_number++);
     }
 

@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import {Script} from "@forge-std/Script.sol";
 import "@forge-std/StdToml.sol";
+import "forge-std/console.sol";
 import "../contracts/Nightfall.sol";
 import "../contracts/RoundRobin.sol";
 import "../contracts/proof_verification/MockVerifier.sol";
@@ -52,7 +53,7 @@ contract Deployer is Script {
             address(x509),
             address(sanctionsList)
         );
-
+      
         RoundRobinConfig memory rrConfig = readRoundRobinConfig(toml);
 
         RoundRobin roundRobin = new RoundRobin{value: rrConfig.stake}(
