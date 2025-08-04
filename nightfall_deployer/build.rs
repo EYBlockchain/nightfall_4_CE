@@ -1,21 +1,14 @@
-use configuration::{logging::init_logging, settings::Settings};
 use log::info;
-use std::{fs, os::unix::process::ExitStatusExt, process::Command, Path};
+use std::{os::unix::process::ExitStatusExt, process::Command};
 
 fn main() {
-    println!("cargo:rerun-if-changed=blockchain_assets/contracts/Nightfall.sol");
-    let settings = Settings::new().unwrap(); // Load configuration
-    init_logging(
-        settings.nightfall_deployer.log_level.as_str(),
-        settings.log_app_only,
-    );
     info!("Started running nightfall_deployer/build.rs");
     // Check and forge is installed
     if !is_foundry_installed() {
         info!("Foundry not installed, needed to continue please install via the guide found at https://book.getfoundry.sh/getting-started/installation");
         panic!("Foundry not installed, needed to continue please install via the guide found at https://book.getfoundry.sh/getting-started/installation");
     }
-
+    // Run forge install
     forge_command(&["install"]);
 }
 
@@ -70,3 +63,4 @@ fn forge_command(command: &[&str]) {
         }
     }
 }
+
