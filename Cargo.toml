@@ -7,6 +7,7 @@ members = [
     "nightfall_proposer", 
     "nightfall_sync_test",
     "lib",
+    "nightfall_bindings"
 ]
 resolver = "2"
 
