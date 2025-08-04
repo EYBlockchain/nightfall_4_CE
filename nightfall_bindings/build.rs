@@ -10,8 +10,39 @@ fn main() {
         settings.log_app_only,
     );
     info!("Started running nightfall_bindings/build.rs");
-
+    if !is_foundry_installed() {
+        info!("Foundry not installed, needed to continue please install via the guide found at https://book.getfoundry.sh/getting-started/installation");
+        panic!("Foundry not installed, needed to continue please install via the guide found at https://book.getfoundry.sh/getting-started/installation");
+    }
+    // Run forge install
+    forge_command(&["install"]);
     forge_command(&["build"]);
+}
+
+
+
+fn is_foundry_installed() -> bool {
+// Check if foundry is installed
+let cmd_output = Command::new("which").arg("forge").output();
+
+match cmd_output {
+    Ok(output) => {
+        if output.status.success() {
+            info!(
+                "'which forge' successful got: {:?}",
+                std::str::from_utf8(&output.stdout)
+            );
+            true
+        } else {
+            info!("'which forge' not found, got: {:?}", output.stdout);
+            false
+        }
+    }
+    Err(e) => {
+        info!("Got an error from running 'which forge': {e}");
+        false
+    }
+}
 }
 
 /// Function should only be called after we have checked forge is installed by running 'which forge'
