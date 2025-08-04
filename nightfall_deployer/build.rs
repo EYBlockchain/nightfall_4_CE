@@ -1,6 +1,6 @@
 use configuration::{logging::init_logging, settings::Settings};
 use log::info;
-use std::{os::unix::process::ExitStatusExt, process::Command};
+use std::{fs, os::unix::process::ExitStatusExt, process::Command, Path};
 
 fn main() {
     println!("cargo:rerun-if-changed=blockchain_assets/contracts/Nightfall.sol");
