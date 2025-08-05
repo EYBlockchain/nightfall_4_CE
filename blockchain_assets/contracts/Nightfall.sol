@@ -8,6 +8,7 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IERC3525} from "@erc-3525/contracts/IERC3525.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {IERC3525Receiver} from "@erc-3525/contracts/IERC3525Receiver.sol";
+import "forge-std/console2.sol";
 
 import "./ProposerManager.sol";
 import "./X509/Certified.sol";
@@ -362,6 +363,7 @@ contract Nightfall is
                 ""
             );
         } else if (token_type == TokenType.ERC20) {
+console2.log("Escrowing ERC20 token");
             require(tokenId == 0, "ERC20 tokens should have a tokenId of 0");
             require(
             IERC20(ercAddress).transferFrom(msg.sender, address(this), value),

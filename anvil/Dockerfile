@@ -1,10 +1,13 @@
-FROM ghcr.io/foundry-rs/foundry:v0.3.0 AS anvil
-FROM alpine:3.18
+FROM ghcr.io/foundry-rs/foundry:v1.1.0 AS anvil
+FROM debian:bullseye-slim
 ENV ANVIL_IP_ADDR=0.0.0.0
 COPY --from=anvil /usr/local/bin/anvil /usr/local/bin/anvil
 COPY --from=anvil /usr/local/bin/forge /usr/local/bin/forge
 
-RUN apk update && apk add curl
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 # install additional ca-certificates e.g. zscaler certificate (can be removed if not needed)
 COPY ./configuration/trust/* /usr/local/share/ca-certificates/
 RUN chmod 644 /usr/local/share/ca-certificates/* && update-ca-certificates

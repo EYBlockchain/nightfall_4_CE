@@ -27,14 +27,13 @@ use lib::{
 };
 use log::{debug, error, info, warn};
 use nf_curves::ed_on_bn254::Fr as BJJScalar;
+use nightfall_bindings::artifacts::RoundRobin;
 use reqwest::{Client, Error as ReqwestError};
 use serde::Serialize;
 use std::{error::Error, fmt::Debug, time::Duration};
 use tokio::time::sleep;
 use url::Url;
 use warp::hyper::StatusCode;
-use nightfall_bindings::artifacts::RoundRobin;
-
 
 #[allow(clippy::too_many_arguments)]
 pub async fn handle_client_operation<P, E, N>(

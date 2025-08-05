@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1-labs
-FROM ghcr.io/foundry-rs/foundry:v0.3.0 AS foundry
+FROM ghcr.io/foundry-rs/foundry:v1.1.0 AS foundry
 FROM rust:1.88.0 AS builder
 
 # install additional ca-certificates e.g. zscaler certificate (can be removed if not needed)

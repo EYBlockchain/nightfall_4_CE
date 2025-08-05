@@ -202,14 +202,10 @@ impl TestSettings {
 mod tests {
     use super::*;
     use crate::test::forge_command;
-    use alloy::{
-        providers::{Provider, ProviderBuilder},
-    };
+    use alloy::providers::{Provider, ProviderBuilder};
     use alloy_node_bindings::Anvil;
     use nightfall_bindings::artifacts::{
-        ERC20Mock as erc20_mock,
-        ERC1155Mock as erc1155_mock,
-        ERC3525Mock as erc3525_mock,
+        ERC1155Mock as erc1155_mock, ERC20Mock as erc20_mock, ERC3525Mock as erc3525_mock,
         ERC721Mock as erc721_mock,
     };
 

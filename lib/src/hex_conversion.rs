@@ -121,20 +121,20 @@ impl HexConvertible for U256 {
 
     fn from_hex_string(hex_str: &str) -> Result<U256, HexError> {
         // Remove the "0x" prefix if it exists
-    let hex_str = hex_str.strip_prefix("0x").unwrap_or(hex_str);
+        let hex_str = hex_str.strip_prefix("0x").unwrap_or(hex_str);
 
-    // Decode the hex string into bytes
-    let decoded_bytes = hex::decode(hex_str).map_err(|_| HexError::InvalidHexFormat)?;
+        // Decode the hex string into bytes
+        let decoded_bytes = hex::decode(hex_str).map_err(|_| HexError::InvalidHexFormat)?;
 
-    // Ensure the decoded bytes do not exceed 32 bytes (U256 size)
-    if decoded_bytes.len() > 32 {
-        return Err(HexError::InvalidStringLength);
-    }
+        // Ensure the decoded bytes do not exceed 32 bytes (U256 size)
+        if decoded_bytes.len() > 32 {
+            return Err(HexError::InvalidStringLength);
+        }
 
-    // Create a 32-byte array and pad it with zeros
-    let mut padded_bytes = [0u8; 32];
-    padded_bytes[32 - decoded_bytes.len()..].copy_from_slice(&decoded_bytes);
-    Ok(U256::from_be_bytes(padded_bytes))
+        // Create a 32-byte array and pad it with zeros
+        let mut padded_bytes = [0u8; 32];
+        padded_bytes[32 - decoded_bytes.len()..].copy_from_slice(&decoded_bytes);
+        Ok(U256::from_be_bytes(padded_bytes))
     }
 }
 

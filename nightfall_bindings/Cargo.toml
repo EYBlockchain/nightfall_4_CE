@@ -3,10 +3,10 @@ name = "nightfall_bindings"
 version = "0.1.0"
 edition = "2021"
 
-
 [dependencies]
-alloy = { version = "1.0.23", features = ["transport-ws", "json-rpc", "serde"] }
-
+alloy = { version = "1.0.23", features = ["full"] }
+configuration = { path = "../configuration" }
+log = "0.4.27"
 
 [build-dependencies]
 configuration = { path = "../configuration" }

@@ -1,19 +1,20 @@
 use crate::{
     initialisation::{get_blockchain_client_connection, get_db_connection},
     ports::{
-        contracts::NightfallContract, db::TransactionsDB,trees::{CommitmentTree, HistoricRootTree, NullifierTree}
+        contracts::NightfallContract,
+        db::TransactionsDB,
+        trees::{CommitmentTree, HistoricRootTree, NullifierTree},
     },
     services::process_events::process_events,
 };
-use nightfall_bindings::artifacts::Nightfall;
 use ark_bn254::Fr as Fr254;
 use configuration::{addresses::get_addresses, settings::get_settings};
+use futures::StreamExt;
 use futures::{future::BoxFuture, FutureExt};
 use lib::blockchain_client::BlockchainClientConnection;
 use log::{debug, warn};
 use mongodb::Client as MongoClient;
-//use nightfall_bindings::nightfall::Nightfall;
-use futures::StreamExt;
+use nightfall_bindings::artifacts::Nightfall;
 use nightfall_client::{
     domain::{
         entities::{SynchronisationPhase::Desynchronized, SynchronisationStatus},
@@ -102,7 +103,6 @@ where
 
     let nightfall_instance = Nightfall::new(get_addresses().nightfall, blockchain_client.root());
 
-
     let block_stream = nightfall_instance
         .event_filter::<Nightfall::BlockProposed>()
         .from_block(start_block as u64)
@@ -127,7 +127,6 @@ where
             .map(|e| e.map(|log| (Nightfall::NightfallEvents::DepositEscrowed(log.0), log.1))),
     );
     while let Some(Ok((event, log))) = all_events.next().await {
-        println!("Received event: {event:?}");
         let result = process_events::<P, E, N>(event, log).await;
         match result {
             Ok(_) => continue,

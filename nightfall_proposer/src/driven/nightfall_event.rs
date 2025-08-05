@@ -1,8 +1,7 @@
 use crate::{
     domain::entities::{DepositData, DepositDatawithFee, OnChainTransaction},
     driven::{
-         db::mongo_db::StoredBlock,
-        nightfall_client_transaction::process_deposit_transaction,
+        db::mongo_db::StoredBlock, nightfall_client_transaction::process_deposit_transaction,
     },
     drivers::blockchain::nightfall_event_listener::get_synchronisation_status,
     initialisation::{get_blockchain_client_connection, get_db_connection},
@@ -13,7 +12,6 @@ use crate::{
         trees::{CommitmentTree, HistoricRootTree, NullifierTree},
     },
 };
-use nightfall_bindings::artifacts::Nightfall;
 use alloy::primitives::{TxHash, I256};
 use alloy::{consensus::Transaction, sol_types::SolInterface};
 use ark_bn254::Fr as Fr254;
@@ -24,6 +22,7 @@ use lib::{
 };
 use log::{debug, error, info, warn};
 use mongodb::Client;
+use nightfall_bindings::artifacts::Nightfall;
 use nightfall_client::{
     domain::error::EventHandlerError,
     driven::contract_functions::contract_type_conversions::FrBn254,

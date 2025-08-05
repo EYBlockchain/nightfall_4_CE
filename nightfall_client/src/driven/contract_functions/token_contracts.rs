@@ -10,10 +10,7 @@ use lib::{
     blockchain_client::BlockchainClientConnection, error::BlockchainClientConnectionError,
     initialisation::get_blockchain_client_connection,
 };
-use nightfall_bindings::artifacts::{
-    IERC1155, IERC20, IERC3525, IERC721,
-};
-
+use nightfall_bindings::artifacts::{IERC1155, IERC20, IERC3525, IERC721};
 
 impl TokenContract for IERC20::IERC20Calls {
     async fn set_approval(

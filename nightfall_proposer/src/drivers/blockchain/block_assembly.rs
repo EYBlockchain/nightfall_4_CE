@@ -14,6 +14,7 @@ use configuration::addresses::get_addresses;
 use jf_plonk::errors::PlonkError;
 use lib::blockchain_client::BlockchainClientConnection;
 use log::{debug, error, info, warn};
+use nightfall_bindings::artifacts::RoundRobin;
 use nightfall_client::{
     domain::error::{ConversionError, EventHandlerError, NightfallContractError},
     ports::proof::Proof,
@@ -22,7 +23,6 @@ use std::{
     error::Error,
     fmt::{Debug, Display, Formatter},
 };
-use nightfall_bindings::artifacts::RoundRobin;
 use std::{sync::Arc, time::Duration};
 use tokio::sync::Mutex;
 

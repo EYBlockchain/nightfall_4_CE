@@ -1,7 +1,5 @@
 //! Implementation of the [`NightfallContract`] trait from `ports/contracts.rs`.
-use super::contract_type_conversions::{
-    Addr, FrBn254, Uint256,
-};
+use super::contract_type_conversions::{Addr, FrBn254, Uint256};
 use crate::{
     domain::{
         entities::{DepositSecret, TokenData, TokenType, WithdrawData},
@@ -26,9 +24,8 @@ use lib::{
     blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
 };
 use log::{debug, info};
+use nightfall_bindings::artifacts::{ERC20Mock, Nightfall, IERC3525};
 use num::BigUint;
-use nightfall_bindings::artifacts::{Nightfall, IERC3525, ERC20Mock};
-
 
 impl NightfallContract for Nightfall::NightfallCalls {
     async fn escrow_funds(
@@ -102,7 +99,6 @@ impl NightfallContract for Nightfall::NightfallCalls {
             })?;
 
         info!("Gas used in escrow funds: {:?}", receipt.gas_used);
-
         let slot_id = if let TokenType::ERC3525 = token_type {
             let erc_contract = IERC3525::new(solidity_token_address.0, client.clone());
             erc_contract

@@ -74,4 +74,3 @@ sol!(
     ERC721Mock,
     "../blockchain_assets/artifacts/ERC721Mock.sol/ERC721Mock.json"
 );
-

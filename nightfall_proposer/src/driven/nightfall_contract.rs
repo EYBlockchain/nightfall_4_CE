@@ -1,14 +1,14 @@
 //! Implementation of the [`NightfallContract`] trait from `nightfall_proposer/src/ports/contracts.rs`.
 
 use crate::{
-    domain::entities::Block,
-    initialisation::get_blockchain_client_connection, ports::contracts::NightfallContract,
+    domain::entities::Block, initialisation::get_blockchain_client_connection,
+    ports::contracts::NightfallContract,
 };
-use nightfall_bindings::artifacts::Nightfall;
 use alloy::primitives::I256;
 use configuration::addresses::get_addresses;
 use lib::blockchain_client::BlockchainClientConnection;
 use log::info;
+use nightfall_bindings::artifacts::Nightfall;
 use nightfall_client::domain::error::NightfallContractError;
 
 #[async_trait::async_trait]

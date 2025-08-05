@@ -120,7 +120,7 @@ COPY ./configuration/trust/* /usr/local/share/ca-certificates/
 RUN chmod 644 /usr/local/share/ca-certificates/* && update-ca-certificates
 ```
 
-Build locally to make sure the nightfall_bindings are up to date:
+Build locally to make sure the nightfall_deployer are up to date:
 
 ```sh
 cargo build

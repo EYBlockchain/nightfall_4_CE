@@ -7,11 +7,11 @@ use alloy::primitives::{Address, U256};
 use configuration::addresses::get_addresses;
 use futures::stream::TryStreamExt;
 use log::{debug, error, info, trace, warn};
+use nightfall_bindings::artifacts::X509;
 use reqwest::StatusCode;
 use std::{ffi::OsStr, io::Read, path::Path};
 use warp::{filters::multipart::FormData, path, reply::Reply, Buf, Filter};
 use x509_parser::nom::AsBytes;
-use nightfall_bindings::artifacts::X509;
 #[derive(Debug)]
 pub struct X509ValidationError;
 

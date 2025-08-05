@@ -1,15 +1,12 @@
 use alloy::primitives::U256;
 use configuration::{addresses::get_addresses, settings::get_settings};
 use log::{info, warn};
-use nightfall_client::drivers::rest::proposers::ProposerError;
 use nightfall_bindings::artifacts::RoundRobin;
+use nightfall_client::drivers::rest::proposers::ProposerError;
 /// APIs for managing proposers
 use warp::{hyper::StatusCode, path, reply::Reply, Filter};
 
-use crate::{
-    domain::error::ProposerRejection,
-    initialisation::get_blockchain_client_connection,
-};
+use crate::{domain::error::ProposerRejection, initialisation::get_blockchain_client_connection};
 use lib::blockchain_client::BlockchainClientConnection;
 
 /// Get request for proposer rotation

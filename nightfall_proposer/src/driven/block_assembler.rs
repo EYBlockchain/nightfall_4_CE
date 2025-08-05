@@ -10,6 +10,7 @@ use alloy::primitives::Bytes;
 use configuration::addresses::get_addresses;
 use lib::blockchain_client::BlockchainClientConnection;
 use log::{debug, error, warn};
+use nightfall_bindings::artifacts::{Nightfall, RoundRobin};
 use nightfall_client::{
     domain::{entities::ClientTransaction, error::ConversionError},
     driven::contract_functions::contract_type_conversions::{FrBn254, Uint256},
@@ -19,9 +20,6 @@ use std::marker::PhantomData;
 use tokio::{
     sync::RwLock,
     time::{self, Duration, Instant},
-};
-use nightfall_bindings::artifacts::{
-    Nightfall, RoundRobin,
 };
 /// SmartTrigger is responsible for deciding when to trigger block assembly,
 /// based on time constraints and mempool state.

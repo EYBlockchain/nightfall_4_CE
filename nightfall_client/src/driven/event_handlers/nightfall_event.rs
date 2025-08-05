@@ -7,7 +7,7 @@ use crate::{
         notifications::NotificationPayload,
     },
     driven::{
-        contract_functions::{contract_type_conversions::FrBn254},
+        contract_functions::contract_type_conversions::FrBn254,
         db::mongo::{BlockStorageDB, CommitmentEntry, StoredBlock},
         notifier::webhook_notifier::WebhookNotifier,
         primitives::kemdem_functions::kemdem_decrypt,
@@ -36,9 +36,9 @@ use lib::{
     initialisation::get_blockchain_client_connection,
 };
 use log::{debug, error, info, warn};
+use nightfall_bindings::artifacts::Nightfall;
 use std::{collections::HashSet, sync::OnceLock};
 use tokio::{join, sync::Mutex};
-use nightfall_bindings::artifacts::Nightfall;
 
 // Define a mutable lazy static to hold the layer 2 blocknumber. We need this to
 // check if we're still in sync.

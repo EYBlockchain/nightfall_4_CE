@@ -4,6 +4,7 @@ use lib::{merkle_trees::trees::TreeMetadata, utils};
 use log::{error, info};
 
 use ark_bn254::Fr as Fr254;
+use nightfall_bindings::artifacts::Nightfall;
 use nightfall_client::{
     domain::entities::{Node, Request},
     driven::{
@@ -12,7 +13,6 @@ use nightfall_client::{
     },
     drivers::{blockchain::nightfall_event_listener::start_event_listener, rest::routes},
 };
-use nightfall_bindings::artifacts::Nightfall;
 use tokio::task::JoinError;
 
 #[tokio::main]

@@ -10,6 +10,7 @@ fn main() {
     }
     // Run forge install
     forge_command(&["install"]);
+    forge_command(&["build"]);
 }
 
 fn is_foundry_installed() -> bool {
@@ -63,4 +64,3 @@ fn forge_command(command: &[&str]) {
         }
     }
 }
-

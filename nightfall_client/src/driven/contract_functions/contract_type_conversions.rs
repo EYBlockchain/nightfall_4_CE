@@ -10,13 +10,13 @@ use ark_bn254::Fr as Fr254;
 use ark_ff::{BigInt, BigInteger, BigInteger256, PrimeField};
 use ark_std::Zero;
 use core::fmt::Debug;
+use nightfall_bindings::artifacts::{Nightfall, RoundRobin};
 use num_bigint::BigUint;
 use serde::{
     de::{self, Visitor},
     {Deserialize, Deserializer, Serialize},
 };
 use std::{fmt, ops::Add, str::FromStr};
-use nightfall_bindings::artifacts::{Nightfall, RoundRobin};
 /// enables conversion between a Proposer as used in the ProposerManager contract, and a for suitable for serialisation
 impl From<RoundRobin::Proposer> for Proposer {
     fn from(proposer: RoundRobin::Proposer) -> Self {
