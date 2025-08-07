@@ -17,7 +17,6 @@ use alloy::{
     sol_types::{SolInterface, SolValue},
 };
 use ark_bn254::Fr as Fr254;
-use ark_ff::BigInt;
 use ark_ff::BigInteger256;
 use ark_std::Zero;
 use configuration::addresses::get_addresses;
@@ -96,8 +95,7 @@ impl NightfallContract for Nightfall::NightfallCalls {
                 NightfallContractError::EscrowError(format!("Transaction unsuccesful: {e}"))
             })?;
 
-// Wait for receipt with timeout
-        // info!("Gas used in escrow funds: {:?}", receipt.get_receipt().gas_used);
+        info!("Gas used in escrow funds: {:?}", receipt.get_receipt().gas_used);
         let slot_id = if let TokenType::ERC3525 = token_type {
             let erc_contract = IERC3525::new(solidity_token_address.0, client.clone());
             erc_contract

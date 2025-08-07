@@ -13,7 +13,7 @@ use crate::{
 use alloy::{contract::Event, primitives::I256, rpc::types::Filter, sol_types::{SolEvent, SolEventInterface}};
 use ark_bn254::Fr as Fr254;
 use configuration::{addresses::get_addresses, settings::get_settings};
-use futures::{future::IntoStream, stream::Map, StreamExt};
+use futures::{StreamExt};
 use futures::{future::BoxFuture, FutureExt};
 use lib::{
     blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
@@ -83,10 +83,6 @@ pub async fn listen_for_events<N: NightfallContract>(
         .read()
         .await
         .get_client();
-    let nightfall_instance = Nightfall::new(
-        get_addresses().nightfall(),
-        blockchain_client.root().clone(),
-    );
     log::info!(
         "Listening for events on the Nightfall contract at address: {}",
         get_addresses().nightfall()

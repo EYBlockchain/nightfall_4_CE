@@ -101,18 +101,16 @@ where
         .await
         .get_client();
 
-    let nightfall_instance = Nightfall::new(get_addresses().nightfall, blockchain_client.root());
-
     let events_filter = Filter::new().address(get_addresses().nightfall())
-.event_signature(vec![
-    Nightfall::BlockProposed::SIGNATURE_HASH,
-    Nightfall::DepositEscrowed::SIGNATURE_HASH,
-])
+    .event_signature(vec![
+        Nightfall::BlockProposed::SIGNATURE_HASH,
+        Nightfall::DepositEscrowed::SIGNATURE_HASH,
+    ])
     .from_block(start_block as u64);
     
-// Subscribe to the combined events filter
-let events_subscription = blockchain_client.subscribe_logs(&events_filter).await
-    .map_err(|_| EventHandlerError::NoEventStream)?;
+    // Subscribe to the combined events filter
+    let events_subscription = blockchain_client.subscribe_logs(&events_filter).await
+        .map_err(|_| EventHandlerError::NoEventStream)?;
     
     let mut events_stream = events_subscription.into_stream();
 
