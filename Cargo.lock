@@ -3667,7 +3667,7 @@ checksum = "4a5f13b858c8d314ee3e8f639011f7ccefe71f97f96e50151fb991f267928e2c"
 [[package]]
 name = "jf-plonk"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#1e8c897d8d594029aa3aa7472efeb22a6572d195"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#f1b55d55a63ad619f1e823b0528d14924c9ba6e0"
 dependencies = [
  "ark-bn254",
  "ark-crypto-primitives",
@@ -3703,7 +3703,7 @@ dependencies = [
 [[package]]
 name = "jf-primitives"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#1e8c897d8d594029aa3aa7472efeb22a6572d195"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#f1b55d55a63ad619f1e823b0528d14924c9ba6e0"
 dependencies = [
  "anyhow",
  "arithmetic",
@@ -3753,7 +3753,7 @@ dependencies = [
 [[package]]
 name = "jf-relation"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#1e8c897d8d594029aa3aa7472efeb22a6572d195"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#f1b55d55a63ad619f1e823b0528d14924c9ba6e0"
 dependencies = [
  "ark-bls12-377",
  "ark-bls12-381",
@@ -3785,7 +3785,7 @@ dependencies = [
 [[package]]
 name = "jf-utils"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#1e8c897d8d594029aa3aa7472efeb22a6572d195"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#f1b55d55a63ad619f1e823b0528d14924c9ba6e0"
 dependencies = [
  "ark-ec",
  "ark-ff 0.4.2",
@@ -4284,7 +4284,7 @@ dependencies = [
 [[package]]
 name = "nf-curves"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#1e8c897d8d594029aa3aa7472efeb22a6572d195"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#f1b55d55a63ad619f1e823b0528d14924c9ba6e0"
 dependencies = [
  "ark-bn254",
  "ark-ec",
@@ -4493,6 +4493,7 @@ dependencies = [
  "nf-curves",
  "nightfall-bindings",
  "nightfall_client",
+ "nightfall_proposer",
  "num-bigint",
  "reqwest 0.12.15",
  "serde",
