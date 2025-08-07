@@ -618,10 +618,6 @@ impl RecursiveProver for RollupProver {
             .collect()
     }
 
-    fn get_merge_bn254_pk() -> ProvingKey<Kzg> {
-        get_merge_bn254_proving_key().deref().clone()
-    }
-
     fn get_decider_pk() -> PlonkProvingKey<Bn254> {
         get_decider_proving_key().deref().clone()
     }
@@ -661,17 +657,6 @@ impl RecursiveProver for RollupProver {
         }
 
         Some(())
-    }
-
-    fn store_merge_bn254_pk(pk: ProvingKey<Kzg>) -> Option<()> {
-        let config_path = get_configuration_path()?;
-        let file_path = config_path.join("bin/merge_bn254_pk");
-
-        let mut buf = Vec::<u8>::new();
-        pk.serialize_compressed(&mut buf).ok()?;
-        let mut file = File::create(file_path).ok()?;
-
-        file.write_all(&buf).ok()
     }
 
     fn store_decider_pk(pk: PlonkProvingKey<Bn254>) -> Option<()> {
