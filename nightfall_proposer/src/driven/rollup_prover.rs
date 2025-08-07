@@ -586,6 +586,10 @@ impl RecursiveProver for RollupProver {
         get_base_bn254_proving_key().deref().clone()
     }
 
+    fn get_merge_grumpkin_pk() -> MLEProvingKey<Zmorph> {
+        get_merge_grumpkin_proving_key().deref().clone()
+    }
+
     fn get_merge_bn254_pks() -> Vec<ProvingKey<Kzg>> {
         static MERGE_PKS: OnceLock<Vec<Arc<ProvingKey<Kzg>>>> = OnceLock::new();
 
