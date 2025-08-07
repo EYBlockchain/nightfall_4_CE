@@ -648,6 +648,17 @@ impl RecursiveProver for RollupProver {
         file.write_all(&buf).ok()
     }
 
+    fn store_merge_grumpkin_pk(pk: MLEProvingKey<Zmorph>) -> Option<()> {
+        let config_path = get_configuration_path()?;
+        let file_path = config_path.join("bin/merge_grumpkin_pk");
+
+        let mut buf = Vec::<u8>::new();
+        pk.serialize_compressed(&mut buf).ok()?;
+        let mut file = File::create(file_path).ok()?;
+
+        file.write_all(&buf).ok()
+    }
+
     fn store_merge_bn254_pks(pks: Vec<ProvingKey<Kzg>>) -> Option<()> {
          let config_path = get_configuration_path()?;
          for (i, pk) in pks.into_iter().enumerate() {
