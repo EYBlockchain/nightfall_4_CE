@@ -10,7 +10,7 @@ use crate::{
     ports::{contracts::NightfallContract, trees::CommitmentTree},
     services::process_events::process_events,
 };
-use alloy::{contract::Event, primitives::I256, rpc::types::Filter, sol_types::{SolEvent, SolEventInterface}};
+use alloy::{primitives::I256, rpc::types::Filter, sol_types::{SolEvent, SolEventInterface}};
 use ark_bn254::Fr as Fr254;
 use configuration::{addresses::get_addresses, settings::get_settings};
 use futures::{StreamExt};

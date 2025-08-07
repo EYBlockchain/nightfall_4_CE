@@ -95,7 +95,7 @@ impl NightfallContract for Nightfall::NightfallCalls {
                 NightfallContractError::EscrowError(format!("Transaction unsuccesful: {e}"))
             })?;
 
-        info!("Gas used in escrow funds: {:?}", receipt.get_receipt().gas_used);
+        info!("Gas used in escrow funds: {:?}", receipt.gas_used);
         let slot_id = if let TokenType::ERC3525 = token_type {
             let erc_contract = IERC3525::new(solidity_token_address.0, client.clone());
             erc_contract
