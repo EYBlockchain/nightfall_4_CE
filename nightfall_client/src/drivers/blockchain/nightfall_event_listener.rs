@@ -10,10 +10,10 @@ use crate::{
     ports::{contracts::NightfallContract, trees::CommitmentTree},
     services::process_events::process_events,
 };
-use alloy::primitives::I256;
+use alloy::{contract::Event, primitives::I256, rpc::types::Filter, sol_types::{SolEvent, SolEventInterface}};
 use ark_bn254::Fr as Fr254;
 use configuration::{addresses::get_addresses, settings::get_settings};
-use futures::StreamExt;
+use futures::{future::IntoStream, stream::Map, StreamExt};
 use futures::{future::BoxFuture, FutureExt};
 use lib::{
     blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
@@ -40,7 +40,6 @@ pub fn start_event_listener<N: NightfallContract>(
             attempts += 1;
             log::info!("Client event listener (attempt {attempts})...");
             let result = listen_for_events::<N>(start_block).await;
-
             match result {
                 Ok(_) => {
                     log::info!("Client event listener finished successfully.");
@@ -94,34 +93,23 @@ pub async fn listen_for_events<N: NightfallContract>(
     );
 
     // get the events from the Nightfall contract from the specified start block
-    let block_stream = nightfall_instance
-        .BlockProposed_filter()
-        .from_block(start_block as u64)
-        .subscribe()
-        .await
-        .map_err(|_| EventHandlerError::NoEventStream)?
-        .into_stream()
-        .map(|res| {
-            // Map the event to a tuple of (event, log)
-            res.map(|log| (Nightfall::NightfallEvents::BlockProposed(log.0), log.1))
-        });
-    let deposit_stream = nightfall_instance
-        .DepositEscrowed_filter()
-        .from_block(start_block as u64)
-        .subscribe()
-        .await
-        .map_err(|_| EventHandlerError::NoEventStream)?
-        .into_stream()
-        .map(|res| {
-            // Map the event to a tuple of (event, log)
-            res.map(|log| (Nightfall::NightfallEvents::DepositEscrowed(log.0), log.1))
-        });
-
-    // 5. Process events
-    let mut all_events = futures::stream::select(deposit_stream, block_stream);
-    while let Some(Ok(evt)) = all_events.next().await {
+    // Subscribe to the combined events filter
+    let events_filter = Filter::new().address(get_addresses().nightfall())
+    .event_signature(vec![
+        Nightfall::BlockProposed::SIGNATURE_HASH,
+        Nightfall::DepositEscrowed::SIGNATURE_HASH,
+    ])
+        .from_block(start_block as u64);
+    
+    // Subscribe to the combined events filter
+    let events_subscription = blockchain_client.subscribe_logs(&events_filter).await
+        .map_err(|_| EventHandlerError::NoEventStream)?;
+    
+    let mut events_stream = events_subscription.into_stream();
+    while let Some(evt) = events_stream.next().await {
         // process each event in the stream and handle any errors
-        let result = process_events::<N>(evt.0, evt.1).await;
+        let event = Nightfall::NightfallEvents::decode_log(&evt.inner).unwrap();
+        let result = process_events::<N>(event.data, evt).await;
         match result {
             Ok(_) => continue,
             Err(e) => {

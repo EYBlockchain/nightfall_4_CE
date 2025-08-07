@@ -247,10 +247,13 @@ impl From<CompressedSecrets> for [U256; 4] {
         let flag: BigUint = compressed_secrets.cipher_text[4].into();
 
         let compressed_point: BigUint = secrets_4 + (flag << 255);
-
+        let mut bytes = compressed_point.to_bytes_le();
+        if bytes.len() > 32 {
+            panic!("BigUint is too large to fit in 32 bytes");
+        }
+        bytes.resize(32, 0);
         let final_secret = U256::from_le_bytes::<32>(
-            compressed_point
-                .to_bytes_le()
+            bytes
                 .try_into()
                 .expect("Failed to convert Vec<u8> to [u8; 32]"),
         );

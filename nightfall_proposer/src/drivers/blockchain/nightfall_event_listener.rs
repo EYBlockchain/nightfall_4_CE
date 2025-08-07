@@ -9,6 +9,7 @@ use crate::{
 };
 use ark_bn254::Fr as Fr254;
 use configuration::{addresses::get_addresses, settings::get_settings};
+use alloy::{rpc::types::Filter, sol_types::{SolEvent, SolEventInterface}};
 use futures::StreamExt;
 use futures::{future::BoxFuture, FutureExt};
 use lib::blockchain_client::BlockchainClientConnection;
@@ -94,7 +95,6 @@ where
     E: ProvingEngine<P>,
     N: NightfallContract,
 {
-    println!("Listening for events from block {start_block}...");
     let blockchain_client = get_blockchain_client_connection()
         .await
         .read()
@@ -103,31 +103,28 @@ where
 
     let nightfall_instance = Nightfall::new(get_addresses().nightfall, blockchain_client.root());
 
-    let block_stream = nightfall_instance
-        .event_filter::<Nightfall::BlockProposed>()
-        .from_block(start_block as u64)
-        .subscribe()
-        .await
-        .map_err(|_| EventHandlerError::NoEventStream)?
-        .into_stream();
+    let events_filter = Filter::new().address(get_addresses().nightfall())
+.event_signature(vec![
+    Nightfall::BlockProposed::SIGNATURE_HASH,
+    Nightfall::DepositEscrowed::SIGNATURE_HASH,
+])
+    .from_block(start_block as u64);
+    
+// Subscribe to the combined events filter
+let events_subscription = blockchain_client.subscribe_logs(&events_filter).await
+    .map_err(|_| EventHandlerError::NoEventStream)?;
+    
+    let mut events_stream = events_subscription.into_stream();
 
-    let deposit_stream = nightfall_instance
-        .event_filter::<Nightfall::DepositEscrowed>()
-        .from_block(start_block as u64)
-        .subscribe()
-        .await
-        .map_err(|_| EventHandlerError::NoEventStream)?
-        .into_stream();
-    println!("Listening for events from block {start_block}...");
-    // the event stream is a stream of events, so we need to merge the two streams
-    let mut all_events = futures::stream::select(
-        block_stream
-            .map(|e| e.map(|log| (Nightfall::NightfallEvents::BlockProposed(log.0), log.1))),
-        deposit_stream
-            .map(|e| e.map(|log| (Nightfall::NightfallEvents::DepositEscrowed(log.0), log.1))),
-    );
-    while let Some(Ok((event, log))) = all_events.next().await {
-        let result = process_events::<P, E, N>(event, log).await;
+    while let Some(log) = events_stream.next().await {
+        let event = match Nightfall::NightfallEvents::decode_log(&log.inner) {
+            Ok(e) => e,
+            Err(e) => {
+                warn!("Failed to decode log: {e:?}");
+                continue; // Skip malformed events
+            }
+        };
+        let result = process_events::<P, E, N>(event.data, log).await;
         match result {
             Ok(_) => continue,
             Err(e) => {

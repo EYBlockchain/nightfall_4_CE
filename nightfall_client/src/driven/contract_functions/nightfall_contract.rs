@@ -17,6 +17,7 @@ use alloy::{
     sol_types::{SolInterface, SolValue},
 };
 use ark_bn254::Fr as Fr254;
+use ark_ff::BigInt;
 use ark_ff::BigInteger256;
 use ark_std::Zero;
 use configuration::addresses::get_addresses;
@@ -50,8 +51,12 @@ impl NightfallContract for Nightfall::NightfallCalls {
             .read()
             .await
             .get_client();
+        let signer =  get_blockchain_client_connection()
+        .await
+        .read()
+        .await
+        .get_signer();
         let client = blockchain_client.root();
-
         let contract = Nightfall::new(solidity_erc_address, client.clone());
 
         // A deposit transaction (value_1, fee_1, deposit_fee_1), means we want to deposit value_1, with fee_1 paid to proposer, and additional deposit_fee_1 for future transactions. Two deposit data are created for a single deposit transaction:
@@ -64,7 +69,6 @@ impl NightfallContract for Nightfall::NightfallCalls {
         } else {
             fee + fee + deposit_fee
         };
-
         let call = contract
             .escrow_funds(
                 solidity_fee.0,
@@ -74,31 +78,26 @@ impl NightfallContract for Nightfall::NightfallCalls {
                 solidity_secret_hash.0,
                 token_type.into(),
             )
-            .value(Uint256::from(total_fee).0);
-
-        let receipt = call
-            .send()
-            .await
-            .map_err(|e| {
-                if e.as_revert_data().is_some() {
-                    format!(
-                        "Revert when calling escrow: {:?}",
-                        e.as_decoded_error::<ERC20Mock::ERC20InsufficientBalance>()
-                    )
-                } else {
-                    format!("Contract error: {e}")
-                }
-            })
-            .map_err(|e| {
-                NightfallContractError::EscrowError(format!("Error getting receipt: {e}"))
-            })?
-            .get_receipt()
+            .value(Uint256::from(total_fee).0).from(signer.address());
+        
+            // Send transaction directly through Alloy
+        let receipt = call.send().await.map_err(|e| {
+            if e.as_revert_data().is_some() {
+                format!(
+                    "Revert when calling escrow: {:?}",
+                    e.as_decoded_error::<ERC20Mock::ERC20InsufficientBalance>()
+                )
+            } else {
+                format!("Contract error: {e}")
+            }
+        }).expect("Error sending transaction").get_receipt()
             .await
             .map_err(|e| {
                 NightfallContractError::EscrowError(format!("Transaction unsuccesful: {e}"))
             })?;
 
-        info!("Gas used in escrow funds: {:?}", receipt.gas_used);
+// Wait for receipt with timeout
+        // info!("Gas used in escrow funds: {:?}", receipt.get_receipt().gas_used);
         let slot_id = if let TokenType::ERC3525 = token_type {
             let erc_contract = IERC3525::new(solidity_token_address.0, client.clone());
             erc_contract
@@ -151,11 +150,16 @@ impl NightfallContract for Nightfall::NightfallCalls {
             .read()
             .await
             .get_client();
+        let signer =  get_blockchain_client_connection()
+        .await
+        .read()
+        .await
+        .get_signer();
         let client = blockchain_client.root();
 
         let contract = Nightfall::new(get_addresses().nightfall(), client.clone());
 
-        let call = contract.descrow_funds(decode_data, token_type.into());
+        let call = contract.descrow_funds(decode_data, token_type.into()).from(signer.address());
 
         let receipt = call
             .send()
@@ -193,6 +197,11 @@ impl NightfallContract for Nightfall::NightfallCalls {
             .read()
             .await
             .get_client();
+        let signer =  get_blockchain_client_connection()
+        .await
+        .read()
+        .await
+        .get_signer();
         let client = blockchain_client.root();
         let nightfall_instance = Nightfall::new(get_addresses().nightfall(), client.clone());
 
@@ -205,6 +214,7 @@ impl NightfallContract for Nightfall::NightfallCalls {
         };
         let result = nightfall_instance
             .withdraw_processed(decode_data)
+            .from(signer.address())
             .call()
             .await
             .map_err(|e| NightfallContractError::EscrowError(format!("{e}")))?;
@@ -218,11 +228,17 @@ impl NightfallContract for Nightfall::NightfallCalls {
             .await
             .get_client();
         let client = blockchain_client.root();
+        let signer =  get_blockchain_client_connection()
+        .await
+        .read()
+        .await
+        .get_signer();
         let nightfall_address = get_addresses().nightfall();
         let nightfall = Nightfall::new(nightfall_address, client);
 
         let l2_block = nightfall
             .layer2_block_number()
+            .from(signer.address())
             .call()
             .await
             .map_err(|e| NightfallContractError::EscrowError(format!("{e}")))?;
@@ -235,13 +251,18 @@ impl NightfallContract for Nightfall::NightfallCalls {
             .read()
             .await
             .get_client();
-
+        let signer =  get_blockchain_client_connection()
+        .await
+        .read()
+        .await
+        .get_signer();
         let client = blockchain_client.root();
         let nightfall_address = get_addresses().nightfall();
         let nightfall = Nightfall::new(nightfall_address, client);
 
         let token_info = nightfall
             .getTokenInfo(Uint256::from(nf_token_id).0)
+            .from(signer.address())
             .call()
             .await
             .map_err(|e| {

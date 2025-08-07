@@ -20,19 +20,24 @@ impl NightfallContract for Nightfall::NightfallCalls {
             .await
             .get_client();
         let client = blockchain_client.root();
+        let signer = get_blockchain_client_connection()
+        .await
+        .read()
+        .await
+        .get_signer();
         let nightfall_address = get_addresses().nightfall();
         let nightfall = Nightfall::new(nightfall_address, client);
         // Convert the block transactions to the Nightfall format
         let blk = Nightfall::Block::from(block);
         let receipt = nightfall
             .propose_block(blk)
+            .from(signer.address())
             .send()
             .await
             .map_err(|_| NightfallContractError::TransactionError)?
             .get_receipt()
             .await
             .map_err(|_| NightfallContractError::TransactionError)?;
-
         info!(
             "Received receipt for submitted block with hash: {}, gas used was: {}",
             receipt.transaction_hash, receipt.gas_used

@@ -19,7 +19,7 @@ chain_id = 31337 # Anvil chain id = 31337
 
 [development.nightfall_client]
 url = "http://client:3000"
-log_level = "info"
+log_level = "debug"
 wallet_type = "local"
 db_url = "mongodb://nf4_db_client:27017"
 max_event_listener_attempts = 10
@@ -27,7 +27,7 @@ webhook_url = "http://172.18.0.250:8080/webhook" # The webhook URL for the clien
 
 [development.nightfall_proposer]
 url = "http://proposer:3000"
-log_level = "info"
+log_level = "debug"
 wallet_type = "local"
 db_url = "mongodb://nf4_db_proposer:27017"
 block_assembly_max_wait_secs = 120 
@@ -47,7 +47,7 @@ proposer_cooling_blocks = 4                                             # how ma
 proposer_rotation_blocks = 4                                            # how many blocks before we rotate proposers
 
 [development.nightfall_test]
-log_level = "info"
+log_level = "debug"
 
 [development.contracts]
 assets = "./blockchain_assets/artifacts"

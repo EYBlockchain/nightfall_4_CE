@@ -427,12 +427,16 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
     }
 
     async fn get_commitment(&self, k: &Fr254) -> Option<CommitmentEntry> {
+        println!("Getting commitment with key: {}", k);
+        println!("Key in hex: {}", k.to_hex_string());
         let filter = doc! { "_id": k.to_hex_string() };
-        self.database(DB)
+        let commitment = self.database(DB)
             .collection::<CommitmentEntry>("commitments")
             .find_one(filter)
             .await
-            .expect("Database error") // we can't really proceed at this point
+            .expect("Database error");
+        println!("Commitment found: {:?}", commitment);
+        commitment // we can't really proceed at this point
     }
 
     async fn get_balance(&self, nf_token_id: &Fr254) -> Option<Fr254> {

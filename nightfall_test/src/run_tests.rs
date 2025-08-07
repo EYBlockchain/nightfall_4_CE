@@ -412,6 +412,7 @@ pub async fn run_tests(
             "{i}th Deposit response Uuid does not match deposit data Uuid"
         );
     }
+    
     // Extract commitment hashes
     let commitment_hashes = responses_by_uuid
         .clone()
