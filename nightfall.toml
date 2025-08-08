@@ -24,6 +24,7 @@ wallet_type = "local"
 db_url = "mongodb://nf4_db_client:27017"
 max_event_listener_attempts = 10
 webhook_url = "http://172.18.0.250:8080/webhook" # The webhook URL for the client to send notifications to the propose
+max_queue_size = 1000
 
 [development.nightfall_proposer]
 url = "http://proposer:3000"
@@ -94,6 +95,7 @@ wallet_type = "local"
 db_url = "mongodb://nf4_db_client:27017"
 max_event_listener_attempts = 10
 webhook_url = "http://172.18.0.250:8080/webhook" # The webhook URL for the client to send notifications to the propose
+max_queue_size = 1000
 
 [base_sepolia.nightfall_proposer]
 url = "http://proposer:3000"
