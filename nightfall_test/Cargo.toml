@@ -12,6 +12,7 @@ path = "bin/menu.rs"
 tracing = "0.1.41"
 dotenv = "0.15.0"
 nightfall_client = { path = "../nightfall_client" }
+nightfall_proposer = { path = "../nightfall_proposer" }
 configuration = { path = "../configuration" }
 lib = { path = "../lib" }
 serde = { version = "1.0.219", features = ["derive"] }
