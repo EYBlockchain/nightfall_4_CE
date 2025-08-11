@@ -750,9 +750,7 @@ pub async fn wait_on_chain(
                     if commit.status != CommitmentStatus::Unspent {
                         continue;
                     }
-                    let onchain_hash = commit.preimage.hash().expect((
-                        "Failed to hash preimage for commitment {}"
-                    ));
+                    let onchain_hash = commit.key;
                     if onchain_set.contains(&onchain_hash) {
                         continue;
                     } else {

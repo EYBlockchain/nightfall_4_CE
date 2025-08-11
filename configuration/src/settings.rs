@@ -29,6 +29,7 @@ pub struct ClientConfig {
     pub db_url: String,
     pub max_event_listener_attempts: Option<u32>,
     pub webhook_url: String,
+    pub max_queue_size: Option<u32>,
 }
 
 #[derive(Debug, Deserialize, Default, Serialize)]

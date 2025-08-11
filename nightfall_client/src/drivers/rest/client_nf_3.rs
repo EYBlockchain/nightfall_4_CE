@@ -36,7 +36,7 @@ use ark_ec::twisted_edwards::Affine;
 use ark_ff::{BigInteger256, Zero};
 use ark_serialize::CanonicalDeserialize;
 use ark_std::{rand::thread_rng, UniformRand};
-use configuration::addresses::get_addresses;
+use configuration::{addresses::get_addresses, settings::get_settings};
 use jf_primitives::poseidon::{FieldHasher, Poseidon};
 use lib::hex_conversion::HexConvertible;
 use log::{debug, error, info};
@@ -128,7 +128,13 @@ async fn queue_request(
     transaction_request: TransactionRequest,
     request_id: Option<String>,
 ) -> Result<impl Reply, warp::Rejection> {
-    const MAX_QUEUE_SIZE: usize = 1000;
+    let settings = get_settings();
+    let max_queue_size = settings
+        .nightfall_client
+        .max_queue_size
+        .unwrap_or(1000)
+        .try_into()
+        .unwrap();
     // extract the request ID
     let id = request_id.unwrap_or_default();
     // check if the id is a valid uuid
@@ -142,9 +148,14 @@ async fn queue_request(
     debug!("Adding request to queue");
     let mut q = get_queue().await.write().await;
     // check if the queue is full
-    if q.len() >= MAX_QUEUE_SIZE {
-        return Err(warp::reject::custom(
-            crate::domain::error::ClientRejection::QueueFull,
+    if q.len() >= max_queue_size {
+        return Ok(reply::with_header(
+            reply::with_status(
+                json(&"Queue is full".to_string()),
+                StatusCode::SERVICE_UNAVAILABLE,
+            ),
+            "X-Request-ID",
+            id,
         ));
     }
     debug!("got lock on queue");

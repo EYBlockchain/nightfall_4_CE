@@ -40,6 +40,7 @@ use nightfall_client::{
 use nightfall_proposer::{
     domain::entities::DepositData,
     driven::{deposit_circuit::deposit_circuit_builder, rollup_prover::RollupProver},
+    services::assemble_block::get_block_size,
 };
 use num_bigint::BigUint;
 use std::{collections::HashMap, fs::File};
@@ -125,7 +126,18 @@ pub fn generate_proving_keys(settings: &Settings) -> Result<(), PlonkError> {
             )
             .unwrap();
 
-        (0..64).for_each(|_| {
+        let block_size = match get_block_size() {
+            Ok(size) => size,
+            Err(e) => {
+                log::warn!(
+                    "Falling back to default block size 64 due to error: {:?}",
+                    e
+                );
+                64
+            }
+        };
+
+        (0..block_size).for_each(|_| {
             d_proofs.push((output.clone(), deposit_pk.vk.clone()));
             public_input_vec.push(deposit_public_inputs);
         });
@@ -173,7 +185,7 @@ pub fn generate_proving_keys(settings: &Settings) -> Result<(), PlonkError> {
         let root_proof_len_field = Fr254::from(m_proof_vec.len() as u64);
         m_proof_vec.push(deposit_public_inputs.roots[0]);
         let root_m_proofs_inner = vec![m_proof_vec.clone(); 4].concat();
-        let root_membership_proofs = vec![root_m_proofs_inner.clone(); 64];
+        let root_membership_proofs = vec![root_m_proofs_inner.clone(); block_size];
 
         let extra_base_info = izip!(
             public_input_vec.chunks(4),

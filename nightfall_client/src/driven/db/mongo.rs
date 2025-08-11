@@ -1,4 +1,4 @@
-use alloy::{hex::ToHexExt, primitives::{TxHash, I256}};
+use alloy::{primitives::{TxHash, I256}};
 use ark_bn254::Fr as Fr254;
 use ark_ff::PrimeField;
 use async_trait::async_trait;
