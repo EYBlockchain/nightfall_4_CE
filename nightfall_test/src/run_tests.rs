@@ -112,8 +112,7 @@ pub async fn run_tests(
             Ok(size) => size,
             Err(e) => {
                 log::warn!(
-                    "Falling back to default block size 64 due to error: {:?}",
-                    e
+                    "Falling back to default block size 64 due to error: {e:?}"
                 );
                 64
             }
@@ -208,7 +207,7 @@ pub async fn run_tests(
             .join("v1/transfer")
             .unwrap();
         // then make n transfers
-        info!("Making {} transfer transactions", block_size);
+        info!("Making {block_size} transfer transactions");
         let mut large_block_transfer_ids = vec![];
         for _ in 0..n_large_block {
             let large_block_transfer_id = create_nf3_transfer_transaction(

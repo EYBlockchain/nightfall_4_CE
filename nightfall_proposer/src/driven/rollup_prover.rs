@@ -602,7 +602,7 @@ impl RecursiveProver for RollupProver {
                 let mut pks = Vec::new();
                 let mut i = 0;
                 loop {
-                    let filename = format!("merge_bn254_pk_{}", i);
+                    let filename = format!("merge_bn254_pk_{i}");
                     let path: PathBuf = config_path.join(&filename);
                     if let Some(source_file) = find(&path) {
                         let pk = ProvingKey::<Kzg>::deserialize_compressed_unchecked(
@@ -662,7 +662,7 @@ impl RecursiveProver for RollupProver {
     fn store_merge_bn254_pks(pks: Vec<ProvingKey<Kzg>>) -> Option<()> {
          let config_path = get_configuration_path()?;
          for (i, pk) in pks.into_iter().enumerate() {
-            let file_path: PathBuf = config_path.join(format!("bin/merge_bn254_pk_{}", i));
+            let file_path: PathBuf = config_path.join(format!("bin/merge_bn254_pk_{i}"));
 
             let mut buf = Vec::<u8>::new();
             pk.serialize_compressed(&mut buf).ok()?; // serialize the proving key

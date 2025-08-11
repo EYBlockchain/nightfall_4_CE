@@ -159,8 +159,7 @@ mod test {
         assert_eq!(encoded, test_string);
         let decoded = Vec::<u8>::from_hex_string(&encoded).unwrap();
         assert_eq!(test_vec, decoded);
-        let hex_string = "023d93bbe98312e8fa9df2483b3c2fdc7d3b64a492bc2934e2c04743f39ff472";
-  
+        
         // Test Fr254 <-> hex string
         let test_fr254 = Fr254::from(BigInt::new([
             0x5f2415beff697c2a,

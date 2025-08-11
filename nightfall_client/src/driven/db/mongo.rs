@@ -435,8 +435,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
             .into_iter()
             .find(|(key,_ )| key.to_hex_string() == k_string);
         // now we can check if we found the commitment
-        let commitment = commitment_1.map(|(_, entry)| entry);
-        commitment
+        commitment_1.map(|(_, entry)| entry)
     }
 
     async fn get_balance(&self, nf_token_id: &Fr254) -> Option<Fr254> {
@@ -521,7 +520,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
             .map(|c| c.to_hex_string())
             .collect::<Vec<_>>();
         let l1_hash = l1_hash.map(|h| h.to_string());
-        let l2_blocknumber = l2_blocknumber.map(|b| b.to_hex_string());
+        let _l2_blocknumber = l2_blocknumber.map(|b| b.to_string());
         let filter = doc! { "_id": { "$in": commitment_str }};
         let update = doc! {"$set": { "status": "Unspent", "layer_1_transaction_hash": l1_hash }};
         self.database(DB)
