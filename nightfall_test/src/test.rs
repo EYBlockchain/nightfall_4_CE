@@ -750,12 +750,12 @@ pub async fn wait_on_chain(
                     if commit.status != CommitmentStatus::Unspent {
                         continue;
                     }
-                    let onchain_hash = commit.hash().map_err(|e| TestError::new(e.to_string()))?;
+                    let onchain_hash = commit.preimage.hash().expect((
+                        "Failed to hash preimage for commitment {}"
+                    ));
                     if onchain_set.contains(&onchain_hash) {
                         continue;
                     } else {
-                        let onchain_hash =
-                            commit.hash().map_err(|e| TestError::new(e.to_string()))?;
                         debug!("Commitment {} is on-chain", onchain_hash.to_hex_string());
                         count += 1;
                         onchain_set.insert(onchain_hash);

@@ -45,9 +45,10 @@ where
     D: serde::de::Deserializer<'de>,
 {
     let hex_str: &str = serde::de::Deserialize::deserialize(data)?;
+
     let mut bytes = Vec::<u8>::from_hex_string(hex_str).map_err(serde::de::Error::custom)?;
     bytes.reverse(); // Convert to little-endian (which is the expected format for the arkworks deserialiser)
-    let a = A::deserialize_with_mode(bytes.as_slice(), Compress::Yes, Validate::Yes)
+    let a = A::deserialize_with_mode(&bytes[..], Compress::Yes, Validate::Yes)
         .map_err(serde::de::Error::custom)?;
     Ok(a)
 }
@@ -268,12 +269,6 @@ mod tests {
         let serialized2 = serde_json::to_string(&wrapper2).unwrap();
         let serialized3 = serde_json::to_string(&wrapper3).unwrap();
         let serialized4 = serde_json::to_string(&wrapper4).unwrap();
-
-        println!("Serialized value 1: {serialized1}");
-        println!("Serialized value 2: {serialized2}");
-        println!("Serialized value 3: {serialized3}");
-        println!("Serialized value 4: {serialized4}");
-
         // Compare serialized values and find the largest
         let largest_serialized = vec![
             serialized1.clone(),

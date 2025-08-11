@@ -168,8 +168,6 @@ where
             let deposit: DepositDatawithFee = cursor.deserialize_current().ok()?;
             result.push(deposit);
         }
-        println!("Found {} deposits in mempool", result.len());
-
         if result.is_empty() {
             None
         } else {

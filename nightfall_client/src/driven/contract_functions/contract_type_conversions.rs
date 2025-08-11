@@ -253,9 +253,7 @@ impl From<CompressedSecrets> for [U256; 4] {
         }
         bytes.resize(32, 0);
         let final_secret = U256::from_le_bytes::<32>(
-            bytes
-                .try_into()
-                .expect("Failed to convert Vec<u8> to [u8; 32]"),
+            bytes.try_into().expect("Failed to convert bytes to U256"),
         );
         [
             Uint256::from(compressed_secrets.cipher_text[0]).0,

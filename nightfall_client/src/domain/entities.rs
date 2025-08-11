@@ -1,5 +1,7 @@
 use crate::{
-    driven::contract_functions::contract_type_conversions::FrBn254,
+    driven::contract_functions::{
+        contract_type_conversions::FrBn254,
+    },
     ports::{
         commitments::{Commitment, Nullifiable},
         key_provider::KeyProvider,

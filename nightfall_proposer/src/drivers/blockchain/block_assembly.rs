@@ -149,7 +149,6 @@ async fn check_l1_finality(
                     }
 
                     // Can never be finalized (tx too new)
-                    println!("Receipt block number: {receipt_block_number}, Finalized block number: {finalized_block_number}, Confirmations required: {confirmations_required}");
                     println!(
                         "additional confirmations required: {}",
                         U64::from(receipt_block_number) + confirmations_required

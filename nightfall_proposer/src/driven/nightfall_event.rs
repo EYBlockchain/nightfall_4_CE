@@ -427,7 +427,6 @@ where
                 secret_hash,
             };
             let deposit_data = DepositDatawithFee { fee, deposit_data };
-            println!("Processing deposit data: {deposit_data:?}");
             process_deposit_transaction::<P, E>(deposit_data)
                 .await
                 .map_err(|_| {

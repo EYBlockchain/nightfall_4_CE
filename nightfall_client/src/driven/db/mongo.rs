@@ -1,4 +1,4 @@
-use alloy::primitives::{TxHash, I256};
+use alloy::{hex::ToHexExt, primitives::{TxHash, I256}};
 use ark_bn254::Fr as Fr254;
 use ark_ff::PrimeField;
 use async_trait::async_trait;
@@ -261,7 +261,6 @@ impl From<DBMembershipProof> for MembershipProof<Fr254> {
 pub struct CommitmentEntry {
     pub preimage: Preimage,
     pub status: CommitmentStatus,
-
     #[serde(
         rename = "_id",
         serialize_with = "ark_se_hex",
@@ -402,6 +401,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
         }
         Ok(result)
     }
+
     async fn get_available_commitments(&self, nf_token_id: Fr254) -> Option<Vec<CommitmentEntry>> {
         let filter = doc! {
             "preimage.nf_token_id": nf_token_id.to_hex_string(),
@@ -427,16 +427,16 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
     }
 
     async fn get_commitment(&self, k: &Fr254) -> Option<CommitmentEntry> {
-        println!("Getting commitment with key: {}", k);
-        println!("Key in hex: {}", k.to_hex_string());
-        let filter = doc! { "_id": k.to_hex_string() };
-        let commitment = self.database(DB)
-            .collection::<CommitmentEntry>("commitments")
-            .find_one(filter)
+        let k_string = k.to_hex_string();
+        debug!("Getting commitment with key: {k_string}");
+        let commitment_1 = self.get_all_commitments()
             .await
-            .expect("Database error");
-        println!("Commitment found: {:?}", commitment);
-        commitment // we can't really proceed at this point
+            .expect("Database error")
+            .into_iter()
+            .find(|(key,_ )| key.to_hex_string() == k_string);
+        // now we can check if we found the commitment
+        let commitment = commitment_1.map(|(_, entry)| entry);
+        commitment
     }
 
     async fn get_balance(&self, nf_token_id: &Fr254) -> Option<Fr254> {
@@ -523,7 +523,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
         let l1_hash = l1_hash.map(|h| h.to_string());
         let l2_blocknumber = l2_blocknumber.map(|b| b.to_hex_string());
         let filter = doc! { "_id": { "$in": commitment_str }};
-        let update = doc! {"$set": { "status": "Unspent", "layer_1_transaction_hash": l1_hash, "layer_2_block_number": l2_blocknumber }};
+        let update = doc! {"$set": { "status": "Unspent", "layer_1_transaction_hash": l1_hash }};
         self.database(DB)
             .collection::<CommitmentEntry>("commitments")
             .update_many(filter, update)

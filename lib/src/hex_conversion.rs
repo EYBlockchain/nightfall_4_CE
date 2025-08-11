@@ -1,6 +1,7 @@
 /// This module provides functionality to convert various types to and from hexadecimal strings.
 /// It uses a bigendian representation for the conversions.
 use crate::error::HexError;
+use alloy::hex::ToHexExt;
 use alloy::primitives::U256;
 use ark_bn254::Fr as Fr254;
 use ark_ff::PrimeField;
@@ -159,6 +160,8 @@ mod test {
         assert_eq!(encoded, test_string);
         let decoded = Vec::<u8>::from_hex_string(&encoded).unwrap();
         assert_eq!(test_vec, decoded);
+        let hex_string = "023d93bbe98312e8fa9df2483b3c2fdc7d3b64a492bc2934e2c04743f39ff472";
+        println!("Fr24 of hex string: {}", Fr254::from_hex_string(hex_string).unwrap());
 
         // Test Fr254 <-> hex string
         let test_fr254 = Fr254::from(BigInt::new([

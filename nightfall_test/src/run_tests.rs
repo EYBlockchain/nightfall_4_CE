@@ -429,7 +429,6 @@ pub async fn run_tests(
         .unwrap();
     let res = http_client.get(resume_url).send().await.unwrap();
     assert!(res.status().is_success());
-
     // for each deposit request, we have value commitment and fee commitment (if fee is non-zero)
     // wait for the commitments to appear on-chain - we can't transfer until they are there
     wait_on_chain(&commitment_hashes, &get_settings().nightfall_client.url)
