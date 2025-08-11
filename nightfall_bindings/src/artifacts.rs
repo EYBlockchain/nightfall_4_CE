@@ -65,10 +65,10 @@ sol!(
 sol!(
     #[sol(rpc)]
     #[derive(Debug)]
+    #[allow(clippy::too_many_arguments)]
     ERC3525Mock,
     "../blockchain_assets/dummy_artifacts/ERC3525Mock.sol/ERC3525Mock.json"
 );
-
 sol!(
     #[sol(rpc)]
     #[derive(Debug)]

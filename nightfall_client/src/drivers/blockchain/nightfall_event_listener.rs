@@ -211,7 +211,6 @@ pub async fn get_synchronisation_status<N: NightfallContract>(
                             "Could not read block from blockchain".to_string(),
                         )
                     })?;
-println!("we are here inside get_synchronisation_status");
             let store_block_pending = StoredBlock {
                 layer2_block_number: expected_u64,
                 commitments: block_onchain
