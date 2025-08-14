@@ -553,13 +553,13 @@ impl RecursiveProver for RollupProver {
         let fee_sum = circuit.add(fee_sum_one, fee_sum_two)?;
 
         let (_, sha_left) =
-            circuit.full_shifted_sha256_hash(&[sha_one, sha_two], &mut lookup_vars)?;
+            circuit.full_shifted_sha256_hash(&[sha_one, sha_two], lookup_vars)?;
 
         let (_, sha_right) =
-            circuit.full_shifted_sha256_hash(&[sha_three, sha_four], &mut lookup_vars)?;
+            circuit.full_shifted_sha256_hash(&[sha_three, sha_four], lookup_vars)?;
 
         let (_, final_sha) =
-            circuit.full_shifted_sha256_hash(&[sha_left, sha_right], &mut lookup_vars)?;
+            circuit.full_shifted_sha256_hash(&[sha_left, sha_right], lookup_vars)?;
 
         let root_m_proof_length =
             BigUint::from(circuit.witness(specific_pis[2][0])?).to_u32_digits()[0] as usize;
