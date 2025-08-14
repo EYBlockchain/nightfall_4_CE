@@ -29,12 +29,12 @@ hex = "0.4.3"
 log = "0.4.27"
 sha2 = "0.10.9"
 ark-ec = { version = "0.4.2", features = ["parallel"] }
-nf-curves = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", branch = "livesey/add-decider-circ-checks" }
-jf-plonk = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", branch = "livesey/add-decider-circ-checks", features = [
+nf-curves = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "cdd615fccbaa4305e7a797040780909110190ebf" }
+jf-plonk = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "cdd615fccbaa4305e7a797040780909110190ebf", features = [
     "test-srs",
 ] }
-jf-primitives = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", branch = "livesey/add-decider-circ-checks" }
-jf-relation = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", branch = "livesey/add-decider-circ-checks" }
+jf-primitives = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "cdd615fccbaa4305e7a797040780909110190ebf" }
+jf-relation = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "cdd615fccbaa4305e7a797040780909110190ebf" }
 serial_test = "3.2.0"
 nightfall-bindings = { path = "../nightfall_bindings" }
 num-bigint = "0.4.6"

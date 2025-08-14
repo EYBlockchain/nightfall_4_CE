@@ -26,13 +26,13 @@ pub mod math {
         __abi,
     );
     #[rustfmt::skip]
-    const __BYTECODE: &[u8] = b"`U`2`\x0B\x82\x82\x829\x80Q_\x1A`s\x14`&WcNH{q`\xE0\x1B_R_`\x04R`$_\xFD[0_R`s\x81S\x82\x81\xF3\xFEs\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x000\x14`\x80`@R_\x80\xFD\xFE\xA2dipfsX\"\x12 \x8B+^nh\n#0&\xB36A'WN\xBF\xB5\x80\xC3\x13\xC1\x90/\xE0J\xE5\xC7\xA8\xF6\x9E\xE2&dsolcC\0\x08\x1A\x003";
+    const __BYTECODE: &[u8] = b"`U`2`\x0B\x82\x82\x829\x80Q_\x1A`s\x14`&WcNH{q`\xE0\x1B_R_`\x04R`$_\xFD[0_R`s\x81S\x82\x81\xF3\xFEs\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x000\x14`\x80`@R_\x80\xFD\xFE\xA2dipfsX\"\x12 x\x82\x04\x17\xBB).\x13:\xEC\x9E)\x105\x06\\_\x1F\x87\xD5\xD8\xB4\xC4\x14\xB4v\"\xBAm\x9EX\x10dsolcC\0\x08\x18\x003";
     /// The bytecode of the contract.
     pub static MATH_BYTECODE: ::ethers::core::types::Bytes = ::ethers::core::types::Bytes::from_static(
         __BYTECODE,
     );
     #[rustfmt::skip]
-    const __DEPLOYED_BYTECODE: &[u8] = b"s\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x000\x14`\x80`@R_\x80\xFD\xFE\xA2dipfsX\"\x12 \x8B+^nh\n#0&\xB36A'WN\xBF\xB5\x80\xC3\x13\xC1\x90/\xE0J\xE5\xC7\xA8\xF6\x9E\xE2&dsolcC\0\x08\x1A\x003";
+    const __DEPLOYED_BYTECODE: &[u8] = b"s\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x000\x14`\x80`@R_\x80\xFD\xFE\xA2dipfsX\"\x12 x\x82\x04\x17\xBB).\x13:\xEC\x9E)\x105\x06\\_\x1F\x87\xD5\xD8\xB4\xC4\x14\xB4v\"\xBAm\x9EX\x10dsolcC\0\x08\x18\x003";
     /// The deployed bytecode of the contract.
     pub static MATH_DEPLOYED_BYTECODE: ::ethers::core::types::Bytes = ::ethers::core::types::Bytes::from_static(
         __DEPLOYED_BYTECODE,

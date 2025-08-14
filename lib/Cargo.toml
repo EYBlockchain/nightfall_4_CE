@@ -22,12 +22,12 @@ ark-serialize = "0.4.2"
 ark-std = { version = "0.4.0", default-features = false }
 ark-bn254 = "0.4.0"
 alloy-rlp = "0.3.12" 
-jf-plonk = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", branch = "livesey/add-decider-circ-checks", features = [
+jf-plonk = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "cdd615fccbaa4305e7a797040780909110190ebf", features = [
     "test-srs",
 ] }
-jf-relation = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", branch = "livesey/add-decider-circ-checks" }
-jf-primitives = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", branch = "livesey/add-decider-circ-checks" }
-nf-curves = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", branch = "livesey/add-decider-circ-checks" }
+jf-relation = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "cdd615fccbaa4305e7a797040780909110190ebf" }
+jf-primitives = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "cdd615fccbaa4305e7a797040780909110190ebf" }
+nf-curves = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "cdd615fccbaa4305e7a797040780909110190ebf" }
 ark-ec = { version = "0.4.2", features = ["parallel"] }
 num-bigint = "0.4.6"
 nightfall-bindings = { path = "../nightfall_bindings" }
@@ -43,8 +43,8 @@ azure_security_keyvault = "0.21.0"
 [build-dependencies]
 configuration = { path = "../configuration" }
 tokio = { version = "1.45.0", features = ["full"] }
-jf-primitives = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", branch = "livesey/add-decider-circ-checks" }
-jf-plonk = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", branch = "livesey/add-decider-circ-checks", features = [
+jf-primitives = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "cdd615fccbaa4305e7a797040780909110190ebf" }
+jf-plonk = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "cdd615fccbaa4305e7a797040780909110190ebf", features = [
     "test-srs",
 ] }
 

@@ -26,13 +26,13 @@ pub mod slot_derivation {
         __abi,
     );
     #[rustfmt::skip]
-    const __BYTECODE: &[u8] = b"`U`2`\x0B\x82\x82\x829\x80Q_\x1A`s\x14`&WcNH{q`\xE0\x1B_R_`\x04R`$_\xFD[0_R`s\x81S\x82\x81\xF3\xFEs\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x000\x14`\x80`@R_\x80\xFD\xFE\xA2dipfsX\"\x12 \xAD\x8A\xF8\x97\xED\x02J\x18\xCB\x8EM&\x9F\xB8\tJ\xBD\xA4\xF4\x98\x1D\xCA\xAE;\x8D-\x1A=\x9E\xE8\xB6\xEBdsolcC\0\x08\x1A\x003";
+    const __BYTECODE: &[u8] = b"`U`2`\x0B\x82\x82\x829\x80Q_\x1A`s\x14`&WcNH{q`\xE0\x1B_R_`\x04R`$_\xFD[0_R`s\x81S\x82\x81\xF3\xFEs\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x000\x14`\x80`@R_\x80\xFD\xFE\xA2dipfsX\"\x12 \xBE/]\xB8\x91\x12\xF9B#\xAD\x18\x83-P\xFD\x1C\xD2\x82\xDB\xABS\xC7\x8D,,\x1C`\x80\xAE\xDDa\xE7dsolcC\0\x08\x18\x003";
     /// The bytecode of the contract.
     pub static SLOTDERIVATION_BYTECODE: ::ethers::core::types::Bytes = ::ethers::core::types::Bytes::from_static(
         __BYTECODE,
     );
     #[rustfmt::skip]
-    const __DEPLOYED_BYTECODE: &[u8] = b"s\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x000\x14`\x80`@R_\x80\xFD\xFE\xA2dipfsX\"\x12 \xAD\x8A\xF8\x97\xED\x02J\x18\xCB\x8EM&\x9F\xB8\tJ\xBD\xA4\xF4\x98\x1D\xCA\xAE;\x8D-\x1A=\x9E\xE8\xB6\xEBdsolcC\0\x08\x1A\x003";
+    const __DEPLOYED_BYTECODE: &[u8] = b"s\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x000\x14`\x80`@R_\x80\xFD\xFE\xA2dipfsX\"\x12 \xBE/]\xB8\x91\x12\xF9B#\xAD\x18\x83-P\xFD\x1C\xD2\x82\xDB\xABS\xC7\x8D,,\x1C`\x80\xAE\xDDa\xE7dsolcC\0\x08\x18\x003";
     /// The deployed bytecode of the contract.
     pub static SLOTDERIVATION_DEPLOYED_BYTECODE: ::ethers::core::types::Bytes = ::ethers::core::types::Bytes::from_static(
         __DEPLOYED_BYTECODE,
