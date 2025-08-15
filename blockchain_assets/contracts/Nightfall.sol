@@ -8,7 +8,6 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IERC3525} from "@erc-3525/contracts/IERC3525.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {IERC3525Receiver} from "@erc-3525/contracts/IERC3525Receiver.sol";
-import "forge-std/console2.sol";
 
 import "./ProposerManager.sol";
 import "./X509/Certified.sol";
@@ -573,34 +572,26 @@ contract Nightfall is
         publicInputs[7] = bytes32(blk.commitments_root_root);
         // These are accumulators' comm and proof
         uint256[8] memory acc_low;
-uint256[8] memory acc_high;
-(acc_low[0], acc_high[0]) = splitToLowHigh(uint256(abi.decode(blk.rollup_proof[32:64], (bytes32))));
-(acc_low[1], acc_high[1]) = splitToLowHigh(uint256(abi.decode(blk.rollup_proof[64:96], (bytes32))));
-(acc_low[2], acc_high[2]) = splitToLowHigh(uint256(abi.decode(blk.rollup_proof[96:128], (bytes32))));
-(acc_low[3], acc_high[3]) = splitToLowHigh(uint256(abi.decode(blk.rollup_proof[128:160], (bytes32))));
-(acc_low[4], acc_high[4]) = splitToLowHigh(uint256(abi.decode(blk.rollup_proof[160:192], (bytes32))));
-(acc_low[5], acc_high[5]) = splitToLowHigh(uint256(abi.decode(blk.rollup_proof[192:224], (bytes32))));
-(acc_low[6], acc_high[6]) = splitToLowHigh(uint256(abi.decode(blk.rollup_proof[224:256], (bytes32))));
-(acc_low[7], acc_high[7]) = splitToLowHigh(uint256(abi.decode(blk.rollup_proof[256:288], (bytes32))));
+        uint256[8] memory acc_high;
+        (acc_low[0], acc_high[0]) = splitToLowHigh(uint256(abi.decode(blk.rollup_proof[32:64], (bytes32))));
+        (acc_low[1], acc_high[1]) = splitToLowHigh(uint256(abi.decode(blk.rollup_proof[64:96], (bytes32))));
+        (acc_low[2], acc_high[2]) = splitToLowHigh(uint256(abi.decode(blk.rollup_proof[96:128], (bytes32))));
+        (acc_low[3], acc_high[3]) = splitToLowHigh(uint256(abi.decode(blk.rollup_proof[128:160], (bytes32))));
+        (acc_low[4], acc_high[4]) = splitToLowHigh(uint256(abi.decode(blk.rollup_proof[160:192], (bytes32))));
+        (acc_low[5], acc_high[5]) = splitToLowHigh(uint256(abi.decode(blk.rollup_proof[192:224], (bytes32))));
+        (acc_low[6], acc_high[6]) = splitToLowHigh(uint256(abi.decode(blk.rollup_proof[224:256], (bytes32))));
+        (acc_low[7], acc_high[7]) = splitToLowHigh(uint256(abi.decode(blk.rollup_proof[256:288], (bytes32))));
 
-// Assign to publicInputs
-for (uint i = 0; i < 8; i++) {
-    publicInputs[8 + i * 2] = bytes32(acc_low[i]);
-    publicInputs[9 + i * 2] = bytes32(acc_high[i]);
-}
+        // Assign to publicInputs
+        for (uint i = 0; i < 8; i++) {
+            publicInputs[8 + i * 2] = bytes32(acc_low[i]);
+            publicInputs[9 + i * 2] = bytes32(acc_high[i]);
+        }
 
         uint256 publicInputsBytes_computed = uint256(
              sha256_and_shift(abi.encodePacked(publicInputs))
         );
-        console2.log(
-            "publicInputsBytes_computed:",
-            publicInputsBytes_computed
-        );
         publicInputsBytes_computed = publicInputsBytes_computed % (21888242871839275222246405745257275088548364400416034343698204186575808495617);
-         console2.log(
-            "publicInputsBytes_computed after mod:",
-            publicInputsBytes_computed
-        );
         bytes memory publicInputsBytes = abi.encodePacked(publicInputsBytes_computed);
 
         // we also need to deserialize the transaction public data bytes into fields - but that's easy in Solidity
@@ -608,10 +599,12 @@ for (uint i = 0; i < 8; i++) {
         return (verifier.verify(proof, publicInputsBytes), feeSumAsNumber);
     }
 
-    function splitToLowHigh(uint256 value) internal pure returns (uint256 low, uint256 high) {
-    low = value & ((1 << 248) - 1); // lower 248 bits
-    high = value >> 248;            // upper 8 bits
-}
+    function splitToLowHigh(
+        uint256 value
+    ) internal pure returns (uint256 low, uint256 high) {
+        low = value & ((1 << 248) - 1); // lower 248 bits
+        high = value >> 248;            // upper 8 bits
+    }
 
 
     /// Function that can be called to see if funds are able to be de-escrowed following a withdraw transaction.
