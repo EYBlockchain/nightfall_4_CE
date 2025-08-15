@@ -121,7 +121,7 @@ contract RollupProofVerifier is INFVerifier{
      * @param proofBytes- array of serialized proof data: every elements is 32 bytes
      * @param publicInputsHashBytes- bytes of public data
      */
-    function verify(bytes calldata proofBytes, bytes calldata publicInputsHashBytes) external   override  returns (bool result) {
+function verify(bytes calldata proofBytes, bytes calldata publicInputsHashBytes) external view override returns (bool result) {
         // parse the hardecoded vk and construct a vk object
         Types.VerificationKey memory vk = get_verification_key();
         // parse the second part of calldata to get public input
@@ -386,20 +386,18 @@ contract RollupProofVerifier is INFVerifier{
         //  results - alpha_powers[0] * lagrange_1_eval
         // let mut tmp = self.evaluate_pi_poly(pi, &challenges.zeta, vanish_eval, vk.is_merged)?
         uint256 tmp = addmod(result, Bn254Crypto.negate_fr(mulmod(chal.alpha2, evalData.lagrange_1_eval, p)), p);
-        uint256 plookup_constant = compute_plookup_constant(tmp, chal, proof, evalData, domain, p);
-        uint256 tmpOut = compute_tmp(tmp, chal, proof, evalData, domain, p);
+        uint256 plookup_constant = compute_plookup_constant(chal, proof, evalData, domain);
+        uint256 tmpOut = compute_tmp(tmp, chal, proof);
         tmpOut = addmod(tmpOut, mulmod(chal.alpha_powers[1], plookup_constant, p), p);
         uint256 result_lin = mulmod(chal.alpha_base, tmpOut, p);
         return result_lin;
     }
 
     function compute_plookup_constant(
-    uint256 tmp,
     Types.ChallengeTranscript memory chal,
     Types.Proof memory proof,
     PolynomialEval.EvalData memory evalData,
-    PolynomialEval.EvalDomain memory domain,
-    uint256 p
+    PolynomialEval.EvalDomain memory domain
 ) internal view returns (uint256) {
     uint256 gamma_mul_beta_plus_one = mulmod(
         addmod(chal.beta, 1, p),
@@ -459,10 +457,7 @@ contract RollupProofVerifier is INFVerifier{
  function compute_tmp(
     uint256 tmp,
     Types.ChallengeTranscript memory chal,
-    Types.Proof memory proof,
-    PolynomialEval.EvalData memory evalData,
-    PolynomialEval.EvalDomain memory domain,
-    uint256 p
+    Types.Proof memory proof
 ) internal view returns (uint256) {
      uint256[5] memory first_w_evals = [proof.wires_evals_1, proof.wires_evals_2, proof.wires_evals_3, proof.wires_evals_4, proof.wires_evals_5];
         uint256 last_w_eval = proof.wires_evals_6;
@@ -1346,7 +1341,6 @@ function add_plookup_commitments_helper1_4_2(
         require(bases.length == scalars.length, "Length mismatch");
 
         // Using uint256 instead of bytes32 since we're now dealing with XOR of two uint256 values
-        uint256[] memory hashTable = new uint256[](bases.length);
         Types.G1Point[] memory tempBases = new Types.G1Point[](bases.length);
         uint256[] memory tempScalars = new uint256[](bases.length);
 
@@ -1496,7 +1490,7 @@ function add_plookup_commitments_helper1_4_2(
     }
  function get_verification_key()
         internal
-        view
+        pure
         returns (Types.VerificationKey memory)
     {
        return UltraPlonkVerificationKey.getVerificationKey();

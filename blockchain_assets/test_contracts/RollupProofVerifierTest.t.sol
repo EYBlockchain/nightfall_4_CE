@@ -91,7 +91,7 @@ contract RollupProofVerifierTest is Test {
             }
         }
         console2.log("transaction_hashes[0]: ", transaction_hashes[0]);
-        (bool verified, uint256 totalFee) = nightfall.verify_rollup_proof(blk, transaction_hashes[0]);
+        (bool verified, ) = nightfall.verify_rollup_proof(blk, transaction_hashes[0]);
         assertTrue(verified, "Proof verification failed");
     }
     function testVerifyWrongPublicInputs() public {
@@ -138,7 +138,7 @@ contract RollupProofVerifierTest is Test {
                 );
             }
         }
-        (bool verified, uint256 totalFee) = nightfall.verify_rollup_proof(blk, transaction_hashes[0]);
+        (bool verified, ) = nightfall.verify_rollup_proof(blk, transaction_hashes[0]);
         assertFalse(verified, "Proof verification failed");
     }
     
