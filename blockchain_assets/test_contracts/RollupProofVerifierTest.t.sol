@@ -33,8 +33,8 @@ contract RollupProofVerifierTest is Test {
         transactions[0] = OnChainTransaction({
             fee: uint256(0),
             commitments: [
-                0x24BDCAC4C8E9DEE4D404F2B6C51DCB69AB86A5552A0334092749050FEA9BF03A,
-                uint256(0),
+                17035205440293355959999152765141543448633724136297475469325716275904799076219,
+                9065520758278556095546448031269229233552505442865369773428764815280584507013,
                 uint256(0),
                 uint256(0)
             ],
@@ -45,8 +45,8 @@ contract RollupProofVerifierTest is Test {
                 uint256(0)
             ],
             public_data: [
-                0x6A6800E8217051833D61E3B6A942BCD02391EBA79F98BA3A79D6BADEF211E8E,
-                uint256(0),
+                3608046996008026082361488024200288048824670182271115325485728651639269704184,
+                3959754566005603064667970065349921387862618986405911504119028649217049673017,
                 uint256(0),
                 uint256(0)
             ]
@@ -65,9 +65,9 @@ contract RollupProofVerifierTest is Test {
         }
 
         Block memory blk = Block({
-            commitments_root: 0x23AB6B16D30640DAE93F621B59871295F63F375E5BF1C218065551D2914761BC,
-            nullifier_root: 0xC7035BF4A3A237A4C081307ACE7B80B5830974E2B4738D88F15C3EA19C38C71,
-            commitments_root_root: 0x1EBF02320521160CB113D49DFB3D5A652651CFC6C4E9B02685828506EF8DEE98,
+            commitments_root: 623948621222247331753330434215219841882414700521245897215773651023767114521,
+            nullifier_root: 5626012003977595441102792096342856268135928990590954181023475305010363075697,
+            commitments_root_root: 5279554228441733217215028804109502950787603540364801728902128666082823786352,
             transactions: transactions,
             rollup_proof: rollupProof
         });
