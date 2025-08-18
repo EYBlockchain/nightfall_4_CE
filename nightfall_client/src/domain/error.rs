@@ -162,12 +162,6 @@ impl From<ConversionError> for TokenContractError {
     }
 }
 
-// impl From<ProviderError> for TokenContractError {
-//     fn from(e: ProviderError) -> Self {
-//         Self::from(BlockchainClientConnectionError::from(e))
-//     }
-//}
-
 /// Error type for handling calls to a token contract
 #[derive(Debug)]
 pub enum NightfallContractError {
