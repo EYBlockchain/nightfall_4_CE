@@ -563,7 +563,7 @@ contract Nightfall is
         // The first 32 bytes of the proof are the sum of fees
         bytes32 feeSum = abi.decode(blk.rollup_proof[:32], (bytes32));
         uint256 feeSumAsNumber = uint256(feeSum);
-        bytes32[] memory publicInputs = new bytes32[](16); // we need to pass in 16 public inputs
+        bytes32[] memory publicInputs = new bytes32[](24); // we need to pass in 24 public inputs
         publicInputs[0] = feeSum;
         publicInputs[1] = bytes32(public_hash);
         publicInputs[2] = bytes32(commitmentRoot);
@@ -573,17 +573,25 @@ contract Nightfall is
         publicInputs[6] = bytes32(historicRootsRoot);
         publicInputs[7] = bytes32(blk.commitments_root_root);
         // These are accumulators' comm and proof
-        publicInputs[8] = abi.decode(blk.rollup_proof[32:64], (bytes32)); //instance1_x;
-        publicInputs[9] = abi.decode(blk.rollup_proof[64:96], (bytes32)); //instance1_y;
-        publicInputs[10] = abi.decode(blk.rollup_proof[96:128], (bytes32)); //proof1_x;
-        publicInputs[11] = abi.decode(blk.rollup_proof[128:160], (bytes32)); //proof1_y;
-        publicInputs[12] = abi.decode(blk.rollup_proof[160:192], (bytes32)); //instance2_x;
-        publicInputs[13] = abi.decode(blk.rollup_proof[192:224], (bytes32)); //instance2_y;
-        publicInputs[14] = abi.decode(blk.rollup_proof[224:256], (bytes32)); //proof2_x;
-        publicInputs[15] = abi.decode(blk.rollup_proof[256:288], (bytes32)); //proof2_y;
+        uint256[8] memory acc_low;
+        uint256[8] memory acc_high;
+        (acc_low[0], acc_high[0]) = splitToLowHigh(uint256(abi.decode(blk.rollup_proof[32:64], (bytes32))));
+        (acc_low[1], acc_high[1]) = splitToLowHigh(uint256(abi.decode(blk.rollup_proof[64:96], (bytes32))));
+        (acc_low[2], acc_high[2]) = splitToLowHigh(uint256(abi.decode(blk.rollup_proof[96:128], (bytes32))));
+        (acc_low[3], acc_high[3]) = splitToLowHigh(uint256(abi.decode(blk.rollup_proof[128:160], (bytes32))));
+        (acc_low[4], acc_high[4]) = splitToLowHigh(uint256(abi.decode(blk.rollup_proof[160:192], (bytes32))));
+        (acc_low[5], acc_high[5]) = splitToLowHigh(uint256(abi.decode(blk.rollup_proof[192:224], (bytes32))));
+        (acc_low[6], acc_high[6]) = splitToLowHigh(uint256(abi.decode(blk.rollup_proof[224:256], (bytes32))));
+        (acc_low[7], acc_high[7]) = splitToLowHigh(uint256(abi.decode(blk.rollup_proof[256:288], (bytes32))));
+
+        // Assign to publicInputs
+        for (uint i = 0; i < 8; i++) {
+            publicInputs[8 + i * 2] = bytes32(acc_low[i]);
+            publicInputs[9 + i * 2] = bytes32(acc_high[i]);
+        }
 
         uint256 publicInputsBytes_computed = uint256(
-            keccak256(abi.encodePacked(publicInputs))
+             sha256_and_shift(abi.encodePacked(publicInputs))
         );
         publicInputsBytes_computed = publicInputsBytes_computed % (21888242871839275222246405745257275088548364400416034343698204186575808495617);
         bytes memory publicInputsBytes = abi.encodePacked(publicInputsBytes_computed);
@@ -591,6 +599,13 @@ contract Nightfall is
         // we also need to deserialize the transaction public data bytes into fields - but that's easy in Solidity
         bytes memory proof = blk.rollup_proof[288:];
         return (verifier.verify(proof, publicInputsBytes), feeSumAsNumber);
+    }
+
+    function splitToLowHigh(
+        uint256 value
+    ) internal pure returns (uint256 low, uint256 high) {
+        low = value & ((1 << 248) - 1); // lower 248 bits
+        high = value >> 248;            // upper 8 bits
     }
 
 
@@ -602,3 +617,4 @@ contract Nightfall is
         return withdrawalIncluded[key] == 1;
     }
 }
+
