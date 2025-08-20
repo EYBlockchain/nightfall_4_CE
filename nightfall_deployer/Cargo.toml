@@ -10,7 +10,7 @@ path = "bin/key_generation.rs"
 
 
 [dependencies]
-jf-utils = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "c041e9f9285107db51968f0eca55831b4a90ae71", features = [
+jf-utils = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "feae94f7a9701de86b52f08eb6843a84a73d2672", features = [
     "parallel",
 ] }
 itertools = "0.10.5"
@@ -31,12 +31,12 @@ nightfall_proposer = { path = "../nightfall_proposer" }
 ark-serialize = "0.4.2"
 ark-std = { version = "0.4.0", default-features = false }
 ark-bn254 = "0.4.0"
-jf-plonk = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "c041e9f9285107db51968f0eca55831b4a90ae71", features = [
+jf-plonk = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "feae94f7a9701de86b52f08eb6843a84a73d2672", features = [
     "test-srs",
 ] }
-jf-relation = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "c041e9f9285107db51968f0eca55831b4a90ae71" }
-jf-primitives = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "c041e9f9285107db51968f0eca55831b4a90ae71" }
-nf-curves = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "c041e9f9285107db51968f0eca55831b4a90ae71" }
+jf-relation = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "feae94f7a9701de86b52f08eb6843a84a73d2672" }
+jf-primitives = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "feae94f7a9701de86b52f08eb6843a84a73d2672" }
+nf-curves = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "feae94f7a9701de86b52f08eb6843a84a73d2672" }
 ark-ec = { version = "0.4.2", features = ["parallel"] }
 ark-ff = { version = "0.4.2", features = ["parallel"] }
 ark-poly = { version = "0.4.2", features = ["parallel"] }
@@ -52,7 +52,7 @@ log = "0.4.27"
 [dev-dependencies]
 url = "2.5.4"
 sha3 = "^0.10"
-jf-utils = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "c041e9f9285107db51968f0eca55831b4a90ae71" }
+jf-utils = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "feae94f7a9701de86b52f08eb6843a84a73d2672" }
 ark-ed-on-bn254 = "0.4.0"
 hex = "0.4.3"
 [features]
