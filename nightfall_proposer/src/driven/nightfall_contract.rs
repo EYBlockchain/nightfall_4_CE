@@ -29,8 +29,8 @@ impl NightfallContract for Nightfall::NightfallCalls {
         let nightfall = Nightfall::new(nightfall_address, client);
         // Convert the block transactions to the Nightfall format
         let blk = Nightfall::Block::from(block);
-        let call =  nightfall
-        .propose_block(blk)
+        let _call =  nightfall
+        .propose_block(blk.clone())
         .from(signer.address())
         .call()
         .await.unwrap();
