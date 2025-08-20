@@ -16,13 +16,10 @@ pub fn get_commitment(
 }
 
 pub async fn handle_get_commitment(key: String) -> Result<impl Reply, warp::Rejection> {
-    println!("We are here inside handle_get_commitment with key: {}", &key);
     let parsed_key = Fr254::from_hex_string(&key).map_err(|_| {
         warp::reject::custom(crate::domain::error::ClientRejection::InvalidCommitmentKey)
     })?;
     let commitment_db = get_db_connection().await;
-    println!("Looking up commitment in DB, with key {}", &key);
-    trace!("Looking up commitment in DB, with key {}", &key);
     if let Some(res) = commitment_db.get_commitment(&parsed_key).await {
         Ok(reply::with_status(reply::json(&res), StatusCode::OK))
     } else {
