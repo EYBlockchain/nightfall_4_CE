@@ -23,8 +23,8 @@ use lib::{
 };
 use log::{debug, info, warn};
 use nightfall_client::drivers::rest::{client_nf_3::WithdrawResponse, models::DeEscrowDataReq};
-use serde_json::Value;
 use nightfall_proposer::services::assemble_block::get_block_size;
+use serde_json::Value;
 use test::{
     anvil_reorg, count_spent_commitments, get_erc20_balance, get_erc721_balance, get_fee_balance,
 };

@@ -534,7 +534,7 @@ contract Nightfall is
     function hash_transaction(
         OnChainTransaction memory txn
     ) public view returns (uint256) {
-        uint256 lastData = txn.public_data[3] & ((1 << 255) - 1);
+        // uint256 lastData = txn.public_data[3] & ((1 << 255) - 1);
         bytes memory concatenatedInputs = abi.encode(
             txn.commitments[0],
             txn.commitments[1],
@@ -547,7 +547,8 @@ contract Nightfall is
             txn.public_data[0],
             txn.public_data[1],
             txn.public_data[2],
-            lastData
+            // lastData
+            txn.public_data[3]
         );
         return sha256_and_shift(concatenatedInputs);
     }

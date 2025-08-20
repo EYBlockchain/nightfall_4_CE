@@ -388,23 +388,45 @@ impl RecursiveProver for RollupProver {
         let mut lookup_vars = Vec::<(Variable, Variable, Variable)>::new();
         let mut sha_vars = Vec::<Variable>::new();
         for pi_slice in pi_slices {
-            let (_, sha256_var) = circuit.full_shifted_sha256_hash(
-                &[
-                    pi_slice[5],
-                    pi_slice[6],
-                    pi_slice[7],
-                    pi_slice[8],
-                    pi_slice[9],
-                    pi_slice[10],
-                    pi_slice[11],
-                    pi_slice[12],
-                    pi_slice[13],
-                    pi_slice[14],
-                    pi_slice[15],
-                    pi_slice[16],
-                ],
+            let field_vars = [
+                pi_slice[5],
+                pi_slice[6],
+                pi_slice[7],
+                pi_slice[8],
+                pi_slice[9],
+                pi_slice[10],
+                pi_slice[11],
+                pi_slice[12],
+                pi_slice[13],
+                pi_slice[14],
+                pi_slice[15],
+                pi_slice[16],
+            ];
+            use jf_relation::BoolVar;
+            let pi_slice_17 = circuit.witness(pi_slice[17])?;
+            let bit_var: BoolVar = circuit.create_boolean_variable(pi_slice_17 == Fr254::one())?;
+            let (sha256_var, _) = circuit.full_shifted_sha256_hash_with_bit(
+                &field_vars,
+                &bit_var,
                 &mut lookup_vars,
             )?;
+            // let (_, sha256_var) = circuit.full_shifted_sha256_hash(
+            //     &[
+            //         pi_slice[5],
+            //         pi_slice[6],
+            //         pi_slice[7],
+            //         pi_slice[8],
+            //         pi_slice[9],
+            //         pi_slice[10],
+            //         pi_slice[11],
+            //         pi_slice[12],
+            //         pi_slice[13],
+            //         pi_slice[14],
+            //         pi_slice[15],
+            //         pi_slice[16],
+            //     ],
+            //     &mut lookup_vars,
+            // )?;
             sha_vars.push(sha256_var);
         }
 
@@ -510,6 +532,7 @@ impl RecursiveProver for RollupProver {
     fn decider_circuit_checks(
         specific_pis: &[Vec<Variable>],
         circuit: &mut PlonkCircuit<Fr254>,
+        lookup_vars: &mut Vec<(Variable, Variable, Variable)>,
     ) -> Result<Vec<Variable>, CircuitError> {
         let fee_sum_one = specific_pis[0][4];
         let fee_sum_two = specific_pis[1][4];
@@ -530,18 +553,16 @@ impl RecursiveProver for RollupProver {
         circuit.enforce_equal(end_root_null_one, start_root_null_two)?;
 
         let fee_sum = circuit.add(fee_sum_one, fee_sum_two)?;
-        let mut lookup_vars = Vec::<(Variable, Variable, Variable)>::new();
 
-        let (_, sha_left) =
-            circuit.full_shifted_sha256_hash(&[sha_one, sha_two], &mut lookup_vars)?;
+        let (_, sha_left) = circuit.full_shifted_sha256_hash(&[sha_one, sha_two], lookup_vars)?;
 
         let (_, sha_right) =
-            circuit.full_shifted_sha256_hash(&[sha_three, sha_four], &mut lookup_vars)?;
+            circuit.full_shifted_sha256_hash(&[sha_three, sha_four], lookup_vars)?;
 
         let (_, final_sha) =
-            circuit.full_shifted_sha256_hash(&[sha_left, sha_right], &mut lookup_vars)?;
+            circuit.full_shifted_sha256_hash(&[sha_left, sha_right], lookup_vars)?;
 
-        circuit.finalize_for_sha256_hash(&mut lookup_vars)?;
+        circuit.finalize_for_sha256_hash(lookup_vars)?;
         let root_m_proof_length =
             BigUint::from(circuit.witness(specific_pis[2][0])?).to_u32_digits()[0] as usize;
 
@@ -660,8 +681,8 @@ impl RecursiveProver for RollupProver {
     }
 
     fn store_merge_bn254_pks(pks: Vec<ProvingKey<Kzg>>) -> Option<()> {
-         let config_path = get_configuration_path()?;
-         for (i, pk) in pks.into_iter().enumerate() {
+        let config_path = get_configuration_path()?;
+        for (i, pk) in pks.into_iter().enumerate() {
             let file_path: PathBuf = config_path.join(format!("bin/merge_bn254_pk_{}", i));
 
             let mut buf = Vec::<u8>::new();
@@ -824,7 +845,7 @@ impl RecursiveProver for RollupProver {
             "Could not store base Bn254 proving key".to_string(),
         ))?;
 
-          // Rollup structure:
+        // Rollup structure:
         // base_grumpkin_circuit   ← always present
         // base_bn254_circuit      ← always present
         // [...]                     ← variable intermediate merge layers
@@ -922,7 +943,9 @@ impl RecursiveProver for RollupProver {
             })
             .collect::<Result<Vec<[Bn254Out; 2]>, PlonkError>>()?;
         let decider_input = cfg_into_iter!(merge_bn254_chunks)
-            .map(|chunk| Self::merge_grumpkin_circuit(chunk, &current_bn254_pk, &current_grumpkin_pk))
+            .map(|chunk| {
+                Self::merge_grumpkin_circuit(chunk, &current_bn254_pk, &current_grumpkin_pk)
+            })
             .collect::<Result<Vec<GrumpkinOut>, PlonkError>>()?;
 
         // Check the length is exactly 2
@@ -942,7 +965,8 @@ impl RecursiveProver for RollupProver {
             &current_bn254_pk,
         )?;
 
-        let (decider_pk, decider_vk) = PlonkKzgSnark::<Bn254>::preprocess(kzg_srs, &decider_out.circuit)?;
+        let (decider_pk, decider_vk) =
+            PlonkKzgSnark::<Bn254>::preprocess(kzg_srs, &decider_out.circuit)?;
 
         Self::store_merge_grumpkin_pk(current_grumpkin_pk).ok_or(PlonkError::InvalidParameters(
             "Could not store merge Grumpkin proving key".to_string(),
