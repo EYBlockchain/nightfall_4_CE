@@ -72,6 +72,7 @@ use std::{
     sync::{Arc, OnceLock},
     vec,
 };
+use jf_relation::BoolVar;
 
 #[derive(Debug)]
 pub enum RollupProofError {
@@ -402,33 +403,15 @@ impl RecursiveProver for RollupProver {
                 pi_slice[15],
                 pi_slice[16],
             ];
-            use jf_relation::BoolVar;
+            
             let pi_slice_17 = circuit.witness(pi_slice[17])?;
-            ark_std::println!("pi_slice_17: {}", pi_slice_17);
             let bit_var: BoolVar = circuit.create_boolean_variable(pi_slice_17 == Fr254::one())?;
             let (_,sha256_var) = circuit.full_shifted_sha256_hash_with_bit(
                 &field_vars,
                 &bit_var,
                 &mut lookup_vars,
             )?;
-            ark_std::println!("One tx hash: {}", circuit.witness(sha256_var)?);
-            // let (_, sha256_var) = circuit.full_shifted_sha256_hash(
-            //     &[
-            //         pi_slice[5],
-            //         pi_slice[6],
-            //         pi_slice[7],
-            //         pi_slice[8],
-            //         pi_slice[9],
-            //         pi_slice[10],
-            //         pi_slice[11],
-            //         pi_slice[12],
-            //         pi_slice[13],
-            //         pi_slice[14],
-            //         pi_slice[15],
-            //         pi_slice[16],
-            //     ],
-            //     &mut lookup_vars,
-            // )?;
+            
             sha_vars.push(sha256_var);
         }
 

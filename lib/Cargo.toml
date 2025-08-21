@@ -22,12 +22,12 @@ ark-serialize = "0.4.2"
 ark-std = { version = "0.4.0", default-features = false }
 ark-bn254 = "0.4.0"
 alloy-rlp = "0.3.12" 
-jf-plonk = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "feae94f7a9701de86b52f08eb6843a84a73d2672", features = [
+jf-plonk = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", features = [
     "test-srs",
 ] }
-jf-relation = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "feae94f7a9701de86b52f08eb6843a84a73d2672" }
-jf-primitives = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "feae94f7a9701de86b52f08eb6843a84a73d2672" }
-nf-curves = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "feae94f7a9701de86b52f08eb6843a84a73d2672" }
+jf-relation = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git" }
+jf-primitives = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git" }
+nf-curves = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git" }
 ark-ec = { version = "0.4.2", features = ["parallel"] }
 num-bigint = "0.4.6"
 nightfall-bindings = { path = "../nightfall_bindings" }
@@ -43,8 +43,8 @@ azure_security_keyvault = "0.21.0"
 [build-dependencies]
 configuration = { path = "../configuration" }
 tokio = { version = "1.45.0", features = ["full"] }
-jf-primitives = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "feae94f7a9701de86b52f08eb6843a84a73d2672" }
-jf-plonk = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "feae94f7a9701de86b52f08eb6843a84a73d2672", features = [
+jf-primitives = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git" }
+jf-plonk = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", features = [
     "test-srs",
 ] }
 
