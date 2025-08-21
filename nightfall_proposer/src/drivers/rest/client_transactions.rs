@@ -35,7 +35,7 @@ where
     match result {
         Ok(_) => Ok(StatusCode::CREATED),
         Err(e) => {
-            error!("Error processing client transaction: {}", e);
+            error!("Error processing client transaction: {e}");
             Err(warp::reject::custom(
                 ProposerRejection::ClientTransactionFailed,
             ))

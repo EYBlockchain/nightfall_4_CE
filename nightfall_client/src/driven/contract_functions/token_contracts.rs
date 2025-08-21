@@ -43,7 +43,7 @@ impl<M> TokenContract for IERC20<M> {
             .approve(solidity_approval_address, solidity_value.0)
             .send()
             .await
-            .map_err(|e| ProviderError::CustomError(format!("Contract error: {}", e)))?
+            .map_err(|e| ProviderError::CustomError(format!("Contract error: {e}")))?
             .await?;
 
         tx_receipt.ok_or(TokenContractError::TransactionError)?;
@@ -79,7 +79,7 @@ impl<M> TokenContract for IERC721<M> {
             .approve(solidity_approval_address, solidity_token_id.0)
             .send()
             .await
-            .map_err(|e| ProviderError::CustomError(format!("Contract error: {}", e)))?
+            .map_err(|e| ProviderError::CustomError(format!("Contract error: {e}")))?
             .await?;
 
         tx_receipt.ok_or(TokenContractError::TransactionError)?;
@@ -114,7 +114,7 @@ impl<M> TokenContract for IERC1155<M> {
             .set_approval_for_all(solidity_approval_address, true)
             .send()
             .await
-            .map_err(|e| ProviderError::CustomError(format!("Contract error: {}", e)))?
+            .map_err(|e| ProviderError::CustomError(format!("Contract error: {e}")))?
             .await?;
 
         tx_receipt.ok_or(TokenContractError::TransactionError)?;
@@ -144,7 +144,7 @@ impl<M> TokenContract for IERC3525<M> {
             .approve(solidity_approval_address, solidity_token_id.0)
             .send()
             .await
-            .map_err(|e| ProviderError::CustomError(format!("Contract error: {}", e)))?
+            .map_err(|e| ProviderError::CustomError(format!("Contract error: {e}")))?
             .await?;
 
         tx_receipt.ok_or(TokenContractError::TransactionError)?;

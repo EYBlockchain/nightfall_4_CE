@@ -46,7 +46,7 @@ impl<E: Display> Display for MerkleTreeError<E> {
             Self::TreeIsFull => write!(f, "The tree is full"),
             Self::IncorrectBatchSize => write!(f, "Incorrect batch size"),
             Self::NoLeaves => write!(f, "No leaves"),
-            Self::DatabaseError(e) => write!(f, "Database error {}", e),
+            Self::DatabaseError(e) => write!(f, "Database error {e}"),
             Self::TreeNotFound => write!(f, "Tree not found"),
             Self::TreeAlreadyExists => write!(f, "Tree already exists"),
             Self::SerializationError => write!(f, "Serialization error "),
@@ -74,18 +74,17 @@ impl Display for EventHandlerError {
             EventHandlerError::NoEventStream => write!(f, "Could not connect to event stream"),
             EventHandlerError::StreamTerminated => write!(f, "Event stream terminated"),
             EventHandlerError::InvalidCalldata => write!(f, "Invalid calldata"),
-            EventHandlerError::IOError(s) => write!(f, "IO Error: {}", s),
+            EventHandlerError::IOError(s) => write!(f, "IO Error: {s}"),
             EventHandlerError::MissingBlocks(n) => {
-                write!(f, "Missing layer 2 blocks. Last processed was: {}", n)
+                write!(f, "Missing layer 2 blocks. Last processed was: {n}")
             }
             EventHandlerError::HashError => write!(f, "Hashing error"),
             EventHandlerError::BlockNotFound(block_number) => {
-                write!(f, "Block not found: {}", block_number)
+                write!(f, "Block not found: {block_number}")
             }
             EventHandlerError::BlockHashError(a, b) => write!(
                 f,
-                "Block hash error, expected block hash: {}, got block hash: {}",
-                a, b
+                "Block hash error, expected block hash: {a}, got block hash: {b}"
             ),
         }
     }
@@ -109,11 +108,11 @@ impl Display for TransactionHandlerError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             TransactionHandlerError::JsonConversionError(e) => {
-                write!(f, "Json conversion error: {}", e)
+                write!(f, "Json conversion error: {e}")
             }
-            TransactionHandlerError::DepositError(e) => write!(f, "Deposit error: {}", e),
+            TransactionHandlerError::DepositError(e) => write!(f, "Deposit error: {e}"),
             TransactionHandlerError::DatabaseError => write!(f, "Database error"),
-            TransactionHandlerError::CustomError(s) => write!(f, "Transaction error: {}", s),
+            TransactionHandlerError::CustomError(s) => write!(f, "Transaction error: {s}"),
             TransactionHandlerError::Error => write!(f, "Transaction error"),
             TransactionHandlerError::ClientNotSynchronized => write!(f, "Client not synchronized"),
         }
@@ -136,18 +135,16 @@ impl Display for TokenContractError {
         match self {
             TokenContractError::BlockchainClientConnectionError(e) => write!(
                 f,
-                "Token Contract Error: Blockchain Client Connection Error: {}",
-                e
+                "Token Contract Error: Blockchain Client Connection Error: {e}"
             ),
             TokenContractError::ConversionError(e) => write!(
                 f,
-                "Token Contract Error: Error while converting to Solidity type: {}",
-                e
+                "Token Contract Error: Error while converting to Solidity type: {e}"
             ),
             TokenContractError::TransactionError => {
                 write!(f, "Did not receive a transaction receipt")
             }
-            TokenContractError::TokenTypeError(s) => write!(f, "Token Type Error: {}", s),
+            TokenContractError::TokenTypeError(s) => write!(f, "Token Type Error: {s}"),
         }
     }
 }
@@ -193,36 +190,34 @@ impl Display for NightfallContractError {
         match self {
             NightfallContractError::BlockchainClientConnectionError(e) => write!(
                 f,
-                "Nightfall Contract Error: Blockchain Client Connection Error: {}",
-                e
+                "Nightfall Contract Error: Blockchain Client Connection Error: {e}"
             ),
             NightfallContractError::ConversionError(e) => write!(
                 f,
-                "Nightfall Contract Error: Error while converting to Solidity type: {}",
-                e
+                "Nightfall Contract Error: Error while converting to Solidity type: {e}"
             ),
             NightfallContractError::TransactionError => {
                 write!(f, "Did not receive a transaction receipt")
             }
-            NightfallContractError::EscrowError(s) => write!(f, "Escrow Funds Error: {}", s),
-            NightfallContractError::PoseidonError(e) => write!(f, "Hashing Error: {}", e),
+            NightfallContractError::EscrowError(s) => write!(f, "Escrow Funds Error: {s}"),
+            NightfallContractError::PoseidonError(e) => write!(f, "Hashing Error: {e}"),
             NightfallContractError::BlockNotFound(n) => {
-                write!(f, "Layer 2 block number {} not found on-chain", n)
+                write!(f, "Layer 2 block number {n} not found on-chain")
             }
             NightfallContractError::ProviderError(e) => {
-                write!(f, "Blockchain provider error: {}", e)
+                write!(f, "Blockchain provider error: {e}")
             }
             NightfallContractError::MissingTransactionHash(s) => {
-                write!(f, "Missing transaction hash: {}", s)
+                write!(f, "Missing transaction hash: {s}")
             }
             NightfallContractError::TransactionNotFound(tx_hash) => {
-                write!(f, "Transaction not found: {}", tx_hash)
+                write!(f, "Transaction not found: {tx_hash}")
             }
             NightfallContractError::AbiDecodeError(s) => {
-                write!(f, "ABI decode error: {}", s)
+                write!(f, "ABI decode error: {s}")
             }
             NightfallContractError::DecodedCallError(s) => {
-                write!(f, "Decoded call error: {}", s)
+                write!(f, "Decoded call error: {s}")
             }
         }
     }
@@ -273,12 +268,12 @@ impl Display for ConversionError {
         match self {
             ConversionError::Overflow => write!(f, "Overflow during conversion. Uints cannot be bigger than (q-1)/2 where q is the modulus of the scalar field"),
             ConversionError::ProofDecompression => write!(f, "Error during proof decompression"),
-            ConversionError::SerialisationError(e) => write!(f, "Error during serialisation: {}", e),
+            ConversionError::SerialisationError(e) => write!(f, "Error during serialisation: {e}"),
             ConversionError::NotErc20DepositData => write!(f, "Could not convert the public data bytes into ERC20 deposit data"),
-            ConversionError::ProofCompression(e) => write!(f, "Error during proof compression: {}", e),
+            ConversionError::ProofCompression(e) => write!(f, "Error during proof compression: {e}"),
             ConversionError::FixedLengthArrayError => write!(f, "Failed to convert to a fixed length array"),
             ConversionError::ParseFailed => write!(f, "Failed to parse data"),
-            ConversionError::PoseidonError(e) => write!(f, "Poseidon Error: {}", e)
+            ConversionError::PoseidonError(e) => write!(f, "Poseidon Error: {e}")
         }
     }
 }
@@ -306,9 +301,9 @@ pub enum DepositError {
 impl Display for DepositError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            DepositError::TokenError(e) => write!(f, "Deposit Error: {}", e),
-            DepositError::NightfallError(e) => write!(f, "Deposit Error: {}", e),
-            DepositError::PoseidonError(e) => write!(f, "Deposit Error: {}", e),
+            DepositError::TokenError(e) => write!(f, "Deposit Error: {e}"),
+            DepositError::NightfallError(e) => write!(f, "Deposit Error: {e}"),
+            DepositError::PoseidonError(e) => write!(f, "Deposit Error: {e}"),
         }
     }
 }
@@ -339,7 +334,7 @@ pub struct SyncingError(pub EventHandlerError);
 impl Display for SyncingError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            SyncingError(e) => write!(f, "Could not sync {}", e),
+            SyncingError(e) => write!(f, "Could not sync {e}"),
         }
     }
 }

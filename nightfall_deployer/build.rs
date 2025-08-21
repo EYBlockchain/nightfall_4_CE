@@ -47,7 +47,7 @@ fn is_foundry_installed() -> bool {
             }
         }
         Err(e) => {
-            info!("Got an error from running 'which forge': {}", e);
+            info!("Got an error from running 'which forge': {e}");
             false
         }
     }
@@ -77,8 +77,7 @@ fn forge_command(command: &[&str]) {
         }
         Err(e) => {
             panic!(
-                "Command 'forge {:?}' ran into an error without executing: {}",
-                command, e
+                "Command 'forge {command:?}' ran into an error without executing: {e}",
             );
         }
     }

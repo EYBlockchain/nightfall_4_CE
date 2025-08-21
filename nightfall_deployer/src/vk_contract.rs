@@ -127,7 +127,7 @@ pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: 
     }
     if let Some(parent) = path_out.parent() {
         std::fs::create_dir_all(parent)
-            .unwrap_or_else(|e| panic!("Failed to create test_contracts folder: {}", e));
+            .unwrap_or_else(|e| panic!("Failed to create test_contracts folder: {e}"));
     }
     // let mut file = std::fs::File::create(&path_out).unwrap();
 
@@ -664,7 +664,7 @@ mod tests {
 
         if let Some(parent) = path_out.parent() {
             std::fs::create_dir_all(parent)
-                .unwrap_or_else(|e| panic!("Failed to create test_contracts folder: {}", e));
+                .unwrap_or_else(|e| panic!("Failed to create test_contracts folder: {e}"));
         }
         let mut file = std::fs::File::create(&path_out).unwrap();
         write!(file, "{}", hex::encode(&proof_bytes_final)).unwrap();

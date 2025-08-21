@@ -58,7 +58,7 @@ where
     // register a notifier to publish to the webhook URL
     let mut publisher = DataPublisher::new();
     let webhook_url = &get_settings().nightfall_client.webhook_url;
-    debug!("Using webhook URL: {}", webhook_url);
+    debug!("Using webhook URL: {webhook_url}");
     let notifier = WebhookNotifier::new(webhook_url);
     publisher.register_notifier(Box::new(notifier));
 
@@ -66,7 +66,7 @@ where
         let sync_state = match get_synchronisation_status::<N>().await {
             Ok(status) => status.phase(),
             Err(e) => {
-                error!("Failed to get synchronisation status: {:?}", e);
+                error!("Failed to get synchronisation status: {e:?}");
                 return;
             }
         };
