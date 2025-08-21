@@ -49,6 +49,7 @@ use log::{debug, warn};
 use mongodb::{bson::doc, Client};
 
 use super::deposit_circuit::deposit_circuit_builder;
+use jf_relation::BoolVar;
 use lib::{
     merkle_trees::trees::{MerkleTreeError, MutableTree, TreeMetadata},
     serialization::{ark_de_hex, ark_se_hex},
@@ -72,7 +73,6 @@ use std::{
     sync::{Arc, OnceLock},
     vec,
 };
-use jf_relation::BoolVar;
 
 #[derive(Debug)]
 pub enum RollupProofError {
@@ -403,15 +403,15 @@ impl RecursiveProver for RollupProver {
                 pi_slice[15],
                 pi_slice[16],
             ];
-            
+
             let pi_slice_17 = circuit.witness(pi_slice[17])?;
             let bit_var: BoolVar = circuit.create_boolean_variable(pi_slice_17 == Fr254::one())?;
-            let (_,sha256_var) = circuit.full_shifted_sha256_hash_with_bit(
+            let (_, sha256_var) = circuit.full_shifted_sha256_hash_with_bit(
                 &field_vars,
                 &bit_var,
                 &mut lookup_vars,
             )?;
-            
+
             sha_vars.push(sha256_var);
         }
 
