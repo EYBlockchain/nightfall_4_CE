@@ -406,7 +406,7 @@ impl RecursiveProver for RollupProver {
             let pi_slice_17 = circuit.witness(pi_slice[17])?;
             ark_std::println!("pi_slice_17: {}", pi_slice_17);
             let bit_var: BoolVar = circuit.create_boolean_variable(pi_slice_17 == Fr254::one())?;
-            let (sha256_var, _) = circuit.full_shifted_sha256_hash_with_bit(
+            let (_,sha256_var) = circuit.full_shifted_sha256_hash_with_bit(
                 &field_vars,
                 &bit_var,
                 &mut lookup_vars,
