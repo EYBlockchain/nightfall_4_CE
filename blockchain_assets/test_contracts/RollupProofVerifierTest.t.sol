@@ -90,56 +90,55 @@ contract RollupProofVerifierTest is Test {
                 );
             }
         }
-        console2.log("transaction_hashes[0]: ", transaction_hashes[0]);
         (bool verified, ) = nightfall.verify_rollup_proof(blk, transaction_hashes[0]);
         assertTrue(verified, "Proof verification failed");
     }
-    // function testVerifyWrongPublicInputs() public {
-    //     // Load valid proof and block fields from JSON or hardcoded (for now)
-    //     string memory hexString = string(vm.readFile("./blockchain_assets/test_contracts/blockRollupProof.json"));
-    //     bytes memory rollupProof = vm.parseBytes(hexString);
-    //     OnChainTransaction[] memory transactions = new OnChainTransaction[](64);
+    function testVerifyWrongPublicInputs() public {
+        // Load valid proof and block fields from JSON or hardcoded (for now)
+        string memory hexString = string(vm.readFile("./blockchain_assets/test_contracts/blockRollupProof.json"));
+        bytes memory rollupProof = vm.parseBytes(hexString);
+        OnChainTransaction[] memory transactions = new OnChainTransaction[](64);
 
-    //     // Zero out the rest of the transactions
-    //     OnChainTransaction memory emptyTx = OnChainTransaction({
-    //         fee: 0,
-    //         commitments: [uint256(0), uint256(0), uint256(0), uint256(0)],
-    //         nullifiers: [uint256(0), uint256(0), uint256(0), uint256(0)],
-    //         public_data: [uint256(0), uint256(0), uint256(0), uint256(0)]
-    //     });
+        // Zero out the rest of the transactions
+        OnChainTransaction memory emptyTx = OnChainTransaction({
+            fee: 0,
+            commitments: [uint256(0), uint256(0), uint256(0), uint256(0)],
+            nullifiers: [uint256(0), uint256(0), uint256(0), uint256(0)],
+            public_data: [uint256(0), uint256(0), uint256(0), uint256(0)]
+        });
 
-    //     for (uint256 i = 0; i < 64; ++i) {
-    //         transactions[i] = emptyTx;
-    //     }
+        for (uint256 i = 0; i < 64; ++i) {
+            transactions[i] = emptyTx;
+        }
 
-    //     Block memory blk = Block({
-    //         commitments_root: 0x1,
-    //         nullifier_root: 0x2,
-    //         commitments_root_root: 0x3,
-    //         transactions: transactions,
-    //         rollup_proof: rollupProof
-    //     });
+        Block memory blk = Block({
+            commitments_root: 0x1,
+            nullifier_root: 0x2,
+            commitments_root_root: 0x3,
+            transactions: transactions,
+            rollup_proof: rollupProof
+        });
 
-    //     // Hash the transactions for the public data
-    //     uint256 block_transactions_length = 64;
-    //     // Hash the transactions for the public data
-    //     uint256[] memory transaction_hashes = new uint256[](
-    //         block_transactions_length
-    //     );
-    //     for (uint256 i = 0; i < block_transactions_length; ++i) {
-    //          transaction_hashes[i] = nightfall.hash_transaction(blk.transactions[i]);
-    //     }
-    //     uint256[] memory transaction_hashes_new = transaction_hashes;
-    //     for (uint256 length = block_transactions_length; length > 1; length >>= 1) {
-    //         for (uint256 i = 0; i < (length >> 1); ++i) {
-    //             // Directly store computed hash in the same array to save memory
-    //             transaction_hashes_new[i] = nightfall.sha256_and_shift(
-    //                 abi.encodePacked(transaction_hashes_new[i << 1], transaction_hashes_new[(i << 1) + 1])
-    //             );
-    //         }
-    //     }
-    //     (bool verified, ) = nightfall.verify_rollup_proof(blk, transaction_hashes[0]);
-    //     assertFalse(verified, "Proof verification failed");
-    // }
+        // Hash the transactions for the public data
+        uint256 block_transactions_length = 64;
+        // Hash the transactions for the public data
+        uint256[] memory transaction_hashes = new uint256[](
+            block_transactions_length
+        );
+        for (uint256 i = 0; i < block_transactions_length; ++i) {
+             transaction_hashes[i] = nightfall.hash_transaction(blk.transactions[i]);
+        }
+        uint256[] memory transaction_hashes_new = transaction_hashes;
+        for (uint256 length = block_transactions_length; length > 1; length >>= 1) {
+            for (uint256 i = 0; i < (length >> 1); ++i) {
+                // Directly store computed hash in the same array to save memory
+                transaction_hashes_new[i] = nightfall.sha256_and_shift(
+                    abi.encodePacked(transaction_hashes_new[i << 1], transaction_hashes_new[(i << 1) + 1])
+                );
+            }
+        }
+        (bool verified, ) = nightfall.verify_rollup_proof(blk, transaction_hashes[0]);
+        assertFalse(verified, "Proof verification failed");
+    }
     
 }
