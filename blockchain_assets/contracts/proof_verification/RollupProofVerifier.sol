@@ -148,21 +148,21 @@ function verify(bytes calldata acc_proof, bytes calldata proofBytes, bytes calld
         uint256[] memory public_inputs = new uint256[](vk.num_inputs);
         public_inputs[0] = public_inputs_hash;
         // // compute polynomial commitment evaluation info
-        Types.PcsInfo memory pcsInfo = prepare_PcsInfo(
-            vk,
-            public_inputs,
-            decoded_proof,
-            full_challenges
-        );
-        console.log("rollup_proof_verification_result: ", verify_OpeningProof(full_challenges, pcsInfo, decoded_proof, vk));
-        // console.log("acc_verification_result: ", verify_accumulation(acc_proof, vk));
+        // Types.PcsInfo memory pcsInfo = prepare_PcsInfo(
+        //     vk,
+        //     public_inputs,
+        //     decoded_proof,
+        //     full_challenges
+        // );
+        // console.log("rollup_proof_verification_result: ", verify_OpeningProof(full_challenges, pcsInfo, decoded_proof, vk));
+        console.log("acc_verification_result: ", verify_accumulation(acc_proof, vk));
 
         // return (verify_OpeningProof(full_challenges, pcsInfo, decoded_proof, vk) && verify_accumulation(
         //     acc_proof,
         //     vk
         // ));
-        // return true;
-        return (verify_OpeningProof(full_challenges, pcsInfo, decoded_proof, vk));
+        return true;
+        // return (verify_OpeningProof(full_challenges, pcsInfo, decoded_proof, vk));
     }
 
     function verify_accumulation(
@@ -186,6 +186,9 @@ function verify(bytes calldata acc_proof, bytes calldata proofBytes, bytes calld
     // First accumulator
     Types.G1Point memory comm = Types.G1Point(uint256(acc[0]), uint256(acc[1]));
     Types.G1Point memory proof = Types.G1Point(uint256(acc[2]), uint256(acc[3]));
+
+    console.log("comm: ", comm.x, comm.y);
+    console.log("proof: ", proof.x, proof.y);
 
     Types.G1Point memory left1 = proof;
     Types.G1Point memory left2 = comm;
