@@ -6,8 +6,6 @@ import "./BytesLib.sol";
 import "./Types.sol";
 import "./RollupProofVerificationKey.sol";
 import {INFVerifier} from "./INFVerifier.sol";
-import "forge-std/console.sol";
-
 
 /**
 @title RollupProofVerifier
