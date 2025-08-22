@@ -304,9 +304,7 @@ where
 
         // Step 2: If we are not the proposer, wait and retry
         if current_proposer != our_address {
-            info!(
-                "We are not the current proposer. Current proposer is: {current_proposer:?}"
-            );
+            info!("We are not the current proposer. Current proposer is: {current_proposer:?}");
             tokio::time::sleep(std::time::Duration::from_secs(5)).await;
             continue;
         }

@@ -289,9 +289,7 @@ impl<M> NightfallContract for Nightfall<M> {
 
         match decoded {
             NightfallCalls::ProposeBlock(call) => {
-                debug!(
-                    "Successfully decoded block {block_number} from tx {tx_hash}"
-                );
+                debug!("Successfully decoded block {block_number} from tx {tx_hash}");
                 Ok((sender_address, call.blk))
             }
             _ => Err(NightfallContractError::DecodedCallError(

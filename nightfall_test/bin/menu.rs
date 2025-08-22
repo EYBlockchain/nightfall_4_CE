@@ -201,7 +201,7 @@ async fn get_l1_balance(url: &Url) -> Result<U256, Box<dyn std::error::Error>> {
         let text = resp.text().await?.trim().to_string();
         // Use HexConvertible to parse the string into a U256, then downcast to u64
         let u256 = lib::hex_conversion::HexConvertible::from_hex_string(&text)
-            .map_err(|e| format!("Failed to parse hex as U256: {e:?}", ))?;
+            .map_err(|e| format!("Failed to parse hex as U256: {e:?}",))?;
         // Convert U256 to u64 (truncating if necessary)
         Ok(u256)
     } else {

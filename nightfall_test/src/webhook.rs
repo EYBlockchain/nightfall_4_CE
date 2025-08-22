@@ -42,11 +42,7 @@ pub async fn poll_queue() {
     let client = reqwest::Client::new();
     loop {
         // poll the queue
-        let response = client
-            .get(format!("{url}/v1/queue"))
-            .send()
-            .await
-            .unwrap();
+        let response = client.get(format!("{url}/v1/queue")).send().await.unwrap();
         if response.status().is_success() {
             let body = response.text().await.unwrap();
             debug!("Client 1 Queue length is : {body}");
@@ -54,11 +50,7 @@ pub async fn poll_queue() {
             warn!("Failed to poll the queue");
         }
         // poll the queue for client 2
-        let response2 = client
-            .get(format!("{url2}/v1/queue"))
-            .send()
-            .await
-            .unwrap();
+        let response2 = client.get(format!("{url2}/v1/queue")).send().await.unwrap();
         if response2.status().is_success() {
             let body2 = response2.text().await.unwrap();
             debug!("Client 2 Queue length is : {body2}");

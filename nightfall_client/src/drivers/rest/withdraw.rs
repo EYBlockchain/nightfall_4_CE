@@ -24,9 +24,7 @@ pub async fn handle_de_escrow(data: DeEscrowDataReq) -> Result<impl Reply, warp:
         })?
         .into();
     let withdraw_data = WithdrawData::try_from(data).map_err(|e| {
-        error!(
-            "Could not convert Withdraw data request to WithdrawData: {e}"
-        );
+        error!("Could not convert Withdraw data request to WithdrawData: {e}");
         reject::custom(crate::domain::error::ClientRejection::FailedDeEscrow)
     })?;
     let available = Nightfall::<LocalWsClient>::withdraw_available(withdraw_data).await;
