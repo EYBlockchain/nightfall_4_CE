@@ -147,7 +147,7 @@ function verify(bytes calldata acc_proof, bytes calldata proofBytes, bytes calld
 
         uint256[] memory public_inputs = new uint256[](vk.num_inputs);
         public_inputs[0] = public_inputs_hash;
-        // // compute polynomial commitment evaluation info
+        // compute polynomial commitment evaluation info
         // Types.PcsInfo memory pcsInfo = prepare_PcsInfo(
         //     vk,
         //     public_inputs,
@@ -190,9 +190,13 @@ function verify(bytes calldata acc_proof, bytes calldata proofBytes, bytes calld
     console.log("comm: ", comm.x, comm.y);
     console.log("proof: ", proof.x, proof.y);
 
+    console.log("comm: ", Bn254Crypto.negate_G1Point(comm).x, Bn254Crypto.negate_G1Point(comm).y);
+    console.log("proof: ", Bn254Crypto.negate_G1Point(proof).x, Bn254Crypto.negate_G1Point(proof).y);
+
     Types.G1Point memory left1 = proof;
-    Types.G1Point memory left2 = comm;
-    bool res = Bn254Crypto.pairingProd2(left2, vk.beta_h, left1, vk.h);
+    Types.G1Point memory left2 = Bn254Crypto.negate_G1Point(comm);
+    bool res = Bn254Crypto.pairingProd2(left1, vk.beta_h, left2, vk.h);
+    console.log("acc result: ", res);
     return res;
 }
 
