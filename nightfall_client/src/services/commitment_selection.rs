@@ -232,17 +232,16 @@ async fn verify_enough_commitments(
         fetch_on_chain_commitments(db, target_token_id).await?;
     on_chain_old_value_commitments.sort_by_key(|a| a.get_value());
     trace!(
-        "On-chain commitments for value: {:?}",
-        on_chain_old_value_commitments
+        "On-chain commitments for value: {on_chain_old_value_commitments:?}"
     );
 
     // Calculate the minimum number of commitments required for the value
     let min_c =
         calculate_minimum_commitments(&mut on_chain_old_value_commitments.clone(), target_value)
             .inspect_err(|e| {
-                println!("Error calculating minimum commitments for value: {}", e);
+                println!("Error calculating minimum commitments for value: {e}");
             })?;
-    trace!("Minimum commitments required for value: {}", min_c);
+    trace!("Minimum commitments required for value: {min_c}");
     // Handle case where too many dust commitments are required
     if min_c > MAX_POSSIBLE_COMMITMENTS {
         return Err("Too many dust commitments found; only up to two commitments can be used to cover the value");
@@ -707,8 +706,7 @@ mod test {
                     assert!(
                         err.to_string()
                             .contains("Not enough commitments to cover the value"),
-                        "Error does not match expected string: {}",
-                        err
+                        "Error does not match expected string: {err}"
                     );
                 }
             }
@@ -775,8 +773,7 @@ mod test {
                     assert!(
                         err.to_string()
                             .contains("Not enough commitments to cover the value"),
-                        "Error does not match expected string: {}",
-                        err
+                        "Error does not match expected string: {err}"
                     );
                 }
             }

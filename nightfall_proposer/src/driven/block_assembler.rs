@@ -76,11 +76,7 @@ impl<P: Proof + Send + Sync> BlockAssemblyTrigger for SmartTrigger<P> {
         let start = Instant::now();
         loop {
             let elapsed = start.elapsed().as_secs();
-            let remaining = if self.max_wait_secs > elapsed {
-                self.max_wait_secs - elapsed
-            } else {
-                0
-            };
+            let remaining = self.max_wait_secs.saturating_sub(elapsed);
             // Re-check current proposer
             let round_robin_instance = RoundRobin::new(
                 get_addresses().round_robin,
@@ -97,7 +93,7 @@ impl<P: Proof + Send + Sync> BlockAssemblyTrigger for SmartTrigger<P> {
             {
                 Ok(addr) => addr,
                 Err(e) => {
-                    error!("Failed to get current proposer: {}", e);
+                    error!("Failed to get current proposer: {e}");
                     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
                     continue;
                 }
@@ -110,8 +106,7 @@ impl<P: Proof + Send + Sync> BlockAssemblyTrigger for SmartTrigger<P> {
                 .address();
             if current_proposer != our_address {
                 debug!(
-                    "Lost proposer status during trigger wait. Current proposer: {:?}",
-                    current_proposer
+                    "Lost proposer status during trigger wait. Current proposer: {current_proposer:?}"
                 );
                 break; // Exit loop early
             }
@@ -156,12 +151,12 @@ impl<P: Proof + Send + Sync> SmartTrigger<P> {
         let num_deposit_groups =
             match <mongodb::Client as TransactionsDB<P>>::count_mempool_deposits(db).await {
                 Ok(count) => {
-                    let groups = (count + 3) / 4;
-                    debug!("Mempool deposits: {}, grouped into: {}", count, groups);
+                    let groups = count.div_ceil(4);
+                    debug!("Mempool deposits: {count}, grouped into: {groups}");
                     groups
                 }
                 Err(e) => {
-                    error!("Error counting deposits: {:?}", e);
+                    error!("Error counting deposits: {e:?}");
                     0
                 }
             } as f32;
@@ -171,11 +166,11 @@ impl<P: Proof + Send + Sync> SmartTrigger<P> {
                 .await
             {
                 Ok(count) => {
-                    debug!("Mempool client transactions: {}", count);
+                    debug!("Mempool client transactions: {count}");
                     count
                 }
                 Err(e) => {
-                    error!("Error counting client transactions: {:?}", e);
+                    error!("Error counting client transactions: {e:?}", );
                     0
                 }
             } as f32;
@@ -184,8 +179,7 @@ impl<P: Proof + Send + Sync> SmartTrigger<P> {
             Ok(size) => size as f32,
             Err(e) => {
                 log::warn!(
-                    "Falling back to default block size 64 due to error: {:?}",
-                    e
+                    "Falling back to default block size 64 due to error: {e:?}"
                 );
                 64.0
             }

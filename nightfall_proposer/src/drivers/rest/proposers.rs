@@ -124,16 +124,14 @@ async fn handle_remove_proposer() -> Result<impl Reply, warp::Rejection> {
         Ok(current_proposer) => {
             if current_proposer == signer_address {
                 warn!(
-                    "You are removing yourself as the active proposer — this will deduct an exit penalty of {} units and start a cooldown period of {} L1 blocks before you can re-register.",
-                    penalty,
-                    cooling_blocks
+                    "You are removing yourself as the active proposer — this will deduct an exit penalty of {penalty} units and start a cooldown period of {cooling_blocks} L1 blocks before you can re-register."
                 );
             } else {
                 info!("You are removing yourself, but you are not the active proposer — no penalty will be applied.");
             }
         }
         Err(e) => {
-            warn!("Could not check current proposer before removal: {:?}", e);
+            warn!("Could not check current proposer before removal: {e:?}", );
         }
     }
 

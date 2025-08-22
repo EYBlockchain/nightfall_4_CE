@@ -89,7 +89,7 @@ impl DepositDatawithFee {
     pub fn hash(&self) -> Result<Vec<u32>, SerializationError> {
         // Step 1: Serialize to bytes
         let encoding = serde_json::to_vec(self).map_err(|e| {
-            error!("DepositDatawithFee hash computation error: {}", e);
+            error!("DepositDatawithFee hash computation error: {e}");
             SerializationError::InvalidData
         })?;
 

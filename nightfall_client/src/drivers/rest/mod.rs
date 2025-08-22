@@ -107,7 +107,7 @@ async fn handle_rejection(err: Rejection) -> Result<impl Reply, std::convert::In
             )),
         }
     } else {
-        error!("unhandled rejection: {:?}", err);
+        error!("unhandled rejection: {err:?}");
         Ok(reply::with_status(
             "INTERNAL_SERVER_ERROR",
             StatusCode::INTERNAL_SERVER_ERROR,

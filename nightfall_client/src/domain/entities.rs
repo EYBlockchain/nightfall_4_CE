@@ -345,8 +345,7 @@ impl From<u8> for TokenType {
             3 => TokenType::ERC3525,
             _ => {
                 warn!(
-                    "TokenType value {} not supported, defaulting to ERC20",
-                    value
+                    "TokenType value {value} not supported, defaulting to ERC20"
                 );
                 TokenType::ERC20
             }
@@ -373,7 +372,7 @@ impl<P: Proof + Debug + Serialize + Clone> ClientTransaction<P> {
     #[allow(dead_code)]
     pub fn hash(&self) -> Result<Vec<u32>, SerializationError> {
         let encoding = serde_json::to_vec(self).map_err(|e| {
-            error!("Proof hash computation error {}", e);
+            error!("Proof hash computation error {e}");
             SerializationError::InvalidData
         })?;
         // let encoded: Vec<Token> = self.to_solidity_struct()?;

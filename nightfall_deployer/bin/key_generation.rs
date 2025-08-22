@@ -84,7 +84,7 @@ pub fn generate_proving_keys(settings: &Settings) -> Result<(), PlonkError> {
         .unwrap()
     } else {
         // Unless we already have a local copy, read a remote perpetual powers of Tau file and save, then extract a KZG structured reference string
-        let ptau_file = path.join(format!("bin/ppot_{}.ptau", MAX_KZG_DEGREE));
+        let ptau_file = path.join(format!("bin/ppot_{MAX_KZG_DEGREE}.ptau"));
         UnivariateKzgPCS::download_ptau_file_if_needed(MAX_KZG_DEGREE, &ptau_file).unwrap();
         UnivariateKzgPCS::universal_setup_bn254(&ptau_file, 1 << MAX_KZG_DEGREE).unwrap()
     };
@@ -130,8 +130,7 @@ pub fn generate_proving_keys(settings: &Settings) -> Result<(), PlonkError> {
             Ok(size) => size,
             Err(e) => {
                 log::warn!(
-                    "Falling back to default block size 64 due to error: {:?}",
-                    e
+                    "Falling back to default block size 64 due to error: {e:?}"
                 );
                 64
             }

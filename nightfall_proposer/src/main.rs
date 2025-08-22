@@ -32,7 +32,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // drop any existing database
     let db_url = &settings.nightfall_proposer.db_url;
-    info!("Dropping database: {}", DB);
+    info!("Dropping database: {DB}");
     let _ = lib::utils::drop_database(db_url, DB).await;
 
     let task_0 = if settings.mock_prover {

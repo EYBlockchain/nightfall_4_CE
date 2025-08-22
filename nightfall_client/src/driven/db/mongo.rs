@@ -199,7 +199,7 @@ impl RequestDB for Client {
             .update_one(filter, update)
             .await;
         if let Err(e) = result {
-            error!("{} Got an error updating request: {}", request_id, e);
+            error!("{request_id} Got an error updating request: {e}");
             return None;
         }
         Some(())
@@ -341,8 +341,8 @@ impl RequestCommitmentMappingDB for Client {
         match result {
             Ok(_) => Ok(()),
             Err(e) => {
-                error!("Error adding request-commitment mapping: {}", e);
-                Err(format!("DB error: {}", e))
+                error!("Error adding request-commitment mapping: {e}");
+                Err(format!("DB error: {e}"))
             }
         }
     }
@@ -552,13 +552,12 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
             .await;
         match result {
             Ok(ins) => {
-                debug!("Store commitment result {:#?}", ins);
+                debug!("Store commitment result {ins:#?}");
                 Some(())
             }
             Err(e) => {
                 error!(
-                    "Got an error inserting commitment: {:#?}, {}",
-                    commitment, e
+                    "Got an error inserting commitment: {commitment:#?}, {e}"
                 );
                 None
             }
@@ -575,7 +574,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
             return Some(());
         }
         debug!(
-            "Storing commitments with hashes{:?} ",
+            "Storing commitments with hashes {:?} ",
             commitments
                 .iter()
                 .map(|c| c.key.to_hex_string())
@@ -593,18 +592,17 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
                 match e.kind.as_ref() {
                     ErrorKind::Write(WriteError(write_error)) => {
                         if write_error.code == 11000 && !dup_key_check {
-                            debug!("Duplicate _id error: {:?}", write_error);
+                            debug!("Duplicate _id error: {write_error:?}");
                             // duplicate _id error but we don't care
                             Some(())
                         } else {
-                            error!("Unhandled Write Error storing commitments: {} duplicate key check {}", e, dup_key_check);
+                            error!("Unhandled Write Error storing commitments: {e} duplicate key check {dup_key_check}");
                             None
                         }
                     }
                     _ => {
                         error!(
-                            "Unhandled Error storing commitments: {} duplicate key check {}",
-                            e, dup_key_check
+                            "Unhandled Error storing commitments: {e} duplicate key check {dup_key_check}"
                         );
                         None
                     }
@@ -661,7 +659,7 @@ impl WithdrawalDB<Fr254, PendingWithdrawal> for Client {
         match result {
             Ok(_) => Some(()),
             Err(e) => {
-                info!("Got an error inserting pending withdrawal: {}", e);
+                info!("Got an error inserting pending withdrawal: {e}");
                 None
             }
         }

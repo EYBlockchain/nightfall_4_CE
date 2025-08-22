@@ -94,7 +94,7 @@ impl TestSettings {
         let test_settings: TestSettings = Figment::new()
             .merge(Toml::file("nightfall_test.toml").nested())
             .extract()
-            .map_err(|e| format!("{}", e))?;
+            .map_err(|e| format!("{e}"))?;
 
         Ok(test_settings)
     }

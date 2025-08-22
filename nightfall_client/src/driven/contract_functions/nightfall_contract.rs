@@ -87,7 +87,7 @@ impl<M> NightfallContract for Nightfall<M> {
                         e.decode_contract_revert::<ERC20MockErrors>()
                     ))
                 } else {
-                    ProviderError::CustomError(format!("Contract error: {}", e))
+                    ProviderError::CustomError(format!("Contract error: {e}"))
                 }
             })?
             .await?;
@@ -161,7 +161,7 @@ impl<M> NightfallContract for Nightfall<M> {
                         e.decode_contract_revert::<ERC20MockErrors>()
                     ))
                 } else {
-                    ProviderError::CustomError(format!("Contract error: {}", e))
+                    ProviderError::CustomError(format!("Contract error: {e}"))
                 }
             })?
             .await?;
@@ -193,7 +193,7 @@ impl<M> NightfallContract for Nightfall<M> {
             .withdraw_processed(data)
             .call()
             .await
-            .map_err(|e| ProviderError::CustomError(format!("Contract error: {}", e)).into())
+            .map_err(|e| ProviderError::CustomError(format!("Contract error: {e}")).into())
     }
 
     async fn get_current_layer2_blocknumber() -> Result<I256, NightfallContractError> {
@@ -247,7 +247,7 @@ impl<M> NightfallContract for Nightfall<M> {
         let block_topic = H256::from_uint(&block_number.into_raw());
 
         let latest_block = client.get_block_number().await.map_err(|e| {
-            NightfallContractError::ProviderError(format!("get_block_number error: {}", e))
+            NightfallContractError::ProviderError(format!("get_block_number error: {e}"))
         })?;
 
         let event_sig = H256::from(keccak256("BlockProposed(int256)"));
@@ -261,7 +261,7 @@ impl<M> NightfallContract for Nightfall<M> {
         let logs = client
             .get_logs(&filter)
             .await
-            .map_err(|e| NightfallContractError::ProviderError(format!("Provider error: {}", e)))?;
+            .map_err(|e| NightfallContractError::ProviderError(format!("Provider error: {e}")))?;
 
         let log = logs
             .first()
@@ -276,22 +276,21 @@ impl<M> NightfallContract for Nightfall<M> {
             .get_transaction(tx_hash)
             .await
             .map_err(|e| {
-                NightfallContractError::ProviderError(format!("get_transaction error: {}", e))
+                NightfallContractError::ProviderError(format!("get_transaction error: {e}"))
             })?
             .ok_or(NightfallContractError::TransactionNotFound(tx_hash))?;
 
         let sender_address = tx.from;
-        debug!("Sender of transaction {} is {}", tx_hash, sender_address);
+        debug!("Sender of transaction {tx_hash} is {sender_address}");
 
         let decoded = NightfallCalls::decode(tx.input).map_err(|e| {
-            NightfallContractError::AbiDecodeError(format!("ABI decode error: {:?}", e))
+            NightfallContractError::AbiDecodeError(format!("ABI decode error: {e:?}"))
         })?;
 
         match decoded {
             NightfallCalls::ProposeBlock(call) => {
                 debug!(
-                    "Successfully decoded block {} from tx {}",
-                    block_number, tx_hash
+                    "Successfully decoded block {block_number} from tx {tx_hash}"
                 );
                 Ok((sender_address, call.blk))
             }

@@ -117,8 +117,7 @@ where
                 .expect("Database error looking up historic root")
         {
             error!(
-                "Historic commitment root not found in database: {}",
-                historic_commitment_root
+                "Historic commitment root not found in database: {historic_commitment_root}"
             );
             return Err(ClientTransactionError::CommitmentRootUnknown);
         }

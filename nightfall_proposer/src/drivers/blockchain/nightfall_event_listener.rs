@@ -49,7 +49,7 @@ where
 
         loop {
             attempts += 1;
-            log::info!("Proposer event listener (attempt {})...", attempts);
+            log::info!("Proposer event listener (attempt {attempts})...");
             let result = listen_for_events::<P, E, N>(start_block).await;
 
             match result {
@@ -59,9 +59,7 @@ where
                 }
                 Err(e) => {
                     log::error!(
-                        "Proposer event listener terminated with error: {:?}. Restarting in {:?}",
-                        e,
-                        backoff_delay
+                        "Proposer event listener terminated with error: {e:?}. Restarting in {backoff_delay:?}"
                     );
                     if attempts >= max_attempts {
                         log::error!("Proposer event listener: max attempts reached. Giving up.");
@@ -71,8 +69,7 @@ where
                         .await
                         {
                             log::error!(
-                                "Failed to send failure notification (proposer): {:?}",
-                                err
+                                "Failed to send failure notification (proposer): {err:?}"
                             );
                         }
                         break;
@@ -86,7 +83,7 @@ where
     .boxed()
 }
 async fn notify_failure_proposer(message: &str) -> Result<(), ()> {
-    log::error!("ALERT (Proposer): {}", message);
+    log::error!("ALERT (Proposer): {message}");
     Ok(())
 }
 
@@ -119,21 +116,20 @@ where
                 match e {
                     // we're missing blocks, so we need to re-synchronise
                     EventHandlerError::MissingBlocks(n) => {
-                        warn!("Missing blocks. Last contiguous block was {}. Restarting event listener", n);
+                        warn!("Missing blocks. Last contiguous block was {n}. Restarting event listener");
                         restart_event_listener::<P, E, N>(start_block).await;
                         return Err(EventHandlerError::StreamTerminated);
                     }
 
                     EventHandlerError::BlockHashError(expected, found) => {
                         warn!(
-                            "Block hash mismatch: expected {:?}, found {:?}. Restarting event listener",
-                            expected, found
+                            "Block hash mismatch: expected {expected:?}, found {found:?}. Restarting event listener"
                         );
                         restart_event_listener::<P, E, N>(start_block).await;
                         return Err(EventHandlerError::StreamTerminated);
                     }
 
-                    _ => panic!("Error processing event: {:?}", e),
+                    _ => panic!("Error processing event: {e:?}", ),
                 }
             }
         }

@@ -144,7 +144,7 @@ where
                 .is_some()
                 && (!leaf.is_zero())
             {
-                error!("Leaf already exists {:?}", leaf);
+                error!("Leaf already exists {leaf:?}");
                 return Err(MerkleTreeError::LeafExists);
             }
         }
@@ -311,8 +311,7 @@ where
                     <Self as IndexedLeaves<F>>::get_low_leaf(self, &inner_value, tree_id)
                         .await?
                         .ok_or(MerkleTreeError::Error(format!(
-                            "Could not get low nullifier for inner value: {}",
-                            inner_value
+                            "Could not get low nullifier for inner value: {inner_value}"
                         )))?;
 
                 // Now we check if the low nullifier is in the tree already, if it is not then it is one of the pending inserts

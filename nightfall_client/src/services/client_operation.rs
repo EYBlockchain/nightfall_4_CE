@@ -192,7 +192,7 @@ where
             proof,
         }),
         Err(e) => {
-            error!("{id} Proving error {:?}", e);
+            error!("{id} Proving error {e:?}");
             Err("Transaction could not be completed due to a proving error.")
         }
     }

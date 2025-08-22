@@ -426,11 +426,11 @@ where
                     .find_one(doc! {"value": leaf_padded_hex})
                     .await
                     .map_err(|e| {
-                        debug!("{}", e);
+                        debug!("{e}");
                         MerkleTreeError::DatabaseError(e)
                     })?;
                 if node.is_none() {
-                    debug!("Could not find leaf node {} in DB", leaf);
+                    debug!("Could not find leaf node {leaf} in DB");
                     return Err(MerkleTreeError::ItemNotFound);
                 }
                 let node = node.unwrap(); // safe to unwrap as we've checked it's not None
@@ -676,9 +676,9 @@ where
         let db = self.database(<Self as MutableTree<F>>::MUT_DB_NAME);
 
         // Collection names
-        let metadata_collection = format!("{}_metadata", tree_id);
-        let nodes_collection = format!("{}_nodes", tree_id);
-        let cache_collection = format!("{}_cache", tree_id);
+        let metadata_collection = format!("{tree_id}_metadata");
+        let nodes_collection = format!("{tree_id}_nodes");
+        let cache_collection = format!("{tree_id}_cache");
         use mongodb::bson::Document;
         // Drop metadata collection
         if let Err(e) = db.collection::<Document>(&metadata_collection).drop().await {

@@ -145,7 +145,7 @@ pub async fn get_transactions_in_last_n_blocks(
 
     for i in 0..n {
         let block_number = latest_block.saturating_sub(i);
-        let block_number_hex = format!("0x{:x}", block_number);
+        let block_number_hex = format!("0x{block_number:x}");
         let block_payload = serde_json::json!({
             "jsonrpc": "2.0",
             "method": "eth_getBlockByNumber",
@@ -579,8 +579,7 @@ pub fn forge_command(command: &[&str]) {
         }
         Err(e) => {
             panic!(
-                "Command 'forge {:?}' ran into an error without executing: {}",
-                command, e
+                "Command 'forge {command:?}' ran into an error without executing: {e}"
             );
         }
     }
@@ -667,7 +666,7 @@ pub async fn get_l1_block_hash_of_layer2_block(
     let block_topic = H256::from_uint(&block_number.into_raw());
 
     let latest_block = client.get_block_number().await.map_err(|e| {
-        NightfallContractError::ProviderError(format!("get_block_number error: {}", e))
+        NightfallContractError::ProviderError(format!("get_block_number error: {e}"))
     })?;
 
     let event_sig = H256::from(keccak256("BlockProposed(int256)"));
@@ -681,7 +680,7 @@ pub async fn get_l1_block_hash_of_layer2_block(
     let logs = client
         .get_logs(&filter)
         .await
-        .map_err(|e| NightfallContractError::ProviderError(format!("Provider error: {}", e)))?;
+        .map_err(|e| NightfallContractError::ProviderError(format!("Provider error: {e}")))?;
 
     // get the first log, as we only check first l1 block which contains the block number
     let log = logs
@@ -696,7 +695,7 @@ pub async fn get_l1_block_hash_of_layer2_block(
         .get_transaction(tx_hash)
         .await
         .map_err(|e| {
-            NightfallContractError::ProviderError(format!("get_transaction error: {}", e))
+            NightfallContractError::ProviderError(format!("get_transaction error: {e}"))
         })?
         .ok_or(NightfallContractError::TransactionNotFound(tx_hash))?;
 
@@ -843,8 +842,7 @@ pub async fn create_nf3_deposit_transaction(
         .map_err(|e| TestError::new(e.to_string()))?
         .to_string();
     info!(
-        "Deposit transaction {} has been accepted by the client",
-        returned_id
+        "Deposit transaction {returned_id} has been accepted by the client"
     );
     let mut deposit_data = vec![];
 
@@ -900,8 +898,7 @@ pub async fn create_nf3_transfer_transaction(
         .map_err(|e| TestError::new(e.to_string()))?
         .to_string();
     info!(
-        "Transfer transaction {} has been accepted by the client",
-        returned_id
+        "Transfer transaction {returned_id} has been accepted by the client"
     );
     Ok(Uuid::parse_str(&returned_id).unwrap())
 }
@@ -937,8 +934,7 @@ pub async fn create_nf3_withdraw_transaction(
     let status = res.status();
     assert!(
         status == StatusCode::OK || status == StatusCode::ACCEPTED,
-        "Unexpected status code: {}",
-        status
+        "Unexpected status code: {status}"
     );
     let returned_id = res
         .headers()
@@ -959,8 +955,7 @@ pub async fn create_nf3_withdraw_transaction(
     };
 
     info!(
-        "Withdraw transaction {} has been accepted by the client",
-        returned_id
+        "Withdraw transaction {returned_id} has been accepted by the client"
     );
     Ok((
         Uuid::parse_str(&returned_id).unwrap(),
@@ -976,7 +971,7 @@ pub async fn get_balance(
 ) -> Result<String, TestError> {
     let erc_address = token_type.address();
     let url = url
-        .join(&format!("{}/{}", erc_address, token_id))
+        .join(&format!("{erc_address}/{token_id}"))
         .map_err(|e| TestError::new(e.to_string()))?;
     let res = client
         .get(url)
@@ -1371,8 +1366,7 @@ mod tests {
         for hash in tx_hashes {
             assert!(
                 found_hashes.contains(&hash),
-                "Transaction hash {:?} not found in last n blocks",
-                hash
+                "Transaction hash {hash:?} not found in last n blocks"
             );
         }
     }

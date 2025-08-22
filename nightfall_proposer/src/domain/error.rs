@@ -25,7 +25,7 @@ impl<E: Display> Display for MerkleTreeError<E> {
             Self::TreeIsFull => write!(f, "The tree is full"),
             Self::IncorrectBatchSize => write!(f, "Incorrect batch size"),
             Self::NoLeaves => write!(f, "No leaves"),
-            Self::DatabaseError(e) => write!(f, "Database error {}", e),
+            Self::DatabaseError(e) => write!(f, "Database error {e}"),
             Self::TreeNotFound => write!(f, "Tree not found"),
             Self::TreeAlreadyExists => write!(f, "Tree already exists"),
             Self::SerializationError => write!(f, "Serialization error "),

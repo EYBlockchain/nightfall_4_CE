@@ -23,6 +23,7 @@ impl<M> NightfallContract for Nightfall<M> {
         let nightfall = Nightfall::new(nightfall_address, client);
 
         let blk = NightfallBlock::from(block);
+
         let receipt = nightfall
             .propose_block(blk)
             .send()

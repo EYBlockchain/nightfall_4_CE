@@ -21,7 +21,7 @@ async fn handle_webhook(
     responses: Arc<Mutex<Vec<serde_json::Value>>>,
     payload: serde_json::Value,
 ) -> Result<warp::http::StatusCode, warp::Rejection> {
-    debug!("Received webhook payload: {:#?}", payload);
+    debug!("Received webhook payload: {payload:#?}");
     let mut responses = responses.lock().await;
     responses.push(payload);
     // Respond with a 200 OK status
@@ -43,25 +43,25 @@ pub async fn poll_queue() {
     loop {
         // poll the queue
         let response = client
-            .get(format!("{}/v1/queue", url))
+            .get(format!("{url}/v1/queue"))
             .send()
             .await
             .unwrap();
         if response.status().is_success() {
             let body = response.text().await.unwrap();
-            debug!("Client 1 Queue length is : {}", body);
+            debug!("Client 1 Queue length is : {body}");
         } else {
             warn!("Failed to poll the queue");
         }
         // poll the queue for client 2
         let response2 = client
-            .get(format!("{}/v1/queue", url2))
+            .get(format!("{url2}/v1/queue"))
             .send()
             .await
             .unwrap();
         if response2.status().is_success() {
             let body2 = response2.text().await.unwrap();
-            debug!("Client 2 Queue length is : {}", body2);
+            debug!("Client 2 Queue length is : {body2}");
         } else {
             warn!("Failed to poll the queue");
         }

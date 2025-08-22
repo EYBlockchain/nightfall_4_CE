@@ -120,7 +120,7 @@ impl<E: Display> Display for MerkleTreeError<E> {
             Self::TreeIsFull => write!(f, "The tree is full"),
             Self::IncorrectBatchSize => write!(f, "Incorrect batch size"),
             Self::NoLeaves => write!(f, "No leaves"),
-            Self::DatabaseError(e) => write!(f, "Database error {}", e),
+            Self::DatabaseError(e) => write!(f, "Database error {e}"),
             Self::TreeNotFound => write!(f, "Tree not found"),
             Self::TreeAlreadyExists => write!(f, "Tree already exists"),
             Self::LeafExists => write!(f, "Leaf already exists"),
@@ -128,8 +128,8 @@ impl<E: Display> Display for MerkleTreeError<E> {
             Self::InvalidProof => write!(f, "Invalid proof"),
             Self::ItemNotFound => write!(f, "Item not found"),
             Self::InvalidIndex => write!(f, "Invalid index"),
-            Self::Error(e) => write!(f, "Error {}", e),
-            Self::HashingError(e) => write!(f, "Hashing error {}", e),
+            Self::Error(e) => write!(f, "Error {e}"),
+            Self::HashingError(e) => write!(f, "Hashing error {e}"),
         }
     }
 }

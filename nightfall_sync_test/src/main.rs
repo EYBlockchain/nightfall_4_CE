@@ -23,7 +23,7 @@ async fn main() {
     let res = client.get(url).send().await.unwrap();
     res.error_for_status_ref().unwrap();
     let response = res.json::<u64>().await.unwrap();
-    debug!("Proposer 1 block number: {}", response);
+    debug!("Proposer 1 block number: {response}");
     // Query the second proposer, and give it a chance to resync
     let mut response_2 = 0;
     let mut count = 0;
@@ -39,12 +39,11 @@ async fn main() {
         count += 1;
         if count > 20 {
             panic!(
-                "Proposer 2 is not syncing. Block count is {} versus {}",
-                response_2, response
+                "Proposer 2 is not syncing. Block count is {response_2} versus {response}"
             );
         }
     }
-    debug!("Proposer 2 block number: {}", response_2);
+    debug!("Proposer 2 block number: {response_2}");
     // as a check, get a proposer list
     let url = Url::parse(&settings.nightfall_client.url)
         .unwrap()
@@ -53,7 +52,7 @@ async fn main() {
     let res = client.get(url).send().await.unwrap();
     res.error_for_status_ref().unwrap();
     let list = res.json::<Vec<Proposer>>().await.unwrap();
-    info!("Proposer list: {:?}", list);
+    info!("Proposer list: {list:?}");
     // prepare Proposer 2 valid certificate
     info!("Verifying Proposer 2 certificate");
     let proposer_2_cert =
@@ -97,7 +96,7 @@ async fn main() {
     let res = client.get(url).send().await.unwrap();
     res.error_for_status_ref().unwrap();
     let list = res.json::<Vec<Proposer>>().await.unwrap();
-    info!("Proposer list: {:?}", list);
+    info!("Proposer list: {list:?}");
 
     // and by now we should have done enough blocks to rotate to it
     info!("Rotating proposers");
@@ -116,7 +115,7 @@ async fn main() {
     let res = client.get(url).send().await.unwrap();
     res.error_for_status_ref().unwrap();
     let list = res.json::<Vec<Proposer>>().await.unwrap();
-    info!("Proposer list: {:?}", list);
+    info!("Proposer list: {list:?}");
     // rotating the proposer now, should fail
     info!("Rotating proposers again");
     let url = Url::parse(&settings.nightfall_proposer.url)
