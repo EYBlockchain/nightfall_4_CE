@@ -121,7 +121,7 @@ contract RollupProofVerifier is INFVerifier{
      * @param proofBytes- array of serialized proof data: every elements is 32 bytes
      * @param publicInputsHashBytes- bytes of public data
      */
-function verify(bytes calldata proofBytes, bytes calldata publicInputsHashBytes) external view override returns (bool result) {
+function verify(bytes calldata acc_proof, bytes calldata proofBytes, bytes calldata publicInputsHashBytes) external view override returns (bool result) {
         // parse the hardecoded vk and construct a vk object
         Types.VerificationKey memory vk = get_verification_key();
         // parse the second part of calldata to get public input
@@ -153,8 +153,46 @@ function verify(bytes calldata proofBytes, bytes calldata publicInputsHashBytes)
             decoded_proof,
             full_challenges
         );
-        result = verify_OpeningProof(full_challenges, pcsInfo, decoded_proof, vk);
+        // bool rollup_proof_verification_result = verify_OpeningProof(full_challenges, pcsInfo, decoded_proof, vk);
+
+        // bool acc_verification_result = verify_accumulation(
+        //     acc_proof,
+        //     vk
+        // );
+
+        return (verify_OpeningProof(full_challenges, pcsInfo, decoded_proof, vk) && verify_accumulation(
+            acc_proof,
+            vk
+        ));
     }
+
+    function verify_accumulation(
+        bytes calldata acc_proof,
+        Types.VerificationKey memory vk
+    ) internal view returns (bool) {
+    require(acc_proof.length == 256, "Invalid accumulator proof length");
+    bytes32[8] memory acc;
+    for (uint i = 0; i < 8; i++) {
+        acc[i] = bytes32(acc_proof[i*32:(i+1)*32]);
+    }
+    //blk.rollup_proof[32:64], accumulator_1_comm_x, acc[0]
+    //blk.rollup_proof[64:96], accumulator_1_comm_y, acc[1]
+    //blk.rollup_proof[96:128], accumulator_1_proof_x, acc[2]
+    //blk.rollup_proof[128:160], accumulator_1_proof_y, acc[3]
+    //blk.rollup_proof[160:192], accumulator_2_comm_x, acc[4]
+    //blk.rollup_proof[192:224], accumulator_2_comm_y, acc[5]
+    //blk.rollup_proof[224:256], accumulator_2_proof2_x, acc[6]
+    //blk.rollup_proof[256:288], accumulator_2_proof2_y, acc[7]
+
+    // First accumulator
+    Types.G1Point memory comm = Types.G1Point(uint256(acc[0]), uint256(acc[1]));
+    Types.G1Point memory proof = Types.G1Point(uint256(acc[2]), uint256(acc[3]));
+
+    Types.G1Point memory left1 = proof;
+    Types.G1Point memory left2 = comm;
+    bool res = Bn254Crypto.pairingProd2(left2, vk.beta_h, left1, vk.h);
+    return res;
+}
 
     /**
      * @dev Compute polynomial commitment evaluation info
