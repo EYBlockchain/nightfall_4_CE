@@ -148,21 +148,17 @@ function verify(bytes calldata acc_proof, bytes calldata proofBytes, bytes calld
         uint256[] memory public_inputs = new uint256[](vk.num_inputs);
         public_inputs[0] = public_inputs_hash;
         // compute polynomial commitment evaluation info
-        // Types.PcsInfo memory pcsInfo = prepare_PcsInfo(
-        //     vk,
-        //     public_inputs,
-        //     decoded_proof,
-        //     full_challenges
-        // );
-        // console.log("rollup_proof_verification_result: ", verify_OpeningProof(full_challenges, pcsInfo, decoded_proof, vk));
-        console.log("acc_verification_result: ", verify_accumulation(acc_proof, vk));
+        Types.PcsInfo memory pcsInfo = prepare_PcsInfo(
+            vk,
+            public_inputs,
+            decoded_proof,
+            full_challenges
+        );
 
-        // return (verify_OpeningProof(full_challenges, pcsInfo, decoded_proof, vk) && verify_accumulation(
-        //     acc_proof,
-        //     vk
-        // ));
-        return true;
-        // return (verify_OpeningProof(full_challenges, pcsInfo, decoded_proof, vk));
+        return (verify_OpeningProof(full_challenges, pcsInfo, decoded_proof, vk) && verify_accumulation(
+            acc_proof,
+            vk
+        ));
     }
 
     function verify_accumulation(
@@ -184,20 +180,10 @@ function verify(bytes calldata acc_proof, bytes calldata proofBytes, bytes calld
     //blk.rollup_proof[256:288], accumulator_2_proof2_y, acc[7]
 
     // First accumulator
-    Types.G1Point memory comm = Types.G1Point(uint256(acc[0]), uint256(acc[1]));
-    Types.G1Point memory proof = Types.G1Point(uint256(acc[2]), uint256(acc[3]));
-
-    console.log("comm: ", comm.x, comm.y);
-    console.log("proof: ", proof.x, proof.y);
-
-    console.log("comm: ", Bn254Crypto.negate_G1Point(comm).x, Bn254Crypto.negate_G1Point(comm).y);
-    console.log("proof: ", Bn254Crypto.negate_G1Point(proof).x, Bn254Crypto.negate_G1Point(proof).y);
-
-    Types.G1Point memory left1 = proof;
-    Types.G1Point memory left2 = Bn254Crypto.negate_G1Point(comm);
-    bool res = Bn254Crypto.pairingProd2(left1, vk.beta_h, left2, vk.h);
-    console.log("acc result: ", res);
-    return res;
+    bool res_1 = Bn254Crypto.pairingProd2(Types.G1Point(uint256(acc[2]), uint256(acc[3])), vk.beta_h, Bn254Crypto.negate_G1Point(Types.G1Point(uint256(acc[0]), uint256(acc[1]))), vk.h);
+    // Second accumulator
+    bool res_2 = Bn254Crypto.pairingProd2(Types.G1Point(uint256(acc[6]), uint256(acc[7])), vk.beta_h, Bn254Crypto.negate_G1Point(Types.G1Point(uint256(acc[4]), uint256(acc[5]))), vk.h);
+    return (res_1 && res_2);
 }
 
     /**
