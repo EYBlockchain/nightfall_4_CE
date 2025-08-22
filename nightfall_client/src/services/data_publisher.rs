@@ -27,7 +27,7 @@ impl DataPublisher {
         for result in results {
             match result {
                 Ok(_) => log::debug!("Notification sent successfully"),
-                Err(e) => log::warn!("Failed to send notification: {}", e),
+                Err(e) => log::warn!("Failed to send notification: {e}"),
             }
         }
     }

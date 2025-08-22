@@ -75,7 +75,7 @@ impl ProvingEngine<PlonkProof> for PlonkProvingEngine {
                 &mut rng, &circuit, pk, None,
             )
             .map_err(|e| {
-                error!("Error generating proof: {:?}", e);
+                error!("Error generating proof: {e:?}");
                 e
             })?;
         debug!("Plonk proof generated");
