@@ -12,6 +12,9 @@ contract MockVerifier is INFVerifier {
         bytes calldata proofBytes, 
         bytes calldata publicInputsHashBytes
     ) external view override returns (bool result) {
+        accBytes;
+        proofBytes;
+        publicInputsHashBytes;
         result = defaultResult;
         return result;
     }
