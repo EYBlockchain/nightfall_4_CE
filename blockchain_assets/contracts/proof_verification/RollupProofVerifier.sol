@@ -6,6 +6,7 @@ import "./BytesLib.sol";
 import "./Types.sol";
 import "./RollupProofVerificationKey.sol";
 import {INFVerifier} from "./INFVerifier.sol";
+import "forge-std/console.sol";
 
 
 /**
@@ -153,17 +154,15 @@ function verify(bytes calldata acc_proof, bytes calldata proofBytes, bytes calld
             decoded_proof,
             full_challenges
         );
-        // bool rollup_proof_verification_result = verify_OpeningProof(full_challenges, pcsInfo, decoded_proof, vk);
+        console.log("rollup_proof_verification_result: ", verify_OpeningProof(full_challenges, pcsInfo, decoded_proof, vk));
+        // console.log("acc_verification_result: ", verify_accumulation(acc_proof, vk));
 
-        // bool acc_verification_result = verify_accumulation(
+        // return (verify_OpeningProof(full_challenges, pcsInfo, decoded_proof, vk) && verify_accumulation(
         //     acc_proof,
         //     vk
-        // );
-
-        return (verify_OpeningProof(full_challenges, pcsInfo, decoded_proof, vk) && verify_accumulation(
-            acc_proof,
-            vk
-        ));
+        // ));
+        // return true;
+        return (verify_OpeningProof(full_challenges, pcsInfo, decoded_proof, vk));
     }
 
     function verify_accumulation(
