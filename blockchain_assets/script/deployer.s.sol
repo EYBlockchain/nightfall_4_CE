@@ -5,12 +5,21 @@ import {Script} from "@forge-std/Script.sol";
 import "@forge-std/StdToml.sol";
 import "../contracts/Nightfall.sol";
 import "../contracts/RoundRobin.sol";
+
+// Verifier stack
 import "../contracts/proof_verification/MockVerifier.sol";
 import "../contracts/proof_verification/RollupProofVerifier.sol";
 import "../contracts/proof_verification/INFVerifier.sol";
+import "../contracts/proof_verification/IVKProvider.sol";
+
+// X509 & sanctions
 import "../contracts/X509/X509.sol";
 import "../contracts/SanctionsListMock.sol";
 import "../contracts/X509/Certified.sol";
+
+// OZ Foundry Upgrades
+import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
+
 
 contract Deployer is Script {
     struct RoundRobinConfig {
@@ -39,11 +48,15 @@ contract Deployer is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
+        // (1) Deploy VK provider UUPS proxy first
+        address vkProxy = deployVKProvider(toml);
+
+        // (2) Deploy verifier & sanctions; set vkProvider on the verifier (owner-only)
         INFVerifier verifier;
         SanctionsListInterface sanctionsList;
+        (verifier, sanctionsList) = initializeVerifierAndSanctions(toml, vkProxy);
 
-        (verifier, sanctionsList) = initializeVerifierAndSanctions(toml);
-
+        // (3) X509 + Nightfall wiring 
         X509 x509Contract = new X509(deployerAddress);
         X509Interface x509 = X509Interface(address(x509Contract));
 
@@ -79,6 +92,26 @@ contract Deployer is Script {
         vm.stopBroadcast();
     }
 
+    // ---------- Deploy the UUPS VK provider proxy ----------
+    function deployVKProvider(string memory toml) internal returns (address vkProxy) {
+        // Read VK params from TOML
+        uint256 domainSize    = toml.readUint(string.concat(runMode, ".verifier.domain_size"));
+        // uint256 nPublicInputs = toml.readUint(string.concat(runMode, ".verifier.n_public_inputs"));
+
+        // Encode initializer for RollupProofVerificationKeyUUPS.initialize(uint256,uint256)
+        bytes memory init = abi.encodeWithSignature(
+            "initialize(uint256,uint256)",
+            domainSize
+            // nPublicInputs
+        );
+
+        // Artifact path must match your repo structure (contracts/proof_verification/…)
+        vkProxy = Upgrades.deployUUPSProxy(
+            "proof_verification/RollupProofVerificationKeyUUPS.sol:RollupProofVerificationKeyUUPS",
+            init
+        );
+    }
+
     function readRoundRobinConfig(string memory toml)
         internal
         view
@@ -95,25 +128,39 @@ contract Deployer is Script {
         return config;
     }
 
+    // ---------- CHANGED: pass vkProxy, set it on the verifier after deploy ----------
     function initializeVerifierAndSanctions(
-        string memory toml
+        string memory toml,
+        address vkProxy
     )
         internal
         returns (INFVerifier verifier, SanctionsListInterface sanctionsList)
     {
-        string memory mockProver = string.concat(runMode, ".mock_prover");
+        // Sanctions
+        // string memory mockProver = string.concat(runMode, ".mock_prover");
         if (toml.readBool(string.concat(runMode, ".test_x509_certificates"))) {
             sanctionsList = new SanctionsListMock(address(0x123456789abcdef1234567890));
         } else {
             sanctionsList = SanctionsListInterface(address(0x40C57923924B5c5c5455c48D93317139ADDaC8fb));
         }
-        if (toml.readBool(mockProver)) {
+        // Verifier
+        if (toml.readBool(string.concat(runMode, ".mock_prover"))) {
             verifier = new MockVerifier();
         } else {
-            verifier = new RollupProofVerifier();
+            // No-arg constructor; afterwards set the provider (owner-only)
+            RollupProofVerifier v = new RollupProofVerifier(vkProxy);
+            // v.setVKProvider(vkProxy);
+
+            // (optional) transfer ownership to a multisig specified in TOML
+            // address multisig = toml.readAddress(string.concat(runMode, ".owners.verifier_multisig"));
+            // if (multisig != address(0)) {
+            //     v.transferOwnership(multisig);
+            // }
+            verifier = new RollupProofVerifier(vkProxy);
         }
     }
 
+    // ---------- X509 helpers----------
     function configureX509locally(X509 x509Contract, string memory toml) internal {
         uint256 authorityKeyIdentifier = toml.readUint(string.concat(runMode, ".certificates.authority_key_identifier"));
         bytes memory modulus = vm.parseBytes(toml.readString(string.concat(runMode, ".certificates.modulus")));

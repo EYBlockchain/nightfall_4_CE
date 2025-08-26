@@ -4,8 +4,12 @@ pragma solidity >=0.6.0;
 pragma experimental ABIEncoderV2;
 import "./BytesLib.sol";
 import "./Types.sol";
-import "./RollupProofVerificationKey.sol";
+// import "./RollupProofVerificationKey.sol";
+import "./IVKProvider.sol";
+
 import {INFVerifier} from "./INFVerifier.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+
 
 
 /**
@@ -13,7 +17,8 @@ import {INFVerifier} from "./INFVerifier.sol";
 @dev Verifier Implementation for Nightfish Ultra plonk proof verification
 */
 
-contract RollupProofVerifier is INFVerifier{
+contract RollupProofVerifier is INFVerifier, Ownable{
+    IVKProvider public vkProvider;
     /**
         Calldata formatting:
         0x00 - 0x04 : function signature
@@ -26,9 +31,20 @@ contract RollupProofVerifier is INFVerifier{
     // Jiajie: You can find that when we use line assembly code in a function,
     // I define a p again, this is because line assembly code can only get local parameter
     uint256 public p;
-    constructor() {
+    // Inject the VK provider PROXY address at deployment
+    constructor(address vkProviderProxy) Ownable(msg.sender) {
         p = Bn254Crypto.r_mod;
+        vkProvider = IVKProvider(vkProviderProxy);
     }
+    event VKProviderUpdated(address indexed oldProvider, address indexed newProvider);
+    function setVKProvider(address newProvider) external onlyOwner {
+        require(newProvider != address(0), "zero addr");
+        emit VKProviderUpdated(address(vkProvider), newProvider);
+        vkProvider = IVKProvider(newProvider);
+    }
+    // constructor() {
+    //     p = Bn254Crypto.r_mod;
+    // }
 
     // A struct for compute_buffer_v_and_uv_basis_2() input parameters to avoid stack too deep error
     // compute_buffer_v_and_uv_basis() is devided into two functions to avoid stack too deep error
@@ -1488,12 +1504,13 @@ function add_plookup_commitments_helper1_4_2(
         Bn254Crypto.validate_G1Point(proof.opening_proof);
         Bn254Crypto.validate_G1Point(proof.shifted_opening_proof);
     }
- function get_verification_key()
+    function get_verification_key()
         internal
-        pure
+        view
         returns (Types.VerificationKey memory)
     {
-       return UltraPlonkVerificationKey.getVerificationKey();
+       return vkProvider.getVerificationKey();
+    //    return UltraPlonkVerificationKey.getVerificationKey();
     }
 
     function deserialize_proof(
