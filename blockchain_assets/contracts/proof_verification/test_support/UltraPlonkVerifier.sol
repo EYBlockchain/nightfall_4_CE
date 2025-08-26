@@ -2,8 +2,8 @@
 
 pragma solidity >=0.6.0;
 pragma experimental ABIEncoderV2;
-import "./BytesLib.sol";
-import "./Types.sol";
+import ".././BytesLib.sol";
+import ".././Types.sol";
 import "./UltraPlonkVerificationKey.sol";
 
 

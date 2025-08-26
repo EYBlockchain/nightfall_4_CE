@@ -5,7 +5,7 @@
 
     pragma solidity ^0.8.20; 
 
-    import "./Types.sol"; 
+    import ".././Types.sol"; 
 
         
     library UltraPlonkVerificationKey { 
