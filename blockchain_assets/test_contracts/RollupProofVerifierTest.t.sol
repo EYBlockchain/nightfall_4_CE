@@ -2,7 +2,6 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
-
 import "../contracts/Nightfall.sol";
 import "../contracts/X509/X509.sol";
 import "../contracts/SanctionsListMock.sol";
