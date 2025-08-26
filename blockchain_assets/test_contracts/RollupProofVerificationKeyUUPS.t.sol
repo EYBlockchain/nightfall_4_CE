@@ -1,4 +1,4 @@
-// test/RollupProofVerificationKeyUUPS.t.sol
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
@@ -10,24 +10,64 @@ contract VKProviderTest is Test {
 
     function setUp() public {
         vk = new RollupProofVerificationKeyUUPS();
-        // vk.initialize(0x2000000, 3); // example nPublicInputs = 3
-        vk.initialize(0x2000000);
+
+        // Build a minimal VK struct: set what you care about; the rest defaults to zero
+        Types.VerificationKey memory initVK;
+        initVK.domain_size = 0x2000000;
+
+        // NOTE: If your Types.VerificationKey uses `num_inputs` (not `nPublicInputs`), set it here:
+        // initVK.num_inputs = 1;
+
+        // Initialize with encoded struct
+        vk.initialize(abi.encode(initVK));
     }
 
     function testGetVK() public view {
         Types.VerificationKey memory t = vk.getVerificationKey();
-        assertEq(t.domain_size, 0x2000000);
-        // assertEq(t.nPublicInputs, 3);
+        assertEq(t.domain_size, 0x2000000, "domain_size mismatch after initialize");
+        // If your struct has num_inputs, you can assert it too:
+        // assertEq(t.num_inputs, 1);
     }
 
-    function testSetDomainSize() public {
-        vk.setDomainSize(0x2000000);
+    function testReplaceVK_UpdatesAllAndBumpsVersion() public {
+        // Prepare a new VK with a different domain size
+        Types.VerificationKey memory newVK;
+        newVK.domain_size = 0x3000000;
+        // newVK.num_inputs = 1; // if applicable
+
+        bytes32 oldHash = vk.vkHash();
+        uint64  oldVer  = vk.vkVersion();
+
+        vk.replaceVK(abi.encode(newVK));
+
         Types.VerificationKey memory t = vk.getVerificationKey();
-        assertEq(t.domain_size, 0x2000000);
+        assertEq(t.domain_size, 0x3000000, "domain_size not updated by replaceVK");
+
+        // Version increments
+        assertEq(vk.vkVersion(), oldVer + 1, "vkVersion did not increment");
+
+        // Hash changes
+        assertTrue(vk.vkHash() != oldHash, "vkHash did not change");
     }
 
-    function testRevertsOnNonPowerOfTwo() public {
-        vm.expectRevert(RollupProofVerificationKeyUUPS.DomainSizeMustBePowerOfTwo.selector);
-        vk.setDomainSize(12345);
+    function testOnlyOwnerCanReplace() public {
+        // another account tries to replace
+        address attacker = address(0xBEEF);
+        vm.prank(attacker);
+
+        Types.VerificationKey memory newVK;
+        newVK.domain_size = 0x4000000;
+
+        vm.expectRevert(); // OwnableUnauthorizedAccount (OZ v5)
+        vk.replaceVK(abi.encode(newVK));
+    }
+
+    function testInitializeOnlyOnce() public {
+        // Re-initialize must revert due to `initializer`
+        Types.VerificationKey memory again;
+        again.domain_size = 0x2000000;
+
+        vm.expectRevert(); // Initializable: contract is already initialized
+        vk.initialize(abi.encode(again));
     }
 }
