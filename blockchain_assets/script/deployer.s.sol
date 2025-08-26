@@ -93,19 +93,30 @@ contract Deployer is Script {
 
     // ---------- Deploy the UUPS VK provider proxy ----------
     function deployVKProvider(string memory toml) internal returns (address vkProxy) {
-        // Build the full VK struct from TOML
+        // 1) Build full VK from TOML
         Types.VerificationKey memory vk = readVKFromToml(toml);
 
-        // ABI-encode and pass to initialize(bytes)
+        // 2) Encode initializer for initialize(bytes)
         bytes memory vkBlob = abi.encode(vk);
-        bytes memory init = abi.encodeWithSignature("initialize(bytes)", vkBlob);
+        bytes memory init   = abi.encodeWithSignature("initialize(bytes)", vkBlob);
 
-        // contracts/proof_verification/… must match your repo structure
+        // 3) Deploy UUPS proxy
         vkProxy = Upgrades.deployUUPSProxy(
             "proof_verification/RollupProofVerificationKeyUUPS.sol:RollupProofVerificationKeyUUPS",
             init
         );
+
+        // 4) Optional: transfer ownership to configured address
+        string memory ownerKey = string.concat(runMode, ".owners.vk_provider_owner");
+        if (toml.hasKey(ownerKey)) {
+            address newOwner = toml.readAddress(ownerKey);
+            if (newOwner != address(0) && newOwner != msg.sender) {
+                // Cast the proxy to the implementation type to call Ownable on it
+                RollupProofVerificationKeyUUPS(vkProxy).transferOwnership(newOwner);
+            }
+        }
     }
+}
 
     // ---------- Build VK from TOML ----------
     function readVKFromToml(string memory toml) internal view returns (Types.VerificationKey memory vk) {
@@ -193,7 +204,7 @@ contract Deployer is Script {
 
     // ---------- TOML helpers ----------
     // Read a hex array like [ "0x..", "0x.." ] and parse element i to uint256
-    function parseHexUintFromArray(string memory toml, string memory key, uint256 i) internal pure returns (uint256) {
+    function parseHexUintFromArray(string memory toml, string memory key, uint256 i) internal view returns (uint256) {
         string[] memory arr = toml.readStringArray(key);
         require(i < arr.length, "TOML array index OOB");
         return parseHexToUint256(arr[i]);
