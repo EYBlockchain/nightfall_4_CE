@@ -22,7 +22,7 @@ contract UltraPlonkVerifierTest is Test {
     }
     
     // Completeness: valid proof and public input
-    function testValidProofVerification() public {
+    function testValidProofVerification() public view {
         bool verified = verifier.verify(proofBytes, publicDataBytes);
         assertTrue(verified, "Proof should be verified successfully");
     }
@@ -37,7 +37,7 @@ contract UltraPlonkVerifierTest is Test {
 
    // Soundness: Copy wires_poly_comms_1 into wires_poly_comms_2
 // Both are valid G1 points, but this breaks the integrity of the proof
-function testDuplicatedG1PointFailsVerification() public {
+function testDuplicatedG1PointFailsVerification() public view {
      // Make deep copy
     bytes memory modifiedProof = new bytes(proofBytes.length);
     for (uint i = 0; i < proofBytes.length; i++) {
@@ -80,7 +80,7 @@ function testDuplicatedG1PointFailsVerification() public {
 
 
     // Soundness: Modify public input slightly
-    function testWrongPublicInputFailsVerification() public {
+    function testWrongPublicInputFailsVerification() public view {
         bytes memory wrongPublicInput = bytes(publicDataBytes);
         wrongPublicInput[31] ^= 0x01; // Flip LSB of input
 
@@ -89,7 +89,7 @@ function testDuplicatedG1PointFailsVerification() public {
     }
 
     // Soundness: Empty public input
-    function testEmptyPublicInputFailsVerification() public {
+    function testEmptyPublicInputFailsVerification() public view {
         bytes memory emptyInput = new bytes(0);
 
         bool verified = verifier.verify(proofBytes, emptyInput);
