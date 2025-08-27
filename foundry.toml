@@ -1,6 +1,7 @@
 [profile.default]
 src = "blockchain_assets/contracts"
 out = "blockchain_assets/artifacts"
+build_info = true
 ast = true
 ffi = true
 script = "blockchain_assets/script"
