@@ -962,6 +962,9 @@ impl RecursiveProver for RollupProver {
 
 /// This struct is used for the recursive proving of the rollup prover.
 /// It is the result of running the `prepare_state_transition` function.
+/// 
+/// 
+#[derive(Debug)]
 pub struct RollupPreppedInfo {
     pub outputs_and_circuit_type: Vec<(Bn254Output, VerifyingKey<Kzg>)>,
     pub specific_pi: Vec<Vec<Fr254>>,
