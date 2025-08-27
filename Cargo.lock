@@ -4379,6 +4379,7 @@ dependencies = [
 name = "nightfall_deployer"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "ark-bn254",
  "ark-ec",
  "ark-ed-on-bn254",
@@ -4404,6 +4405,7 @@ dependencies = [
  "nightfall_proposer",
  "nightfall_test",
  "num-bigint",
+ "regex",
  "reqwest 0.11.27",
  "serde",
  "sha2 0.10.9",
@@ -5554,9 +5556,9 @@ dependencies = [
 
 [[package]]
 name = "regex"
-version = "1.11.1"
+version = "1.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b544ef1b4eac5dc2db33ea63606ae9ffcfac26c1416a2806ae0bf5f56b201191"
+checksum = "23d7fd106d8c02486a8d64e778353d1cffe08ce79ac2e82f540c86d0facf6912"
 dependencies = [
  "aho-corasick",
  "memchr",

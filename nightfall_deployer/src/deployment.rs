@@ -9,7 +9,7 @@ use nightfall_proposer::driven::rollup_prover::RollupProver;
 use std::{error::Error, os::unix::process::ExitStatusExt};
 use url::Url;
 
-use crate::vk_contract::create_vk_contract;
+use crate::vk_contract::write_vk_to_nightfall_toml;
 
 pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn Error>> {
     // The deployment script will need to know the run mode we are in so that it can use the correct configuration.
@@ -19,7 +19,8 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn Error>>
     if !settings.mock_prover && settings.contracts.deploy_contracts {
         forge_command(&["build", "--force"]);
         let vk = RollupProver::get_decider_vk();
-        create_vk_contract::<false>(&vk, settings);
+        // create_vk_contract::<false>(&vk, settings);
+        let _ = write_vk_to_nightfall_toml(&vk);
     }
 
     forge_command(&[

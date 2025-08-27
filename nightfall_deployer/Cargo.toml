@@ -13,6 +13,8 @@ path = "bin/key_generation.rs"
 jf-utils = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", features = [
     "parallel",
 ] }
+anyhow = "1.0.99"
+regex = "1.11.2"
 itertools = "0.10.5"
 dotenv = "0.15.0"
 ethers = { version = "2.0.14", features = ["ws"] }
