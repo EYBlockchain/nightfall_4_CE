@@ -92,13 +92,13 @@ pub mod errors {
         __abi,
     );
     #[rustfmt::skip]
-    const __BYTECODE: &[u8] = b"`U`2`\x0B\x82\x82\x829\x80Q_\x1A`s\x14`&WcNH{q`\xE0\x1B_R_`\x04R`$_\xFD[0_R`s\x81S\x82\x81\xF3\xFEs\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x000\x14`\x80`@R__\xFD\xFE\xA2dipfsX\"\x12 M\x92\xA6`\x9F\xF7W/\0\xF1\xAD\x8Fq\xC2Yx\xDC\x88N\xCEc6\xAF\x84S9\xEE\xAB\"\x906&dsolcC\0\x08\x1C\x003";
+    const __BYTECODE: &[u8] = b"`U`2`\x0B\x82\x82\x829\x80Q_\x1A`s\x14`&WcNH{q`\xE0\x1B_R_`\x04R`$_\xFD[0_R`s\x81S\x82\x81\xF3\xFEs\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x000\x14`\x80`@R_\x80\xFD\xFE\xA2dipfsX\"\x12 I\xFA\xC9e\xF8r\xF0r\xFF\x90\xA4\xE7Zk:\xF9\xD6\x1B\0\xE4\xDB;\xBF0zV=\x01T\xBA(\xCEdsolcC\0\x08\x18\x003";
     /// The bytecode of the contract.
     pub static ERRORS_BYTECODE: ::ethers::core::types::Bytes = ::ethers::core::types::Bytes::from_static(
         __BYTECODE,
     );
     #[rustfmt::skip]
-    const __DEPLOYED_BYTECODE: &[u8] = b"s\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x000\x14`\x80`@R__\xFD\xFE\xA2dipfsX\"\x12 M\x92\xA6`\x9F\xF7W/\0\xF1\xAD\x8Fq\xC2Yx\xDC\x88N\xCEc6\xAF\x84S9\xEE\xAB\"\x906&dsolcC\0\x08\x1C\x003";
+    const __DEPLOYED_BYTECODE: &[u8] = b"s\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x000\x14`\x80`@R_\x80\xFD\xFE\xA2dipfsX\"\x12 I\xFA\xC9e\xF8r\xF0r\xFF\x90\xA4\xE7Zk:\xF9\xD6\x1B\0\xE4\xDB;\xBF0zV=\x01T\xBA(\xCEdsolcC\0\x08\x18\x003";
     /// The deployed bytecode of the contract.
     pub static ERRORS_DEPLOYED_BYTECODE: ::ethers::core::types::Bytes = ::ethers::core::types::Bytes::from_static(
         __DEPLOYED_BYTECODE,

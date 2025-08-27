@@ -245,7 +245,8 @@ nf4_deployer       |
 nf4_deployer       |     
 nf4_configuration  | 2025/08/27 20:50:17 [crit] 29#29: *1 open() "/var/www/html/configuration/toml/addresses.toml.0000000002" failed (13: Permission denied), client: 172.18.0.7, server: , request: "PUT /configuration/toml/addresses.toml HTTP/1.1", host: "configuration"
 nf4_configuration  | 172.18.0.7 - - [27/Aug/2025:20:50:17 +0000] "PUT /configuration/toml/addresses.toml HTTP/1.1" 500 177 "-" "-" "-"
-[Knf4_deployer exited with code 0
+
+[Knf4_deployer exited with code 0
 nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:50:18Z [0m[32mINFO [0m nightfall_proposer[0m[38;5;8m][0m Dropping database: nightfall
 nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:50:18Z [0m[32mINFO [0m nightfall_proposer[0m[38;5;8m][0m Using RollupProver
 nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:50:18Z [0m[32mINFO [0m nightfall_proposer::drivers::blockchain::nightfall_event_listener[0m[38;5;8m][0m Proposer event listener (attempt 1)...
