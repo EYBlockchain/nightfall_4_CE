@@ -1,159 +1,159 @@
 Attaching to anvil, nf4_client, nf4_client2, nf4_configuration, nf4_db_client, nf4_db_client2, nf4_db_proposer, nf4_deployer, nf4_proposer, nf4_test
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: using the "epoll" event method
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: nginx/1.29.1
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: built by gcc 12.2.0 (Debian 12.2.0-14+deb12u1) 
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: OS: Linux 6.8.0-1014-azure
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: getrlimit(RLIMIT_NOFILE): 1048576:1048576
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker processes
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 29
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 30
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 31
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 32
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 33
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 34
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 35
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 36
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 37
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 38
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 39
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 40
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 41
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 42
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 43
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 44
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 45
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 46
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 47
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 48
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 49
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 50
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 51
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 52
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 53
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 54
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 55
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 56
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 57
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 58
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 59
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 60
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 61
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 62
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 63
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 64
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 65
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 66
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 67
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 68
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 69
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 70
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 71
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 72
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 73
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 74
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 75
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 76
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 77
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 78
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 79
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 80
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 81
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 82
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 83
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 84
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 85
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 86
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 87
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 88
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 89
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 90
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 91
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 92
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 93
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 94
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 95
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 96
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 97
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 98
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 99
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 100
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 101
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 102
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 103
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 104
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 105
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 106
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 107
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 108
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 109
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 110
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 111
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 112
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 113
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 114
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 115
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 116
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 117
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 118
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 119
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 120
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 121
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 122
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 123
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 124
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 125
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 126
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 127
 anvil              | Waiting for anvil to be ready... (1)
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 128
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 129
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 130
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 131
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 132
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 133
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 134
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 135
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 136
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 137
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 138
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 139
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 140
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 141
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 142
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 143
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 144
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 145
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 146
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 147
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 148
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 149
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 150
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 151
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 152
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 153
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 154
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 155
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 156
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 157
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 158
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 159
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 160
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 161
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 162
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 163
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 164
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 165
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 166
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 167
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 168
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 169
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 170
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 171
-nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 172
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: using the "epoll" event method
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: nginx/1.29.1
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: built by gcc 12.2.0 (Debian 12.2.0-14+deb12u1) 
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: OS: Linux 6.8.0-1014-azure
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: getrlimit(RLIMIT_NOFILE): 1048576:1048576
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker processes
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 29
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 30
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 31
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 32
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 33
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 34
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 35
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 36
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 37
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 38
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 39
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 40
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 41
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 42
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 43
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 44
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 45
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 46
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 47
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 48
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 49
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 50
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 51
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 52
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 53
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 54
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 55
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 56
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 57
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 58
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 59
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 60
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 61
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 62
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 63
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 64
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 65
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 66
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 67
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 68
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 69
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 70
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 71
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 72
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 73
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 74
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 75
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 76
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 77
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 78
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 79
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 80
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 81
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 82
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 83
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 84
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 85
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 86
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 87
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 88
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 89
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 90
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 91
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 92
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 93
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 94
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 95
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 96
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 97
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 98
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 99
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 100
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 101
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 102
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 103
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 104
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 105
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 106
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 107
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 108
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 109
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 110
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 111
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 112
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 113
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 114
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 115
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 116
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 117
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 118
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 119
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 120
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 121
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 122
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 123
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 124
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 125
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 126
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 127
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 128
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 129
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 130
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 131
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 132
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 133
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 134
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 135
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 136
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 137
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 138
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 139
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 140
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 141
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 142
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 143
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 144
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 145
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 146
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 147
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 148
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 149
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 150
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 151
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 152
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 153
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 154
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 155
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 156
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 157
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 158
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 159
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 160
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 161
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 162
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 163
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 164
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 165
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 166
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 167
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 168
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 169
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 170
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 171
+nf4_configuration  | 2025/08/27 22:37:12 [notice] 1#1: start worker process 172
 anvil              | Compiling 86 files with Solc 0.8.29
 anvil              | installing solc version "0.8.29"
 anvil              | Successfully installed solc 0.8.29
-anvil              | Solc 0.8.29 finished in 4.31s
+anvil              | Solc 0.8.29 finished in 4.84s
 anvil              | Compiler run successful!
 anvil              | Script ran successfully.
 anvil              | 
@@ -191,13 +191,13 @@ nf4_deployer       |
 nf4_deployer       | Nightfall_4,
 nf4_deployer       | https://github.com/EYBlockchain/nightfall_4_CE
 nf4_deployer       | 
-nf4_deployer       | [0m[38;5;8m[[0m2025-08-27T22:25:31Z [0m[32mINFO [0m nightfall_deployer[0m[38;5;8m][0m Deployer has started
-nf4_deployer       | [0m[38;5;8m[[0m2025-08-27T22:25:31Z [0m[32mINFO [0m nightfall_deployer[0m[38;5;8m][0m Deploying contracts
-nf4_deployer       | [0m[38;5;8m[[0m2025-08-27T22:25:31Z [0m[32mINFO [0m nightfall_deployer::deployment[0m[38;5;8m][0m DEBUG: Running forge command: ["build", "--force"]
-nf4_deployer       | [0m[38;5;8m[[0m2025-08-27T22:25:37Z [0m[32mINFO [0m nightfall_deployer::deployment[0m[38;5;8m][0m Command 'forge ["build", "--force"]' executed successfully: Compiling 113 files with Solc 0.8.29
+nf4_deployer       | [0m[38;5;8m[[0m2025-08-27T22:37:28Z [0m[32mINFO [0m nightfall_deployer[0m[38;5;8m][0m Deployer has started
+nf4_deployer       | [0m[38;5;8m[[0m2025-08-27T22:37:28Z [0m[32mINFO [0m nightfall_deployer[0m[38;5;8m][0m Deploying contracts
+nf4_deployer       | [0m[38;5;8m[[0m2025-08-27T22:37:28Z [0m[32mINFO [0m nightfall_deployer::deployment[0m[38;5;8m][0m DEBUG: Running forge command: ["build", "--force"]
+nf4_deployer       | [0m[38;5;8m[[0m2025-08-27T22:37:34Z [0m[32mINFO [0m nightfall_deployer::deployment[0m[38;5;8m][0m Command 'forge ["build", "--force"]' executed successfully: Compiling 113 files with Solc 0.8.29
 nf4_deployer       |     installing solc version "0.8.29"
 nf4_deployer       |     Successfully installed solc 0.8.29
-nf4_deployer       |     Solc 0.8.29 finished in 5.61s
+nf4_deployer       |     Solc 0.8.29 finished in 5.64s
 nf4_deployer       |     Compiler run successful with warnings:
 nf4_deployer       |     Warning (2018): Function state mutability can be restricted to pure
 nf4_deployer       |        --> blockchain_assets/script/deployer.s.sol:209:5:
@@ -207,10 +207,10 @@ nf4_deployer       |         |     ^ (Relevant source part starts here and spans
 nf4_deployer       |     
 nf4_deployer       |     
 nf4_deployer       | Updated [development .verifier] in /app/nightfall.toml
-nf4_deployer       | [0m[38;5;8m[[0m2025-08-27T22:25:37Z [0m[32mINFO [0m nightfall_deployer::deployment[0m[38;5;8m][0m DEBUG: Running forge command: ["script", "Deployer", "--fork-url", "ws://anvil:8545", "--broadcast", "--force"]
-nf4_deployer       | [0m[38;5;8m[[0m2025-08-27T22:25:43Z [0m[1m[31mERROR[0m panic[0m[38;5;8m][0m thread 'main' panicked at 'Command 'forge ["script", "Deployer", "--fork-url", "ws://anvil:8545", "--broadcast", "--force"]' executed with failing error code: None
+nf4_deployer       | [0m[38;5;8m[[0m2025-08-27T22:37:34Z [0m[32mINFO [0m nightfall_deployer::deployment[0m[38;5;8m][0m DEBUG: Running forge command: ["script", "Deployer", "--fork-url", "ws://anvil:8545", "--broadcast", "--force"]
+nf4_deployer       | [0m[38;5;8m[[0m2025-08-27T22:37:40Z [0m[1m[31mERROR[0m panic[0m[38;5;8m][0m thread 'main' panicked at 'Command 'forge ["script", "Deployer", "--fork-url", "ws://anvil:8545", "--broadcast", "--force"]' executed with failing error code: None
 nf4_deployer       |     Standard Output: Compiling 103 files with Solc 0.8.29
-nf4_deployer       |     Solc 0.8.29 finished in 4.59s
+nf4_deployer       |     Solc 0.8.29 finished in 4.61s
 nf4_deployer       |     Compiler run successful with warnings:
 nf4_deployer       |     Warning (2018): Function state mutability can be restricted to pure
 nf4_deployer       |        --> blockchain_assets/script/deployer.s.sol:209:5:
@@ -238,26 +238,25 @@ nf4_deployer       |         │   └─ ← [Return] 0xf39Fd6e51aad88F6F4ce6aB
 nf4_deployer       |         ├─ [0] VM::startBroadcast(<pk>)
 nf4_deployer       |         │   └─ ← [Return] 
 nf4_deployer       |         ├─ [0] VM::parseTomlUint("<stringified TOML>", "$.development.verifier.domain_size") [staticcall]
-nf4_deployer       |         │   └─ ← [Revert] vm.parseTomlUint: failed parsing TOML: TOML parse error at line 85, column 18
+nf4_deployer       |         │   └─ ← [Revert] vm.parseTomlUint: failed parsing TOML: TOML parse error at line 85, column 20
 nf4_deployer       |        |
-nf4_deployer       |     85 | 7c6db5ddb9bde7fd0"
-nf4_deployer       |        |                  ^
+nf4_deployer       |     85 | c17c6db5ddb9bde7fd0"]
+nf4_deployer       |        |                    ^
 nf4_deployer       |     expected `.`, `=`
 nf4_deployer       |     
-nf4_deployer       |         └─ ← [Revert] vm.parseTomlUint: failed parsing TOML: TOML parse error at line 85, column 18
+nf4_deployer       |         └─ ← [Revert] vm.parseTomlUint: failed parsing TOML: TOML parse error at line 85, column 20
 nf4_deployer       |        |
-nf4_deployer       |     85 | 7c6db5ddb9bde7fd0"
-nf4_deployer       |        |                  ^
+nf4_deployer       |     85 | c17c6db5ddb9bde7fd0"]
+nf4_deployer       |        |                    ^
 nf4_deployer       |     expected `.`, `=`
 nf4_deployer       |     
 nf4_deployer       |     
 nf4_deployer       |     
 nf4_deployer       |     
-nf4_deployer       |     Standard Error: Error: script failed: vm.parseTomlUint: failed parsing TOML: TOML parse error at line 85, column 18
+nf4_deployer       |     Standard Error: Error: script failed: vm.parseTomlUint: failed parsing TOML: TOML parse error at line 85, column 20
 nf4_deployer       |        |
-nf4_deployer       |     85 | 7c6db5ddb9bde7fd0"
-nf4_deployer       |        |                  ^
+nf4_deployer       |     85 | c17c6db5ddb9bde7fd0"]
+nf4_deployer       |        |                    ^
 nf4_deployer       |     expected `.`, `=`
 nf4_deployer       |     
 nf4_deployer       |     ': nightfall_deployer/src/deployment.rs:98
-[Knf4_deployer exited with code 101
