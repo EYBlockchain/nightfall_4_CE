@@ -104,7 +104,7 @@ contract Deployer is Script {
 
         // 3) Deploy UUPS proxy
         vkProxy = Upgrades.deployUUPSProxy(
-            "proof_verification/RollupProofVerificationKeyUUPS.sol:RollupProofVerificationKeyUUPS",
+            "RollupProofVerificationKeyUUPS.sol:RollupProofVerificationKeyUUPS",
             init
         );
 
