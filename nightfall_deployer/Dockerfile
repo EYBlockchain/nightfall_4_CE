@@ -25,8 +25,20 @@ COPY configuration/bin/*_vk configuration/bin/
 # COPY configuration/toml/addresses.toml configuration/toml/
 COPY blockchain_assets blockchain_assets/
 COPY .env *.env nightfall.toml foundry.toml ./
+
+
+# RUN apt-get update && apt-get install -y --no-install-recommends \
+    # libssl3
+
+# Install libssl3 + Node.js (includes npm/npx via NodeSource)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libssl3
+      curl ca-certificates gnupg libssl3 \
+ && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+ && apt-get install -y --no-install-recommends nodejs \
+ && npm i -g @openzeppelin/upgrades-core@^1.37.0 \
+ && npm cache clean --force && rm -rf /var/lib/apt/lists/*
+
+
 COPY --from=foundry /usr/local/bin/forge ./forge    
 ENV PATH=/app:$PATH
 RUN mkdir -p nightfall_deployer/blockchain_assets
