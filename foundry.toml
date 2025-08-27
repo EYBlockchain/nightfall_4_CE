@@ -1,6 +1,7 @@
 [profile.default]
 src = "blockchain_assets/contracts"
 out = "blockchain_assets/artifacts"
+ast = true
 script = "blockchain_assets/script"
 libs = ["blockchain_assets/solidity_lib"]
 test = "blockchain_assets/test_contracts"
