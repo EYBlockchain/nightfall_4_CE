@@ -556,9 +556,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
                 Some(())
             }
             Err(e) => {
-                error!(
-                    "Got an error inserting commitment: {commitment:#?}, {e}"
-                );
+                error!("Got an error inserting commitment: {commitment:#?}, {e}");
                 None
             }
         }

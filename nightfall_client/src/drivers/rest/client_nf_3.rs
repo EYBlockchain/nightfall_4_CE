@@ -490,9 +490,7 @@ where
             .unwrap(),
     )
     .map_err(|e| {
-        error!(
-            "{id} Could not parse compressed recipient public key from String: {e}"
-        );
+        error!("{id} Could not parse compressed recipient public key from String: {e}");
         TransactionHandlerError::CustomError(e.to_string())
     })?;
 

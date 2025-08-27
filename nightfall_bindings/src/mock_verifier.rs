@@ -22,6 +22,13 @@ pub mod mock_verifier {
                             name: ::std::borrow::ToOwned::to_owned("verify"),
                             inputs: ::std::vec![
                                 ::ethers::core::abi::ethabi::Param {
+                                    name: ::std::borrow::ToOwned::to_owned("accBytes"),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::Bytes,
+                                    internal_type: ::core::option::Option::Some(
+                                        ::std::borrow::ToOwned::to_owned("bytes"),
+                                    ),
+                                },
+                                ::ethers::core::abi::ethabi::Param {
                                     name: ::std::borrow::ToOwned::to_owned("proofBytes"),
                                     kind: ::ethers::core::abi::ethabi::ParamType::Bytes,
                                     internal_type: ::core::option::Option::Some(
@@ -64,13 +71,13 @@ pub mod mock_verifier {
         __abi,
     );
     #[rustfmt::skip]
-    const __BYTECODE: &[u8] = b"`\x80`@R_\x80T`\xFF\x19\x16`\x01\x17\x90U4\x80\x15a\0\x1BW_\x80\xFD[Pa\x01>\x80a\0)_9_\xF3\xFE`\x80`@R4\x80\x15a\0\x0FW_\x80\xFD[P`\x046\x10a\0)W_5`\xE0\x1C\x80c\xF7\xE8:\xEE\x14a\0-W[_\x80\xFD[a\0Ha\0;6`\x04a\0\xA1V[_T`\xFF\x16\x94\x93PPPPV[`@Q\x90\x15\x15\x81R` \x01`@Q\x80\x91\x03\x90\xF3[_\x80\x83`\x1F\x84\x01\x12a\0lW_\x80\xFD[P\x815g\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\x81\x11\x15a\0\x83W_\x80\xFD[` \x83\x01\x91P\x83` \x82\x85\x01\x01\x11\x15a\0\x9AW_\x80\xFD[\x92P\x92\x90PV[_\x80_\x80`@\x85\x87\x03\x12\x15a\0\xB4W_\x80\xFD[\x845g\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\x80\x82\x11\x15a\0\xCBW_\x80\xFD[a\0\xD7\x88\x83\x89\x01a\0\\V[\x90\x96P\x94P` \x87\x015\x91P\x80\x82\x11\x15a\0\xEFW_\x80\xFD[Pa\0\xFC\x87\x82\x88\x01a\0\\V[\x95\x98\x94\x97P\x95PPPPV\xFE\xA2dipfsX\"\x12 \x03\x88\xBBv\xC8\xB5\xAF)\xBB\x8D\xC7\xE9\xD6\x9A\x93C\xBAp \x89g&`y|p\x07Z\x0E\xBF?\x15dsolcC\0\x08\x18\x003";
+    const __BYTECODE: &[u8] = b"`\x80`@R_\x80T`\xFF\x19\x16`\x01\x17\x90U4\x80\x15a\0\x1BW_\x80\xFD[Pa\x01l\x80a\0)_9_\xF3\xFE`\x80`@R4\x80\x15a\0\x0FW_\x80\xFD[P`\x046\x10a\0)W_5`\xE0\x1C\x80c\xDE\x8FP\xA1\x14a\0-W[_\x80\xFD[a\0Ja\0;6`\x04a\0\xA3V[_T`\xFF\x16\x96\x95PPPPPPV[`@Q\x90\x15\x15\x81R` \x01`@Q\x80\x91\x03\x90\xF3[_\x80\x83`\x1F\x84\x01\x12a\0nW_\x80\xFD[P\x815g\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\x81\x11\x15a\0\x85W_\x80\xFD[` \x83\x01\x91P\x83` \x82\x85\x01\x01\x11\x15a\0\x9CW_\x80\xFD[\x92P\x92\x90PV[_\x80_\x80_\x80``\x87\x89\x03\x12\x15a\0\xB8W_\x80\xFD[\x865g\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\x80\x82\x11\x15a\0\xCFW_\x80\xFD[a\0\xDB\x8A\x83\x8B\x01a\0^V[\x90\x98P\x96P` \x89\x015\x91P\x80\x82\x11\x15a\0\xF3W_\x80\xFD[a\0\xFF\x8A\x83\x8B\x01a\0^V[\x90\x96P\x94P`@\x89\x015\x91P\x80\x82\x11\x15a\x01\x17W_\x80\xFD[Pa\x01$\x89\x82\x8A\x01a\0^V[\x97\x9A\x96\x99P\x94\x97P\x92\x95\x93\x94\x92PPPV\xFE\xA2dipfsX\"\x12 \xBE\x8A\xFF;\xB5\xC4\xCF\xAB\xAB;\xEEy8'\xD4(4]\x8FU\x8B\xBCY\x89E\xD1<B/7\xAAUdsolcC\0\x08\x18\x003";
     /// The bytecode of the contract.
     pub static MOCKVERIFIER_BYTECODE: ::ethers::core::types::Bytes = ::ethers::core::types::Bytes::from_static(
         __BYTECODE,
     );
     #[rustfmt::skip]
-    const __DEPLOYED_BYTECODE: &[u8] = b"`\x80`@R4\x80\x15a\0\x0FW_\x80\xFD[P`\x046\x10a\0)W_5`\xE0\x1C\x80c\xF7\xE8:\xEE\x14a\0-W[_\x80\xFD[a\0Ha\0;6`\x04a\0\xA1V[_T`\xFF\x16\x94\x93PPPPV[`@Q\x90\x15\x15\x81R` \x01`@Q\x80\x91\x03\x90\xF3[_\x80\x83`\x1F\x84\x01\x12a\0lW_\x80\xFD[P\x815g\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\x81\x11\x15a\0\x83W_\x80\xFD[` \x83\x01\x91P\x83` \x82\x85\x01\x01\x11\x15a\0\x9AW_\x80\xFD[\x92P\x92\x90PV[_\x80_\x80`@\x85\x87\x03\x12\x15a\0\xB4W_\x80\xFD[\x845g\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\x80\x82\x11\x15a\0\xCBW_\x80\xFD[a\0\xD7\x88\x83\x89\x01a\0\\V[\x90\x96P\x94P` \x87\x015\x91P\x80\x82\x11\x15a\0\xEFW_\x80\xFD[Pa\0\xFC\x87\x82\x88\x01a\0\\V[\x95\x98\x94\x97P\x95PPPPV\xFE\xA2dipfsX\"\x12 \x03\x88\xBBv\xC8\xB5\xAF)\xBB\x8D\xC7\xE9\xD6\x9A\x93C\xBAp \x89g&`y|p\x07Z\x0E\xBF?\x15dsolcC\0\x08\x18\x003";
+    const __DEPLOYED_BYTECODE: &[u8] = b"`\x80`@R4\x80\x15a\0\x0FW_\x80\xFD[P`\x046\x10a\0)W_5`\xE0\x1C\x80c\xDE\x8FP\xA1\x14a\0-W[_\x80\xFD[a\0Ja\0;6`\x04a\0\xA3V[_T`\xFF\x16\x96\x95PPPPPPV[`@Q\x90\x15\x15\x81R` \x01`@Q\x80\x91\x03\x90\xF3[_\x80\x83`\x1F\x84\x01\x12a\0nW_\x80\xFD[P\x815g\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\x81\x11\x15a\0\x85W_\x80\xFD[` \x83\x01\x91P\x83` \x82\x85\x01\x01\x11\x15a\0\x9CW_\x80\xFD[\x92P\x92\x90PV[_\x80_\x80_\x80``\x87\x89\x03\x12\x15a\0\xB8W_\x80\xFD[\x865g\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\x80\x82\x11\x15a\0\xCFW_\x80\xFD[a\0\xDB\x8A\x83\x8B\x01a\0^V[\x90\x98P\x96P` \x89\x015\x91P\x80\x82\x11\x15a\0\xF3W_\x80\xFD[a\0\xFF\x8A\x83\x8B\x01a\0^V[\x90\x96P\x94P`@\x89\x015\x91P\x80\x82\x11\x15a\x01\x17W_\x80\xFD[Pa\x01$\x89\x82\x8A\x01a\0^V[\x97\x9A\x96\x99P\x94\x97P\x92\x95\x93\x94\x92PPPV\xFE\xA2dipfsX\"\x12 \xBE\x8A\xFF;\xB5\xC4\xCF\xAB\xAB;\xEEy8'\xD4(4]\x8FU\x8B\xBCY\x89E\xD1<B/7\xAAUdsolcC\0\x08\x18\x003";
     /// The deployed bytecode of the contract.
     pub static MOCKVERIFIER_DEPLOYED_BYTECODE: ::ethers::core::types::Bytes = ::ethers::core::types::Bytes::from_static(
         __DEPLOYED_BYTECODE,
@@ -153,16 +160,17 @@ pub mod mock_verifier {
             let deployer = ::ethers::contract::ContractDeployer::new(deployer);
             Ok(deployer)
         }
-        ///Calls the contract's `verify` (0xf7e83aee) function
+        ///Calls the contract's `verify` (0xde8f50a1) function
         pub fn verify(
             &self,
+            acc_bytes: ::ethers::core::types::Bytes,
             proof_bytes: ::ethers::core::types::Bytes,
             public_inputs_hash_bytes: ::ethers::core::types::Bytes,
         ) -> ::ethers::contract::builders::ContractCall<M, bool> {
             self.0
                 .method_hash(
-                    [247, 232, 58, 238],
-                    (proof_bytes, public_inputs_hash_bytes),
+                    [222, 143, 80, 161],
+                    (acc_bytes, proof_bytes, public_inputs_hash_bytes),
                 )
                 .expect("method not found (this should never happen)")
         }
@@ -173,7 +181,7 @@ pub mod mock_verifier {
             Self::new(contract.address(), contract.client())
         }
     }
-    ///Container type for all input parameters for the `verify` function with signature `verify(bytes,bytes)` and selector `0xf7e83aee`
+    ///Container type for all input parameters for the `verify` function with signature `verify(bytes,bytes,bytes)` and selector `0xde8f50a1`
     #[derive(
         Clone,
         ::ethers::contract::EthCall,
@@ -186,12 +194,13 @@ pub mod mock_verifier {
         Eq,
         Hash
     )]
-    #[ethcall(name = "verify", abi = "verify(bytes,bytes)")]
+    #[ethcall(name = "verify", abi = "verify(bytes,bytes,bytes)")]
     pub struct VerifyCall {
+        pub acc_bytes: ::ethers::core::types::Bytes,
         pub proof_bytes: ::ethers::core::types::Bytes,
         pub public_inputs_hash_bytes: ::ethers::core::types::Bytes,
     }
-    ///Container type for all return fields from the `verify` function with signature `verify(bytes,bytes)` and selector `0xf7e83aee`
+    ///Container type for all return fields from the `verify` function with signature `verify(bytes,bytes,bytes)` and selector `0xde8f50a1`
     #[derive(
         Clone,
         ::ethers::contract::EthAbiType,
