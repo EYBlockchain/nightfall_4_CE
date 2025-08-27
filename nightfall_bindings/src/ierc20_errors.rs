@@ -7,7 +7,7 @@ pub use ierc20_errors::*;
     clippy::upper_case_acronyms,
     clippy::type_complexity,
     dead_code,
-    non_camel_case_types
+    non_camel_case_types,
 )]
 pub mod ierc20_errors {
     #[allow(deprecated)]
@@ -19,113 +19,151 @@ pub mod ierc20_errors {
             errors: ::core::convert::From::from([
                 (
                     ::std::borrow::ToOwned::to_owned("ERC20InsufficientAllowance"),
-                    ::std::vec![::ethers::core::abi::ethabi::AbiError {
-                        name: ::std::borrow::ToOwned::to_owned("ERC20InsufficientAllowance",),
-                        inputs: ::std::vec![
-                            ::ethers::core::abi::ethabi::Param {
-                                name: ::std::borrow::ToOwned::to_owned("spender"),
-                                kind: ::ethers::core::abi::ethabi::ParamType::Address,
-                                internal_type: ::core::option::Option::Some(
-                                    ::std::borrow::ToOwned::to_owned("address"),
-                                ),
-                            },
-                            ::ethers::core::abi::ethabi::Param {
-                                name: ::std::borrow::ToOwned::to_owned("allowance"),
-                                kind: ::ethers::core::abi::ethabi::ParamType::Uint(256usize,),
-                                internal_type: ::core::option::Option::Some(
-                                    ::std::borrow::ToOwned::to_owned("uint256"),
-                                ),
-                            },
-                            ::ethers::core::abi::ethabi::Param {
-                                name: ::std::borrow::ToOwned::to_owned("needed"),
-                                kind: ::ethers::core::abi::ethabi::ParamType::Uint(256usize,),
-                                internal_type: ::core::option::Option::Some(
-                                    ::std::borrow::ToOwned::to_owned("uint256"),
-                                ),
-                            },
-                        ],
-                    },],
+                    ::std::vec![
+                        ::ethers::core::abi::ethabi::AbiError {
+                            name: ::std::borrow::ToOwned::to_owned(
+                                "ERC20InsufficientAllowance",
+                            ),
+                            inputs: ::std::vec![
+                                ::ethers::core::abi::ethabi::Param {
+                                    name: ::std::borrow::ToOwned::to_owned("spender"),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::Address,
+                                    internal_type: ::core::option::Option::Some(
+                                        ::std::borrow::ToOwned::to_owned("address"),
+                                    ),
+                                },
+                                ::ethers::core::abi::ethabi::Param {
+                                    name: ::std::borrow::ToOwned::to_owned("allowance"),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::Uint(
+                                        256usize,
+                                    ),
+                                    internal_type: ::core::option::Option::Some(
+                                        ::std::borrow::ToOwned::to_owned("uint256"),
+                                    ),
+                                },
+                                ::ethers::core::abi::ethabi::Param {
+                                    name: ::std::borrow::ToOwned::to_owned("needed"),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::Uint(
+                                        256usize,
+                                    ),
+                                    internal_type: ::core::option::Option::Some(
+                                        ::std::borrow::ToOwned::to_owned("uint256"),
+                                    ),
+                                },
+                            ],
+                        },
+                    ],
                 ),
                 (
                     ::std::borrow::ToOwned::to_owned("ERC20InsufficientBalance"),
-                    ::std::vec![::ethers::core::abi::ethabi::AbiError {
-                        name: ::std::borrow::ToOwned::to_owned("ERC20InsufficientBalance",),
-                        inputs: ::std::vec![
-                            ::ethers::core::abi::ethabi::Param {
-                                name: ::std::borrow::ToOwned::to_owned("sender"),
-                                kind: ::ethers::core::abi::ethabi::ParamType::Address,
-                                internal_type: ::core::option::Option::Some(
-                                    ::std::borrow::ToOwned::to_owned("address"),
-                                ),
-                            },
-                            ::ethers::core::abi::ethabi::Param {
-                                name: ::std::borrow::ToOwned::to_owned("balance"),
-                                kind: ::ethers::core::abi::ethabi::ParamType::Uint(256usize,),
-                                internal_type: ::core::option::Option::Some(
-                                    ::std::borrow::ToOwned::to_owned("uint256"),
-                                ),
-                            },
-                            ::ethers::core::abi::ethabi::Param {
-                                name: ::std::borrow::ToOwned::to_owned("needed"),
-                                kind: ::ethers::core::abi::ethabi::ParamType::Uint(256usize,),
-                                internal_type: ::core::option::Option::Some(
-                                    ::std::borrow::ToOwned::to_owned("uint256"),
-                                ),
-                            },
-                        ],
-                    },],
+                    ::std::vec![
+                        ::ethers::core::abi::ethabi::AbiError {
+                            name: ::std::borrow::ToOwned::to_owned(
+                                "ERC20InsufficientBalance",
+                            ),
+                            inputs: ::std::vec![
+                                ::ethers::core::abi::ethabi::Param {
+                                    name: ::std::borrow::ToOwned::to_owned("sender"),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::Address,
+                                    internal_type: ::core::option::Option::Some(
+                                        ::std::borrow::ToOwned::to_owned("address"),
+                                    ),
+                                },
+                                ::ethers::core::abi::ethabi::Param {
+                                    name: ::std::borrow::ToOwned::to_owned("balance"),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::Uint(
+                                        256usize,
+                                    ),
+                                    internal_type: ::core::option::Option::Some(
+                                        ::std::borrow::ToOwned::to_owned("uint256"),
+                                    ),
+                                },
+                                ::ethers::core::abi::ethabi::Param {
+                                    name: ::std::borrow::ToOwned::to_owned("needed"),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::Uint(
+                                        256usize,
+                                    ),
+                                    internal_type: ::core::option::Option::Some(
+                                        ::std::borrow::ToOwned::to_owned("uint256"),
+                                    ),
+                                },
+                            ],
+                        },
+                    ],
                 ),
                 (
                     ::std::borrow::ToOwned::to_owned("ERC20InvalidApprover"),
-                    ::std::vec![::ethers::core::abi::ethabi::AbiError {
-                        name: ::std::borrow::ToOwned::to_owned("ERC20InvalidApprover",),
-                        inputs: ::std::vec![::ethers::core::abi::ethabi::Param {
-                            name: ::std::borrow::ToOwned::to_owned("approver"),
-                            kind: ::ethers::core::abi::ethabi::ParamType::Address,
-                            internal_type: ::core::option::Option::Some(
-                                ::std::borrow::ToOwned::to_owned("address"),
+                    ::std::vec![
+                        ::ethers::core::abi::ethabi::AbiError {
+                            name: ::std::borrow::ToOwned::to_owned(
+                                "ERC20InvalidApprover",
                             ),
-                        },],
-                    },],
+                            inputs: ::std::vec![
+                                ::ethers::core::abi::ethabi::Param {
+                                    name: ::std::borrow::ToOwned::to_owned("approver"),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::Address,
+                                    internal_type: ::core::option::Option::Some(
+                                        ::std::borrow::ToOwned::to_owned("address"),
+                                    ),
+                                },
+                            ],
+                        },
+                    ],
                 ),
                 (
                     ::std::borrow::ToOwned::to_owned("ERC20InvalidReceiver"),
-                    ::std::vec![::ethers::core::abi::ethabi::AbiError {
-                        name: ::std::borrow::ToOwned::to_owned("ERC20InvalidReceiver",),
-                        inputs: ::std::vec![::ethers::core::abi::ethabi::Param {
-                            name: ::std::borrow::ToOwned::to_owned("receiver"),
-                            kind: ::ethers::core::abi::ethabi::ParamType::Address,
-                            internal_type: ::core::option::Option::Some(
-                                ::std::borrow::ToOwned::to_owned("address"),
+                    ::std::vec![
+                        ::ethers::core::abi::ethabi::AbiError {
+                            name: ::std::borrow::ToOwned::to_owned(
+                                "ERC20InvalidReceiver",
                             ),
-                        },],
-                    },],
+                            inputs: ::std::vec![
+                                ::ethers::core::abi::ethabi::Param {
+                                    name: ::std::borrow::ToOwned::to_owned("receiver"),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::Address,
+                                    internal_type: ::core::option::Option::Some(
+                                        ::std::borrow::ToOwned::to_owned("address"),
+                                    ),
+                                },
+                            ],
+                        },
+                    ],
                 ),
                 (
                     ::std::borrow::ToOwned::to_owned("ERC20InvalidSender"),
-                    ::std::vec![::ethers::core::abi::ethabi::AbiError {
-                        name: ::std::borrow::ToOwned::to_owned("ERC20InvalidSender"),
-                        inputs: ::std::vec![::ethers::core::abi::ethabi::Param {
-                            name: ::std::borrow::ToOwned::to_owned("sender"),
-                            kind: ::ethers::core::abi::ethabi::ParamType::Address,
-                            internal_type: ::core::option::Option::Some(
-                                ::std::borrow::ToOwned::to_owned("address"),
-                            ),
-                        },],
-                    },],
+                    ::std::vec![
+                        ::ethers::core::abi::ethabi::AbiError {
+                            name: ::std::borrow::ToOwned::to_owned("ERC20InvalidSender"),
+                            inputs: ::std::vec![
+                                ::ethers::core::abi::ethabi::Param {
+                                    name: ::std::borrow::ToOwned::to_owned("sender"),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::Address,
+                                    internal_type: ::core::option::Option::Some(
+                                        ::std::borrow::ToOwned::to_owned("address"),
+                                    ),
+                                },
+                            ],
+                        },
+                    ],
                 ),
                 (
                     ::std::borrow::ToOwned::to_owned("ERC20InvalidSpender"),
-                    ::std::vec![::ethers::core::abi::ethabi::AbiError {
-                        name: ::std::borrow::ToOwned::to_owned("ERC20InvalidSpender",),
-                        inputs: ::std::vec![::ethers::core::abi::ethabi::Param {
-                            name: ::std::borrow::ToOwned::to_owned("spender"),
-                            kind: ::ethers::core::abi::ethabi::ParamType::Address,
-                            internal_type: ::core::option::Option::Some(
-                                ::std::borrow::ToOwned::to_owned("address"),
+                    ::std::vec![
+                        ::ethers::core::abi::ethabi::AbiError {
+                            name: ::std::borrow::ToOwned::to_owned(
+                                "ERC20InvalidSpender",
                             ),
-                        },],
-                    },],
+                            inputs: ::std::vec![
+                                ::ethers::core::abi::ethabi::Param {
+                                    name: ::std::borrow::ToOwned::to_owned("spender"),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::Address,
+                                    internal_type: ::core::option::Option::Some(
+                                        ::std::borrow::ToOwned::to_owned("address"),
+                                    ),
+                                },
+                            ],
+                        },
+                    ],
                 ),
             ]),
             receive: false,
@@ -133,8 +171,9 @@ pub mod ierc20_errors {
         }
     }
     ///The parsed JSON ABI of the contract.
-    pub static IERC20ERRORS_ABI: ::ethers::contract::Lazy<::ethers::core::abi::Abi> =
-        ::ethers::contract::Lazy::new(__abi);
+    pub static IERC20ERRORS_ABI: ::ethers::contract::Lazy<::ethers::core::abi::Abi> = ::ethers::contract::Lazy::new(
+        __abi,
+    );
     pub struct IERC20Errors<M>(::ethers::contract::Contract<M>);
     impl<M> ::core::clone::Clone for IERC20Errors<M> {
         fn clone(&self) -> Self {
@@ -166,14 +205,17 @@ pub mod ierc20_errors {
             address: T,
             client: ::std::sync::Arc<M>,
         ) -> Self {
-            Self(::ethers::contract::Contract::new(
-                address.into(),
-                IERC20ERRORS_ABI.clone(),
-                client,
-            ))
+            Self(
+                ::ethers::contract::Contract::new(
+                    address.into(),
+                    IERC20ERRORS_ABI.clone(),
+                    client,
+                ),
+            )
         }
     }
-    impl<M: ::ethers::providers::Middleware> From<::ethers::contract::Contract<M>> for IERC20Errors<M> {
+    impl<M: ::ethers::providers::Middleware> From<::ethers::contract::Contract<M>>
+    for IERC20Errors<M> {
         fn from(contract: ::ethers::contract::Contract<M>) -> Self {
             Self::new(contract.address(), contract.client())
         }
@@ -189,7 +231,7 @@ pub mod ierc20_errors {
         Debug,
         PartialEq,
         Eq,
-        Hash,
+        Hash
     )]
     #[etherror(
         name = "ERC20InsufficientAllowance",
@@ -211,7 +253,7 @@ pub mod ierc20_errors {
         Debug,
         PartialEq,
         Eq,
-        Hash,
+        Hash
     )]
     #[etherror(
         name = "ERC20InsufficientBalance",
@@ -233,7 +275,7 @@ pub mod ierc20_errors {
         Debug,
         PartialEq,
         Eq,
-        Hash,
+        Hash
     )]
     #[etherror(name = "ERC20InvalidApprover", abi = "ERC20InvalidApprover(address)")]
     pub struct ERC20InvalidApprover {
@@ -250,7 +292,7 @@ pub mod ierc20_errors {
         Debug,
         PartialEq,
         Eq,
-        Hash,
+        Hash
     )]
     #[etherror(name = "ERC20InvalidReceiver", abi = "ERC20InvalidReceiver(address)")]
     pub struct ERC20InvalidReceiver {
@@ -267,7 +309,7 @@ pub mod ierc20_errors {
         Debug,
         PartialEq,
         Eq,
-        Hash,
+        Hash
     )]
     #[etherror(name = "ERC20InvalidSender", abi = "ERC20InvalidSender(address)")]
     pub struct ERC20InvalidSender {
@@ -284,7 +326,7 @@ pub mod ierc20_errors {
         Debug,
         PartialEq,
         Eq,
-        Hash,
+        Hash
     )]
     #[etherror(name = "ERC20InvalidSpender", abi = "ERC20InvalidSpender(address)")]
     pub struct ERC20InvalidSpender {
@@ -299,7 +341,7 @@ pub mod ierc20_errors {
         Debug,
         PartialEq,
         Eq,
-        Hash,
+        Hash
     )]
     pub enum IERC20ErrorsErrors {
         ERC20InsufficientAllowance(ERC20InsufficientAllowance),
@@ -317,39 +359,39 @@ pub mod ierc20_errors {
             data: impl AsRef<[u8]>,
         ) -> ::core::result::Result<Self, ::ethers::core::abi::AbiError> {
             let data = data.as_ref();
-            if let Ok(decoded) =
-                <::std::string::String as ::ethers::core::abi::AbiDecode>::decode(data)
-            {
+            if let Ok(decoded) = <::std::string::String as ::ethers::core::abi::AbiDecode>::decode(
+                data,
+            ) {
                 return Ok(Self::RevertString(decoded));
             }
-            if let Ok(decoded) =
-                <ERC20InsufficientAllowance as ::ethers::core::abi::AbiDecode>::decode(data)
-            {
+            if let Ok(decoded) = <ERC20InsufficientAllowance as ::ethers::core::abi::AbiDecode>::decode(
+                data,
+            ) {
                 return Ok(Self::ERC20InsufficientAllowance(decoded));
             }
-            if let Ok(decoded) =
-                <ERC20InsufficientBalance as ::ethers::core::abi::AbiDecode>::decode(data)
-            {
+            if let Ok(decoded) = <ERC20InsufficientBalance as ::ethers::core::abi::AbiDecode>::decode(
+                data,
+            ) {
                 return Ok(Self::ERC20InsufficientBalance(decoded));
             }
-            if let Ok(decoded) =
-                <ERC20InvalidApprover as ::ethers::core::abi::AbiDecode>::decode(data)
-            {
+            if let Ok(decoded) = <ERC20InvalidApprover as ::ethers::core::abi::AbiDecode>::decode(
+                data,
+            ) {
                 return Ok(Self::ERC20InvalidApprover(decoded));
             }
-            if let Ok(decoded) =
-                <ERC20InvalidReceiver as ::ethers::core::abi::AbiDecode>::decode(data)
-            {
+            if let Ok(decoded) = <ERC20InvalidReceiver as ::ethers::core::abi::AbiDecode>::decode(
+                data,
+            ) {
                 return Ok(Self::ERC20InvalidReceiver(decoded));
             }
-            if let Ok(decoded) =
-                <ERC20InvalidSender as ::ethers::core::abi::AbiDecode>::decode(data)
-            {
+            if let Ok(decoded) = <ERC20InvalidSender as ::ethers::core::abi::AbiDecode>::decode(
+                data,
+            ) {
                 return Ok(Self::ERC20InvalidSender(decoded));
             }
-            if let Ok(decoded) =
-                <ERC20InvalidSpender as ::ethers::core::abi::AbiDecode>::decode(data)
-            {
+            if let Ok(decoded) = <ERC20InvalidSpender as ::ethers::core::abi::AbiDecode>::decode(
+                data,
+            ) {
                 return Ok(Self::ERC20InvalidSpender(decoded));
             }
             Err(::ethers::core::abi::Error::InvalidData.into())
@@ -385,33 +427,27 @@ pub mod ierc20_errors {
             match selector {
                 [0x08, 0xc3, 0x79, 0xa0] => true,
                 _ if selector
-                    == <ERC20InsufficientAllowance as ::ethers::contract::EthError>::selector() =>
-                {
+                    == <ERC20InsufficientAllowance as ::ethers::contract::EthError>::selector() => {
                     true
                 }
                 _ if selector
-                    == <ERC20InsufficientBalance as ::ethers::contract::EthError>::selector() =>
-                {
+                    == <ERC20InsufficientBalance as ::ethers::contract::EthError>::selector() => {
                     true
                 }
                 _ if selector
-                    == <ERC20InvalidApprover as ::ethers::contract::EthError>::selector() =>
-                {
+                    == <ERC20InvalidApprover as ::ethers::contract::EthError>::selector() => {
                     true
                 }
                 _ if selector
-                    == <ERC20InvalidReceiver as ::ethers::contract::EthError>::selector() =>
-                {
+                    == <ERC20InvalidReceiver as ::ethers::contract::EthError>::selector() => {
                     true
                 }
                 _ if selector
-                    == <ERC20InvalidSender as ::ethers::contract::EthError>::selector() =>
-                {
+                    == <ERC20InvalidSender as ::ethers::contract::EthError>::selector() => {
                     true
                 }
                 _ if selector
-                    == <ERC20InvalidSpender as ::ethers::contract::EthError>::selector() =>
-                {
+                    == <ERC20InvalidSpender as ::ethers::contract::EthError>::selector() => {
                     true
                 }
                 _ => false,
@@ -421,12 +457,24 @@ pub mod ierc20_errors {
     impl ::core::fmt::Display for IERC20ErrorsErrors {
         fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
             match self {
-                Self::ERC20InsufficientAllowance(element) => ::core::fmt::Display::fmt(element, f),
-                Self::ERC20InsufficientBalance(element) => ::core::fmt::Display::fmt(element, f),
-                Self::ERC20InvalidApprover(element) => ::core::fmt::Display::fmt(element, f),
-                Self::ERC20InvalidReceiver(element) => ::core::fmt::Display::fmt(element, f),
-                Self::ERC20InvalidSender(element) => ::core::fmt::Display::fmt(element, f),
-                Self::ERC20InvalidSpender(element) => ::core::fmt::Display::fmt(element, f),
+                Self::ERC20InsufficientAllowance(element) => {
+                    ::core::fmt::Display::fmt(element, f)
+                }
+                Self::ERC20InsufficientBalance(element) => {
+                    ::core::fmt::Display::fmt(element, f)
+                }
+                Self::ERC20InvalidApprover(element) => {
+                    ::core::fmt::Display::fmt(element, f)
+                }
+                Self::ERC20InvalidReceiver(element) => {
+                    ::core::fmt::Display::fmt(element, f)
+                }
+                Self::ERC20InvalidSender(element) => {
+                    ::core::fmt::Display::fmt(element, f)
+                }
+                Self::ERC20InvalidSpender(element) => {
+                    ::core::fmt::Display::fmt(element, f)
+                }
                 Self::RevertString(s) => ::core::fmt::Display::fmt(s, f),
             }
         }

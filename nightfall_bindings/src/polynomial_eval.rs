@@ -7,7 +7,7 @@ pub use polynomial_eval::*;
     clippy::upper_case_acronyms,
     clippy::type_complexity,
     dead_code,
-    non_camel_case_types
+    non_camel_case_types,
 )]
 pub mod polynomial_eval {
     #[allow(deprecated)]
@@ -22,18 +22,21 @@ pub mod polynomial_eval {
         }
     }
     ///The parsed JSON ABI of the contract.
-    pub static POLYNOMIALEVAL_ABI: ::ethers::contract::Lazy<::ethers::core::abi::Abi> =
-        ::ethers::contract::Lazy::new(__abi);
+    pub static POLYNOMIALEVAL_ABI: ::ethers::contract::Lazy<::ethers::core::abi::Abi> = ::ethers::contract::Lazy::new(
+        __abi,
+    );
     #[rustfmt::skip]
-    const __BYTECODE: &[u8] = b"`U`2`\x0B\x82\x82\x829\x80Q_\x1A`s\x14`&WcNH{q`\xE0\x1B_R_`\x04R`$_\xFD[0_R`s\x81S\x82\x81\xF3\xFEs\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x000\x14`\x80`@R_\x80\xFD\xFE\xA2dipfsX\"\x12 P\x01\xDD\xA1O:O\xC6\x99\xA7q\xB0\xBF\xA3` \0\xE4\x87IE\xBA\xAA:\xFC\x9F\xAA`\t\x13\xF1\xD3dsolcC\0\x08\x18\x003";
+    const __BYTECODE: &[u8] = b"`U`2`\x0B\x82\x82\x829\x80Q_\x1A`s\x14`&WcNH{q`\xE0\x1B_R_`\x04R`$_\xFD[0_R`s\x81S\x82\x81\xF3\xFEs\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x000\x14`\x80`@R_\x80\xFD\xFE\xA2dipfsX\"\x12 \xF5r\x14\x97\x17\xD3h{HR5{Qm\xE6\x06\x99\xE9.\xAF<\xE5k\xE9\x8D\xF8\x92\xDE$Y_\xC5dsolcC\0\x08\x18\x003";
     /// The bytecode of the contract.
-    pub static POLYNOMIALEVAL_BYTECODE: ::ethers::core::types::Bytes =
-        ::ethers::core::types::Bytes::from_static(__BYTECODE);
+    pub static POLYNOMIALEVAL_BYTECODE: ::ethers::core::types::Bytes = ::ethers::core::types::Bytes::from_static(
+        __BYTECODE,
+    );
     #[rustfmt::skip]
-    const __DEPLOYED_BYTECODE: &[u8] = b"s\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x000\x14`\x80`@R_\x80\xFD\xFE\xA2dipfsX\"\x12 P\x01\xDD\xA1O:O\xC6\x99\xA7q\xB0\xBF\xA3` \0\xE4\x87IE\xBA\xAA:\xFC\x9F\xAA`\t\x13\xF1\xD3dsolcC\0\x08\x18\x003";
+    const __DEPLOYED_BYTECODE: &[u8] = b"s\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x000\x14`\x80`@R_\x80\xFD\xFE\xA2dipfsX\"\x12 \xF5r\x14\x97\x17\xD3h{HR5{Qm\xE6\x06\x99\xE9.\xAF<\xE5k\xE9\x8D\xF8\x92\xDE$Y_\xC5dsolcC\0\x08\x18\x003";
     /// The deployed bytecode of the contract.
-    pub static POLYNOMIALEVAL_DEPLOYED_BYTECODE: ::ethers::core::types::Bytes =
-        ::ethers::core::types::Bytes::from_static(__DEPLOYED_BYTECODE);
+    pub static POLYNOMIALEVAL_DEPLOYED_BYTECODE: ::ethers::core::types::Bytes = ::ethers::core::types::Bytes::from_static(
+        __DEPLOYED_BYTECODE,
+    );
     pub struct PolynomialEval<M>(::ethers::contract::Contract<M>);
     impl<M> ::core::clone::Clone for PolynomialEval<M> {
         fn clone(&self) -> Self {
@@ -65,11 +68,13 @@ pub mod polynomial_eval {
             address: T,
             client: ::std::sync::Arc<M>,
         ) -> Self {
-            Self(::ethers::contract::Contract::new(
-                address.into(),
-                POLYNOMIALEVAL_ABI.clone(),
-                client,
-            ))
+            Self(
+                ::ethers::contract::Contract::new(
+                    address.into(),
+                    POLYNOMIALEVAL_ABI.clone(),
+                    client,
+                ),
+            )
         }
         /// Constructs the general purpose `Deployer` instance based on the provided constructor arguments and sends it.
         /// Returns a new instance of a deployer that returns an instance of this contract after sending the transaction
@@ -112,8 +117,7 @@ pub mod polynomial_eval {
         }
     }
     impl<M: ::ethers::providers::Middleware> From<::ethers::contract::Contract<M>>
-        for PolynomialEval<M>
-    {
+    for PolynomialEval<M> {
         fn from(contract: ::ethers::contract::Contract<M>) -> Self {
             Self::new(contract.address(), contract.client())
         }

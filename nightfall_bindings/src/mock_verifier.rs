@@ -7,44 +7,52 @@ pub use mock_verifier::*;
     clippy::upper_case_acronyms,
     clippy::type_complexity,
     dead_code,
-    non_camel_case_types
+    non_camel_case_types,
 )]
 pub mod mock_verifier {
     #[allow(deprecated)]
     fn __abi() -> ::ethers::core::abi::Abi {
         ::ethers::core::abi::ethabi::Contract {
             constructor: ::core::option::Option::None,
-            functions: ::core::convert::From::from([(
-                ::std::borrow::ToOwned::to_owned("verify"),
-                ::std::vec![::ethers::core::abi::ethabi::Function {
-                    name: ::std::borrow::ToOwned::to_owned("verify"),
-                    inputs: ::std::vec![
-                        ::ethers::core::abi::ethabi::Param {
-                            name: ::std::borrow::ToOwned::to_owned("proofBytes"),
-                            kind: ::ethers::core::abi::ethabi::ParamType::Bytes,
-                            internal_type: ::core::option::Option::Some(
-                                ::std::borrow::ToOwned::to_owned("bytes"),
-                            ),
-                        },
-                        ::ethers::core::abi::ethabi::Param {
-                            name: ::std::borrow::ToOwned::to_owned("publicInputsHashBytes",),
-                            kind: ::ethers::core::abi::ethabi::ParamType::Bytes,
-                            internal_type: ::core::option::Option::Some(
-                                ::std::borrow::ToOwned::to_owned("bytes"),
-                            ),
+            functions: ::core::convert::From::from([
+                (
+                    ::std::borrow::ToOwned::to_owned("verify"),
+                    ::std::vec![
+                        ::ethers::core::abi::ethabi::Function {
+                            name: ::std::borrow::ToOwned::to_owned("verify"),
+                            inputs: ::std::vec![
+                                ::ethers::core::abi::ethabi::Param {
+                                    name: ::std::borrow::ToOwned::to_owned("proofBytes"),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::Bytes,
+                                    internal_type: ::core::option::Option::Some(
+                                        ::std::borrow::ToOwned::to_owned("bytes"),
+                                    ),
+                                },
+                                ::ethers::core::abi::ethabi::Param {
+                                    name: ::std::borrow::ToOwned::to_owned(
+                                        "publicInputsHashBytes",
+                                    ),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::Bytes,
+                                    internal_type: ::core::option::Option::Some(
+                                        ::std::borrow::ToOwned::to_owned("bytes"),
+                                    ),
+                                },
+                            ],
+                            outputs: ::std::vec![
+                                ::ethers::core::abi::ethabi::Param {
+                                    name: ::std::borrow::ToOwned::to_owned("result"),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::Bool,
+                                    internal_type: ::core::option::Option::Some(
+                                        ::std::borrow::ToOwned::to_owned("bool"),
+                                    ),
+                                },
+                            ],
+                            constant: ::core::option::Option::None,
+                            state_mutability: ::ethers::core::abi::ethabi::StateMutability::View,
                         },
                     ],
-                    outputs: ::std::vec![::ethers::core::abi::ethabi::Param {
-                        name: ::std::borrow::ToOwned::to_owned("result"),
-                        kind: ::ethers::core::abi::ethabi::ParamType::Bool,
-                        internal_type: ::core::option::Option::Some(
-                            ::std::borrow::ToOwned::to_owned("bool"),
-                        ),
-                    },],
-                    constant: ::core::option::Option::None,
-                    state_mutability: ::ethers::core::abi::ethabi::StateMutability::View,
-                },],
-            )]),
+                ),
+            ]),
             events: ::std::collections::BTreeMap::new(),
             errors: ::std::collections::BTreeMap::new(),
             receive: false,
@@ -52,18 +60,21 @@ pub mod mock_verifier {
         }
     }
     ///The parsed JSON ABI of the contract.
-    pub static MOCKVERIFIER_ABI: ::ethers::contract::Lazy<::ethers::core::abi::Abi> =
-        ::ethers::contract::Lazy::new(__abi);
+    pub static MOCKVERIFIER_ABI: ::ethers::contract::Lazy<::ethers::core::abi::Abi> = ::ethers::contract::Lazy::new(
+        __abi,
+    );
     #[rustfmt::skip]
-    const __BYTECODE: &[u8] = b"`\x80`@R_\x80T`\xFF\x19\x16`\x01\x17\x90U4\x80\x15a\0\x1BW_\x80\xFD[Pa\x01>\x80a\0)_9_\xF3\xFE`\x80`@R4\x80\x15a\0\x0FW_\x80\xFD[P`\x046\x10a\0)W_5`\xE0\x1C\x80c\xF7\xE8:\xEE\x14a\0-W[_\x80\xFD[a\0Ha\0;6`\x04a\0\xA1V[_T`\xFF\x16\x94\x93PPPPV[`@Q\x90\x15\x15\x81R` \x01`@Q\x80\x91\x03\x90\xF3[_\x80\x83`\x1F\x84\x01\x12a\0lW_\x80\xFD[P\x815g\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\x81\x11\x15a\0\x83W_\x80\xFD[` \x83\x01\x91P\x83` \x82\x85\x01\x01\x11\x15a\0\x9AW_\x80\xFD[\x92P\x92\x90PV[_\x80_\x80`@\x85\x87\x03\x12\x15a\0\xB4W_\x80\xFD[\x845g\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\x80\x82\x11\x15a\0\xCBW_\x80\xFD[a\0\xD7\x88\x83\x89\x01a\0\\V[\x90\x96P\x94P` \x87\x015\x91P\x80\x82\x11\x15a\0\xEFW_\x80\xFD[Pa\0\xFC\x87\x82\x88\x01a\0\\V[\x95\x98\x94\x97P\x95PPPPV\xFE\xA2dipfsX\"\x12 \x03\x88\xBBv\xC8\xB5\xAF)\xBB\x8D\xC7\xE9\xD6\x9A\x93C\xBAp \x89g&`y|p\x07Z\x0E\xBF?\x15dsolcC\0\x08\x18\x003";
+    const __BYTECODE: &[u8] = b"`\x80`@R_\x80T`\xFF\x19\x16`\x01\x17\x90U4\x80\x15a\0\x1BW_\x80\xFD[Pa\x01>\x80a\0)_9_\xF3\xFE`\x80`@R4\x80\x15a\0\x0FW_\x80\xFD[P`\x046\x10a\0)W_5`\xE0\x1C\x80c\xF7\xE8:\xEE\x14a\0-W[_\x80\xFD[a\0Ha\0;6`\x04a\0\xA1V[_T`\xFF\x16\x94\x93PPPPV[`@Q\x90\x15\x15\x81R` \x01`@Q\x80\x91\x03\x90\xF3[_\x80\x83`\x1F\x84\x01\x12a\0lW_\x80\xFD[P\x815g\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\x81\x11\x15a\0\x83W_\x80\xFD[` \x83\x01\x91P\x83` \x82\x85\x01\x01\x11\x15a\0\x9AW_\x80\xFD[\x92P\x92\x90PV[_\x80_\x80`@\x85\x87\x03\x12\x15a\0\xB4W_\x80\xFD[\x845g\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\x80\x82\x11\x15a\0\xCBW_\x80\xFD[a\0\xD7\x88\x83\x89\x01a\0\\V[\x90\x96P\x94P` \x87\x015\x91P\x80\x82\x11\x15a\0\xEFW_\x80\xFD[Pa\0\xFC\x87\x82\x88\x01a\0\\V[\x95\x98\x94\x97P\x95PPPPV\xFE\xA2dipfsX\"\x12 \x92\xB4\x89\xD3\x01\x8B\x0F\xD3\x9FRE\x8AF\x08fq!\xD1\x96?&\xA2\x91\xF98\xB4\x1C\x93\\\x83\xB8\xF6dsolcC\0\x08\x18\x003";
     /// The bytecode of the contract.
-    pub static MOCKVERIFIER_BYTECODE: ::ethers::core::types::Bytes =
-        ::ethers::core::types::Bytes::from_static(__BYTECODE);
+    pub static MOCKVERIFIER_BYTECODE: ::ethers::core::types::Bytes = ::ethers::core::types::Bytes::from_static(
+        __BYTECODE,
+    );
     #[rustfmt::skip]
-    const __DEPLOYED_BYTECODE: &[u8] = b"`\x80`@R4\x80\x15a\0\x0FW_\x80\xFD[P`\x046\x10a\0)W_5`\xE0\x1C\x80c\xF7\xE8:\xEE\x14a\0-W[_\x80\xFD[a\0Ha\0;6`\x04a\0\xA1V[_T`\xFF\x16\x94\x93PPPPV[`@Q\x90\x15\x15\x81R` \x01`@Q\x80\x91\x03\x90\xF3[_\x80\x83`\x1F\x84\x01\x12a\0lW_\x80\xFD[P\x815g\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\x81\x11\x15a\0\x83W_\x80\xFD[` \x83\x01\x91P\x83` \x82\x85\x01\x01\x11\x15a\0\x9AW_\x80\xFD[\x92P\x92\x90PV[_\x80_\x80`@\x85\x87\x03\x12\x15a\0\xB4W_\x80\xFD[\x845g\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\x80\x82\x11\x15a\0\xCBW_\x80\xFD[a\0\xD7\x88\x83\x89\x01a\0\\V[\x90\x96P\x94P` \x87\x015\x91P\x80\x82\x11\x15a\0\xEFW_\x80\xFD[Pa\0\xFC\x87\x82\x88\x01a\0\\V[\x95\x98\x94\x97P\x95PPPPV\xFE\xA2dipfsX\"\x12 \x03\x88\xBBv\xC8\xB5\xAF)\xBB\x8D\xC7\xE9\xD6\x9A\x93C\xBAp \x89g&`y|p\x07Z\x0E\xBF?\x15dsolcC\0\x08\x18\x003";
+    const __DEPLOYED_BYTECODE: &[u8] = b"`\x80`@R4\x80\x15a\0\x0FW_\x80\xFD[P`\x046\x10a\0)W_5`\xE0\x1C\x80c\xF7\xE8:\xEE\x14a\0-W[_\x80\xFD[a\0Ha\0;6`\x04a\0\xA1V[_T`\xFF\x16\x94\x93PPPPV[`@Q\x90\x15\x15\x81R` \x01`@Q\x80\x91\x03\x90\xF3[_\x80\x83`\x1F\x84\x01\x12a\0lW_\x80\xFD[P\x815g\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\x81\x11\x15a\0\x83W_\x80\xFD[` \x83\x01\x91P\x83` \x82\x85\x01\x01\x11\x15a\0\x9AW_\x80\xFD[\x92P\x92\x90PV[_\x80_\x80`@\x85\x87\x03\x12\x15a\0\xB4W_\x80\xFD[\x845g\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\x80\x82\x11\x15a\0\xCBW_\x80\xFD[a\0\xD7\x88\x83\x89\x01a\0\\V[\x90\x96P\x94P` \x87\x015\x91P\x80\x82\x11\x15a\0\xEFW_\x80\xFD[Pa\0\xFC\x87\x82\x88\x01a\0\\V[\x95\x98\x94\x97P\x95PPPPV\xFE\xA2dipfsX\"\x12 \x92\xB4\x89\xD3\x01\x8B\x0F\xD3\x9FRE\x8AF\x08fq!\xD1\x96?&\xA2\x91\xF98\xB4\x1C\x93\\\x83\xB8\xF6dsolcC\0\x08\x18\x003";
     /// The deployed bytecode of the contract.
-    pub static MOCKVERIFIER_DEPLOYED_BYTECODE: ::ethers::core::types::Bytes =
-        ::ethers::core::types::Bytes::from_static(__DEPLOYED_BYTECODE);
+    pub static MOCKVERIFIER_DEPLOYED_BYTECODE: ::ethers::core::types::Bytes = ::ethers::core::types::Bytes::from_static(
+        __DEPLOYED_BYTECODE,
+    );
     pub struct MockVerifier<M>(::ethers::contract::Contract<M>);
     impl<M> ::core::clone::Clone for MockVerifier<M> {
         fn clone(&self) -> Self {
@@ -95,11 +106,13 @@ pub mod mock_verifier {
             address: T,
             client: ::std::sync::Arc<M>,
         ) -> Self {
-            Self(::ethers::contract::Contract::new(
-                address.into(),
-                MOCKVERIFIER_ABI.clone(),
-                client,
-            ))
+            Self(
+                ::ethers::contract::Contract::new(
+                    address.into(),
+                    MOCKVERIFIER_ABI.clone(),
+                    client,
+                ),
+            )
         }
         /// Constructs the general purpose `Deployer` instance based on the provided constructor arguments and sends it.
         /// Returns a new instance of a deployer that returns an instance of this contract after sending the transaction
@@ -147,11 +160,15 @@ pub mod mock_verifier {
             public_inputs_hash_bytes: ::ethers::core::types::Bytes,
         ) -> ::ethers::contract::builders::ContractCall<M, bool> {
             self.0
-                .method_hash([247, 232, 58, 238], (proof_bytes, public_inputs_hash_bytes))
+                .method_hash(
+                    [247, 232, 58, 238],
+                    (proof_bytes, public_inputs_hash_bytes),
+                )
                 .expect("method not found (this should never happen)")
         }
     }
-    impl<M: ::ethers::providers::Middleware> From<::ethers::contract::Contract<M>> for MockVerifier<M> {
+    impl<M: ::ethers::providers::Middleware> From<::ethers::contract::Contract<M>>
+    for MockVerifier<M> {
         fn from(contract: ::ethers::contract::Contract<M>) -> Self {
             Self::new(contract.address(), contract.client())
         }
@@ -167,7 +184,7 @@ pub mod mock_verifier {
         Debug,
         PartialEq,
         Eq,
-        Hash,
+        Hash
     )]
     #[ethcall(name = "verify", abi = "verify(bytes,bytes)")]
     pub struct VerifyCall {
@@ -185,7 +202,7 @@ pub mod mock_verifier {
         Debug,
         PartialEq,
         Eq,
-        Hash,
+        Hash
     )]
     pub struct VerifyReturn {
         pub result: bool,

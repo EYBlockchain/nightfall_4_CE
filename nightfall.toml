@@ -38,7 +38,8 @@ max_event_listener_attempts = 10
 block_size = 64
 
 [development.verifier]
-# VK values that the UUPS provider will initialize withdomain_size = 0x2000000
+# VK values that the UUPS provider will initialize with
+domain_size = 0x2000000
 num_inputs  = 0x1
 # Sigma commitments (G1)
 sigma_comms_1 = ["0x19e0282060fb3857d2b3d0cbc6d42c7cfc17a0f730de847d52cd41cef0e73046", "0x56a73ea01489e4dbb0cd5e6a442d8403a04709edc2fa482441f144ea1d7e644"]
