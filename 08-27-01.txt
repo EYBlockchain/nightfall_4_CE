@@ -1,159 +1,159 @@
 Attaching to anvil, nf4_client, nf4_client2, nf4_configuration, nf4_db_client, nf4_db_client2, nf4_db_proposer, nf4_deployer, nf4_proposer, nf4_test
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: using the "epoll" event method
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: nginx/1.29.1
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: built by gcc 12.2.0 (Debian 12.2.0-14+deb12u1) 
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: OS: Linux 6.8.0-1014-azure
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: getrlimit(RLIMIT_NOFILE): 1048576:1048576
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker processes
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 29
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 30
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 31
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 32
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 33
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 34
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 35
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 36
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 37
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 38
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 39
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 40
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 41
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 42
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 43
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 44
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 45
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 46
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 47
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 48
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 49
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 50
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 51
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 52
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 53
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 54
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 55
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 56
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 57
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 58
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 59
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 60
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 61
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 62
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 63
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 64
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 65
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 66
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 67
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 68
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 69
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 70
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 71
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 72
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 73
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 74
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 75
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 76
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 77
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 78
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 79
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 80
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 81
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 82
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 83
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 84
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 85
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 86
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 87
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 88
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 89
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 90
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 91
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 92
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 93
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 94
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 95
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 96
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 97
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 98
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 99
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 100
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 101
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 102
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 103
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 104
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 105
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 106
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 107
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 108
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 109
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 110
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 111
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 112
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 113
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 114
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 115
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 116
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 117
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 118
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 119
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 120
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 121
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 122
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 123
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 124
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 125
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 126
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 127
 anvil              | Waiting for anvil to be ready... (1)
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: using the "epoll" event method
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: nginx/1.29.1
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: built by gcc 12.2.0 (Debian 12.2.0-14+deb12u1) 
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: OS: Linux 6.8.0-1014-azure
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: getrlimit(RLIMIT_NOFILE): 1048576:1048576
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker processes
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 29
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 30
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 31
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 32
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 33
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 34
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 35
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 36
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 37
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 38
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 39
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 40
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 41
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 42
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 43
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 44
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 45
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 46
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 47
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 48
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 49
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 50
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 51
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 52
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 53
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 54
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 55
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 56
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 57
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 58
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 59
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 60
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 61
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 62
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 63
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 64
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 65
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 66
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 67
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 68
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 69
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 70
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 71
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 72
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 73
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 74
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 75
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 76
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 77
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 78
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 79
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 80
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 81
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 82
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 83
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 84
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 85
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 86
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 87
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 88
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 89
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 90
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 91
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 92
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 93
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 94
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 95
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 96
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 97
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 98
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 99
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 100
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 101
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 102
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 103
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 104
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 105
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 106
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 107
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 108
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 109
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 110
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 111
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 112
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 113
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 114
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 115
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 116
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 117
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 118
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 119
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 120
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 121
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 122
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 123
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 124
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 125
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 126
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 127
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 128
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 129
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 130
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 131
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 132
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 133
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 134
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 135
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 136
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 137
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 138
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 139
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 140
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 141
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 142
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 143
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 144
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 145
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 146
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 147
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 148
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 149
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 150
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 151
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 152
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 153
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 154
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 155
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 156
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 157
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 158
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 159
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 160
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 161
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 162
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 163
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 164
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 165
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 166
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 167
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 168
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 169
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 170
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 171
-nf4_configuration  | 2025/08/27 20:49:45 [notice] 1#1: start worker process 172
-anvil              | Compiling 88 files with Solc 0.8.29
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 128
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 129
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 130
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 131
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 132
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 133
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 134
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 135
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 136
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 137
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 138
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 139
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 140
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 141
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 142
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 143
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 144
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 145
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 146
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 147
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 148
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 149
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 150
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 151
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 152
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 153
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 154
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 155
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 156
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 157
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 158
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 159
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 160
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 161
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 162
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 163
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 164
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 165
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 166
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 167
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 168
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 169
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 170
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 171
+nf4_configuration  | 2025/08/27 22:25:15 [notice] 1#1: start worker process 172
+anvil              | Compiling 86 files with Solc 0.8.29
 anvil              | installing solc version "0.8.29"
 anvil              | Successfully installed solc 0.8.29
-anvil              | Solc 0.8.29 finished in 5.10s
+anvil              | Solc 0.8.29 finished in 4.31s
 anvil              | Compiler run successful!
 anvil              | Script ran successfully.
 anvil              | 
@@ -191,13 +191,13 @@ nf4_deployer       |
 nf4_deployer       | Nightfall_4,
 nf4_deployer       | https://github.com/EYBlockchain/nightfall_4_CE
 nf4_deployer       | 
-nf4_deployer       | [0m[38;5;8m[[0m2025-08-27T20:50:01Z [0m[32mINFO [0m nightfall_deployer[0m[38;5;8m][0m Deployer has started
-nf4_deployer       | [0m[38;5;8m[[0m2025-08-27T20:50:01Z [0m[32mINFO [0m nightfall_deployer[0m[38;5;8m][0m Deploying contracts
-nf4_deployer       | [0m[38;5;8m[[0m2025-08-27T20:50:01Z [0m[32mINFO [0m nightfall_deployer::deployment[0m[38;5;8m][0m DEBUG: Running forge command: ["build", "--force"]
-nf4_deployer       | [0m[38;5;8m[[0m2025-08-27T20:50:08Z [0m[32mINFO [0m nightfall_deployer::deployment[0m[38;5;8m][0m Command 'forge ["build", "--force"]' executed successfully: Compiling 116 files with Solc 0.8.29
+nf4_deployer       | [0m[38;5;8m[[0m2025-08-27T22:25:31Z [0m[32mINFO [0m nightfall_deployer[0m[38;5;8m][0m Deployer has started
+nf4_deployer       | [0m[38;5;8m[[0m2025-08-27T22:25:31Z [0m[32mINFO [0m nightfall_deployer[0m[38;5;8m][0m Deploying contracts
+nf4_deployer       | [0m[38;5;8m[[0m2025-08-27T22:25:31Z [0m[32mINFO [0m nightfall_deployer::deployment[0m[38;5;8m][0m DEBUG: Running forge command: ["build", "--force"]
+nf4_deployer       | [0m[38;5;8m[[0m2025-08-27T22:25:37Z [0m[32mINFO [0m nightfall_deployer::deployment[0m[38;5;8m][0m Command 'forge ["build", "--force"]' executed successfully: Compiling 113 files with Solc 0.8.29
 nf4_deployer       |     installing solc version "0.8.29"
 nf4_deployer       |     Successfully installed solc 0.8.29
-nf4_deployer       |     Solc 0.8.29 finished in 6.46s
+nf4_deployer       |     Solc 0.8.29 finished in 5.61s
 nf4_deployer       |     Compiler run successful with warnings:
 nf4_deployer       |     Warning (2018): Function state mutability can be restricted to pure
 nf4_deployer       |        --> blockchain_assets/script/deployer.s.sol:209:5:
@@ -206,10 +206,11 @@ nf4_deployer       |     209 |     function parseHexUintFromArray(string memory 
 nf4_deployer       |         |     ^ (Relevant source part starts here and spans across multiple lines).
 nf4_deployer       |     
 nf4_deployer       |     
-nf4_deployer       | Writing vk to nightfall.toml...
-nf4_deployer       | [0m[38;5;8m[[0m2025-08-27T20:50:08Z [0m[32mINFO [0m nightfall_deployer::deployment[0m[38;5;8m][0m DEBUG: Running forge command: ["script", "Deployer", "--fork-url", "ws://anvil:8545", "--broadcast", "--force"]
-nf4_deployer       | [0m[38;5;8m[[0m2025-08-27T20:50:17Z [0m[32mINFO [0m nightfall_deployer::deployment[0m[38;5;8m][0m Command 'forge ["script", "Deployer", "--fork-url", "ws://anvil:8545", "--broadcast", "--force"]' executed successfully: Compiling 105 files with Solc 0.8.29
-nf4_deployer       |     Solc 0.8.29 finished in 4.94s
+nf4_deployer       | Updated [development .verifier] in /app/nightfall.toml
+nf4_deployer       | [0m[38;5;8m[[0m2025-08-27T22:25:37Z [0m[32mINFO [0m nightfall_deployer::deployment[0m[38;5;8m][0m DEBUG: Running forge command: ["script", "Deployer", "--fork-url", "ws://anvil:8545", "--broadcast", "--force"]
+nf4_deployer       | [0m[38;5;8m[[0m2025-08-27T22:25:43Z [0m[1m[31mERROR[0m panic[0m[38;5;8m][0m thread 'main' panicked at 'Command 'forge ["script", "Deployer", "--fork-url", "ws://anvil:8545", "--broadcast", "--force"]' executed with failing error code: None
+nf4_deployer       |     Standard Output: Compiling 103 files with Solc 0.8.29
+nf4_deployer       |     Solc 0.8.29 finished in 4.59s
 nf4_deployer       |     Compiler run successful with warnings:
 nf4_deployer       |     Warning (2018): Function state mutability can be restricted to pure
 nf4_deployer       |        --> blockchain_assets/script/deployer.s.sol:209:5:
@@ -217,176 +218,46 @@ nf4_deployer       |         |
 nf4_deployer       |     209 |     function parseHexUintFromArray(string memory toml, string memory key, uint256 i) internal view returns (uint256) {
 nf4_deployer       |         |     ^ (Relevant source part starts here and spans across multiple lines).
 nf4_deployer       |     
-nf4_deployer       |     Script ran successfully.
+nf4_deployer       |     Traces:
+nf4_deployer       |       [19290254] → new Deployer@0x9f7cF1d1F558E57ef88a59ac3D47214eF25B6A06
+nf4_deployer       |         ├─ [0] VM::envString("NF4_RUN_MODE") [staticcall]
+nf4_deployer       |         │   └─ ← [Return] <env var value>
+nf4_deployer       |         └─ ← [Return] 96033 bytes of code
 nf4_deployer       |     
-nf4_deployer       |     ## Setting up 1 EVM.
+nf4_deployer       |       [24551] Deployer::run()
+nf4_deployer       |         ├─ [0] VM::setEnv("FOUNDRY_OUT", "blockchain_assets/artifacts")
+nf4_deployer       |         │   └─ ← [Return] 
+nf4_deployer       |         ├─ [0] VM::envUint("NF4_SIGNING_KEY") [staticcall]
+nf4_deployer       |         │   └─ ← [Return] <env var value>
+nf4_deployer       |         ├─ [0] VM::projectRoot() [staticcall]
+nf4_deployer       |         │   └─ ← [Return] "/app"
+nf4_deployer       |         ├─ [0] VM::readFile("/app/nightfall.toml") [staticcall]
+nf4_deployer       |         │   └─ ← [Return] <file>
+nf4_deployer       |         ├─ [0] VM::addr(<pk>) [staticcall]
+nf4_deployer       |         │   └─ ← [Return] 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+nf4_deployer       |         ├─ [0] VM::startBroadcast(<pk>)
+nf4_deployer       |         │   └─ ← [Return] 
+nf4_deployer       |         ├─ [0] VM::parseTomlUint("<stringified TOML>", "$.development.verifier.domain_size") [staticcall]
+nf4_deployer       |         │   └─ ← [Revert] vm.parseTomlUint: failed parsing TOML: TOML parse error at line 85, column 18
+nf4_deployer       |        |
+nf4_deployer       |     85 | 7c6db5ddb9bde7fd0"
+nf4_deployer       |        |                  ^
+nf4_deployer       |     expected `.`, `=`
 nf4_deployer       |     
-nf4_deployer       |     ==========================
-nf4_deployer       |     
-nf4_deployer       |     Chain 31337
-nf4_deployer       |     
-nf4_deployer       |     Estimated gas price: 71.803284685 gwei
-nf4_deployer       |     
-nf4_deployer       |     Estimated total gas used for script: 26663596
-nf4_deployer       |     
-nf4_deployer       |     Estimated amount required: 1.91453377431382726 ETH
-nf4_deployer       |     
-nf4_deployer       |     ==========================
+nf4_deployer       |         └─ ← [Revert] vm.parseTomlUint: failed parsing TOML: TOML parse error at line 85, column 18
+nf4_deployer       |        |
+nf4_deployer       |     85 | 7c6db5ddb9bde7fd0"
+nf4_deployer       |        |                  ^
+nf4_deployer       |     expected `.`, `=`
 nf4_deployer       |     
 nf4_deployer       |     
-nf4_deployer       |     ==========================
-nf4_deployer       |     
-nf4_deployer       |     ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
-nf4_deployer       |     
-nf4_deployer       |     Transactions saved to: /app/blockchain_assets/logs/deployer.s.sol/31337/run-latest.json
-nf4_deployer       |     
-nf4_deployer       |     Sensitive values saved to: /app/blockchain_assets/cache/deployer.s.sol/31337/run-latest.json
 nf4_deployer       |     
 nf4_deployer       |     
-nf4_configuration  | 2025/08/27 20:50:17 [crit] 29#29: *1 open() "/var/www/html/configuration/toml/addresses.toml.0000000002" failed (13: Permission denied), client: 172.18.0.7, server: , request: "PUT /configuration/toml/addresses.toml HTTP/1.1", host: "configuration"
-nf4_configuration  | 172.18.0.7 - - [27/Aug/2025:20:50:17 +0000] "PUT /configuration/toml/addresses.toml HTTP/1.1" 500 177 "-" "-" "-"
-
-[Knf4_deployer exited with code 0
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:50:18Z [0m[32mINFO [0m nightfall_proposer[0m[38;5;8m][0m Dropping database: nightfall
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:50:18Z [0m[32mINFO [0m nightfall_proposer[0m[38;5;8m][0m Using RollupProver
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:50:18Z [0m[32mINFO [0m nightfall_proposer::drivers::blockchain::nightfall_event_listener[0m[38;5;8m][0m Proposer event listener (attempt 1)...
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:50:18Z [0m[32mINFO [0m nightfall_proposer[0m[38;5;8m][0m Starting warp server, block assembler and event_handler threads
-nf4_configuration  | 2025/08/27 20:50:18 [error] 30#30: *2 open() "/var/www/html/configuration/toml/addresses.toml" failed (2: No such file or directory), client: 172.18.0.7, server: , request: "GET /configuration/toml/addresses.toml HTTP/1.1", host: "configuration"
-nf4_configuration  | 172.18.0.7 - - [27/Aug/2025:20:50:18 +0000] "GET /configuration/toml/addresses.toml HTTP/1.1" 404 153 "-" "-" "-"
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:50:18Z [0m[33mWARN [0m configuration::addresses[0m[38;5;8m][0m Failed to load the contract addresses from the configuration server. Loading from local file system instead.
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:50:18Z [0m[32mINFO [0m lib::wallets[0m[38;5;8m][0m Created wallet with address: 0xa0ee7a142d267c1f36714e4a8f75612f20a79720
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:50:18Z [0m[32mINFO [0m nightfall_proposer::drivers::blockchain::block_assembly[0m[38;5;8m][0m We are the current proposer. Awaiting trigger...
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:50:18Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 0s, remaining: 120s, will wait for more txs or until timeout (120s).
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:50:18Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 0s, remaining: 120s, will wait for more txs or until timeout (120s).
-nf4_client2        | [0m[38;5;8m[[0m2025-08-27T20:50:24Z [0m[32mINFO [0m nightfall_client::drivers::blockchain::nightfall_event_listener[0m[38;5;8m][0m Client event listener (attempt 1)...
-nf4_client2        | [0m[38;5;8m[[0m2025-08-27T20:50:24Z [0m[32mINFO [0m nightfall_client[0m[38;5;8m][0m Starting warp server, request queue, and event_handler threads
-nf4_client2        | [0m[38;5;8m[[0m2025-08-27T20:50:24Z [0m[32mINFO [0m lib::wallets[0m[38;5;8m][0m Created wallet with address: 0x976ea74026e726554db657fa54763abd0c3a0aa9
-nf4_configuration  | 2025/08/27 20:50:24 [error] 31#31: *3 open() "/var/www/html/configuration/toml/addresses.toml" failed (2: No such file or directory), client: 172.18.0.8, server: , request: "GET /configuration/toml/addresses.toml HTTP/1.1", host: "configuration"
-nf4_configuration  | 172.18.0.8 - - [27/Aug/2025:20:50:24 +0000] "GET /configuration/toml/addresses.toml HTTP/1.1" 404 153 "-" "-" "-"
-nf4_client2        | [0m[38;5;8m[[0m2025-08-27T20:50:24Z [0m[33mWARN [0m configuration::addresses[0m[38;5;8m][0m Failed to load the contract addresses from the configuration server. Loading from local file system instead.
-nf4_client2        | [0m[38;5;8m[[0m2025-08-27T20:50:24Z [0m[32mINFO [0m nightfall_client::drivers::blockchain::nightfall_event_listener[0m[38;5;8m][0m Listening for events on the Nightfall contract at address: 0x6101…d788
-nf4_client         | [0m[38;5;8m[[0m2025-08-27T20:50:24Z [0m[32mINFO [0m nightfall_client::drivers::blockchain::nightfall_event_listener[0m[38;5;8m][0m Client event listener (attempt 1)...
-nf4_client         | [0m[38;5;8m[[0m2025-08-27T20:50:24Z [0m[32mINFO [0m nightfall_client[0m[38;5;8m][0m Starting warp server, request queue, and event_handler threads
-nf4_client         | [0m[38;5;8m[[0m2025-08-27T20:50:24Z [0m[32mINFO [0m lib::wallets[0m[38;5;8m][0m Created wallet with address: 0x23618e81e3f5cdf7f54c3d65f7fbc0abf5b21e8f
-nf4_configuration  | 2025/08/27 20:50:24 [error] 32#32: *4 open() "/var/www/html/configuration/toml/addresses.toml" failed (2: No such file or directory), client: 172.18.0.9, server: , request: "GET /configuration/toml/addresses.toml HTTP/1.1", host: "configuration"
-nf4_configuration  | 172.18.0.9 - - [27/Aug/2025:20:50:24 +0000] "GET /configuration/toml/addresses.toml HTTP/1.1" 404 153 "-" "-" "-"
-nf4_client         | [0m[38;5;8m[[0m2025-08-27T20:50:24Z [0m[33mWARN [0m configuration::addresses[0m[38;5;8m][0m Failed to load the contract addresses from the configuration server. Loading from local file system instead.
-nf4_client         | [0m[38;5;8m[[0m2025-08-27T20:50:24Z [0m[32mINFO [0m nightfall_client::drivers::blockchain::nightfall_event_listener[0m[38;5;8m][0m Listening for events on the Nightfall contract at address: 0x6101…d788
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:50:28Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 10s, remaining: 110s, will wait for more txs or until timeout (120s).
-nf4_test           | [0m[38;5;8m[[0m2025-08-27T20:50:29Z [0m[32mINFO [0m nightfall_test[0m[38;5;8m][0m Starting webhook server...
-nf4_test           | [0m[38;5;8m[[0m2025-08-27T20:50:29Z [0m[32mINFO [0m nightfall_test[0m[38;5;8m][0m Running tests...
-nf4_test           | [0m[38;5;8m[[0m2025-08-27T20:50:29Z [0m[32mINFO [0m nightfall_test[0m[38;5;8m][0m Starting queue polling...
-nf4_test           | [0m[38;5;8m[[0m2025-08-27T20:50:29Z [0m[32mINFO [0m nightfall_test::run_tests[0m[38;5;8m][0m Running tests on nightall_client http:// interface
-nf4_test           | [0m[38;5;8m[[0m2025-08-27T20:50:30Z [0m[32mINFO [0m nightfall_test::run_tests[0m[38;5;8m][0m * zkp keys created
-nf4_test           | [0m[38;5;8m[[0m2025-08-27T20:50:30Z [0m[32mINFO [0m nightfall_test::run_tests[0m[38;5;8m][0m * contract addresses obtained
-nf4_test           | [0m[38;5;8m[[0m2025-08-27T20:50:30Z [0m[32mINFO [0m nightfall_test::validate_certs[0m[38;5;8m][0m Validating Client 1's certificate
-nf4_client         | [0m[38;5;8m[[0m2025-08-27T20:50:30Z [0m[32mINFO [0m lib::validate_certificate[0m[38;5;8m][0m Receiving certificate validation file: certificate.der
-nf4_client         | [0m[38;5;8m[[0m2025-08-27T20:50:30Z [0m[32mINFO [0m lib::validate_certificate[0m[38;5;8m][0m Receiving certificate validation file: certificate.priv_key
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:50:33Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 15s, remaining: 105s, will wait for more txs or until timeout (120s).
-nf4_test           | [0m[38;5;8m[[0m2025-08-27T20:50:37Z [0m[32mINFO [0m nightfall_test::validate_certs[0m[38;5;8m][0m Validating Client 2's certificate
-nf4_client2        | [0m[38;5;8m[[0m2025-08-27T20:50:37Z [0m[32mINFO [0m lib::validate_certificate[0m[38;5;8m][0m Receiving certificate validation file: certificate.der
-nf4_client2        | [0m[38;5;8m[[0m2025-08-27T20:50:37Z [0m[32mINFO [0m lib::validate_certificate[0m[38;5;8m][0m Receiving certificate validation file: certificate.priv_key
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:50:43Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 25s, remaining: 95s, will wait for more txs or until timeout (120s).
-nf4_test           | [0m[38;5;8m[[0m2025-08-27T20:50:44Z [0m[32mINFO [0m nightfall_test::validate_certs[0m[38;5;8m][0m Validating Proposer's certificate
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:50:44Z [0m[32mINFO [0m lib::wallets[0m[38;5;8m][0m Created wallet with address: 0xa0ee7a142d267c1f36714e4a8f75612f20a79720
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:50:44Z [0m[32mINFO [0m lib::validate_certificate[0m[38;5;8m][0m Receiving certificate validation file: certificate.der
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:50:44Z [0m[32mINFO [0m lib::validate_certificate[0m[38;5;8m][0m Receiving certificate validation file: certificate.priv_key
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:50:48Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 30s, remaining: 90s, will wait for more txs or until timeout (120s).
-nf4_test           | [0m[38;5;8m[[0m2025-08-27T20:50:51Z [0m[33mWARN [0m nightfall_test::run_tests[0m[38;5;8m][0m Running large block test
-nf4_test           | [0m[38;5;8m[[0m2025-08-27T20:50:51Z [0m[32mINFO [0m nightfall_test::run_tests[0m[38;5;8m][0m Making 256 deposit transactions
-nf4_test           | [0m[38;5;8m[[0m2025-08-27T20:50:51Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Creating deposit transaction onchain 37cb7ce9-2528-4e58-ac1c-e2d71571bede
-nf4_test           | [0m[38;5;8m[[0m2025-08-27T20:50:51Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Creating deposit transaction onchain 95f85dd5-444f-4c21-9b49-55ef990ef08f
-nf4_test           | [0m[38;5;8m[[0m2025-08-27T20:50:51Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Deposit transaction 37cb7ce9-2528-4e58-ac1c-e2d71571bede has been accepted by the client
-nf4_configuration  | 2025/08/27 20:50:51 [error] 33#33: *5 open() "/var/www/html/configuration/toml/addresses.toml" failed (2: No such file or directory), client: 172.18.0.250, server: , request: "GET /configuration/toml/addresses.toml HTTP/1.1", host: "configuration"
-nf4_configuration  | 172.18.0.250 - - [27/Aug/2025:20:50:51 +0000] "GET /configuration/toml/addresses.toml HTTP/1.1" 404 153 "-" "-" "-"
-nf4_test           | [0m[38;5;8m[[0m2025-08-27T20:50:51Z [0m[33mWARN [0m configuration::addresses[0m[38;5;8m][0m Failed to load the contract addresses from the configuration server. Loading from local file system instead.
-nf4_test           | [0m[38;5;8m[[0m2025-08-27T20:50:51Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Deposit transaction 95f85dd5-444f-4c21-9b49-55ef990ef08f has been accepted by the client
-nf4_test           | [0m[38;5;8m[[0m2025-08-27T20:50:51Z [0m[32mINFO [0m nightfall_test::run_tests[0m[38;5;8m][0m Waiting for deposit responses
-nf4_test           | [0m[38;5;8m[[0m2025-08-27T20:50:51Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Have 2 IDs and 0 processed client transactions
-nf4_client         | [0m[38;5;8m[[0m2025-08-27T20:50:52Z [0m[32mINFO [0m nightfall_client::driven::queue[0m[38;5;8m][0m Processing request: 37cb7ce9-2528-4e58-ac1c-e2d71571bede
-nf4_client         | [0m[38;5;8m[[0m2025-08-27T20:50:52Z [0m[32mINFO [0m nightfall_client::drivers::rest::client_nf_3[0m[38;5;8m][0m Deposit raw request: NF3DepositRequest { erc_address: "5fbdb2315678afecb367f032d93f642f64180aa3", token_id: "0x00", token_type: "0", value: "0x04", fee: "0x05", deposit_fee: "0x06", secret_preimage_one: None, secret_preimage_two: None, secret_preimage_three: None }
-nf4_client         | [0m[38;5;8m[[0m2025-08-27T20:50:52Z [0m[32mINFO [0m nightfall_client::drivers::rest::client_nf_3[0m[38;5;8m][0m 37cb7ce9-2528-4e58-ac1c-e2d71571bede No secret preimage found for deposit request, generating
-nf4_client         | [0m[38;5;8m[[0m2025-08-27T20:50:52Z [0m[32mINFO [0m nightfall_client::services::client_operation[0m[38;5;8m][0m 37cb7ce9-2528-4e58-ac1c-e2d71571bede Setting transfer approval
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:50:58Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 40s, remaining: 80s, will wait for more txs or until timeout (120s).
-nf4_client         | [0m[38;5;8m[[0m2025-08-27T20:50:59Z [0m[32mINFO [0m nightfall_client::services::client_operation[0m[38;5;8m][0m 37cb7ce9-2528-4e58-ac1c-e2d71571bede Escrowing funds
-nf4_client         | [0m[38;5;8m[[0m2025-08-27T20:51:00Z [0m[32mINFO [0m nightfall_client::driven::event_handlers::nightfall_event[0m[38;5;8m][0m Received DepositEscrowed event
-nf4_client         | [0m[38;5;8m[[0m2025-08-27T20:51:00Z [0m[32mINFO [0m nightfall_client::driven::event_handlers::nightfall_event[0m[38;5;8m][0m Client: Decoded DepositEscrowed event from transaction 0x4323…9397, Deposit Transaction with nf_slot_id 3904706575986504511978814088454415652555375037070224197537435603550245942968, value 4, is now on-chain
-nf4_client2        | [0m[38;5;8m[[0m2025-08-27T20:51:00Z [0m[32mINFO [0m nightfall_client::driven::event_handlers::nightfall_event[0m[38;5;8m][0m Received DepositEscrowed event
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:51:00Z [0m[32mINFO [0m nightfall_proposer::driven::nightfall_event[0m[38;5;8m][0m Received DepositEscrowed event
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:51:00Z [0m[32mINFO [0m nightfall_proposer::driven::nightfall_event[0m[38;5;8m][0m Proposer: Decoded DepositEscrowed event from transaction 0x4323…9397, Deposit Transaction with nf_slot_id 3904706575986504511978814088454415652555375037070224197537435603550245942968, value 4, is now on-chain
-nf4_client         | [0m[38;5;8m[[0m2025-08-27T20:51:00Z [0m[32mINFO [0m nightfall_client::driven::event_handlers::nightfall_event[0m[38;5;8m][0m Received DepositEscrowed event
-nf4_client         | [0m[38;5;8m[[0m2025-08-27T20:51:00Z [0m[32mINFO [0m nightfall_client::driven::event_handlers::nightfall_event[0m[38;5;8m][0m Client: Decoded DepositEscrowed event from transaction 0x4323…9397, Deposit Transaction with nf_slot_id 5369402325292409886925433761909151414667022479686172374735753697737904296271, value 6, is now on-chain
-nf4_client2        | [0m[38;5;8m[[0m2025-08-27T20:51:00Z [0m[32mINFO [0m nightfall_client::driven::event_handlers::nightfall_event[0m[38;5;8m][0m Client: Decoded DepositEscrowed event from transaction 0x4323…9397, Deposit Transaction with nf_slot_id 3904706575986504511978814088454415652555375037070224197537435603550245942968, value 4, is now on-chain
-nf4_client2        | [0m[38;5;8m[[0m2025-08-27T20:51:00Z [0m[32mINFO [0m nightfall_client::driven::event_handlers::nightfall_event[0m[38;5;8m][0m Received DepositEscrowed event
-nf4_client2        | [0m[38;5;8m[[0m2025-08-27T20:51:00Z [0m[32mINFO [0m nightfall_client::driven::event_handlers::nightfall_event[0m[38;5;8m][0m Client: Decoded DepositEscrowed event from transaction 0x4323…9397, Deposit Transaction with nf_slot_id 5369402325292409886925433761909151414667022479686172374735753697737904296271, value 6, is now on-chain
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:51:00Z [0m[32mINFO [0m nightfall_proposer::driven::nightfall_client_transaction[0m[38;5;8m][0m Deposit Transaction is valid, storing in database
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:51:00Z [0m[32mINFO [0m nightfall_proposer::driven::nightfall_event[0m[38;5;8m][0m Received DepositEscrowed event
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:51:00Z [0m[32mINFO [0m nightfall_proposer::driven::nightfall_event[0m[38;5;8m][0m Proposer: Decoded DepositEscrowed event from transaction 0x4323…9397, Deposit Transaction with nf_slot_id 5369402325292409886925433761909151414667022479686172374735753697737904296271, value 6, is now on-chain
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:51:00Z [0m[32mINFO [0m nightfall_proposer::driven::nightfall_client_transaction[0m[38;5;8m][0m Deposit Transaction is valid, storing in database
-nf4_test           | [0m[38;5;8m[[0m2025-08-27T20:51:01Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Have 2 IDs and 0 processed client transactions
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:51:03Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 45s, remaining: 75s, will wait for more txs or until timeout (120s).
-nf4_client         | [0m[38;5;8m[[0m2025-08-27T20:51:06Z [0m[32mINFO [0m nightfall_client::driven::contract_functions::nightfall_contract[0m[38;5;8m][0m Gas used in escrow funds: Some(201860)
-nf4_client         | [0m[38;5;8m[[0m2025-08-27T20:51:06Z [0m[32mINFO [0m nightfall_client::driven::queue[0m[38;5;8m][0m Request 37cb7ce9-2528-4e58-ac1c-e2d71571bede processed successfully: 
-nf4_client         | [0m[38;5;8m[[0m2025-08-27T20:51:06Z [0m[32mINFO [0m nightfall_client::driven::queue[0m[38;5;8m][0m Processing request: 95f85dd5-444f-4c21-9b49-55ef990ef08f
-nf4_client         | [0m[38;5;8m[[0m2025-08-27T20:51:06Z [0m[32mINFO [0m nightfall_client::drivers::rest::client_nf_3[0m[38;5;8m][0m Deposit raw request: NF3DepositRequest { erc_address: "5fbdb2315678afecb367f032d93f642f64180aa3", token_id: "0x00", token_type: "0", value: "0x04", fee: "0x05", deposit_fee: "0x06", secret_preimage_one: None, secret_preimage_two: None, secret_preimage_three: None }
-nf4_client         | [0m[38;5;8m[[0m2025-08-27T20:51:06Z [0m[32mINFO [0m nightfall_client::drivers::rest::client_nf_3[0m[38;5;8m][0m 95f85dd5-444f-4c21-9b49-55ef990ef08f No secret preimage found for deposit request, generating
-nf4_client         | [0m[38;5;8m[[0m2025-08-27T20:51:06Z [0m[32mINFO [0m nightfall_client::services::client_operation[0m[38;5;8m][0m 95f85dd5-444f-4c21-9b49-55ef990ef08f Setting transfer approval
-nf4_test           | [0m[38;5;8m[[0m2025-08-27T20:51:11Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Have 2 IDs and 1 processed client transactions
-nf4_client         | [0m[38;5;8m[[0m2025-08-27T20:51:13Z [0m[32mINFO [0m nightfall_client::services::client_operation[0m[38;5;8m][0m 95f85dd5-444f-4c21-9b49-55ef990ef08f Escrowing funds
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:51:13Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 55s, remaining: 65s, will wait for more txs or until timeout (120s).
-nf4_client         | [0m[38;5;8m[[0m2025-08-27T20:51:15Z [0m[32mINFO [0m nightfall_client::driven::event_handlers::nightfall_event[0m[38;5;8m][0m Received DepositEscrowed event
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:51:15Z [0m[32mINFO [0m nightfall_proposer::driven::nightfall_event[0m[38;5;8m][0m Received DepositEscrowed event
-nf4_client         | [0m[38;5;8m[[0m2025-08-27T20:51:15Z [0m[32mINFO [0m nightfall_client::driven::event_handlers::nightfall_event[0m[38;5;8m][0m Client: Decoded DepositEscrowed event from transaction 0xf365…c84c, Deposit Transaction with nf_slot_id 3904706575986504511978814088454415652555375037070224197537435603550245942968, value 4, is now on-chain
-nf4_client2        | [0m[38;5;8m[[0m2025-08-27T20:51:15Z [0m[32mINFO [0m nightfall_client::driven::event_handlers::nightfall_event[0m[38;5;8m][0m Received DepositEscrowed event
-nf4_client2        | [0m[38;5;8m[[0m2025-08-27T20:51:15Z [0m[32mINFO [0m nightfall_client::driven::event_handlers::nightfall_event[0m[38;5;8m][0m Client: Decoded DepositEscrowed event from transaction 0xf365…c84c, Deposit Transaction with nf_slot_id 3904706575986504511978814088454415652555375037070224197537435603550245942968, value 4, is now on-chain
-nf4_client2        | [0m[38;5;8m[[0m2025-08-27T20:51:15Z [0m[32mINFO [0m nightfall_client::driven::event_handlers::nightfall_event[0m[38;5;8m][0m Received DepositEscrowed event
-nf4_client2        | [0m[38;5;8m[[0m2025-08-27T20:51:15Z [0m[32mINFO [0m nightfall_client::driven::event_handlers::nightfall_event[0m[38;5;8m][0m Client: Decoded DepositEscrowed event from transaction 0xf365…c84c, Deposit Transaction with nf_slot_id 5369402325292409886925433761909151414667022479686172374735753697737904296271, value 6, is now on-chain
-nf4_client         | [0m[38;5;8m[[0m2025-08-27T20:51:15Z [0m[32mINFO [0m nightfall_client::driven::event_handlers::nightfall_event[0m[38;5;8m][0m Received DepositEscrowed event
-nf4_client         | [0m[38;5;8m[[0m2025-08-27T20:51:15Z [0m[32mINFO [0m nightfall_client::driven::event_handlers::nightfall_event[0m[38;5;8m][0m Client: Decoded DepositEscrowed event from transaction 0xf365…c84c, Deposit Transaction with nf_slot_id 5369402325292409886925433761909151414667022479686172374735753697737904296271, value 6, is now on-chain
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:51:15Z [0m[32mINFO [0m nightfall_proposer::driven::nightfall_event[0m[38;5;8m][0m Proposer: Decoded DepositEscrowed event from transaction 0xf365…c84c, Deposit Transaction with nf_slot_id 3904706575986504511978814088454415652555375037070224197537435603550245942968, value 4, is now on-chain
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:51:15Z [0m[32mINFO [0m nightfall_proposer::driven::nightfall_client_transaction[0m[38;5;8m][0m Deposit Transaction is valid, storing in database
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:51:15Z [0m[32mINFO [0m nightfall_proposer::driven::nightfall_event[0m[38;5;8m][0m Received DepositEscrowed event
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:51:15Z [0m[32mINFO [0m nightfall_proposer::driven::nightfall_event[0m[38;5;8m][0m Proposer: Decoded DepositEscrowed event from transaction 0xf365…c84c, Deposit Transaction with nf_slot_id 5369402325292409886925433761909151414667022479686172374735753697737904296271, value 6, is now on-chain
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:51:15Z [0m[32mINFO [0m nightfall_proposer::driven::nightfall_client_transaction[0m[38;5;8m][0m Deposit Transaction is valid, storing in database
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:51:18Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 60s, remaining: 60s, will wait for more txs or until timeout (120s).
-nf4_client         | [0m[38;5;8m[[0m2025-08-27T20:51:20Z [0m[32mINFO [0m nightfall_client::driven::contract_functions::nightfall_contract[0m[38;5;8m][0m Gas used in escrow funds: Some(164872)
-nf4_client         | [0m[38;5;8m[[0m2025-08-27T20:51:20Z [0m[32mINFO [0m nightfall_client::driven::queue[0m[38;5;8m][0m Request 95f85dd5-444f-4c21-9b49-55ef990ef08f processed successfully: 
-nf4_test           | [0m[38;5;8m[[0m2025-08-27T20:51:21Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Have 2 IDs and 2 processed client transactions
-nf4_test           | [0m[38;5;8m[[0m2025-08-27T20:51:21Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m All expected responses from the clients' webhooks have been received
-nf4_test           | [0m[38;5;8m[[0m2025-08-27T20:51:21Z [0m[32mINFO [0m nightfall_test::run_tests[0m[38;5;8m][0m Waiting for deposits to be on-chain
-nf4_test           | [0m[38;5;8m[[0m2025-08-27T20:51:21Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Waiting for commitments to appear on-chain
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:51:28Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 70s, remaining: 50s, will wait for more txs or until timeout (120s).
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:51:33Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 75s, remaining: 45s, will wait for more txs or until timeout (120s).
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:51:43Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 85s, remaining: 35s, will wait for more txs or until timeout (120s).
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:51:48Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 90s, remaining: 30s, will wait for more txs or until timeout (120s).
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:51:58Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 100s, remaining: 20s, will wait for more txs or until timeout (120s).
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:52:03Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 105s, remaining: 15s, will wait for more txs or until timeout (120s).
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:52:13Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 115s, remaining: 5s, will wait for more txs or until timeout (120s).
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:52:18Z [0m[32mINFO [0m nightfall_proposer::services::assemble_block[0m[38;5;8m][0m Starting block assembly process
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:52:18Z [0m[32mINFO [0m nightfall_proposer::services::assemble_block[0m[38;5;8m][0m Getting DB connection
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:52:18Z [0m[32mINFO [0m nightfall_proposer::services::assemble_block[0m[38;5;8m][0m Preparing block data
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:52:18Z [0m[32mINFO [0m nightfall_proposer::services::assemble_block[0m[38;5;8m][0m Found 4 deposits in mempool
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:52:18Z [0m[32mINFO [0m nightfall_proposer::services::assemble_block[0m[38;5;8m][0m Found 0 client transactions in mempool
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:52:18Z [0m[32mINFO [0m nightfall_proposer::services::assemble_block[0m[38;5;8m][0m Block data prepared successfully
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:52:18Z [0m[32mINFO [0m nightfall_proposer::services::assemble_block[0m[38;5;8m][0m This block has 4 deposit(s), 0 transfer(s), and 0 withdrawal(s)
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:52:18Z [0m[32mINFO [0m nightfall_proposer::services::assemble_block[0m[38;5;8m][0m Creating deposit proof for a group of 4 deposits
-nf4_configuration  | 172.18.0.7 - - [27/Aug/2025:20:52:19 +0000] "GET /deposit_proving_key HTTP/1.1" 200 243271267 "-" "-" "-"
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:52:28Z [0m[32mINFO [0m nightfall_proposer::services::assemble_block[0m[38;5;8m][0m Generated 1 deposit proofs
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:52:28Z [0m[32mINFO [0m nightfall_proposer::services::assemble_block[0m[38;5;8m][0m Current transaction count: 1, block size: 64
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:52:28Z [0m[32mINFO [0m nightfall_proposer::services::assemble_block[0m[38;5;8m][0m Adding 63 default deposit proofs to fill block
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T20:52:34Z [0m[32mINFO [0m nightfall_proposer::services::assemble_block[0m[38;5;8m][0m Computing block
-nf4_configuration  | 172.18.0.7 - - [27/Aug/2025:20:52:34 +0000] "GET /proving_key HTTP/1.1" 200 30410339 "-" "-" "-"
-nf4_configuration  | 172.18.0.7 - - [27/Aug/2025:20:52:38 +0000] "GET /base_grumpkin_pk HTTP/1.1" 200 62917690 "-" "-" "-"
-nf4_configuration  | 172.18.0.7 - - [27/Aug/2025:20:52:40 +0000] "GET /base_bn254_pk HTTP/1.1" 200 1946158691 "-" "-" "-"
-nf4_configuration  | 172.18.0.7 - - [27/Aug/2025:20:52:59 +0000] "GET /merge_grumpkin_pk HTTP/1.1" 200 62917690 "-" "-" "-"
-nf4_configuration  | 172.18.0.7 - - [27/Aug/2025:20:53:22 +0000] "GET /decider_pk HTTP/1.1" 200 31138514531 "-" "-" "-"
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T21:17:30Z [0m[32mINFO [0m nightfall_proposer::services::assemble_block[0m[38;5;8m][0m Block computation took: 1495 s
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T21:17:34Z [0m[32mINFO [0m nightfall_proposer::drivers::blockchain::block_assembly[0m[38;5;8m][0m Added block to queue (1 pending)
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T21:17:34Z [0m[32mINFO [0m nightfall_proposer::drivers::blockchain::block_assembly[0m[38;5;8m][0m Proposing 1 pending blocks
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T21:17:34Z [0m[32mINFO [0m nightfall_proposer::drivers::blockchain::block_assembly[0m[38;5;8m][0m We are the current proposer. Awaiting trigger...
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T21:17:34Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 0s, remaining: 120s, will wait for more txs or until timeout (120s).
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T21:17:34Z [0m[1m[31mERROR[0m ethers_providers::rpc::transports::ws[0m[38;5;8m][0m error=(code: 3, message: execution reverted: revert: Pairing check failed!, data: Some(String("0x08c379a00000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000001550616972696e6720636865636b206661696c6564210000000000000000000000")))
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T21:17:34Z [0m[1m[31mERROR[0m nightfall_proposer::drivers::blockchain::block_assembly[0m[38;5;8m][0m Failed to propose block: Did not receive a transaction receipt
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T21:17:34Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 0s, remaining: 120s, will wait for more txs or until timeout (120s).
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T21:17:44Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 10s, remaining: 110s, will wait for more txs or until timeout (120s).
-nf4_proposer       | [0m[38;5;8m[[0m2025-08-27T21:17:49Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 15s, remaining: 105s, will wait for more txs or until timeout (120s).
+nf4_deployer       |     Standard Error: Error: script failed: vm.parseTomlUint: failed parsing TOML: TOML parse error at line 85, column 18
+nf4_deployer       |        |
+nf4_deployer       |     85 | 7c6db5ddb9bde7fd0"
+nf4_deployer       |        |                  ^
+nf4_deployer       |     expected `.`, `=`
+nf4_deployer       |     
+nf4_deployer       |     ': nightfall_deployer/src/deployment.rs:98
+[Knf4_deployer exited with code 101
