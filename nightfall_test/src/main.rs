@@ -5,8 +5,8 @@ use nightfall_test::{
     webhook::{poll_queue, run_webhook_server},
 };
 use std::sync::Arc;
-use tokio::time::{sleep, Duration};
 use tokio::task::{JoinError, JoinSet};
+use tokio::time::{sleep, Duration};
 
 #[tokio::main]
 async fn main() -> Result<(), JoinError> {
@@ -25,20 +25,23 @@ async fn main() -> Result<(), JoinError> {
     info!("Running tests...");
     tasks.spawn(run_tests(responses.clone(), MINING_INTERVAL));
     info!("Waiting for client services to be ready...");
-    let client_urls = ["http://client:3000/v1/health", "http://client2:3000/v1/health"];
+    let client_urls = [
+        "http://client:3000/v1/health",
+        "http://client2:3000/v1/health",
+    ];
     for url in &client_urls {
         let mut ready = false;
-        for _ in 1..=30 { 
+        for _ in 1..=30 {
             if reqwest::get(*url).await.is_ok() {
-                info!("Service {} is ready!", url);
+                info!("Service {url} is ready!");
                 ready = true;
                 break;
             }
             sleep(Duration::from_secs(2)).await;
         }
         if !ready {
-            error!("Service {} is not reachable after 60s", url);
-            panic!("Service not ready: {}", url);
+            error!("Service {url} is not reachable after 60s");
+            panic!("Service not ready: {url}");
         }
     }
     info!("Starting queue polling...");
@@ -51,7 +54,7 @@ async fn main() -> Result<(), JoinError> {
             return Ok(());
         }
         Some(Err(e)) => {
-            error!("Nightfall tests failed with error: {e:?}", );
+            error!("Nightfall tests failed with error: {e:?}",);
             return Err(e);
         }
         None => {

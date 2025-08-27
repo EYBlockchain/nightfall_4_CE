@@ -231,9 +231,7 @@ async fn verify_enough_commitments(
     let mut on_chain_old_value_commitments =
         fetch_on_chain_commitments(db, target_token_id).await?;
     on_chain_old_value_commitments.sort_by_key(|a| a.get_value());
-    trace!(
-        "On-chain commitments for value: {on_chain_old_value_commitments:?}"
-    );
+    trace!("On-chain commitments for value: {on_chain_old_value_commitments:?}");
 
     // Calculate the minimum number of commitments required for the value
     let min_c =

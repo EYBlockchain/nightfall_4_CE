@@ -129,7 +129,7 @@ where
                         return Err(EventHandlerError::StreamTerminated);
                     }
 
-                    _ => panic!("Error processing event: {e:?}", ),
+                    _ => panic!("Error processing event: {e:?}",),
                 }
             }
         }

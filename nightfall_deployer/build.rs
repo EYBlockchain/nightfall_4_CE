@@ -76,9 +76,7 @@ fn forge_command(command: &[&str]) {
             }
         }
         Err(e) => {
-            panic!(
-                "Command 'forge {command:?}' ran into an error without executing: {e}",
-            );
+            panic!("Command 'forge {command:?}' ran into an error without executing: {e}",);
         }
     }
 }

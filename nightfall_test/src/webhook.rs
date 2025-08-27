@@ -43,23 +43,19 @@ pub async fn poll_queue() {
     loop {
         // poll the queue
         match client.get(format!("{url}/v1/queue")).send().await {
-            Ok(response) if response.status().is_success() => {
-                match response.text().await {
-                    Ok(body) => debug!("Client 1 Queue length is : {body}"),
-                    Err(err) => warn!("Failed to read response body for client1: {err}"),
-                }
-            }
+            Ok(response) if response.status().is_success() => match response.text().await {
+                Ok(body) => debug!("Client 1 Queue length is : {body}"),
+                Err(err) => warn!("Failed to read response body for client1: {err}"),
+            },
             Ok(resp) => warn!("Client 1 returned status: {}", resp.status()),
             Err(err) => warn!("Failed to poll client1: {err}"),
         }
         // poll the queue for client 2
         match client.get(format!("{url2}/v1/queue")).send().await {
-            Ok(response) if response.status().is_success() => {
-                match response.text().await {
-                    Ok(body2) => debug!("Client 2 Queue length is : {body2}"),
-                    Err(err) => warn!("Failed to read response body for client2: {err}"),
-                }
-            }
+            Ok(response) if response.status().is_success() => match response.text().await {
+                Ok(body2) => debug!("Client 2 Queue length is : {body2}"),
+                Err(err) => warn!("Failed to read response body for client2: {err}"),
+            },
             Ok(resp) => warn!("Client 2 returned status: {}", resp.status()),
             Err(err) => warn!("Failed to poll client2: {err}"),
         }
