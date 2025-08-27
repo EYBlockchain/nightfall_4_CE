@@ -2,6 +2,7 @@
 src = "blockchain_assets/contracts"
 out = "blockchain_assets/artifacts"
 ast = true
+ffi = false
 script = "blockchain_assets/script"
 libs = ["blockchain_assets/solidity_lib"]
 test = "blockchain_assets/test_contracts"
@@ -16,3 +17,7 @@ remappings = [
     "@erc-3525/=blockchain_assets/solidity_lib/erc-3525/",
 ]
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
+
+[profile.deploy]
+inherit = "default"
+ffi = true
