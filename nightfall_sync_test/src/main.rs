@@ -38,9 +38,7 @@ async fn main() {
         time::sleep(time::Duration::from_secs(30)).await;
         count += 1;
         if count > 20 {
-            panic!(
-                "Proposer 2 is not syncing. Block count is {response_2} versus {response}"
-            );
+            panic!("Proposer 2 is not syncing. Block count is {response_2} versus {response}");
         }
     }
     debug!("Proposer 2 block number: {response_2}");

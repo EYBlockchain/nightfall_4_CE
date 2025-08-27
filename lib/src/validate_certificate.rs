@@ -80,15 +80,11 @@ async fn handle_certificate_validation(
         })?;
     if !is_certified {
         // compute the signature and validate the certificate
-        debug!(
-            "Signing ethereum address {requestor_address} with certificate private key"
-        );
+        debug!("Signing ethereum address {requestor_address} with certificate private key");
         let ethereum_address_signature =
             sign_ethereum_address(&certificate_req.certificate_private_key, &requestor_address)
                 .map_err(|e| {
-                    error!(
-                        "Could not sign ethereum address with certificate private key: {e}"
-                    );
+                    error!("Could not sign ethereum address with certificate private key: {e}");
                     warp::reject::custom(CertificateVerificationError::new(
                         "Invalid certificate provided",
                     ))

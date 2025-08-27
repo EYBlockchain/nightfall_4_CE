@@ -231,17 +231,13 @@ pub async fn get_synchronisation_status<N: NightfallContract>(
                 ));
             }
             // If hashes match, fall through and return Synchronized
-            debug!(
-                "Block {expected_u64} verified in local DB with matching hash."
-            );
+            debug!("Block {expected_u64} verified in local DB with matching hash.");
             Ok(SynchronisationStatus::new(
                 SynchronisationPhase::Synchronized,
             ))
         }
         None => {
-            debug!(
-                "Block {expected_u64} not found in local DB. Assuming client is still in sync."
-            );
+            debug!("Block {expected_u64} not found in local DB. Assuming client is still in sync.");
             Ok(SynchronisationStatus::new(
                 SynchronisationPhase::Synchronized,
             ))

@@ -170,7 +170,7 @@ impl<P: Proof + Send + Sync> SmartTrigger<P> {
                     count
                 }
                 Err(e) => {
-                    error!("Error counting client transactions: {e:?}", );
+                    error!("Error counting client transactions: {e:?}",);
                     0
                 }
             } as f32;
@@ -178,9 +178,7 @@ impl<P: Proof + Send + Sync> SmartTrigger<P> {
         let block_size = match get_block_size() {
             Ok(size) => size as f32,
             Err(e) => {
-                log::warn!(
-                    "Falling back to default block size 64 due to error: {e:?}"
-                );
+                log::warn!("Falling back to default block size 64 due to error: {e:?}");
                 64.0
             }
         };
