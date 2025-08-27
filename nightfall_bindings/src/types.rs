@@ -7,7 +7,7 @@ pub use types::*;
     clippy::upper_case_acronyms,
     clippy::type_complexity,
     dead_code,
-    non_camel_case_types,
+    non_camel_case_types
 )]
 pub mod types {
     #[allow(deprecated)]
@@ -22,21 +22,18 @@ pub mod types {
         }
     }
     ///The parsed JSON ABI of the contract.
-    pub static TYPES_ABI: ::ethers::contract::Lazy<::ethers::core::abi::Abi> = ::ethers::contract::Lazy::new(
-        __abi,
-    );
+    pub static TYPES_ABI: ::ethers::contract::Lazy<::ethers::core::abi::Abi> =
+        ::ethers::contract::Lazy::new(__abi);
     #[rustfmt::skip]
     const __BYTECODE: &[u8] = b"`U`2`\x0B\x82\x82\x829\x80Q_\x1A`s\x14`&WcNH{q`\xE0\x1B_R_`\x04R`$_\xFD[0_R`s\x81S\x82\x81\xF3\xFEs\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x000\x14`\x80`@R_\x80\xFD\xFE\xA2dipfsX\"\x12 \xFA\xB9\x9AZ\x90\x84r\t\"\xD2\xD2\xD4\xC8\xEFp!\xD5\xA4d\xC18\x80\xDF\t\xA6\x12\x87\x10[\xAB\x1C\xCBdsolcC\0\x08\x18\x003";
     /// The bytecode of the contract.
-    pub static TYPES_BYTECODE: ::ethers::core::types::Bytes = ::ethers::core::types::Bytes::from_static(
-        __BYTECODE,
-    );
+    pub static TYPES_BYTECODE: ::ethers::core::types::Bytes =
+        ::ethers::core::types::Bytes::from_static(__BYTECODE);
     #[rustfmt::skip]
     const __DEPLOYED_BYTECODE: &[u8] = b"s\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x000\x14`\x80`@R_\x80\xFD\xFE\xA2dipfsX\"\x12 \xFA\xB9\x9AZ\x90\x84r\t\"\xD2\xD2\xD4\xC8\xEFp!\xD5\xA4d\xC18\x80\xDF\t\xA6\x12\x87\x10[\xAB\x1C\xCBdsolcC\0\x08\x18\x003";
     /// The deployed bytecode of the contract.
-    pub static TYPES_DEPLOYED_BYTECODE: ::ethers::core::types::Bytes = ::ethers::core::types::Bytes::from_static(
-        __DEPLOYED_BYTECODE,
-    );
+    pub static TYPES_DEPLOYED_BYTECODE: ::ethers::core::types::Bytes =
+        ::ethers::core::types::Bytes::from_static(__DEPLOYED_BYTECODE);
     pub struct Types<M>(::ethers::contract::Contract<M>);
     impl<M> ::core::clone::Clone for Types<M> {
         fn clone(&self) -> Self {
@@ -56,7 +53,9 @@ pub mod types {
     }
     impl<M> ::core::fmt::Debug for Types<M> {
         fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-            f.debug_tuple(::core::stringify!(Types)).field(&self.address()).finish()
+            f.debug_tuple(::core::stringify!(Types))
+                .field(&self.address())
+                .finish()
         }
     }
     impl<M: ::ethers::providers::Middleware> Types<M> {
@@ -66,13 +65,11 @@ pub mod types {
             address: T,
             client: ::std::sync::Arc<M>,
         ) -> Self {
-            Self(
-                ::ethers::contract::Contract::new(
-                    address.into(),
-                    TYPES_ABI.clone(),
-                    client,
-                ),
-            )
+            Self(::ethers::contract::Contract::new(
+                address.into(),
+                TYPES_ABI.clone(),
+                client,
+            ))
         }
         /// Constructs the general purpose `Deployer` instance based on the provided constructor arguments and sends it.
         /// Returns a new instance of a deployer that returns an instance of this contract after sending the transaction
@@ -114,8 +111,7 @@ pub mod types {
             Ok(deployer)
         }
     }
-    impl<M: ::ethers::providers::Middleware> From<::ethers::contract::Contract<M>>
-    for Types<M> {
+    impl<M: ::ethers::providers::Middleware> From<::ethers::contract::Contract<M>> for Types<M> {
         fn from(contract: ::ethers::contract::Contract<M>) -> Self {
             Self::new(contract.address(), contract.client())
         }

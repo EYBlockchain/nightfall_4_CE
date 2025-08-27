@@ -158,9 +158,7 @@ async fn process_propose_block_event<N: NightfallContract>(
     // get a lock on the db, we don't want anything else updating or reading the DB until
     // we're done here
     let db = get_db_connection().await;
-    info!(
-        "Decoded Proposed block call from transaction {transaction_hash:?}"
-    );
+    info!("Decoded Proposed block call from transaction {transaction_hash:?}");
     let blk = decode.blk;
 
     let layer_2_block_number_in_event_u64: u64 = layer_2_block_number_in_event
@@ -203,9 +201,7 @@ async fn process_propose_block_event<N: NightfallContract>(
     // check if we're ahead of the event, this means we've already seen it and we shouldn't process it again
     // This could happen if we've missed some blocks and we're re-synchronising
     if *expected_onchain_block_number > layer_2_block_number_in_event {
-        warn!(
-            "Already processed layer 2 block {layer_2_block_number_in_event} - skipping"
-        );
+        warn!("Already processed layer 2 block {layer_2_block_number_in_event} - skipping");
         return Ok(());
     }
 
@@ -326,9 +322,7 @@ async fn process_propose_block_event<N: NightfallContract>(
     db.append_historic_commitment_root(&historic_root, true)
         .await
         .map_err(|_| EventHandlerError::IOError("Could not store historic root".to_string()))?;
-    debug!(
-        "Stored new commitments tree root in historic root timber tree: {historic_root}"
-    );
+    debug!("Stored new commitments tree root in historic root timber tree: {historic_root}");
 
     // it's worth checking that the historic root agrees with what's in the commitment tree
     let commitment_root = <Client as CommitmentTree<Fr254>>::get_root(db)
@@ -349,9 +343,7 @@ async fn process_propose_block_event<N: NightfallContract>(
 
     let delta = current_block_number_in_contract - layer_2_block_number_in_event - I256::one();
     if delta != I256::zero() {
-        warn!(
-            "Synchronising - behind blockchain by {delta} layer 2 blocks "
-        );
+        warn!("Synchronising - behind blockchain by {delta} layer 2 blocks ");
         sync_status.clear_synchronised();
     } else {
         debug!("Synchronised with blockchain");

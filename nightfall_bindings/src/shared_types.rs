@@ -9,7 +9,7 @@
     Debug,
     PartialEq,
     Eq,
-    Hash
+    Hash,
 )]
 pub struct DecodedTlv {
     pub start: ::ethers::core::types::U256,
@@ -31,7 +31,7 @@ pub struct DecodedTlv {
     Debug,
     PartialEq,
     Eq,
-    Hash
+    Hash,
 )]
 pub struct Tag {
     pub is_constructed: bool,
@@ -48,7 +48,7 @@ pub struct Tag {
     Debug,
     PartialEq,
     Eq,
-    Hash
+    Hash,
 )]
 pub struct Proposer {
     pub stake: ::ethers::core::types::U256,

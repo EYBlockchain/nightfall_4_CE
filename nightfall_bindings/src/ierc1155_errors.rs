@@ -7,7 +7,7 @@ pub use ierc1155_errors::*;
     clippy::upper_case_acronyms,
     clippy::type_complexity,
     dead_code,
-    non_camel_case_types,
+    non_camel_case_types
 )]
 pub mod ierc1155_errors {
     #[allow(deprecated)]
@@ -19,181 +19,135 @@ pub mod ierc1155_errors {
             errors: ::core::convert::From::from([
                 (
                     ::std::borrow::ToOwned::to_owned("ERC1155InsufficientBalance"),
-                    ::std::vec![
-                        ::ethers::core::abi::ethabi::AbiError {
-                            name: ::std::borrow::ToOwned::to_owned(
-                                "ERC1155InsufficientBalance",
-                            ),
-                            inputs: ::std::vec![
-                                ::ethers::core::abi::ethabi::Param {
-                                    name: ::std::borrow::ToOwned::to_owned("sender"),
-                                    kind: ::ethers::core::abi::ethabi::ParamType::Address,
-                                    internal_type: ::core::option::Option::Some(
-                                        ::std::borrow::ToOwned::to_owned("address"),
-                                    ),
-                                },
-                                ::ethers::core::abi::ethabi::Param {
-                                    name: ::std::borrow::ToOwned::to_owned("balance"),
-                                    kind: ::ethers::core::abi::ethabi::ParamType::Uint(
-                                        256usize,
-                                    ),
-                                    internal_type: ::core::option::Option::Some(
-                                        ::std::borrow::ToOwned::to_owned("uint256"),
-                                    ),
-                                },
-                                ::ethers::core::abi::ethabi::Param {
-                                    name: ::std::borrow::ToOwned::to_owned("needed"),
-                                    kind: ::ethers::core::abi::ethabi::ParamType::Uint(
-                                        256usize,
-                                    ),
-                                    internal_type: ::core::option::Option::Some(
-                                        ::std::borrow::ToOwned::to_owned("uint256"),
-                                    ),
-                                },
-                                ::ethers::core::abi::ethabi::Param {
-                                    name: ::std::borrow::ToOwned::to_owned("tokenId"),
-                                    kind: ::ethers::core::abi::ethabi::ParamType::Uint(
-                                        256usize,
-                                    ),
-                                    internal_type: ::core::option::Option::Some(
-                                        ::std::borrow::ToOwned::to_owned("uint256"),
-                                    ),
-                                },
-                            ],
-                        },
-                    ],
+                    ::std::vec![::ethers::core::abi::ethabi::AbiError {
+                        name: ::std::borrow::ToOwned::to_owned("ERC1155InsufficientBalance",),
+                        inputs: ::std::vec![
+                            ::ethers::core::abi::ethabi::Param {
+                                name: ::std::borrow::ToOwned::to_owned("sender"),
+                                kind: ::ethers::core::abi::ethabi::ParamType::Address,
+                                internal_type: ::core::option::Option::Some(
+                                    ::std::borrow::ToOwned::to_owned("address"),
+                                ),
+                            },
+                            ::ethers::core::abi::ethabi::Param {
+                                name: ::std::borrow::ToOwned::to_owned("balance"),
+                                kind: ::ethers::core::abi::ethabi::ParamType::Uint(256usize,),
+                                internal_type: ::core::option::Option::Some(
+                                    ::std::borrow::ToOwned::to_owned("uint256"),
+                                ),
+                            },
+                            ::ethers::core::abi::ethabi::Param {
+                                name: ::std::borrow::ToOwned::to_owned("needed"),
+                                kind: ::ethers::core::abi::ethabi::ParamType::Uint(256usize,),
+                                internal_type: ::core::option::Option::Some(
+                                    ::std::borrow::ToOwned::to_owned("uint256"),
+                                ),
+                            },
+                            ::ethers::core::abi::ethabi::Param {
+                                name: ::std::borrow::ToOwned::to_owned("tokenId"),
+                                kind: ::ethers::core::abi::ethabi::ParamType::Uint(256usize,),
+                                internal_type: ::core::option::Option::Some(
+                                    ::std::borrow::ToOwned::to_owned("uint256"),
+                                ),
+                            },
+                        ],
+                    },],
                 ),
                 (
                     ::std::borrow::ToOwned::to_owned("ERC1155InvalidApprover"),
-                    ::std::vec![
-                        ::ethers::core::abi::ethabi::AbiError {
-                            name: ::std::borrow::ToOwned::to_owned(
-                                "ERC1155InvalidApprover",
+                    ::std::vec![::ethers::core::abi::ethabi::AbiError {
+                        name: ::std::borrow::ToOwned::to_owned("ERC1155InvalidApprover",),
+                        inputs: ::std::vec![::ethers::core::abi::ethabi::Param {
+                            name: ::std::borrow::ToOwned::to_owned("approver"),
+                            kind: ::ethers::core::abi::ethabi::ParamType::Address,
+                            internal_type: ::core::option::Option::Some(
+                                ::std::borrow::ToOwned::to_owned("address"),
                             ),
-                            inputs: ::std::vec![
-                                ::ethers::core::abi::ethabi::Param {
-                                    name: ::std::borrow::ToOwned::to_owned("approver"),
-                                    kind: ::ethers::core::abi::ethabi::ParamType::Address,
-                                    internal_type: ::core::option::Option::Some(
-                                        ::std::borrow::ToOwned::to_owned("address"),
-                                    ),
-                                },
-                            ],
-                        },
-                    ],
+                        },],
+                    },],
                 ),
                 (
                     ::std::borrow::ToOwned::to_owned("ERC1155InvalidArrayLength"),
-                    ::std::vec![
-                        ::ethers::core::abi::ethabi::AbiError {
-                            name: ::std::borrow::ToOwned::to_owned(
-                                "ERC1155InvalidArrayLength",
-                            ),
-                            inputs: ::std::vec![
-                                ::ethers::core::abi::ethabi::Param {
-                                    name: ::std::borrow::ToOwned::to_owned("idsLength"),
-                                    kind: ::ethers::core::abi::ethabi::ParamType::Uint(
-                                        256usize,
-                                    ),
-                                    internal_type: ::core::option::Option::Some(
-                                        ::std::borrow::ToOwned::to_owned("uint256"),
-                                    ),
-                                },
-                                ::ethers::core::abi::ethabi::Param {
-                                    name: ::std::borrow::ToOwned::to_owned("valuesLength"),
-                                    kind: ::ethers::core::abi::ethabi::ParamType::Uint(
-                                        256usize,
-                                    ),
-                                    internal_type: ::core::option::Option::Some(
-                                        ::std::borrow::ToOwned::to_owned("uint256"),
-                                    ),
-                                },
-                            ],
-                        },
-                    ],
+                    ::std::vec![::ethers::core::abi::ethabi::AbiError {
+                        name: ::std::borrow::ToOwned::to_owned("ERC1155InvalidArrayLength",),
+                        inputs: ::std::vec![
+                            ::ethers::core::abi::ethabi::Param {
+                                name: ::std::borrow::ToOwned::to_owned("idsLength"),
+                                kind: ::ethers::core::abi::ethabi::ParamType::Uint(256usize,),
+                                internal_type: ::core::option::Option::Some(
+                                    ::std::borrow::ToOwned::to_owned("uint256"),
+                                ),
+                            },
+                            ::ethers::core::abi::ethabi::Param {
+                                name: ::std::borrow::ToOwned::to_owned("valuesLength"),
+                                kind: ::ethers::core::abi::ethabi::ParamType::Uint(256usize,),
+                                internal_type: ::core::option::Option::Some(
+                                    ::std::borrow::ToOwned::to_owned("uint256"),
+                                ),
+                            },
+                        ],
+                    },],
                 ),
                 (
                     ::std::borrow::ToOwned::to_owned("ERC1155InvalidOperator"),
-                    ::std::vec![
-                        ::ethers::core::abi::ethabi::AbiError {
-                            name: ::std::borrow::ToOwned::to_owned(
-                                "ERC1155InvalidOperator",
+                    ::std::vec![::ethers::core::abi::ethabi::AbiError {
+                        name: ::std::borrow::ToOwned::to_owned("ERC1155InvalidOperator",),
+                        inputs: ::std::vec![::ethers::core::abi::ethabi::Param {
+                            name: ::std::borrow::ToOwned::to_owned("operator"),
+                            kind: ::ethers::core::abi::ethabi::ParamType::Address,
+                            internal_type: ::core::option::Option::Some(
+                                ::std::borrow::ToOwned::to_owned("address"),
                             ),
-                            inputs: ::std::vec![
-                                ::ethers::core::abi::ethabi::Param {
-                                    name: ::std::borrow::ToOwned::to_owned("operator"),
-                                    kind: ::ethers::core::abi::ethabi::ParamType::Address,
-                                    internal_type: ::core::option::Option::Some(
-                                        ::std::borrow::ToOwned::to_owned("address"),
-                                    ),
-                                },
-                            ],
-                        },
-                    ],
+                        },],
+                    },],
                 ),
                 (
                     ::std::borrow::ToOwned::to_owned("ERC1155InvalidReceiver"),
-                    ::std::vec![
-                        ::ethers::core::abi::ethabi::AbiError {
-                            name: ::std::borrow::ToOwned::to_owned(
-                                "ERC1155InvalidReceiver",
+                    ::std::vec![::ethers::core::abi::ethabi::AbiError {
+                        name: ::std::borrow::ToOwned::to_owned("ERC1155InvalidReceiver",),
+                        inputs: ::std::vec![::ethers::core::abi::ethabi::Param {
+                            name: ::std::borrow::ToOwned::to_owned("receiver"),
+                            kind: ::ethers::core::abi::ethabi::ParamType::Address,
+                            internal_type: ::core::option::Option::Some(
+                                ::std::borrow::ToOwned::to_owned("address"),
                             ),
-                            inputs: ::std::vec![
-                                ::ethers::core::abi::ethabi::Param {
-                                    name: ::std::borrow::ToOwned::to_owned("receiver"),
-                                    kind: ::ethers::core::abi::ethabi::ParamType::Address,
-                                    internal_type: ::core::option::Option::Some(
-                                        ::std::borrow::ToOwned::to_owned("address"),
-                                    ),
-                                },
-                            ],
-                        },
-                    ],
+                        },],
+                    },],
                 ),
                 (
                     ::std::borrow::ToOwned::to_owned("ERC1155InvalidSender"),
-                    ::std::vec![
-                        ::ethers::core::abi::ethabi::AbiError {
-                            name: ::std::borrow::ToOwned::to_owned(
-                                "ERC1155InvalidSender",
+                    ::std::vec![::ethers::core::abi::ethabi::AbiError {
+                        name: ::std::borrow::ToOwned::to_owned("ERC1155InvalidSender",),
+                        inputs: ::std::vec![::ethers::core::abi::ethabi::Param {
+                            name: ::std::borrow::ToOwned::to_owned("sender"),
+                            kind: ::ethers::core::abi::ethabi::ParamType::Address,
+                            internal_type: ::core::option::Option::Some(
+                                ::std::borrow::ToOwned::to_owned("address"),
                             ),
-                            inputs: ::std::vec![
-                                ::ethers::core::abi::ethabi::Param {
-                                    name: ::std::borrow::ToOwned::to_owned("sender"),
-                                    kind: ::ethers::core::abi::ethabi::ParamType::Address,
-                                    internal_type: ::core::option::Option::Some(
-                                        ::std::borrow::ToOwned::to_owned("address"),
-                                    ),
-                                },
-                            ],
-                        },
-                    ],
+                        },],
+                    },],
                 ),
                 (
                     ::std::borrow::ToOwned::to_owned("ERC1155MissingApprovalForAll"),
-                    ::std::vec![
-                        ::ethers::core::abi::ethabi::AbiError {
-                            name: ::std::borrow::ToOwned::to_owned(
-                                "ERC1155MissingApprovalForAll",
-                            ),
-                            inputs: ::std::vec![
-                                ::ethers::core::abi::ethabi::Param {
-                                    name: ::std::borrow::ToOwned::to_owned("operator"),
-                                    kind: ::ethers::core::abi::ethabi::ParamType::Address,
-                                    internal_type: ::core::option::Option::Some(
-                                        ::std::borrow::ToOwned::to_owned("address"),
-                                    ),
-                                },
-                                ::ethers::core::abi::ethabi::Param {
-                                    name: ::std::borrow::ToOwned::to_owned("owner"),
-                                    kind: ::ethers::core::abi::ethabi::ParamType::Address,
-                                    internal_type: ::core::option::Option::Some(
-                                        ::std::borrow::ToOwned::to_owned("address"),
-                                    ),
-                                },
-                            ],
-                        },
-                    ],
+                    ::std::vec![::ethers::core::abi::ethabi::AbiError {
+                        name: ::std::borrow::ToOwned::to_owned("ERC1155MissingApprovalForAll",),
+                        inputs: ::std::vec![
+                            ::ethers::core::abi::ethabi::Param {
+                                name: ::std::borrow::ToOwned::to_owned("operator"),
+                                kind: ::ethers::core::abi::ethabi::ParamType::Address,
+                                internal_type: ::core::option::Option::Some(
+                                    ::std::borrow::ToOwned::to_owned("address"),
+                                ),
+                            },
+                            ::ethers::core::abi::ethabi::Param {
+                                name: ::std::borrow::ToOwned::to_owned("owner"),
+                                kind: ::ethers::core::abi::ethabi::ParamType::Address,
+                                internal_type: ::core::option::Option::Some(
+                                    ::std::borrow::ToOwned::to_owned("address"),
+                                ),
+                            },
+                        ],
+                    },],
                 ),
             ]),
             receive: false,
@@ -201,9 +155,8 @@ pub mod ierc1155_errors {
         }
     }
     ///The parsed JSON ABI of the contract.
-    pub static IERC1155ERRORS_ABI: ::ethers::contract::Lazy<::ethers::core::abi::Abi> = ::ethers::contract::Lazy::new(
-        __abi,
-    );
+    pub static IERC1155ERRORS_ABI: ::ethers::contract::Lazy<::ethers::core::abi::Abi> =
+        ::ethers::contract::Lazy::new(__abi);
     pub struct IERC1155Errors<M>(::ethers::contract::Contract<M>);
     impl<M> ::core::clone::Clone for IERC1155Errors<M> {
         fn clone(&self) -> Self {
@@ -235,17 +188,16 @@ pub mod ierc1155_errors {
             address: T,
             client: ::std::sync::Arc<M>,
         ) -> Self {
-            Self(
-                ::ethers::contract::Contract::new(
-                    address.into(),
-                    IERC1155ERRORS_ABI.clone(),
-                    client,
-                ),
-            )
+            Self(::ethers::contract::Contract::new(
+                address.into(),
+                IERC1155ERRORS_ABI.clone(),
+                client,
+            ))
         }
     }
     impl<M: ::ethers::providers::Middleware> From<::ethers::contract::Contract<M>>
-    for IERC1155Errors<M> {
+        for IERC1155Errors<M>
+    {
         fn from(contract: ::ethers::contract::Contract<M>) -> Self {
             Self::new(contract.address(), contract.client())
         }
@@ -261,7 +213,7 @@ pub mod ierc1155_errors {
         Debug,
         PartialEq,
         Eq,
-        Hash
+        Hash,
     )]
     #[etherror(
         name = "ERC1155InsufficientBalance",
@@ -284,9 +236,12 @@ pub mod ierc1155_errors {
         Debug,
         PartialEq,
         Eq,
-        Hash
+        Hash,
     )]
-    #[etherror(name = "ERC1155InvalidApprover", abi = "ERC1155InvalidApprover(address)")]
+    #[etherror(
+        name = "ERC1155InvalidApprover",
+        abi = "ERC1155InvalidApprover(address)"
+    )]
     pub struct ERC1155InvalidApprover {
         pub approver: ::ethers::core::types::Address,
     }
@@ -301,7 +256,7 @@ pub mod ierc1155_errors {
         Debug,
         PartialEq,
         Eq,
-        Hash
+        Hash,
     )]
     #[etherror(
         name = "ERC1155InvalidArrayLength",
@@ -322,9 +277,12 @@ pub mod ierc1155_errors {
         Debug,
         PartialEq,
         Eq,
-        Hash
+        Hash,
     )]
-    #[etherror(name = "ERC1155InvalidOperator", abi = "ERC1155InvalidOperator(address)")]
+    #[etherror(
+        name = "ERC1155InvalidOperator",
+        abi = "ERC1155InvalidOperator(address)"
+    )]
     pub struct ERC1155InvalidOperator {
         pub operator: ::ethers::core::types::Address,
     }
@@ -339,9 +297,12 @@ pub mod ierc1155_errors {
         Debug,
         PartialEq,
         Eq,
-        Hash
+        Hash,
     )]
-    #[etherror(name = "ERC1155InvalidReceiver", abi = "ERC1155InvalidReceiver(address)")]
+    #[etherror(
+        name = "ERC1155InvalidReceiver",
+        abi = "ERC1155InvalidReceiver(address)"
+    )]
     pub struct ERC1155InvalidReceiver {
         pub receiver: ::ethers::core::types::Address,
     }
@@ -356,7 +317,7 @@ pub mod ierc1155_errors {
         Debug,
         PartialEq,
         Eq,
-        Hash
+        Hash,
     )]
     #[etherror(name = "ERC1155InvalidSender", abi = "ERC1155InvalidSender(address)")]
     pub struct ERC1155InvalidSender {
@@ -373,7 +334,7 @@ pub mod ierc1155_errors {
         Debug,
         PartialEq,
         Eq,
-        Hash
+        Hash,
     )]
     #[etherror(
         name = "ERC1155MissingApprovalForAll",
@@ -392,7 +353,7 @@ pub mod ierc1155_errors {
         Debug,
         PartialEq,
         Eq,
-        Hash
+        Hash,
     )]
     pub enum IERC1155ErrorsErrors {
         ERC1155InsufficientBalance(ERC1155InsufficientBalance),
@@ -411,44 +372,44 @@ pub mod ierc1155_errors {
             data: impl AsRef<[u8]>,
         ) -> ::core::result::Result<Self, ::ethers::core::abi::AbiError> {
             let data = data.as_ref();
-            if let Ok(decoded) = <::std::string::String as ::ethers::core::abi::AbiDecode>::decode(
-                data,
-            ) {
+            if let Ok(decoded) =
+                <::std::string::String as ::ethers::core::abi::AbiDecode>::decode(data)
+            {
                 return Ok(Self::RevertString(decoded));
             }
-            if let Ok(decoded) = <ERC1155InsufficientBalance as ::ethers::core::abi::AbiDecode>::decode(
-                data,
-            ) {
+            if let Ok(decoded) =
+                <ERC1155InsufficientBalance as ::ethers::core::abi::AbiDecode>::decode(data)
+            {
                 return Ok(Self::ERC1155InsufficientBalance(decoded));
             }
-            if let Ok(decoded) = <ERC1155InvalidApprover as ::ethers::core::abi::AbiDecode>::decode(
-                data,
-            ) {
+            if let Ok(decoded) =
+                <ERC1155InvalidApprover as ::ethers::core::abi::AbiDecode>::decode(data)
+            {
                 return Ok(Self::ERC1155InvalidApprover(decoded));
             }
-            if let Ok(decoded) = <ERC1155InvalidArrayLength as ::ethers::core::abi::AbiDecode>::decode(
-                data,
-            ) {
+            if let Ok(decoded) =
+                <ERC1155InvalidArrayLength as ::ethers::core::abi::AbiDecode>::decode(data)
+            {
                 return Ok(Self::ERC1155InvalidArrayLength(decoded));
             }
-            if let Ok(decoded) = <ERC1155InvalidOperator as ::ethers::core::abi::AbiDecode>::decode(
-                data,
-            ) {
+            if let Ok(decoded) =
+                <ERC1155InvalidOperator as ::ethers::core::abi::AbiDecode>::decode(data)
+            {
                 return Ok(Self::ERC1155InvalidOperator(decoded));
             }
-            if let Ok(decoded) = <ERC1155InvalidReceiver as ::ethers::core::abi::AbiDecode>::decode(
-                data,
-            ) {
+            if let Ok(decoded) =
+                <ERC1155InvalidReceiver as ::ethers::core::abi::AbiDecode>::decode(data)
+            {
                 return Ok(Self::ERC1155InvalidReceiver(decoded));
             }
-            if let Ok(decoded) = <ERC1155InvalidSender as ::ethers::core::abi::AbiDecode>::decode(
-                data,
-            ) {
+            if let Ok(decoded) =
+                <ERC1155InvalidSender as ::ethers::core::abi::AbiDecode>::decode(data)
+            {
                 return Ok(Self::ERC1155InvalidSender(decoded));
             }
-            if let Ok(decoded) = <ERC1155MissingApprovalForAll as ::ethers::core::abi::AbiDecode>::decode(
-                data,
-            ) {
+            if let Ok(decoded) =
+                <ERC1155MissingApprovalForAll as ::ethers::core::abi::AbiDecode>::decode(data)
+            {
                 return Ok(Self::ERC1155MissingApprovalForAll(decoded));
             }
             Err(::ethers::core::abi::Error::InvalidData.into())
@@ -487,31 +448,39 @@ pub mod ierc1155_errors {
             match selector {
                 [0x08, 0xc3, 0x79, 0xa0] => true,
                 _ if selector
-                    == <ERC1155InsufficientBalance as ::ethers::contract::EthError>::selector() => {
+                    == <ERC1155InsufficientBalance as ::ethers::contract::EthError>::selector() =>
+                {
                     true
                 }
                 _ if selector
-                    == <ERC1155InvalidApprover as ::ethers::contract::EthError>::selector() => {
+                    == <ERC1155InvalidApprover as ::ethers::contract::EthError>::selector() =>
+                {
                     true
                 }
                 _ if selector
-                    == <ERC1155InvalidArrayLength as ::ethers::contract::EthError>::selector() => {
+                    == <ERC1155InvalidArrayLength as ::ethers::contract::EthError>::selector() =>
+                {
                     true
                 }
                 _ if selector
-                    == <ERC1155InvalidOperator as ::ethers::contract::EthError>::selector() => {
+                    == <ERC1155InvalidOperator as ::ethers::contract::EthError>::selector() =>
+                {
                     true
                 }
                 _ if selector
-                    == <ERC1155InvalidReceiver as ::ethers::contract::EthError>::selector() => {
+                    == <ERC1155InvalidReceiver as ::ethers::contract::EthError>::selector() =>
+                {
                     true
                 }
                 _ if selector
-                    == <ERC1155InvalidSender as ::ethers::contract::EthError>::selector() => {
+                    == <ERC1155InvalidSender as ::ethers::contract::EthError>::selector() =>
+                {
                     true
                 }
                 _ if selector
-                    == <ERC1155MissingApprovalForAll as ::ethers::contract::EthError>::selector() => {
+                    == <ERC1155MissingApprovalForAll as ::ethers::contract::EthError>::selector(
+                    ) =>
+                {
                     true
                 }
                 _ => false,
@@ -521,24 +490,12 @@ pub mod ierc1155_errors {
     impl ::core::fmt::Display for IERC1155ErrorsErrors {
         fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
             match self {
-                Self::ERC1155InsufficientBalance(element) => {
-                    ::core::fmt::Display::fmt(element, f)
-                }
-                Self::ERC1155InvalidApprover(element) => {
-                    ::core::fmt::Display::fmt(element, f)
-                }
-                Self::ERC1155InvalidArrayLength(element) => {
-                    ::core::fmt::Display::fmt(element, f)
-                }
-                Self::ERC1155InvalidOperator(element) => {
-                    ::core::fmt::Display::fmt(element, f)
-                }
-                Self::ERC1155InvalidReceiver(element) => {
-                    ::core::fmt::Display::fmt(element, f)
-                }
-                Self::ERC1155InvalidSender(element) => {
-                    ::core::fmt::Display::fmt(element, f)
-                }
+                Self::ERC1155InsufficientBalance(element) => ::core::fmt::Display::fmt(element, f),
+                Self::ERC1155InvalidApprover(element) => ::core::fmt::Display::fmt(element, f),
+                Self::ERC1155InvalidArrayLength(element) => ::core::fmt::Display::fmt(element, f),
+                Self::ERC1155InvalidOperator(element) => ::core::fmt::Display::fmt(element, f),
+                Self::ERC1155InvalidReceiver(element) => ::core::fmt::Display::fmt(element, f),
+                Self::ERC1155InvalidSender(element) => ::core::fmt::Display::fmt(element, f),
                 Self::ERC1155MissingApprovalForAll(element) => {
                     ::core::fmt::Display::fmt(element, f)
                 }

@@ -305,8 +305,8 @@ pub async fn process_transaction_offchain<P: Serialize + Sync>(
         )))
     } else {
         db.update_request(id, RequestStatus::Failed).await;
-        Err(Box::new(std::io::Error::other(
-            format!("{id} All proposers rejected the transaction."),
-        )))
+        Err(Box::new(std::io::Error::other(format!(
+            "{id} All proposers rejected the transaction."
+        ))))
     }
 }

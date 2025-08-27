@@ -72,7 +72,7 @@ where
         let result = prepare_block_data::<P>(db).await;
         match &result {
             Ok(_) => info!("Block data prepared successfully"),
-            Err(e) => warn!("Failed to prepare block data: {e:?}", ),
+            Err(e) => warn!("Failed to prepare block data: {e:?}",),
         }
         (included_depositinfos_group, selected_client_transactions) = result?;
     }
@@ -211,9 +211,7 @@ where
 
     let block_size = get_block_size()?;
     let transaction_count = deposit_proofs.len() + client_transactions.len();
-    info!(
-        "Current transaction count: {transaction_count}, block size: {block_size}"
-    );
+    info!("Current transaction count: {transaction_count}, block size: {block_size}");
     // append default deposit proof if the transaction count is less than block size
     if transaction_count < block_size {
         let default_deposits_count = block_size - transaction_count;

@@ -7,7 +7,7 @@ pub use proposer_manager::*;
     clippy::upper_case_acronyms,
     clippy::type_complexity,
     dead_code,
-    non_camel_case_types,
+    non_camel_case_types
 )]
 pub mod proposer_manager {
     pub use super::super::shared_types::*;
@@ -18,138 +18,109 @@ pub mod proposer_manager {
             functions: ::core::convert::From::from([
                 (
                     ::std::borrow::ToOwned::to_owned("add_proposer"),
-                    ::std::vec![
-                        ::ethers::core::abi::ethabi::Function {
-                            name: ::std::borrow::ToOwned::to_owned("add_proposer"),
-                            inputs: ::std::vec![
-                                ::ethers::core::abi::ethabi::Param {
-                                    name: ::std::borrow::ToOwned::to_owned("proposer_url"),
-                                    kind: ::ethers::core::abi::ethabi::ParamType::String,
-                                    internal_type: ::core::option::Option::Some(
-                                        ::std::borrow::ToOwned::to_owned("string"),
-                                    ),
-                                },
-                            ],
-                            outputs: ::std::vec![],
-                            constant: ::core::option::Option::None,
-                            state_mutability: ::ethers::core::abi::ethabi::StateMutability::Payable,
-                        },
-                    ],
+                    ::std::vec![::ethers::core::abi::ethabi::Function {
+                        name: ::std::borrow::ToOwned::to_owned("add_proposer"),
+                        inputs: ::std::vec![::ethers::core::abi::ethabi::Param {
+                            name: ::std::borrow::ToOwned::to_owned("proposer_url"),
+                            kind: ::ethers::core::abi::ethabi::ParamType::String,
+                            internal_type: ::core::option::Option::Some(
+                                ::std::borrow::ToOwned::to_owned("string"),
+                            ),
+                        },],
+                        outputs: ::std::vec![],
+                        constant: ::core::option::Option::None,
+                        state_mutability: ::ethers::core::abi::ethabi::StateMutability::Payable,
+                    },],
                 ),
                 (
                     ::std::borrow::ToOwned::to_owned("get_current_proposer_address"),
-                    ::std::vec![
-                        ::ethers::core::abi::ethabi::Function {
-                            name: ::std::borrow::ToOwned::to_owned(
-                                "get_current_proposer_address",
+                    ::std::vec![::ethers::core::abi::ethabi::Function {
+                        name: ::std::borrow::ToOwned::to_owned("get_current_proposer_address",),
+                        inputs: ::std::vec![],
+                        outputs: ::std::vec![::ethers::core::abi::ethabi::Param {
+                            name: ::std::string::String::new(),
+                            kind: ::ethers::core::abi::ethabi::ParamType::Address,
+                            internal_type: ::core::option::Option::Some(
+                                ::std::borrow::ToOwned::to_owned("address"),
                             ),
-                            inputs: ::std::vec![],
-                            outputs: ::std::vec![
-                                ::ethers::core::abi::ethabi::Param {
-                                    name: ::std::string::String::new(),
-                                    kind: ::ethers::core::abi::ethabi::ParamType::Address,
-                                    internal_type: ::core::option::Option::Some(
-                                        ::std::borrow::ToOwned::to_owned("address"),
-                                    ),
-                                },
-                            ],
-                            constant: ::core::option::Option::None,
-                            state_mutability: ::ethers::core::abi::ethabi::StateMutability::View,
-                        },
-                    ],
+                        },],
+                        constant: ::core::option::Option::None,
+                        state_mutability: ::ethers::core::abi::ethabi::StateMutability::View,
+                    },],
                 ),
                 (
                     ::std::borrow::ToOwned::to_owned("get_proposers"),
-                    ::std::vec![
-                        ::ethers::core::abi::ethabi::Function {
-                            name: ::std::borrow::ToOwned::to_owned("get_proposers"),
-                            inputs: ::std::vec![],
-                            outputs: ::std::vec![
-                                ::ethers::core::abi::ethabi::Param {
-                                    name: ::std::string::String::new(),
-                                    kind: ::ethers::core::abi::ethabi::ParamType::Array(
-                                        ::std::boxed::Box::new(
-                                            ::ethers::core::abi::ethabi::ParamType::Tuple(
-                                                ::std::vec![
-                                                    ::ethers::core::abi::ethabi::ParamType::Uint(256usize),
-                                                    ::ethers::core::abi::ethabi::ParamType::Address,
-                                                    ::ethers::core::abi::ethabi::ParamType::String,
-                                                    ::ethers::core::abi::ethabi::ParamType::Address,
-                                                    ::ethers::core::abi::ethabi::ParamType::Address,
-                                                ],
-                                            ),
-                                        ),
-                                    ),
-                                    internal_type: ::core::option::Option::Some(
-                                        ::std::borrow::ToOwned::to_owned("struct Proposer[]"),
-                                    ),
-                                },
-                            ],
-                            constant: ::core::option::Option::None,
-                            state_mutability: ::ethers::core::abi::ethabi::StateMutability::View,
-                        },
-                    ],
+                    ::std::vec![::ethers::core::abi::ethabi::Function {
+                        name: ::std::borrow::ToOwned::to_owned("get_proposers"),
+                        inputs: ::std::vec![],
+                        outputs: ::std::vec![::ethers::core::abi::ethabi::Param {
+                            name: ::std::string::String::new(),
+                            kind: ::ethers::core::abi::ethabi::ParamType::Array(
+                                ::std::boxed::Box::new(
+                                    ::ethers::core::abi::ethabi::ParamType::Tuple(::std::vec![
+                                        ::ethers::core::abi::ethabi::ParamType::Uint(256usize),
+                                        ::ethers::core::abi::ethabi::ParamType::Address,
+                                        ::ethers::core::abi::ethabi::ParamType::String,
+                                        ::ethers::core::abi::ethabi::ParamType::Address,
+                                        ::ethers::core::abi::ethabi::ParamType::Address,
+                                    ],),
+                                ),
+                            ),
+                            internal_type: ::core::option::Option::Some(
+                                ::std::borrow::ToOwned::to_owned("struct Proposer[]"),
+                            ),
+                        },],
+                        constant: ::core::option::Option::None,
+                        state_mutability: ::ethers::core::abi::ethabi::StateMutability::View,
+                    },],
                 ),
                 (
                     ::std::borrow::ToOwned::to_owned("remove_proposer"),
-                    ::std::vec![
-                        ::ethers::core::abi::ethabi::Function {
-                            name: ::std::borrow::ToOwned::to_owned("remove_proposer"),
-                            inputs: ::std::vec![],
-                            outputs: ::std::vec![],
-                            constant: ::core::option::Option::None,
-                            state_mutability: ::ethers::core::abi::ethabi::StateMutability::NonPayable,
-                        },
-                    ],
+                    ::std::vec![::ethers::core::abi::ethabi::Function {
+                        name: ::std::borrow::ToOwned::to_owned("remove_proposer"),
+                        inputs: ::std::vec![],
+                        outputs: ::std::vec![],
+                        constant: ::core::option::Option::None,
+                        state_mutability: ::ethers::core::abi::ethabi::StateMutability::NonPayable,
+                    },],
                 ),
                 (
                     ::std::borrow::ToOwned::to_owned("rotate_proposer"),
-                    ::std::vec![
-                        ::ethers::core::abi::ethabi::Function {
-                            name: ::std::borrow::ToOwned::to_owned("rotate_proposer"),
-                            inputs: ::std::vec![],
-                            outputs: ::std::vec![],
-                            constant: ::core::option::Option::None,
-                            state_mutability: ::ethers::core::abi::ethabi::StateMutability::NonPayable,
-                        },
-                    ],
+                    ::std::vec![::ethers::core::abi::ethabi::Function {
+                        name: ::std::borrow::ToOwned::to_owned("rotate_proposer"),
+                        inputs: ::std::vec![],
+                        outputs: ::std::vec![],
+                        constant: ::core::option::Option::None,
+                        state_mutability: ::ethers::core::abi::ethabi::StateMutability::NonPayable,
+                    },],
                 ),
             ]),
-            events: ::core::convert::From::from([
-                (
-                    ::std::borrow::ToOwned::to_owned("ProposerRotated"),
-                    ::std::vec![
-                        ::ethers::core::abi::ethabi::Event {
-                            name: ::std::borrow::ToOwned::to_owned("ProposerRotated"),
-                            inputs: ::std::vec![
-                                ::ethers::core::abi::ethabi::EventParam {
-                                    name: ::std::borrow::ToOwned::to_owned("proposer"),
-                                    kind: ::ethers::core::abi::ethabi::ParamType::Tuple(
-                                        ::std::vec![
-                                            ::ethers::core::abi::ethabi::ParamType::Uint(256usize),
-                                            ::ethers::core::abi::ethabi::ParamType::Address,
-                                            ::ethers::core::abi::ethabi::ParamType::String,
-                                            ::ethers::core::abi::ethabi::ParamType::Address,
-                                            ::ethers::core::abi::ethabi::ParamType::Address,
-                                        ],
-                                    ),
-                                    indexed: false,
-                                },
-                            ],
-                            anonymous: false,
-                        },
-                    ],
-                ),
-            ]),
+            events: ::core::convert::From::from([(
+                ::std::borrow::ToOwned::to_owned("ProposerRotated"),
+                ::std::vec![::ethers::core::abi::ethabi::Event {
+                    name: ::std::borrow::ToOwned::to_owned("ProposerRotated"),
+                    inputs: ::std::vec![::ethers::core::abi::ethabi::EventParam {
+                        name: ::std::borrow::ToOwned::to_owned("proposer"),
+                        kind: ::ethers::core::abi::ethabi::ParamType::Tuple(::std::vec![
+                            ::ethers::core::abi::ethabi::ParamType::Uint(256usize),
+                            ::ethers::core::abi::ethabi::ParamType::Address,
+                            ::ethers::core::abi::ethabi::ParamType::String,
+                            ::ethers::core::abi::ethabi::ParamType::Address,
+                            ::ethers::core::abi::ethabi::ParamType::Address,
+                        ],),
+                        indexed: false,
+                    },],
+                    anonymous: false,
+                },],
+            )]),
             errors: ::std::collections::BTreeMap::new(),
             receive: false,
             fallback: false,
         }
     }
     ///The parsed JSON ABI of the contract.
-    pub static PROPOSERMANAGER_ABI: ::ethers::contract::Lazy<::ethers::core::abi::Abi> = ::ethers::contract::Lazy::new(
-        __abi,
-    );
+    pub static PROPOSERMANAGER_ABI: ::ethers::contract::Lazy<::ethers::core::abi::Abi> =
+        ::ethers::contract::Lazy::new(__abi);
     pub struct ProposerManager<M>(::ethers::contract::Contract<M>);
     impl<M> ::core::clone::Clone for ProposerManager<M> {
         fn clone(&self) -> Self {
@@ -181,13 +152,11 @@ pub mod proposer_manager {
             address: T,
             client: ::std::sync::Arc<M>,
         ) -> Self {
-            Self(
-                ::ethers::contract::Contract::new(
-                    address.into(),
-                    PROPOSERMANAGER_ABI.clone(),
-                    client,
-                ),
-            )
+            Self(::ethers::contract::Contract::new(
+                address.into(),
+                PROPOSERMANAGER_ABI.clone(),
+                client,
+            ))
         }
         ///Calls the contract's `add_proposer` (0x55c25d17) function
         pub fn add_proposer(
@@ -201,10 +170,7 @@ pub mod proposer_manager {
         ///Calls the contract's `get_current_proposer_address` (0x750f25f4) function
         pub fn get_current_proposer_address(
             &self,
-        ) -> ::ethers::contract::builders::ContractCall<
-            M,
-            ::ethers::core::types::Address,
-        > {
+        ) -> ::ethers::contract::builders::ContractCall<M, ::ethers::core::types::Address> {
             self.0
                 .method_hash([117, 15, 37, 244], ())
                 .expect("method not found (this should never happen)")
@@ -218,17 +184,13 @@ pub mod proposer_manager {
                 .expect("method not found (this should never happen)")
         }
         ///Calls the contract's `remove_proposer` (0x4b98b3b6) function
-        pub fn remove_proposer(
-            &self,
-        ) -> ::ethers::contract::builders::ContractCall<M, ()> {
+        pub fn remove_proposer(&self) -> ::ethers::contract::builders::ContractCall<M, ()> {
             self.0
                 .method_hash([75, 152, 179, 182], ())
                 .expect("method not found (this should never happen)")
         }
         ///Calls the contract's `rotate_proposer` (0xc12f666e) function
-        pub fn rotate_proposer(
-            &self,
-        ) -> ::ethers::contract::builders::ContractCall<M, ()> {
+        pub fn rotate_proposer(&self) -> ::ethers::contract::builders::ContractCall<M, ()> {
             self.0
                 .method_hash([193, 47, 102, 110], ())
                 .expect("method not found (this should never happen)")
@@ -236,26 +198,22 @@ pub mod proposer_manager {
         ///Gets the contract's `ProposerRotated` event
         pub fn proposer_rotated_filter(
             &self,
-        ) -> ::ethers::contract::builders::Event<
-            ::std::sync::Arc<M>,
-            M,
-            ProposerRotatedFilter,
-        > {
+        ) -> ::ethers::contract::builders::Event<::std::sync::Arc<M>, M, ProposerRotatedFilter>
+        {
             self.0.event()
         }
         /// Returns an `Event` builder for all the events of this contract.
         pub fn events(
             &self,
-        ) -> ::ethers::contract::builders::Event<
-            ::std::sync::Arc<M>,
-            M,
-            ProposerRotatedFilter,
-        > {
-            self.0.event_with_filter(::core::default::Default::default())
+        ) -> ::ethers::contract::builders::Event<::std::sync::Arc<M>, M, ProposerRotatedFilter>
+        {
+            self.0
+                .event_with_filter(::core::default::Default::default())
         }
     }
     impl<M: ::ethers::providers::Middleware> From<::ethers::contract::Contract<M>>
-    for ProposerManager<M> {
+        for ProposerManager<M>
+    {
         fn from(contract: ::ethers::contract::Contract<M>) -> Self {
             Self::new(contract.address(), contract.client())
         }
@@ -270,7 +228,7 @@ pub mod proposer_manager {
         Debug,
         PartialEq,
         Eq,
-        Hash
+        Hash,
     )]
     #[ethevent(
         name = "ProposerRotated",
@@ -290,7 +248,7 @@ pub mod proposer_manager {
         Debug,
         PartialEq,
         Eq,
-        Hash
+        Hash,
     )]
     #[ethcall(name = "add_proposer", abi = "add_proposer(string)")]
     pub struct AddProposerCall {
@@ -307,7 +265,7 @@ pub mod proposer_manager {
         Debug,
         PartialEq,
         Eq,
-        Hash
+        Hash,
     )]
     #[ethcall(
         name = "get_current_proposer_address",
@@ -325,7 +283,7 @@ pub mod proposer_manager {
         Debug,
         PartialEq,
         Eq,
-        Hash
+        Hash,
     )]
     #[ethcall(name = "get_proposers", abi = "get_proposers()")]
     pub struct GetProposersCall;
@@ -340,7 +298,7 @@ pub mod proposer_manager {
         Debug,
         PartialEq,
         Eq,
-        Hash
+        Hash,
     )]
     #[ethcall(name = "remove_proposer", abi = "remove_proposer()")]
     pub struct RemoveProposerCall;
@@ -355,7 +313,7 @@ pub mod proposer_manager {
         Debug,
         PartialEq,
         Eq,
-        Hash
+        Hash,
     )]
     #[ethcall(name = "rotate_proposer", abi = "rotate_proposer()")]
     pub struct RotateProposerCall;
@@ -368,7 +326,7 @@ pub mod proposer_manager {
         Debug,
         PartialEq,
         Eq,
-        Hash
+        Hash,
     )]
     pub enum ProposerManagerCalls {
         AddProposer(AddProposerCall),
@@ -382,29 +340,26 @@ pub mod proposer_manager {
             data: impl AsRef<[u8]>,
         ) -> ::core::result::Result<Self, ::ethers::core::abi::AbiError> {
             let data = data.as_ref();
-            if let Ok(decoded) = <AddProposerCall as ::ethers::core::abi::AbiDecode>::decode(
-                data,
-            ) {
+            if let Ok(decoded) = <AddProposerCall as ::ethers::core::abi::AbiDecode>::decode(data) {
                 return Ok(Self::AddProposer(decoded));
             }
-            if let Ok(decoded) = <GetCurrentProposerAddressCall as ::ethers::core::abi::AbiDecode>::decode(
-                data,
-            ) {
+            if let Ok(decoded) =
+                <GetCurrentProposerAddressCall as ::ethers::core::abi::AbiDecode>::decode(data)
+            {
                 return Ok(Self::GetCurrentProposerAddress(decoded));
             }
-            if let Ok(decoded) = <GetProposersCall as ::ethers::core::abi::AbiDecode>::decode(
-                data,
-            ) {
+            if let Ok(decoded) = <GetProposersCall as ::ethers::core::abi::AbiDecode>::decode(data)
+            {
                 return Ok(Self::GetProposers(decoded));
             }
-            if let Ok(decoded) = <RemoveProposerCall as ::ethers::core::abi::AbiDecode>::decode(
-                data,
-            ) {
+            if let Ok(decoded) =
+                <RemoveProposerCall as ::ethers::core::abi::AbiDecode>::decode(data)
+            {
                 return Ok(Self::RemoveProposer(decoded));
             }
-            if let Ok(decoded) = <RotateProposerCall as ::ethers::core::abi::AbiDecode>::decode(
-                data,
-            ) {
+            if let Ok(decoded) =
+                <RotateProposerCall as ::ethers::core::abi::AbiDecode>::decode(data)
+            {
                 return Ok(Self::RotateProposer(decoded));
             }
             Err(::ethers::core::abi::Error::InvalidData.into())
@@ -413,21 +368,13 @@ pub mod proposer_manager {
     impl ::ethers::core::abi::AbiEncode for ProposerManagerCalls {
         fn encode(self) -> Vec<u8> {
             match self {
-                Self::AddProposer(element) => {
-                    ::ethers::core::abi::AbiEncode::encode(element)
-                }
+                Self::AddProposer(element) => ::ethers::core::abi::AbiEncode::encode(element),
                 Self::GetCurrentProposerAddress(element) => {
                     ::ethers::core::abi::AbiEncode::encode(element)
                 }
-                Self::GetProposers(element) => {
-                    ::ethers::core::abi::AbiEncode::encode(element)
-                }
-                Self::RemoveProposer(element) => {
-                    ::ethers::core::abi::AbiEncode::encode(element)
-                }
-                Self::RotateProposer(element) => {
-                    ::ethers::core::abi::AbiEncode::encode(element)
-                }
+                Self::GetProposers(element) => ::ethers::core::abi::AbiEncode::encode(element),
+                Self::RemoveProposer(element) => ::ethers::core::abi::AbiEncode::encode(element),
+                Self::RotateProposer(element) => ::ethers::core::abi::AbiEncode::encode(element),
             }
         }
     }
@@ -435,9 +382,7 @@ pub mod proposer_manager {
         fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
             match self {
                 Self::AddProposer(element) => ::core::fmt::Display::fmt(element, f),
-                Self::GetCurrentProposerAddress(element) => {
-                    ::core::fmt::Display::fmt(element, f)
-                }
+                Self::GetCurrentProposerAddress(element) => ::core::fmt::Display::fmt(element, f),
                 Self::GetProposers(element) => ::core::fmt::Display::fmt(element, f),
                 Self::RemoveProposer(element) => ::core::fmt::Display::fmt(element, f),
                 Self::RotateProposer(element) => ::core::fmt::Display::fmt(element, f),
@@ -480,7 +425,7 @@ pub mod proposer_manager {
         Debug,
         PartialEq,
         Eq,
-        Hash
+        Hash,
     )]
     pub struct GetCurrentProposerAddressReturn(pub ::ethers::core::types::Address);
     ///Container type for all return fields from the `get_proposers` function with signature `get_proposers()` and selector `0x48c0f487`
@@ -494,7 +439,7 @@ pub mod proposer_manager {
         Debug,
         PartialEq,
         Eq,
-        Hash
+        Hash,
     )]
     pub struct GetProposersReturn(pub ::std::vec::Vec<Proposer>);
 }

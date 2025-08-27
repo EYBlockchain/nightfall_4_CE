@@ -578,9 +578,7 @@ pub fn forge_command(command: &[&str]) {
             }
         }
         Err(e) => {
-            panic!(
-                "Command 'forge {command:?}' ran into an error without executing: {e}"
-            );
+            panic!("Command 'forge {command:?}' ran into an error without executing: {e}");
         }
     }
 }
@@ -694,9 +692,7 @@ pub async fn get_l1_block_hash_of_layer2_block(
     let tx = client
         .get_transaction(tx_hash)
         .await
-        .map_err(|e| {
-            NightfallContractError::ProviderError(format!("get_transaction error: {e}"))
-        })?
+        .map_err(|e| NightfallContractError::ProviderError(format!("get_transaction error: {e}")))?
         .ok_or(NightfallContractError::TransactionNotFound(tx_hash))?;
 
     let block_hash = tx.block_hash.ok_or_else(|| {
@@ -841,9 +837,7 @@ pub async fn create_nf3_deposit_transaction(
         .to_str()
         .map_err(|e| TestError::new(e.to_string()))?
         .to_string();
-    info!(
-        "Deposit transaction {returned_id} has been accepted by the client"
-    );
+    info!("Deposit transaction {returned_id} has been accepted by the client");
     let mut deposit_data = vec![];
 
     // Value token
@@ -897,9 +891,7 @@ pub async fn create_nf3_transfer_transaction(
         .to_str()
         .map_err(|e| TestError::new(e.to_string()))?
         .to_string();
-    info!(
-        "Transfer transaction {returned_id} has been accepted by the client"
-    );
+    info!("Transfer transaction {returned_id} has been accepted by the client");
     Ok(Uuid::parse_str(&returned_id).unwrap())
 }
 
@@ -954,9 +946,7 @@ pub async fn create_nf3_withdraw_transaction(
         withdraw_fund_salt: String::default(),
     };
 
-    info!(
-        "Withdraw transaction {returned_id} has been accepted by the client"
-    );
+    info!("Withdraw transaction {returned_id} has been accepted by the client");
     Ok((
         Uuid::parse_str(&returned_id).unwrap(),
         withdraw_data_request,

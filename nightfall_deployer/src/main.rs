@@ -4,6 +4,19 @@ use nightfall_deployer::deployment::deploy_contracts;
 
 #[tokio::main]
 async fn main() {
+    // Print banner immediately on startup
+    println!(
+███╗   ██╗██╗ ██████╗ ██╗  ██╗████████╗███████╗ █████╗ ██╗     ██╗        ██╗  ██╗
+████╗  ██║██║██╔════╝ ██║  ██║╚══██╔══╝██╔════╝██╔══██╗██║     ██║        ██║  ██║
+██╔██╗ ██║██║██║  ███╗███████║   ██║   █████╗  ███████║██║     ██║        ███████║
+██║╚██╗██║██║██║   ██║██╔══██║   ██║   ██╔══╝  ██╔══██║██║     ██║        ╚════██║
+██║ ╚████║██║╚██████╔╝██║  ██║   ██║   ██║     ██║  ██║███████╗███████╗███████╗██║
+╚═╝  ╚═══╝╚═╝╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚═╝     ╚═╝  ╚═╝╚══════╝╚══════╝╚══════╝╚═╝
+
+Nightfall_4,
+https://github.com/EYBlockchain/nightfall_4_CE
+
+    );
     let settings: Settings = Settings::new().unwrap();
     init_logging(
         settings.nightfall_deployer.log_level.as_str(),
