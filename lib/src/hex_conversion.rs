@@ -64,7 +64,7 @@ impl HexConvertible for i64 {
     fn from_hex_string(hex_str: &str) -> Result<i64, HexError> {
         let hex_str = hex_str.strip_prefix("0x").unwrap_or(hex_str);
         // pad with zero bytes to the left if the length is less than 8
-        let padded_hex_str = format!("{:0>16}", hex_str); // Pad with zeros to the left
+        let padded_hex_str = format!("{hex_str:0>16}"); // Pad with zeros to the left
         let decoded_bytes = hex::decode(padded_hex_str).map_err(|_| HexError::InvalidHexFormat)?;
         if decoded_bytes.len() != 8 {
             return Err(HexError::InvalidStringLength);
@@ -181,7 +181,7 @@ mod test {
             0x302b6d99eae12fb5,
         ]));
         let hex_from_fr254 = Fr254::to_hex_string(&test_fr254);
-        println!("Hex from Fr254: {}", hex_from_fr254);
+        println!("Hex from Fr254: {hex_from_fr254}");
         let fr254_from_hex = Fr254::from_hex_string(&hex_from_fr254).unwrap();
         assert_eq!(test_fr254, fr254_from_hex);
     }
@@ -280,7 +280,7 @@ mod test {
         assert_eq!(max, parsed_max, "U256 conversion failed for max value");
 
         // Test with a hex string with 0x prefix
-        let hex_with_prefix = format!("0x{}", hex_string);
+        let hex_with_prefix = format!("0x{hex_string}");
         let parsed_with_prefix = U256::from_hex_string(&hex_with_prefix).unwrap();
         assert_eq!(
             value, parsed_with_prefix,

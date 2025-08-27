@@ -10,16 +10,16 @@ pub async fn validate_all_certificates<const N: usize>(
     http_client: &reqwest::Client,
 ) {
     for (name, cert_path, key_path, url) in certs.iter() {
-        info!("Validating {}'s certificate", name);
+        info!("Validating {name}'s certificate");
         let cert =
-            fs::read(cert_path).unwrap_or_else(|_| panic!("Failed to read {} certificate", name));
-        let key = fs::read(key_path).unwrap_or_else(|_| panic!("Failed to read {} priv_key", name));
+            fs::read(cert_path).unwrap_or_else(|_| panic!("Failed to read {name} certificate"));
+        let key = fs::read(key_path).unwrap_or_else(|_| panic!("Failed to read {name} priv_key"));
         let cert_req = CertificateReq {
             certificate: cert,
             certificate_private_key: key,
         };
         validate_certificate_with_server(http_client, url.clone(), cert_req)
             .await
-            .unwrap_or_else(|e| panic!("{} Certificate validation failed: {}", name, e));
+            .unwrap_or_else(|e| panic!("{name} Certificate validation failed: {e}"));
     }
 }

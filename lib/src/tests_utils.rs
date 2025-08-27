@@ -10,7 +10,7 @@ use tokio::io::AsyncReadExt;
 use url::Host;
 
 pub fn get_db_connection_uri(host: Host, port: u16) -> String {
-    format!("mongodb://{}:{}", host, port)
+    format!("mongodb://{host}:{port}")
 }
 
 pub async fn get_mongo() -> ContainerAsync<GenericImage> {
@@ -63,7 +63,7 @@ pub async fn print_stdout(container: &ContainerAsync<GenericImage>) {
     let mut reader_stdout = container.stdout(false);
     let mut dst = String::new();
     let _ = reader_stdout.read_to_string(&mut dst).await;
-    println!("{}", dst);
+    println!("{dst}");
 }
 
 #[allow(dead_code)]
@@ -72,5 +72,5 @@ pub async fn print_stderr(container: &ContainerAsync<GenericImage>) {
     let mut reader_stderr = container.stderr(false);
     let mut dst = String::new();
     let _ = reader_stderr.read_to_string(&mut dst).await;
-    println!("{}", dst);
+    println!("{dst}");
 }

@@ -15,8 +15,7 @@ pub fn to_nf_token_id_from_str(
     token_id: &str,
 ) -> Result<Fr254, ConversionError> {
     debug!(
-        "Converting erc_address: {} and token_id: {}",
-        erc_address, token_id
+        "Converting erc_address: {erc_address} and token_id: {token_id}"
     );
     let mut erc_vec =
         Vec::<u8>::from_hex_string(erc_address).map_err(|_| ConversionError::ParseFailed)?;

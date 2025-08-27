@@ -32,21 +32,21 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Extract the client address from the environment variable CLIENT_ADDRESS
     let client_address =
         std::env::var("CLIENT_ADDRESS").expect("CLIENT_ADDRESS environment variable not set");
-    println!("Client address from .env: {}", client_address);
+    println!("Client address from .env: {client_address}");
 
     // Read and parse config.toml into url and mnemonic variables
     let (url, mnemonic) = load_config(CONFIG_PATH);
 
     // check for client connectivity
     if !check_client_connection(&url).await {
-        return Err(format!("Error: Client is not reachable at {}", url).into());
+        return Err(format!("Error: Client is not reachable at {url}").into());
     } else {
-        println!("Client is healthy and reachable at {}", url);
+        println!("Client is healthy and reachable at {url}");
     }
 
     // Derive ZKP keys by calling the deriveKey endpoint (refactored into get_keys)
     let layer_2_address = get_keys(&url, &mnemonic).await?;
-    println!("Your layer 2 address is: 0x{}", layer_2_address);
+    println!("Your layer 2 address is: 0x{layer_2_address}");
 
     // Extract ERC20Mock contract address from deployment log file
     let log_path = "blockchain_assets/logs/mock_deployment.s.sol/31337/run-latest.json";
@@ -60,7 +60,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .and_then(|tx| tx["contractAddress"].as_str())
         .expect("ERC20Mock contract address not found in log");
     let default_erc_address = erc20_address.to_string();
-    println!("ERC20Mock contract address: {}", default_erc_address);
+    println!("ERC20Mock contract address: {default_erc_address}");
 
     // present certificates for validation
     println!("Presenting certificates for validation...");
@@ -93,11 +93,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
         match action.as_str() {
             "Get L2 balance" => {
                 let balance = get_l2_balance(&url, &default_erc_address).await;
-                println!("Balance: {}", balance);
+                println!("Balance: {balance}");
             }
             "Get L1 balance" => match get_l1_balance(&url).await {
-                Ok(balance) => println!("L1 Balance: {}", balance),
-                Err(e) => println!("Failed to get L1 balance: {}", e),
+                Ok(balance) => println!("L1 Balance: {balance}"),
+                Err(e) => println!("Failed to get L1 balance: {e}"),
             },
             "Deposit" => deposit(&url, &default_erc_address).await?,
             "Transfer" => transfer(&url, &default_erc_address, &layer_2_address).await?,
@@ -170,7 +170,7 @@ async fn get_l2_balance(url: &url::Url, default_erc_address: &str) -> i64 {
     };
     let mut balance_url = url.clone();
     // Set the path correctly, preserving the base URL and adding the correct endpoint
-    let path = format!("/v1/balance/{}/{}", erc_address, token_id);
+    let path = format!("/v1/balance/{erc_address}/{token_id}");
     balance_url.set_path(&path); // Clear any existing path
     let client = reqwest::Client::new();
     let resp = client
@@ -201,7 +201,7 @@ async fn get_l1_balance(url: &Url) -> Result<U256, Box<dyn std::error::Error>> {
         let text = resp.text().await?.trim().to_string();
         // Use HexConvertible to parse the string into a U256, then downcast to u64
         let u256 = lib::hex_conversion::HexConvertible::from_hex_string(&text)
-            .map_err(|e| format!("Failed to parse hex as U256: {:?}", e))?;
+            .map_err(|e| format!("Failed to parse hex as U256: {e:?}", ))?;
         // Convert U256 to u64 (truncating if necessary)
         Ok(u256)
     } else {
@@ -231,10 +231,10 @@ async fn deposit(url: &url::Url, default_erc_address: &str) -> Result<(), Box<dy
     let status = resp.status();
     let text = resp.text().await.expect("Failed to read response body");
     if status.is_success() {
-        println!("{}", text);
+        println!("{text}");
         Ok(())
     } else {
-        Err(format!("Deposit request failed: {}", text).into())
+        Err(format!("Deposit request failed: {text}").into())
     }
 }
 
@@ -260,10 +260,10 @@ async fn transfer(
     let status = resp.status();
     let text = resp.text().await.expect("Failed to read response body");
     if status.is_success() {
-        println!("{}", text);
+        println!("{text}");
         Ok(())
     } else {
-        Err(format!("Transfer request failed: {}", text).into())
+        Err(format!("Transfer request failed: {text}").into())
     }
 }
 
@@ -290,10 +290,10 @@ async fn withdraw(
     let status = resp.status();
     let text = resp.text().await.expect("Failed to read response body");
     if status.is_success() {
-        println!("{}", text);
+        println!("{text}");
         Ok(())
     } else {
-        Err(format!("Withdraw request failed: {}", text).into())
+        Err(format!("Withdraw request failed: {text}").into())
     }
 }
 
@@ -425,7 +425,7 @@ fn token_type_name_to_number_string(name: &str) -> String {
         "ERC3525" => "3".to_string(),
         n if n.chars().all(|c| c.is_ascii_digit()) => n.to_string(), // fallback: allow numbers
         _ => {
-            println!("Unknown token type '{}', defaulting to ERC20 (0)", name);
+            println!("Unknown token type '{name}', defaulting to ERC20 (0)");
             "0".to_string()
         }
     }

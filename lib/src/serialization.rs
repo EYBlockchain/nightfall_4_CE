@@ -74,7 +74,7 @@ pub fn bytes_to_hex_lpadded(bytes: &[u8], max_bytes: usize) -> String {
 
     let mut hex_str = String::with_capacity(bytes.len() * 2);
     for byte in bytes {
-        write!(&mut hex_str, "{:02x}", byte).unwrap();
+        write!(&mut hex_str, "{byte:02x}").unwrap();
     }
 
     format!("{:0>width$}", hex_str, width = max_bytes * 2)
@@ -269,10 +269,10 @@ mod tests {
         let serialized3 = serde_json::to_string(&wrapper3).unwrap();
         let serialized4 = serde_json::to_string(&wrapper4).unwrap();
 
-        println!("Serialized value 1: {}", serialized1);
-        println!("Serialized value 2: {}", serialized2);
-        println!("Serialized value 3: {}", serialized3);
-        println!("Serialized value 4: {}", serialized4);
+        println!("Serialized value 1: {serialized1}");
+        println!("Serialized value 2: {serialized2}");
+        println!("Serialized value 3: {serialized3}");
+        println!("Serialized value 4: {serialized4}");
 
         // Compare serialized values and find the largest
         let largest_serialized = vec![
@@ -286,7 +286,7 @@ mod tests {
         .unwrap(); // Use `max` to get the largest serialized value
 
         // Print the largest serialized value
-        println!("The largest serialized value is: {}", largest_serialized);
+        println!("The largest serialized value is: {largest_serialized}");
 
         // Deserialize each element
         let deserialized1: FrWrapperPadded = serde_json::from_str(&serialized1).unwrap();
@@ -295,10 +295,10 @@ mod tests {
         let deserialized4: FrWrapperPadded = serde_json::from_str(&serialized4).unwrap();
 
         // Print values after deserialization
-        println!("Value after deserialization 1: {:?}", deserialized1.0);
-        println!("Value after deserialization 2: {:?}", deserialized2.0);
-        println!("Value after deserialization 3: {:?}", deserialized3.0);
-        println!("Value after deserialization 4: {:?}", deserialized4.0);
+        println!("Value after deserialization 1: {0:?}", deserialized1.0);
+        println!("Value after deserialization 2: {0:?}", deserialized2.0);
+        println!("Value after deserialization 3: {0:?}", deserialized3.0);
+        println!("Value after deserialization 4: {0:?}", deserialized4.0);
 
         // Assert equality after deserialization
         assert_eq!(element1, deserialized1.0);
@@ -308,13 +308,13 @@ mod tests {
 
         // Check if the largest serialized value matches the initial value
         if largest_serialized == serialized1 {
-            println!("The largest value is element1: {:?}", element1);
+            println!("The largest value is element1: {element1:?}");
         } else if largest_serialized == serialized2 {
-            println!("The largest value is element2: {:?}", element2);
+            println!("The largest value is element2: {element2:?}");
         } else if largest_serialized == serialized3 {
-            println!("The largest value is element3: {:?}", element3);
+            println!("The largest value is element3: {element3:?}");
         } else if largest_serialized == serialized4 {
-            println!("The largest value is element4: {:?}", element4);
+            println!("The largest value is element4: {element4:?}");
         }
     }
 }
