@@ -148,9 +148,7 @@ async fn process_propose_block_event<N: NightfallContract>(
     // This could happen if we've missed some blocks and we're re-synchronising
 
     if *expected_onchain_block_number > layer_2_block_number_in_event {
-        warn!(
-            "Already processed layer 2 block {layer_2_block_number_in_event} - skipping"
-        );
+        warn!("Already processed layer 2 block {layer_2_block_number_in_event} - skipping");
         return Ok(());
     }
     let layer_2_block_number_in_event_u64: u64 = layer_2_block_number_in_event
@@ -233,14 +231,10 @@ async fn process_propose_block_event<N: NightfallContract>(
     })?;
 
     let delta = current_block_number - filter.layer_2_block_number - I256::one();
-    println!(
-        "Current block number is {current_block_number}, delta is {delta}"
-    );
+    println!("Current block number is {current_block_number}, delta is {delta}");
     // if we"re synchronising, we don"t want to check for duplicate keys because we expect to overwrite commitments already in the commitment collection
     let dup_key_check = if delta != I256::zero() {
-        warn!(
-            "Synchronising - behind blockchain by {delta} layer 2 blocks "
-        );
+        warn!("Synchronising - behind blockchain by {delta} layer 2 blocks ");
         false
     } else {
         debug!("Synchronised with blockchain");
@@ -288,9 +282,7 @@ async fn process_propose_block_event<N: NightfallContract>(
             .map_err(|_| {
                 EventHandlerError::IOError("Could not append commitments to tree".to_string())
             })?;
-    debug!(
-        "New commitments tree root is {root}, old root was {old_root}"
-    );
+    debug!("New commitments tree root is {root}, old root was {old_root}");
     // The root should be the same as the one in the block. This is worth checking
     let historic_root = FrBn254::try_from(blk.commitments_root)
         .map_err(|_| {

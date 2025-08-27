@@ -131,7 +131,7 @@ async fn handle_remove_proposer() -> Result<impl Reply, warp::Rejection> {
             }
         }
         Err(e) => {
-            warn!("Could not check current proposer before removal: {e:?}", );
+            warn!("Could not check current proposer before removal: {e:?}",);
         }
     }
 

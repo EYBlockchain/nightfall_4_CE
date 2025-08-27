@@ -46,6 +46,13 @@ pub mod rollup_proof_verifier {
                             name: ::std::borrow::ToOwned::to_owned("verify"),
                             inputs: ::std::vec![
                                 ::ethers::core::abi::ethabi::Param {
+                                    name: ::std::borrow::ToOwned::to_owned("acc_proof"),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::Bytes,
+                                    internal_type: ::core::option::Option::Some(
+                                        ::std::borrow::ToOwned::to_owned("bytes"),
+                                    ),
+                                },
+                                ::ethers::core::abi::ethabi::Param {
                                     name: ::std::borrow::ToOwned::to_owned("proofBytes"),
                                     kind: ::ethers::core::abi::ethabi::ParamType::Bytes,
                                     internal_type: ::core::option::Option::Some(
@@ -185,16 +192,17 @@ pub mod rollup_proof_verifier {
                 .method_hash([154, 232, 136, 106], ())
                 .expect("method not found (this should never happen)")
         }
-        ///Calls the contract's `verify` (0xf7e83aee) function
+        ///Calls the contract's `verify` (0xde8f50a1) function
         pub fn verify(
             &self,
+            acc_proof: ::ethers::core::types::Bytes,
             proof_bytes: ::ethers::core::types::Bytes,
             public_inputs_hash_bytes: ::ethers::core::types::Bytes,
         ) -> ::ethers::contract::builders::ContractCall<M, bool> {
             self.0
                 .method_hash(
-                    [247, 232, 58, 238],
-                    (proof_bytes, public_inputs_hash_bytes),
+                    [222, 143, 80, 161],
+                    (acc_proof, proof_bytes, public_inputs_hash_bytes),
                 )
                 .expect("method not found (this should never happen)")
         }
@@ -220,7 +228,7 @@ pub mod rollup_proof_verifier {
     )]
     #[ethcall(name = "p", abi = "p()")]
     pub struct PCall;
-    ///Container type for all input parameters for the `verify` function with signature `verify(bytes,bytes)` and selector `0xf7e83aee`
+    ///Container type for all input parameters for the `verify` function with signature `verify(bytes,bytes,bytes)` and selector `0xde8f50a1`
     #[derive(
         Clone,
         ::ethers::contract::EthCall,
@@ -233,8 +241,9 @@ pub mod rollup_proof_verifier {
         Eq,
         Hash
     )]
-    #[ethcall(name = "verify", abi = "verify(bytes,bytes)")]
+    #[ethcall(name = "verify", abi = "verify(bytes,bytes,bytes)")]
     pub struct VerifyCall {
+        pub acc_proof: ::ethers::core::types::Bytes,
         pub proof_bytes: ::ethers::core::types::Bytes,
         pub public_inputs_hash_bytes: ::ethers::core::types::Bytes,
     }
@@ -311,7 +320,7 @@ pub mod rollup_proof_verifier {
         Hash
     )]
     pub struct PReturn(pub ::ethers::core::types::U256);
-    ///Container type for all return fields from the `verify` function with signature `verify(bytes,bytes)` and selector `0xf7e83aee`
+    ///Container type for all return fields from the `verify` function with signature `verify(bytes,bytes,bytes)` and selector `0xde8f50a1`
     #[derive(
         Clone,
         ::ethers::contract::EthAbiType,
