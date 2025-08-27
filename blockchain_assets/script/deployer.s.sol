@@ -12,6 +12,8 @@ import "../contracts/proof_verification/MockVerifier.sol";
 import "../contracts/proof_verification/RollupProofVerifier.sol";
 import "../contracts/proof_verification/INFVerifier.sol";
 import "../contracts/proof_verification/IVKProvider.sol";
+import "../contracts/proof_verification/RollupProofVerificationKeyUUPS.sol";
+
 import "../contracts/proof_verification/Types.sol";
 
 // X509 & sanctions
@@ -108,15 +110,13 @@ contract Deployer is Script {
 
         // 4) Optional: transfer ownership to configured address
         string memory ownerKey = string.concat(runMode, ".owners.vk_provider_owner");
-        if (toml.hasKey(ownerKey)) {
             address newOwner = toml.readAddress(ownerKey);
             if (newOwner != address(0) && newOwner != msg.sender) {
                 // Cast the proxy to the implementation type to call Ownable on it
                 RollupProofVerificationKeyUUPS(vkProxy).transferOwnership(newOwner);
             }
-        }
     }
-}
+
 
     // ---------- Build VK from TOML ----------
     function readVKFromToml(string memory toml) internal view returns (Types.VerificationKey memory vk) {
