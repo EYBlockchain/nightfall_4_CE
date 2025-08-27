@@ -163,20 +163,30 @@ pub fn write_vk_to_nightfall_toml(vk: &VerifyingKey<Bn254>) -> anyhow::Result<()
     block.push_str(&format!("group_gen_inv = {}\n", as_q(&group_gen_inv)));
 
     block.push_str(&format!("open_key_g = {}\n", pair_q(&open_key_g[0], &open_key_g[1])));
+    // h / beta_h inline
+    block.push_str(&format!(
+        "h = [{}, {}, {}, {}]\n",
+        as_q(&h[0]), as_q(&h[1]), as_q(&h[2]), as_q(&h[3])
+    ));
+    block.push_str(&format!(
+        "beta_h = [{}, {}, {}, {}]\n",
+        as_q(&beta_h[0]), as_q(&beta_h[1]), as_q(&beta_h[2]), as_q(&beta_h[3])
+    ));
+    // (optional) visual spacer before next table
+    block.push_str("\n");
+    // block.push_str("h = [\n");
+    // block.push_str(&format!("  {},\n", as_q(&h[0]))); // x0
+    // block.push_str(&format!("  {},\n", as_q(&h[1]))); // x1
+    // block.push_str(&format!("  {},\n", as_q(&h[2]))); // y0
+    // block.push_str(&format!("  {}\n",  as_q(&h[3]))); // y1
+    // block.push_str("]\n");
 
-    block.push_str("h = [\n");
-    block.push_str(&format!("  {},\n", as_q(&h[0]))); // x0
-    block.push_str(&format!("  {},\n", as_q(&h[1]))); // x1
-    block.push_str(&format!("  {},\n", as_q(&h[2]))); // y0
-    block.push_str(&format!("  {}\n",  as_q(&h[3]))); // y1
-    block.push_str("]\n");
-
-    block.push_str("beta_h = [\n");
-    block.push_str(&format!("  {},\n", as_q(&beta_h[0]))); // x0
-    block.push_str(&format!("  {},\n", as_q(&beta_h[1]))); // x1
-    block.push_str(&format!("  {},\n", as_q(&beta_h[2]))); // y0
-    block.push_str(&format!("  {}\n",  as_q(&beta_h[3]))); // y1
-    block.push_str("]\n");
+    // block.push_str("beta_h = [\n");
+    // block.push_str(&format!("  {},\n", as_q(&beta_h[0]))); // x0
+    // block.push_str(&format!("  {},\n", as_q(&beta_h[1]))); // x1
+    // block.push_str(&format!("  {},\n", as_q(&beta_h[2]))); // y0
+    // block.push_str(&format!("  {}\n",  as_q(&beta_h[3]))); // y1
+    // block.push_str("]\n");
 
     // ===== Replace or append the section =====
     toml_txt = replace_section_block(toml_txt, &header, &block);
