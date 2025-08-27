@@ -6,6 +6,7 @@ use nightfall_deployer::deployment::deploy_contracts;
 async fn main() {
     // Print banner immediately on startup
     println!(
+        r#"
 ███╗   ██╗██╗ ██████╗ ██╗  ██╗████████╗███████╗ █████╗ ██╗     ██╗        ██╗  ██╗
 ████╗  ██║██║██╔════╝ ██║  ██║╚══██╔══╝██╔════╝██╔══██╗██║     ██║        ██║  ██║
 ██╔██╗ ██║██║██║  ███╗███████║   ██║   █████╗  ███████║██║     ██║        ███████║
@@ -15,7 +16,7 @@ async fn main() {
 
 Nightfall_4,
 https://github.com/EYBlockchain/nightfall_4_CE
-
+"#
     );
     let settings: Settings = Settings::new().unwrap();
     init_logging(
