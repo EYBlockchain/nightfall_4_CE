@@ -14,11 +14,60 @@ use std::{
 };
 use regex::Regex;
 
-pub fn write_vk_to_nightfall_toml(
-    vk: &VerifyingKey<Bn254>,
-) -> anyhow::Result<()> {
-    ark_std::println!("Writing vk to nightfall.toml...");
-    // 1) Compute everything for vk structure
+fn replace_section_block(mut full: String, header: &str, new_block: &str) -> String {
+    // Find the start line index of the header (must be a whole line starting with '[')
+    let mut start_byte = None;
+    let mut byte_idx = 0usize;
+    for line in full.lines() {
+        if line.trim_start().starts_with(header) {
+            start_byte = Some(byte_idx);
+            break;
+        }
+        byte_idx += line.len() + 1; // +1 for '\n'
+    }
+
+    // If not found, append
+    if start_byte.is_none() {
+        if !full.ends_with('\n') {
+            full.push('\n');
+        }
+        full.push_str(new_block);
+        if !new_block.ends_with('\n') {
+            full.push('\n');
+        }
+        return full;
+    }
+
+    let start = start_byte.unwrap();
+
+    // Find end of this section: next line that starts with '[' at column 0 (a new table)
+    let tail = &full[start..];
+    let mut end_rel = tail.len(); // default: to EOF
+    let mut acc = 0usize;
+    for line in tail.lines().skip(1) {
+        acc += line.len() + 1;
+        if line.starts_with('[') {
+            end_rel = acc - (line.len() + 1); // beginning of that line
+            break;
+        }
+    }
+    let end = start + end_rel;
+
+    // Splice
+    let mut out = String::with_capacity(full.len() + new_block.len());
+    out.push_str(&full[..start]);
+    out.push_str(new_block);
+    if !new_block.ends_with('\n') {
+        out.push('\n');
+    }
+    out.push_str(&full[end..]);
+    out
+}
+
+pub fn write_vk_to_nightfall_toml(vk: &VerifyingKey<Bn254>) -> anyhow::Result<()> {
+    use std::fs;
+
+    // ===== Build values =====
     let domain_size = vk.domain_size();
     let domain_size_fr = Fr254::from(domain_size as u32);
     let domain_size_inv = U256::from_little_endian(
@@ -33,33 +82,22 @@ pub fn write_vk_to_nightfall_toml(
     let domain_size_u256 = U256::from(domain_size as u32);
     let num_inputs_u256 = U256::from(vk.num_inputs() as u32);
 
-    let sigma_comms_u256: Vec<U256> = vk
-        .sigma_comms
-        .iter()
-        .flat_map(|comm| {
-            let x = U256::from_big_endian(&comm.x.into_bigint().to_bytes_be());
-            let y = U256::from_big_endian(&comm.y.into_bigint().to_bytes_be());
-            vec![x, y]
-        })
-        .collect();
+    let sigma_comms_u256: Vec<U256> = vk.sigma_comms.iter().flat_map(|c| {
+        let x = U256::from_big_endian(&c.x.into_bigint().to_bytes_be());
+        let y = U256::from_big_endian(&c.y.into_bigint().to_bytes_be());
+        [x, y]
+    }).collect();
 
-    let selector_comms_u256: Vec<U256> = vk
-        .selector_comms
-        .iter()
-        .flat_map(|comm| {
-            let x = U256::from_big_endian(&comm.x.into_bigint().to_bytes_be());
-            let y = U256::from_big_endian(&comm.y.into_bigint().to_bytes_be());
-            vec![x, y]
-        })
-        .collect();
+    let selector_comms_u256: Vec<U256> = vk.selector_comms.iter().flat_map(|c| {
+        let x = U256::from_big_endian(&c.x.into_bigint().to_bytes_be());
+        let y = U256::from_big_endian(&c.y.into_bigint().to_bytes_be());
+        [x, y]
+    }).collect();
 
-    let ks_u256: Vec<U256> = vk
-        .k
-        .iter()
+    let ks_u256: Vec<U256> = vk.k.iter()
         .map(|k| U256::from_big_endian(&k.into_bigint().to_bytes_be()))
         .collect();
 
-    // These indices mirror your existing generator
     let vk_vec_u256 = Vec::<Fq254>::from(vk.clone())
         .into_iter()
         .map(|x| U256::from_little_endian(&x.into_bigint().to_bytes_le()))
@@ -72,96 +110,78 @@ pub fn write_vk_to_nightfall_toml(
     let open_key_g = [vk_vec_u256[64], vk_vec_u256[65]];
     let h = [vk_vec_u256[67], vk_vec_u256[66], vk_vec_u256[69], vk_vec_u256[68]];
     let beta_h = [vk_vec_u256[71], vk_vec_u256[70], vk_vec_u256[73], vk_vec_u256[72]];
-    ark_std::println!("beta_h: {:?}", beta_h);
 
-    // 2) Locate nightfall.toml (walk up from CWD)
+    // ===== Locate nightfall.toml =====
     let mut cwd = std::env::current_dir()?;
     let nightfall_path: PathBuf = loop {
-        let candidate = cwd.join("nightfall.toml");
-        if candidate.is_file() {
-            break candidate;
-        }
+        let p = cwd.join("nightfall.toml");
+        if p.is_file() { break p; }
         cwd = cwd.parent().ok_or_else(|| anyhow::anyhow!("could not find nightfall.toml"))?.to_path_buf();
     };
+    let mut toml_txt = fs::read_to_string(&nightfall_path)?;
 
-    // 3) Build a TOML block for [<mode>.verifier]
+    // ===== Build new block text =====
     let mode = std::env::var("NF4_RUN_MODE").unwrap_or_else(|_| "development".to_string());
+    let header = format!("[{}.verifier]", mode);
 
-    // helper lambdas
-    let as_hex = |u: &U256| -> String { format!("{:#x}", u) };               // 0x… (unquoted)
-    let as_qhex = |u: &U256| -> String { format!("\"{:#x}\"", u) };          // "0x…"
-    let pair_q = |a: &U256, b: &U256| -> String { format!("[{}, {}]", as_qhex(a), as_qhex(b)) };
+    let as_hex = |u: &U256| -> String { format!("{:#x}", u) };      // bare 0x… (for domain_size/num_inputs)
+    let as_q  = |u: &U256| -> String { format!("\"{:#x}\"", u) };   // "0x…"
+    let pair_q = |a: &U256, b: &U256| -> String { format!("[{}, {}]", as_q(a), as_q(b)) };
 
     let mut block = String::new();
-    block.push_str(&format!("[{}.verifier]\n", mode));
-
-    // Domain / inputs (keep unquoted hex like your examples)
+    block.push_str(&header);
+    block.push('\n');
+    block.push_str("# Auto-generated by key_generation: VK values that the UUPS provider will initialize with\n");
     block.push_str(&format!("domain_size = {}\n", as_hex(&domain_size_u256)));
     block.push_str(&format!("num_inputs  = {}\n", as_hex(&num_inputs_u256)));
 
-    // Sigma commitments
     for i in 0..6 {
-        let x = &sigma_comms_u256[2 * i];
-        let y = &sigma_comms_u256[2 * i + 1];
-        block.push_str(&format!("sigma_comms_{} = {}\n", i + 1, pair_q(x, y)));
+        let x = &sigma_comms_u256[2*i];
+        let y = &sigma_comms_u256[2*i+1];
+        block.push_str(&format!("sigma_comms_{} = {}\n", i+1, pair_q(x, y)));
     }
-
-    // Selector commitments
     for i in 0..18 {
-        let x = &selector_comms_u256[2 * i];
-        let y = &selector_comms_u256[2 * i + 1];
-        block.push_str(&format!("selector_comms_{}  = {}\n", i + 1, pair_q(x, y)));
+        let x = &selector_comms_u256[2*i];
+        let y = &selector_comms_u256[2*i+1];
+        block.push_str(&format!("selector_comms_{:<2} = {}\n", i+1, pair_q(x, y)));
     }
 
-    // Scalars (quote them to keep TOML valid; Deployer's readUint handles quoted hex)
-    block.push_str(&format!("k1 = {}\n", as_qhex(&ks_u256[0])));
-    block.push_str(&format!("k2 = {}\n", as_qhex(&ks_u256[1])));
-    block.push_str(&format!("k3 = {}\n", as_qhex(&ks_u256[2])));
-    block.push_str(&format!("k4 = {}\n", as_qhex(&ks_u256[3])));
-    block.push_str(&format!("k5 = {}\n", as_qhex(&ks_u256[4])));
-    block.push_str(&format!("k6 = {}\n", as_qhex(&ks_u256[5])));
+    block.push_str(&format!("k1 = {}\n", as_q(&ks_u256[0])));
+    block.push_str(&format!("k2 = {}\n", as_q(&ks_u256[1])));
+    block.push_str(&format!("k3 = {}\n", as_q(&ks_u256[2])));
+    block.push_str(&format!("k4 = {}\n", as_q(&ks_u256[3])));
+    block.push_str(&format!("k5 = {}\n", as_q(&ks_u256[4])));
+    block.push_str(&format!("k6 = {}\n", as_q(&ks_u256[5])));
 
-    // Commitments (G1)
     block.push_str(&format!("range_table_comm     = {}\n", pair_q(&range_table_comm_u256[0], &range_table_comm_u256[1])));
     block.push_str(&format!("key_table_comm       = {}\n", pair_q(&key_table_comm_u256[0], &key_table_comm_u256[1])));
     block.push_str(&format!("table_dom_sep_comm   = {}\n", pair_q(&table_dom_sep_comm_u256[0], &table_dom_sep_comm_u256[1])));
     block.push_str(&format!("q_dom_sep_comm       = {}\n", pair_q(&q_dom_sep_comm_u256[0], &q_dom_sep_comm_u256[1])));
 
-    // Group params (quote them)
-    block.push_str(&format!("size_inv      = {}\n", as_qhex(&size_inv)));
-    block.push_str(&format!("group_gen     = {}\n", as_qhex(&group_gen)));
-    block.push_str(&format!("group_gen_inv = {}\n", as_qhex(&group_gen_inv)));
+    block.push_str(&format!("size_inv      = {}\n", as_q(&size_inv)));
+    block.push_str(&format!("group_gen     = {}\n", as_q(&group_gen)));
+    block.push_str(&format!("group_gen_inv = {}\n", as_q(&group_gen_inv)));
 
-    // Open key (G1) as array of quoted hex
     block.push_str(&format!("open_key_g = {}\n", pair_q(&open_key_g[0], &open_key_g[1])));
 
-    // G2 points (arrays of quoted hex in x0,x1,y0,y1 order)
     block.push_str("h = [\n");
-    block.push_str(&format!("  {},\n", as_qhex(&h[0]))); // x0
-    block.push_str(&format!("  {},\n", as_qhex(&h[1]))); // x1
-    block.push_str(&format!("  {},\n", as_qhex(&h[2]))); // y0
-    block.push_str(&format!("  {}\n",  as_qhex(&h[3]))); // y1
+    block.push_str(&format!("  {},\n", as_q(&h[0]))); // x0
+    block.push_str(&format!("  {},\n", as_q(&h[1]))); // x1
+    block.push_str(&format!("  {},\n", as_q(&h[2]))); // y0
+    block.push_str(&format!("  {}\n",  as_q(&h[3]))); // y1
     block.push_str("]\n");
 
     block.push_str("beta_h = [\n");
-    block.push_str(&format!("  {},\n", as_qhex(&beta_h[0]))); // x0
-    block.push_str(&format!("  {},\n", as_qhex(&beta_h[1]))); // x1
-    block.push_str(&format!("  {},\n", as_qhex(&beta_h[2]))); // y0
-    block.push_str(&format!("  {}\n",  as_qhex(&beta_h[3]))); // y1
+    block.push_str(&format!("  {},\n", as_q(&beta_h[0]))); // x0
+    block.push_str(&format!("  {},\n", as_q(&beta_h[1]))); // x1
+    block.push_str(&format!("  {},\n", as_q(&beta_h[2]))); // y0
+    block.push_str(&format!("  {}\n",  as_q(&beta_h[3]))); // y1
     block.push_str("]\n");
 
-    // 4) Replace or append the whole [<mode>.verifier] block
-    let mut toml_txt = fs::read_to_string(&nightfall_path)?;
-    let re = Regex::new(&format!(r"(?ms)^\[\s*{}\s*\.verifier\s*\]\s*.*?(?=^\[|\z)", regex::escape(&mode)))?;
-    if re.is_match(&toml_txt) {
-        toml_txt = re.replace(&toml_txt, block.as_str()).to_string();
-    } else {
-        // section doesn't exist; append
-        toml_txt.push_str("\n");
-        toml_txt.push_str(&block);
-    }
+    // ===== Replace or append the section =====
+    toml_txt = replace_section_block(toml_txt, &header, &block);
     fs::write(&nightfall_path, toml_txt)?;
 
-    ark_std::println!("Updated [{}.verifier] in {}", mode, nightfall_path.display());
+    println!("Updated [{} .verifier] in {}", mode, nightfall_path.display());
     Ok(())
 }
