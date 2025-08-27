@@ -40,6 +40,8 @@ contract Deployer is Script {
     string public runMode = string.concat("$.", vm.envString("NF4_RUN_MODE"));
 
     function run() external {
+        // Make OZ Upgrades look in custom artifacts dir WITHOUT touching the repo or the shell
+        vm.setEnv("FOUNDRY_OUT", "blockchain_assets/artifacts");
         uint256 deployerPrivateKey = vm.envUint("NF4_SIGNING_KEY");
         string memory root = vm.projectRoot();
         string memory path = string.concat(root, "/nightfall.toml");
