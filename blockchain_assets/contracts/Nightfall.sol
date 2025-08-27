@@ -594,8 +594,7 @@ contract Nightfall is
         bytes memory publicInputsBytes = abi.encodePacked(publicInputsBytes_computed);
 
         // we also need to deserialize the transaction public data bytes into fields - but that's easy in Solidity
-        bytes memory proof = blk.rollup_proof[288:];
-        return (verifier.verify(proof, publicInputsBytes), feeSumAsNumber);
+        return (verifier.verify(blk.rollup_proof[32:288], blk.rollup_proof[288:], publicInputsBytes), feeSumAsNumber);
     }
 
     function splitToLowHigh(
