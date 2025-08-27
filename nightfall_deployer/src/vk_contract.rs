@@ -14,54 +14,24 @@ use std::{
 };
 use regex::Regex;
 
-fn replace_section_block(mut full: String, header: &str, new_block: &str) -> String {
-    // Find the start line index of the header (must be a whole line starting with '[')
-    let mut start_byte = None;
-    let mut byte_idx = 0usize;
-    for line in full.lines() {
-        if line.trim_start().starts_with(header) {
-            start_byte = Some(byte_idx);
-            break;
-        }
-        byte_idx += line.len() + 1; // +1 for '\n'
-    }
+fn replace_verifier_block(full: &str, mode: &str, new_block: &str) -> String {
+    // Normalize line endings to avoid byte-index drift
+    let mut s = full.replace("\r\n", "\n");
 
-    // If not found, append
-    if start_byte.is_none() {
-        if !full.ends_with('\n') {
-            full.push('\n');
-        }
-        full.push_str(new_block);
-        if !new_block.ends_with('\n') {
-            full.push('\n');
-        }
-        return full;
-    }
+    // Match the whole [<mode>.verifier] table up to the next table or EOF
+    let re = Regex::new(&format!(
+        r"(?ms)^\[\s*{}\s*\.verifier\s*\][\s\S]*?(?=^\[|\z)",
+        regex::escape(mode)
+    )).unwrap();
 
-    let start = start_byte.unwrap();
-
-    // Find end of this section: next line that starts with '[' at column 0 (a new table)
-    let tail = &full[start..];
-    let mut end_rel = tail.len(); // default: to EOF
-    let mut acc = 0usize;
-    for line in tail.lines().skip(1) {
-        acc += line.len() + 1;
-        if line.starts_with('[') {
-            end_rel = acc - (line.len() + 1); // beginning of that line
-            break;
-        }
+    if re.is_match(&s) {
+        s = re.replace(&s, new_block).to_string();
+    } else {
+        if !s.ends_with('\n') { s.push('\n'); }
+        s.push_str(new_block);
+        if !new_block.ends_with('\n') { s.push('\n'); }
     }
-    let end = start + end_rel;
-
-    // Splice
-    let mut out = String::with_capacity(full.len() + new_block.len());
-    out.push_str(&full[..start]);
-    out.push_str(new_block);
-    if !new_block.ends_with('\n') {
-        out.push('\n');
-    }
-    out.push_str(&full[end..]);
-    out
+    s
 }
 
 pub fn write_vk_to_nightfall_toml(vk: &VerifyingKey<Bn254>) -> anyhow::Result<()> {
@@ -141,9 +111,9 @@ pub fn write_vk_to_nightfall_toml(vk: &VerifyingKey<Bn254>) -> anyhow::Result<()
         block.push_str(&format!("sigma_comms_{} = {}\n", i+1, pair_q(x, y)));
     }
     for i in 0..18 {
-        let x = &selector_comms_u256[2*i];
-        let y = &selector_comms_u256[2*i+1];
-        block.push_str(&format!("selector_comms_{:<2} = {}\n", i+1, pair_q(x, y)));
+        let x = &selector_comms_u256[2 * i];
+        let y = &selector_comms_u256[2 * i + 1];
+        block.push_str(&format!("selector_comms_{} = {}\n", i + 1, pair_q(x, y)));
     }
 
     block.push_str(&format!("k1 = {}\n", as_q(&ks_u256[0])));
@@ -189,9 +159,13 @@ pub fn write_vk_to_nightfall_toml(vk: &VerifyingKey<Bn254>) -> anyhow::Result<()
     // block.push_str("]\n");
 
     // ===== Replace or append the section =====
-    toml_txt = replace_section_block(toml_txt, &header, &block);
-    fs::write(&nightfall_path, toml_txt)?;
 
-    println!("Updated [{} .verifier] in {}", mode, nightfall_path.display());
+    // println!("Updated [{} .verifier] in {}", mode, nightfall_path.display());
+    let had_crlf = toml_txt.contains("\r\n");
+    toml_txt = replace_verifier_block(&toml_txt, &mode, &block);
+    if had_crlf {
+        toml_txt = toml_txt.replace('\n', "\r\n");
+    }
+    fs::write(&nightfall_path, toml_txt)?;
     Ok(())
 }
