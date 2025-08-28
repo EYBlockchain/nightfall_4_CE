@@ -746,7 +746,9 @@ contract RollupProofVerifierTest is Test {
         TestVKProvider vk = new TestVKProvider();
         verifier = new RollupProofVerifier(address(vk));
 
-        x509Contract = new X509(address(this));
+        // x509Contract = new X509(address(this));
+        x509Contract = new X509();
+        x509Contract.initialize(address(this));
         address sanctionedUser = address(0x123);
         SanctionsListMock sanctionsListMock = new SanctionsListMock(sanctionedUser);
 

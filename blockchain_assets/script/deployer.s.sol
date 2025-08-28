@@ -19,7 +19,6 @@ import "../contracts/proof_verification/Types.sol";
 // X509 & sanctions
 import "../contracts/X509/X509.sol";
 import "../contracts/SanctionsListMock.sol";
-import "../contracts/X509/Certified.sol";
 
 // OZ Foundry Upgrades
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
@@ -59,9 +58,26 @@ contract Deployer is Script {
         SanctionsListInterface sanctionsList;
         (verifier, sanctionsList) = initializeVerifierAndSanctions(toml, vkProxy);
 
-        // (3) X509 + Nightfall wiring
-        X509 x509Contract = new X509(deployerAddress);
-        X509Interface x509 = X509Interface(address(x509Contract));
+        // (3) X509 UUPS
+        address x509Proxy = Upgrades.deployUUPSProxy(
+            // path is relative to `contracts/`
+            "X509/X509.sol:X509",
+            abi.encodeCall(X509.initialize, (deployerAddress))
+        );
+        X509 x509Contract = X509(x509Proxy);
+        X509Interface x509 = X509Interface(x509Proxy);
+
+        // Configure X509 while we (deployer) still own it
+        if (toml.readBool(string.concat(runMode, ".test_x509_certificates"))) {
+            configureX509locally(x509Contract, toml);
+        }
+
+        // after deploying the proxy, transfer X509 ownership if needed
+        string memory xOwnerKey = string.concat(runMode, ".owners.x509_owner");
+        address xOwner = toml.readAddress(xOwnerKey);
+        if (xOwner != address(0) && xOwner != deployerAddress) {
+            x509Contract.transferOwnership(xOwner);
+        }
 
         Nightfall nightfall = new Nightfall(
             verifier,
@@ -82,10 +98,6 @@ contract Deployer is Script {
             rrConfig.coolingBlocks,
             rrConfig.rotationBlocks
         );
-
-        if (toml.readBool(string.concat(runMode, ".test_x509_certificates"))) {
-            configureX509locally(x509Contract, toml);
-        }
 
         nightfall.set_x509_address(address(x509));
         nightfall.set_sanctions_list(address(sanctionsList));
@@ -110,7 +122,7 @@ contract Deployer is Script {
             init
         );
 
-        // 4) Optional: transfer ownership to configured address
+        // 4) transfer ownership to configured address
         string memory ownerKey = string.concat(runMode, ".owners.vk_provider_owner");
             address newOwner = toml.readAddress(ownerKey);
             if (newOwner != address(0) && newOwner != msg.sender) {

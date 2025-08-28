@@ -3,11 +3,28 @@
 pragma solidity ^0.8.3;
 
 // This contract can parse  a suitably encoded SSL certificate
+
+// OZ upgradeable base
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+
 import './DerParser.sol';
 import './Allowlist.sol';
 import './X509Interface.sol';
 import './Sha.sol';
-contract X509 is DERParser, Allowlist, Sha, X509Interface {
+/**
+ * @title X509 (upgradeable)
+ * @notice Upgrade-safe version of  X509 validator. Constructor removed; use initialize().
+ *         Storage layout preserved; future fields should be appended above the __gap.
+ */
+contract X509 is 
+    Initializable,
+    UUPSUpgradeable,
+    DERParser,
+    Allowlist,
+    Sha,
+    X509Interface
+{
     uint256 constant SECONDS_PER_DAY = 24 * 60 * 60;
     int256 constant OFFSET19700101 = 2440588;
 
@@ -26,31 +43,38 @@ contract X509 is DERParser, Allowlist, Sha, X509Interface {
     address addr;
 }
 
-    mapping(address => uint256) expires;
-    mapping(bytes32 => RSAPublicKey) trustedPublicKeys;
-    mapping(bytes32 => bool) revokedKeys;
-    mapping(address => bytes32) keysByUser;
+    // ========= Storage =========
+    mapping(address => uint256) private expires;
+    mapping(bytes32 => RSAPublicKey) private trustedPublicKeys;
+    mapping(bytes32 => bool) private revokedKeys;
+    mapping(address => bytes32) private keysByUser;
     // Reverse mapping to ensure one certificate is tied to one address
-    mapping(bytes32 => address) addressByKey; 
+    mapping(bytes32 => address) private addressByKey;
 
-    bytes32[][] extendedKeyUsageOIDs; // this is an array of arrays because each CA has their own set of OIDs that they use
-    bytes32[][] certificatePoliciesOIDs; // this is an array of arrays because each CA has their own set of OIDs that they use
+    // OID groups (per-CA)
+    bytes32[][] private extendedKeyUsageOIDs; // this is an array of arrays because each CA has their own set of OIDs that they use
+    bytes32[][] private certificatePoliciesOIDs; // this is an array of arrays because each CA has their own set of OIDs that they use
 
-    bytes1 usageBitMaskEndUser;
-    bytes1 usageBitMaskIntermediate;
+    // Key usage bitmasks
+    bytes1 private usageBitMaskEndUser;
+    bytes1 private usageBitMaskIntermediate;
 
-     constructor(
-        address owner_
-    ) Allowlist(owner_) {
+    // ========= Initializer =========
+    function initialize(address owner_) external initializer {
+        __UUPSUpgradeable_init();
+        __Allowlist_init(owner_); // sets owner + allowlisting = true
+
+        // default masks
         usageBitMaskEndUser = 0x80;
         usageBitMaskIntermediate = 0x06;
     }
 
+    // ========= Owner / config =========
     function setUsageBitMaskEndUser(bytes1 _usageBitMask) external onlyOwner {
         usageBitMaskEndUser = _usageBitMask;
     }
 
-    function setUsageBitMasIntermediate(bytes1 _usageBitMask) external onlyOwner {
+    function setUsageBitMaskIntermediate(bytes1 _usageBitMask) external onlyOwner {
         usageBitMaskIntermediate = _usageBitMask;
     }
 
@@ -81,6 +105,7 @@ contract X509 is DERParser, Allowlist, Sha, X509Interface {
         trustedPublicKeys[authorityKeyIdentifier] = trustedPublicKey;
     }
 
+    // ========= Internal helpers =========
     function getSignature(
         DecodedTlv[] memory tlvs,
         uint256 maxId
@@ -383,6 +408,7 @@ contract X509 is DERParser, Allowlist, Sha, X509Interface {
         );
     }
 
+    // ========= External API =========
     /**
     This function is the main one in the module. It calls all of the subsidiary functions necessary to validate an RSA cert
     If the validation is successful (and it's an endUserCert), it will add the sender to the allowlist contract, provided they
@@ -521,4 +547,10 @@ contract X509 is DERParser, Allowlist, Sha, X509Interface {
         delete keysByUser[addr];
         delete addressByKey[subjectKeyIdentifier];
     }
+
+    // ========= UUPS authorization =========
+    function _authorizeUpgrade(address) internal override onlyOwner {}
+
+    // ========= Storage gap =========
+    uint256[50] private __gap;
 }

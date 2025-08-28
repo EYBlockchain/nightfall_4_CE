@@ -7,8 +7,14 @@ contract X509Test is Test {
     X509 x509;
     DERParser derParser;
 
+    // Foundry's default sender EOA
+    address constant TEST_EOA = 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38;
+
+
     function setUp() public {
-        x509 = new X509(address(this));
+        // Upgradeable contract: deploy then initialize owner
+        x509 = new X509();
+        x509.initialize(address(this)); // test contract is the owner
         derParser = new DERParser();
     }
 
