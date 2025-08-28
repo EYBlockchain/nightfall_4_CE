@@ -27,7 +27,7 @@ use lib::{
 };
 use log::{debug, error, info, warn};
 use nf_curves::ed_on_bn254::Fr as BJJScalar;
-use nightfall_bindings::{round_robin::RoundRobin, x509::Proposer};
+use nightfall_bindings::{proposer_manager::ProposerManager, round_robin::RoundRobin, x509::Proposer};
 use reqwest::{Client, Error as ReqwestError};
 use serde::Serialize;
 use std::{error::Error, fmt::Debug, time::Duration};
@@ -249,7 +249,7 @@ pub async fn process_transaction_offchain<P: Serialize + Sync>(
     const INITIAL_BACKOFF: Duration = Duration::from_millis(500);
 
     let client = Client::new();
-    let round_robin_instance = RoundRobin::new(
+    let round_robin_instance = ProposerManager::new(
         get_addresses().round_robin,
         get_blockchain_client_connection()
             .await

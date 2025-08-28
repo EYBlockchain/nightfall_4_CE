@@ -1,5 +1,6 @@
 use configuration::addresses::get_addresses;
 use ethers::providers::ProviderError;
+use nightfall_bindings::proposer_manager::ProposerManager;
 use nightfall_bindings::round_robin::RoundRobin;
 use warp::reply;
 use warp::{path, reply::Reply, Filter};
@@ -42,7 +43,7 @@ pub fn get_proposers() -> impl Filter<Extract = impl warp::Reply, Error = warp::
 
 async fn handle_get_proposers() -> Result<impl Reply, warp::Rejection> {
     // get a ManageProposers instance
-    let proposer_manager = RoundRobin::new(
+    let proposer_manager = ProposerManager::new(
         get_addresses().round_robin,
         get_blockchain_client_connection()
             .await

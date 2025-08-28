@@ -9,12 +9,12 @@ import "../contracts/RoundRobin.sol";
 
 // Verifier stack
 import "../contracts/proof_verification/MockVerifier.sol";
-import "../contracts/proof_verification/RollupProofVerifier.sol";
+import "../contracts/proof_verification/RollupProofVerifierUUPS.sol";
 import "../contracts/proof_verification/INFVerifier.sol";
 import "../contracts/proof_verification/IVKProvider.sol";
 import "../contracts/proof_verification/RollupProofVerificationKeyUUPS.sol";
 
-import "../contracts/proof_verification/Types.sol";
+import "../contracts/proof_verification/lib/Types.sol";
 
 // X509 & sanctions
 import "../contracts/X509/X509.sol";
@@ -48,6 +48,9 @@ contract Deployer is Script {
 
         address deployerAddress = vm.addr(deployerPrivateKey);
 
+        address verifierOwner = toml.readAddress(string.concat(runMode, ".owners.verifier_owner"));
+        if (verifierOwner == address(0)) verifierOwner = deployerAddress;
+
         vm.startBroadcast(deployerPrivateKey);
 
         // (1) Deploy VK provider UUPS proxy (initialize with ABI-encoded VK struct)
@@ -56,7 +59,7 @@ contract Deployer is Script {
         // (2) Deploy verifier & sanctions; wire vkProvider into the verifier
         INFVerifier verifier;
         SanctionsListInterface sanctionsList;
-        (verifier, sanctionsList) = initializeVerifierAndSanctions(toml, vkProxy);
+        (verifier, sanctionsList) = initializeVerifierAndSanctions(toml, vkProxy, deployerAddress);
 
         // (3) X509 UUPS
         address x509Proxy = Upgrades.deployUUPSProxy(
@@ -218,7 +221,7 @@ contract Deployer is Script {
 
     // ---------- TOML helpers ----------
     // Read a hex array like [ "0x..", "0x.." ] and parse element i to uint256
-    function parseHexUintFromArray(string memory toml, string memory key, uint256 i) internal view returns (uint256) {
+    function parseHexUintFromArray(string memory toml, string memory key, uint256 i) internal pure returns (uint256) {
         string[] memory arr = toml.readStringArray(key);
         require(i < arr.length, "TOML array index OOB");
         return parseHexToUint256(arr[i]);
@@ -259,7 +262,8 @@ contract Deployer is Script {
     // ---------- Verifier & sanctions ----------
     function initializeVerifierAndSanctions(
         string memory toml,
-        address vkProxy
+        address vkProxy,
+        address initialOwner
     )
         internal
         returns (INFVerifier verifier, SanctionsListInterface sanctionsList)
@@ -273,8 +277,11 @@ contract Deployer is Script {
         if (toml.readBool(string.concat(runMode, ".mock_prover"))) {
             verifier = new MockVerifier();
         } else {
-            RollupProofVerifier v = new RollupProofVerifier(vkProxy);
-            verifier = v; // <-- return the instance you just created
+            address verifierProxy = Upgrades.deployUUPSProxy(
+                "proof_verification/RollupProofVerifierUUPS.sol:RollupProofVerifier",
+                abi.encodeCall(RollupProofVerifier.initialize, (vkProxy, initialOwner))
+            );
+            verifier = INFVerifier(verifierProxy);
         }
     }
 

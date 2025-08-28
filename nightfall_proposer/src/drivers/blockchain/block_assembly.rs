@@ -14,7 +14,9 @@ use ethers::types::{BlockId, BlockNumber};
 use jf_plonk::errors::PlonkError;
 use lib::blockchain_client::BlockchainClientConnection;
 use log::{debug, error, info, warn};
-use nightfall_bindings::round_robin::{ProposerRotatedFilter, RoundRobin};
+use nightfall_bindings::{proposer_manager::ProposerManager, round_robin::RoundRobin};
+use nightfall_bindings::proposer_manager::ProposerRotatedFilter;
+use nightfall_bindings::proposer_manager; 
 use nightfall_client::{
     domain::error::{ConversionError, EventHandlerError, NightfallContractError},
     ports::proof::Proof,
@@ -191,7 +193,7 @@ where
     let provider = Provider::<Ws>::connect(&settings.ethereum_client_url)
         .await
         .map_err(BlockAssemblyError::ProviderError)?;
-    let round_robin_instance = Arc::new(RoundRobin::new(
+    let round_robin_instance = Arc::new(ProposerManager::new(
         get_addresses().round_robin,
         get_blockchain_client_connection()
             .await

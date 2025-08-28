@@ -11,7 +11,7 @@ use ark_std::Zero;
 use core::fmt::Debug;
 use ethers::types::{Address, U256};
 use nightfall_bindings::{
-    nightfall::WithdrawData as NightfallWithdrawData, round_robin::Proposer as NightfallProposer,
+    nightfall::WithdrawData as NightfallWithdrawData, proposer_manager::Proposer as NightfallProposer,
 };
 use num_bigint::BigUint;
 use serde::{

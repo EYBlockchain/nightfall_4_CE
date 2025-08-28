@@ -5,6 +5,7 @@ use crate::{
     services::assemble_block::get_block_size,
 };
 use async_trait::async_trait;
+use nightfall_bindings::proposer_manager::ProposerManager;
 
 use configuration::addresses::get_addresses;
 use ethers::types::Bytes;
@@ -78,7 +79,7 @@ impl<P: Proof + Send + Sync> BlockAssemblyTrigger for SmartTrigger<P> {
             let elapsed = start.elapsed().as_secs();
             let remaining = self.max_wait_secs.saturating_sub(elapsed);
             // Re-check current proposer
-            let round_robin_instance = RoundRobin::new(
+            let round_robin_instance = ProposerManager::new(
                 get_addresses().round_robin,
                 get_blockchain_client_connection()
                     .await

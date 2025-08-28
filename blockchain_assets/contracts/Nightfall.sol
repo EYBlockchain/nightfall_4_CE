@@ -555,7 +555,7 @@ contract Nightfall is
     function verify_rollup_proof(
         Block calldata blk,
         uint256 public_hash
-    ) public  returns (bool, uint256) {
+    ) public view returns (bool, uint256) {
         // We need to split the proof into the public data and the actual proof
         // The first 32 bytes of the proof are the sum of fees
         bytes32 feeSum = abi.decode(blk.rollup_proof[:32], (bytes32));

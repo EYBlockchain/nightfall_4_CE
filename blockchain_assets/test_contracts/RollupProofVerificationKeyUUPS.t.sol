@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
 import "../contracts/proof_verification/RollupProofVerificationKeyUUPS.sol";
-import "../contracts/proof_verification/Types.sol";
+import "../contracts/proof_verification/lib/Types.sol";
 
 contract VKProviderTest is Test {
     RollupProofVerificationKeyUUPS vk;

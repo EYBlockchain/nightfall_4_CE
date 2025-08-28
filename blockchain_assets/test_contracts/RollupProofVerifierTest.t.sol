@@ -7,9 +7,11 @@ import "../contracts/X509/X509.sol";
 import "../contracts/SanctionsListMock.sol";
 
 // Verifier + VK interface/types
-import "../contracts/proof_verification/RollupProofVerifier.sol";
+import "../contracts/proof_verification/RollupProofVerifierUUPS.sol";
 import "../contracts/proof_verification/IVKProvider.sol";
-import "../contracts/proof_verification/Types.sol";
+import "../contracts/proof_verification/lib/Types.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+
 
 /// @dev Test-only VK provider that returns the full VK via your assembly.
 ///      It matches IVKProvider so RollupProofVerifier can consume it exactly like the real provider.
@@ -744,9 +746,23 @@ contract RollupProofVerifierTest is Test {
     function setUp() public {
         // Use the test VK provider (full VK in assembly)
         TestVKProvider vk = new TestVKProvider();
-        verifier = new RollupProofVerifier(address(vk));
 
-        // x509Contract = new X509(address(this));
+        // Deploy implementation (has disabled initializers)
+        RollupProofVerifier impl = new RollupProofVerifier();
+        verifier = new RollupProofVerifier();
+
+        // Prepare init calldata for the proxy
+        bytes memory initData = abi.encodeCall(
+            RollupProofVerifier.initialize,
+            (address(vk), address(this)) // vkProviderProxy, initialOwner
+        );
+
+        // Deploy proxy and point it to impl, run initialize
+        ERC1967Proxy proxy = new ERC1967Proxy(address(impl), initData);
+
+        // Use the proxy as the verifier
+        verifier = RollupProofVerifier(address(proxy));
+
         x509Contract = new X509();
         x509Contract.initialize(address(this));
         address sanctionedUser = address(0x123);
@@ -759,7 +775,7 @@ contract RollupProofVerifierTest is Test {
         );
     }
 
-    function testVerifyValidProof() public {
+    function testVerifyValidProof() public view {
         string memory hexString = string(vm.readFile("./blockchain_assets/test_contracts/blockRollupProof.json"));
         bytes memory rollupProof = vm.parseBytes(hexString);
 
@@ -819,7 +835,7 @@ contract RollupProofVerifierTest is Test {
         assertTrue(verified, "Proof verification failed");
     }
 
-    function testVerifyWrongPublicInputs() public {
+    function testVerifyWrongPublicInputs() public view {
         string memory hexString = string(vm.readFile("./blockchain_assets/test_contracts/blockRollupProof.json"));
         bytes memory rollupProof = vm.parseBytes(hexString);
 
@@ -858,218 +874,3 @@ contract RollupProofVerifierTest is Test {
         assertFalse(verified, "Expected verification to fail with wrong public inputs");
     }
 }
-
-
-
-
-// import "forge-std/Test.sol";
-// import "../contracts/Nightfall.sol";
-// import "../contracts/proof_verification/RollupProofVerifier.sol";
-// import "../contracts/SanctionsListMock.sol";
-
-// // New imports for the VK provider mock
-// import "../contracts/proof_verification/IVKProvider.sol";
-// import "../contracts/proof_verification/Types.sol";
-// // Minimal mock VK provider that satisfies the verifier’s needs
-// contract VKProviderMock is IVKProvider {
-//     uint256 private _domainSize;
-//     uint256 private _num_inputs;
-//     G1Point private _sigma_comms_1; 
-//     G1Point private _sigma_comms_2; 
-//     G1Point private _sigma_comms_3; 
-//     G1Point private _sigma_comms_4; 
-//     G1Point private _sigma_comms_5; 
-//     G1Point private _sigma_comms_6;
-//     G1Point private _selector_comms_1; 
-//     G1Point private _selector_comms_2; 
-//     G1Point private _selector_comms_3; 
-//     G1Point private _selector_comms_4; 
-//     G1Point private _selector_comms_5;
-//     G1Point private _selector_comms_6; 
-//     G1Point private _selector_comms_7; 
-//     G1Point private _selector_comms_8; 
-//     G1Point private _selector_comms_9; 
-//     G1Point private _selector_comms_10;
-//     G1Point private _selector_comms_11;
-//     G1Point private _selector_comms_12; 
-//     G1Point private _selector_comms_13; 
-//     G1Point private _selector_comms_14; 
-//     G1Point private _selector_comms_15;  
-//     G1Point private _selector_comms_16; 
-//     G1Point private _selector_comms_17; 
-//     G1Point private _selector_comms_18; 
-//     uint256 private _k1; 
-//     uint256 private _k2; 
-//     uint256 private _k3; 
-//     uint256 private _k4; 
-//     uint256 private _k5; 
-//     uint256 private _k6; 
-//     G1Point private _range_table_comm; 
-//     G1Point private _key_table_comm; 
-//     G1Point private _table_dom_sep_comm; 
-//     G1Point private _q_dom_sep_comm; 
-//     uint256 private _size_inv;
-//     uint256 private _group_gen; 
-//     uint256 private _group_gen_inv; 
-//     G1Point private _open_key_g; 
-//     G2Point private _h; 
-//     G2Point private _beta_h;
-//     // bytes32 private _vkHash;
-
-//     // constructor(uint256 domainSize_, uint256 nPublicInputs_) {
-//     constructor(uint256 domainSize_) {
-//         _domainSize = domainSize_;
-//         // _nPublicInputs = nPublicInputs_;
-//         // _vkHash = keccak256(abi.encode(_domainSize, _nPublicInputs));
-//     }
-
-//     function getVerificationKey() external view returns (Types.VerificationKey memory vk) {
-//         // Populate the fields your verifier actually reads.
-//         // Everything else can remain zero for unit tests, unless your code requires more.
-//         vk.domain_size   = _domainSize;
-//         // vk.nPublicInputs = _nPublicInputs;
-//         return vk;
-//     }
-
-//     // function vkHash() external view returns (bytes32) {
-//     //     return _vkHash;
-//     // }
-// }
-// contract RollupProofVerifierTest is Test {
-//     Nightfall nightfall;
-//     RollupProofVerifier verifier;
-//     X509 x509Contract;
-
-//     function setUp() public {
-//         VKProviderMock vk = new VKProviderMock(0x2000000);
-//         verifier = new RollupProofVerifier(address(vk));
-//         x509Contract = new X509(address(this));
-//         address sanctionedUser = address(0x123);
-//         SanctionsListMock sanctionsListMock = new SanctionsListMock(
-//             sanctionedUser
-//         );
-//         nightfall = new Nightfall(
-//             verifier,
-//             address(x509Contract),
-//             address(sanctionsListMock)
-//         );
-//     }
-
-//     function testVerifyValidProof() public {
-//         // Load valid proof and block fields from JSON or hardcoded (for now)
-//         string memory hexString = string(vm.readFile("./blockchain_assets/test_contracts/blockRollupProof.json"));
-//         bytes memory rollupProof = vm.parseBytes(hexString);
-//         OnChainTransaction[] memory transactions = new OnChainTransaction[](64);
-//         transactions[0] = OnChainTransaction({
-//             fee: uint256(0),
-//             commitments: [
-//                 17035205440293355959999152765141543448633724136297475469325716275904799076219,
-//                 9065520758278556095546448031269229233552505442865369773428764815280584507013,
-//                 uint256(0),
-//                 uint256(0)
-//             ],
-//             nullifiers: [
-//                 uint256(0),
-//                 uint256(0),
-//                 uint256(0),
-//                 uint256(0)
-//             ],
-//             public_data: [
-//                 3608046996008026082361488024200288048824670182271115325485728651639269704184,
-//                 3959754566005603064667970065349921387862618986405911504119028649217049673017,
-//                 uint256(0),
-//                 uint256(0)
-//             ]
-//     });
-
-//         // Zero out the rest of the transactions
-//         OnChainTransaction memory emptyTx = OnChainTransaction({
-//             fee: 0,
-//             commitments: [uint256(0), uint256(0), uint256(0), uint256(0)],
-//             nullifiers: [uint256(0), uint256(0), uint256(0), uint256(0)],
-//             public_data: [uint256(0), uint256(0), uint256(0), uint256(0)]
-//         });
-
-//         for (uint256 i = 1; i < 64; ++i) {
-//             transactions[i] = emptyTx;
-//         }
-
-//         Block memory blk = Block({
-//             commitments_root: 623948621222247331753330434215219841882414700521245897215773651023767114521,
-//             nullifier_root: 5626012003977595441102792096342856268135928990590954181023475305010363075697,
-//             commitments_root_root: 5279554228441733217215028804109502950787603540364801728902128666082823786352,
-//             transactions: transactions,
-//             rollup_proof: rollupProof
-//         });
-
-//          // Hash the transactions for the public data
-//         uint256 block_transactions_length = 64;
-//         // Hash the transactions for the public data
-//         uint256[] memory transaction_hashes = new uint256[](
-//             block_transactions_length
-//         );
-//         for (uint256 i = 0; i < block_transactions_length; ++i) {
-//              transaction_hashes[i] = nightfall.hash_transaction(blk.transactions[i]);
-//         }
-//         uint256[] memory transaction_hashes_new = transaction_hashes;
-//         for (uint256 length = block_transactions_length; length > 1; length >>= 1) {
-//             for (uint256 i = 0; i < (length >> 1); ++i) {
-//                 // Directly store computed hash in the same array to save memory
-//                 transaction_hashes_new[i] = nightfall.sha256_and_shift(
-//                     abi.encodePacked(transaction_hashes_new[i << 1], transaction_hashes_new[(i << 1) + 1])
-//                 );
-//             }
-//         }
-//         console2.log("transaction_hashes[0]: ", transaction_hashes[0]);
-//         (bool verified, ) = nightfall.verify_rollup_proof(blk, transaction_hashes[0]);
-//         assertTrue(verified, "Proof verification failed");
-//     }
-//     function testVerifyWrongPublicInputs() public {
-//         // Load valid proof and block fields from JSON or hardcoded (for now)
-//         string memory hexString = string(vm.readFile("./blockchain_assets/test_contracts/blockRollupProof.json"));
-//         bytes memory rollupProof = vm.parseBytes(hexString);
-//         OnChainTransaction[] memory transactions = new OnChainTransaction[](64);
-
-//         // Zero out the rest of the transactions
-//         OnChainTransaction memory emptyTx = OnChainTransaction({
-//             fee: 0,
-//             commitments: [uint256(0), uint256(0), uint256(0), uint256(0)],
-//             nullifiers: [uint256(0), uint256(0), uint256(0), uint256(0)],
-//             public_data: [uint256(0), uint256(0), uint256(0), uint256(0)]
-//         });
-
-//         for (uint256 i = 0; i < 64; ++i) {
-//             transactions[i] = emptyTx;
-//         }
-
-//         Block memory blk = Block({
-//             commitments_root: 0x1,
-//             nullifier_root: 0x2,
-//             commitments_root_root: 0x3,
-//             transactions: transactions,
-//             rollup_proof: rollupProof
-//         });
-
-//         // Hash the transactions for the public data
-//         uint256 block_transactions_length = 64;
-//         // Hash the transactions for the public data
-//         uint256[] memory transaction_hashes = new uint256[](
-//             block_transactions_length
-//         );
-//         for (uint256 i = 0; i < block_transactions_length; ++i) {
-//              transaction_hashes[i] = nightfall.hash_transaction(blk.transactions[i]);
-//         }
-//         uint256[] memory transaction_hashes_new = transaction_hashes;
-//         for (uint256 length = block_transactions_length; length > 1; length >>= 1) {
-//             for (uint256 i = 0; i < (length >> 1); ++i) {
-//                 // Directly store computed hash in the same array to save memory
-//                 transaction_hashes_new[i] = nightfall.sha256_and_shift(
-//                     abi.encodePacked(transaction_hashes_new[i << 1], transaction_hashes_new[(i << 1) + 1])
-//                 );
-//             }
-//         }
-//         (bool verified, ) = nightfall.verify_rollup_proof(blk, transaction_hashes[0]);
-//         assertFalse(verified, "Proof verification failed");
-//     }
-    
-// }

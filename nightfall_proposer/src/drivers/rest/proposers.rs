@@ -1,7 +1,7 @@
 use configuration::{addresses::get_addresses, settings::get_settings};
 use ethers::types::U256;
 use log::{info, warn};
-use nightfall_bindings::round_robin::RoundRobin;
+use nightfall_bindings::{proposer_manager::ProposerManager, round_robin::RoundRobin};
 /// APIs for managing proposers
 use warp::{hyper::StatusCode, path, reply::Reply, Filter};
 
@@ -18,7 +18,7 @@ pub fn rotate_proposer() -> impl Filter<Extract = impl warp::Reply, Error = warp
 
 async fn handle_rotate_proposer() -> Result<impl Reply, warp::Rejection> {
     // get a ManageProposers instance
-    let proposer_manager = RoundRobin::new(
+    let proposer_manager = ProposerManager::new(
         get_addresses().round_robin,
         get_blockchain_client_connection()
             .await
@@ -59,7 +59,7 @@ pub fn add_proposer() -> impl Filter<Extract = impl warp::Reply, Error = warp::R
 
 async fn handle_add_proposer(url: String) -> Result<impl Reply, warp::Rejection> {
     // get a ManageProposers instance
-    let proposer_manager = RoundRobin::new(
+    let proposer_manager = ProposerManager::new(
         get_addresses().round_robin,
         get_blockchain_client_connection()
             .await
@@ -99,7 +99,7 @@ pub fn remove_proposer() -> impl Filter<Extract = impl warp::Reply, Error = warp
 
 async fn handle_remove_proposer() -> Result<impl Reply, warp::Rejection> {
     // get a ManageProposers instance
-    let proposer_manager = RoundRobin::new(
+    let proposer_manager = ProposerManager::new(
         get_addresses().round_robin,
         get_blockchain_client_connection()
             .await

@@ -104,6 +104,26 @@ pub mod allowlist {
                     ],
                 ),
                 (
+                    ::std::borrow::ToOwned::to_owned("transferOwnership"),
+                    ::std::vec![
+                        ::ethers::core::abi::ethabi::Function {
+                            name: ::std::borrow::ToOwned::to_owned("transferOwnership"),
+                            inputs: ::std::vec![
+                                ::ethers::core::abi::ethabi::Param {
+                                    name: ::std::borrow::ToOwned::to_owned("newOwner"),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::Address,
+                                    internal_type: ::core::option::Option::Some(
+                                        ::std::borrow::ToOwned::to_owned("address"),
+                                    ),
+                                },
+                            ],
+                            outputs: ::std::vec![],
+                            constant: ::core::option::Option::None,
+                            state_mutability: ::ethers::core::abi::ethabi::StateMutability::NonPayable,
+                        },
+                    ],
+                ),
+                (
                     ::std::borrow::ToOwned::to_owned("users"),
                     ::std::vec![
                         ::ethers::core::abi::ethabi::Function {
@@ -132,8 +152,46 @@ pub mod allowlist {
                     ],
                 ),
             ]),
-            events: ::std::collections::BTreeMap::new(),
-            errors: ::std::collections::BTreeMap::new(),
+            events: ::core::convert::From::from([
+                (
+                    ::std::borrow::ToOwned::to_owned("Initialized"),
+                    ::std::vec![
+                        ::ethers::core::abi::ethabi::Event {
+                            name: ::std::borrow::ToOwned::to_owned("Initialized"),
+                            inputs: ::std::vec![
+                                ::ethers::core::abi::ethabi::EventParam {
+                                    name: ::std::borrow::ToOwned::to_owned("version"),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::Uint(64usize),
+                                    indexed: false,
+                                },
+                            ],
+                            anonymous: false,
+                        },
+                    ],
+                ),
+            ]),
+            errors: ::core::convert::From::from([
+                (
+                    ::std::borrow::ToOwned::to_owned("InvalidInitialization"),
+                    ::std::vec![
+                        ::ethers::core::abi::ethabi::AbiError {
+                            name: ::std::borrow::ToOwned::to_owned(
+                                "InvalidInitialization",
+                            ),
+                            inputs: ::std::vec![],
+                        },
+                    ],
+                ),
+                (
+                    ::std::borrow::ToOwned::to_owned("NotInitializing"),
+                    ::std::vec![
+                        ::ethers::core::abi::ethabi::AbiError {
+                            name: ::std::borrow::ToOwned::to_owned("NotInitializing"),
+                            inputs: ::std::vec![],
+                        },
+                    ],
+                ),
+            ]),
             receive: false,
             fallback: false,
         }
@@ -216,6 +274,15 @@ pub mod allowlist {
                 .method_hash([141, 165, 203, 91], ())
                 .expect("method not found (this should never happen)")
         }
+        ///Calls the contract's `transferOwnership` (0xf2fde38b) function
+        pub fn transfer_ownership(
+            &self,
+            new_owner: ::ethers::core::types::Address,
+        ) -> ::ethers::contract::builders::ContractCall<M, ()> {
+            self.0
+                .method_hash([242, 253, 227, 139], new_owner)
+                .expect("method not found (this should never happen)")
+        }
         ///Calls the contract's `users` (0xa87430ba) function
         pub fn users(
             &self,
@@ -225,12 +292,174 @@ pub mod allowlist {
                 .method_hash([168, 116, 48, 186], p0)
                 .expect("method not found (this should never happen)")
         }
+        ///Gets the contract's `Initialized` event
+        pub fn initialized_filter(
+            &self,
+        ) -> ::ethers::contract::builders::Event<
+            ::std::sync::Arc<M>,
+            M,
+            InitializedFilter,
+        > {
+            self.0.event()
+        }
+        /// Returns an `Event` builder for all the events of this contract.
+        pub fn events(
+            &self,
+        ) -> ::ethers::contract::builders::Event<
+            ::std::sync::Arc<M>,
+            M,
+            InitializedFilter,
+        > {
+            self.0.event_with_filter(::core::default::Default::default())
+        }
     }
     impl<M: ::ethers::providers::Middleware> From<::ethers::contract::Contract<M>>
     for Allowlist<M> {
         fn from(contract: ::ethers::contract::Contract<M>) -> Self {
             Self::new(contract.address(), contract.client())
         }
+    }
+    ///Custom Error type `InvalidInitialization` with signature `InvalidInitialization()` and selector `0xf92ee8a9`
+    #[derive(
+        Clone,
+        ::ethers::contract::EthError,
+        ::ethers::contract::EthDisplay,
+        serde::Serialize,
+        serde::Deserialize,
+        Default,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash
+    )]
+    #[etherror(name = "InvalidInitialization", abi = "InvalidInitialization()")]
+    pub struct InvalidInitialization;
+    ///Custom Error type `NotInitializing` with signature `NotInitializing()` and selector `0xd7e6bcf8`
+    #[derive(
+        Clone,
+        ::ethers::contract::EthError,
+        ::ethers::contract::EthDisplay,
+        serde::Serialize,
+        serde::Deserialize,
+        Default,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash
+    )]
+    #[etherror(name = "NotInitializing", abi = "NotInitializing()")]
+    pub struct NotInitializing;
+    ///Container type for all of the contract's custom errors
+    #[derive(
+        Clone,
+        ::ethers::contract::EthAbiType,
+        serde::Serialize,
+        serde::Deserialize,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash
+    )]
+    pub enum AllowlistErrors {
+        InvalidInitialization(InvalidInitialization),
+        NotInitializing(NotInitializing),
+        /// The standard solidity revert string, with selector
+        /// Error(string) -- 0x08c379a0
+        RevertString(::std::string::String),
+    }
+    impl ::ethers::core::abi::AbiDecode for AllowlistErrors {
+        fn decode(
+            data: impl AsRef<[u8]>,
+        ) -> ::core::result::Result<Self, ::ethers::core::abi::AbiError> {
+            let data = data.as_ref();
+            if let Ok(decoded) = <::std::string::String as ::ethers::core::abi::AbiDecode>::decode(
+                data,
+            ) {
+                return Ok(Self::RevertString(decoded));
+            }
+            if let Ok(decoded) = <InvalidInitialization as ::ethers::core::abi::AbiDecode>::decode(
+                data,
+            ) {
+                return Ok(Self::InvalidInitialization(decoded));
+            }
+            if let Ok(decoded) = <NotInitializing as ::ethers::core::abi::AbiDecode>::decode(
+                data,
+            ) {
+                return Ok(Self::NotInitializing(decoded));
+            }
+            Err(::ethers::core::abi::Error::InvalidData.into())
+        }
+    }
+    impl ::ethers::core::abi::AbiEncode for AllowlistErrors {
+        fn encode(self) -> ::std::vec::Vec<u8> {
+            match self {
+                Self::InvalidInitialization(element) => {
+                    ::ethers::core::abi::AbiEncode::encode(element)
+                }
+                Self::NotInitializing(element) => {
+                    ::ethers::core::abi::AbiEncode::encode(element)
+                }
+                Self::RevertString(s) => ::ethers::core::abi::AbiEncode::encode(s),
+            }
+        }
+    }
+    impl ::ethers::contract::ContractRevert for AllowlistErrors {
+        fn valid_selector(selector: [u8; 4]) -> bool {
+            match selector {
+                [0x08, 0xc3, 0x79, 0xa0] => true,
+                _ if selector
+                    == <InvalidInitialization as ::ethers::contract::EthError>::selector() => {
+                    true
+                }
+                _ if selector
+                    == <NotInitializing as ::ethers::contract::EthError>::selector() => {
+                    true
+                }
+                _ => false,
+            }
+        }
+    }
+    impl ::core::fmt::Display for AllowlistErrors {
+        fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+            match self {
+                Self::InvalidInitialization(element) => {
+                    ::core::fmt::Display::fmt(element, f)
+                }
+                Self::NotInitializing(element) => ::core::fmt::Display::fmt(element, f),
+                Self::RevertString(s) => ::core::fmt::Display::fmt(s, f),
+            }
+        }
+    }
+    impl ::core::convert::From<::std::string::String> for AllowlistErrors {
+        fn from(value: String) -> Self {
+            Self::RevertString(value)
+        }
+    }
+    impl ::core::convert::From<InvalidInitialization> for AllowlistErrors {
+        fn from(value: InvalidInitialization) -> Self {
+            Self::InvalidInitialization(value)
+        }
+    }
+    impl ::core::convert::From<NotInitializing> for AllowlistErrors {
+        fn from(value: NotInitializing) -> Self {
+            Self::NotInitializing(value)
+        }
+    }
+    #[derive(
+        Clone,
+        ::ethers::contract::EthEvent,
+        ::ethers::contract::EthDisplay,
+        serde::Serialize,
+        serde::Deserialize,
+        Default,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash
+    )]
+    #[ethevent(name = "Initialized", abi = "Initialized(uint64)")]
+    pub struct InitializedFilter {
+        pub version: u64,
     }
     ///Container type for all input parameters for the `allowlisting` function with signature `allowlisting()` and selector `0xab0939ab`
     #[derive(
@@ -296,6 +525,23 @@ pub mod allowlist {
     )]
     #[ethcall(name = "owner", abi = "owner()")]
     pub struct OwnerCall;
+    ///Container type for all input parameters for the `transferOwnership` function with signature `transferOwnership(address)` and selector `0xf2fde38b`
+    #[derive(
+        Clone,
+        ::ethers::contract::EthCall,
+        ::ethers::contract::EthDisplay,
+        serde::Serialize,
+        serde::Deserialize,
+        Default,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash
+    )]
+    #[ethcall(name = "transferOwnership", abi = "transferOwnership(address)")]
+    pub struct TransferOwnershipCall {
+        pub new_owner: ::ethers::core::types::Address,
+    }
     ///Container type for all input parameters for the `users` function with signature `users(address)` and selector `0xa87430ba`
     #[derive(
         Clone,
@@ -327,6 +573,7 @@ pub mod allowlist {
         EnableAllowlisting(EnableAllowlistingCall),
         IsAllowlisted(IsAllowlistedCall),
         Owner(OwnerCall),
+        TransferOwnership(TransferOwnershipCall),
         Users(UsersCall),
     }
     impl ::ethers::core::abi::AbiDecode for AllowlistCalls {
@@ -354,6 +601,11 @@ pub mod allowlist {
             ) {
                 return Ok(Self::Owner(decoded));
             }
+            if let Ok(decoded) = <TransferOwnershipCall as ::ethers::core::abi::AbiDecode>::decode(
+                data,
+            ) {
+                return Ok(Self::TransferOwnership(decoded));
+            }
             if let Ok(decoded) = <UsersCall as ::ethers::core::abi::AbiDecode>::decode(
                 data,
             ) {
@@ -375,6 +627,9 @@ pub mod allowlist {
                     ::ethers::core::abi::AbiEncode::encode(element)
                 }
                 Self::Owner(element) => ::ethers::core::abi::AbiEncode::encode(element),
+                Self::TransferOwnership(element) => {
+                    ::ethers::core::abi::AbiEncode::encode(element)
+                }
                 Self::Users(element) => ::ethers::core::abi::AbiEncode::encode(element),
             }
         }
@@ -388,6 +643,7 @@ pub mod allowlist {
                 }
                 Self::IsAllowlisted(element) => ::core::fmt::Display::fmt(element, f),
                 Self::Owner(element) => ::core::fmt::Display::fmt(element, f),
+                Self::TransferOwnership(element) => ::core::fmt::Display::fmt(element, f),
                 Self::Users(element) => ::core::fmt::Display::fmt(element, f),
             }
         }
@@ -410,6 +666,11 @@ pub mod allowlist {
     impl ::core::convert::From<OwnerCall> for AllowlistCalls {
         fn from(value: OwnerCall) -> Self {
             Self::Owner(value)
+        }
+    }
+    impl ::core::convert::From<TransferOwnershipCall> for AllowlistCalls {
+        fn from(value: TransferOwnershipCall) -> Self {
+            Self::TransferOwnership(value)
         }
     }
     impl ::core::convert::From<UsersCall> for AllowlistCalls {
