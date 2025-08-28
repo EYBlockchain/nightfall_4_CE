@@ -5,7 +5,7 @@ import {Script} from "@forge-std/Script.sol";
 import "@forge-std/StdToml.sol";
 
 import "../contracts/Nightfall.sol";
-import "../contracts/RoundRobin.sol";
+import "../contracts/RoundRobinUUPS.sol";
 
 // Verifier stack
 import "../contracts/proof_verification/MockVerifier.sol";
@@ -13,7 +13,6 @@ import "../contracts/proof_verification/RollupProofVerifierUUPS.sol";
 import "../contracts/proof_verification/INFVerifier.sol";
 import "../contracts/proof_verification/IVKProvider.sol";
 import "../contracts/proof_verification/RollupProofVerificationKeyUUPS.sol";
-
 import "../contracts/proof_verification/lib/Types.sol";
 
 // X509 & sanctions
@@ -26,86 +25,117 @@ import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 contract Deployer is Script {
     struct RoundRobinConfig {
         address defaultProposerAddress;
-        string defaultProposerUrl;
-        uint stake;
-        uint ding;
-        uint exitPenalty;
-        uint coolingBlocks;
-        uint rotationBlocks;
+        string  defaultProposerUrl;
+        uint    stake;
+        uint    ding;
+        uint    exitPenalty;
+        uint    coolingBlocks;
+        uint    rotationBlocks;
     }
 
     using stdToml for string;
 
+    // e.g. NF4_RUN_MODE=local → "$.local"
     string public runMode = string.concat("$.", vm.envString("NF4_RUN_MODE"));
 
     function run() external {
-        // Make OZ Upgrades look in custom artifacts dir WITHOUT touching the repo or the shell
+        // Make OZ Upgrades use our custom build dir
         vm.setEnv("FOUNDRY_OUT", "blockchain_assets/artifacts");
+
         uint256 deployerPrivateKey = vm.envUint("NF4_SIGNING_KEY");
-        string memory root = vm.projectRoot();
-        string memory path = string.concat(root, "/nightfall.toml");
-        string memory toml = vm.readFile(path);
+        string  memory root = vm.projectRoot();
+        string  memory path = string.concat(root, "/nightfall.toml");
+        string  memory toml = vm.readFile(path);
 
         address deployerAddress = vm.addr(deployerPrivateKey);
 
+        // Owners from TOML (fallback to deployer)
         address verifierOwner = toml.readAddress(string.concat(runMode, ".owners.verifier_owner"));
         if (verifierOwner == address(0)) verifierOwner = deployerAddress;
 
+        address xOwner = toml.readAddress(string.concat(runMode, ".owners.x509_owner"));
+        if (xOwner == address(0)) xOwner = deployerAddress;
+
+        // Optional: a future owner for RoundRobin. NOTE:
+        // RoundRobin / Certified currently has no transferOwnership; owner = msg.sender at initialize.
+        // If you add it later, you can transfer here (similar to X509).
+        address rrOwner = toml.readAddress(string.concat(runMode, ".owners.round_robin_owner"));
+        if (rrOwner == address(0)) rrOwner = deployerAddress;
+
         vm.startBroadcast(deployerPrivateKey);
 
-        // (1) Deploy VK provider UUPS proxy (initialize with ABI-encoded VK struct)
+        // (1) VK provider UUPS proxy (holds full VK blob)
         address vkProxy = deployVKProvider(toml);
 
-        // (2) Deploy verifier & sanctions; wire vkProvider into the verifier
-        INFVerifier verifier;
-        SanctionsListInterface sanctionsList;
-        (verifier, sanctionsList) = initializeVerifierAndSanctions(toml, vkProxy, deployerAddress);
+        // (2) Verifier & sanctions
+        (INFVerifier verifier, SanctionsListInterface sanctionsList) =
+            initializeVerifierAndSanctions(toml, vkProxy, verifierOwner);
 
         // (3) X509 UUPS
         address x509Proxy = Upgrades.deployUUPSProxy(
-            // path is relative to `contracts/`
             "X509/X509.sol:X509",
             abi.encodeCall(X509.initialize, (deployerAddress))
         );
         X509 x509Contract = X509(x509Proxy);
         X509Interface x509 = X509Interface(x509Proxy);
 
-        // Configure X509 while we (deployer) still own it
+        // Configure X509 while deployer still owns it (optional, for tests)
         if (toml.readBool(string.concat(runMode, ".test_x509_certificates"))) {
             configureX509locally(x509Contract, toml);
         }
 
-        // after deploying the proxy, transfer X509 ownership if needed
-        string memory xOwnerKey = string.concat(runMode, ".owners.x509_owner");
-        address xOwner = toml.readAddress(xOwnerKey);
-        if (xOwner != address(0) && xOwner != deployerAddress) {
+        // Transfer X509 ownership if different
+        if (xOwner != deployerAddress) {
             x509Contract.transferOwnership(xOwner);
         }
 
+        // (4) Nightfall (not upgradeable here)
         Nightfall nightfall = new Nightfall(
             verifier,
             address(x509),
             address(sanctionsList)
         );
 
-        RoundRobinConfig memory rrConfig = readRoundRobinConfig(toml);
+        // (5) RoundRobin UUPS proxy
+        RoundRobinConfig memory rr = readRoundRobinConfig(toml);
 
-        RoundRobin roundRobin = new RoundRobin{value: rrConfig.stake}(
-            address(x509),
-            address(sanctionsList),
-            rrConfig.defaultProposerAddress,
-            rrConfig.defaultProposerUrl,
-            rrConfig.stake,
-            rrConfig.ding,
-            rrConfig.exitPenalty,
-            rrConfig.coolingBlocks,
-            rrConfig.rotationBlocks
+        // Deploy RoundRobin proxy and initialize (owner = msg.sender here)
+        address rrProxy = Upgrades.deployUUPSProxy(
+            "RoundRobin.sol:RoundRobin",
+            abi.encodeCall(
+                RoundRobin.initialize,
+                (
+                    address(x509),
+                    address(sanctionsList),
+                    rr.stake,
+                    rr.ding,
+                    rr.exitPenalty,
+                    rr.coolingBlocks,
+                    rr.rotationBlocks
+                )
+            )
+        );
+        RoundRobin roundRobin = RoundRobin(payable(rrProxy));
+
+        // Bootstrap the default proposer & seed stake (payable step)
+        roundRobin.bootstrapDefaultProposer{value: rr.stake}(
+            rr.defaultProposerAddress,
+            rr.defaultProposerUrl,
+            address(nightfall)
         );
 
+        // Wire Nightfall <-> RoundRobin
         nightfall.set_x509_address(address(x509));
         nightfall.set_sanctions_list(address(sanctionsList));
         nightfall.set_proposer_manager(roundRobin);
-        roundRobin.set_nightfall(address(nightfall));
+        // set_nightfall is already done by bootstrap, but calling it again is harmless if you prefer:
+        // roundRobin.set_nightfall(address(nightfall));
+
+        // NOTE on RoundRobin ownership:
+        // RoundRobin/Certified does not expose transferOwnership currently.
+        // If you need rrOwner != deployerAddress, either:
+        //  - broadcast with rrOwner’s key so initialize sets owner = rrOwner, or
+        //  - add transferOwnership() to Certified and call it here.
 
         vm.stopBroadcast();
     }
@@ -125,20 +155,18 @@ contract Deployer is Script {
             init
         );
 
-        // 4) transfer ownership to configured address
+        // 4) Transfer VK provider ownership (if different from msg.sender)
         string memory ownerKey = string.concat(runMode, ".owners.vk_provider_owner");
-            address newOwner = toml.readAddress(ownerKey);
-            if (newOwner != address(0) && newOwner != msg.sender) {
-                // Cast the proxy to the implementation type to call Ownable on it
-                RollupProofVerificationKeyUUPS(vkProxy).transferOwnership(newOwner);
-            }
+        address newOwner = toml.readAddress(ownerKey);
+        if (newOwner != address(0) && newOwner != msg.sender) {
+            RollupProofVerificationKeyUUPS(vkProxy).transferOwnership(newOwner);
+        }
     }
-
 
     // ---------- Build VK from TOML ----------
     function readVKFromToml(string memory toml) internal view returns (Types.VerificationKey memory vk) {
         vk.domain_size = toml.readUint(string.concat(runMode, ".verifier.domain_size"));
-        vk.num_inputs = toml.readUint(string.concat(runMode, ".verifier.num_inputs"));
+        vk.num_inputs  = toml.readUint(string.concat(runMode, ".verifier.num_inputs"));
 
         // Sigma commitments (1..6)
         vk.sigma_comms_1 = readG1(toml, ".verifier.sigma_comms_1");
@@ -205,11 +233,7 @@ contract Deployer is Script {
         p.y = parseHexToUint256(arr[1]);
     }
 
-    function readG2(string memory toml, string memory key)
-        internal
-        view
-        returns (Types.G2Point memory p)
-    {
+    function readG2(string memory toml, string memory key) internal view returns (Types.G2Point memory p) {
         string[] memory arr = toml.readStringArray(string.concat(runMode, key));
         require(arr.length == 4, "bad G2 array");
         p.x0 = parseHexToUint256(arr[0]);
@@ -218,16 +242,13 @@ contract Deployer is Script {
         p.y1 = parseHexToUint256(arr[3]);
     }
 
-
     // ---------- TOML helpers ----------
-    // Read a hex array like [ "0x..", "0x.." ] and parse element i to uint256
     function parseHexUintFromArray(string memory toml, string memory key, uint256 i) internal pure returns (uint256) {
         string[] memory arr = toml.readStringArray(key);
         require(i < arr.length, "TOML array index OOB");
         return parseHexToUint256(arr[i]);
     }
 
-    // Parse a 0x-prefixed hex string of up to 32 bytes into uint256
     function parseHexToUint256(string memory s) internal pure returns (uint256 out) {
         bytes memory b = bytes(s);
         require(b.length >= 3 && b[0] == "0" && (b[1] == "x" || b[1] == "X"), "hex str");
@@ -235,28 +256,22 @@ contract Deployer is Script {
         for (; i < b.length; ++i) {
             uint8 c = uint8(b[i]);
             uint8 v;
-            if (c >= 0x30 && c <= 0x39) v = c - 0x30;             // 0-9
-            else if (c >= 0x41 && c <= 0x46) v = c - 0x41 + 10;   // A-F
-            else if (c >= 0x61 && c <= 0x66) v = c - 0x61 + 10;   // a-f
+            if (c >= 0x30 && c <= 0x39) v = c - 0x30;
+            else if (c >= 0x41 && c <= 0x46) v = c - 0x41 + 10;
+            else if (c >= 0x61 && c <= 0x66) v = c - 0x61 + 10;
             else revert("bad hex");
             out = (out << 4) | uint256(v);
         }
     }
 
-    function readRoundRobinConfig(string memory toml)
-        internal
-        view
-        returns (RoundRobinConfig memory)
-    {
-        RoundRobinConfig memory config;
-        config.defaultProposerAddress = toml.readAddress(string.concat(runMode, ".nightfall_deployer.default_proposer_address"));
-        config.defaultProposerUrl = toml.readString(string.concat(runMode, ".nightfall_deployer.default_proposer_url"));
-        config.stake = toml.readUint(string.concat(runMode, ".nightfall_deployer.proposer_stake"));
-        config.ding = toml.readUint(string.concat(runMode, ".nightfall_deployer.proposer_ding"));
-        config.exitPenalty = toml.readUint(string.concat(runMode, ".nightfall_deployer.proposer_exit_penalty"));
-        config.coolingBlocks = toml.readUint(string.concat(runMode, ".nightfall_deployer.proposer_cooling_blocks"));
-        config.rotationBlocks = toml.readUint(string.concat(runMode, ".nightfall_deployer.proposer_rotation_blocks"));
-        return config;
+    function readRoundRobinConfig(string memory toml) internal view returns (RoundRobinConfig memory cfg) {
+        cfg.defaultProposerAddress = toml.readAddress(string.concat(runMode, ".nightfall_deployer.default_proposer_address"));
+        cfg.defaultProposerUrl     = toml.readString(string.concat(runMode, ".nightfall_deployer.default_proposer_url"));
+        cfg.stake                  = toml.readUint(string.concat(runMode, ".nightfall_deployer.proposer_stake"));
+        cfg.ding                   = toml.readUint(string.concat(runMode, ".nightfall_deployer.proposer_ding"));
+        cfg.exitPenalty            = toml.readUint(string.concat(runMode, ".nightfall_deployer.proposer_exit_penalty"));
+        cfg.coolingBlocks          = toml.readUint(string.concat(runMode, ".nightfall_deployer.proposer_cooling_blocks"));
+        cfg.rotationBlocks         = toml.readUint(string.concat(runMode, ".nightfall_deployer.proposer_rotation_blocks"));
     }
 
     // ---------- Verifier & sanctions ----------
@@ -264,10 +279,7 @@ contract Deployer is Script {
         string memory toml,
         address vkProxy,
         address initialOwner
-    )
-        internal
-        returns (INFVerifier verifier, SanctionsListInterface sanctionsList)
-    {
+    ) internal returns (INFVerifier verifier, SanctionsListInterface sanctionsList) {
         if (toml.readBool(string.concat(runMode, ".test_x509_certificates"))) {
             sanctionsList = new SanctionsListMock(address(0x123456789abcdef1234567890));
         } else {
@@ -337,7 +349,7 @@ contract Deployer is Script {
         x509Contract.addCertificatePolicies(certificatePoliciesOIDs);
     }
 
-    // --- Utilities already present in your file ---
+    // --- Utilities ---
     function parseHexStringToBytes32(string memory s) internal pure returns (bytes32) {
         bytes memory ss = bytes(s);
         require(ss.length == 66, "Invalid hex string length");
