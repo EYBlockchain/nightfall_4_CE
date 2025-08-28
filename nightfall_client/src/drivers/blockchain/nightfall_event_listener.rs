@@ -113,6 +113,7 @@ pub async fn listen_for_events<N: NightfallContract>(
     while let Some(evt) = events_stream.next().await {
         // process each event in the stream and handle any errors
         let event = Nightfall::NightfallEvents::decode_log(&evt.inner).unwrap();
+        println!("Received event: {:?}", event);
         let result = process_events::<N>(event.data, evt).await;
         match result {
             Ok(_) => continue,
