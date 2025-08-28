@@ -359,13 +359,10 @@ impl RecursiveProver for RollupProver {
             start_roots_null.push(nullifier_info.old_root);
             end_roots_null.push(nullifier_info.circuit_info.new_root);
         }
-        println!("base bn254 extra checks");
+
         circuit.enforce_equal(start_roots_comm[1], end_roots_comm[0])?;
-        println!("commitment roots checked");
         circuit.enforce_equal(start_roots_null[1], end_roots_null[0])?;
-        println!("nullifier roots checked");
         circuit.check_circuit_satisfiability(&[])?;
-        println!("circuit satisfied in base bn254 extra checks");
         Ok(vec![
             start_roots_comm[0],
             end_roots_comm[1],
@@ -407,17 +404,14 @@ impl RecursiveProver for RollupProver {
                 pi_slice[15],
                 pi_slice[16],
             ];
-println!("base bn254 checks - about to hash");
+
             let pi_slice_17 = circuit.witness(pi_slice[17])?;
-            println!("base bn254 checks - got witness");
             let bit_var: BoolVar = circuit.create_boolean_variable(pi_slice_17 == Fr254::one())?;
-            println!("base bn254 checks - created boolean variable");
             let (_, sha256_var) = circuit.full_shifted_sha256_hash_with_bit(
                 &field_vars,
                 &bit_var,
                 &mut lookup_vars,
             )?;
-            println!("base bn254 checks - hashed");
             sha_vars.push(sha256_var);
         }
 
@@ -461,11 +455,9 @@ println!("base bn254 checks - about to hash");
         let sha_two = specific_pis[0][6];
         let sha_three = specific_pis[1][5];
         let sha_four = specific_pis[1][6];
-println!("bn254 merge circuit checks - about to enforce equal");
+
         circuit.enforce_equal(end_root_comm_one, start_root_comm_two)?;
-        println!("bn254 merge circuit checks - commitment roots checked");
         circuit.enforce_equal(end_root_null_one, start_root_null_two)?;
-        println!("bn254 merge circuit checks - nullifier roots checked");
 
         let fee_sum = circuit.add(fee_sum_one, fee_sum_two)?;
         let mut lookup_vars = Vec::<(Variable, Variable, Variable)>::new();
@@ -506,12 +498,10 @@ println!("bn254 merge circuit checks - about to enforce equal");
         let fee_sum_two = specific_pis[1][4];
         let sha_one = specific_pis[0][5];
         let sha_two = specific_pis[1][5];
-println!("grumpkin merge circuit checks - about to enforce equal");
-        circuit.enforce_equal(end_root_comm_one, start_root_comm_two)?;
-        println!("grumpkin merge circuit checks - commitment roots checked");
-        circuit.enforce_equal(end_root_null_one, start_root_null_two)?;
-        println!("grumpkin merge circuit checks - nullifier roots checked");
 
+        circuit.enforce_equal(end_root_comm_one, start_root_comm_two)?;
+        circuit.enforce_equal(end_root_null_one, start_root_null_two)?;
+     
         let fee_sum = circuit.add(fee_sum_one, fee_sum_two)?;
         Ok(vec![
             start_root_comm_one,
@@ -543,11 +533,9 @@ println!("grumpkin merge circuit checks - about to enforce equal");
         let start_root_null_two = specific_pis[1][2];
         let end_root_null_one = specific_pis[0][3];
         let end_root_null_two = specific_pis[1][3];
-println!("decider circuit checks - about to enforce equal");
+
         circuit.enforce_equal(end_root_comm_one, start_root_comm_two)?;
-        println!("decider circuit checks - commitment roots checked");
         circuit.enforce_equal(end_root_null_one, start_root_null_two)?;
-        println!("decider circuit checks - nullifier roots checked");
 
         let fee_sum = circuit.add(fee_sum_one, fee_sum_two)?;
 
@@ -577,7 +565,6 @@ println!("decider circuit checks - about to enforce equal");
         let old_root_calc = m_proof_var.calculate_new_root(circuit, &circuit.zero())?;
 
         circuit.enforce_equal(old_root_calc, specific_pis[2][1 + root_m_proof_length])?;
-println!("decider circuit checks - historic root checked");
         Ok(vec![
             fee_sum,
             final_sha,

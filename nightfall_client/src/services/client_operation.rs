@@ -107,7 +107,6 @@ where
                 "{id} Looking for commitment with hash {}",
                 Fr254::to_hex_string(&commitment_hash)
             );
-            println!(" we are here");
             let stored = db.get_commitment(&commitment_hash).await;
             if stored.is_none() {
                 return Err("Could not find commitment in commitment database");

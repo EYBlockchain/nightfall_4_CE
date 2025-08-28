@@ -29,12 +29,6 @@ impl NightfallContract for Nightfall::NightfallCalls {
         let nightfall = Nightfall::new(nightfall_address, client);
         // Convert the block transactions to the Nightfall format
         let blk: Nightfall::Block = block.into();
-        println!("block: {:?}", blk);
-        let _call =  nightfall
-        .propose_block(blk.clone())
-        .from(signer.address())
-        .call()
-        .await.unwrap();
 
         let receipt = nightfall
             .propose_block(blk)
@@ -45,7 +39,6 @@ impl NightfallContract for Nightfall::NightfallCalls {
             .get_receipt()
             .await
             .map_err(|_| NightfallContractError::TransactionError)?;
-        println!("Checking receipt of submitted block...{}", receipt.status());
         info!(
             "Received receipt for submitted block with hash: {}, gas used was: {}",
             receipt.transaction_hash, receipt.gas_used

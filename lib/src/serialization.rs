@@ -166,7 +166,6 @@ impl<'de> Deserialize<'de> for FrWrapperhex {
         Ok(FrWrapperhex(fr))
     }
 }
-#[derive(Debug)]
 pub struct FrWrapperPadded(pub Fr);
 
 impl Serialize for FrWrapperPadded {
