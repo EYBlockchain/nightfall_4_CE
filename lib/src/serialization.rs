@@ -76,9 +76,7 @@ pub fn bytes_to_hex_lpadded(bytes: &[u8], max_bytes: usize) -> String {
     let mut hex_str = String::with_capacity(bytes.len() * 2);
     for byte in bytes {
         write!(&mut hex_str, "{byte:02x}").unwrap();
-        write!(&mut hex_str, "{byte:02x}").unwrap();
     }
-
     format!("{:0>width$}", hex_str, width = max_bytes * 2)
 }
 
@@ -168,7 +166,7 @@ impl<'de> Deserialize<'de> for FrWrapperhex {
         Ok(FrWrapperhex(fr))
     }
 }
-
+#[derive(Debug)]
 pub struct FrWrapperPadded(pub Fr);
 
 impl Serialize for FrWrapperPadded {
@@ -230,7 +228,7 @@ mod tests {
     fn test_fr_padded_serialization() {
         let element = Fr::from_str("10").unwrap();
         let wrapper = FrWrapperPadded(element);
-
+ 
         let serialized = serde_json::to_string(&wrapper).unwrap();
         let deserialized: FrWrapperPadded = serde_json::from_str(&serialized).unwrap();
 
@@ -244,7 +242,6 @@ mod tests {
         )
         .unwrap();
         let wrapper = FrWrapperPadded(element);
-
         let serialized = serde_json::to_string(&wrapper).unwrap();
         let deserialized: FrWrapperPadded = serde_json::from_str(&serialized).unwrap();
 

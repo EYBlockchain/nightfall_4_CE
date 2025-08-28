@@ -400,7 +400,7 @@ mod tests {
         // left deposit = None
         // left client transactions: None
         let container = get_mongo().await;
-        let db = get_db_connection().await;
+        let db = get_db_connection(&container).await;
 
         // **1. Insert 240 deposits into mempool**
         {
@@ -496,7 +496,7 @@ mod tests {
         // Used deposit  (2...=257)
         // left deposit = (1)
         let container = get_mongo().await;
-        let db = get_db_connection().await;
+        let db = get_db_connection(&container).await;
 
         // Insert 257 deposit transactions into mempool**
         {
@@ -561,7 +561,7 @@ mod tests {
         // Left client transactions: 10 transactions (fees 1...10)
         // Left deposits: 0
         let container = get_mongo().await;
-        let db = get_db_connection().await;
+        let db = get_db_connection(&container).await;
 
         // Insert 74 deposit transactions into mempool**
         {
@@ -635,7 +635,7 @@ mod tests {
         // Left deposits: none
 
         let container = get_mongo().await;
-        let db = get_db_connection().await;
+        let db = get_db_connection(&container).await;
 
         // **1. Insert 3 deposits into mempool**
         {
