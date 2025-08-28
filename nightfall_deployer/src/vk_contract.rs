@@ -15,23 +15,40 @@ use std::{
 use regex::Regex;
 
 fn replace_verifier_block(full: &str, mode: &str, new_block: &str) -> String {
-    // Normalize line endings to avoid byte-index drift
+    let had_crlf = full.contains("\r\n");
     let mut s = full.replace("\r\n", "\n");
 
-    // Match the whole [<mode>.verifier] table up to the next table or EOF
-    let re = Regex::new(&format!(
-        r"(?ms)^\[\s*{}\s*\.verifier\s*\][\s\S]*?(?=^\[|\z)",
-        regex::escape(mode)
-    )).unwrap();
+    // 1) Find the header line
+    let header_re = Regex::new(&format!(r"(?m)^\[\s*{}\s*\.verifier\s*\]\s*", regex::escape(mode)))
+        .expect("valid regex");
+    if let Some(m) = header_re.find(&s) {
+        let start = m.start();
+        let after_header = m.end();
 
-    if re.is_match(&s) {
-        s = re.replace(&s, new_block).to_string();
+        // 2) Find the beginning of the next table (any line starting with '[') or EOF
+        let next_table_re = Regex::new(r"(?m)^\[").expect("valid regex");
+        let end = if let Some(nm) = next_table_re.find(&s[after_header..]) {
+            after_header + nm.start()
+        } else {
+            s.len()
+        };
+
+        // 3) Splice
+        let mut out = String::with_capacity(s.len() + new_block.len() + 2);
+        out.push_str(&s[..start]);
+        if start > 0 && !out.ends_with('\n') { out.push('\n'); }
+        out.push_str(new_block);
+        if !new_block.ends_with('\n') { out.push('\n'); }
+        out.push_str(&s[end..]);
+
+        if had_crlf { out.replace('\n', "\r\n") } else { out }
     } else {
+        // No section present → append
         if !s.ends_with('\n') { s.push('\n'); }
         s.push_str(new_block);
         if !new_block.ends_with('\n') { s.push('\n'); }
+        if had_crlf { s.replace('\n', "\r\n") } else { s }
     }
-    s
 }
 
 pub fn write_vk_to_nightfall_toml(vk: &VerifyingKey<Bn254>) -> anyhow::Result<()> {
