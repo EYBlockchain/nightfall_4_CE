@@ -1,4 +1,4 @@
-use alloy::{primitives::{TxHash, I256}};
+use alloy::primitives::{TxHash, I256};
 use ark_bn254::Fr as Fr254;
 use ark_ff::PrimeField;
 use async_trait::async_trait;
@@ -429,11 +429,12 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
     async fn get_commitment(&self, k: &Fr254) -> Option<CommitmentEntry> {
         let k_string = k.to_hex_string();
         debug!("Getting commitment with key: {k_string}");
-        let commitment_1 = self.get_all_commitments()
+        let commitment_1 = self
+            .get_all_commitments()
             .await
             .expect("Database error")
             .into_iter()
-            .find(|(key,_ )| key.to_hex_string() == k_string);
+            .find(|(key, _)| key.to_hex_string() == k_string);
         // now we can check if we found the commitment
         commitment_1.map(|(_, entry)| entry)
     }

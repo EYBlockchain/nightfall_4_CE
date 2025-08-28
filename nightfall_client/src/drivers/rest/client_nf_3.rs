@@ -227,7 +227,7 @@ pub async fn handle_deposit<N: NightfallContract>(
         secret_preimage_three,
         ..
     } = req;
- 
+
     let erc_address = ERCAddress::try_from_hex_string(&erc_address).map_err(|err| {
         error!("{id} Could not convert ERC address {err}");
         TransactionHandlerError::CustomError(err.to_string())

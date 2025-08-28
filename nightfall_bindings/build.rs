@@ -1,5 +1,5 @@
 use log::info;
-use std::{os::unix::process::ExitStatusExt, process::Command, path::Path};
+use std::{os::unix::process::ExitStatusExt, path::Path, process::Command};
 
 fn main() {
     info!("Building the artifacts");
@@ -9,15 +9,14 @@ fn main() {
     let artifacts_path = Path::new("../nightfall_bindings/src/artifacts.rs");
     if artifacts_path.exists() {
         info!("Artifacts file found at {artifacts_path:?}");
-        let content = std::fs::read_to_string(artifacts_path)
-            .expect("Failed to read artifacts.rs file");
+        let content =
+            std::fs::read_to_string(artifacts_path).expect("Failed to read artifacts.rs file");
         let updated_content = content.replace("dummy_artifacts", "artifacts");
         std::fs::write(artifacts_path, updated_content)
             .expect("Failed to write updated artifacts.rs file");
     } else {
         panic!("Artifacts file not found at {artifacts_path:?}");
     }
-
 }
 
 /// Function should only be called after we have checked forge is installed by running 'which forge'

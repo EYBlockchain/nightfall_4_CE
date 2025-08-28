@@ -129,9 +129,7 @@ pub fn generate_proving_keys(settings: &Settings) -> Result<(), PlonkError> {
         let block_size = match get_block_size() {
             Ok(size) => size,
             Err(e) => {
-                log::warn!(
-                    "Falling back to default block size 64 due to error: {e:?}"
-                );
+                log::warn!("Falling back to default block size 64 due to error: {e:?}");
                 64
             }
         };

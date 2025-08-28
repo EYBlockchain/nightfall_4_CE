@@ -252,9 +252,8 @@ impl From<CompressedSecrets> for [U256; 4] {
             panic!("BigUint is too large to fit in 32 bytes");
         }
         bytes.resize(32, 0);
-        let final_secret = U256::from_le_bytes::<32>(
-            bytes.try_into().expect("Failed to convert bytes to U256"),
-        );
+        let final_secret =
+            U256::from_le_bytes::<32>(bytes.try_into().expect("Failed to convert bytes to U256"));
         [
             Uint256::from(compressed_secrets.cipher_text[0]).0,
             Uint256::from(compressed_secrets.cipher_text[1]).0,

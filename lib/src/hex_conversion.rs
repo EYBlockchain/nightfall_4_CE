@@ -159,7 +159,7 @@ mod test {
         assert_eq!(encoded, test_string);
         let decoded = Vec::<u8>::from_hex_string(&encoded).unwrap();
         assert_eq!(test_vec, decoded);
-        
+
         // Test Fr254 <-> hex string
         let test_fr254 = Fr254::from(BigInt::new([
             0x5f2415beff697c2a,

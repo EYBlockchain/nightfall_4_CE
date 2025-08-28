@@ -501,7 +501,7 @@ impl RecursiveProver for RollupProver {
 
         circuit.enforce_equal(end_root_comm_one, start_root_comm_two)?;
         circuit.enforce_equal(end_root_null_one, start_root_null_two)?;
-     
+
         let fee_sum = circuit.add(fee_sum_one, fee_sum_two)?;
         Ok(vec![
             start_root_comm_one,
@@ -665,8 +665,8 @@ impl RecursiveProver for RollupProver {
     }
 
     fn store_merge_bn254_pks(pks: Vec<ProvingKey<Kzg>>) -> Option<()> {
-         let config_path = get_configuration_path()?;
-         for (i, pk) in pks.into_iter().enumerate() {
+        let config_path = get_configuration_path()?;
+        for (i, pk) in pks.into_iter().enumerate() {
             let file_path: PathBuf = config_path.join(format!("bin/merge_bn254_pk_{i}"));
 
             let mut buf = Vec::<u8>::new();
@@ -970,8 +970,8 @@ impl RecursiveProver for RollupProver {
 
 /// This struct is used for the recursive proving of the rollup prover.
 /// It is the result of running the `prepare_state_transition` function.
-/// 
-/// 
+///
+///
 #[derive(Debug)]
 pub struct RollupPreppedInfo {
     pub outputs_and_circuit_type: Vec<(Bn254Output, VerifyingKey<Kzg>)>,

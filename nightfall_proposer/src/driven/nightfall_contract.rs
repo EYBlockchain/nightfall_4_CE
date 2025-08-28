@@ -21,10 +21,10 @@ impl NightfallContract for Nightfall::NightfallCalls {
             .get_client();
         let client = blockchain_client.root();
         let signer = get_blockchain_client_connection()
-        .await
-        .read()
-        .await
-        .get_signer();
+            .await
+            .read()
+            .await
+            .get_signer();
         let nightfall_address = get_addresses().nightfall();
         let nightfall = Nightfall::new(nightfall_address, client);
         // Convert the block transactions to the Nightfall format

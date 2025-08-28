@@ -10,10 +10,14 @@ use crate::{
     ports::{contracts::NightfallContract, trees::CommitmentTree},
     services::process_events::process_events,
 };
-use alloy::{primitives::I256, rpc::types::Filter, sol_types::{SolEvent, SolEventInterface}};
+use alloy::{
+    primitives::I256,
+    rpc::types::Filter,
+    sol_types::{SolEvent, SolEventInterface},
+};
 use ark_bn254::Fr as Fr254;
 use configuration::{addresses::get_addresses, settings::get_settings};
-use futures::{StreamExt};
+use futures::StreamExt;
 use futures::{future::BoxFuture, FutureExt};
 use lib::{
     blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
@@ -91,17 +95,20 @@ pub async fn listen_for_events<N: NightfallContract>(
 
     // get the events from the Nightfall contract from the specified start block
     // Subscribe to the combined events filter
-    let events_filter = Filter::new().address(get_addresses().nightfall())
-    .event_signature(vec![
-        Nightfall::BlockProposed::SIGNATURE_HASH,
-        Nightfall::DepositEscrowed::SIGNATURE_HASH,
-    ])
+    let events_filter = Filter::new()
+        .address(get_addresses().nightfall())
+        .event_signature(vec![
+            Nightfall::BlockProposed::SIGNATURE_HASH,
+            Nightfall::DepositEscrowed::SIGNATURE_HASH,
+        ])
         .from_block(start_block as u64);
-    
+
     // Subscribe to the combined events filter
-    let events_subscription = blockchain_client.subscribe_logs(&events_filter).await
+    let events_subscription = blockchain_client
+        .subscribe_logs(&events_filter)
+        .await
         .map_err(|_| EventHandlerError::NoEventStream)?;
-    
+
     let mut events_stream = events_subscription.into_stream();
     while let Some(evt) = events_stream.next().await {
         // process each event in the stream and handle any errors

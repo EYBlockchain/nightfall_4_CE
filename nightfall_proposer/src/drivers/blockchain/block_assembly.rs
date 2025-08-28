@@ -248,7 +248,9 @@ where
                     }
                 };
                 for (_, log_meta) in rotate_proposer_log {
-                    let tx_hash = log_meta.transaction_hash.ok_or_else(|| BlockAssemblyError::Other("Transaction hash is None".to_string()))?;
+                    let tx_hash = log_meta.transaction_hash.ok_or_else(|| {
+                        BlockAssemblyError::Other("Transaction hash is None".to_string())
+                    })?;
                     match check_l1_finality(
                         &client,
                         tx_hash,

@@ -1,4 +1,3 @@
-use log::trace;
 use warp::{hyper::StatusCode, path, reply, Filter, Reply};
 
 use crate::driven::db::mongo::CommitmentEntry;

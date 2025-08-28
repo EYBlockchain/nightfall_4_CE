@@ -227,7 +227,7 @@ mod tests {
     fn test_fr_padded_serialization() {
         let element = Fr::from_str("10").unwrap();
         let wrapper = FrWrapperPadded(element);
- 
+
         let serialized = serde_json::to_string(&wrapper).unwrap();
         let deserialized: FrWrapperPadded = serde_json::from_str(&serialized).unwrap();
 
