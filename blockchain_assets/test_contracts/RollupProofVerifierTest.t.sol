@@ -12,19 +12,10 @@ import "../contracts/proof_verification/IVKProvider.sol";
 import "../contracts/proof_verification/lib/Types.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
-
-/// @dev Test-only VK provider that returns the full VK via your assembly.
-///      It matches IVKProvider so RollupProofVerifier can consume it exactly like the real provider.
+/// @dev Test-only VK provider that returns a fixed VK.
 contract TestVKProvider is IVKProvider {
-    // Optional commitment; not used by tests. Keep for interface compatibility.
     function vkHash() external pure returns (bytes32) { return bytes32(0); }
-
-    function getVerificationKey()
-        external
-        pure
-        returns (Types.VerificationKey memory vk)
-    {
-        // Build vk in memory exactly as your original library did.
+    function getVerificationKey() external pure returns (Types.VerificationKey memory vk) {
         assembly { 
 
             // domain_size
@@ -734,7 +725,9 @@ contract TestVKProvider is IVKProvider {
             mstore(0x40, add(beta_h_ptr, 0x80)) 
  
             }
-        return vk;
+
+            return vk; 
+
     }
 }
 
@@ -747,32 +740,37 @@ contract RollupProofVerifierTest is Test {
         // Use the test VK provider (full VK in assembly)
         TestVKProvider vk = new TestVKProvider();
 
-        // Deploy implementation (has disabled initializers)
+        // -------------------------------
+        // Deploy RollupProofVerifier UUPS
+        // -------------------------------
         RollupProofVerifier impl = new RollupProofVerifier();
-        verifier = new RollupProofVerifier();
-
-        // Prepare init calldata for the proxy
         bytes memory initData = abi.encodeCall(
             RollupProofVerifier.initialize,
-            (address(vk), address(this)) // vkProviderProxy, initialOwner
+            (address(vk), address(this)) // vkProvider, initialOwner
         );
+        ERC1967Proxy verifierProxy = new ERC1967Proxy(address(impl), initData);
+        verifier = RollupProofVerifier(address(verifierProxy));
 
-        // Deploy proxy and point it to impl, run initialize
-        ERC1967Proxy proxy = new ERC1967Proxy(address(impl), initData);
-
-        // Use the proxy as the verifier
-        verifier = RollupProofVerifier(address(proxy));
-
+        // -------------------------------
+        // X509 + sanctions
+        // -------------------------------
         x509Contract = new X509();
         x509Contract.initialize(address(this));
         address sanctionedUser = address(0x123);
         SanctionsListMock sanctionsListMock = new SanctionsListMock(sanctionedUser);
 
-        nightfall = new Nightfall(
-            verifier,
-            address(x509Contract),
-            address(sanctionsListMock)
+        // -------------------------------
+        // Deploy Nightfall via UUPS proxy
+        // -------------------------------
+        Nightfall nightfallImpl = new Nightfall();
+
+        bytes memory nfInit = abi.encodeCall(
+            Nightfall.initialize,
+            (5626012003977595441102792096342856268135928990590954181023475305010363075697,verifier, address(x509Contract), address(sanctionsListMock))
         );
+
+        ERC1967Proxy nightfallProxy = new ERC1967Proxy(address(nightfallImpl), nfInit);
+        nightfall = Nightfall(address(nightfallProxy));
     }
 
     function testVerifyValidProof() public view {

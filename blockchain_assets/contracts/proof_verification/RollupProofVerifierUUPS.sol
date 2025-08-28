@@ -15,6 +15,8 @@ import {Transcript} from "./lib/Transcript.sol";
 import {Bn254Crypto} from "./lib/Bn254Crypto.sol";
 import {PolynomialEval} from "./lib/PolynomialEval.sol";
 
+
+
 /**
 @title RollupProofVerifier
 @dev Verifier Implementation for Nightfish Ultra plonk proof verification
@@ -118,6 +120,7 @@ contract RollupProofVerifier is
         // parse the second part of calldata to get public input
         // we hashed all public inputs into a single value
         uint256 public_inputs_hash;
+
         assembly {
             public_inputs_hash := calldataload(add(publicInputsHashBytes.offset, 0))
         }
@@ -261,7 +264,7 @@ contract RollupProofVerifier is
         A = compute_A(proof, challenge);     
         // B = eval_point * open_proof + u * next_eval_point *
         //   shifted_open_proof + comm - eval * [1]1`.
-        B = compute_B(pcsInfo, proof, challenge, vk);      
+        B = compute_B(pcsInfo, proof, challenge, vk);    
 
         // Check e(A, [x]2) ?= e(B, [1]2)
         /// By Schwartz-Zippel lemma, it's equivalent to check that for a random r:

@@ -49,16 +49,14 @@ contract Deployer is Script {
 
         address deployerAddress = vm.addr(deployerPrivateKey);
 
-        // Owners from TOML (fallback to deployer)
+        // Owners from TOML (fallbacks)
         address verifierOwner = toml.readAddress(string.concat(runMode, ".owners.verifier_owner"));
         if (verifierOwner == address(0)) verifierOwner = deployerAddress;
 
         address xOwner = toml.readAddress(string.concat(runMode, ".owners.x509_owner"));
         if (xOwner == address(0)) xOwner = deployerAddress;
 
-        // Optional: a future owner for RoundRobin. NOTE:
-        // RoundRobin / Certified currently has no transferOwnership; owner = msg.sender at initialize.
-        // If you add it later, you can transfer here (similar to X509).
+        // Optional RR owner (Certified has no transferOwnership; see note below)
         address rrOwner = toml.readAddress(string.concat(runMode, ".owners.round_robin_owner"));
         if (rrOwner == address(0)) rrOwner = deployerAddress;
 
@@ -89,19 +87,19 @@ contract Deployer is Script {
             x509Contract.transferOwnership(xOwner);
         }
 
-        // (4) Nightfall (not upgradeable here)
-        Nightfall nightfall = new Nightfall(
-            verifier,
-            address(x509),
-            address(sanctionsList)
+        // (4) Nightfall UUPS proxy (initialize wires verifier/x509/sanctions)
+        uint256 initialNullifierRoot = 5626012003977595441102792096342856268135928990590954181023475305010363075697;
+        address nightfallProxy = Upgrades.deployUUPSProxy(
+            "Nightfall.sol:Nightfall",
+            abi.encodeCall(Nightfall.initialize, (initialNullifierRoot, verifier, address(x509), address(sanctionsList)))
         );
+        Nightfall nightfall = Nightfall(nightfallProxy);
 
         // (5) RoundRobin UUPS proxy
         RoundRobinConfig memory rr = readRoundRobinConfig(toml);
-
-        // Deploy RoundRobin proxy and initialize (owner = msg.sender here)
         address rrProxy = Upgrades.deployUUPSProxy(
-            "RoundRobin.sol:RoundRobin",
+            // NOTE: artifact path must match your file name; you import RoundRobinUUPS.sol
+            "RoundRobinUUPS.sol:RoundRobin",
             abi.encodeCall(
                 RoundRobin.initialize,
                 (
@@ -125,17 +123,12 @@ contract Deployer is Script {
         );
 
         // Wire Nightfall <-> RoundRobin
-        nightfall.set_x509_address(address(x509));
-        nightfall.set_sanctions_list(address(sanctionsList));
         nightfall.set_proposer_manager(roundRobin);
-        // set_nightfall is already done by bootstrap, but calling it again is harmless if you prefer:
-        // roundRobin.set_nightfall(address(nightfall));
 
-        // NOTE on RoundRobin ownership:
-        // RoundRobin/Certified does not expose transferOwnership currently.
-        // If you need rrOwner != deployerAddress, either:
-        //  - broadcast with rrOwner’s key so initialize sets owner = rrOwner, or
-        //  - add transferOwnership() to Certified and call it here.
+        // NOTE on RoundRobin/Nightfall ownership:
+        // Certified has no transferOwnership; owner = msg.sender at initialize().
+        // If you need rrOwner or a dedicated nightfall owner, either deploy from that key
+        // or add transferOwnership() to Certified and call it here.
 
         vm.stopBroadcast();
     }

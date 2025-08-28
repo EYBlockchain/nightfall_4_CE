@@ -200,7 +200,7 @@ contract RoundRobin is ProposerManager, Certified, Initializable, UUPSUpgradeabl
         require(proposer_address != address(0), "Zero address");
 
         if (proposer_address == current.addr) {
-            require(proposer_count > 1, "Cannot deregister the only proposer");
+            require(proposer_count > 1, "Cannot deregister the only active proposer");
             require(
                 proposers[proposer_address].stake >= EXIT_PENALTY,
                 "Insufficient stake for exit"
