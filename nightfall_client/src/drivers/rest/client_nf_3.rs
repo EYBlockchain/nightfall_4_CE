@@ -212,6 +212,7 @@ pub async fn handle_deposit<N: NightfallContract>(
     id: &str,
 ) -> Result<NotificationPayload, TransactionHandlerError> {
     info!("Deposit raw request: {req:?}");
+    info!("Deposit raw request: {req:?}");
 
     // We convert the request into values
     let NF3DepositRequest {

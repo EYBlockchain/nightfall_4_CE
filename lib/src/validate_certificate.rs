@@ -52,6 +52,7 @@ async fn handle_certificate_validation(
             None => return Ok(StatusCode::BAD_REQUEST),
         };
         info!("Receiving certificate validation file: {filename}");
+        info!("Receiving certificate validation file: {filename}");
 
         let mut data = Vec::new();
         let mut stream = part.stream();

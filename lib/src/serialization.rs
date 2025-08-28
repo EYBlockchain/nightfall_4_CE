@@ -76,6 +76,7 @@ pub fn bytes_to_hex_lpadded(bytes: &[u8], max_bytes: usize) -> String {
     let mut hex_str = String::with_capacity(bytes.len() * 2);
     for byte in bytes {
         write!(&mut hex_str, "{byte:02x}").unwrap();
+        write!(&mut hex_str, "{byte:02x}").unwrap();
     }
 
     format!("{:0>width$}", hex_str, width = max_bytes * 2)
@@ -269,6 +270,12 @@ mod tests {
         let serialized2 = serde_json::to_string(&wrapper2).unwrap();
         let serialized3 = serde_json::to_string(&wrapper3).unwrap();
         let serialized4 = serde_json::to_string(&wrapper4).unwrap();
+
+        println!("Serialized value 1: {serialized1}");
+        println!("Serialized value 2: {serialized2}");
+        println!("Serialized value 3: {serialized3}");
+        println!("Serialized value 4: {serialized4}");
+
         // Compare serialized values and find the largest
         let largest_serialized = vec![
             serialized1.clone(),
@@ -290,10 +297,10 @@ mod tests {
         let deserialized4: FrWrapperPadded = serde_json::from_str(&serialized4).unwrap();
 
         // Print values after deserialization
-        println!("Value after deserialization 1: {:?}", deserialized1.0);
-        println!("Value after deserialization 2: {:?}", deserialized2.0);
-        println!("Value after deserialization 3: {:?}", deserialized3.0);
-        println!("Value after deserialization 4: {:?}", deserialized4.0);
+        println!("Value after deserialization 1: {0:?}", deserialized1.0);
+        println!("Value after deserialization 2: {0:?}", deserialized2.0);
+        println!("Value after deserialization 3: {0:?}", deserialized3.0);
+        println!("Value after deserialization 4: {0:?}", deserialized4.0);
 
         // Assert equality after deserialization
         assert_eq!(element1, deserialized1.0);

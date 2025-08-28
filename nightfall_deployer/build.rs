@@ -32,6 +32,7 @@ fn is_foundry_installed() -> bool {
         }
         Err(e) => {
             info!("Got an error from running 'which forge': {e}");
+            info!("Got an error from running 'which forge': {e}");
             false
         }
     }

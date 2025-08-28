@@ -39,6 +39,7 @@ pub fn start_event_listener<N: NightfallContract>(
         loop {
             attempts += 1;
             log::info!("Client event listener (attempt {attempts})...");
+            log::info!("Client event listener (attempt {attempts})...");
             let result = listen_for_events::<N>(start_block).await;
             match result {
                 Ok(_) => {

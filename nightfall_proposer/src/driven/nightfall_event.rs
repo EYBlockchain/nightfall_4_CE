@@ -73,7 +73,7 @@ where
 {
     async fn handle_event(&self, tx_hash: TxHash) -> Result<(), EventHandlerError> {
         // we'll split out individual events here in case that's useful later
-        debug!("Handling event {:?} for transaction {:?}", self, tx_hash);
+        debug!("Handling event {self:?} for transaction {tx_hash:?}");
         match &self {
             Nightfall::NightfallEvents::BlockProposed(filter) => {
                 process_nightfall_calldata::<P, E, N>(tx_hash, filter.layer2_block_number).await?
@@ -83,6 +83,7 @@ where
                 process_deposit_escrowed_event::<P, E>(tx_hash, filter)
                     .await
                     .map_err(|e| {
+                        debug!("{e}");
                         debug!("{e}");
                         EventHandlerError::InvalidCalldata
                     })?;

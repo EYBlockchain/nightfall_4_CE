@@ -572,7 +572,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
             return Some(());
         }
         debug!(
-            "Storing commitments with hashes{:?} ",
+            "Storing commitments with hashes {:?} ",
             commitments
                 .iter()
                 .map(|c| c.key.to_hex_string())

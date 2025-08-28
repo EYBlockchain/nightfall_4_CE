@@ -33,6 +33,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let client_address =
         std::env::var("CLIENT_ADDRESS").expect("CLIENT_ADDRESS environment variable not set");
     println!("Client address from .env: {client_address}");
+    println!("Client address from .env: {client_address}");
 
     // Read and parse config.toml into url and mnemonic variables
     let (url, mnemonic) = load_config(CONFIG_PATH);

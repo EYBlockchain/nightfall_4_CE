@@ -51,6 +51,7 @@ where
     N: NightfallContract,
 {
     debug!("{id} Handling client operation: {operation:?}");
+    debug!("{id} Handling client operation: {operation:?}");
 
     // get the zkp keys from the global state. They will have been created when the keys were requested using a mnemonic
     let ZKPKeys {
@@ -203,7 +204,7 @@ async fn send_to_proposer_with_retry<P: Serialize + Sync>(
                     ) && attempt < max_retries
                     {
                         let backoff = initial_backoff * 2u32.pow(attempt - 1);
-                        warn!("{id} Retrying proposer {} in {:?}", proposer.url, backoff);
+                        warn!("{id} Retrying proposer {} in {backoff:?}", proposer.url);
                         sleep(backoff).await;
                         continue;
                     } else {
