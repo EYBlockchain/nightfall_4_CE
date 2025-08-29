@@ -18,7 +18,7 @@ pub fn rotate_proposer() -> impl Filter<Extract = impl warp::Reply, Error = warp
 
 async fn handle_rotate_proposer() -> Result<impl Reply, warp::Rejection> {
     // get a ManageProposers instance
-    let proposer_manager = ProposerManager::new(
+    let proposer_manager = RoundRobin::new(
         get_addresses().round_robin,
         get_blockchain_client_connection()
             .await

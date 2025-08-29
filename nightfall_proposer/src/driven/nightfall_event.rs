@@ -92,6 +92,12 @@ where
                         EventHandlerError::InvalidCalldata
                     })?;
             }
+            NightfallEvents::InitializedFilter(_filter) => {
+                info!("Received Initialized event - no action taken");
+            }
+            NightfallEvents::UpgradedFilter(_filter) => {
+                info!("Received Upgraded event - no action taken");
+            }
         }
         Ok(())
         // all events, however, can be processed by the same function because you just need the tx hash to get the calldata

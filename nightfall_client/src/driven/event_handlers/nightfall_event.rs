@@ -81,6 +81,24 @@ where
                         EventHandlerError::InvalidCalldata
                     })?;
             }
+            NightfallEvents::InitializedFilter(filter) => {
+                info!("Received Initialized event");
+                // process_initialized_event(tx_hash, filter)
+                //     .await
+                //     .map_err(|e| {
+                //         debug!("{e}");
+                //         EventHandlerError::InvalidCalldata
+                //     })?;
+            }
+            NightfallEvents::UpgradedFilter(filter) => {
+                info!("Received Upgraded event");
+                // process_upgraded_event(tx_hash, filter)
+                //     .await
+                //     .map_err(|e| {
+                //         debug!("{e}");
+                //         EventHandlerError::InvalidCalldata
+                //     })?;
+            }
         }
         Ok(())
     }

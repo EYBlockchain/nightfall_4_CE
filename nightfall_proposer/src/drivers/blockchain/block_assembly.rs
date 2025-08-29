@@ -193,7 +193,7 @@ where
     let provider = Provider::<Ws>::connect(&settings.ethereum_client_url)
         .await
         .map_err(BlockAssemblyError::ProviderError)?;
-    let round_robin_instance = Arc::new(ProposerManager::new(
+    let round_robin_instance = Arc::new(RoundRobin::new(
         get_addresses().round_robin,
         get_blockchain_client_connection()
             .await
