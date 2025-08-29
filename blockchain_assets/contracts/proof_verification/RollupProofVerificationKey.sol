@@ -10,6 +10,11 @@
     library UltraPlonkVerificationKey { 
 
 
+        function getVerificationKeyHash() internal pure returns (bytes32) {  
+
+            return 0x2CB0061C8115B9602CC84CAE4B7E8911AA329D815B789AC262546C41C83C9964; 
+
+        } 
         function getVerificationKey() internal pure returns (Types.VerificationKey memory vk) { 
 
             assembly { 
