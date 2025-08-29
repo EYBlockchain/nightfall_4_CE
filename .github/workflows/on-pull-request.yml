@@ -80,20 +80,20 @@ jobs:
           fi
           ln -sf /home/testrunner/ptau-cache/ppot_26.ptau /home/testrunner/actions-runner/_work/nightfall_4_PV/nightfall_4_PV/configuration/bin/ppot_26.ptau
       - name: Clear previous run
-        run: docker compose --profile sync_test down -v
+        run: docker compose --profile development down -v
       - name: Build
         run: cargo build
       - name: Generate keys
         run: cargo run --release --bin key_generation
       - name: Build Docker Image
-        run: docker compose --profile sync_test build
+        run: docker compose --profile development build
       - name: Run Integration Test
-        run: docker compose --profile sync_test up
+        run: docker compose --profile development run test
       - name: Print logs
         run: docker compose --profile development logs
       - name: Shut Down Containers
         run: |
-          docker compose --profile sync_test down -v
+          docker compose --profile development down -v
 
   forge:
     name: Smart Contract Unit Tests
