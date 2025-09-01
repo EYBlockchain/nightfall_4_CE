@@ -301,6 +301,7 @@ pub async fn handle_deposit<N: NightfallContract>(
         secret_preimage_two,
         secret_preimage_three,
     );
+    ark_std::println!("Generated secret preimage: {:?}", secret_preimage);
 
     let db: &'static mongodb::Client = get_db_connection().await;
 
@@ -367,13 +368,19 @@ pub async fn handle_deposit<N: NightfallContract>(
     let nullifier = preimage_value
         .nullifier_hash(&nullifier_key)
         .expect("Could not hash commitment {}");
+    ark_std::println!("Generated nullifier in handle_deposit: {:?}", nullifier);
     let commitment_hash = preimage_value.hash().expect("Could not hash commitment");
     let commitment_entry =
         CommitmentEntry::new(preimage_value, nullifier, CommitmentStatus::PendingCreation);
 
-    db.store_commitment(commitment_entry)
+    db.store_commitment(commitment_entry.clone())
         .await
         .ok_or(TransactionHandlerError::DatabaseError)?;
+
+    ark_std::println!(
+        "Stored commitment in DB with commitment_entry: {:?}",
+        commitment_entry.clone()
+    );
 
     debug!("{id} Deposit commitment stored successfully");
 

@@ -16,7 +16,7 @@ pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: 
     // compute the vk hash.
     let vk_hash_bytes: [u8; 32] = vk.hash().into_bigint().to_bytes_be().try_into().unwrap();
     let vk_hash = H256::from(vk_hash_bytes);
-    ark_std::println!("vk hash is: {vk_hash}");
+    ark_std::println!("Verification key hash: {}", vk_hash);
     let domain_size = vk.domain_size();
     let domain_size_fr = Fr254::from(domain_size as u32);
     let domain_size_inv = U256::from_little_endian(

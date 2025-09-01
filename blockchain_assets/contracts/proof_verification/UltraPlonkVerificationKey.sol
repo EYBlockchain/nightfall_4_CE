@@ -13,7 +13,7 @@
 
         function getVerificationKeyHash() internal pure returns (bytes32) {  
 
-            return 0x1466f0da1c60df4dfef29ccab3f988bd9eaca22a792dd82d306c2ff29707775a; 
+            return 0x16e1099c2231bda5efd157b22fc20595887f4b20812e0331ada5668427b1de49; 
 
         } 
 

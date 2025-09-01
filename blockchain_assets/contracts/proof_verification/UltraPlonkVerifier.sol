@@ -1566,51 +1566,99 @@ library Transcript {
 
     function compute_vk_hash(Types.VerificationKey memory vk) internal pure returns (uint256 vk_hash) 
     {
-        //vk_hash = keccak256(
-        //    vk.sigma_comms,
-        //    vk.selector_comms,
-        //    vk.range_table_comm,
-        //    vk.key_table_comm,
-        //    vk.table_dom_sep_comm,
-        //    vk.q_dom_sep_comm,
+    // vk_hash = keccak256(
+    //    vk.domain_size,
+    //    vk.sigma_comms_1..6,
+    //    vk.selector_comms_1..18,
+    //    vk.k1..k6,
+    //    vk.range_table_comm,
+    //    vk.key_table_comm,
+    //    vk.table_dom_sep_comm,
+    //    vk.q_dom_sep_comm
+    // ) mod p
+        
     assembly {
+        // Free memory pointer & write cursor
         let ptr := mload(0x40)
         let offset := ptr
 
-        // Loop through sigma_comms_1 to sigma_comms_6
-        for { let i := 0 } lt(i, 6) { i := add(i, 1) } {
-            let g1ptr := mload(add(vk, add(0x40, mul(i, 0x20))))
-            mstore(offset, mload(g1ptr))             // x
-            mstore(add(offset, 0x20), mload(add(g1ptr, 0x20))) // y
-            offset := add(offset, 0x40)
+        // 1) domain_size (uint256 at vk + 0x00)
+        {
+            let ds := mload(vk) // uint256 in Solidity
+            // write bytes 24..31 (most-significant to least-significant)
+            mstore8(offset,         byte(24, ds))
+            mstore8(add(offset, 1), byte(25, ds))
+            mstore8(add(offset, 2), byte(26, ds))
+            mstore8(add(offset, 3), byte(27, ds))
+            mstore8(add(offset, 4), byte(28, ds))
+            mstore8(add(offset, 5), byte(29, ds))
+            mstore8(add(offset, 6), byte(30, ds))
+            mstore8(add(offset, 7), byte(31, ds))
+            offset := add(offset, 8)
         }
 
-        // selector_comms_1 to selector_comms_18
-        for { let i := 0 } lt(i, 18) { i := add(i, 1) } {
-            let g1ptr := mload(add(vk, add(0x100, mul(i, 0x20))))
-            mstore(offset, mload(g1ptr))             // x
-            mstore(add(offset, 0x20), mload(add(g1ptr, 0x20))) // y
-            offset := add(offset, 0x40)
+        // 2) sigma_comms_1..6
+        // Each field in parent struct holds a pointer to a G1Point (x,y).
+        // G1Point memory layout: [x (32 bytes), y (32 bytes)]
+        // Parent VK layout offsets: 0x40, 0x60, 0x80, 0xa0, 0xc0, 0xe0
+        {
+            let base := 0x40
+            for { let i := 0 } lt(i, 6) { i := add(i, 1) } {
+                let g1ptr := mload(add(vk, add(base, mul(i, 0x20))))
+                mstore(offset, mload(g1ptr))                    // x
+                mstore(add(offset, 0x20), mload(add(g1ptr, 0x20))) // y
+                offset := add(offset, 0x40)
+            }
         }
 
-        // range_table_comm, key_table_comm, table_dom_sep_comm, q_dom_sep_comm
-        for { let i := 0 } lt(i, 4) { i := add(i, 1) } {
-            let g1ptr := mload(add(vk, add(0x400, mul(i, 0x20))))
-            mstore(offset, mload(g1ptr))             // x
-            mstore(add(offset, 0x20), mload(add(g1ptr, 0x20))) // y
-            offset := add(offset, 0x40)
+        // 3) selector_comms_1..18
+        // Parent VK layout starts at 0x100, step 0x20 for each pointer
+        {
+            let base := 0x100
+            for { let i := 0 } lt(i, 18) { i := add(i, 1) } {
+                let g1ptr := mload(add(vk, add(base, mul(i, 0x20))))
+                mstore(offset, mload(g1ptr))                    // x
+                mstore(add(offset, 0x20), mload(add(g1ptr, 0x20))) // y
+                offset := add(offset, 0x40)
+            }
         }
 
+        // 4) ks: k1..k6 (uint256s)
+        // Parent VK layout: 0x340, 0x360, 0x380, 0x3a0, 0x3c0, 0x3e0
+        {
+            let base := 0x340
+            for { let i := 0 } lt(i, 6) { i := add(i, 1) } {
+                mstore(offset, mload(add(vk, add(base, mul(i, 0x20)))))
+                offset := add(offset, 0x20)
+            }
+        }
+
+        // 5) range_table_comm, key_table_comm, table_dom_sep_comm, q_dom_sep_comm
+        // Parent VK layout: pointers at 0x400, 0x420, 0x440, 0x460
+        {
+            let base := 0x400
+            for { let i := 0 } lt(i, 4) { i := add(i, 1) } {
+                let g1ptr := mload(add(vk, add(base, mul(i, 0x20))))
+                mstore(offset, mload(g1ptr))                    // x
+                mstore(add(offset, 0x20), mload(add(g1ptr, 0x20))) // y
+                offset := add(offset, 0x40)
+            }
+        }
+
+        // Hash the contiguous region [ptr .. offset)
         let len := sub(offset, ptr)
-        vk_hash := shr(0, keccak256(ptr, len))
-        vk_hash := mod(vk_hash, 21888242871839275222246405745257275088548364400416034343698204186575808495617)
+        let h := keccak256(ptr, len)
 
+        // // Optional: advance free memory pointer
+        // mstore(0x40, add(ptr, len))
+
+        // Reduce mod BN254 scalar field prime
+        // p = 21888242871839275222246405745257275088548364400416034343698204186575808495617
+        vk_hash := mod(h, 21888242871839275222246405745257275088548364400416034343698204186575808495617)
     }
+
     if (vk_hash != uint256(getVerificationKeyHash())) {
-            revert INVALID_VERIFICATION_KEY_HASH(
-                uint256(vk_hash),
-                uint256(getVerificationKeyHash())
-            );
+        revert INVALID_VERIFICATION_KEY_HASH(uint256(vk_hash), uint256(getVerificationKeyHash()));
     }
 }
 
