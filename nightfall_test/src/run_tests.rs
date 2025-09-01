@@ -456,9 +456,7 @@ pub async fn run_tests(
         Url::parse(&settings.nightfall_client.url).unwrap(),
     )
     .await;
-    info!(
-        "Fee Commitment Balance  held as layer 2 commitments by client1: {fee_balance}"
-    );
+    info!("Fee Commitment Balance  held as layer 2 commitments by client1: {fee_balance}");
     assert_eq!(fee_balance, 137 + client1_starting_fee_balance);
     // call verify_deposit_commitments_nf_token_id
     info!("Verifying deposit commitments");
@@ -553,15 +551,11 @@ pub async fn run_tests(
         Url::parse(&settings.nightfall_client.url).unwrap(),
     )
     .await;
-    info!(
-        "Balance of ERC20 tokens held as layer 2 commitments by client 1: {balance}"
-    );
+    info!("Balance of ERC20 tokens held as layer 2 commitments by client 1: {balance}");
     assert_eq!(balance, 14 + client1_starting_balance);
 
     let balance = get_erc20_balance(&http_client, Url::parse("http://client2:3000").unwrap()).await;
-    info!(
-        "Balance of ERC20 tokens held as layer 2 commitments by client 2: {balance}"
-    );
+    info!("Balance of ERC20 tokens held as layer 2 commitments by client 2: {balance}");
     assert_eq!(balance, 7 + client2_starting_balance);
 
     info!("Sending transfer transactions");
@@ -746,16 +740,12 @@ pub async fn run_tests(
         Url::parse(&settings.nightfall_client.url).unwrap(),
     )
     .await;
-    info!(
-        "Balance of ERC20 tokens held as layer 2 commitments by client 1: {balance}"
-    );
+    info!("Balance of ERC20 tokens held as layer 2 commitments by client 1: {balance}");
 
     assert_eq!(balance, 1 + client1_starting_balance);
 
     let balance = get_erc20_balance(&http_client, Url::parse("http://client2:3000").unwrap()).await;
-    info!(
-        "Balance of ERC20 tokens held as layer 2 commitments by client2: {balance}"
-    );
+    info!("Balance of ERC20 tokens held as layer 2 commitments by client2: {balance}");
     assert_eq!(balance, 20 + client2_starting_balance);
 
     // create withdraw requests
@@ -862,9 +852,7 @@ pub async fn run_tests(
 
     //check the balance of the ERC20 tokens after the withdraws
     let balance = get_erc20_balance(&http_client, Url::parse("http://client2:3000").unwrap()).await;
-    info!(
-        "Balance of ERC20 tokens held as layer 2 commitments by client2: {balance}"
-    );
+    info!("Balance of ERC20 tokens held as layer 2 commitments by client2: {balance}");
     assert_eq!(balance, 17 + client2_starting_balance);
 
     // withdraw the other token types
