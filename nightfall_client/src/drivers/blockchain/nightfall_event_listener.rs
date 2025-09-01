@@ -94,6 +94,7 @@ pub async fn listen_for_events<N: NightfallContract>(
     );
 
     // get the events from the Nightfall contract from the specified start block
+    
     // Subscribe to the combined events filter
     let events_filter = Filter::new()
         .address(get_addresses().nightfall())
@@ -112,7 +113,13 @@ pub async fn listen_for_events<N: NightfallContract>(
     let mut events_stream = events_subscription.into_stream();
     while let Some(evt) = events_stream.next().await {
         // process each event in the stream and handle any errors
-        let event = Nightfall::NightfallEvents::decode_log(&evt.inner).unwrap();
+        let event = match Nightfall::NightfallEvents::decode_log(&log.inner) {
+            Ok(e) => e,
+            Err(e) => {
+                warn!("Failed to decode log: {e:?}");
+                continue; // Skip malformed events
+            }
+        };
         let result = process_events::<N>(event.data, evt).await;
         match result {
             Ok(_) => continue,
