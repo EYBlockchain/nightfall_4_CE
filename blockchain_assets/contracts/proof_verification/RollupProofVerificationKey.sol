@@ -12,9 +12,11 @@
 
         function getVerificationKeyHash() internal pure returns (bytes32) {  
 
-            return 0x2CB0061C8115B9602CC84CAE4B7E8911AA329D815B789AC262546C41C83C9964; 
+            return 0x1c1e345bf747a1d9824b09de382109a42513b11de016709ca5011221f9abe56f; 
 
         } 
+
+
         function getVerificationKey() internal pure returns (Types.VerificationKey memory vk) { 
 
             assembly { 
