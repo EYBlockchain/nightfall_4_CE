@@ -1674,7 +1674,7 @@ library Transcript {
         let len := sub(offset, ptr)
         let h := keccak256(ptr, len)
 
-        // Optional: advance free memory pointer
+        // advance free memory pointer
         mstore(0x40, add(ptr, len))
 
         // Reduce mod BN254 scalar field prime

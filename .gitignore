@@ -19,4 +19,3 @@ soljson*
 configuration/toml
 remappings.txt
 local.env
-blockchain_assets/solidity_lib/openzeppelin-contracts-upgradeable/

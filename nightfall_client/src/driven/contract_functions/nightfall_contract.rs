@@ -39,8 +39,6 @@ impl<M> NightfallContract for Nightfall<M> {
         secret_preimage: DepositSecret,
         token_type: TokenType,
     ) -> Result<[Fr254; 2], NightfallContractError> {
-        ark_std::println!("I'm inside of nightfall_4_PV/nightfall_client/src/driven/contract_functions/nightfall_contract.rs escrow_funds");
-        ark_std::println!("Generated secret preimage: {:?}", secret_preimage);
         // Make DepositData
         let solidity_fee = Uint256::from(fee);
         let solidity_erc_address = get_addresses().nightfall();
