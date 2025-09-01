@@ -113,7 +113,7 @@ pub async fn listen_for_events<N: NightfallContract>(
     let mut events_stream = events_subscription.into_stream();
     while let Some(evt) = events_stream.next().await {
         // process each event in the stream and handle any errors
-        let event = match Nightfall::NightfallEvents::decode_log(&log.inner) {
+        let event = match Nightfall::NightfallEvents::decode_log(&evt.inner) {
             Ok(e) => e,
             Err(e) => {
                 warn!("Failed to decode log: {e:?}");
