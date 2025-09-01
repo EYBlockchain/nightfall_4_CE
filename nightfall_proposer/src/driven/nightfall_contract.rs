@@ -23,6 +23,11 @@ impl<M> NightfallContract for Nightfall<M> {
         let nightfall = Nightfall::new(nightfall_address, client);
 
         let blk = NightfallBlock::from(block);
+        // saving the block to a file
+        ark_std::println!("JJ: Saving the block to a file");
+        use ark_serialize::Write;
+        let mut file = std::fs::File::create("nightfall_block.txt").unwrap();
+        write!(file, "{:#?}", &blk.clone()).unwrap();
         let receipt = nightfall
             .propose_block(blk)
             .send()
