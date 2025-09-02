@@ -1,4 +1,4 @@
-use alloy::primitives::U256;
+use alloy::primitives::{U256, TxHash};
 use ark_bn254::{Bn254, Fq as Fq254, Fr as Fr254};
 use ark_ff::{BigInteger, Field, PrimeField};
 use ark_poly::{EvaluationDomain, Radix2EvaluationDomain};
@@ -14,7 +14,7 @@ use std::{
 pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: &Settings) {
     // compute the vk hash.
     let vk_hash_bytes: [u8; 32] = vk.hash().into_bigint().to_bytes_be().try_into().unwrap();
-    let vk_hash = H256::from(vk_hash_bytes);
+    let vk_hash = TxHash::from(vk_hash_bytes);
     let domain_size = vk.domain_size();
     let domain_size_fr = Fr254::from(domain_size as u32);
     let domain_size_inv = U256::from_le_bytes::<32>(
