@@ -87,8 +87,6 @@ pub mod strings;
 pub mod transcript;
 pub mod transparent_upgradeable_proxy;
 pub mod types;
-pub mod ultra_plonk_verification_key;
-pub mod ultra_plonk_verifier;
 pub mod unsafe_upgrades;
 pub mod upgradeable_beacon;
 pub mod upgrades;

@@ -7,6 +7,7 @@ import "./X509/Certified.sol";
 
 import {Initializable}   from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "forge-std/console.sol";
 
 /// @title Proposers (UUPS-upgradeable)
 /// @notice Round-robin proposer manager with staking, cooldowns, and penalties.
@@ -98,6 +99,10 @@ contract RoundRobin is ProposerManager, Certified, UUPSUpgradeable
         string calldata default_proposer_url,
         address nightfall_address
     ) external payable onlyOwner {
+        console.log("Bootstrapping default proposer...");
+        console.log("defaultProposerAddress: ", default_proposer_address);
+        console.log("defaultProposerUrl: ", default_proposer_url);
+        console.log("nightfallAddress: ", nightfall_address);
         require(proposer_count == 0, "Already bootstrapped");
         require(msg.value == STAKE, "Wrong stake paid");
         require(!proposer_urls[default_proposer_url], "URL already in use");

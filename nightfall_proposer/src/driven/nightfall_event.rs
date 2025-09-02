@@ -92,11 +92,27 @@ where
                         EventHandlerError::InvalidCalldata
                     })?;
             }
+            // NightfallEvents::InitializedFilter(_filter) => {
+            //     info!("Received Initialized event - no action taken");
+            // }
+            // NightfallEvents::UpgradedFilter(_filter) => {
+            //     info!("Received Upgraded event - no action taken");
+            // }
             NightfallEvents::InitializedFilter(_filter) => {
-                info!("Received Initialized event - no action taken");
+                info!("Received Initialized event");
+                // TODO: process_initialized_event(tx_hash, _filter).await.map_err(|e| { ... })?;
             }
             NightfallEvents::UpgradedFilter(_filter) => {
-                info!("Received Upgraded event - no action taken");
+                info!("Received Upgraded event");
+                // TODO: process_upgraded_event(tx_hash, _filter).await.map_err(|e| { ... })?;
+            }
+            NightfallEvents::AuthoritiesUpdatedFilter(_filter) => {
+                info!("Received AuthoritiesUpdated event");
+                // Optional: refresh cached x509/sanctions addresses here.
+            }
+            NightfallEvents::OwnershipTransferredFilter(_filter) => {
+                info!("Received OwnershipTransferred event");
+                // Optional: react to owner changes if you gate actions by owner.
             }
         }
         Ok(())

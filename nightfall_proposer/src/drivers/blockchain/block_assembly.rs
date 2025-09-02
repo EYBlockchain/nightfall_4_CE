@@ -14,9 +14,9 @@ use ethers::types::{BlockId, BlockNumber};
 use jf_plonk::errors::PlonkError;
 use lib::blockchain_client::BlockchainClientConnection;
 use log::{debug, error, info, warn};
-use nightfall_bindings::{proposer_manager::ProposerManager, round_robin::RoundRobin};
+use nightfall_bindings::proposer_manager;
 use nightfall_bindings::proposer_manager::ProposerRotatedFilter;
-use nightfall_bindings::proposer_manager; 
+use nightfall_bindings::{proposer_manager::ProposerManager, round_robin::RoundRobin};
 use nightfall_client::{
     domain::error::{ConversionError, EventHandlerError, NightfallContractError},
     ports::proof::Proof,
@@ -202,6 +202,34 @@ where
             .get_client(),
     ));
 
+    use ethers::types::{Address, H256};
+
+    let rr_addr = get_addresses().round_robin;
+    let code = provider.get_code(rr_addr, None).await.unwrap_or_default();
+    tracing::warn!(
+        "RoundRobin address: {rr_addr:?}, bytecode_len: {}",
+        code.0.len()
+    );
+
+    // EIP-1967 implementation slot = keccak256("eip1967.proxy.implementation") - 1
+    let impl_slot: H256 = "0x360894A13BA1A3210667C828492DB98DCA3E2076CC3735A920A3CA505D382BBC"
+        .parse()
+        .unwrap();
+    let impl_raw = provider
+        .get_storage_at(rr_addr, impl_slot, None)
+        .await
+        .unwrap_or_default();
+    let impl_addr = Address::from_slice(&impl_raw.as_fixed_bytes()[12..]);
+    tracing::warn!("EIP-1967 impl at RR addr: {impl_addr:?}");
+
+    let a = get_addresses();
+    tracing::info!(
+        "Using addresses — nightfall: {:?}, round_robin: {:?}, x509: {:?}",
+        a.nightfall,
+        a.round_robin,
+        a.x509
+    );
+
     // Shared queue for blocks waiting for finality confirmation
     let pending_blocks = Arc::new(Mutex::new(Vec::new()));
     let confirmations_required = U64::from(12);
@@ -210,7 +238,7 @@ where
     debug!("Starting block assembly");
 
     // Spawn the finality checking task
-    // we should start this if we have atleast one pending block
+    // we should start this if we have at least one pending block
     let _finality_checker: tokio::task::JoinHandle<Result<(), BlockAssemblyError>> = {
         let pending_blocks = Arc::clone(&pending_blocks);
         let provider = provider.clone();
@@ -296,6 +324,7 @@ where
                 continue;
             }
         };
+        ark_std::println!("Current proposer address: {:?}", current_proposer);
 
         let our_address = get_blockchain_client_connection()
             .await
@@ -303,6 +332,7 @@ where
             .await
             .get_client()
             .address();
+        ark_std::println!("Our address: {:?}", our_address);
 
         // Step 2: If we are not the proposer, wait and retry
         if current_proposer != our_address {

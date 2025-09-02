@@ -97,6 +97,9 @@ contract Deployer is Script {
 
         // (5) RoundRobin UUPS proxy
         RoundRobinConfig memory rr = readRoundRobinConfig(toml);
+
+       
+
         address rrProxy = Upgrades.deployUUPSProxy(
             // NOTE: artifact path must match your file name; you import RoundRobinUUPS.sol
             "RoundRobinUUPS.sol:RoundRobin",
@@ -114,6 +117,7 @@ contract Deployer is Script {
             )
         );
         RoundRobin roundRobin = RoundRobin(payable(rrProxy));
+        roundRobin.set_nightfall(address(nightfall));
 
         // Bootstrap the default proposer & seed stake (payable step)
         roundRobin.bootstrapDefaultProposer{value: rr.stake}(
@@ -122,8 +126,17 @@ contract Deployer is Script {
             address(nightfall)
         );
 
+        // Sanity check: fail fast if something went wrong
+        address cp = roundRobin.get_current_proposer_address();
+        require(cp != address(0), "RoundRobin bootstrap failed: current proposer is zero");
+        console.log("Current proposer:", cp);
+
         // Wire Nightfall <-> RoundRobin
         nightfall.set_proposer_manager(roundRobin);
+
+        console.log("Nightfall proxy:", nightfallProxy);
+        console.log("RoundRobin proxy:", rrProxy);
+        console.log("X509 proxy:", x509Proxy);
 
         // NOTE on RoundRobin/Nightfall ownership:
         // Certified has no transferOwnership; owner = msg.sender at initialize().
@@ -265,6 +278,14 @@ contract Deployer is Script {
         cfg.exitPenalty            = toml.readUint(string.concat(runMode, ".nightfall_deployer.proposer_exit_penalty"));
         cfg.coolingBlocks          = toml.readUint(string.concat(runMode, ".nightfall_deployer.proposer_cooling_blocks"));
         cfg.rotationBlocks         = toml.readUint(string.concat(runMode, ".nightfall_deployer.proposer_rotation_blocks"));
+        // print all the information
+        console.log("defaultProposerAddress: ", cfg.defaultProposerAddress);
+        console.log("defaultProposerUrl: ", cfg.defaultProposerUrl);
+        console.log("stake: ", cfg.stake);
+        console.log("ding: ", cfg.ding);
+        console.log("exitPenalty: ", cfg.exitPenalty);
+        console.log("coolingBlocks: ", cfg.coolingBlocks);
+        console.log("rotationBlocks: ", cfg.rotationBlocks);
     }
 
     // ---------- Verifier & sanctions ----------

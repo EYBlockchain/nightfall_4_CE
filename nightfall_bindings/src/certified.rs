@@ -13,26 +13,7 @@ pub mod certified {
     #[allow(deprecated)]
     fn __abi() -> ::ethers::core::abi::Abi {
         ::ethers::core::abi::ethabi::Contract {
-            constructor: ::core::option::Option::Some(::ethers::core::abi::ethabi::Constructor {
-                inputs: ::std::vec![
-                    ::ethers::core::abi::ethabi::Param {
-                        name: ::std::borrow::ToOwned::to_owned("_x509"),
-                        kind: ::ethers::core::abi::ethabi::ParamType::Address,
-                        internal_type: ::core::option::Option::Some(
-                            ::std::borrow::ToOwned::to_owned("contract X509Interface"),
-                        ),
-                    },
-                    ::ethers::core::abi::ethabi::Param {
-                        name: ::std::borrow::ToOwned::to_owned("_sanctionsList"),
-                        kind: ::ethers::core::abi::ethabi::ParamType::Address,
-                        internal_type: ::core::option::Option::Some(
-                            ::std::borrow::ToOwned::to_owned(
-                                "contract SanctionsListInterface",
-                            ),
-                        ),
-                    },
-                ],
-            }),
+            constructor: ::core::option::Option::None,
             functions: ::core::convert::From::from([
                 (
                     ::std::borrow::ToOwned::to_owned("owner"),
@@ -83,9 +64,111 @@ pub mod certified {
                         },
                     ],
                 ),
+                (
+                    ::std::borrow::ToOwned::to_owned("transferOwnership"),
+                    ::std::vec![
+                        ::ethers::core::abi::ethabi::Function {
+                            name: ::std::borrow::ToOwned::to_owned("transferOwnership"),
+                            inputs: ::std::vec![
+                                ::ethers::core::abi::ethabi::Param {
+                                    name: ::std::borrow::ToOwned::to_owned("newOwner"),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::Address,
+                                    internal_type: ::core::option::Option::Some(
+                                        ::std::borrow::ToOwned::to_owned("address"),
+                                    ),
+                                },
+                            ],
+                            outputs: ::std::vec![],
+                            constant: ::core::option::Option::None,
+                            state_mutability: ::ethers::core::abi::ethabi::StateMutability::NonPayable,
+                        },
+                    ],
+                ),
             ]),
-            events: ::std::collections::BTreeMap::new(),
-            errors: ::std::collections::BTreeMap::new(),
+            events: ::core::convert::From::from([
+                (
+                    ::std::borrow::ToOwned::to_owned("AuthoritiesUpdated"),
+                    ::std::vec![
+                        ::ethers::core::abi::ethabi::Event {
+                            name: ::std::borrow::ToOwned::to_owned("AuthoritiesUpdated"),
+                            inputs: ::std::vec![
+                                ::ethers::core::abi::ethabi::EventParam {
+                                    name: ::std::borrow::ToOwned::to_owned("sanctionsList"),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::Address,
+                                    indexed: true,
+                                },
+                                ::ethers::core::abi::ethabi::EventParam {
+                                    name: ::std::borrow::ToOwned::to_owned("x509"),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::Address,
+                                    indexed: true,
+                                },
+                            ],
+                            anonymous: false,
+                        },
+                    ],
+                ),
+                (
+                    ::std::borrow::ToOwned::to_owned("Initialized"),
+                    ::std::vec![
+                        ::ethers::core::abi::ethabi::Event {
+                            name: ::std::borrow::ToOwned::to_owned("Initialized"),
+                            inputs: ::std::vec![
+                                ::ethers::core::abi::ethabi::EventParam {
+                                    name: ::std::borrow::ToOwned::to_owned("version"),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::Uint(64usize),
+                                    indexed: false,
+                                },
+                            ],
+                            anonymous: false,
+                        },
+                    ],
+                ),
+                (
+                    ::std::borrow::ToOwned::to_owned("OwnershipTransferred"),
+                    ::std::vec![
+                        ::ethers::core::abi::ethabi::Event {
+                            name: ::std::borrow::ToOwned::to_owned(
+                                "OwnershipTransferred",
+                            ),
+                            inputs: ::std::vec![
+                                ::ethers::core::abi::ethabi::EventParam {
+                                    name: ::std::borrow::ToOwned::to_owned("previousOwner"),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::Address,
+                                    indexed: true,
+                                },
+                                ::ethers::core::abi::ethabi::EventParam {
+                                    name: ::std::borrow::ToOwned::to_owned("newOwner"),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::Address,
+                                    indexed: true,
+                                },
+                            ],
+                            anonymous: false,
+                        },
+                    ],
+                ),
+            ]),
+            errors: ::core::convert::From::from([
+                (
+                    ::std::borrow::ToOwned::to_owned("InvalidInitialization"),
+                    ::std::vec![
+                        ::ethers::core::abi::ethabi::AbiError {
+                            name: ::std::borrow::ToOwned::to_owned(
+                                "InvalidInitialization",
+                            ),
+                            inputs: ::std::vec![],
+                        },
+                    ],
+                ),
+                (
+                    ::std::borrow::ToOwned::to_owned("NotInitializing"),
+                    ::std::vec![
+                        ::ethers::core::abi::ethabi::AbiError {
+                            name: ::std::borrow::ToOwned::to_owned("NotInitializing"),
+                            inputs: ::std::vec![],
+                        },
+                    ],
+                ),
+            ]),
             receive: false,
             fallback: false,
         }
@@ -93,18 +176,6 @@ pub mod certified {
     ///The parsed JSON ABI of the contract.
     pub static CERTIFIED_ABI: ::ethers::contract::Lazy<::ethers::core::abi::Abi> = ::ethers::contract::Lazy::new(
         __abi,
-    );
-    #[rustfmt::skip]
-    const __BYTECODE: &[u8] = b"`\x80`@R4\x80\x15a\0\x0FW_\x80\xFD[P`@Qa\x02V8\x03\x80a\x02V\x839\x81\x01`@\x81\x90Ra\0.\x91a\0\x85V[_\x80T`\x01`\x01`\xA0\x1B\x03\x93\x84\x16`\x01`\x01`\xA0\x1B\x03\x19\x91\x82\x16\x17\x90\x91U`\x01\x80T\x92\x90\x93\x16\x91\x81\x16\x91\x90\x91\x17\x90\x91U`\x02\x80T\x90\x91\x163\x17\x90Ua\0\xBDV[`\x01`\x01`\xA0\x1B\x03\x81\x16\x81\x14a\0\x82W_\x80\xFD[PV[_\x80`@\x83\x85\x03\x12\x15a\0\x96W_\x80\xFD[\x82Qa\0\xA1\x81a\0nV[` \x84\x01Q\x90\x92Pa\0\xB2\x81a\0nV[\x80\x91PP\x92P\x92\x90PV[a\x01\x8C\x80a\0\xCA_9_\xF3\xFE`\x80`@R4\x80\x15a\0\x0FW_\x80\xFD[P`\x046\x10a\x004W_5`\xE0\x1C\x80cJ\x8A@s\x14a\08W\x80c\x8D\xA5\xCB[\x14a\0MW[_\x80\xFD[a\0Ka\0F6`\x04a\x01%V[a\0|V[\0[`\x02Ta\0`\x90`\x01`\x01`\xA0\x1B\x03\x16\x81V[`@Q`\x01`\x01`\xA0\x1B\x03\x90\x91\x16\x81R` \x01`@Q\x80\x91\x03\x90\xF3[`\x02T`\x01`\x01`\xA0\x1B\x03\x163\x14a\0\xDAW`@QbF\x1B\xCD`\xE5\x1B\x81R` `\x04\x82\x01R`\x17`$\x82\x01R\x7FCaller is not the owner\0\0\0\0\0\0\0\0\0`D\x82\x01R`d\x01`@Q\x80\x91\x03\x90\xFD[_\x80T`\x01`\x01`\xA0\x1B\x03\x92\x83\x16`\x01`\x01`\xA0\x1B\x03\x19\x91\x82\x16\x17\x90\x91U`\x01\x80T\x93\x90\x92\x16\x92\x16\x91\x90\x91\x17\x90UV[\x805`\x01`\x01`\xA0\x1B\x03\x81\x16\x81\x14a\x01 W_\x80\xFD[\x91\x90PV[_\x80`@\x83\x85\x03\x12\x15a\x016W_\x80\xFD[a\x01?\x83a\x01\nV[\x91Pa\x01M` \x84\x01a\x01\nV[\x90P\x92P\x92\x90PV\xFE\xA2dipfsX\"\x12 \x98<\xF8v\xFB|\x9D[\xE5\x178\x1B] v&\xA8\xE7\x80\xB7\xE6v\x93\xF6\xADa\x8D\xE8\xF7l\xFF\x12dsolcC\0\x08\x18\x003";
-    /// The bytecode of the contract.
-    pub static CERTIFIED_BYTECODE: ::ethers::core::types::Bytes = ::ethers::core::types::Bytes::from_static(
-        __BYTECODE,
-    );
-    #[rustfmt::skip]
-    const __DEPLOYED_BYTECODE: &[u8] = b"`\x80`@R4\x80\x15a\0\x0FW_\x80\xFD[P`\x046\x10a\x004W_5`\xE0\x1C\x80cJ\x8A@s\x14a\08W\x80c\x8D\xA5\xCB[\x14a\0MW[_\x80\xFD[a\0Ka\0F6`\x04a\x01%V[a\0|V[\0[`\x02Ta\0`\x90`\x01`\x01`\xA0\x1B\x03\x16\x81V[`@Q`\x01`\x01`\xA0\x1B\x03\x90\x91\x16\x81R` \x01`@Q\x80\x91\x03\x90\xF3[`\x02T`\x01`\x01`\xA0\x1B\x03\x163\x14a\0\xDAW`@QbF\x1B\xCD`\xE5\x1B\x81R` `\x04\x82\x01R`\x17`$\x82\x01R\x7FCaller is not the owner\0\0\0\0\0\0\0\0\0`D\x82\x01R`d\x01`@Q\x80\x91\x03\x90\xFD[_\x80T`\x01`\x01`\xA0\x1B\x03\x92\x83\x16`\x01`\x01`\xA0\x1B\x03\x19\x91\x82\x16\x17\x90\x91U`\x01\x80T\x93\x90\x92\x16\x92\x16\x91\x90\x91\x17\x90UV[\x805`\x01`\x01`\xA0\x1B\x03\x81\x16\x81\x14a\x01 W_\x80\xFD[\x91\x90PV[_\x80`@\x83\x85\x03\x12\x15a\x016W_\x80\xFD[a\x01?\x83a\x01\nV[\x91Pa\x01M` \x84\x01a\x01\nV[\x90P\x92P\x92\x90PV\xFE\xA2dipfsX\"\x12 \x98<\xF8v\xFB|\x9D[\xE5\x178\x1B] v&\xA8\xE7\x80\xB7\xE6v\x93\xF6\xADa\x8D\xE8\xF7l\xFF\x12dsolcC\0\x08\x18\x003";
-    /// The deployed bytecode of the contract.
-    pub static CERTIFIED_DEPLOYED_BYTECODE: ::ethers::core::types::Bytes = ::ethers::core::types::Bytes::from_static(
-        __DEPLOYED_BYTECODE,
     );
     pub struct Certified<M>(::ethers::contract::Contract<M>);
     impl<M> ::core::clone::Clone for Certified<M> {
@@ -143,45 +214,6 @@ pub mod certified {
                 ),
             )
         }
-        /// Constructs the general purpose `Deployer` instance based on the provided constructor arguments and sends it.
-        /// Returns a new instance of a deployer that returns an instance of this contract after sending the transaction
-        ///
-        /// Notes:
-        /// - If there are no constructor arguments, you should pass `()` as the argument.
-        /// - The default poll duration is 7 seconds.
-        /// - The default number of confirmations is 1 block.
-        ///
-        ///
-        /// # Example
-        ///
-        /// Generate contract bindings with `abigen!` and deploy a new contract instance.
-        ///
-        /// *Note*: this requires a `bytecode` and `abi` object in the `greeter.json` artifact.
-        ///
-        /// ```ignore
-        /// # async fn deploy<M: ethers::providers::Middleware>(client: ::std::sync::Arc<M>) {
-        ///     abigen!(Greeter, "../greeter.json");
-        ///
-        ///    let greeter_contract = Greeter::deploy(client, "Hello world!".to_string()).unwrap().send().await.unwrap();
-        ///    let msg = greeter_contract.greet().call().await.unwrap();
-        /// # }
-        /// ```
-        pub fn deploy<T: ::ethers::core::abi::Tokenize>(
-            client: ::std::sync::Arc<M>,
-            constructor_args: T,
-        ) -> ::core::result::Result<
-            ::ethers::contract::builders::ContractDeployer<M, Self>,
-            ::ethers::contract::ContractError<M>,
-        > {
-            let factory = ::ethers::contract::ContractFactory::new(
-                CERTIFIED_ABI.clone(),
-                CERTIFIED_BYTECODE.clone().into(),
-                client,
-            );
-            let deployer = factory.deploy(constructor_args)?;
-            let deployer = ::ethers::contract::ContractDeployer::new(deployer);
-            Ok(deployer)
-        }
         ///Calls the contract's `owner` (0x8da5cb5b) function
         pub fn owner(
             &self,
@@ -203,11 +235,303 @@ pub mod certified {
                 .method_hash([74, 138, 64, 115], (sanctions_list_address, x_509_address))
                 .expect("method not found (this should never happen)")
         }
+        ///Calls the contract's `transferOwnership` (0xf2fde38b) function
+        pub fn transfer_ownership(
+            &self,
+            new_owner: ::ethers::core::types::Address,
+        ) -> ::ethers::contract::builders::ContractCall<M, ()> {
+            self.0
+                .method_hash([242, 253, 227, 139], new_owner)
+                .expect("method not found (this should never happen)")
+        }
+        ///Gets the contract's `AuthoritiesUpdated` event
+        pub fn authorities_updated_filter(
+            &self,
+        ) -> ::ethers::contract::builders::Event<
+            ::std::sync::Arc<M>,
+            M,
+            AuthoritiesUpdatedFilter,
+        > {
+            self.0.event()
+        }
+        ///Gets the contract's `Initialized` event
+        pub fn initialized_filter(
+            &self,
+        ) -> ::ethers::contract::builders::Event<
+            ::std::sync::Arc<M>,
+            M,
+            InitializedFilter,
+        > {
+            self.0.event()
+        }
+        ///Gets the contract's `OwnershipTransferred` event
+        pub fn ownership_transferred_filter(
+            &self,
+        ) -> ::ethers::contract::builders::Event<
+            ::std::sync::Arc<M>,
+            M,
+            OwnershipTransferredFilter,
+        > {
+            self.0.event()
+        }
+        /// Returns an `Event` builder for all the events of this contract.
+        pub fn events(
+            &self,
+        ) -> ::ethers::contract::builders::Event<
+            ::std::sync::Arc<M>,
+            M,
+            CertifiedEvents,
+        > {
+            self.0.event_with_filter(::core::default::Default::default())
+        }
     }
     impl<M: ::ethers::providers::Middleware> From<::ethers::contract::Contract<M>>
     for Certified<M> {
         fn from(contract: ::ethers::contract::Contract<M>) -> Self {
             Self::new(contract.address(), contract.client())
+        }
+    }
+    ///Custom Error type `InvalidInitialization` with signature `InvalidInitialization()` and selector `0xf92ee8a9`
+    #[derive(
+        Clone,
+        ::ethers::contract::EthError,
+        ::ethers::contract::EthDisplay,
+        serde::Serialize,
+        serde::Deserialize,
+        Default,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash
+    )]
+    #[etherror(name = "InvalidInitialization", abi = "InvalidInitialization()")]
+    pub struct InvalidInitialization;
+    ///Custom Error type `NotInitializing` with signature `NotInitializing()` and selector `0xd7e6bcf8`
+    #[derive(
+        Clone,
+        ::ethers::contract::EthError,
+        ::ethers::contract::EthDisplay,
+        serde::Serialize,
+        serde::Deserialize,
+        Default,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash
+    )]
+    #[etherror(name = "NotInitializing", abi = "NotInitializing()")]
+    pub struct NotInitializing;
+    ///Container type for all of the contract's custom errors
+    #[derive(
+        Clone,
+        ::ethers::contract::EthAbiType,
+        serde::Serialize,
+        serde::Deserialize,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash
+    )]
+    pub enum CertifiedErrors {
+        InvalidInitialization(InvalidInitialization),
+        NotInitializing(NotInitializing),
+        /// The standard solidity revert string, with selector
+        /// Error(string) -- 0x08c379a0
+        RevertString(::std::string::String),
+    }
+    impl ::ethers::core::abi::AbiDecode for CertifiedErrors {
+        fn decode(
+            data: impl AsRef<[u8]>,
+        ) -> ::core::result::Result<Self, ::ethers::core::abi::AbiError> {
+            let data = data.as_ref();
+            if let Ok(decoded) = <::std::string::String as ::ethers::core::abi::AbiDecode>::decode(
+                data,
+            ) {
+                return Ok(Self::RevertString(decoded));
+            }
+            if let Ok(decoded) = <InvalidInitialization as ::ethers::core::abi::AbiDecode>::decode(
+                data,
+            ) {
+                return Ok(Self::InvalidInitialization(decoded));
+            }
+            if let Ok(decoded) = <NotInitializing as ::ethers::core::abi::AbiDecode>::decode(
+                data,
+            ) {
+                return Ok(Self::NotInitializing(decoded));
+            }
+            Err(::ethers::core::abi::Error::InvalidData.into())
+        }
+    }
+    impl ::ethers::core::abi::AbiEncode for CertifiedErrors {
+        fn encode(self) -> ::std::vec::Vec<u8> {
+            match self {
+                Self::InvalidInitialization(element) => {
+                    ::ethers::core::abi::AbiEncode::encode(element)
+                }
+                Self::NotInitializing(element) => {
+                    ::ethers::core::abi::AbiEncode::encode(element)
+                }
+                Self::RevertString(s) => ::ethers::core::abi::AbiEncode::encode(s),
+            }
+        }
+    }
+    impl ::ethers::contract::ContractRevert for CertifiedErrors {
+        fn valid_selector(selector: [u8; 4]) -> bool {
+            match selector {
+                [0x08, 0xc3, 0x79, 0xa0] => true,
+                _ if selector
+                    == <InvalidInitialization as ::ethers::contract::EthError>::selector() => {
+                    true
+                }
+                _ if selector
+                    == <NotInitializing as ::ethers::contract::EthError>::selector() => {
+                    true
+                }
+                _ => false,
+            }
+        }
+    }
+    impl ::core::fmt::Display for CertifiedErrors {
+        fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+            match self {
+                Self::InvalidInitialization(element) => {
+                    ::core::fmt::Display::fmt(element, f)
+                }
+                Self::NotInitializing(element) => ::core::fmt::Display::fmt(element, f),
+                Self::RevertString(s) => ::core::fmt::Display::fmt(s, f),
+            }
+        }
+    }
+    impl ::core::convert::From<::std::string::String> for CertifiedErrors {
+        fn from(value: String) -> Self {
+            Self::RevertString(value)
+        }
+    }
+    impl ::core::convert::From<InvalidInitialization> for CertifiedErrors {
+        fn from(value: InvalidInitialization) -> Self {
+            Self::InvalidInitialization(value)
+        }
+    }
+    impl ::core::convert::From<NotInitializing> for CertifiedErrors {
+        fn from(value: NotInitializing) -> Self {
+            Self::NotInitializing(value)
+        }
+    }
+    #[derive(
+        Clone,
+        ::ethers::contract::EthEvent,
+        ::ethers::contract::EthDisplay,
+        serde::Serialize,
+        serde::Deserialize,
+        Default,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash
+    )]
+    #[ethevent(name = "AuthoritiesUpdated", abi = "AuthoritiesUpdated(address,address)")]
+    pub struct AuthoritiesUpdatedFilter {
+        #[ethevent(indexed)]
+        pub sanctions_list: ::ethers::core::types::Address,
+        #[ethevent(indexed)]
+        pub x_509: ::ethers::core::types::Address,
+    }
+    #[derive(
+        Clone,
+        ::ethers::contract::EthEvent,
+        ::ethers::contract::EthDisplay,
+        serde::Serialize,
+        serde::Deserialize,
+        Default,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash
+    )]
+    #[ethevent(name = "Initialized", abi = "Initialized(uint64)")]
+    pub struct InitializedFilter {
+        pub version: u64,
+    }
+    #[derive(
+        Clone,
+        ::ethers::contract::EthEvent,
+        ::ethers::contract::EthDisplay,
+        serde::Serialize,
+        serde::Deserialize,
+        Default,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash
+    )]
+    #[ethevent(
+        name = "OwnershipTransferred",
+        abi = "OwnershipTransferred(address,address)"
+    )]
+    pub struct OwnershipTransferredFilter {
+        #[ethevent(indexed)]
+        pub previous_owner: ::ethers::core::types::Address,
+        #[ethevent(indexed)]
+        pub new_owner: ::ethers::core::types::Address,
+    }
+    ///Container type for all of the contract's events
+    #[derive(
+        Clone,
+        ::ethers::contract::EthAbiType,
+        serde::Serialize,
+        serde::Deserialize,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash
+    )]
+    pub enum CertifiedEvents {
+        AuthoritiesUpdatedFilter(AuthoritiesUpdatedFilter),
+        InitializedFilter(InitializedFilter),
+        OwnershipTransferredFilter(OwnershipTransferredFilter),
+    }
+    impl ::ethers::contract::EthLogDecode for CertifiedEvents {
+        fn decode_log(
+            log: &::ethers::core::abi::RawLog,
+        ) -> ::core::result::Result<Self, ::ethers::core::abi::Error> {
+            if let Ok(decoded) = AuthoritiesUpdatedFilter::decode_log(log) {
+                return Ok(CertifiedEvents::AuthoritiesUpdatedFilter(decoded));
+            }
+            if let Ok(decoded) = InitializedFilter::decode_log(log) {
+                return Ok(CertifiedEvents::InitializedFilter(decoded));
+            }
+            if let Ok(decoded) = OwnershipTransferredFilter::decode_log(log) {
+                return Ok(CertifiedEvents::OwnershipTransferredFilter(decoded));
+            }
+            Err(::ethers::core::abi::Error::InvalidData)
+        }
+    }
+    impl ::core::fmt::Display for CertifiedEvents {
+        fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+            match self {
+                Self::AuthoritiesUpdatedFilter(element) => {
+                    ::core::fmt::Display::fmt(element, f)
+                }
+                Self::InitializedFilter(element) => ::core::fmt::Display::fmt(element, f),
+                Self::OwnershipTransferredFilter(element) => {
+                    ::core::fmt::Display::fmt(element, f)
+                }
+            }
+        }
+    }
+    impl ::core::convert::From<AuthoritiesUpdatedFilter> for CertifiedEvents {
+        fn from(value: AuthoritiesUpdatedFilter) -> Self {
+            Self::AuthoritiesUpdatedFilter(value)
+        }
+    }
+    impl ::core::convert::From<InitializedFilter> for CertifiedEvents {
+        fn from(value: InitializedFilter) -> Self {
+            Self::InitializedFilter(value)
+        }
+    }
+    impl ::core::convert::From<OwnershipTransferredFilter> for CertifiedEvents {
+        fn from(value: OwnershipTransferredFilter) -> Self {
+            Self::OwnershipTransferredFilter(value)
         }
     }
     ///Container type for all input parameters for the `owner` function with signature `owner()` and selector `0x8da5cb5b`
@@ -243,6 +567,23 @@ pub mod certified {
         pub sanctions_list_address: ::ethers::core::types::Address,
         pub x_509_address: ::ethers::core::types::Address,
     }
+    ///Container type for all input parameters for the `transferOwnership` function with signature `transferOwnership(address)` and selector `0xf2fde38b`
+    #[derive(
+        Clone,
+        ::ethers::contract::EthCall,
+        ::ethers::contract::EthDisplay,
+        serde::Serialize,
+        serde::Deserialize,
+        Default,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash
+    )]
+    #[ethcall(name = "transferOwnership", abi = "transferOwnership(address)")]
+    pub struct TransferOwnershipCall {
+        pub new_owner: ::ethers::core::types::Address,
+    }
     ///Container type for all of the contract's call
     #[derive(
         Clone,
@@ -257,6 +598,7 @@ pub mod certified {
     pub enum CertifiedCalls {
         Owner(OwnerCall),
         SetAuthorities(SetAuthoritiesCall),
+        TransferOwnership(TransferOwnershipCall),
     }
     impl ::ethers::core::abi::AbiDecode for CertifiedCalls {
         fn decode(
@@ -273,6 +615,11 @@ pub mod certified {
             ) {
                 return Ok(Self::SetAuthorities(decoded));
             }
+            if let Ok(decoded) = <TransferOwnershipCall as ::ethers::core::abi::AbiDecode>::decode(
+                data,
+            ) {
+                return Ok(Self::TransferOwnership(decoded));
+            }
             Err(::ethers::core::abi::Error::InvalidData.into())
         }
     }
@@ -283,6 +630,9 @@ pub mod certified {
                 Self::SetAuthorities(element) => {
                     ::ethers::core::abi::AbiEncode::encode(element)
                 }
+                Self::TransferOwnership(element) => {
+                    ::ethers::core::abi::AbiEncode::encode(element)
+                }
             }
         }
     }
@@ -291,6 +641,7 @@ pub mod certified {
             match self {
                 Self::Owner(element) => ::core::fmt::Display::fmt(element, f),
                 Self::SetAuthorities(element) => ::core::fmt::Display::fmt(element, f),
+                Self::TransferOwnership(element) => ::core::fmt::Display::fmt(element, f),
             }
         }
     }
@@ -302,6 +653,11 @@ pub mod certified {
     impl ::core::convert::From<SetAuthoritiesCall> for CertifiedCalls {
         fn from(value: SetAuthoritiesCall) -> Self {
             Self::SetAuthorities(value)
+        }
+    }
+    impl ::core::convert::From<TransferOwnershipCall> for CertifiedCalls {
+        fn from(value: TransferOwnershipCall) -> Self {
+            Self::TransferOwnership(value)
         }
     }
     ///Container type for all return fields from the `owner` function with signature `owner()` and selector `0x8da5cb5b`

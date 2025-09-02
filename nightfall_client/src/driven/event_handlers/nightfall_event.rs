@@ -81,23 +81,41 @@ where
                         EventHandlerError::InvalidCalldata
                     })?;
             }
-            NightfallEvents::InitializedFilter(filter) => {
+            // NightfallEvents::InitializedFilter(filter) => {
+            //     info!("Received Initialized event");
+            //     todo!();
+            //     // process_initialized_event(tx_hash, filter)
+            //     //     .await
+            //     //     .map_err(|e| {
+            //     //         debug!("{e}");
+            //     //         EventHandlerError::InvalidCalldata
+            //     //     })?;
+            // }
+            // NightfallEvents::UpgradedFilter(filter) => {
+            //     info!("Received Upgraded event");
+            //     todo!();
+            //     // process_upgraded_event(tx_hash, filter)
+            //     //     .await
+            //     //     .map_err(|e| {
+            //     //         debug!("{e}");
+            //     //         EventHandlerError::InvalidCalldata
+            //     //     })?;
+            // }
+            NightfallEvents::InitializedFilter(_filter) => {
                 info!("Received Initialized event");
-                // process_initialized_event(tx_hash, filter)
-                //     .await
-                //     .map_err(|e| {
-                //         debug!("{e}");
-                //         EventHandlerError::InvalidCalldata
-                //     })?;
+                // TODO: process_initialized_event(tx_hash, _filter).await.map_err(|e| { ... })?;
             }
-            NightfallEvents::UpgradedFilter(filter) => {
+            NightfallEvents::UpgradedFilter(_filter) => {
                 info!("Received Upgraded event");
-                // process_upgraded_event(tx_hash, filter)
-                //     .await
-                //     .map_err(|e| {
-                //         debug!("{e}");
-                //         EventHandlerError::InvalidCalldata
-                //     })?;
+                // TODO: process_upgraded_event(tx_hash, _filter).await.map_err(|e| { ... })?;
+            }
+            NightfallEvents::AuthoritiesUpdatedFilter(_filter) => {
+                info!("Received AuthoritiesUpdated event");
+                // Optional: refresh cached x509/sanctions addresses here.
+            }
+            NightfallEvents::OwnershipTransferredFilter(_filter) => {
+                info!("Received OwnershipTransferred event");
+                // Optional: react to owner changes if you gate actions by owner.
             }
         }
         Ok(())
