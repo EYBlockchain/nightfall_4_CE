@@ -3,9 +3,9 @@ use ark_ff::{BigInteger, Field, PrimeField};
 use ark_poly::{EvaluationDomain, Radix2EvaluationDomain};
 use ark_std::vec::Vec;
 use configuration::settings::Settings;
+use ethers::types::H256;
 use ethers::types::U256;
 use jf_plonk::proof_system::structs::{VerifyingKey, VK};
-
 use std::{
     fs::File,
     io::Write,
@@ -13,6 +13,9 @@ use std::{
 };
 
 pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: &Settings) {
+    // compute the vk hash.
+    let vk_hash_bytes: [u8; 32] = vk.hash().into_bigint().to_bytes_be().try_into().unwrap();
+    let vk_hash = H256::from(vk_hash_bytes);
     let domain_size = vk.domain_size();
     let domain_size_fr = Fr254::from(domain_size as u32);
     let domain_size_inv = U256::from_little_endian(
@@ -92,6 +95,7 @@ pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: 
         vk_vec_u256[73], // y1
         vk_vec_u256[72], // y2
     ];
+
     let join_path = Path::new(&settings.contracts.assets)
         .parent()
         .unwrap()
@@ -129,7 +133,6 @@ pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: 
         std::fs::create_dir_all(parent)
             .unwrap_or_else(|e| panic!("Failed to create test_contracts folder: {e}"));
     }
-    // let mut file = std::fs::File::create(&path_out).unwrap();
 
     let mut file: File = File::create(path_out).unwrap();
     let import_path = "./Types.sol";
@@ -145,6 +148,10 @@ pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: 
     import \"{}\"; \n
         
     library UltraPlonkVerificationKey {{ \n
+
+        function getVerificationKeyHash() internal pure returns (bytes32) {{  \n
+            return {:#x}; \n
+        }} \n
 
         function getVerificationKey() internal pure returns (Types.VerificationKey memory vk) {{ \n
             assembly {{ \n
@@ -509,6 +516,7 @@ pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: 
     }}",
         extra_line,
         import_path,
+        vk_hash,
         domain_size_u256,           // domain_size
         num_inputs_u256,            // num_inputs
         sigma_comms_u256[0],        // sigma_comms_1.x
