@@ -368,7 +368,8 @@ pub async fn handle_deposit<N: NightfallContract>(
     let commitment_hash = preimage_value.hash().expect("Could not hash commitment");
     let commitment_entry =
         CommitmentEntry::new(preimage_value, nullifier, CommitmentStatus::PendingCreation);
-    db.store_commitment(commitment_entry)
+
+    db.store_commitment(commitment_entry.clone())
         .await
         .ok_or(TransactionHandlerError::DatabaseError)?;
 
