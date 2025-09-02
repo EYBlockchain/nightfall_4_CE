@@ -131,10 +131,6 @@ pub async fn listen_for_events<N: NightfallContract>(
                         restart_event_listener::<N>(start_block).await;
                         return Err(EventHandlerError::StreamTerminated);
                     }
-                    EventHandlerError::InvalidCalldata => {
-                        warn!("Invalid calldata in event. Skipping event.");
-                        continue;
-                    }
                     _ => panic!("Error processing event: {e:?}"),
                 }
             }
