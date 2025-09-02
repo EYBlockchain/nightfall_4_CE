@@ -21,7 +21,7 @@ import "../contracts/SanctionsListMock.sol";
 
 // OZ Foundry Upgrades
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
-
+import "forge-std/console.sol";
 contract Deployer is Script {
     struct RoundRobinConfig {
         address defaultProposerAddress;
@@ -35,7 +35,7 @@ contract Deployer is Script {
 
     using stdToml for string;
 
-    // e.g. NF4_RUN_MODE=local → "$.local"
+    // e.g. NF4_RUN_MODE=local -> "$.local"
     string public runMode = string.concat("$.", vm.envString("NF4_RUN_MODE"));
 
     function run() external {
@@ -71,7 +71,7 @@ contract Deployer is Script {
 
         // (3) X509 UUPS
         address x509Proxy = Upgrades.deployUUPSProxy(
-            "X509/X509.sol:X509",
+            "X509.sol:X509",
             abi.encodeCall(X509.initialize, (deployerAddress))
         );
         X509 x509Contract = X509(x509Proxy);
@@ -91,7 +91,7 @@ contract Deployer is Script {
         uint256 initialNullifierRoot = 5626012003977595441102792096342856268135928990590954181023475305010363075697;
         address nightfallProxy = Upgrades.deployUUPSProxy(
             "Nightfall.sol:Nightfall",
-            abi.encodeCall(Nightfall.initialize, (initialNullifierRoot, verifier, address(x509), address(sanctionsList)))
+            abi.encodeCall(Nightfall.initialize, (initialNullifierRoot, uint256(0), uint256(0), int256(0), verifier, address(x509), address(sanctionsList)))
         );
         Nightfall nightfall = Nightfall(nightfallProxy);
 
@@ -291,6 +291,12 @@ contract Deployer is Script {
     }
 
     // ---------- X509 helpers ----------
+
+    function _readFileIfExists(string memory p) internal view returns (bytes memory data, bool ok) {
+        try vm.readFileBinary(p) returns (bytes memory b) { return (b, true); }
+        catch { return ("", false); }
+    }
+
     function configureX509locally(X509 x509Contract, string memory toml) internal {
         uint256 authorityKeyIdentifier = toml.readUint(string.concat(runMode, ".certificates.authority_key_identifier"));
         bytes memory modulus = vm.parseBytes(toml.readString(string.concat(runMode, ".certificates.modulus")));
@@ -307,11 +313,22 @@ contract Deployer is Script {
         configureExtendedKeyUsages(x509Contract, toml);
         configureCertificatePolicies(x509Contract, toml);
 
-        bytes memory intermediate_ca_derBuffer = vm.readFileBinary(
-            "./blockchain_assets/test_contracts/X509/_certificates/intermediate_ca.der"
-        );
-        uint256 intermediate_ca_tlvLength = x509Contract.computeNumberOfTlvs(intermediate_ca_derBuffer, 0);
+        // bytes memory intermediate_ca_derBuffer = vm.readFileBinary(
+        //     "./blockchain_assets/test_contracts/X509/_certificates/intermediate_ca.der"
+        // );
 
+        // --- Robust file read (absolute path + existence check) ---
+        string memory root = vm.projectRoot(); 
+        string memory certPath = string.concat(
+            root,
+            "/blockchain_assets/test_contracts/X509/_certificates/intermediate_ca.der"
+        ); 
+
+        (bytes memory intermediate_ca_derBuffer, bool ok) = _readFileIfExists(certPath); 
+        require(ok, "Missing intermediate_ca.der at expected path");                     
+
+
+        uint256 intermediate_ca_tlvLength = x509Contract.computeNumberOfTlvs(intermediate_ca_derBuffer, 0);
         X509.CertificateArgs memory intermediate_certificate_args = X509.CertificateArgs({
             certificate: intermediate_ca_derBuffer,
             tlvLength: intermediate_ca_tlvLength,

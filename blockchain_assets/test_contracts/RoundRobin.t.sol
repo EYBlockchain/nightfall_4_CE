@@ -40,7 +40,7 @@ contract RoundRobinTest is Test {
         uint256 initialNullifierRoot = 5626012003977595441102792096342856268135928990590954181023475305010363075697;
         bytes memory nfInit = abi.encodeCall(
             Nightfall.initialize,
-            (initialNullifierRoot, verifier, address(x509Contract), address(sanctionsListMock))
+            (initialNullifierRoot, uint256(0), uint256(0), int256(0), verifier, address(x509Contract), address(sanctionsListMock))
         );
         nightfall = Nightfall(address(new ERC1967Proxy(address(nfImpl), nfInit)));
 

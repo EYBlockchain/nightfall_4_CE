@@ -1,42 +1,60 @@
 // SPDX-License-Identifier: CC0-1.0
+pragma solidity ^0.8.20;
 
-pragma solidity ^0.8.0;
+import "./X509Interface.sol";
+import "./SanctionsListInterface.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
-import './X509Interface.sol';
-import './SanctionsListInterface.sol';
-
-contract Certified {
-    X509Interface x509;
-    SanctionsListInterface sanctionsList;
+/// @notice Base contract providing X.509 and sanctions gating for upgradeable contracts.
+/// @dev No constructor. Call __Certified_init(...) from the child’s initialize().
+abstract contract Certified is Initializable {
+    X509Interface internal x509;
+    SanctionsListInterface internal sanctionsList;
     address public owner;
 
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+    event AuthoritiesUpdated(address indexed sanctionsList, address indexed x509);
+
     modifier onlyOwner() {
-        require(msg.sender == owner, "Caller is not the owner");
+        require(msg.sender == owner, "Certified: caller is not the owner");
         _;
     }
 
-
-    constructor(X509Interface _x509, SanctionsListInterface _sanctionsList) {
-        x509 = _x509;
-        sanctionsList = _sanctionsList;
-        owner = msg.sender;  
+    /// @dev Must be called by inheriting contract inside its `initialize`.
+    function __Certified_init(
+        address _owner,
+        address x509Addr,
+        address sanctionsAddr
+    ) internal onlyInitializing {
+        require(_owner != address(0), "Certified: owner is zero");
+        owner = _owner;
+        x509 = X509Interface(x509Addr);
+        sanctionsList = SanctionsListInterface(sanctionsAddr);
+        emit OwnershipTransferred(address(0), _owner);
+        emit AuthoritiesUpdated(sanctionsAddr, x509Addr);
     }
 
-    function setAuthorities(address sanctionsListAddress, address x509Address) public onlyOwner {
+    /// @notice Update the authority contracts.
+    function setAuthorities(address sanctionsListAddress, address x509Address) external onlyOwner {
         x509 = X509Interface(x509Address);
         sanctionsList = SanctionsListInterface(sanctionsListAddress);
+        emit AuthoritiesUpdated(sanctionsListAddress, x509Address);
     }
 
-    // this modifier checks all of the 'authorisation' contract interfaces to see if we are allowed to transact
+    /// @notice Transfer ownership of the Certified gate.
+    function transferOwnership(address newOwner) external onlyOwner {
+        require(newOwner != address(0), "Certified: new owner is zero");
+        emit OwnershipTransferred(owner, newOwner);
+        owner = newOwner;
+    }
+
+    /// @notice Gate modifier: requires valid X509 and not sanctioned.
     modifier onlyCertified() {
-        require(
-            x509.x509Check(msg.sender),
-            'Certified: You are not authorised to transact using Nightfall'
-        );
-        require(
-            !sanctionsList.isSanctioned(msg.sender),
-            'Certified: You are on the Chainalysis sanctions list'
-        );
+        require(x509.x509Check(msg.sender), "Certified: not authorised by X509");
+        require(!sanctionsList.isSanctioned(msg.sender), "Certified: address is sanctioned");
         _;
     }
+
+    // Storage gap for future upgrades
+    uint256[50] private __gap;
 }

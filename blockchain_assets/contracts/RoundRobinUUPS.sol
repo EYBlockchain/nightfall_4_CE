@@ -16,7 +16,7 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 ///  - No `immutable` fields: store them and set in `initialize()`.
 ///  - Payable seeding split into `bootstrapDefaultProposer{value:...}()` so we can cleanly fund the first stake.
 ///  - UUPS: `_authorizeUpgrade` guarded by Certified’s `onlyOwner`.
-contract RoundRobin is ProposerManager, Certified, Initializable, UUPSUpgradeable
+contract RoundRobin is ProposerManager, Certified, UUPSUpgradeable
 {
     // -------- config that used to be `immutable` (can’t be immutable in proxies) --------
     uint public STAKE;
@@ -45,14 +45,14 @@ contract RoundRobin is ProposerManager, Certified, Initializable, UUPSUpgradeabl
     // Dummy constructor: required because `Certified` has a constructor.
     // It WILL NOT run on the proxy; real wiring happens in `initialize()`.
     // ------------------------------------------------------------------------
-    constructor()
-        Certified(
-            X509Interface(address(0)),
-            SanctionsListInterface(address(0))
-        )
-    {
-        _disableInitializers(); // lock the implementation
-    }
+    // constructor()
+    //     // Certified(
+    //     //     X509Interface(address(0)),
+    //     //     SanctionsListInterface(address(0))
+    //     // )
+    // {
+    //     _disableInitializers(); // lock the implementation
+    // }
 
     // ------------------------------------------------------------------------
     // Initializer (replaces constructor for proxies)
@@ -67,6 +67,7 @@ contract RoundRobin is ProposerManager, Certified, Initializable, UUPSUpgradeabl
         uint rotation_blocks
     ) public initializer {
         __UUPSUpgradeable_init();
+        __Certified_init(msg.sender, x509_address, sanctionsListAddress);
 
         // Set Certified.owner since Certified’s constructor won’t run on the proxy
         owner = msg.sender;

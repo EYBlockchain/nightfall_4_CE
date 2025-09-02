@@ -52,14 +52,13 @@ error escrowFundsError();
 /// @dev Uses `initialize()` (not constructor) and Certified’s `onlyOwner` for auth. `_authorizeUpgrade` gates upgrades.
 contract Nightfall is
     Certified,
-    Initializable,
     UUPSUpgradeable,
     IERC721Receiver,
     IERC165,
     IERC1155Receiver,
     IERC3525Receiver
 {
-    int256 public layer2_block_number = 0;
+    // int256 public layer2_block_number = 0;
     event BlockProposed(int256 indexed layer2_block_number);
     event DepositEscrowed(uint256 nfSlotId, uint256 value);
 
@@ -67,28 +66,44 @@ contract Nightfall is
     mapping(bytes32 => uint8) private withdrawalIncluded;
     mapping(uint256 => TokenIdValue) private tokenIdMapping;
 
-    uint256 private commitmentRoot = 0;
-    uint256 private nullifierRoot = 5626012003977595441102792096342856268135928990590954181023475305010363075697;
-    uint256 private historicRootsRoot = 0;
+    // uint256 private commitmentRoot = 0;
+    // uint256 private nullifierRoot = 5626012003977595441102792096342856268135928990590954181023475305010363075697;
+    // uint256 private historicRootsRoot = 0;
+
+    int256 public layer2_block_number;
+    uint256 private commitmentRoot;
+    uint256 private nullifierRoot;        // set in initialize
+    uint256 private historicRootsRoot;
 
     ProposerManager private proposer_manager;
     INFVerifier private verifier;
     uint256 private feeId;
 
     // Dummy constructor (won’t run behind proxy) – Certified has a ctor.
-    constructor()
-        Certified(X509Interface(address(0)), SanctionsListInterface(address(0)))
-    {}
+    // constructor()
+    //     // Certified(X509Interface(address(0)), SanctionsListInterface(address(0)))
+    // {
+    //     _disableInitializers(); // lock the implementation; no runtime logic here
+    // }
 
     /// @notice Proxy initializer
     function initialize(
         uint256 initialNullifierRoot,
+        uint256 initialCommitmentRoot,
+        uint256 initialHistoricRootsRoot,
+        int256 initialLayer2BlockNumber,
         INFVerifier addr_verifier,
         address x509_address,
         address sanctionsListAddress
     ) public initializer {
         __UUPSUpgradeable_init();
+        __Certified_init(msg.sender, x509_address, sanctionsListAddress);
+
         nullifierRoot = initialNullifierRoot;
+
+        commitmentRoot = initialCommitmentRoot;
+        historicRootsRoot = initialHistoricRootsRoot;
+        layer2_block_number = initialLayer2BlockNumber;
 
         // Set Certified owner (its constructor won’t run on proxy)
         owner = msg.sender;

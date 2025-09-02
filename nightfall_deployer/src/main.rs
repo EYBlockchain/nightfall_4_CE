@@ -14,7 +14,8 @@ async fn main() {
 ██║ ╚████║██║╚██████╔╝██║  ██║   ██║   ██║     ██║  ██║███████╗███████╗███████╗██║
 ╚═╝  ╚═══╝╚═╝╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚═╝     ╚═╝  ╚═╝╚══════╝╚══════╝╚══════╝╚═╝
 
-Nightfall_4,
+A Zero-Knowledge Proof (ZKP) based application that enables private transfers of ERC20, ERC721, ERC1155, and ERC3525 tokens on public blockchains, 
+leveraging a Layer 2 ZK-ZK rollup architecture to combine scalability with enterprise-grade privacy.
 https://github.com/EYBlockchain/nightfall_4_CE
 "#
     );

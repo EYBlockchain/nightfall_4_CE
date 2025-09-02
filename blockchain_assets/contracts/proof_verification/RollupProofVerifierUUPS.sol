@@ -14,6 +14,7 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 import {Transcript} from "./lib/Transcript.sol";
 import {Bn254Crypto} from "./lib/Bn254Crypto.sol";
 import {PolynomialEval} from "./lib/PolynomialEval.sol";
+import ".././X509/Certified.sol";
 
 
 
@@ -24,7 +25,6 @@ import {PolynomialEval} from "./lib/PolynomialEval.sol";
 
 contract RollupProofVerifier is     
     INFVerifier,
-    Initializable,
     OwnableUpgradeable,
     UUPSUpgradeable
 {
@@ -41,13 +41,14 @@ contract RollupProofVerifier is
     uint256 public p;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() {
-        // disable initializers on the implementation
-        _disableInitializers();
-    }
+    // constructor() {
+    //     // disable initializers on the implementation
+    //     _disableInitializers();
+    // }
     function initialize(address vkProviderProxy, address initialOwner) public initializer {
         __Ownable_init(initialOwner);
         __UUPSUpgradeable_init();
+        // __Certified_init(msg.sender, x509_address, sanctionsListAddress);
 
         p = Bn254Crypto.r_mod;
         vkProvider = IVKProvider(vkProviderProxy);
