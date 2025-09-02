@@ -91,12 +91,15 @@ pub async fn process_nightfall_calldata<N: NightfallContract>(
     filter: &Nightfall::BlockProposed,
 ) -> Result<(), EventHandlerError> {
     // get the transaction
+    let tx_hash = transaction_hash.ok_or(EventHandlerError::IOError(
+        "No transaction hash provided".to_string(),
+    ))?;
     let tx = get_blockchain_client_connection()
         .await
         .read()
         .await
         .get_client()
-        .get_transaction_by_hash(transaction_hash.unwrap())
+        .get_transaction_by_hash(tx_hash)
         .await
         .map_err(|e| EventHandlerError::IOError(e.to_string()))?;
     // if there is one, decode it. If not, warn someone.
@@ -108,7 +111,7 @@ pub async fn process_nightfall_calldata<N: NightfallContract>(
             match decoded {
                 Nightfall::NightfallCalls::propose_block(decode) => {
                     info!("Processing a block proposed event");
-                    process_propose_block_event::<N>(decode, transaction_hash.unwrap(), filter)
+                    process_propose_block_event::<N>(decode, tx_hash, filter)
                         .await?
                 }
                 _ => (),
