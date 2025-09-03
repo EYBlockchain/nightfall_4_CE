@@ -77,6 +77,7 @@ pub fn get_client_proving_key() -> &'static Arc<ProvingKey<UnivariateKzgPCS<Bn25
         }
         // If that fails, we'll try to load from a local file
         warn!("Could not load proving key from server. Loading from local file");
+        ark_std::println!("Could not load proving key from server. Loading from local file");
         let path = Path::new("./configuration/bin/proving_key");
         let source_file = find(path).expect("Could not find path");
         let pk = ProvingKey::<UnivariateKzgPCS<Bn254>>::deserialize_compressed_unchecked(

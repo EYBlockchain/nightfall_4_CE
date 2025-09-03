@@ -1,7 +1,7 @@
 use super::models::CertificateReq;
 use crate::{
     blockchain_client::BlockchainClientConnection, error::CertificateVerificationError,
-    initialisation::get_blockchain_client_connection,
+    initialisation::get_blockchain_client_connection, models::{bad_request, unauthorized},
 };
 use configuration::addresses::get_addresses;
 use ethers::types::{Address, H160, U256};
@@ -33,8 +33,84 @@ pub fn certification_validation_request(
 }
 
 // Middleware to validate the certificate
-async fn handle_certificate_validation(
-    mut x509_data: FormData,
+// async fn handle_certificate_validation(
+//     mut x509_data: FormData,
+// ) -> Result<impl Reply, warp::Rejection> {
+//     // get a blockchain client from the singleton lazy static
+//     let blockchain_client = get_blockchain_client_connection()
+//         .await
+//         .read()
+//         .await
+//         .get_client();
+
+//     // Parse the certificate validation request
+//     let mut certificate_req = CertificateReq::default();
+//     while let Ok(Some(part)) = x509_data.try_next().await {
+//         let filename = match part.filename() {
+//             Some(filename) => filename.to_string(),
+//             None => return Ok(StatusCode::BAD_REQUEST),
+//         };
+//         info!("Receiving certificate validation file: {filename}");
+
+//         let mut data = Vec::new();
+//         let mut stream = part.stream();
+//         while let Ok(Some(chunk)) = stream.try_next().await {
+//             chunk.reader().read_to_end(&mut data).unwrap();
+//         }
+//         debug!("File size: {} bytes", data.len());
+//         match Path::new(&filename).extension().and_then(OsStr::to_str) {
+//             Some("der") => certificate_req.certificate = data,
+//             Some("priv_key") => certificate_req.certificate_private_key = data,
+//             _ => return Ok(StatusCode::BAD_REQUEST),
+//         }
+//     }
+
+//     let requestor_address = blockchain_client.address();
+//     trace!("Requestor address: {requestor_address}");
+//     let x509_instance = X509::new(get_addresses().x509, blockchain_client.clone());
+//     let is_certified: bool = x509_instance
+//         .x_509_check(requestor_address)
+//         .call()
+//         .await
+//         .map_err(|e| {
+//             error!("x_509_check transaction failed {e}");
+//             warp::reject::custom(CertificateVerificationError::new(
+//                 "Invalid certificate provided",
+//             ))
+//         })?;
+//     if !is_certified {
+//         // compute the signature and validate the certificate
+//         debug!("Signing ethereum address {requestor_address} with certificate private key");
+//         let ethereum_address_signature =
+//             sign_ethereum_address(&certificate_req.certificate_private_key, &requestor_address)
+//                 .map_err(|e| {
+//                     error!("Could not sign ethereum address with certificate private key: {e}");
+//                     warp::reject::custom(CertificateVerificationError::new(
+//                         "Invalid certificate provided",
+//                     ))
+//                 })?;
+//         validate_certificate(
+//             get_addresses().x509,
+//             certificate_req.certificate,
+//             ethereum_address_signature,
+//             true,
+//             false,
+//             0,
+//             blockchain_client.address(),
+//         )
+//         .await
+//         .map_err(|err| {
+//             error!("Certificate or signature verification failed: {err}");
+//             warp::reject::custom(CertificateVerificationError::new(
+//                 "Invalid certificate provided",
+//             ))
+//         })?;
+//     }
+//     debug!("Certificate validation successful");
+//     Ok(StatusCode::ACCEPTED)
+// }
+pub async fn handle_certificate_validation(
+    mut x509_data: warp::multipart::FormData,
 ) -> Result<impl Reply, warp::Rejection> {
     // get a blockchain client from the singleton lazy static
     let blockchain_client = get_blockchain_client_connection()
@@ -43,71 +119,132 @@ async fn handle_certificate_validation(
         .await
         .get_client();
 
-    // Parse the certificate validation request
+    // Parse the certificate validation request (by FIELD NAME, not filename)
     let mut certificate_req = CertificateReq::default();
-    while let Ok(Some(part)) = x509_data.try_next().await {
-        let filename = match part.filename() {
-            Some(filename) => filename.to_string(),
-            None => return Ok(StatusCode::BAD_REQUEST),
-        };
-        info!("Receiving certificate validation file: {filename}");
+    while let Some(part_res) = x509_data.try_next().await.transpose() {
+        let mut part = part_res.map_err(|e| {
+            error!("multipart read error: {e}");
+            warp::reject::custom(CertificateVerificationError::new("Malformed multipart form"))
+        })?;
+
+        let field_name = part.name().to_string();
+        let filename = part.filename().map(|s| s.to_string());
 
         let mut data = Vec::new();
         let mut stream = part.stream();
-        while let Ok(Some(chunk)) = stream.try_next().await {
-            chunk.reader().read_to_end(&mut data).unwrap();
+        while let Some(chunk) = stream
+    .try_next()
+    .await
+    .map_err(|e| {
+        error!("stream chunk error: {e}");
+        warp::reject::custom(CertificateVerificationError::new("Malformed upload stream"))
+    })? 
+{
+    // `chunk` implements `Buf`
+    let mut reader = chunk.reader();
+    reader.read_to_end(&mut data).map_err(|e| {
+        error!("read_to_end error: {e}");
+        warp::reject::custom(CertificateVerificationError::new("I/O error reading upload"))
+    })?;
+}
+
+        debug!(
+            "Received field '{}' (filename: {:?}), size: {} bytes",
+            field_name,
+            filename,
+            data.len()
+        );
+
+        match field_name.as_str() {
+            // Expect exact field names from the client form
+            "certificate" => certificate_req.certificate = data,
+            "priv_key" | "private_key" => certificate_req.certificate_private_key = data,
+            // (Optionally allow legacy by extension as a fallback)
+            _ => {
+                // Optional: reject unknown fields
+                return Ok(bad_request("Unexpected form field"));
+            }
         }
-        debug!("File size: {} bytes", data.len());
-        match Path::new(&filename).extension().and_then(OsStr::to_str) {
-            Some("der") => certificate_req.certificate = data,
-            Some("priv_key") => certificate_req.certificate_private_key = data,
-            _ => return Ok(StatusCode::BAD_REQUEST),
-        }
+    }
+
+    if certificate_req.certificate.is_empty() {
+        return Ok(bad_request("Missing 'certificate' field or empty file"));
+    }
+    if certificate_req.certificate_private_key.is_empty() {
+        return Ok(bad_request("Missing 'priv_key' field or empty file"));
     }
 
     let requestor_address = blockchain_client.address();
     trace!("Requestor address: {requestor_address}");
+
     let x509_instance = X509::new(get_addresses().x509, blockchain_client.clone());
-    let is_certified: bool = x509_instance
+
+    // Check on-chain certification
+    let is_certified = x509_instance
         .x_509_check(requestor_address)
         .call()
         .await
         .map_err(|e| {
             error!("x_509_check transaction failed {e}");
             warp::reject::custom(CertificateVerificationError::new(
-                "Invalid certificate provided",
+                "Failed to query on-chain certification state",
             ))
         })?;
-    if !is_certified {
-        // compute the signature and validate the certificate
-        debug!("Signing ethereum address {requestor_address} with certificate private key");
-        let ethereum_address_signature =
-            sign_ethereum_address(&certificate_req.certificate_private_key, &requestor_address)
-                .map_err(|e| {
-                    error!("Could not sign ethereum address with certificate private key: {e}");
-                    warp::reject::custom(CertificateVerificationError::new(
-                        "Invalid certificate provided",
-                    ))
-                })?;
-        validate_certificate(
-            get_addresses().x509,
-            certificate_req.certificate,
-            ethereum_address_signature,
-            true,
-            false,
-            0,
-            blockchain_client.address(),
-        )
-        .await
-        .map_err(|err| {
-            error!("Certificate or signature verification failed: {err}");
-            warp::reject::custom(CertificateVerificationError::new(
-                "Invalid certificate provided",
-            ))
-        })?;
+
+    // Always validate the provided certificate if present.
+    // If the address is already certified, ensure the *new* certificate matches the address;
+    // otherwise, reject with 409 (conflict) rather than silently accepting.
+    debug!("Signing ethereum address {requestor_address} with certificate private key");
+    let ethereum_address_signature = match sign_ethereum_address(
+        &certificate_req.certificate_private_key,
+        &requestor_address,
+    ) {
+        Ok(sig) => sig,
+        Err(e) => {
+            error!("Could not sign ethereum address with certificate private key: {e}");
+            return Ok(unauthorized("Invalid certificate private key"));
+        }
+    };
+
+    // Validate certificate cryptographically; do NOT mutate on-chain state here.
+    // Arguments: (x509_contract, cert_der, sig, update_onchain=false, emit_event=false, chain_id=0, requester)
+    if let Err(err) = validate_certificate(
+        get_addresses().x509,
+        certificate_req.certificate.clone(),
+        ethereum_address_signature,
+        /* update_onchain = */ false,
+        /* emit_event     = */ false,
+        0,
+        requestor_address,
+    )
+    .await
+    {
+        error!("Certificate or signature verification failed: {err}");
+        return Ok(unauthorized("Invalid certificate or signature"));
     }
+
+    // If already certified, optionally confirm consistency (e.g., cert subject/public key matches the certified record).
+    // If inconsistent, signal a conflict so the caller knows re-enrollment is required.
+    // if is_certified {
+    //     // Optional: implement `is_certificate_consistent(...)` according to your model.
+    //     if let Err(e) = is_certificate_consistent(
+    //         &x509_instance,
+    //         &certificate_req.certificate,
+    //         requestor_address,
+    //     )
+    //     .await
+    //     {
+    //         error!("Certified address has inconsistent certificate: {e}");
+    //         return Ok(conflict("Address already certified with a different certificate"));
+    //     }
+    // }
+
     debug!("Certificate validation successful");
-    Ok(StatusCode::ACCEPTED)
+    let body = warp::reply::json(&serde_json::json!({
+        "status": "ok",
+        "certified": is_certified
+    }));
+    Ok(warp::reply::with_status(body, StatusCode::ACCEPTED))
 }
 
 // Function to perform certificate validation via smart contract
