@@ -113,7 +113,7 @@ pub async fn run_tests(
                 64
             }
         };
-        let n_large_block: usize = 1;
+        let n_large_block: usize = block_size;
         const DEPOSIT_FEE: &str = "0x06";
 
         // work out how much we'll change the balance of the two clients by making the large block deposits
