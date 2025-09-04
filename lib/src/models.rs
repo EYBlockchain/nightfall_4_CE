@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
-use warp::{http::StatusCode, Reply};
+use warp::http::StatusCode;
 
 #[derive(Debug, Deserialize, Serialize, Default, Clone)]
 /// A structure representing a certificate validation request
@@ -23,17 +23,4 @@ fn json_error(status: StatusCode, code: &'static str, message: &'static str) -> 
 
 pub fn bad_request(msg: &'static str) -> JsonWithStatus {
     json_error(StatusCode::BAD_REQUEST, "bad_request", msg)
-}
-
-pub fn unauthorized(msg: &'static str) -> JsonWithStatus {
-    json_error(StatusCode::UNAUTHORIZED, "unauthorized", msg)
-}
-
-pub fn conflict(msg: &'static str) -> JsonWithStatus {
-    json_error(StatusCode::CONFLICT, "conflict", msg)
-}
-
-pub fn accepted_ok<T: serde::Serialize>(payload: &T) -> JsonWithStatus {
-    let body = warp::reply::json(payload);
-    warp::reply::with_status(body, StatusCode::ACCEPTED)
 }

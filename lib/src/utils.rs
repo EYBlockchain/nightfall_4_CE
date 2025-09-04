@@ -13,7 +13,6 @@ pub fn load_key_from_server(key_file: &str) -> Option<Bytes> {
         .unwrap();
     let response = blocking::get(url).ok()?;
     let bytes = response.bytes().ok()?;
-    ark_std::println!("Loaded {} key bytes from server", bytes.len());
     Some(bytes)
 }
 

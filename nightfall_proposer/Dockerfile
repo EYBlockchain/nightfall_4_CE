@@ -2,15 +2,11 @@ FROM rust:1.84.1 AS builder
 # install additional ca-certificates e.g. zscaler certificate (can be removed if not needed)
 COPY configuration/trust/* /usr/local/share/ca-certificates/
 RUN chmod 644 /usr/local/share/ca-certificates/* && update-ca-certificates
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    rm -rf /usr/local/cargo/registry/src/index.crates.io-*/http-types-2.12.0 || true
+ 
 WORKDIR /app
 RUN mkdir bin
 COPY . .
-# RUN --mount=type=cache,target=/usr/local/cargo/registry \
-#     --mount=type=cache,target=/app/target \
-#     --mount=type=cache,target=/usr/local/cargo/git \
-#     cargo build --package nightfall_proposer --release && \
+
 RUN --mount=type=cache,id=cargo-registry-v4,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,id=cargo-git-v4,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,id=cargo-target-client-v4,target=/app/target,sharing=private \

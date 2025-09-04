@@ -4,8 +4,7 @@ FROM rust:1.84.1 AS runtime
 COPY ./configuration/trust/* /usr/local/share/ca-certificates/
 RUN chmod 644 /usr/local/share/ca-certificates/* && update-ca-certificates
 
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    rm -rf /usr/local/cargo/registry/src/index.crates.io-*/http-types-2.12.0 || true
+ 
 
 WORKDIR /app
 RUN mkdir bin

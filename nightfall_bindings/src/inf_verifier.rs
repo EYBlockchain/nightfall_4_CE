@@ -7,51 +7,59 @@ pub use inf_verifier::*;
     clippy::upper_case_acronyms,
     clippy::type_complexity,
     dead_code,
-    non_camel_case_types
+    non_camel_case_types,
 )]
 pub mod inf_verifier {
     #[allow(deprecated)]
     fn __abi() -> ::ethers::core::abi::Abi {
         ::ethers::core::abi::ethabi::Contract {
             constructor: ::core::option::Option::None,
-            functions: ::core::convert::From::from([(
-                ::std::borrow::ToOwned::to_owned("verify"),
-                ::std::vec![::ethers::core::abi::ethabi::Function {
-                    name: ::std::borrow::ToOwned::to_owned("verify"),
-                    inputs: ::std::vec![
-                        ::ethers::core::abi::ethabi::Param {
-                            name: ::std::borrow::ToOwned::to_owned("accBytes"),
-                            kind: ::ethers::core::abi::ethabi::ParamType::Bytes,
-                            internal_type: ::core::option::Option::Some(
-                                ::std::borrow::ToOwned::to_owned("bytes"),
-                            ),
-                        },
-                        ::ethers::core::abi::ethabi::Param {
-                            name: ::std::borrow::ToOwned::to_owned("proofBytes"),
-                            kind: ::ethers::core::abi::ethabi::ParamType::Bytes,
-                            internal_type: ::core::option::Option::Some(
-                                ::std::borrow::ToOwned::to_owned("bytes"),
-                            ),
-                        },
-                        ::ethers::core::abi::ethabi::Param {
-                            name: ::std::borrow::ToOwned::to_owned("publicInputsHashBytes",),
-                            kind: ::ethers::core::abi::ethabi::ParamType::Bytes,
-                            internal_type: ::core::option::Option::Some(
-                                ::std::borrow::ToOwned::to_owned("bytes"),
-                            ),
+            functions: ::core::convert::From::from([
+                (
+                    ::std::borrow::ToOwned::to_owned("verify"),
+                    ::std::vec![
+                        ::ethers::core::abi::ethabi::Function {
+                            name: ::std::borrow::ToOwned::to_owned("verify"),
+                            inputs: ::std::vec![
+                                ::ethers::core::abi::ethabi::Param {
+                                    name: ::std::borrow::ToOwned::to_owned("accBytes"),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::Bytes,
+                                    internal_type: ::core::option::Option::Some(
+                                        ::std::borrow::ToOwned::to_owned("bytes"),
+                                    ),
+                                },
+                                ::ethers::core::abi::ethabi::Param {
+                                    name: ::std::borrow::ToOwned::to_owned("proofBytes"),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::Bytes,
+                                    internal_type: ::core::option::Option::Some(
+                                        ::std::borrow::ToOwned::to_owned("bytes"),
+                                    ),
+                                },
+                                ::ethers::core::abi::ethabi::Param {
+                                    name: ::std::borrow::ToOwned::to_owned(
+                                        "publicInputsHashBytes",
+                                    ),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::Bytes,
+                                    internal_type: ::core::option::Option::Some(
+                                        ::std::borrow::ToOwned::to_owned("bytes"),
+                                    ),
+                                },
+                            ],
+                            outputs: ::std::vec![
+                                ::ethers::core::abi::ethabi::Param {
+                                    name: ::std::borrow::ToOwned::to_owned("result"),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::Bool,
+                                    internal_type: ::core::option::Option::Some(
+                                        ::std::borrow::ToOwned::to_owned("bool"),
+                                    ),
+                                },
+                            ],
+                            constant: ::core::option::Option::None,
+                            state_mutability: ::ethers::core::abi::ethabi::StateMutability::NonPayable,
                         },
                     ],
-                    outputs: ::std::vec![::ethers::core::abi::ethabi::Param {
-                        name: ::std::borrow::ToOwned::to_owned("result"),
-                        kind: ::ethers::core::abi::ethabi::ParamType::Bool,
-                        internal_type: ::core::option::Option::Some(
-                            ::std::borrow::ToOwned::to_owned("bool"),
-                        ),
-                    },],
-                    constant: ::core::option::Option::None,
-                    state_mutability: ::ethers::core::abi::ethabi::StateMutability::NonPayable,
-                },],
-            )]),
+                ),
+            ]),
             events: ::std::collections::BTreeMap::new(),
             errors: ::std::collections::BTreeMap::new(),
             receive: false,
@@ -59,8 +67,9 @@ pub mod inf_verifier {
         }
     }
     ///The parsed JSON ABI of the contract.
-    pub static INFVERIFIER_ABI: ::ethers::contract::Lazy<::ethers::core::abi::Abi> =
-        ::ethers::contract::Lazy::new(__abi);
+    pub static INFVERIFIER_ABI: ::ethers::contract::Lazy<::ethers::core::abi::Abi> = ::ethers::contract::Lazy::new(
+        __abi,
+    );
     pub struct INFVerifier<M>(::ethers::contract::Contract<M>);
     impl<M> ::core::clone::Clone for INFVerifier<M> {
         fn clone(&self) -> Self {
@@ -92,11 +101,13 @@ pub mod inf_verifier {
             address: T,
             client: ::std::sync::Arc<M>,
         ) -> Self {
-            Self(::ethers::contract::Contract::new(
-                address.into(),
-                INFVERIFIER_ABI.clone(),
-                client,
-            ))
+            Self(
+                ::ethers::contract::Contract::new(
+                    address.into(),
+                    INFVERIFIER_ABI.clone(),
+                    client,
+                ),
+            )
         }
         ///Calls the contract's `verify` (0xde8f50a1) function
         pub fn verify(
@@ -113,7 +124,8 @@ pub mod inf_verifier {
                 .expect("method not found (this should never happen)")
         }
     }
-    impl<M: ::ethers::providers::Middleware> From<::ethers::contract::Contract<M>> for INFVerifier<M> {
+    impl<M: ::ethers::providers::Middleware> From<::ethers::contract::Contract<M>>
+    for INFVerifier<M> {
         fn from(contract: ::ethers::contract::Contract<M>) -> Self {
             Self::new(contract.address(), contract.client())
         }
@@ -129,7 +141,7 @@ pub mod inf_verifier {
         Debug,
         PartialEq,
         Eq,
-        Hash,
+        Hash
     )]
     #[ethcall(name = "verify", abi = "verify(bytes,bytes,bytes)")]
     pub struct VerifyCall {
@@ -148,7 +160,7 @@ pub mod inf_verifier {
         Debug,
         PartialEq,
         Eq,
-        Hash,
+        Hash
     )]
     pub struct VerifyReturn {
         pub result: bool,
