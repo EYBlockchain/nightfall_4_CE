@@ -6,17 +6,27 @@ FROM rust:1.84.1 AS builder
 COPY ./configuration/trust/* /usr/local/share/ca-certificates/
 RUN chmod 644 /usr/local/share/ca-certificates/* && update-ca-certificates
 
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    rm -rf /usr/local/cargo/registry/src/index.crates.io-*/http-types-2.12.0 || true
+
 WORKDIR /app
 RUN mkdir -p bin
 COPY --from=foundry /usr/local/bin/forge ./forge
 COPY --exclude=configuration/bin/*  . .
 COPY configuration/bin/*_vk configuration/bin/
 ENV PATH=/app:$PATH
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/app/target \
-    --mount=type=cache,target=/usr/local/cargo/git \
+# RUN --mount=type=cache,target=/usr/local/cargo/registry \
+#     --mount=type=cache,target=/app/target \
+#     --mount=type=cache,target=/usr/local/cargo/git \
+#     cargo build --package nightfall_deployer --release && \
+#     mv /app/target/release/nightfall_deployer /app/bin/deployer
+
+RUN --mount=type=cache,id=cargo-registry-v4,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,id=cargo-git-v4,target=/usr/local/cargo/git,sharing=locked \
+    --mount=type=cache,id=cargo-target-client-v4,target=/app/target,sharing=private \
     cargo build --package nightfall_deployer --release && \
     mv /app/target/release/nightfall_deployer /app/bin/deployer
+
 
 FROM debian:bookworm-slim
 WORKDIR /app

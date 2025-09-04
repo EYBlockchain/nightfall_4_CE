@@ -1,7 +1,9 @@
 use super::models::CertificateReq;
 use crate::{
-    blockchain_client::BlockchainClientConnection, error::CertificateVerificationError,
-    initialisation::get_blockchain_client_connection, models::{bad_request, unauthorized},
+    blockchain_client::BlockchainClientConnection,
+    error::CertificateVerificationError,
+    initialisation::get_blockchain_client_connection,
+    models::{bad_request, unauthorized},
 };
 use configuration::addresses::get_addresses;
 use ethers::types::{Address, H160, U256};
@@ -112,6 +114,7 @@ pub fn certification_validation_request(
 pub async fn handle_certificate_validation(
     mut x509_data: warp::multipart::FormData,
 ) -> Result<impl Reply, warp::Rejection> {
+    ark_std::println!("handle_certificate_validation called");
     // get a blockchain client from the singleton lazy static
     let blockchain_client = get_blockchain_client_connection()
         .await
@@ -124,7 +127,9 @@ pub async fn handle_certificate_validation(
     while let Some(part_res) = x509_data.try_next().await.transpose() {
         let mut part = part_res.map_err(|e| {
             error!("multipart read error: {e}");
-            warp::reject::custom(CertificateVerificationError::new("Malformed multipart form"))
+            warp::reject::custom(CertificateVerificationError::new(
+                "Malformed multipart form",
+            ))
         })?;
 
         let field_name = part.name().to_string();
@@ -132,21 +137,19 @@ pub async fn handle_certificate_validation(
 
         let mut data = Vec::new();
         let mut stream = part.stream();
-        while let Some(chunk) = stream
-    .try_next()
-    .await
-    .map_err(|e| {
-        error!("stream chunk error: {e}");
-        warp::reject::custom(CertificateVerificationError::new("Malformed upload stream"))
-    })? 
-{
-    // `chunk` implements `Buf`
-    let mut reader = chunk.reader();
-    reader.read_to_end(&mut data).map_err(|e| {
-        error!("read_to_end error: {e}");
-        warp::reject::custom(CertificateVerificationError::new("I/O error reading upload"))
-    })?;
-}
+        while let Some(chunk) = stream.try_next().await.map_err(|e| {
+            error!("stream chunk error: {e}");
+            warp::reject::custom(CertificateVerificationError::new("Malformed upload stream"))
+        })? {
+            // `chunk` implements `Buf`
+            let mut reader = chunk.reader();
+            reader.read_to_end(&mut data).map_err(|e| {
+                error!("read_to_end error: {e}");
+                warp::reject::custom(CertificateVerificationError::new(
+                    "I/O error reading upload",
+                ))
+            })?;
+        }
 
         debug!(
             "Received field '{}' (filename: {:?}), size: {} bytes",
@@ -156,14 +159,11 @@ pub async fn handle_certificate_validation(
         );
 
         match field_name.as_str() {
-            // Expect exact field names from the client form
             "certificate" => certificate_req.certificate = data,
-            "priv_key" | "private_key" => certificate_req.certificate_private_key = data,
-            // (Optionally allow legacy by extension as a fallback)
-            _ => {
-                // Optional: reject unknown fields
-                return Ok(bad_request("Unexpected form field"));
+            "certificate_private_key" | "priv_key" | "private_key" => {
+                certificate_req.certificate_private_key = data
             }
+            _ => return Ok(bad_request("Unexpected form field")),
         }
     }
 
@@ -174,75 +174,92 @@ pub async fn handle_certificate_validation(
         return Ok(bad_request("Missing 'priv_key' field or empty file"));
     }
 
+     // 2) Resolve client + address
+    let blockchain_client = get_blockchain_client_connection()
+        .await
+        .read()
+        .await
+        .get_client();
     let requestor_address = blockchain_client.address();
     trace!("Requestor address: {requestor_address}");
 
-    let x509_instance = X509::new(get_addresses().x509, blockchain_client.clone());
+    let x509_addr = get_addresses().x509;
+    let x509_instance = X509::new(x509_addr, blockchain_client.clone());
 
-    // Check on-chain certification
-    let is_certified = x509_instance
-        .x_509_check(requestor_address)
-        .call()
-        .await
-        .map_err(|e| {
-            error!("x_509_check transaction failed {e}");
-            warp::reject::custom(CertificateVerificationError::new(
-                "Failed to query on-chain certification state",
-            ))
-        })?;
-
-    // Always validate the provided certificate if present.
-    // If the address is already certified, ensure the *new* certificate matches the address;
-    // otherwise, reject with 409 (conflict) rather than silently accepting.
+    // 3) Build signature over the requester address
     debug!("Signing ethereum address {requestor_address} with certificate private key");
-    let ethereum_address_signature = match sign_ethereum_address(
-        &certificate_req.certificate_private_key,
-        &requestor_address,
-    ) {
-        Ok(sig) => sig,
-        Err(e) => {
-            error!("Could not sign ethereum address with certificate private key: {e}");
-            return Ok(unauthorized("Invalid certificate private key"));
-        }
-    };
+    let ethereum_address_signature =
+        match sign_ethereum_address(&certificate_req.certificate_private_key, &requestor_address) {
+            Ok(sig) => sig,
+            Err(e) => {
+                error!("sign_ethereum_address failed: {e}");
+                let body = warp::reply::json(&serde_json::json!({
+                    "status": "ok",
+                    "certified": false
+                }));
+                return Ok(warp::reply::with_status(body, StatusCode::ACCEPTED));
+            }
+        };
 
-    // Validate certificate cryptographically; do NOT mutate on-chain state here.
-    // Arguments: (x509_contract, cert_der, sig, update_onchain=false, emit_event=false, chain_id=0, requester)
+    // 4) READ-ONLY validation first (no state change). Treat any error as "not certified".
+    let is_end_user = true; // end-entity certs coming from clients/proposers
+    let check_only  = true;
+
     if let Err(err) = validate_certificate(
-        get_addresses().x509,
+        x509_addr,
         certificate_req.certificate.clone(),
-        ethereum_address_signature,
-        /* update_onchain = */ false,
-        /* emit_event     = */ false,
+        ethereum_address_signature.clone(),
+        is_end_user,
+        check_only, // read-only
         0,
         requestor_address,
     )
     .await
     {
-        error!("Certificate or signature verification failed: {err}");
-        return Ok(unauthorized("Invalid certificate or signature"));
+        error!("Read-only certificate validation failed: {err}");
+        let body = warp::reply::json(&serde_json::json!({
+            "status": "ok",
+            "certified": false
+        }));
+        return Ok(warp::reply::with_status(body, StatusCode::ACCEPTED));
     }
 
-    // If already certified, optionally confirm consistency (e.g., cert subject/public key matches the certified record).
-    // If inconsistent, signal a conflict so the caller knows re-enrollment is required.
-    // if is_certified {
-    //     // Optional: implement `is_certificate_consistent(...)` according to your model.
-    //     if let Err(e) = is_certificate_consistent(
-    //         &x509_instance,
-    //         &certificate_req.certificate,
-    //         requestor_address,
-    //     )
-    //     .await
-    //     {
-    //         error!("Certified address has inconsistent certificate: {e}");
-    //         return Ok(conflict("Address already certified with a different certificate"));
-    //     }
-    // }
+    // 5) ENROLL (state-changing): write the binding on-chain and await receipt.
+    let write_enroll = false; // set to true to actually mutate via helper switch below
+    // We want one API that validates AND enrolls, so we do the write:
+    let check_only = false;
 
-    debug!("Certificate validation successful");
+    if let Err(err) = validate_certificate(
+        x509_addr,
+        certificate_req.certificate.clone(),
+        ethereum_address_signature,
+        is_end_user,
+        check_only, // write path
+        0,
+        requestor_address,
+    )
+    .await
+    {
+        // If the write failed because it's already linked to this address, you may still be "certified".
+        // Fall through to a fresh x_509_check to decide the final boolean.
+        warn!("Enroll (write) failed: {err}");
+    }
+
+    // 6) Return POST-STATE truth from chain
+    let is_certified_now = x509_instance
+        .x_509_check(requestor_address)
+        .call()
+        .await
+        .map_err(|e| {
+            error!("x_509_check failed: {e}");
+            warp::reject::custom(CertificateVerificationError::new(
+                "Failed to query on-chain certification state",
+            ))
+        })?;
+
     let body = warp::reply::json(&serde_json::json!({
         "status": "ok",
-        "certified": is_certified
+        "certified": is_certified_now
     }));
     Ok(warp::reply::with_status(body, StatusCode::ACCEPTED))
 }

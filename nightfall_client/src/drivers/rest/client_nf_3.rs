@@ -369,7 +369,10 @@ pub async fn handle_deposit<N: NightfallContract>(
         .expect("Could not hash commitment {}");
     ark_std::println!("nullifier created in handle_deposit: {}", nullifier);
     let commitment_hash = preimage_value.hash().expect("Could not hash commitment");
-    ark_std::println!("commitment_hash created in handle_deposit: {}", commitment_hash);
+    ark_std::println!(
+        "commitment_hash created in handle_deposit: {}",
+        commitment_hash
+    );
     let commitment_entry =
         CommitmentEntry::new(preimage_value, nullifier, CommitmentStatus::PendingCreation);
     ark_std::println!("commitment_entry in handle_deposit: {:?}", commitment_entry);
