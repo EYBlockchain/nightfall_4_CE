@@ -1,46 +1,19 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
-<<<<<<< HEAD:blockchain_assets/contracts/proof_verification/RollupProofVerifierUUPS.sol
-pragma solidity >=0.8.0;
-import "./lib/BytesLib.sol";
-import "./lib/Types.sol";
-import "./IVKProvider.sol";
-
-=======
 pragma solidity >=0.8.20;
 pragma experimental ABIEncoderV2;
-
 error INVALID_VERIFICATION_KEY_HASH(uint256 expected, uint256 actual);
 
 import "./BytesLib.sol";
 import "./Types.sol";
-import "./RollupProofVerificationKey.sol";
->>>>>>> Jiajie/workflows:blockchain_assets/contracts/proof_verification/RollupProofVerifier.sol
-import {INFVerifier} from "./INFVerifier.sol";
-
-import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-
-import {Transcript} from "./lib/Transcript.sol";
-import {Bn254Crypto} from "./lib/Bn254Crypto.sol";
-import {PolynomialEval} from "./lib/PolynomialEval.sol";
-import ".././X509/Certified.sol";
-
-
+import "./UltraPlonkVerificationKey.sol";
 
 /**
-@title RollupProofVerifier
+@title UltraPlonkVerifier
 @dev Verifier Implementation for Nightfish Ultra plonk proof verification
 */
 
-<<<<<<< HEAD:blockchain_assets/contracts/proof_verification/RollupProofVerifierUUPS.sol
-contract RollupProofVerifier is     
-    INFVerifier,
-    OwnableUpgradeable,
-    UUPSUpgradeable
-{
-    IVKProvider public vkProvider;
+contract UltraPlonkVerifier{
     /**
         Calldata formatting:
         0x00 - 0x04 : function signature
@@ -49,37 +22,11 @@ contract RollupProofVerifier is
         0x64 - ???? : array containing our zk proof data
     **/
 
-    // Global r-modulus cached for mod ops
-=======
-contract RollupProofVerifier is INFVerifier{
-
->>>>>>> Jiajie/workflows:blockchain_assets/contracts/proof_verification/RollupProofVerifier.sol
+    // Define a global p here for the mod operation
     uint256 public p;
-
-    /// @custom:oz-upgrades-unsafe-allow constructor
-    // constructor() {
-    //     // disable initializers on the implementation
-    //     _disableInitializers();
-    // }
-    function initialize(address vkProviderProxy, address initialOwner) public initializer {
-        __Ownable_init(initialOwner);
-        __UUPSUpgradeable_init();
-        // __Certified_init(msg.sender, x509_address, sanctionsListAddress);
-
+    constructor() {
         p = Bn254Crypto.r_mod;
-        vkProvider = IVKProvider(vkProviderProxy);
     }
-
-    function _authorizeUpgrade(address) internal override onlyOwner {}
-
-    event VKProviderUpdated(address indexed oldProvider, address indexed newProvider);
-
-    function setVKProvider(address newProvider) external onlyOwner {
-        require(newProvider != address(0), "zero addr");
-        emit VKProviderUpdated(address(vkProvider), newProvider);
-        vkProvider = IVKProvider(newProvider);
-    }
-
     // A struct for compute_buffer_v_and_uv_basis_2() input parameters to avoid stack too deep error
     // compute_buffer_v_and_uv_basis() is devided into two functions to avoid stack too deep error
     struct compute_buffer_v_and_uv_basis_2_parameters {
@@ -122,29 +69,26 @@ contract RollupProofVerifier is INFVerifier{
     }
 
     /**
-     * @dev Verify a rollup proof and accumulators
-     * @param acc_proof- array of serialized accumulators data: every elements is 32 bytes
+     * @dev Verify a UltraPlonk proof from Jellyfish with 4 input wires
      * @param proofBytes- array of serialized proof data: every elements is 32 bytes
      * @param publicInputsHashBytes- bytes of public data
      */
-    function verify(
-        bytes calldata acc_proof, 
-        bytes calldata proofBytes, 
-        bytes calldata publicInputsHashBytes
-    ) external view override returns (bool result) {
+    function verify(bytes calldata proofBytes, bytes calldata publicInputsHashBytes) external view returns (bool result) {
         // parse the hardecoded vk and construct a vk object
         Types.VerificationKey memory vk = get_verification_key();
         // parse the second part of calldata to get public input
         // we hashed all public inputs into a single value
         uint256 public_inputs_hash;
-
         assembly {
             public_inputs_hash := calldataload(add(publicInputsHashBytes.offset, 0))
         }
 
         // parse the input calldata and construct a proof object and public_inputs
-        Types.Proof memory decoded_proof = deserialize_proof(proofBytes);
+        Types.Proof memory decoded_proof
+        = deserialize_proof(proofBytes);
+
         validate_proof(decoded_proof);
+
         validate_scalar_field(public_inputs_hash);
 
         // Compute the transcripts by appending vk, public inputs and proof
@@ -164,35 +108,7 @@ contract RollupProofVerifier is INFVerifier{
             full_challenges
         );
 
-        return (verify_OpeningProof(full_challenges, pcsInfo, decoded_proof, vk) && verify_accumulation(
-            acc_proof,
-            vk
-        ));
-    }
-
-    function verify_accumulation(
-        bytes calldata acc_proof,
-        Types.VerificationKey memory vk
-    ) internal view returns (bool) {
-        require(acc_proof.length == 256, "Invalid accumulator proof length");
-        bytes32[8] memory acc;
-        for (uint i = 0; i < 8; i++) {
-            acc[i] = bytes32(acc_proof[i*32:(i+1)*32]);
-        }
-        //blk.rollup_proof[32:64], accumulator_1_comm_x, acc[0]
-        //blk.rollup_proof[64:96], accumulator_1_comm_y, acc[1]
-        //blk.rollup_proof[96:128], accumulator_1_proof_x, acc[2]
-        //blk.rollup_proof[128:160], accumulator_1_proof_y, acc[3]
-        //blk.rollup_proof[160:192], accumulator_2_comm_x, acc[4]
-        //blk.rollup_proof[192:224], accumulator_2_comm_y, acc[5]
-        //blk.rollup_proof[224:256], accumulator_2_proof2_x, acc[6]
-        //blk.rollup_proof[256:288], accumulator_2_proof2_y, acc[7]
-
-        // First accumulator
-        bool res_1 = Bn254Crypto.pairingProd2(Types.G1Point(uint256(acc[2]), uint256(acc[3])), vk.beta_h, Bn254Crypto.negate_G1Point(Types.G1Point(uint256(acc[0]), uint256(acc[1]))), vk.h);
-        // Second accumulator
-        bool res_2 = Bn254Crypto.pairingProd2(Types.G1Point(uint256(acc[6]), uint256(acc[7])), vk.beta_h, Bn254Crypto.negate_G1Point(Types.G1Point(uint256(acc[4]), uint256(acc[5]))), vk.h);
-        return (res_1 && res_2);
+        result = verify_OpeningProof(full_challenges, pcsInfo, decoded_proof, vk);
     }
 
     /**
@@ -218,9 +134,9 @@ contract RollupProofVerifier is INFVerifier{
         uint256 alpha_4 =   mulmod(full_challenges.alpha2, full_challenges.alpha2, p);
         uint256 alpha_5 =   mulmod(full_challenges.alpha2, alpha_3, p);
         uint256 alpha_6 =   mulmod(alpha_4, full_challenges.alpha2, p);
-         full_challenges.alpha_powers = [full_challenges.alpha2, alpha_3, alpha_4, alpha_5, alpha_6];
-         full_challenges.alpha_base= 1;
-         full_challenges.alpha7= mulmod(alpha_3, alpha_4, p);
+        full_challenges.alpha_powers = [full_challenges.alpha2, alpha_3, alpha_4, alpha_5, alpha_6];
+        full_challenges.alpha_base= 1;
+        full_challenges.alpha7= mulmod(alpha_3, alpha_4, p);
 
 
         // get the domain evaluation information
@@ -237,6 +153,7 @@ contract RollupProofVerifier is INFVerifier{
             full_challenges.zeta,
             publicInput
         );
+
         // compute opening proof in poly comms
         // caller allocates the memory for commScalars and commBases
         uint256[] memory commScalars = new uint256[](58);
@@ -278,18 +195,16 @@ contract RollupProofVerifier is INFVerifier{
         Types.G1Point memory A;
         Types.G1Point memory B;
         // A = [open_proof] + u * [shifted_open_proof]
-        A = compute_A(proof, challenge);     
+        A = compute_A(proof, challenge);
+     
         // B = eval_point * open_proof + u * next_eval_point *
         //   shifted_open_proof + comm - eval * [1]1`.
-<<<<<<< HEAD:blockchain_assets/contracts/proof_verification/RollupProofVerifierUUPS.sol
-        B = compute_B(pcsInfo, proof, challenge, vk);    
-=======
         B = compute_B(pcsInfo, proof, challenge, vk);
->>>>>>> Jiajie/workflows:blockchain_assets/contracts/proof_verification/RollupProofVerifier.sol
 
         // Check e(A, [x]2) ?= e(B, [1]2)
         /// By Schwartz-Zippel lemma, it's equivalent to check that for a random r:
         // - `e(A0 + ... + r^{m-1} * Am, [x]2) = e(B0 + ... + r^{m-1} * Bm, [1]2)`.
+        // return Bn254Crypto.pairingProd2(A, beta_h, B, Bn254Crypto.P2());
         return Bn254Crypto.pairingProd2(A, vk.beta_h, B, vk.h);
     }
 
@@ -330,9 +245,8 @@ contract RollupProofVerifier is INFVerifier{
             pcsInfo.commBases[55] = proof.shifted_opening_proof;
 
             pcsInfo.commScalars[56] = Bn254Crypto.negate_fr(pcsInfo.eval);
-            pcsInfo.commBases[56] = vk.open_key_g;
-            
-
+            pcsInfo.commBases[56] = vk.open_key_g;            
+    
             // Accumulate scalars which have the same base
             (
                 Types.G1Point[] memory bases_after_acc,
@@ -387,6 +301,7 @@ contract RollupProofVerifier is INFVerifier{
             commBases,
             domain
         );
+
         uint256 eval = prepare_evaluations(
             lin_poly_constant,
             proof,
@@ -424,10 +339,8 @@ contract RollupProofVerifier is INFVerifier{
             evalData.vanish_eval,
             p
         );
+
         uint256 result = mulmod(publicInput[0], mulmod(vanish_eval_div_n, Bn254Crypto.invert(addmod(chal.zeta, p - 1, p)), p), p);
-         
-        //  results - alpha_powers[0] * lagrange_1_eval
-        // let mut tmp = self.evaluate_pi_poly(pi, &challenges.zeta, vanish_eval, vk.is_merged)?
         uint256 tmp = addmod(result, Bn254Crypto.negate_fr(mulmod(chal.alpha2, evalData.lagrange_1_eval, p)), p);
         uint256 plookup_constant = compute_plookup_constant(chal, proof, evalData, domain);
         uint256 tmpOut = compute_tmp(tmp, chal, proof);
@@ -502,7 +415,7 @@ contract RollupProofVerifier is INFVerifier{
     Types.ChallengeTranscript memory chal,
     Types.Proof memory proof
 ) internal view returns (uint256) {
-     uint256[5] memory first_w_evals = [proof.wires_evals_1, proof.wires_evals_2, proof.wires_evals_3, proof.wires_evals_4, proof.wires_evals_5];
+        uint256[5] memory first_w_evals = [proof.wires_evals_1, proof.wires_evals_2, proof.wires_evals_3, proof.wires_evals_4, proof.wires_evals_5];
         uint256 last_w_eval = proof.wires_evals_6;
         uint256[5] memory sigma_evals = [proof.wire_sigma_evals_1, proof.wire_sigma_evals_2, proof.wire_sigma_evals_3, proof.wire_sigma_evals_4, proof.wire_sigma_evals_5];
         uint256 acc =  mulmod(mulmod(chal.alpha,proof.perm_next_eval,p),addmod(chal.gamma,last_w_eval,p),p);
@@ -510,7 +423,8 @@ contract RollupProofVerifier is INFVerifier{
             acc = mulmod(acc,addmod(addmod(chal.gamma, first_w_evals[i], p), mulmod(chal.beta, sigma_evals[i], p), p),p);
         }
         tmp = addmod(tmp, Bn254Crypto.negate_fr(acc), p);
-    return tmp;
+
+        return tmp;
     }
     // a helper function to avoid stack too deep error when computing plookup_constant
     function help(
@@ -518,7 +432,7 @@ contract RollupProofVerifier is INFVerifier{
         Types.Proof memory proof,
         PolynomialEval.EvalDomain memory domain
     ) internal view returns (uint256) {
-        uint256 gamma_mul_beta_plus_one = mulmod(addmod(chal.beta, 1, p), chal.gamma, p);
+       uint256 gamma_mul_beta_plus_one = mulmod(addmod(chal.beta, 1, p), chal.gamma, p);
        uint256 res =  mulmod(
         mulmod(
             mulmod(
@@ -611,7 +525,7 @@ contract RollupProofVerifier is INFVerifier{
         z.commScalars = commScalars;
         z.commBases = commBases;
         z.v_base = v_base;
-        uint256 new_v_base= compute_buffer_v_and_uv_basis_2(z);
+       uint256 new_v_base= compute_buffer_v_and_uv_basis_2(z);
 
         compute_buffer_v_and_uv_basis_3_parameters memory z3;
         z3.chal = chal;
@@ -747,26 +661,25 @@ contract RollupProofVerifier is INFVerifier{
             z.v_base = mulmod(z.v_base, v, p_local);
         }
 
-Types.G1Point[9] memory plookup_shifted_comms =[
-    z.proof.prod_lookup_poly_comm, //45
-    z.vk.range_table_comm, //46
-    z.vk.key_table_comm, //47
-    z.proof.h_poly_comm_1, //48
-    z.proof.h_poly_comm_2, //49
-    // q_dom_sep_comm, z.vk.selector_comms_18
-    z.vk.selector_comms_18, // 50
-    z.proof.wires_poly_comms_4, //51
-    z.proof.wires_poly_comms_5, //52
-    z.vk.table_dom_sep_comm //53
-];
 
-z.start_index =45;
- for (uint256 i = 0; i < 9; i++) {
+    Types.G1Point[9] memory plookup_shifted_comms =[
+        z.proof.prod_lookup_poly_comm, //45
+        z.vk.range_table_comm, //46
+        z.vk.key_table_comm, //47
+        z.proof.h_poly_comm_1, //48
+        z.proof.h_poly_comm_2, //49
+        z.vk.selector_comms_18, // 50
+        z.proof.wires_poly_comms_4, //51
+        z.proof.wires_poly_comms_5, //52
+        z.vk.table_dom_sep_comm //53
+    ];
+
+    z.start_index =45;
+    for (uint256 i = 0; i < 9; i++) {
             z.buffer_v_and_uv_basis[18 + i] = z.uv_base;
             z.commScalars[z.start_index + i] = z.uv_base;
             z.commBases[z.start_index + i] = plookup_shifted_comms[i];
             z.uv_base = mulmod(z.uv_base, v, p_local);
-
         }
     }
     function linearization_scalars_and_bases(
@@ -796,6 +709,7 @@ z.start_index =45;
             // G1Point sigma_comms_6;
             mstore(add(bases, 0x40), mload(add(verifyingKey, 0xe0)))
         }
+        
         // set the function parameters to avoid stack too deep error
         add_selector_polynomial_commitments_parameters
             memory x = add_selector_polynomial_commitments_parameters(
@@ -1008,7 +922,6 @@ z.start_index =45;
             let wires_evals_3 := mload(add(proofPtr, 0x240))
             let wires_evals_4 := mload(add(proofPtr, 0x260))
             let wires_evals_5 := mload(add(proofPtr, 0x280))
-            // let wires_evals_6 := mload(add(proofPtr, 0x2a0))
 
             // scalars calculations
             mstore(scalarsPtr, wires_evals_1)
@@ -1056,7 +969,6 @@ z.start_index =45;
             let wires_evals_3 := mload(add(proofPtr, 0x240))
             let wires_evals_4 := mload(add(proofPtr, 0x260))
             let wires_evals_5 := mload(add(proofPtr, 0x280))
-            // let wires_evals_6 := mload(add(proofPtr, 0x2a0))
 
             // scalars calculations
             mstore(add(scalarsPtr, 0x160), 1)
@@ -1160,12 +1072,13 @@ z.start_index =45;
          evalData
      );
      bases[19] = proof.prod_lookup_poly_comm;
+
      scalars[20] = add_plookup_commitments_helper2(
             proof,
             challenge,
             domain
         );
-     bases[20] = proof.h_poly_comm_2;
+        bases[20] = proof.h_poly_comm_2;
     }
     
     // to avoid the stack too deep error
@@ -1233,7 +1146,7 @@ z.start_index =45;
         uint256  merged_table_xw
     ) internal view returns (uint256 res) {
       
-uint256 c = mulmod(
+        uint256 c = mulmod(
                 challenge.alpha_powers[4],
                 addmod(challenge.zeta, Bn254Crypto.negate_fr(domain.groupGenInv), p),
                 p
@@ -1241,22 +1154,22 @@ uint256 c = mulmod(
      
      
       res =addmod(
-   add_plookup_commitments_helper1_4_2 (challenge, evalData),
-    mulmod(
-    mulmod(
-        mulmod(
-            c,
-            addmod(challenge.beta, 1, p),
+            add_plookup_commitments_helper1_4_2 (challenge, evalData),
+            mulmod(
+            mulmod(
+                mulmod(
+                    c,
+                    addmod(challenge.beta, 1, p),
+                    p
+                ),
+            addmod(challenge.gamma, merged_lookup_x, p),
             p
-        ),
-        addmod(challenge.gamma, merged_lookup_x, p),
+            ),
+        add_plookup_commitments_helper1_4_3 (challenge,  merged_table_x, merged_table_xw),
         p
-    ),
-    add_plookup_commitments_helper1_4_3 (challenge,  merged_table_x, merged_table_xw),
+        ),
     p
-),
-    p
-);
+    );
     }
 function add_plookup_commitments_helper1_4_2(
         Types.ChallengeTranscript memory challenge,
@@ -1279,8 +1192,6 @@ function add_plookup_commitments_helper1_4_2(
         p
     );
     }
-
-
 
      // to avoid the stack too deep error
      function add_plookup_commitments_helper2(
@@ -1390,9 +1301,9 @@ function add_plookup_commitments_helper1_4_2(
         uint256 uniqueCount = 0;
 
         for (uint256 i = 0; i < bases.length; i++) {
-    bool found = false;
-    for (uint256 j = 0; j < uniqueCount && !found; j++) {
-        if (bases[i].x == tempBases[j].x && bases[i].y == tempBases[j].y) {
+            bool found = false;
+            for (uint256 j = 0; j < uniqueCount && !found; j++) {
+            if (bases[i].x == tempBases[j].x && bases[i].y == tempBases[j].y) {
             tempScalars[j] = addmod(tempScalars[j], scalars[i], p_local);
             found = true;
         }
@@ -1447,7 +1358,6 @@ function add_plookup_commitments_helper1_4_2(
             }
         }
         eval = addmod(eval,mulmod(buffer_v_and_uv_basis[11],proof.perm_next_eval,p),p);        
-        
         // for lookup
                 eval = addmod(eval,mulmod(buffer_v_and_uv_basis[12],proof.range_table_eval,p),p);
                 eval = addmod(eval,mulmod(buffer_v_and_uv_basis[13],proof.key_table_eval,p),p);
@@ -1531,16 +1441,13 @@ function add_plookup_commitments_helper1_4_2(
         Bn254Crypto.validate_G1Point(proof.opening_proof);
         Bn254Crypto.validate_G1Point(proof.shifted_opening_proof);
     }
-    
-    function get_verification_key()
+ function get_verification_key()
         internal
-        view
+        pure
         returns (Types.VerificationKey memory)
     {
-       return vkProvider.getVerificationKey();
-    //    return UltraPlonkVerificationKey.getVerificationKey();
+       return UltraPlonkVerificationKey.getVerificationKey();
     }
-
     function deserialize_proof(
         bytes calldata proofBytes
     ) internal pure returns (Types.Proof memory proof) {
@@ -1582,13 +1489,8 @@ function add_plookup_commitments_helper1_4_2(
         }
         return proof;
     }
-
-    // storage gap for future variables
-    uint256[50] private __gap;
 }
 
-<<<<<<< HEAD:blockchain_assets/contracts/proof_verification/RollupProofVerifierUUPS.sol
-=======
 library Transcript {
     struct TranscriptData {
         bytes32[2] state;
@@ -1608,7 +1510,6 @@ library Transcript {
         TranscriptData memory self,
         uint256 fieldElement
     ) internal pure {
-        // appendMessage(self, abi.encodePacked(reverse_Endianness(fieldElement)));
         appendMessage(self, abi.encodePacked(fieldElement));
     }
 
@@ -1846,8 +1747,6 @@ library Transcript {
         TranscriptData memory self,
         Types.VerificationKey memory vk
     ) internal pure {
-        // append_field_element(self, vk.domain_size);
-        // append_field_element(self, vk.num_inputs);
         //    compute transcript:
         //    KECCAK256_STATE_SIZE=64 [0;64]
         //    modulus_bit_size=254    [254, 0, 0, 0]
@@ -2095,12 +1994,12 @@ library Transcript {
     Transcript.TranscriptData memory self,
     Types.Proof memory proof
 ) internal pure {
+// returns (uint256) {
     // 1. Append h_poly_comms to transcript (just like Rust)
     // Transcript.TranscriptData memory transcripts1;
     Transcript.append_G1_element(self, proof.h_poly_comm_1);
     Transcript.append_G1_element(self, proof.h_poly_comm_2);
     bytes memory input = abi.encodePacked(self.state[0], self.transcript);
-
     bytes32 buf = keccak256(input);
     self.state[0] = buf;
     self.transcript = "";
@@ -2111,11 +2010,11 @@ library Transcript {
     function generate_gamma_challenges(
         TranscriptData memory self
     ) internal pure returns (uint256) {
-        bytes memory input = abi.encodePacked(self.state[0], self.transcript);
-       bytes32 buf = keccak256(input);
+    bytes memory input = abi.encodePacked(self.state[0], self.transcript);
+    bytes32 buf = keccak256(input);
     self.state[0] = buf;
     self.transcript = "";
-        return
+    return
             Bn254Crypto.fromBeBytesModOrder(
         BytesLib.slice(abi.encodePacked(buf), 0, 32)
     );
@@ -2130,8 +2029,8 @@ library Transcript {
         append_G1_element(self, proof.prod_lookup_poly_comm);
          bytes memory input = abi.encodePacked(self.state[0], self.transcript);
         bytes32 buf = keccak256(input);
-    self.state[0] = buf;
-    self.transcript = "";
+        self.state[0] = buf;
+        self.transcript = "";
         return
             Bn254Crypto.fromBeBytesModOrder(
         BytesLib.slice(abi.encodePacked(buf), 0, 32)
@@ -2176,25 +2075,25 @@ library Transcript {
         append_field_element(self, proof.wire_sigma_evals_4);
         append_field_element(self, proof.wire_sigma_evals_5);
         append_field_element(self, proof.perm_next_eval);
-    // plookup_proof: poly_evals (PlookupEvaluations)    
+        // plookup_proof: poly_evals (PlookupEvaluations)    
     
-    append_field_element(self, proof.key_table_eval);
-    append_field_element(self, proof.table_dom_sep_eval);
-    append_field_element(self, proof.range_table_eval);
-    append_field_element(self, proof.q_dom_sep_eval);
-    append_field_element(self, proof.h_1_eval);
-    append_field_element(self, proof.q_lookup_eval);
-    append_field_element(self, proof.prod_next_eval);
-    append_field_element(self, proof.range_table_next_eval);
-    append_field_element(self, proof.key_table_next_eval);
-    append_field_element(self, proof.table_dom_sep_next_eval);
-    append_field_element(self, proof.h_1_next_eval);
-    append_field_element(self, proof.h_2_next_eval);
-    append_field_element(self, proof.q_lookup_next_eval);
-    append_field_element(self, proof.w_3_next_eval);
-    append_field_element(self, proof.w_4_next_eval);
+        append_field_element(self, proof.key_table_eval);
+        append_field_element(self, proof.table_dom_sep_eval);
+        append_field_element(self, proof.range_table_eval);
+        append_field_element(self, proof.q_dom_sep_eval);
+        append_field_element(self, proof.h_1_eval);
+        append_field_element(self, proof.q_lookup_eval);
+        append_field_element(self, proof.prod_next_eval);
+        append_field_element(self, proof.range_table_next_eval);
+        append_field_element(self, proof.key_table_next_eval);
+        append_field_element(self, proof.table_dom_sep_next_eval);
+        append_field_element(self, proof.h_1_next_eval);
+        append_field_element(self, proof.h_2_next_eval);
+        append_field_element(self, proof.q_lookup_next_eval);
+        append_field_element(self, proof.w_3_next_eval);
+        append_field_element(self, proof.w_4_next_eval);
     bytes memory input = abi.encodePacked(self.state[0], self.transcript);
-       bytes32 buf = keccak256(input);
+    bytes32 buf = keccak256(input);
     self.state[0] = buf;
     self.transcript = "";
         return
@@ -2664,4 +2563,3 @@ library PolynomialEval {
         }
     }
 }
->>>>>>> Jiajie/workflows:blockchain_assets/contracts/proof_verification/RollupProofVerifier.sol

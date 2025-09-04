@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: CC0
+<<<<<<< HEAD
 pragma solidity >=0.8.0;
+=======
+pragma solidity >=0.8.20;
+>>>>>>> Jiajie/workflows
 
 import "./INFVerifier.sol";
 

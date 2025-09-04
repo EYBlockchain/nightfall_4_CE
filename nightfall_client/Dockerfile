@@ -4,7 +4,6 @@ FROM rust:1.84.1 AS builder
 COPY configuration/trust/* /usr/local/share/ca-certificates/
 RUN chmod 644 /usr/local/share/ca-certificates/* && update-ca-certificates
 
-
 WORKDIR /app
 RUN mkdir bin
 COPY --exclude=configuration/bin/*  . .

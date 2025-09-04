@@ -9,7 +9,6 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IERC3525} from "@erc-3525/contracts/IERC3525.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {IERC3525Receiver} from "@erc-3525/contracts/IERC3525Receiver.sol";
-
 import "./ProposerManager.sol";
 import "./X509/Certified.sol";
 import "./X509/X509.sol";
