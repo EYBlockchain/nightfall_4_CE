@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
-pragma solidity >=0.6.0;
+pragma solidity >=0.8.20;
 pragma experimental ABIEncoderV2;
+
+error INVALID_VERIFICATION_KEY_HASH(uint256 expected, uint256 actual);
+
 import "./BytesLib.sol";
 import "./Types.sol";
 import "./RollupProofVerificationKey.sol";
@@ -13,17 +16,7 @@ import {INFVerifier} from "./INFVerifier.sol";
 */
 
 contract RollupProofVerifier is INFVerifier{
-    /**
-        Calldata formatting:
-        0x00 - 0x04 : function signature
-        0x04 - 0x24 : proof_data pointer (location in calldata that contains the proof_data array)
-        0x44 - 0x64 : length of `proof_data` array
-        0x64 - ???? : array containing our zk proof data
-    **/
 
-    // Define a global p here for the mod operation
-    // Jiajie: You can find that when we use line assembly code in a function,
-    // I define a p again, this is because line assembly code can only get local parameter
     uint256 public p;
     constructor() {
         p = Bn254Crypto.r_mod;
@@ -69,51 +62,6 @@ contract RollupProofVerifier is INFVerifier{
         uint256[] scalars;
         Types.Proof proof;
     }
-
-    // Define beta*G2 generator
-    // This value is from Jellyfish proof
-    // open_key.beta_h:(QuadExtField(
-    // 13391535935907980906767851257946662220338053336387334424319244660799129107115 +
-    // 13486697983632270454518154085647451274272822224810404073606160143201764912100 * u),
-    // QuadExtField(19730215451073055081484308140724634066486551345743718054014672266688134390417 +
-    // 14831435711192949190034188156049387261611890338548161586954205995029247307236 * u))
-    // Swap the x0 and x1, y0 and y1
-    // Becase:
-    // In ethereum precompile paring check smart contract (https://github.com/ethereum/EIPs/blob/master/EIPS/eip-197.md)
-    // we have
-    // P2 = (
-    //   11559732032986387107991004021392285783925812861821192530917403151452391805634 * i +
-    //   10857046999023057135944570762232829481370756359578518086990519993285655852781,
-    //   4082367875863433681332203403145435568316851327593401208105741076214120093531 * i +
-    //   8495653923123431417604973247489272438418190587263600148770280649306958101930
-    // )
-    // In Jellyfish, we have
-    // open_key.h:
-    // (QuadExtField(18992883557077338751676740118177043722015109780430174049283693347921085315405 +
-    // 13894752563669177437972774094368710232791813444255892635223873293938781475590 * u),
-    // QuadExtField(10925122867104977337323190443464523418359723997008819246567631783324624443255 +
-    // 18962925891889930889570493569926001403492439380023366507779121004511310287959 * u))
-
-    // Jellyfish doesn't use the original generator
-    // they used random value during the SRS generating and set the generator as follows:
-    // let g = E::G1::rand(rng);
-    // let h = E::G2::rand(rng);
-    // This value needs to be changed for different proofs.
-    // Types.G2Point private beta_h =
-    //     Types.G2Point({
-    //         // x0: 0x1DD13357222EAB4FB810D5C89B5AF426816CD0492532F7F181BB44E39CBC2BE4,
-    //         // x1: 0x1D9B573A9B30EAD10DCF030D1AB3C9EC81DC3DA2AAC764597280370A6B29BAAB,
-    //         // y0: 0x20CA4B8DA283890EA4AB8AC17F07102E0E3BCD102998E3BB16349B6005B02DE4,
-    //         // y1: 0x2B9EE7FD0E19D5EC504255B3090E52AB453425E7B43C170022F6F862F7CC2291
-    //         // x0: 0x285B1F14EDD7E6632340A37DFAE9005FF762EDCFECFE1C732A7474C0708BEF80,
-    //         // x1: 0x17CC93077F56F654DA727C1DEF86010339C2B4131094547285ADB083E48C197B,
-    //         // y0: 0x2BAD9A374AEC49D329EC66E8F530F68509313450580C4C17C6DB5DDB9BDE7FD0,
-    //         // y1: 0x219EDFCEEE1723DE674F5B2F6FDB69D9E32DD53B15844956A630D3C7CDAA6ED9
-    //         x0: 0x17CC93077F56F654DA727C1DEF86010339C2B4131094547285ADB083E48C197B,
-    //         x1: 0x285B1F14EDD7E6632340A37DFAE9005FF762EDCFECFE1C732A7474C0708BEF80,
-    //         y0: 0x219EDFCEEE1723DE674F5B2F6FDB69D9E32DD53B15844956A630D3C7CDAA6ED9,
-    //         y1: 0x2BAD9A374AEC49D329EC66E8F530F68509313450580C4C17C6DB5DDB9BDE7FD0
-    //     });
 
     /**
      * @dev Verify a UltraPlonk proof from Jellyfish with 4 input wires
@@ -270,7 +218,7 @@ function verify(bytes calldata acc_proof, bytes calldata proofBytes, bytes calld
         A = compute_A(proof, challenge);     
         // B = eval_point * open_proof + u * next_eval_point *
         //   shifted_open_proof + comm - eval * [1]1`.
-        B = compute_B(pcsInfo, proof, challenge, vk);      
+        B = compute_B(pcsInfo, proof, challenge, vk);
 
         // Check e(A, [x]2) ?= e(B, [1]2)
         /// By Schwartz-Zippel lemma, it's equivalent to check that for a random r:
@@ -1643,48 +1591,106 @@ library Transcript {
 
     function compute_vk_hash(Types.VerificationKey memory vk) internal pure returns (uint256 vk_hash) 
     {
-        //vk_hash = keccak256(
-        //    vk.sigma_comms,
-        //    vk.selector_comms,
-        //    vk.range_table_comm,
-        //    vk.key_table_comm,
-        //    vk.table_dom_sep_comm,
-        //    vk.q_dom_sep_comm,
+    // vk_hash = keccak256(
+    //    vk.domain_size,
+    //    vk.sigma_comms_1..6,
+    //    vk.selector_comms_1..18,
+    //    vk.k1..k6,
+    //    vk.range_table_comm,
+    //    vk.key_table_comm,
+    //    vk.table_dom_sep_comm,
+    //    vk.q_dom_sep_comm
+    // ) mod p
+        
     assembly {
+        // Free memory pointer & write cursor
         let ptr := mload(0x40)
         let offset := ptr
 
-        // Loop through sigma_comms_1 to sigma_comms_6
-        for { let i := 0 } lt(i, 6) { i := add(i, 1) } {
-            let g1ptr := mload(add(vk, add(0x40, mul(i, 0x20))))
-            mstore(offset, mload(g1ptr))             // x
-            mstore(add(offset, 0x20), mload(add(g1ptr, 0x20))) // y
-            offset := add(offset, 0x40)
+        // 1) domain_size (uint256 at vk + 0x00)
+        {
+            let ds := mload(vk) // uint256 in Solidity
+            // write bytes 24..31 (most-significant to least-significant)
+            mstore8(offset,         byte(24, ds))
+            mstore8(add(offset, 1), byte(25, ds))
+            mstore8(add(offset, 2), byte(26, ds))
+            mstore8(add(offset, 3), byte(27, ds))
+            mstore8(add(offset, 4), byte(28, ds))
+            mstore8(add(offset, 5), byte(29, ds))
+            mstore8(add(offset, 6), byte(30, ds))
+            mstore8(add(offset, 7), byte(31, ds))
+            offset := add(offset, 8)
         }
 
-        // selector_comms_1 to selector_comms_18
-        for { let i := 0 } lt(i, 18) { i := add(i, 1) } {
-            let g1ptr := mload(add(vk, add(0x100, mul(i, 0x20))))
-            mstore(offset, mload(g1ptr))             // x
-            mstore(add(offset, 0x20), mload(add(g1ptr, 0x20))) // y
-            offset := add(offset, 0x40)
+        // 2) sigma_comms_1..6
+        // Each field in parent struct holds a pointer to a G1Point (x,y).
+        // G1Point memory layout: [x (32 bytes), y (32 bytes)]
+        // Parent VK layout offsets: 0x40, 0x60, 0x80, 0xa0, 0xc0, 0xe0
+        {
+            let base := 0x40
+            for { let i := 0 } lt(i, 6) { i := add(i, 1) } {
+                let g1ptr := mload(add(vk, add(base, mul(i, 0x20))))
+                mstore(offset, mload(g1ptr))                    // x
+                mstore(add(offset, 0x20), mload(add(g1ptr, 0x20))) // y
+                offset := add(offset, 0x40)
+            }
         }
 
-        // range_table_comm, key_table_comm, table_dom_sep_comm, q_dom_sep_comm
-        for { let i := 0 } lt(i, 4) { i := add(i, 1) } {
-            let g1ptr := mload(add(vk, add(0x400, mul(i, 0x20))))
-            mstore(offset, mload(g1ptr))             // x
-            mstore(add(offset, 0x20), mload(add(g1ptr, 0x20))) // y
-            offset := add(offset, 0x40)
+        // 3) selector_comms_1..18
+        // Parent VK layout starts at 0x100, step 0x20 for each pointer
+        {
+            let base := 0x100
+            for { let i := 0 } lt(i, 18) { i := add(i, 1) } {
+                let g1ptr := mload(add(vk, add(base, mul(i, 0x20))))
+                mstore(offset, mload(g1ptr))                    // x
+                mstore(add(offset, 0x20), mload(add(g1ptr, 0x20))) // y
+                offset := add(offset, 0x40)
+            }
         }
 
+        // 4) ks: k1..k6 (uint256s)
+        // Parent VK layout: 0x340, 0x360, 0x380, 0x3a0, 0x3c0, 0x3e0
+        {
+            let base := 0x340
+            for { let i := 0 } lt(i, 6) { i := add(i, 1) } {
+                mstore(offset, mload(add(vk, add(base, mul(i, 0x20)))))
+                offset := add(offset, 0x20)
+            }
+        }
+
+        // 5) range_table_comm, key_table_comm, table_dom_sep_comm, q_dom_sep_comm
+        // Parent VK layout: pointers at 0x400, 0x420, 0x440, 0x460
+        {
+            let base := 0x400
+            for { let i := 0 } lt(i, 4) { i := add(i, 1) } {
+                let g1ptr := mload(add(vk, add(base, mul(i, 0x20))))
+                mstore(offset, mload(g1ptr))                    // x
+                mstore(add(offset, 0x20), mload(add(g1ptr, 0x20))) // y
+                offset := add(offset, 0x40)
+            }
+        }
+
+        // Hash the contiguous region [ptr .. offset)
         let len := sub(offset, ptr)
-        vk_hash := shr(0, keccak256(ptr, len))
-        // jj, come back to make 21888242871839275222246405745257275088548364400416034343698204186575808495617 p
-        vk_hash := mod(vk_hash, 21888242871839275222246405745257275088548364400416034343698204186575808495617)
+        let h := keccak256(ptr, len)
 
+        // advance free memory pointer
+        mstore(0x40, add(ptr, len))
+
+        // Reduce mod BN254 scalar field prime
+        // p = 21888242871839275222246405745257275088548364400416034343698204186575808495617
+        vk_hash := mod(h, 21888242871839275222246405745257275088548364400416034343698204186575808495617)
+    }
+
+    if (vk_hash != uint256(getVerificationKeyHash())) {
+        revert INVALID_VERIFICATION_KEY_HASH(uint256(vk_hash), uint256(getVerificationKeyHash()));
     }
 }
+
+    function getVerificationKeyHash() internal pure returns (bytes32) {
+        return UltraPlonkVerificationKey.getVerificationKeyHash();
+    }
+
     function compute_challengs(
         TranscriptData memory self,
         Types.VerificationKey memory vk,
