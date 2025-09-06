@@ -22,7 +22,7 @@ import ".././X509/Certified.sol";
 @dev Verifier Implementation for Nightfish Ultra plonk proof verification
 */
 
-contract RollupProofVerifier is     
+contract RollupProofVerifierV2 is     
     INFVerifier,
     OwnableUpgradeable,
     UUPSUpgradeable
@@ -268,7 +268,7 @@ contract RollupProofVerifier is
         // Check e(A, [x]2) ?= e(B, [1]2)
         /// By Schwartz-Zippel lemma, it's equivalent to check that for a random r:
         // - `e(A0 + ... + r^{m-1} * Am, [x]2) = e(B0 + ... + r^{m-1} * Bm, [1]2)`.
-        return Bn254Crypto.pairingProd2(A, vk.beta_h, B, vk.h);
+        return false;
     }
 
     function compute_A(
