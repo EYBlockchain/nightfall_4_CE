@@ -15,9 +15,6 @@ contract VKProviderTest is Test {
         Types.VerificationKey memory initVK;
         initVK.domain_size = 0x2000000;
 
-        // NOTE: If your Types.VerificationKey uses `num_inputs` (not `nPublicInputs`), set it here:
-        // initVK.num_inputs = 1;
-
         // Initialize with encoded struct
         vk.initialize(abi.encode(initVK));
     }
@@ -25,15 +22,12 @@ contract VKProviderTest is Test {
     function testGetVK() public view {
         Types.VerificationKey memory t = vk.getVerificationKey();
         assertEq(t.domain_size, 0x2000000, "domain_size mismatch after initialize");
-        // If your struct has num_inputs, you can assert it too:
-        // assertEq(t.num_inputs, 1);
     }
 
     function testReplaceVK_UpdatesAllAndBumpsVersion() public {
         // Prepare a new VK with a different domain size
         Types.VerificationKey memory newVK;
         newVK.domain_size = 0x3000000;
-        // newVK.num_inputs = 1; // if applicable
 
         bytes32 oldHash = vk.vkHash();
         uint64  oldVer  = vk.vkVersion();
