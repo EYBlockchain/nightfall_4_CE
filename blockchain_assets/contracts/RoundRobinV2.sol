@@ -8,7 +8,7 @@ import "./RoundRobinUUPS.sol";
 contract RoundRobinV2 is RoundRobin {
     /// Behavior change for the test: disable rotations in V2
     /// NOTE: V1's `rotate_proposer` must be `virtual` for this to override cleanly.
-    function rotate_proposer() external override {
+    function rotate_proposer() external pure override {
         revert("RoundRobinV2: rotate disabled for test");
     }
 
