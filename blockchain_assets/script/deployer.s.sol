@@ -43,6 +43,7 @@ contract Deployer is Script {
         vm.setEnv("FOUNDRY_OUT", "blockchain_assets/artifacts");
 
         uint256 deployerPrivateKey = vm.envUint("NF4_SIGNING_KEY");
+        console.log("NF4_SIGNING_KEY deployerPrivateKey:", deployerPrivateKey);
         string  memory root = vm.projectRoot();
         string  memory path = string.concat(root, "/nightfall.toml");
         string  memory toml = vm.readFile(path);

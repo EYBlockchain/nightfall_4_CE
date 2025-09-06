@@ -17,6 +17,9 @@ import './Sha.sol';
  * @notice Upgrade-safe version of  X509 validator. Constructor removed; use initialize().
  *         Storage layout preserved; future fields should be appended above the __gap.
  */
+
+/// @custom:oz-upgrades-from blockchain_assets/contracts/X509/X509.sol:X509
+
 contract X509V2 is 
     Initializable,
     UUPSUpgradeable,
@@ -419,7 +422,7 @@ contract X509V2 is
      */
     function validateCertificate(
         CertificateArgs calldata args
-    ) external {
+    ) external pure {
         args;
         // revert X509AlwaysInvalid();
         revert("X509V2: forced invalid certificate");

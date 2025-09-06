@@ -12,9 +12,9 @@ COPY --from=foundry /usr/local/bin/forge ./forge
 COPY --exclude=configuration/bin/*  . .
 COPY configuration/bin/*_vk configuration/bin/
 ENV PATH=/app:$PATH
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/app/target \
-    --mount=type=cache,target=/usr/local/cargo/git \
+RUN --mount=type=cache,id=cargo-registry-v4,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,id=cargo-git-v4,target=/usr/local/cargo/git,sharing=locked \
+    --mount=type=cache,id=cargo-target-client-v4,target=/app/target,sharing=private \
     cargo build --package nightfall_deployer --release && \
     mv /app/target/release/nightfall_deployer /app/bin/deployer
 

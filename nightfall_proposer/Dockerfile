@@ -5,9 +5,9 @@ RUN chmod 644 /usr/local/share/ca-certificates/* && update-ca-certificates
 WORKDIR /app
 RUN mkdir bin
 COPY . .
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/app/target \
-    --mount=type=cache,target=/usr/local/cargo/git \
+RUN --mount=type=cache,id=cargo-registry-v4,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,id=cargo-git-v4,target=/usr/local/cargo/git,sharing=locked \
+    --mount=type=cache,id=cargo-target-client-v4,target=/app/target,sharing=private \
     cargo build --package nightfall_proposer --release && \
     mv /app/target/release/nightfall_proposer /app/bin/proposer
 FROM debian:bookworm-slim
