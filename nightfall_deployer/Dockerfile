@@ -6,17 +6,21 @@ FROM rust:1.88.0 AS builder
 COPY ./configuration/trust/* /usr/local/share/ca-certificates/
 RUN chmod 644 /usr/local/share/ca-certificates/* && update-ca-certificates
 
+ 
+
 WORKDIR /app
 RUN mkdir -p bin
 COPY --from=foundry /usr/local/bin/forge ./forge
 COPY --exclude=configuration/bin/*  . .
 COPY configuration/bin/*_vk configuration/bin/
 ENV PATH=/app:$PATH
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/app/target \
-    --mount=type=cache,target=/usr/local/cargo/git \
+
+RUN --mount=type=cache,id=cargo-registry-v4,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,id=cargo-git-v4,target=/usr/local/cargo/git,sharing=locked \
+    --mount=type=cache,id=cargo-target-client-v4,target=/app/target,sharing=private \
     cargo build --package nightfall_deployer --release && \
     mv /app/target/release/nightfall_deployer /app/bin/deployer
+
 
 FROM debian:bookworm-slim
 WORKDIR /app
