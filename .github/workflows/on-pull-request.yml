@@ -88,7 +88,7 @@ jobs:
       - name: Build Docker Image
         run: docker compose --profile sync_test build
       - name: Run Integration Test
-        run: docker compose --profile development up
+        run: docker compose --profile development run test
       - name: Print logs
         run: docker compose --profile development logs
       - name: Shut Down Containers
