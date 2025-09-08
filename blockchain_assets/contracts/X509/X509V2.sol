@@ -31,7 +31,6 @@ contract X509V2 is
     uint256 constant SECONDS_PER_DAY = 24 * 60 * 60;
     int256 constant OFFSET19700101 = 2440588;
 
-    error X509AlwaysInvalid();
 
 
     struct RSAPublicKey {
@@ -424,7 +423,6 @@ contract X509V2 is
         CertificateArgs calldata args
     ) external pure {
         args;
-        // revert X509AlwaysInvalid();
         revert("X509V2: forced invalid certificate");
     }
 

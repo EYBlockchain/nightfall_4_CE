@@ -1,7 +1,6 @@
 use configuration::addresses::get_addresses;
 use ethers::providers::ProviderError;
 use nightfall_bindings::proposer_manager::ProposerManager;
-use nightfall_bindings::round_robin::RoundRobin;
 use warp::reply;
 use warp::{path, reply::Reply, Filter};
 

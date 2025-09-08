@@ -28,7 +28,7 @@ use lib::{
 use log::{debug, error, info, warn};
 use nf_curves::ed_on_bn254::Fr as BJJScalar;
 use nightfall_bindings::{
-    proposer_manager::ProposerManager, round_robin::RoundRobin, x509::Proposer,
+    proposer_manager::ProposerManager, x509::Proposer,
 };
 use reqwest::{Client, Error as ReqwestError};
 use serde::Serialize;

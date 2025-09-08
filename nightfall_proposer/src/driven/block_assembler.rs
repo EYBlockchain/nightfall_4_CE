@@ -13,7 +13,6 @@ use lib::blockchain_client::BlockchainClientConnection;
 use log::{debug, error, warn};
 use nightfall_bindings::{
     nightfall::{Block as NightfallBlockStruct, OnChainTransaction as NightfallOnChainTransaction},
-    round_robin::RoundRobin,
 };
 use nightfall_client::{
     domain::{entities::ClientTransaction, error::ConversionError},
