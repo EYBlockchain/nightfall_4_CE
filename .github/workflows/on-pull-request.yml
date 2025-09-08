@@ -5,7 +5,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  NF4_LARGE_BLOCK_TEST: "false"
+  NF4_LARGE_BLOCK_TEST: "true"
   
 jobs:
   build:

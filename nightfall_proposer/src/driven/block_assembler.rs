@@ -223,7 +223,6 @@ impl<P: Proof + Send + Sync> SmartTrigger<P> {
             {
                 Ok(count) => {
                     debug!("Mempool client transactions: {count}");
-                    debug!("Mempool client transactions: {count}");
                     count
                 }
                 Err(e) => {
