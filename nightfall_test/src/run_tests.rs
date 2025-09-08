@@ -25,7 +25,7 @@ use lib::{
 };
 use log::{debug, info, warn};
 use nightfall_client::drivers::rest::{client_nf_3::WithdrawResponse, models::DeEscrowDataReq};
-use nightfall_proposer::services::assemble_block::get_block_size;
+use nightfall_proposer::{services::assemble_block::get_block_size};
 use serde_json::Value;
 use test::{
     anvil_reorg, count_spent_commitments, get_erc20_balance, get_erc721_balance, get_fee_balance,
@@ -117,13 +117,6 @@ pub async fn run_tests(
         };
         let n_large_block: usize = block_size;
         const DEPOSIT_FEE: &str = "0x06";
-        settings.nightfall_proposer.block_max_size = block_size;
-        info!("Block size is {block_size}, making a large block of deposits and transfers");
-        settings.nightfall_proposer.block_assembly_target_fill_ratio = 1.0; // we want to fill the block completely
-        // we need to work out how much value we expect to have in the clients after the large block deposits and transfers
-        settings.nightfall_proposer.block_assembly_max_wait_secs = 3600; // we don't want the block to be computed until we've submitted all the transactions
-        
-
         // work out how much we'll change the balance of the two clients by making the large block deposits
         let client2_starting_balance = n_large_block as i64
             * i64::from_hex_string(&test_settings.erc20_transfer_large_block.value).unwrap();
@@ -138,11 +131,11 @@ pub async fn run_tests(
                 - client2_starting_fee_balance;
 
         // make up to 64 deposits so that we can test a large block (reuse deposit 2 data)
-        // first we need to pause block assembly so that we can make all the deposits in the same block
-        // let pause_url = Url::parse(&settings.nightfall_proposer.url)
-        //     .unwrap()
-        //     .join("v1/pause")
-        //     .unwrap();
+        //first we need to pause block assembly so that we can make all the deposits in the same block
+        let pause_url = Url::parse(&settings.nightfall_proposer.url)
+            .unwrap()
+            .join("v1/pause")
+            .unwrap();
         let res = http_client.get(pause_url).send().await.unwrap();
         assert!(res.status().is_success());
         // create deposit transactions first
@@ -185,12 +178,12 @@ pub async fn run_tests(
         // note that the responses vector is now empty
 
         //now we can resume block assembly
-        // let resume_url = Url::parse(&settings.nightfall_proposer.url)
-        //     .unwrap()
-        //     .join("v1/resume")
-        //     .unwrap();
-        // let res = http_client.get(resume_url).send().await.unwrap();
-        // assert!(res.status().is_success());
+        let resume_url = Url::parse(&settings.nightfall_proposer.url)
+            .unwrap()
+            .join("v1/resume")
+            .unwrap();
+        let res = http_client.get(resume_url).send().await.unwrap();
+        assert!(res.status().is_success());
         info!("Waiting for deposits to be on-chain");
         wait_on_chain(&large_block_deposits, &get_settings().nightfall_client.url)
             .await
@@ -200,12 +193,12 @@ pub async fn run_tests(
 
         // next, we'll do transfers
         // but first we need to pause block assembly so that we can make all the transfers in the same block
-        // let pause_url = Url::parse(&settings.nightfall_proposer.url)
-        //     .unwrap()
-        //     .join("v1/pause")
-        //     .unwrap();
-        // let res = http_client.get(pause_url).send().await.unwrap();
-        // assert!(res.status().is_success());
+        let pause_url = Url::parse(&settings.nightfall_proposer.url)
+            .unwrap()
+            .join("v1/pause")
+            .unwrap();
+        let res = http_client.get(pause_url).send().await.unwrap();
+        assert!(res.status().is_success());
         let url = Url::parse(&settings.nightfall_client.url)
             .unwrap()
             .join("v1/transfer")
@@ -247,13 +240,13 @@ pub async fn run_tests(
             .filter(|n| !((Fr254::from_hex_string(n.as_str().unwrap()).unwrap()).is_zero()))
             .count();
 
-        //now we can resume block assembly
-        // let resume_url = Url::parse(&settings.nightfall_proposer.url)
-        //     .unwrap()
-        //     .join("v1/resume")
-        //     .unwrap();
-        // let res = http_client.get(resume_url).send().await.unwrap();
-        // assert!(res.status().is_success());
+       // now we can resume block assembly
+        let resume_url = Url::parse(&settings.nightfall_proposer.url)
+            .unwrap()
+            .join("v1/resume")
+            .unwrap();
+        let res = http_client.get(resume_url).send().await.unwrap();
+        assert!(res.status().is_success());
         info!("Waiting for transfers to be on-chain");
         wait_on_chain(
             large_block_transfers
@@ -272,12 +265,6 @@ pub async fn run_tests(
             client1_starting_fee_balance,
             nullifier_count,
         )
-        // now restore the proposer settings to sensible values
-        settings.nightfall_proposer.block_max_size = block_size;
-        info!("Block size is {block_size}, making a large block of deposits and transfers");
-        settings.nightfall_proposer.block_assembly_target_fill_ratio = 0.25; // we want to fill the block completely
-        // we need to work out how much value we expect to have in the clients after the large block deposits and transfers
-        settings.nightfall_proposer.block_assembly_max_wait_secs = 120; // we don't want the block to 
     } else {
         (0, 0, 0, 0)
     };

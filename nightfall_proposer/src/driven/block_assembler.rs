@@ -106,16 +106,25 @@ impl<P: Proof + Send + Sync> BlockAssemblyTrigger for SmartTrigger<P> {
                 );
                 break; // Exit loop early
             }
-            if self.status.read().await.is_running() && self.should_assemble().await {
-                debug!("Trigger activated by mempool check.");
-                break;
-            }
-            if elapsed >= self.max_wait_secs {
-                debug!(
-                    "Max wait time elapsed ({}s). Triggering block assembly.",
-                    self.max_wait_secs
-                );
-                break;
+            if self.status.read().await.is_running() {
+                if  self.should_assemble().await {
+                    debug!("Trigger activated by mempool check.");
+                    break;
+                }
+                if elapsed >= self.max_wait_secs {
+                    debug!(
+                        "Max wait time elapsed ({}s). Triggering block assembly.",
+                        self.max_wait_secs
+                    );
+                    break;
+                }
+            } else {
+                if self.break_pause().await {
+                    self.status.write().await.resume();
+                    debug!("Block assembly resumed as block is full.");
+                    break;
+                }
+                debug!("Block assembly is currently paused. Waiting...");
             }
 
             // Log status of trigger wait with dynamic information
@@ -189,8 +198,48 @@ impl<P: Proof + Send + Sync> SmartTrigger<P> {
             fill_ratio,
             self.target_block_fill_ratio
         );
-
         fill_ratio >= self.target_block_fill_ratio
+    }
+
+    async fn break_pause(&self) -> bool {
+        let db = self.db;
+
+        let num_deposit_groups =
+            match <mongodb::Client as TransactionsDB<P>>::count_mempool_deposits(db).await {
+                Ok(count) => {
+                    let groups = count.div_ceil(4);
+                    debug!("Mempool deposits: {count}, grouped into: {groups}");
+                    groups
+                }
+                Err(e) => {
+                    error!("Error counting deposits: {e:?}");
+                    0
+                }
+            } as f32;
+
+        let num_client_txs =
+            match <mongodb::Client as TransactionsDB<P>>::count_mempool_client_transactions(db)
+                .await
+            {
+                Ok(count) => {
+                    debug!("Mempool client transactions: {count}");
+                    debug!("Mempool client transactions: {count}");
+                    count
+                }
+                Err(e) => {
+                    error!("Error counting client transactions: {e:?}");
+                    0
+                }
+            } as f32;
+
+        let block_size = match get_block_size() {
+            Ok(size) => size as f32,
+            Err(e) => {
+                log::warn!("Falling back to default block size 64 due to error: {e:?}");
+                64.0
+            }
+        };
+       (num_deposit_groups + num_client_txs) >= block_size
     }
 }
 
