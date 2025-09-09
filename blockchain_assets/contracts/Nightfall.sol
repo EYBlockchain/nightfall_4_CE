@@ -91,12 +91,17 @@ contract Nightfall is
     IERC1155Receiver,
     IERC3525Receiver
 {
-    // int256 public layer2_block_number = 0;
     event BlockProposed(int256 indexed layer2_block_number);
     event DepositEscrowed(uint256 nfSlotId, uint256 value);
 
+    // remember a Deposit's fee
     mapping(uint256 => DepositFeeState) internal feeBinding;
+    // remember whether a Withdraw can be actioned
     mapping(bytes32 => uint8) internal withdrawalIncluded;
+    // withdrawalIncluded[key] == 1 means this withdraw transaction is in a Layer 2 block and it's onchain
+    // withdrawalIncluded[key] == 0 means this withdraw transaction either hasn't showed on chain or there is no fund to withdraw regarding to this withdraw data
+    
+    // Map Nightfall tokenId to the original ercAddress and tokenId
     mapping(uint256 => TokenIdValue) internal tokenIdMapping;
 
     int256 public layer2_block_number; // set in initialize to 0
