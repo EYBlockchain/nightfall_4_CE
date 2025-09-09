@@ -14,4 +14,8 @@ remappings = [
     "@forge-std/=blockchain_assets/solidity_lib/forge-std/src/",
     "@erc-3525/=blockchain_assets/solidity_lib/erc-3525/",
 ]
+optimizer = true       # Enable the optimizer
+optimizer_runs = 200   # Lower = smaller bytecode (but higher runtime gas)
+via_ir = false         # Disable IR compilation (can sometimes reduce size)
+debug = false          # Strip debug symbols
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

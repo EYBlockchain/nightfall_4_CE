@@ -58,7 +58,7 @@ where
         <mongodb::Client as CommitmentTree<Fr254>>::new_commitment_tree(&client, 29, 3)
             .await
             .map_err(|e| {
-                log::error!("Could not create commitment tree metadata: {e:?}",);
+                log::error!("Could not create commitment tree metadata: {e:?}");
                 e
             })?;
         Ok(())
@@ -149,7 +149,7 @@ where
         <mongodb::Client as NullifierTree<Fr254>>::new_nullifier_tree(&client, 29, 3)
             .await
             .map_err(|e| {
-                log::error!("Could not create NullifierTree metadata: {e:?}",);
+                log::error!("Could not create NullifierTree metadata: {e:?}");
                 <Self as MutableTree<F>>::Error::from(e)
             })?;
         Ok(())
@@ -234,7 +234,7 @@ where
         <mongodb::Client as HistoricRootTree<Fr254>>::new_historic_root_tree(&client, 32)
             .await
             .map_err(|e| {
-                log::error!("Could not create HistoricRootTree metadata: {e:?}",);
+                log::error!("Could not create HistoricRootTree metadata: {e:?}");
                 e
             })?;
         Ok(())

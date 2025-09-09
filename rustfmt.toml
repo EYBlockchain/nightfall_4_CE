@@ -1,4 +1,3 @@
 reorder_imports = true
 edition = "2021"
 unstable_features = true
-ignore = ["nightfall_bindings/"]

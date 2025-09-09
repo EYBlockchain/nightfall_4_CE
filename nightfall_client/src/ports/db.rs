@@ -5,9 +5,9 @@ use super::{
     keys::{ProvingKey, VerifyingKey},
 };
 
+use alloy::primitives::{TxHash, I256};
 use ark_bn254::Fr as Fr254;
 use async_trait::async_trait;
-use ethers::types::{H256, I256};
 use futures::Future;
 
 #[async_trait]
@@ -33,7 +33,7 @@ where
     async fn mark_commitments_unspent(
         &self,
         commitments: &[K],
-        layer_1_transaction_hash: Option<H256>,
+        layer_1_transaction_hash: Option<TxHash>,
         layer_2_block_number: Option<I256>,
     ) -> Option<()>;
     async fn mark_commitments_spent(&self, nullifiers: Vec<K>) -> Option<()>;

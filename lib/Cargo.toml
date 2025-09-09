@@ -14,10 +14,11 @@ hex = "0.4.3"
 dotenv = "0.15.0"
 x509-parser = "0.16.0"
 openssl = "0.10.72"
-ethers = { version = "2.0.14", features = ["ws"] }
+k256 = "0.13.4"
+alloy = { version = "1.0.23", features = ["full", "json-rpc"] }
 tokio = { version = "1.45.0", features = ["full"] }
-ethers-solc = "2.0.14"
 configuration = { path = "../configuration" }
+nightfall_bindings = {path = "../nightfall_bindings"}
 toml = "0.8.22"
 ark-serialize = "0.4.2"
 ark-std = { version = "0.4.0", default-features = false }
@@ -31,7 +32,6 @@ jf-primitives = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git" }
 nf-curves = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git" }
 ark-ec = { version = "0.4.2", features = ["parallel"] }
 num-bigint = "0.4.6"
-nightfall-bindings = { path = "../nightfall_bindings" }
 ark-ff = { version = "0.4.2", features = ["parallel"] }
 mongodb = "3.2.3"
 serde = "1.0.219"

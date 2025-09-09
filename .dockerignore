@@ -9,3 +9,4 @@ LICENSE
 .env.example
 remappings.txt
 **/*.ptau
+nightfall_bindings/build.rs

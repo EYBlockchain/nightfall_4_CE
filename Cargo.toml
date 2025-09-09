@@ -7,9 +7,10 @@ members = [
     "nightfall_proposer", 
     "nightfall_sync_test",
     "lib",
+    "nightfall_bindings",
 ]
 resolver = "2"
 
 [workspace.package]
 version = "0.1.0"
-edition = "2021"
+edition = "2024"

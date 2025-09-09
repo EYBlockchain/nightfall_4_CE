@@ -1,6 +1,6 @@
 use crate::settings::{ContractAddresses, Settings};
 
-use ethers::types::Address;
+use alloy::primitives::Address;
 
 use figment::{
     providers::{Format, Toml},
@@ -150,9 +150,9 @@ impl Addresses {
                         .map_err(|_| AddressesError::CouldNotReadFile)?;
                     let v: serde_json::Value = serde_json::from_str(&json_string)
                         .map_err(|_| AddressesError::CouldNotReadFile)?;
-                    let mut nightfall = Address::zero();
-                    let mut round_robin = Address::zero();
-                    let mut x509 = Address::zero();
+                    let mut nightfall = Address::ZERO;
+                    let mut round_robin = Address::ZERO;
+                    let mut x509 = Address::ZERO;
 
                     let transaction_array = v["transactions"].as_array().unwrap();
 
@@ -279,13 +279,14 @@ impl Sources {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rand::Rng;
     #[tokio::test]
     async fn test_save_and_load() {
         const FILE: &str = "test_file.tmp";
         let addresses = Addresses {
-            nightfall: Address::random(),
-            round_robin: Address::random(),
-            x509: Address::random(),
+            nightfall: Address::from(rand::thread_rng().gen::<[u8; 20]>()),
+            round_robin: Address::from(rand::thread_rng().gen::<[u8; 20]>()),
+            x509: Address::from(rand::thread_rng().gen::<[u8; 20]>()),
         };
         let address = addresses.nightfall;
         let res = addresses.save(Sources::parse(FILE).unwrap()).await.unwrap();

@@ -1,10 +1,9 @@
+use alloy::primitives::{U256, TxHash};
 use ark_bn254::{Bn254, Fq as Fq254, Fr as Fr254};
 use ark_ff::{BigInteger, Field, PrimeField};
 use ark_poly::{EvaluationDomain, Radix2EvaluationDomain};
 use ark_std::vec::Vec;
 use configuration::settings::Settings;
-use ethers::types::H256;
-use ethers::types::U256;
 use jf_plonk::proof_system::structs::{VerifyingKey, VK};
 use std::{
     fs::File,
@@ -15,21 +14,36 @@ use std::{
 pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: &Settings) {
     // compute the vk hash.
     let vk_hash_bytes: [u8; 32] = vk.hash().into_bigint().to_bytes_be().try_into().unwrap();
-    let vk_hash = H256::from(vk_hash_bytes);
+    let vk_hash = TxHash::from(vk_hash_bytes);
     let domain_size = vk.domain_size();
     let domain_size_fr = Fr254::from(domain_size as u32);
-    let domain_size_inv = U256::from_little_endian(
-        &domain_size_fr
+    let domain_size_inv = U256::from_le_bytes::<32>(
+        domain_size_fr
             .inverse()
             .unwrap()
             .into_bigint()
-            .to_bytes_le(),
+            .to_bytes_le()
+            .try_into()
+            .expect("Failed to convert Vec<u8> to [u8; 32]"),
     );
     let domain = Radix2EvaluationDomain::<Fr254>::new(domain_size).unwrap();
     let size_inv = domain_size_inv;
-    let group_gen = U256::from_little_endian(&domain.group_gen().into_bigint().to_bytes_le());
-    let group_gen_inv =
-        U256::from_little_endian(&domain.group_gen_inv().into_bigint().to_bytes_le());
+    let group_gen = U256::from_le_bytes::<32>(
+        domain
+            .group_gen()
+            .into_bigint()
+            .to_bytes_le()
+            .try_into()
+            .expect("Failed to convert Vec<u8> to [u8; 32]"),
+    );
+    let group_gen_inv = U256::from_le_bytes::<32>(
+        domain
+            .group_gen_inv()
+            .into_bigint()
+            .to_bytes_le()
+            .try_into()
+            .expect("Failed to convert Vec<u8> to [u8; 32]"),
+    );
 
     let domain_size_u256 = U256::from(domain_size as u32);
     let num_inputs_u256 = U256::from(vk.num_inputs() as u32);
@@ -37,8 +51,20 @@ pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: 
         .sigma_comms
         .iter()
         .flat_map(|comm| {
-            let x = U256::from_big_endian(&comm.x.into_bigint().to_bytes_be());
-            let y = U256::from_big_endian(&comm.y.into_bigint().to_bytes_be());
+            let x = U256::from_be_bytes::<32>(
+                comm.x
+                    .into_bigint()
+                    .to_bytes_be()
+                    .try_into()
+                    .expect("Failed to convert Vec<u8> to [u8; 32]"),
+            );
+            let y = U256::from_be_bytes::<32>(
+                comm.y
+                    .into_bigint()
+                    .to_bytes_be()
+                    .try_into()
+                    .expect("Failed to convert Vec<u8> to [u8; 32]"),
+            );
             vec![x, y]
         })
         .collect();
@@ -47,18 +73,44 @@ pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: 
         .selector_comms
         .iter()
         .flat_map(|comm| {
-            let x = U256::from_big_endian(&comm.x.into_bigint().to_bytes_be());
-            let y = U256::from_big_endian(&comm.y.into_bigint().to_bytes_be());
+            let x = U256::from_be_bytes::<32>(
+                comm.x
+                    .into_bigint()
+                    .to_bytes_be()
+                    .try_into()
+                    .expect("Failed to convert Vec<u8> to [u8; 32]"),
+            );
+            let y = U256::from_be_bytes::<32>(
+                comm.y
+                    .into_bigint()
+                    .to_bytes_be()
+                    .try_into()
+                    .expect("Failed to convert Vec<u8> to [u8; 32]"),
+            );
             vec![x, y]
         })
         .collect();
     let ks_u256: Vec<U256> =
         vk.k.iter()
-            .map(|k| U256::from_big_endian(&k.into_bigint().to_bytes_be()))
+            .map(|k| {
+                U256::from_be_bytes::<32>(
+                    k.into_bigint()
+                        .to_bytes_be()
+                        .try_into()
+                        .expect("Failed to convert Vec<u8> to [u8; 32]"),
+                )
+            })
             .collect();
     let vk_vec_u256 = Vec::<Fq254>::from(vk.clone())
         .into_iter()
-        .map(|x| U256::from_little_endian(&x.into_bigint().to_bytes_le()))
+        .map(|x| {
+            U256::from_le_bytes::<32>(
+                x.into_bigint()
+                    .to_bytes_le()
+                    .try_into()
+                    .expect("Failed to convert Vec<u8> to [u8; 32]"),
+            )
+        })
         .collect::<Vec<_>>();
     let range_table_comm_u256 = [
         vk_vec_u256[56], // x
@@ -602,7 +654,8 @@ pub fn create_vk_contract<const TEST: bool>(vk: &VerifyingKey<Bn254>, settings: 
 mod tests {
     use super::*;
 
-    use ethers::types::Bytes;
+    use alloy::primitives::Bytes;
+
     use jf_plonk::{
         proof_system::{PlonkKzgSnark, UniversalSNARK},
         transcript::SolidityTranscript,

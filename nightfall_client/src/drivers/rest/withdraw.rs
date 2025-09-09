@@ -1,11 +1,9 @@
 use super::models::DeEscrowDataReq;
 use crate::{
-    domain::entities::{TokenType, WithdrawData},
-    ports::contracts::NightfallContract,
+    domain::entities::WithdrawData as NFWithdrawData, ports::contracts::NightfallContract,
 };
-use lib::wallets::LocalWsClient;
+use ::nightfall_bindings::artifacts::Nightfall;
 use log::{debug, error};
-use nightfall_bindings::nightfall::Nightfall;
 use reqwest::StatusCode;
 use warp::{path, reject, Filter, Reply};
 
@@ -17,22 +15,22 @@ pub fn de_escrow() -> impl Filter<Extract = (impl warp::Reply,), Error = warp::R
 }
 
 pub async fn handle_de_escrow(data: DeEscrowDataReq) -> Result<impl Reply, warp::Rejection> {
-    let token_type: TokenType = u8::from_str_radix(&data.token_type, 16)
+    let token_type = u8::from_str_radix(&data.token_type, 16)
         .map_err(|_| {
             error!("Could not convert token type");
             reject::custom(crate::domain::error::ClientRejection::FailedDeEscrow)
         })?
         .into();
-    let withdraw_data = WithdrawData::try_from(data).map_err(|e| {
+    let withdraw_data: NFWithdrawData = NFWithdrawData::try_from(data.clone()).map_err(|e| {
         error!("Could not convert Withdraw data request to WithdrawData: {e}");
         reject::custom(crate::domain::error::ClientRejection::FailedDeEscrow)
     })?;
-    let available = Nightfall::<LocalWsClient>::withdraw_available(withdraw_data).await;
+    let available = Nightfall::NightfallCalls::withdraw_available(withdraw_data).await;
     match available {
         Ok(b) => {
             if b {
                 debug!("Withdraw is on chain, attempting to de-escrow funds");
-                Nightfall::<LocalWsClient>::de_escrow_funds(withdraw_data, token_type)
+                Nightfall::NightfallCalls::de_escrow_funds(withdraw_data, token_type)
                     .await
                     .map_err(|e| {
                         error!("Could not de-escrow funds: {e}");

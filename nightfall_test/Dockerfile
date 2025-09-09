@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1-labs
-FROM ghcr.io/foundry-rs/foundry:v0.3.0 AS foundry
-FROM rust:1.84.1 AS runtime
+FROM ghcr.io/foundry-rs/foundry:v1.1.0 AS foundry
+FROM rust:1.88.0 AS runtime
 # install additional ca-certificates e.g. zscaler certificate (can be removed if not needed)
 COPY ./configuration/trust/* /usr/local/share/ca-certificates/
 RUN chmod 644 /usr/local/share/ca-certificates/* && update-ca-certificates
