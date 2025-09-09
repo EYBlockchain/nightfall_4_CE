@@ -29,11 +29,11 @@ contract Deployer is Script {
     struct Owners {
         address deployer;
         address verifierOwner;
-        address xOwner;
-        address rrOwner;
+        address x509Owner;
+        address roundRobinOwner;
         address nightfallOwner;
         uint256 deployerPk;
-        uint256 nightfallOwnerPk; // == deployerPk if same owner
+        uint256 nightfallOwnerPk; 
     }
 
     struct Deployed {
@@ -44,7 +44,7 @@ contract Deployer is Script {
         X509Interface x509;
         address nightfallProxy;
         Nightfall nightfall;
-        address rrProxy;
+        address roundRobinProxy;
         RoundRobin roundRobin;
     }
 
@@ -56,25 +56,25 @@ contract Deployer is Script {
         vm.setEnv("FOUNDRY_OUT", "blockchain_assets/artifacts");
 
         string memory toml = _loadToml();
-        Owners memory o = _owners(toml);
+        Owners memory owners = _owners(toml);
 
         // 1) VK + Verifier + X509 (deployer)
-        Deployed memory d;
-        (d.vkProxy, d.verifier, d.sanctionsList) = _deployVerifierStack(toml, o);
+        Deployed memory deployed;
+        (deployed.vkProxy, deployed.verifier, deployed.sanctionsList) = _deployVerifierStack(toml, owners);
 
-        (d.x509Proxy, d.x509) = _deployX509(toml, o);
+        (deployed.x509Proxy, deployed.x509) = _deployX509(toml, owners);
 
         // 2) Nightfall (deployer), then transfer to nightfallOwner
-        (d.nightfallProxy, d.nightfall) = _deployNightfall(o, d.verifier, d.x509, d.sanctionsList);
-        _maybeTransferNightfallOwnership(o, d.nightfall);
+        (deployed.nightfallProxy, deployed.nightfall) = _deployNightfall(owners, deployed.verifier, deployed.x509, deployed.sanctionsList);
+        _maybeTransferNightfallOwnership(owners, deployed.nightfall);
 
         // 3) RoundRobin + bootstrap (deployer owns RR)
-        (d.rrProxy, d.roundRobin) = _deployRoundRobin(toml, o, d.x509, d.sanctionsList, d.nightfall);
+        (deployed.roundRobinProxy, deployed.roundRobin) = _deployRoundRobin(toml, owners, deployed.x509, deployed.sanctionsList, deployed.nightfall);
 
-        // 4) Wire Nightfall -> RR (must be Nightfall owner)
-        _wireNightfallToRR(o, d.nightfall, d.roundRobin);
+        // 4) Wire Nightfall -> RoundRobin (must be Nightfall owner)
+        _wireNightfallToRR(owners, deployed.nightfall, deployed.roundRobin);
 
-        _log(d, o);
+        _log(deployed, owners);
     }
 
     // ---------------- helpers ----------------
@@ -85,40 +85,40 @@ contract Deployer is Script {
         toml = vm.readFile(path);
     }
 
-    function _owners(string memory toml) internal view returns (Owners memory o) {
-        o.deployerPk = vm.envUint("NF4_SIGNING_KEY");
-        o.deployer   = vm.addr(o.deployerPk);
+    function _owners(string memory toml) internal view returns (Owners memory owners) {
+        owners.deployerPk = vm.envUint("NF4_SIGNING_KEY");
+        owners.deployer   = vm.addr(owners.deployerPk);
 
         // read owners (fallback to deployer)
         address verifierOwner = toml.readAddress(string.concat(runMode, ".owners.verifier_owner"));
-        address xOwner        = toml.readAddress(string.concat(runMode, ".owners.x509_owner"));
-        address rrOwner       = toml.readAddress(string.concat(runMode, ".owners.round_robin_owner"));
-        address nfOwner       = toml.readAddress(string.concat(runMode, ".owners.nightfall_owner"));
+        address x509Owner = toml.readAddress(string.concat(runMode, ".owners.x509_owner"));
+        address roundRobinOwner = toml.readAddress(string.concat(runMode, ".owners.round_robin_owner"));
+        address nfOwner = toml.readAddress(string.concat(runMode, ".owners.nightfall_owner"));
 
-        o.verifierOwner  = (verifierOwner == address(0)) ? o.deployer : verifierOwner;
-        o.xOwner         = (xOwner        == address(0)) ? o.deployer : xOwner;
-        o.rrOwner        = (rrOwner       == address(0)) ? o.deployer : rrOwner;
-        o.nightfallOwner = (nfOwner       == address(0)) ? o.deployer : nfOwner;
+        owners.verifierOwner = (verifierOwner == address(0)) ? owners.deployer : verifierOwner;
+        owners.x509Owner = (x509Owner == address(0)) ? owners.deployer : x509Owner;
+        owners.roundRobinOwner = (roundRobinOwner == address(0)) ? owners.deployer : roundRobinOwner;
+        owners.nightfallOwner = (nfOwner == address(0)) ? owners.deployer : nfOwner;
 
         // pick a key for Nightfall-owner-only calls
-        if (o.nightfallOwner == o.deployer) {
-            o.nightfallOwnerPk = o.deployerPk;
+        if (owners.nightfallOwner == owners.deployer) {
+            owners.nightfallOwnerPk = owners.deployerPk;
         } else {
             uint256 nfPk = vm.envUint("NF4_NIGHTFALL_OWNER_KEY");
-            require(vm.addr(nfPk) == o.nightfallOwner, "NF4_NIGHTFALL_OWNER_KEY != nightfall_owner");
-            o.nightfallOwnerPk = nfPk;
+            require(vm.addr(nfPk) == owners.nightfallOwner, "NF4_NIGHTFALL_OWNER_KEY != nightfall_owner");
+            owners.nightfallOwnerPk = nfPk;
         }
     }
 
     function _deployVerifierStack(
         string memory toml,
-        Owners memory o
+        Owners memory owners
     ) internal returns (
         address vkProxy,
         INFVerifier verifier,
         SanctionsListInterface sanctionsList
     ) {
-        vm.startBroadcast(o.deployerPk);
+        vm.startBroadcast(owners.deployerPk);
 
         vkProxy = _deployVKProvider(toml);
 
@@ -135,7 +135,7 @@ contract Deployer is Script {
         } else {
             address verifierProxy = Upgrades.deployUUPSProxy(
                 "proof_verification/RollupProofVerifierUUPS.sol:RollupProofVerifier",
-                abi.encodeCall(RollupProofVerifier.initialize, (vkProxy, o.verifierOwner))
+                abi.encodeCall(RollupProofVerifier.initialize, (vkProxy, owners.verifierOwner))
             );
             verifier = INFVerifier(verifierProxy);
         }
@@ -145,13 +145,13 @@ contract Deployer is Script {
 
     function _deployX509(
         string memory toml,
-        Owners memory o
+        Owners memory owners
     ) internal returns (address x509Proxy, X509Interface x509) {
-        vm.startBroadcast(o.deployerPk);
+        vm.startBroadcast(owners.deployerPk);
 
         x509Proxy = Upgrades.deployUUPSProxy(
             "X509.sol:X509",
-            abi.encodeCall(X509.initialize, (o.deployer))
+            abi.encodeCall(X509.initialize, (owners.deployer))
         );
 
         X509 x509Impl = X509(x509Proxy);
@@ -161,20 +161,20 @@ contract Deployer is Script {
             _configureX509locally(x509Impl, toml);
         }
 
-        if (o.xOwner != o.deployer) {
-            x509Impl.transferOwnership(o.xOwner);
+        if (owners.x509Owner != owners.deployer) {
+            x509Impl.transferOwnership(owners.x509Owner);
         }
 
         vm.stopBroadcast();
     }
 
     function _deployNightfall(
-        Owners memory o,
+        Owners memory owners,
         INFVerifier verifier,
         X509Interface x509,
         SanctionsListInterface sanctionsList
     ) internal returns (address nightfallProxy, Nightfall nightfall) {
-        vm.startBroadcast(o.deployerPk);
+        vm.startBroadcast(owners.deployerPk);
 
         uint256 initialNullifierRoot =
             5626012003977595441102792096342856268135928990590954181023475305010363075697;
@@ -191,26 +191,26 @@ contract Deployer is Script {
         vm.stopBroadcast();
     }
 
-    function _maybeTransferNightfallOwnership(Owners memory o, Nightfall nightfall) internal {
-        if (o.nightfallOwner != o.deployer) {
-            vm.startBroadcast(o.deployerPk);
-            nightfall.transferOwnership(o.nightfallOwner);
+    function _maybeTransferNightfallOwnership(Owners memory owners, Nightfall nightfall) internal {
+        if (owners.nightfallOwner != owners.deployer) {
+            vm.startBroadcast(owners.deployerPk);
+            nightfall.transferOwnership(owners.nightfallOwner);
             vm.stopBroadcast();
         }
     }
 
     function _deployRoundRobin(
         string memory toml,
-        Owners memory o,
+        Owners memory owners,
         X509Interface x509,
         SanctionsListInterface sanctionsList,
         Nightfall nightfall
-    ) internal returns (address rrProxy, RoundRobin rr) {
-        RoundRobinConfig memory cfg = _readRR(toml);
+    ) internal returns (address roundRobinProxy, RoundRobin rr) {
+        RoundRobinConfig memory cfg = _readRoundRobinConfig(toml);
 
-        vm.startBroadcast(o.deployerPk);
+        vm.startBroadcast(owners.deployerPk);
 
-        rrProxy = Upgrades.deployUUPSProxy(
+        roundRobinProxy = Upgrades.deployUUPSProxy(
             "RoundRobinUUPS.sol:RoundRobin",
             abi.encodeCall(
                 RoundRobin.initialize,
@@ -225,7 +225,7 @@ contract Deployer is Script {
                 )
             )
         );
-        rr = RoundRobin(payable(rrProxy));
+        rr = RoundRobin(payable(roundRobinProxy));
         rr.set_nightfall(address(nightfall));
         rr.bootstrapDefaultProposer{value: cfg.stake}(
             cfg.defaultProposerAddress,
@@ -240,12 +240,12 @@ contract Deployer is Script {
     }
 
     function _wireNightfallToRR(
-        Owners memory o,
+        Owners memory owners,
         Nightfall nightfall,
         RoundRobin rr
     ) internal {
         // owner-only on Nightfall; sign with nightfallOwner key
-        vm.startBroadcast(o.nightfallOwnerPk);
+        vm.startBroadcast(owners.nightfallOwnerPk);
         nightfall.set_proposer_manager(rr);
         vm.stopBroadcast();
     }
@@ -308,12 +308,12 @@ contract Deployer is Script {
         vk.table_dom_sep_comm = _g1(toml, ".verifier.table_dom_sep_comm");
         vk.q_dom_sep_comm     = _g1(toml, ".verifier.q_dom_sep_comm");
 
-        vk.size_inv      = toml.readUint(string.concat(runMode, ".verifier.size_inv"));
-        vk.group_gen     = toml.readUint(string.concat(runMode, ".verifier.group_gen"));
+        vk.size_inv = toml.readUint(string.concat(runMode, ".verifier.size_inv"));
+        vk.group_gen = toml.readUint(string.concat(runMode, ".verifier.group_gen"));
         vk.group_gen_inv = toml.readUint(string.concat(runMode, ".verifier.group_gen_inv"));
 
         vk.open_key_g = _g1(toml, ".verifier.open_key_g");
-        vk.h      = _g2(toml, ".verifier.h");
+        vk.h = _g2(toml, ".verifier.h");
         vk.beta_h = _g2(toml, ".verifier.beta_h");
     }
 
@@ -358,7 +358,7 @@ contract Deployer is Script {
         uint    rotationBlocks;
     }
 
-    function _readRR(string memory toml) internal view returns (RoundRobinConfig memory cfg) {
+    function _readRoundRobinConfig(string memory toml) internal view returns (RoundRobinConfig memory cfg) {
         cfg.defaultProposerAddress = toml.readAddress(string.concat(runMode, ".nightfall_deployer.default_proposer_address"));
         cfg.defaultProposerUrl     = toml.readString(string.concat(runMode, ".nightfall_deployer.default_proposer_url"));
         cfg.stake                  = toml.readUint(string.concat(runMode, ".nightfall_deployer.proposer_stake"));
@@ -410,14 +410,14 @@ contract Deployer is Script {
     }
 
     // ---------- logs ----------
-    function _log(Deployed memory d, Owners memory o) internal pure {
-        console.log("Nightfall proxy:       ", d.nightfallProxy);
-        console.log("Nightfall owner:       ", o.nightfallOwner);
-        console.log("RoundRobin proxy:      ", d.rrProxy);
-        console.log("X509 proxy:            ", d.x509Proxy);
-        console.log("VK provider proxy:     ", d.vkProxy);
-        console.log("Verifier owner:        ", o.verifierOwner);
-        console.log("X509 owner:            ", o.xOwner);
-        console.log("RoundRobin owner:      ", o.rrOwner);
+    function _log(Deployed memory deployed, Owners memory owners) internal pure {
+        console.log("Nightfall proxy:       ", deployed.nightfallProxy);
+        console.log("Nightfall owner:       ", owners.nightfallOwner);
+        console.log("RoundRobin proxy:      ", deployed.roundRobinProxy);
+        console.log("RoundRobin owner:      ", owners.roundRobinOwner);
+        console.log("X509 proxy:            ", deployed.x509Proxy);
+        console.log("X509 owner:            ", owners.x509Owner);
+        console.log("VK provider proxy:     ", deployed.vkProxy);
+        console.log("Verifier owner:        ", owners.verifierOwner);
     }
 }

@@ -55,7 +55,7 @@ For new versions: `reinitializer(2)` to set up new state safely once.
 
 ###  Testing & operations checklist
 - Unit tests: old state remains valid, new behavior works, access control enforced, events unchanged unless intentional.
-- Upgrade tests: deploy V1 → initialize → write state → upgrade to V2 → verify state unchanged & behavior changed.
+- Upgrade tests: deploy V1 → initialize → write state → upgrade to V3 → verify state unchanged & behavior changed.
 - On-chain verification:
 1. Read EIP-1967 implementation slot to confirm update.
 2. cast code `<proxy>` must be non-zero.
@@ -177,7 +177,7 @@ In short: Upgradable contracts keep a stable address + state via a proxy and rel
 In this section, we will give example about how to upgrade each contract and how to test.
 
 ### X509 upgrade (V3): forces revert for validateCertificate)
-In X509V2.sol, we make `validateCertificate` revert no matter it's a valid or invalid certificate.
+In X509V3.sol, we make `validateCertificate` revert no matter it's a valid or invalid certificate.
 
 We set `x509_owner = "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720"  # Anvil account (9)` (same for other examples.)
 
@@ -277,9 +277,9 @@ and then try an invalid certificate (for example, you can use same certificate b
     "certified": false
 }
 ```
-and in terminal you should see "X509V2: forced invalid certificate", this is what we expected about new behaviours of X509V2.
+and in terminal you should see "X509V3: forced invalid certificate", this is what we expected about new behaviours of X509V3.
 
-JJ: I want someone to test this case, because we only allow one address to have one x509 certificate. Before upgrading, test if you can let client 1 and client 2 use same certificate and same private key, you should get error. Then let client 1 do a successful certificate validation. After upgrading (this should go without saying, you have to do another upgrading contract, otherwise you will fail any validation if you use my example), after verifying your upgrading behavour, let client 2 validate same certificate client 1 used, you should get error, so we ensure upgrading contract wont clean old states.
+JJ: I want someone to test this case, because we only allow one address to have one x509 certificate. Before upgrading, test if you can let client 1 and client 2 use same certificate and same private key, you should get error. Then let client 1 do a successful certificate validation. After upgrading (this should go without saying, you have to do another upgrading contract, otherwise you will fail any validation if you use my example), after verifying your upgrading behavour, let client 2 validate same certificate client 1 used, you should get error, so we ensure upgrading contract wont clean old states. This should also be done for other contracts.
 
 ###  Nightfall upgrade (V3): emit only one deposit event
 
@@ -447,87 +447,20 @@ cast call $NIGHTFALL_PROXY "owner()(address)" --rpc-url $RPC_URL
 ```
 
 Now you can use Postman to start a deposit api call with value 3, deposit_fee 4, in the terminal you should only see one event:
-``
-
-{
-    "status", "ok",
-    "certified": false
-}
-,
-
-and then try an invalid certificate (for example, you can use same certificate but with the private key from another certificate), you should get
-
-{
-    "status", "ok",
-    "certified": false
-}
-and in terminal you should see "X509V2: forced invalid certificate", this is what we expected about new behaviours of X509V2.
-Steps
- (inside deployer container)
-export NIGHTFALL_PROXY=$(curl -s http://configuration/configuration/toml/addresses.toml | awk -F\" '/^nightfall/{print $2}')
-echo "NIGHTFALL_PROXY=$NIGHTFALL_PROXY"
-
-ls -l blockchain_assets/script/UpgradeNightfallV3.s.sol
-ls -l blockchain_assets/contracts/NightfallV3.sol
-
-forge build --force
+```
 ```
 
- Option A: default run() reads NIGHTFALL_PROXY from env
-forge script blockchain_assets/script/UpgradeNightfallV3.s.sol:UpgradeNightfallWithLogging \
-  --rpc-url "$RPC_URL" \
-  --broadcast -vvvv
+and then check commitment before L2 block onchain, you will see two commitments with status pending added, this is correct because client 1 will change its commitment db when it's doing deposit.
 
- Option B: pass the proxy explicitly (avoids env mismatch)
-forge script blockchain_assets/script/UpgradeNightfallV3.s.sol:UpgradeNightfallWithLogging \
-  --sig "run(address)" "$NIGHTFALL_PROXY" \
-  --rpc-url "$RPC_URL" \
-  --broadcast -vvvv
+When this L2 block is onchain, check commitment again, and you will find only one commitment is changed to unspent, this is what we expected about new behaviours of NightfallV3.
 
- (Optional) confirm impl slot changed
-cast storage "$NIGHTFALL_PROXY" \
-  0x360894A13BA1A3210667C828492DB98DCA3E2076CC3735A920A3CA505D382BBC \
-  --rpc-url "$RPC_URL"
-
-Expected behavior (after upgrade)
-
-Deposits still succeed and mark escrow as before.
-
-Only one DepositEscrowed event is emitted per deposit (no extra “fee” event).
-
-Roots/balances/managers unchanged.
-
-(If you included a versionMarker() in V3, it should return the new string.)
-
-3) RoundRobin upgrade: stake from 5 wei → 50 wei
+###   RoundRobin upgrade (V3): stake from 5 wei -> 50 wei
 
 Intent: Tighten proposer stake requirement without migration.
 
-Steps
 
-Upgrade with your UpgradeRoundRobin.s.sol (pattern identical to above).
 
-Test with Postman or cast:
-
- Before: 5 wei succeeds
- After: 5 wei should revert; 50 wei should succeed
-
- Example (names will vary):
-cast send $ROUNDROBIN_PROXY "registerProposer()" \
-  --value 5 --rpc-url "$RPC_URL" --private-key "$NF4_SIGNING_KEY"   # expect revert AFTER upgrade
-
-cast send $ROUNDROBIN_PROXY "registerProposer()" \
-  --value 50 --rpc-url "$RPC_URL" --private-key "$NF4_SIGNING_KEY"  # expect success AFTER upgrade
-
-Expected behavior
-
-Attempts to register with 5 wei now revert.
-
-50 wei succeeds.
-
-Existing registered proposers remain intact.
-
-4) RollupProofVerificationKey upgrade: install a “bad” VK
+###   RollupProofVerificationKey upgrade (V3): install a “bad” VK
 
 Intent: Simulate verification failures at the VK level.
 
@@ -543,57 +476,21 @@ Expected behavior
 
 Nightfall.propose_block(...) reverts with “Rollup proof verification failed” when the proposer submits a block.
 
-5) RollupProofVerifier upgrade: make verify_acc revert
+###   RollupProofVerifier upgrade (V3): make verify_acc revert
 
 Intent: Force verification failure in the verifier logic itself.
-
-Steps
-
-Implement V2 of the verifier (or Vx) that reverts inside verify_acc (or returns false as needed).
-
-Upgrade the RollupProofVerifier proxy.
-
-Proposer attempts to submit a block.
-
 Expected behavior
 
 Block proposal fails on-chain with a deterministic revert (or false return) and Nightfall bubbles “Rollup proof verification failed.”
 
-Quick reference table
-Contract	What changed	Expected after upgrade
-X509	validateCertificate forced revert in V2	Calls revert; storage intact
-Nightfall	Only one deposit event	Single DepositEscrowed per deposit
-RoundRobin	Stake 5 → 50 wei	5 wei reverts; 50 wei ok
-VK	Bad VK	Block proposal fails verification
-Verifier	verify_acc reverts	Block proposal fails verification
-Verification & sanity commands
- Impl & admin slots (EIP-1967)
-cast storage "$PROXY" 0x360894A13BA1A3210667C828492DB98DCA3E2076CC3735A920A3CA505D382BBC --rpc-url "$RPC_URL"
-cast storage "$PROXY" 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103 --rpc-url "$RPC_URL"
-
- Proxy has code?
-cast code "$PROXY" --rpc-url "$RPC_URL"
-
- Owner check
-cast call "$PROXY" "owner()(address)" --rpc-url "$RPC_URL"
-
-Cleanup (optional, when the deployer image needs fresh artifacts)
+### Cleanup (optional, when the deployer image needs fresh artifacts)
 forge clean
 rm -rf blockchain_assets/artifacts/build-info/*
 forge build --force
 
-Rollback plan (recommended)
 
-Capture implBefore from the upgrade script logs.
-
-To roll back: deploy (or reuse) the previous implementation and run Upgrades.upgradeProxy(proxy, PREVIOUS_ARTIFACT, "").
-
-Never write EIP-1967 slots manually on production—only as a last resort in local tests.
-
-Notes & tips
-
-If forge script ... with no --sig "run(address)" reverts with “proxy has no code”, your NIGHTFALL_PROXY / X509_PROXY env var is stale for the current RPC_URL. Pass the proxy explicitly or refresh env vars and verify with cast code.
-
-Keep revert messages stable where clients depend on them.
-
-When changing events, update log parsers and API consumers accordingly.
+# JJ note
+- Roll back plan
+- multi sig
+- freeze
+- test deployer !== owner
