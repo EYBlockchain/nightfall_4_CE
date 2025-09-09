@@ -8,7 +8,7 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 
 // Nightfall + deps
 import {Nightfall} from "../contracts/Nightfall.sol";
-import {NightfallV2} from "../contracts/NightfallV2.sol";
+import {NightfallV2} from "../contracts/Nightfall_V2.sol";
 import {ProposerManager} from "../contracts/ProposerManager.sol";
 import {MockVerifier} from "../contracts/proof_verification/MockVerifier.sol";
 import {SanctionsListMock} from "../contracts/SanctionsListMock.sol";

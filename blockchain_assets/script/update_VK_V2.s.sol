@@ -33,7 +33,7 @@ contract UpdateVKWithToml is Script {
     function _update(address vkProxy) internal {
         require(vkProxy != address(0), "VK proxy is zero");
 
-        // Optional: keep OZ upgrades happy with custom out dir if you use it elsewhere
+        // Keep OZ upgrades happy with custom out dir if you use it elsewhere
         vm.setEnv("FOUNDRY_OUT", "blockchain_assets/artifacts");
 
         // Load TOML

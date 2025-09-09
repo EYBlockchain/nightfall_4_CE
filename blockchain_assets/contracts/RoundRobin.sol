@@ -30,6 +30,8 @@ contract RoundRobin is ProposerManager, Certified, UUPSUpgradeable
     mapping(address => Proposer) public proposers;
     mapping(address => uint)     public pending_withdraws;
     mapping(string => bool)      public proposer_urls;
+    // When a proposer voluntarily deregisters:
+    // Record the block number. Enforce that they cannot reregister until a certain COOLDOWN_BLOCKS window has passed.
     mapping(address => uint)     public last_exit_block; // for cooldown after voluntary exit
 
     Proposer private current;
@@ -38,22 +40,10 @@ contract RoundRobin is ProposerManager, Certified, UUPSUpgradeable
     uint public proposer_count;
     uint public escrow;
 
+    // number of blocks to wait before finalizing a rotation
     uint public constant FINALIZATION_BLOCKS = 64;
 
     Nightfall private nightfall;
-
-    // ------------------------------------------------------------------------
-    // Dummy constructor: required because `Certified` has a constructor.
-    // It WILL NOT run on the proxy; real wiring happens in `initialize()`.
-    // ------------------------------------------------------------------------
-    // constructor()
-    //     // Certified(
-    //     //     X509Interface(address(0)),
-    //     //     SanctionsListInterface(address(0))
-    //     // )
-    // {
-    //     _disableInitializers(); // lock the implementation
-    // }
 
     // ------------------------------------------------------------------------
     // Initializer (replaces constructor for proxies)
@@ -63,8 +53,8 @@ contract RoundRobin is ProposerManager, Certified, UUPSUpgradeable
         address sanctionsListAddress,
         uint stake,
         uint ding,
-        uint exit_penalty,
-        uint cooling_blocks,
+        uint exit_penalty, //// When the current proposer voluntarily deregisters, a small but nontrivial penalty is deducted.
+        uint cooling_blocks, // This is the number of blocks that must pass before a proposer can reregister after exiting
         uint rotation_blocks
     ) public initializer {
         __UUPSUpgradeable_init();
@@ -104,7 +94,7 @@ contract RoundRobin is ProposerManager, Certified, UUPSUpgradeable
         console.log("defaultProposerUrl: ", default_proposer_url);
         console.log("nightfallAddress: ", nightfall_address);
         require(proposer_count == 0, "Already bootstrapped");
-        require(msg.value == STAKE, "Wrong stake paid");
+        require(msg.value == STAKE, "You have not paid the correct staking amount during deployment");
         require(!proposer_urls[default_proposer_url], "URL already in use");
 
         nightfall = Nightfall(nightfall_address);
@@ -137,13 +127,14 @@ contract RoundRobin is ProposerManager, Certified, UUPSUpgradeable
         sanctionsList = SanctionsListInterface(sanctionsListAddress);
     }
 
+    // we set the nightfall contract address later because we probably don't know it at the time of deployment
     function set_nightfall(address nightfall_address) external onlyOwner {
         nightfall = Nightfall(nightfall_address);
     }
 
     // -------- core logic --------
     function rotate_proposer() external virtual override {
-        require(can_rotate(), "Not time to rotate");
+        require(can_rotate(), "It is not time to rotate the proposer");
         if (nightfall.layer2_block_number() == start_l2_block + int(FINALIZATION_BLOCKS)) {
             ding_proposer(current.addr);
         }
@@ -156,19 +147,21 @@ contract RoundRobin is ProposerManager, Certified, UUPSUpgradeable
     function add_proposer(
         string calldata proposer_url
     ) external payable override onlyCertified {
+        // Enforce cooldown only if they have previously exited
         if (last_exit_block[msg.sender] != 0) {
             require(
                 block.number > last_exit_block[msg.sender] + COOLDOWN_BLOCKS,
                 "Cooldown period not met"
             );
         }
-        require(msg.value == STAKE, "Wrong stake paid");
-        require(proposers[msg.sender].addr == address(0), "Already a proposer");
-        require(!proposer_urls[proposer_url], "URL already in use");
+        require(msg.value == STAKE, "You have not paid the correct staking amount during registration");
+        require(proposers[msg.sender].addr == address(0), "You are already a proposer");
+        require(!proposer_urls[proposer_url], "This proposer URL is already in use");
 
         escrow += STAKE;
 
-        // Insert behind current so it’s called last on first cycle
+        // we add the new proposer behind the current proposer, so it will be the last to be called for	        // Insert behind current so it’s called last on first cycle
+        // first, insert its address in the linked list
         address current_address  = current.addr;
         address previous_address = current.previous_addr;
         address next_address     = current.next_addr;
@@ -185,15 +178,17 @@ contract RoundRobin is ProposerManager, Certified, UUPSUpgradeable
         proposers[previous_address].next_addr    = msg.sender;
 
         if (next_address == current_address) {
-            // first addition: also becomes “next” after current
+            // this is the first proposer to be added so it will also be next after the current proposer
             proposers[current_address].next_addr = msg.sender;
         }
 
+        // and finally update metadata
         proposer_urls[proposer_url] = true;
         current = proposers[current_address];
         proposer_count++;
     }
 
+    // an external call can only remove their own proposer
     function remove_proposer() external override {
         _remove_proposer(msg.sender);
     }
@@ -203,7 +198,7 @@ contract RoundRobin is ProposerManager, Certified, UUPSUpgradeable
             proposers[proposer_address].addr == proposer_address,
             "Proposer does not exist"
         );
-        require(proposer_address != address(0), "Zero address");
+        require(proposer_address != address(0), "The proposer address cannot be the zero address");
 
         if (proposer_address == current.addr) {
             require(proposer_count > 1, "Cannot deregister the only active proposer");
@@ -222,23 +217,29 @@ contract RoundRobin is ProposerManager, Certified, UUPSUpgradeable
             last_exit_block[proposer_address] = block.number;
         }
 
-        Proposer storage this_proposer     = proposers[proposer_address];
-        Proposer storage next_proposer     = proposers[this_proposer.next_addr];
+        // don't forget these only create references
+        Proposer storage this_proposer = proposers[proposer_address];
+        Proposer storage next_proposer = proposers[this_proposer.next_addr];
         Proposer storage previous_proposer = proposers[this_proposer.previous_addr];
 
+        // break the linked list and reform it without the proposer
         next_proposer.previous_addr = this_proposer.previous_addr;
         previous_proposer.next_addr = this_proposer.next_addr;
 
         escrow -= this_proposer.stake;
         pending_withdraws[proposer_address] += this_proposer.stake;
 
+        // make sure we can't remove it again
         delete proposer_urls[this_proposer.url];
+        // free the URL for reuse
         delete proposers[proposer_address];
 
         proposer_count--;
 
+        // we may now just have a single proposer. If this is the case, we need to link it to itself.	
+        // it must also be the current proposer so we need to update the current proposer too.
         if (proposer_count == 1) {
-            proposers[current.addr].next_addr     = current.addr;
+            proposers[current.addr].next_addr = current.addr;
             proposers[current.addr].previous_addr = current.addr;
             current = proposers[current.addr];
         }
@@ -254,33 +255,36 @@ contract RoundRobin is ProposerManager, Certified, UUPSUpgradeable
     }
 
     function get_proposers() external view override returns (Proposer[] memory) {
-        Proposer[] memory list = new Proposer[](proposer_count);
-        list[0] = current;
+        Proposer[] memory proposer_list = new Proposer[](proposer_count);
+        proposer_list[0] = current;
         for (uint i = 1; i < proposer_count; i++) {
-            list[i] = proposers[list[i - 1].next_addr];
+            proposer_list[i] = proposers[proposer_list[i - 1].next_addr];
         }
-        return list;
+        return proposer_list;
     }
 
+    // this returns true if the current proposer has been in place for ROTATION_BLOCKS
     function can_rotate() private view returns (bool) {
         return block.number >= start_l1_block + ROTATION_BLOCKS + FINALIZATION_BLOCKS;
     }
 
+    // function to recover the stake after removing a proposer
     function withdraw(uint amount) external {
         uint withdrawable = pending_withdraws[msg.sender];
-        require(amount <= withdrawable, "Amount exceeds balance");
+        require(amount <= withdrawable, "Amount exceeds balance. You are trying to withdraw more than you have");
         pending_withdraws[msg.sender] -= amount;
         payable(msg.sender).transfer(amount);
     }
 
+    // provides a mechanism for fining a lazy proposer
     function ding_proposer(address proposer_addr) private {
-        Proposer storage p = proposers[proposer_addr];
-        int new_stake = int(p.stake) - int(DING);
+        Proposer storage proposer = proposers[proposer_addr];
+        int new_stake = int(proposer.stake) - int(DING);
         if (new_stake < 0) {
             _remove_proposer(proposer_addr);
             return;
         }
-        p.stake = uint(new_stake);
+        proposer.stake = uint(new_stake);
         escrow -= DING;
     }
 

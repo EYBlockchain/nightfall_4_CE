@@ -111,11 +111,11 @@ where
             }
             NightfallEvents::AuthoritiesUpdatedFilter(_filter) => {
                 info!("Received AuthoritiesUpdated event");
-                // Optional: refresh cached x509/sanctions addresses here.
+                // Todo: refresh cached x509/sanctions addresses here.
             }
             NightfallEvents::OwnershipTransferredFilter(_filter) => {
                 info!("Received OwnershipTransferred event");
-                // Optional: react to owner changes if you gate actions by owner.
+                // Todo: react to owner changes if you gate actions by owner.
             }
         }
         Ok(())

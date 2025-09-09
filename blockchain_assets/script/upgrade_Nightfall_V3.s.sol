@@ -14,7 +14,7 @@ contract UpgradeNightfallWithLogging is Script {
     bytes32 constant _ADMIN_SLOT = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
 
     // Compiled artifact (contract file + name)
-    string constant ARTIFACT = "NightfallV3.sol:NightfallV3";
+    string constant ARTIFACT = "Nightfall_V3.sol:NightfallV3";
 
     // --- helpers ---
     function _getImpl(address proxy) internal view returns (address impl) {

@@ -7,7 +7,7 @@ import "forge-std/console.sol";
 
 /// @custom:oz-upgrades-from blockchain_assets/contracts/Nightfall.sol:Nightfall
 contract NightfallV3 is Nightfall {
-    /// @dev V3: do NOT deal with deposit_fee.
+    /// @dev V3: do NOT deal with deposit_fee commitment.
     function escrow_funds(
         uint256 fee,
         address ercAddress,

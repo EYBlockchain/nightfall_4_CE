@@ -44,7 +44,7 @@ struct OnChainTransaction {
     uint256 fee;
     uint256[4] commitments;
     uint256[4] nullifiers;
-    uint256[4] public_data;
+    uint256[4] public_data; // compressed_secrets in each client proof
 }
 
 struct DepositCommitment { 
@@ -71,7 +71,8 @@ struct Block {
     uint256 nullifier_root;
     uint256 commitments_root_root;
     OnChainTransaction[] transactions;
-    bytes rollup_proof;
+    // fee_sum for transfers and withdrawals || 2 BN254 accumulators, each includes 1 G1 commitments and 1 G1 proof. || one ultra plonk proof. 
+    bytes rollup_proof; 
 }
 
 struct TokenIdValue { 
@@ -170,7 +171,7 @@ contract Nightfall is
         proposer_manager = proposer_manager_address;
     }
 
-    /***********************************************************************************	    function propose_block(Block calldata blk) external virtual onlyCertified {
+    /***********************************************************************************	   
      * This function is called by the proposer to submit a new L2 block. It's the main  *	
      * entry point to the contract.                                                     *	
      ************************************************************************************/
@@ -384,7 +385,7 @@ contract Nightfall is
         return (tokenData.erc_address, tokenData.token_id);
     }
 
-    // Called by the client to remove their funds from escrow, once they've proved they're entitled to them	    function descrow_funds(WithdrawData calldata data, TokenType token_type) external payable onlyCertified {
+    // Called by the client to remove their funds from escrow, once they've proved they're entitled to them
     // by submitting a Withdraw transaction that is then proved in a block. We used the compressed_secrets,	
     // not because they're really required to prove ownership, but because they are different for every commitment	
     // and therefore ensure that the public_data_hash is unique.

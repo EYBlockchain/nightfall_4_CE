@@ -12,8 +12,8 @@ contract RoundRobinV2 is RoundRobin {
         revert("RoundRobinV2: rotate disabled for test");
     }
 
-    /// Optional: add a tiny helper so you can detect V2 onchain if you want
+    /// Add a tiny helper so you can detect V2 onchain if you want
     function version() external pure returns (string memory) {
-        return "RoundRobinV2";
+        return "RoundRobinV2: revert rotate_proposer";
     }
 }
