@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: CC0
 pragma solidity ^0.8.20;
 
-import "./RoundRobinUUPS.sol";
+import "./RoundRobin.sol";
 
 /// Tell OZ validator what this upgrades from (fully-qualified path + name)
 /// @custom:oz-upgrades-from blockchain_assets/contracts/RoundRobinUUPS.sol:RoundRobin

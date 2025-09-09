@@ -7,7 +7,7 @@ import "../contracts/X509/X509.sol";
 import "../contracts/SanctionsListMock.sol";
 
 // Verifier + VK interface/types
-import "../contracts/proof_verification/RollupProofVerifierUUPS.sol";
+import "../contracts/proof_verification/RollupProofVerifier.sol";
 import "../contracts/proof_verification/IVKProvider.sol";
 import "../contracts/proof_verification/lib/Types.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";

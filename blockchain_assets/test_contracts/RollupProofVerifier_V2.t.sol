@@ -13,9 +13,9 @@ import "../contracts/X509/X509.sol";
 import "../contracts/SanctionsListMock.sol";
 
 // Verifier V1 (UUPS)
-import "../contracts/proof_verification/RollupProofVerifierUUPS.sol"; // contract RollupProofVerifier
+import "../contracts/proof_verification/RollupProofVerifier.sol"; // contract RollupProofVerifier
 // Verifier V2 (returns false in verify_OpeningProof)
-import "../contracts/proof_verification/RollupProofVerifierUUPSV2.sol";
+import "../contracts/proof_verification/RollupProofVerifierV2.sol";
 
 import "../contracts/proof_verification/IVKProvider.sol";
 import "../contracts/proof_verification/lib/Types.sol";

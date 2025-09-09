@@ -8,7 +8,7 @@ import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "./lib/Types.sol";
 import "./IVKProvider.sol";
 
-contract RollupProofVerificationKeyUUPS is
+contract RollupProofVerificationKey is
     Initializable,
     UUPSUpgradeable,
     OwnableUpgradeable,

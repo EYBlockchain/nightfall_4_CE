@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Script.sol";
-import {RollupProofVerifierV2} from "../contracts/proof_verification/RollupProofVerifierUUPSV2.sol";
+import {RollupProofVerifierV2} from "../contracts/proof_verification/RollupProofVerifierV2.sol";
 
 // Minimal UUPS interface
 interface IUUPS {

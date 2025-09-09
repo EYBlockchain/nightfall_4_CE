@@ -5,14 +5,14 @@ import {Script} from "@forge-std/Script.sol";
 import "@forge-std/StdToml.sol";
 
 import "../contracts/Nightfall.sol";
-import "../contracts/RoundRobinUUPS.sol";
+import "../contracts/RoundRobin.sol";
 
 // Verifier stack
 import "../contracts/proof_verification/MockVerifier.sol";
-import "../contracts/proof_verification/RollupProofVerifierUUPS.sol";
+import "../contracts/proof_verification/RollupProofVerifier.sol";
 import "../contracts/proof_verification/INFVerifier.sol";
 import "../contracts/proof_verification/IVKProvider.sol";
-import "../contracts/proof_verification/RollupProofVerificationKeyUUPS.sol";
+import "../contracts/proof_verification/RollupProofVerificationKey.sol";
 import "../contracts/proof_verification/lib/Types.sol";
 
 // X509 & sanctions
@@ -134,7 +134,7 @@ contract Deployer is Script {
             verifier = new MockVerifier();
         } else {
             address verifierProxy = Upgrades.deployUUPSProxy(
-                "proof_verification/RollupProofVerifierUUPS.sol:RollupProofVerifier",
+                "proof_verification/RollupProofVerifier.sol:RollupProofVerifier",
                 abi.encodeCall(RollupProofVerifier.initialize, (vkProxy, owners.verifierOwner))
             );
             verifier = INFVerifier(verifierProxy);
@@ -211,7 +211,7 @@ contract Deployer is Script {
         vm.startBroadcast(owners.deployerPk);
 
         roundRobinProxy = Upgrades.deployUUPSProxy(
-            "RoundRobinUUPS.sol:RoundRobin",
+            "RoundRobin.sol:RoundRobin",
             abi.encodeCall(
                 RoundRobin.initialize,
                 (
@@ -255,14 +255,14 @@ contract Deployer is Script {
         Types.VerificationKey memory vk = _readVK(toml);
         bytes memory init = abi.encodeWithSignature("initialize(bytes)", abi.encode(vk));
         vkProxy = Upgrades.deployUUPSProxy(
-            "RollupProofVerificationKeyUUPS.sol:RollupProofVerificationKeyUUPS",
+            "RollupProofVerificationKey.sol:RollupProofVerificationKey",
             init
         );
 
         // optional transfer (if specified)
         address newOwner = toml.readAddress(string.concat(runMode, ".owners.vk_provider_owner"));
         if (newOwner != address(0) && newOwner != msg.sender) {
-            RollupProofVerificationKeyUUPS(vkProxy).transferOwnership(newOwner);
+            RollupProofVerificationKey(vkProxy).transferOwnership(newOwner);
         }
     }
 

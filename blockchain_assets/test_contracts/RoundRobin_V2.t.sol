@@ -6,7 +6,7 @@ import {console2 as console} from "forge-std/console2.sol";
 
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
-import {RoundRobin} from "../contracts/RoundRobinUUPS.sol";
+import {RoundRobin} from "../contracts/RoundRobin.sol";
 import {RoundRobinV2} from "../contracts/RoundRobinV2.sol";
 import {Nightfall} from "../contracts/Nightfall.sol";
 import {MockVerifier} from "../contracts/proof_verification/MockVerifier.sol";

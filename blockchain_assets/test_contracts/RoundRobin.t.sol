@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
-import "../contracts/RoundRobinUUPS.sol";
+import "../contracts/RoundRobin.sol";
 import "../contracts/Nightfall.sol";
 import "../contracts/proof_verification/MockVerifier.sol";
 import "../contracts/SanctionsListMock.sol";

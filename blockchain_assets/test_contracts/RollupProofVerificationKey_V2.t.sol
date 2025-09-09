@@ -2,14 +2,14 @@
 pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
-import "../contracts/proof_verification/RollupProofVerificationKeyUUPS.sol";
+import "../contracts/proof_verification/RollupProofVerificationKey.sol";
 import "../contracts/proof_verification/lib/Types.sol";
 
 contract VKProviderTest is Test {
-    RollupProofVerificationKeyUUPS vk;
+    RollupProofVerificationKey vk;
 
     function setUp() public {
-        vk = new RollupProofVerificationKeyUUPS();
+        vk = new RollupProofVerificationKey();
 
         // Build a minimal VK struct: set what you care about; the rest defaults to zero
         Types.VerificationKey memory initVK;

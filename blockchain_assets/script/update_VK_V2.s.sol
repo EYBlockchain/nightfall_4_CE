@@ -6,7 +6,7 @@ import "@forge-std/StdToml.sol";
 import "forge-std/console.sol";
 
 import "../contracts/proof_verification/lib/Types.sol";
-import "../contracts/proof_verification/RollupProofVerificationKeyUUPS.sol";
+import "../contracts/proof_verification/RollupProofVerificationKey.sol";
 
 /// Update the stored Verification Key on the VK provider UUPS proxy.
 /// Reads VK fields from nightfall.toml using NF4_RUN_MODE (e.g. "local").
@@ -46,7 +46,7 @@ contract UpdateVKWithToml is Script {
         bytes memory vkBlob = abi.encode(vk);
 
         // Introspect before/after
-        RollupProofVerificationKeyUUPS target = RollupProofVerificationKeyUUPS(vkProxy);
+        RollupProofVerificationKey target = RollupProofVerificationKey(vkProxy);
         bytes32 beforeHash = target.vkHash();
         uint64  beforeVer  = target.vkVersion();
 
