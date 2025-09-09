@@ -70,7 +70,7 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn std::er
         return Err(format!("Deployment log file not found: {path_out:?}").into());
     }
 
-    // This loads whatever your current parser extracts (likely impl addresses)
+    // This loads whatever current parser extracts (likely impl addresses)
     let mut addresses = Addresses::load(Sources::parse(
         path_out.to_str().ok_or("Couldn't convert path to str")?,
     )?)?;

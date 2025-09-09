@@ -15,6 +15,14 @@ use warp::{
     Filter,
 };
 
+// nightfall_client/src/drivers/rest/health_check.rs
+// use::nightfall_client::drivers::rest::health_check::health_route;
+
+// nightfall_client/src/drivers/rest/balance.rs
+        // .or(get_l1_balance())
+// import get_l1_balance from nightfall_client::drivers::rest::balance
+use nightfall_client::drivers::rest::balance::get_l1_balance;
+
 use crate::domain::error::ProposerRejection;
 
 pub mod block_assembly;
@@ -39,6 +47,9 @@ where
         .or(synchronisation())
         .or(pause_block_assembly())
         .or(resume_block_assembly())
+        // .or(get_fee_balance())
+        // nightfall_client/src/drivers/rest/balance.rs
+        .or(get_l1_balance())
         .recover(handle_rejection)
 }
 

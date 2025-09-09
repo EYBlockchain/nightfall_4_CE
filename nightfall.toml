@@ -94,6 +94,7 @@ vk_provider_owner = "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720"  # Anvil accoun
 x509_owner = "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720"  # Anvil account (9)
 verifier_owner = "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720"  # Anvil account (9)
 round_robin_owner = "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720"  # Anvil account (9)
+nightfall_owner = "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720"  # Anvil account (9)
 
 [development.nightfall_deployer]
 log_level = "info"

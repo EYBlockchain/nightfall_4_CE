@@ -8,6 +8,7 @@ import "../contracts/ERC721Mock.sol";
 import "../contracts/ERC1155Mock.sol";
 import "../contracts/ERC3525Mock.sol";
 import "../contracts/X509/X509.sol";
+import "forge-std/console.sol";
 
 
 contract MockDeployer is Script {
@@ -16,10 +17,14 @@ contract MockDeployer is Script {
         address owner = vm.envAddress("CLIENT_ADDRESS");
         address client2 = vm.envAddress("CLIENT2_ADDRESS");
         vm.startBroadcast(deployerPrivateKey);
-        new ERC20Mock(999999, owner, client2);
-        new ERC721Mock(426, owner);
-        new ERC1155Mock(2, 100, 73, 0, owner);
-        new ERC3525Mock(7, 100, 8, 120, 5, owner);
+        ERC20Mock erc20 = new ERC20Mock(999999, owner, client2);
+        ERC721Mock erc721 = new ERC721Mock(426, owner);
+        ERC1155Mock erc1155 = new ERC1155Mock(2, 100, 73, 0, owner);
+        ERC3525Mock erc3525 = new ERC3525Mock(7, 100, 8, 120, 5, owner);
+        console.log("erc20 mock:", address(erc20));
+        console.log("erc721 mock:", address(erc721));
+        console.log("erc1155 mock:", address(erc1155));
+        console.log("erc3525 mock:", address(erc3525));
         vm.stopBroadcast();
     }
 }

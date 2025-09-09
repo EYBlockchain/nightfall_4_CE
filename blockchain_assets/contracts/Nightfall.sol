@@ -13,6 +13,8 @@ import {IERC3525Receiver} from "@erc-3525/contracts/IERC3525Receiver.sol";
 import "./ProposerManager.sol";
 import "./X509/Certified.sol";
 import "./X509/X509.sol";
+import "forge-std/console.sol";
+
 import {Initializable}   from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
@@ -62,29 +64,22 @@ contract Nightfall is
     event BlockProposed(int256 indexed layer2_block_number);
     event DepositEscrowed(uint256 nfSlotId, uint256 value);
 
-    mapping(uint256 => DepositFeeState) private feeBinding;
-    mapping(bytes32 => uint8) private withdrawalIncluded;
-    mapping(uint256 => TokenIdValue) private tokenIdMapping;
+    mapping(uint256 => DepositFeeState) internal feeBinding;
+    mapping(bytes32 => uint8) internal withdrawalIncluded;
+    mapping(uint256 => TokenIdValue) internal tokenIdMapping;
 
     // uint256 private commitmentRoot = 0;
     // uint256 private nullifierRoot = 5626012003977595441102792096342856268135928990590954181023475305010363075697;
     // uint256 private historicRootsRoot = 0;
 
     int256 public layer2_block_number;
-    uint256 private commitmentRoot;
-    uint256 private nullifierRoot;        // set in initialize
-    uint256 private historicRootsRoot;
+    uint256 internal commitmentRoot;
+    uint256 internal nullifierRoot;        // set in initialize
+    uint256 internal historicRootsRoot;
 
-    ProposerManager private proposer_manager;
-    INFVerifier private verifier;
-    uint256 private feeId;
-
-    // Dummy constructor (won’t run behind proxy) – Certified has a ctor.
-    // constructor()
-    //     // Certified(X509Interface(address(0)), SanctionsListInterface(address(0)))
-    // {
-    //     _disableInitializers(); // lock the implementation; no runtime logic here
-    // }
+    ProposerManager internal proposer_manager;
+    INFVerifier internal verifier;
+    uint256 internal feeId;
 
     /// @notice Proxy initializer
     function initialize(
@@ -138,7 +133,7 @@ contract Nightfall is
         proposer_manager = proposer_manager_address;
     }
 
-    function propose_block(Block calldata blk) external onlyCertified {
+    function propose_block(Block calldata blk) external virtual onlyCertified {
         require(
             proposer_manager.get_current_proposer_address() == msg.sender,
             "Only the current proposer can propose a block"
@@ -233,6 +228,8 @@ contract Nightfall is
         nullifierRoot = blk.nullifier_root;
         historicRootsRoot = blk.commitments_root_root;
 
+        console.log("Total fee:", totalFee);
+
         address proposer = proposer_manager.get_current_proposer_address();
         (bool success, ) = proposer.call{value: totalFee}("");
         require(success, "Failed to transfer the fee to the proposer");
@@ -255,7 +252,7 @@ contract Nightfall is
         uint256 value,
         uint256 secretHash,
         TokenType token_type
-    ) external payable onlyCertified {
+    ) external virtual payable onlyCertified {
         uint256 nfTokenId = sha256_and_shift(abi.encode(ercAddress, tokenId));
         tokenIdMapping[nfTokenId] = TokenIdValue(ercAddress, tokenId);
 
