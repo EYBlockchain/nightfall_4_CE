@@ -1,10 +1,13 @@
 [package]
-name = "nightfall-bindings"
+name = "nightfall_bindings"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-ethers = { version = "2.0.14", default-features = false, features = ["abigen"] }
-serde = "1"
+alloy = { version = "1.0.23", features = ["full"] }
+configuration = { path = "../configuration" }
+log = "0.4.27"
+
+[build-dependencies]
+configuration = { path = "../configuration" }
+log = "0.4.27"

@@ -1,4 +1,4 @@
-use ethers::types::I256;
+use alloy::primitives::BlockNumber;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 pub enum NotificationPayload {
     BlockchainEvent {
         l1_txn_hash: String,
-        l2_block_number: I256,
+        l2_block_number: BlockNumber,
         commitments: Vec<String>,
         request_ids: Vec<String>,
     },

@@ -1,10 +1,10 @@
 /// This module provides functionality to convert various types to and from hexadecimal strings.
 /// It uses a bigendian representation for the conversions.
 use crate::error::HexError;
+use alloy::primitives::U256;
 use ark_bn254::Fr as Fr254;
 use ark_ff::PrimeField;
 use ark_ff::{BigInteger, BigInteger256};
-use ethers::types::U256;
 use nf_curves::ed_on_bn254::Fr as BJJScalar;
 use num_bigint::BigUint;
 
@@ -112,23 +112,29 @@ impl HexConvertible for Vec<u8> {
     }
 }
 
-// Implement the trait for ethers::types::U256
+// Implement the trait foralloy::primitives::U256
 impl HexConvertible for U256 {
     fn to_hex_string(&self) -> String {
-        let mut bytes = [0u8; 32];
-        self.to_big_endian(&mut bytes);
+        let bytes = self.to_be_bytes::<32>();
         hex::encode(bytes)
     }
 
     fn from_hex_string(hex_str: &str) -> Result<U256, HexError> {
+        // Remove the "0x" prefix if it exists
         let hex_str = hex_str.strip_prefix("0x").unwrap_or(hex_str);
+
+        // Decode the hex string into bytes
         let decoded_bytes = hex::decode(hex_str).map_err(|_| HexError::InvalidHexFormat)?;
+
+        // Ensure the decoded bytes do not exceed 32 bytes (U256 size)
         if decoded_bytes.len() > 32 {
             return Err(HexError::InvalidStringLength);
         }
+
+        // Create a 32-byte array and pad it with zeros
         let mut padded_bytes = [0u8; 32];
         padded_bytes[32 - decoded_bytes.len()..].copy_from_slice(&decoded_bytes);
-        Ok(U256::from_big_endian(&padded_bytes))
+        Ok(U256::from_be_bytes(padded_bytes))
     }
 }
 
@@ -181,7 +187,6 @@ mod test {
             0x302b6d99eae12fb5,
         ]));
         let hex_from_fr254 = Fr254::to_hex_string(&test_fr254);
-        println!("Hex from Fr254: {hex_from_fr254}");
         let fr254_from_hex = Fr254::from_hex_string(&hex_from_fr254).unwrap();
         assert_eq!(test_fr254, fr254_from_hex);
     }
@@ -260,15 +265,15 @@ mod test {
 
     #[test]
     fn test_u256_hex_conversion() {
-        use ethers::types::U256;
+        use alloy::primitives::U256;
         // Test with a known value
-        let value = U256::from_dec_str("1234567890123456789012345678901234567890").unwrap();
+        let value = U256::from_hex_string("1234567890123456789012345678901234567890").unwrap();
         let hex_string = value.to_hex_string();
         let parsed = U256::from_hex_string(&hex_string).unwrap();
         assert_eq!(value, parsed, "U256 conversion failed for known value");
 
         // Test with zero
-        let zero = U256::zero();
+        let zero = U256::ZERO;
         let hex_zero = zero.to_hex_string();
         let parsed_zero = U256::from_hex_string(&hex_zero).unwrap();
         assert_eq!(zero, parsed_zero, "U256 conversion failed for zero");

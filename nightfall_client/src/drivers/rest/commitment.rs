@@ -1,4 +1,3 @@
-use log::trace;
 use warp::{hyper::StatusCode, path, reply, Filter, Reply};
 
 use crate::driven::db::mongo::CommitmentEntry;
@@ -20,7 +19,6 @@ pub async fn handle_get_commitment(key: String) -> Result<impl Reply, warp::Reje
         warp::reject::custom(crate::domain::error::ClientRejection::InvalidCommitmentKey)
     })?;
     let commitment_db = get_db_connection().await;
-    trace!("Looking up commitment in DB, with key {}", &key);
     if let Some(res) = commitment_db.get_commitment(&parsed_key).await {
         Ok(reply::with_status(reply::json(&res), StatusCode::OK))
     } else {

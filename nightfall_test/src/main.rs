@@ -54,7 +54,7 @@ async fn main() -> Result<(), JoinError> {
             return Ok(());
         },
         Some(Err(e)) => {
-            error!("Nightfall tests failed with error: {e:?}",);
+            error!("Nightfall tests failed with error: {e:?}");
             return Err(e);
         }
         None => {

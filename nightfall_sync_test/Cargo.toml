@@ -13,3 +13,4 @@ tokio = { version = "1.45.0", features = ["full"] }
 configuration = { path = "../configuration" }
 log = "0.4.27"
 nightfall_client = { path = "../nightfall_client" }
+nightfall_bindings = {path = "../nightfall_bindings"}

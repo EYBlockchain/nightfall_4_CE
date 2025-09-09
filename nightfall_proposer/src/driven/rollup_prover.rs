@@ -359,6 +359,7 @@ impl RecursiveProver for RollupProver {
             start_roots_null.push(nullifier_info.old_root);
             end_roots_null.push(nullifier_info.circuit_info.new_root);
         }
+
         circuit.enforce_equal(start_roots_comm[1], end_roots_comm[0])?;
         circuit.enforce_equal(start_roots_null[1], end_roots_null[0])?;
         circuit.check_circuit_satisfiability(&[])?;
@@ -411,7 +412,6 @@ impl RecursiveProver for RollupProver {
                 &bit_var,
                 &mut lookup_vars,
             )?;
-
             sha_vars.push(sha256_var);
         }
 
@@ -565,7 +565,6 @@ impl RecursiveProver for RollupProver {
         let old_root_calc = m_proof_var.calculate_new_root(circuit, &circuit.zero())?;
 
         circuit.enforce_equal(old_root_calc, specific_pis[2][1 + root_m_proof_length])?;
-
         Ok(vec![
             fee_sum,
             final_sha,
@@ -971,6 +970,9 @@ impl RecursiveProver for RollupProver {
 
 /// This struct is used for the recursive proving of the rollup prover.
 /// It is the result of running the `prepare_state_transition` function.
+///
+///
+#[derive(Debug)]
 pub struct RollupPreppedInfo {
     pub outputs_and_circuit_type: Vec<(Bn254Output, VerifyingKey<Kzg>)>,
     pub specific_pi: Vec<Vec<Fr254>>,

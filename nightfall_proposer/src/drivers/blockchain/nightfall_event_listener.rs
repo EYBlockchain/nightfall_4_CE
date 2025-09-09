@@ -7,14 +7,18 @@ use crate::{
     },
     services::process_events::process_events,
 };
+use alloy::{
+    rpc::types::Filter,
+    sol_types::{SolEvent, SolEventInterface},
+};
 use ark_bn254::Fr as Fr254;
 use configuration::{addresses::get_addresses, settings::get_settings};
-use ethers::prelude::*;
+use futures::StreamExt;
 use futures::{future::BoxFuture, FutureExt};
 use lib::blockchain_client::BlockchainClientConnection;
 use log::{debug, warn};
 use mongodb::Client as MongoClient;
-use nightfall_bindings::nightfall::Nightfall;
+use nightfall_bindings::artifacts::Nightfall;
 use nightfall_client::{
     domain::{
         entities::{SynchronisationPhase::Desynchronized, SynchronisationStatus},
@@ -49,6 +53,7 @@ where
 
         loop {
             attempts += 1;
+            log::info!("Proposer event listener (attempt {attempts})...");
             log::info!("Proposer event listener (attempt {attempts})...");
             let result = listen_for_events::<P, E, N>(start_block).await;
 
@@ -94,22 +99,37 @@ where
     E: ProvingEngine<P>,
     N: NightfallContract,
 {
-    let nightfall_instance = Nightfall::new(
-        get_addresses().nightfall,
-        get_blockchain_client_connection()
-            .await
-            .read()
-            .await
-            .get_client(),
-    );
-    let events = nightfall_instance.events().from_block(start_block);
-    let mut stream = events
-        .subscribe_with_meta()
+    let blockchain_client = get_blockchain_client_connection()
+        .await
+        .read()
+        .await
+        .get_client();
+
+    let events_filter = Filter::new()
+        .address(get_addresses().nightfall())
+        .event_signature(vec![
+            Nightfall::BlockProposed::SIGNATURE_HASH,
+            Nightfall::DepositEscrowed::SIGNATURE_HASH,
+        ])
+        .from_block(start_block as u64);
+
+    // Subscribe to the combined events filter
+    let events_subscription = blockchain_client
+        .subscribe_logs(&events_filter)
         .await
         .map_err(|_| EventHandlerError::NoEventStream)?;
-    while let Some(Ok(evt)) = stream.next().await {
-        // process each event in the stream and handle any errors
-        let result = process_events::<P, E, N>(evt.0, evt.1).await;
+
+    let mut events_stream = events_subscription.into_stream();
+
+    while let Some(log) = events_stream.next().await {
+        let event = match Nightfall::NightfallEvents::decode_log(&log.inner) {
+            Ok(e) => e,
+            Err(e) => {
+                warn!("Failed to decode log: {e:?}");
+                continue; // Skip malformed events
+            }
+        };
+        let result = process_events::<P, E, N>(event.data, log).await;
         match result {
             Ok(_) => continue,
             Err(e) => {
@@ -123,17 +143,18 @@ where
 
                     EventHandlerError::BlockHashError(expected, found) => {
                         warn!(
-                            "Block hash mismatch: expected {expected:?}, found {found:?}. Restarting event listener"
-                        );
+                                "Block hash mismatch: expected {expected:?}, found {found:?}. Restarting event listener"
+                            );
                         restart_event_listener::<P, E, N>(start_block).await;
                         return Err(EventHandlerError::StreamTerminated);
                     }
 
-                    _ => panic!("Error processing event: {e:?}",),
+                    _ => panic!("Error processing event: {e:?}"),
                 }
             }
         }
     }
+
     Err(EventHandlerError::StreamTerminated)
 }
 

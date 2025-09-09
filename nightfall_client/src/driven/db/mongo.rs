@@ -1,10 +1,7 @@
+use alloy::primitives::{TxHash, I256};
 use ark_bn254::Fr as Fr254;
 use ark_ff::PrimeField;
 use async_trait::async_trait;
-use ethers::{
-    abi::AbiEncode,
-    types::{H256, I256},
-};
 use futures::TryStreamExt;
 use jf_primitives::{
     poseidon::{FieldHasher, Poseidon},
@@ -28,7 +25,7 @@ use crate::{
     ports::db::{CommitmentDB, RequestCommitmentMappingDB, RequestDB, WithdrawalDB},
     ports::{commitments::Commitment, db::CommitmentEntryDB},
 };
-use ethers::types::H160;
+use alloy::primitives::Address;
 use jf_primitives::{poseidon::PoseidonError, trees::MembershipProof};
 use lib::serialization::{ark_de_hex, ark_se_hex};
 use sha2::Sha256;
@@ -53,7 +50,7 @@ pub trait BlockStorageDB {
 pub struct StoredBlock {
     pub layer2_block_number: u64,
     pub commitments: Vec<String>,
-    pub proposer_address: H160,
+    pub proposer_address: Address,
 }
 impl StoredBlock {
     pub fn hash(&self) -> Fr254 {
@@ -61,7 +58,7 @@ impl StoredBlock {
         for c in &self.commitments {
             bytes.extend_from_slice(c.as_bytes());
         }
-        bytes.extend_from_slice(&self.proposer_address.to_fixed_bytes());
+        bytes.extend_from_slice(self.proposer_address.as_slice());
         let hash = Sha256::digest(&bytes);
         Fr254::from_be_bytes_mod_order(&hash)
     }
@@ -264,7 +261,6 @@ impl From<DBMembershipProof> for MembershipProof<Fr254> {
 pub struct CommitmentEntry {
     pub preimage: Preimage,
     pub status: CommitmentStatus,
-
     #[serde(
         rename = "_id",
         serialize_with = "ark_se_hex",
@@ -277,7 +273,7 @@ pub struct CommitmentEntry {
         default
     )]
     pub nullifier: Fr254,
-    pub layer_1_transaction_hash: Option<H256>,
+    pub layer_1_transaction_hash: Option<TxHash>,
     pub layer_2_block_number: Option<I256>,
 }
 
@@ -405,6 +401,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
         }
         Ok(result)
     }
+
     async fn get_available_commitments(&self, nf_token_id: Fr254) -> Option<Vec<CommitmentEntry>> {
         let filter = doc! {
             "preimage.nf_token_id": nf_token_id.to_hex_string(),
@@ -430,12 +427,16 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
     }
 
     async fn get_commitment(&self, k: &Fr254) -> Option<CommitmentEntry> {
-        let filter = doc! { "_id": k.to_hex_string() };
-        self.database(DB)
-            .collection::<CommitmentEntry>("commitments")
-            .find_one(filter)
+        let k_string = k.to_hex_string();
+        debug!("Getting commitment with key: {k_string}");
+        let commitment_1 = self
+            .get_all_commitments()
             .await
-            .expect("Database error") // we can't really proceed at this point
+            .expect("Database error")
+            .into_iter()
+            .find(|(key, _)| key.to_hex_string() == k_string);
+        // now we can check if we found the commitment
+        commitment_1.map(|(_, entry)| entry)
     }
 
     async fn get_balance(&self, nf_token_id: &Fr254) -> Option<Fr254> {
@@ -512,17 +513,17 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
     async fn mark_commitments_unspent(
         &self,
         commitments: &[Fr254],
-        l1_hash: Option<H256>,
+        l1_hash: Option<TxHash>,
         l2_blocknumber: Option<I256>,
     ) -> Option<()> {
         let commitment_str = commitments
             .iter()
             .map(|c| c.to_hex_string())
             .collect::<Vec<_>>();
-        let l1_hash = l1_hash.map(|h| h.encode_hex());
-        let l2_blocknumber = l2_blocknumber.map(|b| b.encode_hex());
+        let l1_hash = l1_hash.map(|h| h.to_string());
+        let _l2_blocknumber = l2_blocknumber.map(|b| b.to_string());
         let filter = doc! { "_id": { "$in": commitment_str }};
-        let update = doc! {"$set": { "status": "Unspent", "layer_1_transaction_hash": l1_hash, "layer_2_block_number": l2_blocknumber }};
+        let update = doc! {"$set": { "status": "Unspent", "layer_1_transaction_hash": l1_hash }};
         self.database(DB)
             .collection::<CommitmentEntry>("commitments")
             .update_many(filter, update)
@@ -572,7 +573,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
             return Some(());
         }
         debug!(
-            "Storing commitments with hashes {:?} ",
+            "Storing commitments with hashes{:?} ",
             commitments
                 .iter()
                 .map(|c| c.key.to_hex_string())

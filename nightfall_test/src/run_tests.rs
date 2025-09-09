@@ -8,14 +8,16 @@ use crate::{
     test_settings::TestSettings,
     validate_certs::validate_all_certificates,
 };
+use alloy::{
+    primitives::{
+        utils::{format_units, parse_units},
+        U256,
+    },
+    rpc::types::TransactionReceipt,
+};
 use ark_bn254::Fr as Fr254;
 use ark_std::{collections::HashMap, Zero};
 use configuration::settings::{get_settings, Settings};
-use ethers::{
-    providers::Middleware,
-    types::{TransactionReceipt, U256},
-    utils::{format_units, parse_units},
-};
 use futures::future::try_join_all;
 use lib::{
     blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
@@ -23,7 +25,7 @@ use lib::{
 };
 use log::{debug, info, warn};
 use nightfall_client::drivers::rest::{client_nf_3::WithdrawResponse, models::DeEscrowDataReq};
-use nightfall_proposer::services::assemble_block::get_block_size;
+use nightfall_proposer::{services::assemble_block::get_block_size};
 use serde_json::Value;
 use test::{
     anvil_reorg, count_spent_commitments, get_erc20_balance, get_erc721_balance, get_fee_balance,
@@ -115,7 +117,6 @@ pub async fn run_tests(
         };
         let n_large_block: usize = block_size;
         const DEPOSIT_FEE: &str = "0x06";
-
         // work out how much we'll change the balance of the two clients by making the large block deposits
         let client2_starting_balance = n_large_block as i64
             * i64::from_hex_string(&test_settings.erc20_transfer_large_block.value).unwrap();
@@ -130,7 +131,7 @@ pub async fn run_tests(
                 - client2_starting_fee_balance;
 
         // make up to 64 deposits so that we can test a large block (reuse deposit 2 data)
-        // first we need to pause block assembly so that we can make all the deposits in the same block
+        //first we need to pause block assembly so that we can make all the deposits in the same block
         let pause_url = Url::parse(&settings.nightfall_proposer.url)
             .unwrap()
             .join("v1/pause")
@@ -239,7 +240,7 @@ pub async fn run_tests(
             .filter(|n| !((Fr254::from_hex_string(n.as_str().unwrap()).unwrap()).is_zero()))
             .count();
 
-        //now we can resume block assembly
+       // now we can resume block assembly
         let resume_url = Url::parse(&settings.nightfall_proposer.url)
             .unwrap()
             .join("v1/resume")
@@ -418,6 +419,7 @@ pub async fn run_tests(
             "{i}th Deposit response Uuid does not match deposit data Uuid"
         );
     }
+
     // Extract commitment hashes
     let commitment_hashes = responses_by_uuid
         .clone()
@@ -434,7 +436,6 @@ pub async fn run_tests(
         .unwrap();
     let res = http_client.get(resume_url).send().await.unwrap();
     assert!(res.status().is_success());
-
     // for each deposit request, we have value commitment and fee commitment (if fee is non-zero)
     // wait for the commitments to appear on-chain - we can't transfer until they are there
     wait_on_chain(&commitment_hashes, &get_settings().nightfall_client.url)
@@ -552,6 +553,7 @@ pub async fn run_tests(
         Url::parse(&settings.nightfall_client.url).unwrap(),
     )
     .await;
+    info!("Balance of ERC20 tokens held as layer 2 commitments by client 1: {balance}");
     info!("Balance of ERC20 tokens held as layer 2 commitments by client 1: {balance}");
     assert_eq!(balance, 14 + client1_starting_balance);
 
@@ -967,15 +969,13 @@ pub async fn run_tests(
         .await
         .get_client();
     let accounts = client.get_accounts().await.unwrap();
-    let initial_balance = U256::from(parse_units("10000.0", "ether").unwrap());
-    let final_balances = try_join_all(
+    let initial_balance: U256 = parse_units("10000.0", "ether").unwrap().into();
+    let final_balances = futures::future::join_all(
         accounts
             .iter()
-            .map(|a| client.get_balance(*a, None))
-            .collect::<Vec<_>>(),
+            .map(|a| async { client.get_balance(*a).await.unwrap() }),
     )
     .await
-    .unwrap()
     .iter()
     .map(|b| initial_balance - b)
     .collect::<Vec<_>>();
@@ -983,7 +983,7 @@ pub async fn run_tests(
         .iter()
         .map(|b| format_units(*b, "ether").unwrap())
         .collect::<Vec<_>>();
-    let total = final_balances.iter().fold(U256::zero(), |acc, b| acc + b);
+    let total = final_balances.iter().fold(U256::ZERO, |acc, b| acc + b);
     info!("Eth spent was {final_balances_str:#?}");
     info!(
         "Total spent was {:#?}",

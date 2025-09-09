@@ -12,6 +12,7 @@ path = "bin/menu.rs"
 tracing = "0.1.41"
 dotenv = "0.15.0"
 nightfall_client = { path = "../nightfall_client" }
+nightfall_bindings = {path = "../nightfall_bindings"}
 nightfall_proposer = { path = "../nightfall_proposer" }
 configuration = { path = "../configuration" }
 lib = { path = "../lib" }
@@ -20,12 +21,14 @@ reqwest = { version = "0.12.15", features = ["json", "multipart"] }
 url = "2.5.4"
 ark-ff = { version = "0.4.2", features = ["parallel"] }
 serde_json = "1.0.140"
+k256 = "0.13.4"
+alloy-node-bindings = { version = "1.0.23" }
 tokio = { version = "1.45.0", features = ["full"] }
 ark-serialize = "0.4.2"
 ark-std = { version = "0.4.0", default-features = false }
 arkworks-utils = "1.0.1"
 ark-bn254 = "0.4.0"
-ethers = { version = "2.0.14", features = ["ws"] }
+alloy = { version = "1.0.23", features = ["full"] }
 hex = "0.4.3"
 log = "0.4.27"
 sha2 = "0.10.9"
@@ -37,7 +40,6 @@ jf-plonk = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", featu
 jf-primitives = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git" }
 jf-relation = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git" }
 serial_test = "3.2.0"
-nightfall-bindings = { path = "../nightfall_bindings" }
 num-bigint = "0.4.6"
 figment = { version = "0.10.19", features = ["toml", "env"] }
 futures = "0.3.31"

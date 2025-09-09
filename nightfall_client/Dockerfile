@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1-labs
-FROM rust:1.84.1 AS builder
+FROM rust:1.88.0 AS builder
 # install additional ca-certificates e.g. zscaler certificate (can be removed if not needed)
 COPY configuration/trust/* /usr/local/share/ca-certificates/
 RUN chmod 644 /usr/local/share/ca-certificates/* && update-ca-certificates

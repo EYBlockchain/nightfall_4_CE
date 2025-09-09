@@ -45,9 +45,10 @@ where
     D: serde::de::Deserializer<'de>,
 {
     let hex_str: &str = serde::de::Deserialize::deserialize(data)?;
+
     let mut bytes = Vec::<u8>::from_hex_string(hex_str).map_err(serde::de::Error::custom)?;
     bytes.reverse(); // Convert to little-endian (which is the expected format for the arkworks deserialiser)
-    let a = A::deserialize_with_mode(bytes.as_slice(), Compress::Yes, Validate::Yes)
+    let a = A::deserialize_with_mode(&bytes[..], Compress::Yes, Validate::Yes)
         .map_err(serde::de::Error::custom)?;
     Ok(a)
 }
@@ -76,7 +77,6 @@ pub fn bytes_to_hex_lpadded(bytes: &[u8], max_bytes: usize) -> String {
     for byte in bytes {
         write!(&mut hex_str, "{byte:02x}").unwrap();
     }
-
     format!("{:0>width$}", hex_str, width = max_bytes * 2)
 }
 
@@ -166,7 +166,6 @@ impl<'de> Deserialize<'de> for FrWrapperhex {
         Ok(FrWrapperhex(fr))
     }
 }
-
 pub struct FrWrapperPadded(pub Fr);
 
 impl Serialize for FrWrapperPadded {
@@ -242,7 +241,6 @@ mod tests {
         )
         .unwrap();
         let wrapper = FrWrapperPadded(element);
-
         let serialized = serde_json::to_string(&wrapper).unwrap();
         let deserialized: FrWrapperPadded = serde_json::from_str(&serialized).unwrap();
 

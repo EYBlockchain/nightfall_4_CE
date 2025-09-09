@@ -6,6 +6,7 @@ import "@erc-3525/contracts/ERC3525.sol";
 
 contract ERC3525Mock is ERC3525 {
     constructor(
+        address spender,
         uint256 initial_id,
         uint256 value,
         uint256 initial_id_two,
@@ -13,16 +14,18 @@ contract ERC3525Mock is ERC3525 {
         uint256 slot,
         address initialOwner
     ) ERC3525("ERC3525Mock", "ERC3525", 100) {
-        mint(initialOwner, initial_id, slot, value);
-        mint(initialOwner, initial_id_two, slot, value_two);
+        mint(spender,initialOwner, initial_id, slot, value);
+        mint(spender, initialOwner, initial_id_two, slot, value_two);
     }
 
     function mint(
+        address spender,
         address mintTo_,
         uint256 tokenId_,
         uint256 slot_,
         uint256 value_
     ) public virtual {
+        ERC3525._setApprovalForAll(mintTo_, spender, true);
         ERC3525._mint(mintTo_, tokenId_, slot_, value_);
     }
 
