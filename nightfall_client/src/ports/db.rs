@@ -38,6 +38,12 @@ where
     ) -> Option<()>;
     async fn mark_commitments_spent(&self, nullifiers: Vec<K>) -> Option<()>;
     async fn add_nullifier(&self, key: &K, nullifier: K) -> Option<()>;
+    // async fn select_and_reserve_commitments(
+    //     &self,
+    //     token_id: Fr254,
+    //     target_value: Fr254,
+    //     max_num: usize,
+    // ) -> Result<Vec<V>, &'static str>;
 }
 
 pub trait CommitmentEntryDB: Commitment {
