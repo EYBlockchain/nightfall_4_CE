@@ -33,7 +33,6 @@ contract Deployer is Script {
         address roundRobinOwner;
         address nightfallOwner;
         uint256 deployerPk;
-        uint256 nightfallOwnerPk; 
     }
 
     struct Deployed {
@@ -58,21 +57,25 @@ contract Deployer is Script {
         string memory toml = _loadToml();
         Owners memory owners = _owners(toml);
 
-        // 1) VK + Verifier + X509 (deployer)
+        // 1) VK   Verifier   X509 (deployer)
         Deployed memory deployed;
         (deployed.vkProxy, deployed.verifier, deployed.sanctionsList) = _deployVerifierStack(toml, owners);
 
         (deployed.x509Proxy, deployed.x509) = _deployX509(toml, owners);
 
-        // 2) Nightfall (deployer), then transfer to nightfallOwner
-        (deployed.nightfallProxy, deployed.nightfall) = _deployNightfall(owners, deployed.verifier, deployed.x509, deployed.sanctionsList);
-        _maybeTransferNightfallOwnership(owners, deployed.nightfall);
-
-        // 3) RoundRobin + bootstrap (deployer owns RR)
-        (deployed.roundRobinProxy, deployed.roundRobin) = _deployRoundRobin(toml, owners, deployed.x509, deployed.sanctionsList, deployed.nightfall);
-
-        // 4) Wire Nightfall -> RoundRobin (must be Nightfall owner)
-        _wireNightfallToRR(owners, deployed.nightfall, deployed.roundRobin);
+        // 2) Nightfall (owned by deployer initially)
+         (deployed.nightfallProxy, deployed.nightfall) =
+             _deployNightfall(owners, deployed.verifier, deployed.x509, deployed.sanctionsList);
+ 
+         // 3) RoundRobin   bootstrap
+         (deployed.roundRobinProxy, deployed.roundRobin) =
+             _deployRoundRobin(toml, owners, deployed.x509, deployed.sanctionsList, deployed.nightfall);
+ 
+         // 4) Wire Nightfall -> RoundRobin while Nightfall is still deployer-owned
+         _wireNightfallToRR(owners, deployed.nightfall, deployed.roundRobin);
+ 
+         // 5) Transfer Nightfall ownership to TOML value (same flow as X509)
+         _maybeTransferNightfallOwnership(owners, deployed.nightfall);
 
         _log(deployed, owners);
     }
@@ -99,15 +102,6 @@ contract Deployer is Script {
         owners.x509Owner = (x509Owner == address(0)) ? owners.deployer : x509Owner;
         owners.roundRobinOwner = (roundRobinOwner == address(0)) ? owners.deployer : roundRobinOwner;
         owners.nightfallOwner = (nfOwner == address(0)) ? owners.deployer : nfOwner;
-
-        // pick a key for Nightfall-owner-only calls
-        if (owners.nightfallOwner == owners.deployer) {
-            owners.nightfallOwnerPk = owners.deployerPk;
-        } else {
-            uint256 nfPk = vm.envUint("NF4_NIGHTFALL_OWNER_KEY");
-            require(vm.addr(nfPk) == owners.nightfallOwner, "NF4_NIGHTFALL_OWNER_KEY != nightfall_owner");
-            owners.nightfallOwnerPk = nfPk;
-        }
     }
 
     function _deployVerifierStack(
@@ -244,8 +238,7 @@ contract Deployer is Script {
         Nightfall nightfall,
         RoundRobin rr
     ) internal {
-        // owner-only on Nightfall; sign with nightfallOwner key
-        vm.startBroadcast(owners.nightfallOwnerPk);
+        vm.startBroadcast(owners.deployerPk);
         nightfall.set_proposer_manager(rr);
         vm.stopBroadcast();
     }
@@ -336,7 +329,7 @@ contract Deployer is Script {
     function _hexToUint(string memory s) internal pure returns (uint256 out) {
         bytes memory b = bytes(s);
         require(b.length >= 3 && b[0] == "0" && (b[1] == "x" || b[1] == "X"), "hex str");
-        for (uint256 i = 2; i < b.length; ++i) {
+        for (uint256 i = 2; i < b.length; i++) {
             uint8 c = uint8(b[i]);
             uint8 v;
             if (c >= 0x30 && c <= 0x39) v = c - 0x30;
