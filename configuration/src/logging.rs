@@ -8,14 +8,14 @@ pub fn init_logging(log_level: &str, app_only: bool) {
         match log_level {
             "debug" => Builder::new()
                 .filter_level(LevelFilter::Debug)
-                .filter_module("ethers_providers", LevelFilter::Error)
+                .filter_module("alloy_provider", LevelFilter::Error)
                 .filter_module("warp", LevelFilter::Warn)
                 .filter_module("hyper", LevelFilter::Warn)
                 .filter_module("tungstenite", LevelFilter::Warn)
                 .init(),
             "info" => Builder::new()
                 .filter_level(LevelFilter::Info)
-                .filter_module("ethers_providers", LevelFilter::Error)
+                .filter_module("alloy_provider", LevelFilter::Error)
                 .filter_module("warp", LevelFilter::Warn)
                 .filter_module("hyper", LevelFilter::Warn)
                 .filter_module("tungstenite", LevelFilter::Warn)

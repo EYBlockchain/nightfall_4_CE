@@ -5,7 +5,6 @@ use std::{
 
 use ark_bn254::Fr as Fr254;
 use ark_serialize::SerializationError;
-use ethers::providers::ProviderError;
 
 use jf_primitives::poseidon::PoseidonError;
 use lib::error::BlockchainClientConnectionError;
@@ -163,12 +162,6 @@ impl From<ConversionError> for TokenContractError {
     }
 }
 
-impl From<ProviderError> for TokenContractError {
-    fn from(e: ProviderError) -> Self {
-        Self::from(BlockchainClientConnectionError::from(e))
-    }
-}
-
 /// Error type for handling calls to a token contract
 #[derive(Debug)]
 pub enum NightfallContractError {
@@ -180,7 +173,7 @@ pub enum NightfallContractError {
     BlockNotFound(u64),
     ProviderError(String),
     MissingTransactionHash(String),
-    TransactionNotFound(ethers::types::H256),
+    TransactionNotFound(alloy::primitives::TxHash),
     AbiDecodeError(String),
     DecodedCallError(String),
 }
@@ -234,12 +227,6 @@ impl From<BlockchainClientConnectionError> for NightfallContractError {
 impl From<ConversionError> for NightfallContractError {
     fn from(e: ConversionError) -> Self {
         Self::ConversionError(e)
-    }
-}
-
-impl From<ProviderError> for NightfallContractError {
-    fn from(e: ProviderError) -> Self {
-        Self::from(BlockchainClientConnectionError::from(e))
     }
 }
 

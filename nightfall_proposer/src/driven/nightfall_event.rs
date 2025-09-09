@@ -12,22 +12,17 @@ use crate::{
         trees::{CommitmentTree, HistoricRootTree, NullifierTree},
     },
 };
+use alloy::primitives::{TxHash, I256};
+use alloy::{consensus::Transaction, sol_types::SolInterface};
 use ark_bn254::Fr as Fr254;
-use ark_std::Zero;
-use ethers::{
-    core::abi::AbiDecode,
-    providers::Middleware,
-    types::{TxHash, H256, I256},
-};
+use ark_ff::BigInteger;
 use lib::{
     blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
     merkle_trees::trees::IndexedTree,
 };
 use log::{debug, error, info, warn};
 use mongodb::Client;
-use nightfall_bindings::nightfall::{
-    DepositEscrowedFilter, NightfallCalls, NightfallEvents, ProposeBlockCall,
-};
+use nightfall_bindings::artifacts::Nightfall;
 use nightfall_client::{
     domain::error::EventHandlerError,
     driven::contract_functions::contract_type_conversions::FrBn254,
@@ -46,7 +41,7 @@ use tokio::sync::{OnceCell, RwLock};
 pub async fn get_expected_layer2_blocknumber() -> &'static RwLock<I256> {
     static LAYER2_BLOCKNUMBER: OnceCell<RwLock<I256>> = OnceCell::const_new();
     LAYER2_BLOCKNUMBER
-        .get_or_init(|| async { RwLock::new(I256::zero()) })
+        .get_or_init(|| async { RwLock::new(I256::ZERO) })
         .await
 }
 
@@ -70,7 +65,7 @@ impl Display for ProcessBlockError {
 // This is similar to Client's event handler but we don't simply import that version because
 // eventually this implementation will diverge from the Client's implementation.
 #[async_trait::async_trait]
-impl<P, E, N> EventHandler<P, E, N> for NightfallEvents
+impl<P, E, N> EventHandler<P, E, N> for Nightfall::NightfallEvents
 where
     P: Proof,
     E: ProvingEngine<P>,
@@ -80,14 +75,15 @@ where
         // we'll split out individual events here in case that's useful later
         debug!("Handling event {self:?} for transaction {tx_hash:?}");
         match &self {
-            NightfallEvents::BlockProposedFilter(filter) => {
-                process_nightfall_calldata::<P, E, N>(tx_hash, filter.layer_2_block_number).await?
+            Nightfall::NightfallEvents::BlockProposed(filter) => {
+                process_nightfall_calldata::<P, E, N>(tx_hash, filter.layer2_block_number).await?
             }
-            NightfallEvents::DepositEscrowedFilter(filter) => {
+            Nightfall::NightfallEvents::DepositEscrowed(filter) => {
                 info!("Received DepositEscrowed event");
                 process_deposit_escrowed_event::<P, E>(tx_hash, filter)
                     .await
                     .map_err(|e| {
+                        debug!("{e}");
                         debug!("{e}");
                         EventHandlerError::InvalidCalldata
                     })?;
@@ -99,7 +95,7 @@ where
 }
 
 pub async fn process_nightfall_calldata<P, E, N>(
-    transaction_hash: H256,
+    transaction_hash: TxHash,
     block_number: I256,
 ) -> Result<(), EventHandlerError>
 where
@@ -113,14 +109,15 @@ where
         .read()
         .await
         .get_client()
-        .get_transaction(transaction_hash)
+        .get_transaction_by_hash(transaction_hash)
         .await
         .map_err(|_| EventHandlerError::IOError("Could not retrieve transaction".to_string()))?;
+
     // if there is one, decode it. If not, throw.
     if let Some(tx) = tx {
-        let decoded =
-            NightfallCalls::decode(tx.input).map_err(|_| EventHandlerError::InvalidCalldata)?;
-        if let NightfallCalls::ProposeBlock(decode) = decoded {
+        let decoded = Nightfall::NightfallCalls::abi_decode(tx.input())
+            .map_err(|_| EventHandlerError::InvalidCalldata)?;
+        if let Nightfall::NightfallCalls::propose_block(decode) = decoded {
             // OK to use unwrap because the smart contract has to provide a block number
             process_propose_block_event::<N>(decode, transaction_hash, block_number).await?;
         }
@@ -131,30 +128,28 @@ where
 }
 
 async fn process_propose_block_event<N: NightfallContract>(
-    decode: ProposeBlockCall,
-    transaction_hash: H256,
+    decode: Nightfall::propose_blockCall,
+    transaction_hash: TxHash,
     layer_2_block_number_in_event: I256,
 ) -> Result<(), EventHandlerError> {
     let our_address = get_blockchain_client_connection()
         .await
         .read()
         .await
-        .get_address()
-        .ok_or(EventHandlerError::IOError(
-            "Could not retrieve our own address".to_string(),
-        ))?;
+        .get_address();
+
     let sender_address = get_blockchain_client_connection()
         .await
         .read()
         .await
         .get_client()
-        .get_transaction(transaction_hash)
+        .get_transaction_by_hash(transaction_hash)
         .await
         .map_err(|_| EventHandlerError::IOError("Could not retrieve transaction".to_string()))?
-        .ok_or(EventHandlerError::IOError(
-            "Could not retrieve transaction".to_string(),
-        ))?
-        .from;
+        .unwrap()
+        .inner
+        .signer();
+
     // get a lock on the db, we don't want anything else updating or reading the DB until
     // we're done here
     let db = get_db_connection().await;
@@ -249,7 +244,7 @@ async fn process_propose_block_event<N: NightfallContract>(
         }
     }
 
-    *expected_onchain_block_number += 1; // move on to the next block
+    *expected_onchain_block_number += I256::ONE; // move on to the next block
 
     // warn that we're not synced with the blockchain if we're behind
     // before we used the event filter layer 2 block number
@@ -262,7 +257,7 @@ async fn process_propose_block_event<N: NightfallContract>(
 
     // if the current block number is exactly one, then we're automatically synchronised because we've seen one
     // blockproposed event (or we wouldn't be here) and that must also be the only one
-    if current_block_number_in_contract == I256::one() {
+    if current_block_number_in_contract == I256::ONE {
         debug!("Synchronised with blockchain");
         sync_status.set_synchronised();
     }
@@ -278,7 +273,9 @@ async fn process_propose_block_event<N: NightfallContract>(
         .map_err(|_| {
             EventHandlerError::IOError("Could not retrieve commitment root".to_string())
         })?;
-    if our_address != sender_address || !sync_status.is_synchronised() || commitment_root.is_zero()
+    if our_address != sender_address
+        || !sync_status.is_synchronised()
+        || commitment_root.0.is_zero()
     {
         let commitments = &blk
             .transactions
@@ -341,8 +338,8 @@ async fn process_propose_block_event<N: NightfallContract>(
     // see if we need to update the synchronisation status
     //This is a final safety check. Earlier we used event-level info to decide whether to sync. Now we consult the contract’s real-time state.
 
-    let delta = current_block_number_in_contract - layer_2_block_number_in_event - I256::one();
-    if delta != I256::zero() {
+    let delta = current_block_number_in_contract - layer_2_block_number_in_event - I256::ONE;
+    if delta != I256::ZERO {
         warn!("Synchronising - behind blockchain by {delta} layer 2 blocks ");
         sync_status.clear_synchronised();
     } else {
@@ -357,9 +354,9 @@ async fn process_propose_block_event<N: NightfallContract>(
     Ok(())
 }
 
-async fn process_deposit_escrowed_event<P, E>(
-    transaction_hash: H256,
-    filter: &DepositEscrowedFilter,
+pub async fn process_deposit_escrowed_event<P, E>(
+    transaction_hash: TxHash,
+    filter: &Nightfall::DepositEscrowed,
 ) -> Result<(), EventHandlerError>
 where
     P: Proof,
@@ -367,7 +364,7 @@ where
 {
     info!(
         "Proposer: Decoded DepositEscrowed event from transaction {}, Deposit Transaction with nf_slot_id {}, value {}, is now on-chain",
-        transaction_hash, filter.nf_slot_id, filter.value,
+        transaction_hash, filter.nfSlotId, filter.value,
     );
     // get the transaction
     let tx = get_blockchain_client_connection()
@@ -375,31 +372,31 @@ where
         .read()
         .await
         .get_client()
-        .get_transaction(transaction_hash)
+        .get_transaction_by_hash(transaction_hash)
         .await
         .map_err(|_| EventHandlerError::IOError("Could not retrieve transaction".to_string()))?;
 
     // If there is one, decode it. If not, throw.
     if let Some(tx) = tx {
-        let decoded =
-            NightfallCalls::decode(tx.input).map_err(|_| EventHandlerError::InvalidCalldata)?;
+        let decoded = Nightfall::NightfallCalls::abi_decode(tx.input())
+            .map_err(|_| EventHandlerError::InvalidCalldata)?;
 
-        if let NightfallCalls::EscrowFunds(decode) = decoded {
+        if let Nightfall::NightfallCalls::escrow_funds(decode) = decoded {
             // Get the information from the calldata
             let fee = Fr254::from(FrBn254::try_from(decode.fee).map_err(|_| {
                 EventHandlerError::IOError("Could not convert to Fr254".to_string())
             })?);
 
-            let erc_address = decode.erc_address;
-            let secret_hash = Fr254::from(FrBn254::try_from(decode.secret_hash).map_err(|_| {
+            let erc_address = decode.ercAddress;
+            let secret_hash = Fr254::from(FrBn254::try_from(decode.secretHash).map_err(|_| {
                 EventHandlerError::IOError("Could not convert to Fr254".to_string())
             })?);
 
-            let token_id = decode.token_id;
+            let token_id = decode.tokenId;
 
             // Get the information from the event
             let nf_slot_id_from_event =
-                Fr254::from(FrBn254::try_from(filter.nf_slot_id).map_err(|_| {
+                Fr254::from(FrBn254::try_from(filter.nfSlotId).map_err(|_| {
                     EventHandlerError::IOError("Could not convert to Fr254".to_string())
                 })?);
             // Note: value_from_calldata is the value that was escrowed for value escrow event.
@@ -431,7 +428,6 @@ where
                 secret_hash,
             };
             let deposit_data = DepositDatawithFee { fee, deposit_data };
-
             process_deposit_transaction::<P, E>(deposit_data)
                 .await
                 .map_err(|_| {

@@ -30,7 +30,7 @@ impl From<&PublicInputs> for OnChainTransaction {
 #[allow(async_fn_in_trait)]
 pub trait RecursiveProvingEngine<P: Proof> {
     /// This type is defined by the implementation based on how the proving engine proves state transitions.
-    type PreppedInfo;
+    type PreppedInfo: std::fmt::Debug;
     /// The error type returned if unable to prove.
     type Error: Error
         + Display

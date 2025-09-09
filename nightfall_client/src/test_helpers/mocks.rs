@@ -9,12 +9,12 @@ use crate::{
         proof::{PrivateInputs, Proof, ProvingEngine, PublicInputs},
     },
 };
+use alloy::primitives::Bytes;
 use ark_bn254::Fr as Fr254;
 use ark_ec::AffineRepr;
 use ark_ff::{BigInt, BigInteger, Field};
 use ark_serialize::SerializationError;
 use ark_std::Zero;
-use ethers::types::Bytes;
 use lib::hex_conversion::HexConvertible;
 use nf_curves::ed_on_bn254::{
     BJJTEAffine as JubJubAffine, BJJTEProjective as JubJub, Fr as FqJubJub,

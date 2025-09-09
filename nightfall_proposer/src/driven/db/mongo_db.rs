@@ -2,9 +2,9 @@ use crate::{
     domain::entities::{ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot},
     ports::db::{BlockStorageDB, HistoricRootsDB, TransactionsDB},
 };
+use alloy::primitives::Address;
 use ark_bn254::Fr as Fr254;
 use ark_ff::{PrimeField, Zero};
-use ethers::types::H160;
 use futures::TryStreamExt;
 use lib::hex_conversion::HexConvertible;
 use mongodb::bson::doc;
@@ -168,7 +168,6 @@ where
             let deposit: DepositDatawithFee = cursor.deserialize_current().ok()?;
             result.push(deposit);
         }
-
         if result.is_empty() {
             None
         } else {
@@ -308,7 +307,7 @@ impl TryFrom<HistoricRootEntry> for HistoricRoot {
 pub struct StoredBlock {
     pub layer2_block_number: u64,
     pub commitments: Vec<String>,
-    pub proposer_address: H160,
+    pub proposer_address: Address,
 }
 impl StoredBlock {
     pub fn hash(&self) -> Fr254 {
@@ -316,7 +315,7 @@ impl StoredBlock {
         for c in &self.commitments {
             bytes.extend_from_slice(c.as_bytes());
         }
-        bytes.extend_from_slice(&self.proposer_address.to_fixed_bytes());
+        bytes.extend_from_slice(self.proposer_address.as_slice());
         let hash = Sha256::digest(&bytes);
         Fr254::from_be_bytes_mod_order(&hash)
     }

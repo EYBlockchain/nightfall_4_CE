@@ -16,12 +16,12 @@ use lib::{
     error::HexError,
     serialization::{ark_de_hex, ark_se_hex},
 };
+use nightfall_bindings::artifacts::Nightfall;
 
 use jf_primitives::poseidon::{FieldHasher, Poseidon, PoseidonError};
 use lib::hex_conversion::HexConvertible;
 use log::{error, warn};
 use nf_curves::ed_on_bn254::{BabyJubjub, Fr as BJJScalar};
-use nightfall_bindings::nightfall::OnChainTransaction as NightfallOnChainTransaction;
 use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
 use sha3::{digest::generic_array::GenericArray, Digest, Keccak256};
@@ -31,7 +31,6 @@ use std::{
     fmt::{Debug, Display},
     str::{self, FromStr},
 };
-
 /// A struct representing the status of an HTTP request
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Request {
@@ -139,11 +138,11 @@ pub struct AppendOnlyTreeMetadata<F> {
 /// A struct representing a proposer in a linked list of proposers (used in the ProposerManager contract)
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Proposer {
-    pub stake: ::ethers::core::types::U256,
-    pub addr: ::ethers::core::types::Address,
+    pub stake: ::alloy::primitives::U256,
+    pub addr: ::alloy::primitives::Address,
     pub url: ::std::string::String,
-    pub next_addr: ::ethers::core::types::Address,
-    pub previous_addr: ::ethers::core::types::Address,
+    pub next_addr: ::alloy::primitives::Address,
+    pub previous_addr: ::alloy::primitives::Address,
 }
 
 /// Formalises the compressed secrets in a client proof.  This makes the purpose of the data clearer than using
@@ -170,8 +169,8 @@ pub struct OnChainTransaction {
     pub public_data: CompressedSecrets,
 }
 // Move this to lib
-impl From<NightfallOnChainTransaction> for OnChainTransaction {
-    fn from(ntx: NightfallOnChainTransaction) -> Self {
+impl From<Nightfall::OnChainTransaction> for OnChainTransaction {
+    fn from(ntx: Nightfall::OnChainTransaction) -> Self {
         Self {
             fee: FrBn254::try_from(ntx.fee)
                 .expect("Conversion of on-chain fee into field element should never fail")

@@ -38,12 +38,10 @@ use ark_serialize::CanonicalDeserialize;
 use ark_std::{rand::thread_rng, UniformRand};
 use configuration::{addresses::get_addresses, settings::get_settings};
 use jf_primitives::poseidon::{FieldHasher, Poseidon};
-use lib::{hex_conversion::HexConvertible, wallets::LocalWsClient};
+use lib::hex_conversion::HexConvertible;
 use log::{debug, error, info};
 use nf_curves::ed_on_bn254::{BabyJubjub, Fr as BJJScalar};
-use nightfall_bindings::{
-    ierc1155::IERC1155, ierc20::IERC20, ierc3525::IERC3525, ierc721::IERC721, nightfall::Nightfall,
-};
+use nightfall_bindings::artifacts::{Nightfall, IERC1155, IERC20, IERC3525, IERC721};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use warp::{
@@ -52,7 +50,6 @@ use warp::{
     reply::{self, json, Reply},
     Filter,
 };
-
 #[derive(Serialize, Deserialize)]
 pub struct WithdrawResponse {
     success: bool,
@@ -215,6 +212,7 @@ pub async fn handle_deposit<N: NightfallContract>(
     id: &str,
 ) -> Result<NotificationPayload, TransactionHandlerError> {
     info!("Deposit raw request: {req:?}");
+    info!("Deposit raw request: {req:?}");
 
     // We convert the request into values
     let NF3DepositRequest {
@@ -307,7 +305,7 @@ pub async fn handle_deposit<N: NightfallContract>(
     // Then match on the token type and call the correct function
     let (preimage_value, preimage_fee_option) = match token_type {
         TokenType::ERC20 => {
-            deposit_operation::<IERC20<LocalWsClient>, Nightfall<LocalWsClient>>(
+            deposit_operation::<IERC20::IERC20Calls, Nightfall::NightfallCalls>(
                 erc_address,
                 value,
                 fee,
@@ -320,7 +318,7 @@ pub async fn handle_deposit<N: NightfallContract>(
             .await
         }
         TokenType::ERC721 => {
-            deposit_operation::<IERC721<LocalWsClient>, Nightfall<LocalWsClient>>(
+            deposit_operation::<IERC721::IERC721Calls, Nightfall::NightfallCalls>(
                 erc_address,
                 value,
                 fee,
@@ -333,7 +331,7 @@ pub async fn handle_deposit<N: NightfallContract>(
             .await
         }
         TokenType::ERC1155 => {
-            deposit_operation::<IERC1155<LocalWsClient>, Nightfall<LocalWsClient>>(
+            deposit_operation::<IERC1155::IERC1155Calls, Nightfall::NightfallCalls>(
                 erc_address,
                 value,
                 fee,
@@ -346,7 +344,7 @@ pub async fn handle_deposit<N: NightfallContract>(
             .await
         }
         TokenType::ERC3525 => {
-            deposit_operation::<IERC3525<LocalWsClient>, Nightfall<LocalWsClient>>(
+            deposit_operation::<IERC3525::IERC3525Calls, Nightfall::NightfallCalls>(
                 erc_address,
                 value,
                 fee,
@@ -368,6 +366,7 @@ pub async fn handle_deposit<N: NightfallContract>(
         .nullifier_hash(&nullifier_key)
         .expect("Could not hash commitment {}");
     let commitment_hash = preimage_value.hash().expect("Could not hash commitment");
+
     let commitment_entry =
         CommitmentEntry::new(preimage_value, nullifier, CommitmentStatus::PendingCreation);
 
@@ -700,7 +699,7 @@ where
             .await
             .map_err(|e| {
                 error!(
-                    "{id} Could not find enough usable fee commitments to complete this withdraw, suggest depositing more fee: {e}",
+                    "{id} Could not find enough usable fee commitments to complete this withdraw, suggest depositing more fee: {e}"
                 );
                 TransactionHandlerError::CustomError(e.to_string())
             })?

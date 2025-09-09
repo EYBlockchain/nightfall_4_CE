@@ -52,7 +52,6 @@ log_level = "info"
 
 [development.contracts]
 assets = "./blockchain_assets/artifacts"
-rust_bindings = "./nightfall_bindings"
 addresses_file = "configuration/toml/addresses.toml"
 deployment_file = "./blockchain_assets/logs/deployer.s.sol"
 deploy_contracts = true
@@ -124,7 +123,6 @@ log_level = "info"
 
 [base_sepolia.contracts]
 assets = "./blockchain_assets/artifacts"
-rust_bindings = "./nightfall_bindings"
 addresses_file = "configuration/toml/addresses.toml"
 deployment_file = "./blockchain_assets/logs/deployer.s.sol"
 deploy_contracts = false

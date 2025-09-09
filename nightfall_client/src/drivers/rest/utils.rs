@@ -1,9 +1,9 @@
 //! File contains utility functions used by the REST API, such as ones for converting from erc address and token id to
 //! Nightfall token id.
 use crate::domain::error::ConversionError;
+use alloy::primitives::{Address, U256};
 use ark_bn254::Fr as Fr254;
 use ark_ff::{BigInteger, PrimeField};
-use ethers::types::{H160, U256};
 use lib::hex_conversion::HexConvertible;
 use log::debug;
 use num::BigUint;
@@ -76,7 +76,7 @@ pub fn to_nf_token_id_from_fr254(erc_address: Fr254, token_id: Fr254) -> Fr254 {
 }
 
 pub fn to_nf_token_id_from_solidity(
-    solidity_token_address: H160,
+    solidity_token_address: Address,
     solidity_token_id: U256,
 ) -> Fr254 {
     // Convert Solidity token address to raw bytes (20 bytes)
@@ -88,8 +88,7 @@ pub fn to_nf_token_id_from_solidity(
     }
 
     // Convert Solidity token ID to bytes (32 bytes, big-endian)
-    let mut token_id_bytes = [0u8; 32];
-    solidity_token_id.to_big_endian(&mut token_id_bytes);
+    let token_id_bytes = U256::to_be_bytes::<32>(&solidity_token_id);
 
     let mut input_bytes = Vec::new();
     input_bytes.extend_from_slice(&erc_address_bytes); // 20 bytes
@@ -133,13 +132,13 @@ mod tests {
 
             // ---------Compute using `to_nf_token_id_from_solidity`---------
             let solidity_erc_address =
-                H160::from_slice(&Vec::<u8>::from_hex_string(&erc_address_string).unwrap());
+                Address::from_slice(&Vec::<u8>::from_hex_string(&erc_address_string).unwrap());
             let mut token_id_bytes = Vec::<u8>::from_hex_string(&token_id_string).unwrap();
             // pad left to 32 bytes
             while token_id_bytes.len() < 32 {
                 token_id_bytes.insert(0, 0);
             }
-            let solidity_token_id = U256::from_big_endian(&token_id_bytes);
+            let solidity_token_id = U256::from_be_slice(&token_id_bytes);
             let nf_token_id_from_solidity =
                 to_nf_token_id_from_solidity(solidity_erc_address, solidity_token_id);
 

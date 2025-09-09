@@ -1,13 +1,13 @@
+use alloy::{
+    dyn_abi::abi::encode,
+    primitives::{keccak256, Address, U256},
+    sol_types::SolValue,
+};
 use ark_bn254::Bn254;
 use ark_ec::{twisted_edwards::Affine, AffineRepr};
 use ark_ff::{PrimeField, Zero};
 use ark_std::{rand::rngs::StdRng, UniformRand};
 use criterion::{criterion_group, criterion_main, Criterion};
-use ethers::{
-    abi::{encode, Tokenizable},
-    types::{H160, U256},
-    utils::keccak256,
-};
 use jf_plonk::{nightfall::FFTPlonk, proof_system::UniversalSNARK, transcript::StandardTranscript};
 use jf_primitives::{
     pcs::prelude::UnivariateKzgPCS,
@@ -166,12 +166,12 @@ fn build_valid_transfer_inputs() -> CircuitTestInfo {
 
     let withdraw_address = Fr254::from_be_bytes_mod_order(&withdraw_address_bytes);
     // make a random Nightfall address, and create fee_token_id from it
-    let nf_address_h160 = H160::random();
-    let nf_address = Fr254::from(BigUint::from_bytes_be(nf_address_h160.as_bytes()));
-    let nf_address_token = nf_address_h160.into_token();
-    let u256_zero = U256::zero().into_token();
+    let nf_address_h160 = Address::from(rand::thread_rng().gen::<[u8; 20]>());
+    let nf_address = Fr254::from(BigUint::from_bytes_be(nf_address_h160.0.as_slice()));
+    let nf_address_token = nf_address_h160.tokenize();
+    let u256_zero = U256::ZERO.tokenize();
     let fee_token_id_biguint =
-        BigUint::from_bytes_be(&keccak256(encode(&[nf_address_token, u256_zero]))) >> 4;
+        BigUint::from_bytes_be(keccak256(encode(&(nf_address_token, u256_zero))).as_slice()) >> 4;
     let fee_token_id = Fr254::from(fee_token_id_biguint);
 
     let FeesAndValues {

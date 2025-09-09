@@ -1,7 +1,6 @@
 use configuration::{logging::init_logging, settings::get_settings};
-use lib::wallets::LocalWsClient;
 use log::{error, info};
-use nightfall_bindings::nightfall::Nightfall;
+use nightfall_bindings::artifacts::Nightfall;
 use nightfall_client::driven::{
     db::mongo::DB,
     plonk_prover::plonk_proof::{PlonkProof, PlonkProvingEngine},
@@ -23,7 +22,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let settings = get_settings();
     type P = PlonkProof;
     type E = PlonkProvingEngine;
-    type N = Nightfall<LocalWsClient>;
+    type N = Nightfall::NightfallCalls;
 
     init_logging(
         settings.nightfall_proposer.log_level.as_str(),

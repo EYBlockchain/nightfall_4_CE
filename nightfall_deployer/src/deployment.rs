@@ -4,7 +4,6 @@ use configuration::{
 };
 
 use log::{info, warn};
-
 use nightfall_proposer::driven::rollup_prover::RollupProver;
 use std::{error::Error, os::unix::process::ExitStatusExt};
 use url::Url;
@@ -112,14 +111,12 @@ pub fn forge_command(command: &[&str]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloy::providers::{Provider, ProviderBuilder};
+    use alloy_node_bindings::Anvil;
     use configuration::addresses::get_addresses;
     use std::{fs, path::Path};
 
-    use ethers::{
-        core::utils::Anvil,
-        providers::{Http, Middleware, Provider},
-    };
-    use nightfall_bindings::nightfall::NIGHTFALL_DEPLOYED_BYTECODE;
+    use nightfall_bindings::artifacts::Nightfall;
     use tokio::task::spawn_blocking;
 
     // NB: This test requires Anvil to be installed (it will use Anvil to simulate a blockchain).
@@ -149,16 +146,16 @@ mod tests {
 
         deploy_contracts(&settings).await.unwrap();
         // get a blockchain provider so we can interrogate the deployed code
-        let provider = Provider::<Http>::try_from(anvil.endpoint()).unwrap();
+        let provider = ProviderBuilder::new()
+            .disable_recommended_fillers()
+            .connect_http(anvil.endpoint_url());
+
         let code = provider
             // use spawn blocking because the blocking reqwest client is not async and it complains (but we need loading the addresses to be sync elsewhere)
-            .get_code(
-                spawn_blocking(get_addresses).await.unwrap().nightfall(),
-                None,
-            )
+            .get_code_at(spawn_blocking(get_addresses).await.unwrap().nightfall())
             .await
             .unwrap();
-        assert_eq!(code, NIGHTFALL_DEPLOYED_BYTECODE);
+        assert_eq!(code, Nightfall::DEPLOYED_BYTECODE);
         // clean up by remvoing the addresses file and directory that this test created
         fs::remove_dir_all(Path::new("configuration/toml")).unwrap();
     }

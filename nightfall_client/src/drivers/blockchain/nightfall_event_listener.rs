@@ -10,9 +10,14 @@ use crate::{
     ports::{contracts::NightfallContract, trees::CommitmentTree},
     services::process_events::process_events,
 };
+use alloy::{
+    primitives::I256,
+    rpc::types::Filter,
+    sol_types::{SolEvent, SolEventInterface},
+};
 use ark_bn254::Fr as Fr254;
 use configuration::{addresses::get_addresses, settings::get_settings};
-use ethers::prelude::*;
+use futures::StreamExt;
 use futures::{future::BoxFuture, FutureExt};
 use lib::{
     blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
@@ -20,10 +25,9 @@ use lib::{
 };
 use log::{debug, warn};
 use mongodb::Client as MongoClient;
-use nightfall_bindings::nightfall::Nightfall;
+use nightfall_bindings::artifacts::Nightfall;
 use std::{panic, time::Duration};
 use tokio::time::sleep;
-
 /// This function starts the event handler. It will attempt to restart the event handler in case of errors
 /// with an exponential backoff  for a configurable number of attempts. If the event handler
 /// fails after the maximum number of attempts, it will log an error and send a notification (if configured).
@@ -39,8 +43,8 @@ pub fn start_event_listener<N: NightfallContract>(
         loop {
             attempts += 1;
             log::info!("Client event listener (attempt {attempts})...");
+            log::info!("Client event listener (attempt {attempts})...");
             let result = listen_for_events::<N>(start_block).await;
-
             match result {
                 Ok(_) => {
                     log::info!("Client event listener finished successfully.");
@@ -79,26 +83,44 @@ async fn notify_failure_client(message: &str) -> Result<(), ()> {
 pub async fn listen_for_events<N: NightfallContract>(
     start_block: usize,
 ) -> Result<(), EventHandlerError> {
-    let nightfall_instance = Nightfall::new(
-        get_addresses().nightfall(),
-        get_blockchain_client_connection()
-            .await
-            .read()
-            .await
-            .get_client(),
-    );
+    let blockchain_client = get_blockchain_client_connection()
+        .await
+        .read()
+        .await
+        .get_client();
     log::info!(
         "Listening for events on the Nightfall contract at address: {}",
         get_addresses().nightfall()
     );
-    let events = nightfall_instance.events().from_block(start_block);
-    let mut stream = events
-        .subscribe_with_meta()
+
+    // get the events from the Nightfall contract from the specified start block
+    
+    // Subscribe to the combined events filter
+    let events_filter = Filter::new()
+        .address(get_addresses().nightfall())
+        .event_signature(vec![
+            Nightfall::BlockProposed::SIGNATURE_HASH,
+            Nightfall::DepositEscrowed::SIGNATURE_HASH,
+        ])
+        .from_block(start_block as u64);
+
+    // Subscribe to the combined events filter
+    let events_subscription = blockchain_client
+        .subscribe_logs(&events_filter)
         .await
         .map_err(|_| EventHandlerError::NoEventStream)?;
-    while let Some(Ok(evt)) = stream.next().await {
+
+    let mut events_stream = events_subscription.into_stream();
+    while let Some(evt) = events_stream.next().await {
         // process each event in the stream and handle any errors
-        let result = process_events::<N>(evt.0, evt.1).await;
+        let event = match Nightfall::NightfallEvents::decode_log(&evt.inner) {
+            Ok(e) => e,
+            Err(e) => {
+                warn!("Failed to decode log: {e:?}");
+                continue; // Skip malformed events
+            }
+        };
+        let result = process_events::<N>(event.data, evt).await;
         match result {
             Ok(_) => continue,
             Err(e) => {
@@ -114,6 +136,7 @@ pub async fn listen_for_events<N: NightfallContract>(
             }
         }
     }
+
     Err(EventHandlerError::StreamTerminated)
 }
 
@@ -182,7 +205,7 @@ pub async fn get_synchronisation_status<N: NightfallContract>(
     // expected == current
     let i256_val = *expected_block_number;
     assert!(
-        i256_val >= I256::zero(),
+        i256_val >= I256::ZERO,
         "expected_block_number is negative: {i256_val}"
     );
 
@@ -203,7 +226,6 @@ pub async fn get_synchronisation_status<N: NightfallContract>(
                             "Could not read block from blockchain".to_string(),
                         )
                     })?;
-
             let store_block_pending = StoredBlock {
                 layer2_block_number: expected_u64,
                 commitments: block_onchain
