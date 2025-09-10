@@ -13,6 +13,7 @@ use mongodb::{
     bson::doc,
     error::{ErrorKind, WriteFailure::WriteError},
     Client,
+    options::{FindOneAndUpdateOptions,FindOptions, ReturnDocument},
 };
 use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, str};
@@ -400,6 +401,41 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
             result.push((v.key, v))
         }
         Ok(result)
+    }
+
+    async fn reserve_commitments_atomic(
+        &self, 
+        commitment_ids: Vec<Fr254>
+    ) -> Result<Vec<CommitmentEntry>, &'static str> {
+        let mut reserved_commitments = Vec::new();
+        
+        for commitment_id in commitment_ids {
+            let filter = doc! {
+                "_id": commitment_id.to_hex_string(),
+                "status": "Unspent"  // Match your existing status name
+            };
+            
+            let update = doc! {
+                "$set": { "status": "PendingSpend" }
+            };
+            
+            let options = FindOneAndUpdateOptions::builder()
+                .return_document(ReturnDocument::After)
+                .build();
+            
+            // ATOMIC: Find + Update in one operation
+            if let Some(updated_commitment) = self.database(DB)
+                .collection::<CommitmentEntry>("commitments")
+                .find_one_and_update(filter, update)
+                .with_options(options)
+                .await
+                .map_err(|_| "Database update failed")?
+            {
+                reserved_commitments.push(updated_commitment);
+            }
+        }
+        
+        Ok(reserved_commitments)
     }
 
     async fn get_available_commitments(&self, nf_token_id: Fr254) -> Option<Vec<CommitmentEntry>> {

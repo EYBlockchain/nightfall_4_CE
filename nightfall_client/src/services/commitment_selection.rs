@@ -19,6 +19,7 @@ use nf_curves::ed_on_bn254::BJJTEAffine as JubJub;
 use serde::{Deserialize, Serialize};
 use std::{cmp, cmp::Ordering, collections::VecDeque, fmt::Debug, sync::Arc};
 use tokio::sync::Mutex;
+use mongodb::options::FindOneAndUpdateOptions;
 
 const MAX_POSSIBLE_COMMITMENTS: usize = 2;
 
@@ -31,44 +32,115 @@ pub async fn find_usable_commitments(
     target_value: Fr254,
     db: &Client,
 ) -> Result<[Preimage; MAX_POSSIBLE_COMMITMENTS], &'static str> {
-    let (avaliable_sorted_commitments, min_num_c) =
-        verify_enough_commitments(target_token_id, target_value, db).await?;
+    
+    // Step 1: Get available commitments.
+    let mut available_commitments = db.get_available_commitments(target_token_id)
+        .await
+        .ok_or("No available commitments found")?;
 
-    let mut max_num_c = MAX_POSSIBLE_COMMITMENTS;
-    if avaliable_sorted_commitments.len() < MAX_POSSIBLE_COMMITMENTS {
-        max_num_c = avaliable_sorted_commitments.len();
+    if available_commitments.is_empty() {
+        return Err("No commitments available");
     }
 
-    // given the avaliable commitment, return the selected commitments
-    // We want to use dusts first
-    // Example: target_value = 3, commitments = [1, 2, 3]
-    // We should use [1, 2] instead of [3] because the change is smaller/0
-    let old_commitments = select_commitment(
-        &avaliable_sorted_commitments,
+    // Step 2: Convert to Preimage for business logic functions and sort by value.
+    let mut available_preimages: Vec<Preimage> = available_commitments
+        .into_iter()
+        .map(|c| c.get_preimage())
+        .collect::<Vec<_>>();
+    available_preimages.sort_by_key(|p| p.get_value());
+
+    // Step 3: Calculate minimum number of commitments required.
+    let min_num_c = calculate_minimum_commitments(&mut available_preimages.clone(), target_value)
+        .map_err(|_| "Failed to calculate minimum commitments")?;
+
+    if min_num_c > MAX_POSSIBLE_COMMITMENTS {
+        return Err("Too many commitments required; exceeds maximum allowed");
+    }
+    
+    // Step 4: Determine max number of commitments to use.
+    let max_num_c = available_preimages.len().min(MAX_POSSIBLE_COMMITMENTS);
+
+    if max_num_c < min_num_c {
+        return Err("Not enough commitments available to cover target value");
+    }
+
+    // Step 5: Select optimal commitments.
+    let selected_preimages = select_commitment(
+        &available_preimages,
         target_value,
         min_num_c,
         max_num_c,
     )?;
 
-    // mark the selected dusts as pending
-    let pending_keys = old_commitments
+    // Step 6: Get commitment IDs for atomic reservation.
+    let commitment_ids = selected_preimages
         .iter()
-        .map(|c| c.hash())
-        .collect::<Result<Vec<Fr254>, _>>()
-        .map_err(|_| "Preimage hashing failed during commitment selection")?;
+        .map(|p| p.hash().expect("Preimage hashing failed")) 
+        .collect::<Vec<Fr254>>();
 
-    // Mark Pending
-    debug!(
-        "Marking these commitments as pending: {:?}",
-        pending_keys
-            .iter()
-            .map(|k| k.to_hex_string())
-            .collect::<Vec<_>>()
-    );
-    db.mark_commitments_pending_spend(pending_keys).await;
+    // Step 7: ATOMIC RESERVATION to avoid TOCTOU.
+    let reserved_entries = db.reserve_commitments_atomic(commitment_ids).await?;
+    
+    if reserved_entries.len() < min_num_c {
+        return Err("Could not reserve enough commitments - taken by another process");
+    }
 
-    Ok([old_commitments[0], old_commitments[1]])
+    // Step 8: Convert reserved entries to Preimage.
+    let preimages: Vec<Preimage> = reserved_entries
+        .into_iter()
+        .map(|c| c.get_preimage()) 
+        .collect::<Vec<_>>();
+
+    // Step 9: Return as fixed-length array.
+    if preimages.len() != MAX_POSSIBLE_COMMITMENTS {
+        return Err("Invalid number of commitments selected for a fixed-length array.");
+    }
+
+    Ok([preimages[0], preimages[1]])
 }
+// pub async fn find_usable_commitments(
+//     target_token_id: Fr254,
+//     target_value: Fr254,
+//     db: &Client,
+// ) -> Result<[Preimage; MAX_POSSIBLE_COMMITMENTS], &'static str> {
+//     let (avaliable_sorted_commitments, min_num_c) =
+//         verify_enough_commitments(target_token_id, target_value, db).await?;
+
+//     let mut max_num_c = MAX_POSSIBLE_COMMITMENTS;
+//     if avaliable_sorted_commitments.len() < MAX_POSSIBLE_COMMITMENTS {
+//         max_num_c = avaliable_sorted_commitments.len();
+//     }
+
+//     // given the avaliable commitment, return the selected commitments
+//     // We want to use dusts first
+//     // Example: target_value = 3, commitments = [1, 2, 3]
+//     // We should use [1, 2] instead of [3] because the change is smaller/0
+//     let old_commitments = select_commitment(
+//         &avaliable_sorted_commitments,
+//         target_value,
+//         min_num_c,
+//         max_num_c,
+//     )?;
+
+//     // mark the selected dusts as pending
+//     let pending_keys = old_commitments
+//         .iter()
+//         .map(|c| c.hash())
+//         .collect::<Result<Vec<Fr254>, _>>()
+//         .map_err(|_| "Preimage hashing failed during commitment selection")?;
+
+//     // Mark Pending
+//     debug!(
+//         "Marking these commitments as pending: {:?}",
+//         pending_keys
+//             .iter()
+//             .map(|k| k.to_hex_string())
+//             .collect::<Vec<_>>()
+//     );
+//     db.mark_commitments_pending_spend(pending_keys).await;
+
+//     Ok([old_commitments[0], old_commitments[1]])
+// }
 
 fn select_commitment(
     commitments: &[Preimage],
