@@ -131,7 +131,7 @@ contract Deployer is Script {
             verifier = new MockVerifier();
         } else {
             address verifierProxy = Upgrades.deployUUPSProxy(
-                "proof_verification/RollupProofVerifier.sol:RollupProofVerifier",
+                "RollupProofVerifier.sol:RollupProofVerifier",
                 abi.encodeCall(RollupProofVerifier.initialize, (vkProxy, owners.verifierOwner))
             );
             verifier = INFVerifier(verifierProxy);

@@ -38,8 +38,8 @@ contract RollupProofVerificationKey is
         __UUPSUpgradeable_init();
 
         Types.VerificationKey memory vk = _decodeAndSanity(vkBlob);
-        _vk       = vk;
-        _vkHash   = keccak256(vkBlob);
+        _vk = vk;
+        _vkHash = keccak256(vkBlob);
         _vkVersion = 1;
         emit VKInitialized(_vkHash, _vkVersion);
     }
@@ -51,8 +51,8 @@ contract RollupProofVerificationKey is
         Types.VerificationKey memory vk = _decodeAndSanity(vkBlob);
 
         bytes32 oldHash = _vkHash;
-        _vk       = vk;
-        _vkHash   = keccak256(vkBlob);
+        _vk = vk;
+        _vkHash = keccak256(vkBlob);
         _vkVersion += 1;
 
         emit VKReplaced(oldHash, _vkHash, _vkVersion);
@@ -67,7 +67,7 @@ contract RollupProofVerificationKey is
         return _vkHash;
     }
 
-    // (Optional) operational getters
+    // operational getters
     function vkVersion() external view returns (uint64) { return _vkVersion; }
 
     // -------- UUPS gate --------

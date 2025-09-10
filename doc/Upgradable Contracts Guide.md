@@ -874,8 +874,8 @@ So far, we verified that we successfully increased required stakes for proposer 
 ###   RollupProofVerificationKey upgrade (V3): install a “bad” VK
 
 - Intend: Change vk in the updation to mimic a accident update.
-- Before: Proposer can propose a block with .
-- After: When an user sends a `deposit` tx with both `deposit_fee` and `value`, we will see 1 value escrow events and 1 value commitment will be included onchain.
+- Before: Proposer can propose a block with valid information.
+- After: Proposer can propose a block with valid information.
 - Change: `escrow_funds(...)` emits a single DepositEscrowed (no extra “fee” deposit event).
 
 Intent: Simulate verification failures at the VK level.

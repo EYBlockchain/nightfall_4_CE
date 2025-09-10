@@ -33,7 +33,7 @@ contract UpdateVKWithToml is Script {
     function _update(address vkProxy) internal {
         require(vkProxy != address(0), "VK proxy is zero");
 
-        // Keep OZ upgrades happy with custom out dir if you use it elsewhere
+        // Keep OZ upgrades happy with custom out dir 
         vm.setEnv("FOUNDRY_OUT", "blockchain_assets/artifacts");
 
         // Load TOML
@@ -114,21 +114,21 @@ contract UpdateVKWithToml is Script {
         vk.k6 = toml.readUint(string.concat(runMode, ".verifier.k6"));
 
         // Table commitments
-        vk.range_table_comm   = _readG1(toml, ".verifier.range_table_comm");
-        vk.key_table_comm     = _readG1(toml, ".verifier.key_table_comm");
+        vk.range_table_comm = _readG1(toml, ".verifier.range_table_comm");
+        vk.key_table_comm = _readG1(toml, ".verifier.key_table_comm");
         vk.table_dom_sep_comm = _readG1(toml, ".verifier.table_dom_sep_comm");
-        vk.q_dom_sep_comm     = _readG1(toml, ".verifier.q_dom_sep_comm");
+        vk.q_dom_sep_comm = _readG1(toml, ".verifier.q_dom_sep_comm");
 
         // Group params
-        vk.size_inv      = toml.readUint(string.concat(runMode, ".verifier.size_inv"));
-        vk.group_gen     = toml.readUint(string.concat(runMode, ".verifier.group_gen"));
+        vk.size_inv = toml.readUint(string.concat(runMode, ".verifier.size_inv"));
+        vk.group_gen = toml.readUint(string.concat(runMode, ".verifier.group_gen"));
         vk.group_gen_inv = toml.readUint(string.concat(runMode, ".verifier.group_gen_inv"));
 
         // Open key
         vk.open_key_g = _readG1(toml, ".verifier.open_key_g");
 
         // G2 points
-        vk.h      = _readG2(toml, ".verifier.h");
+        vk.h = _readG2(toml, ".verifier.h");
         vk.beta_h = _readG2(toml, ".verifier.beta_h");
     }
 
