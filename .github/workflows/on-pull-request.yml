@@ -30,7 +30,7 @@ jobs:
     needs: [build]
     runs-on: self-hosted
     env:
-      NF4_MOCK_PROVER: "true"
+      NF4_MOCK_PROVER: "false"
       NF4_CONTRACTS__DEPLOY_CONTRACTS: "true"
     steps:
       - name: Checkout
