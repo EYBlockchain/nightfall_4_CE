@@ -8,7 +8,7 @@ import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 contract UpgradeX509WithLogging is Script {
     bytes32 constant _IMPL_SLOT  = 0x360894A13BA1A3210667C828492DB98DCA3E2076CC3735A920A3CA505D382BBC;
     bytes32 constant _ADMIN_SLOT = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
-    string constant ARTIFACT = "X509V2.sol:X509V2";
+    string constant ARTIFACT = "X509V3.sol:X509V3";
 
     function _getImpl(address proxy) internal view returns (address impl) {
         bytes32 raw = vm.load(proxy, _IMPL_SLOT);

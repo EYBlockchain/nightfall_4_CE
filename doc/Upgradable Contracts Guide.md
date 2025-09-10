@@ -173,6 +173,128 @@ In short: Upgradable contracts keep a stable address + state via a proxy and rel
 
 -  Don’t Break invariants around balances, roots, or auth without explicit migration logic.
 
+## The new changes added 
+- Make original contracts upgradable.
+  1. `blockchain_assets/contracts/proof_verification/RollupProofVerificationKey.sol`
+
+  2. `blockchain_assets/contracts/proof_verification/RollupProofVerifier.sol`
+
+  3. `blockchain_assets/contracts/X509/Allowlist.sol`
+
+  4. `blockchain_assets/contracts/X509/Certified.sol`
+
+  5. `blockchain_assets/contracts/X509/X509.sol`
+
+  6. `blockchain_assets/contracts/Nightfall.sol`
+
+  7. `blockchain_assets/contracts/RoundRobin.sol`
+
+- Add V2 updates, and their related contract unit test.
+  1. `blockchain_assets/contracts/proof_verification/RollupProofVerifierV2.sol`
+     `blockchain_assets/test_contracts/RollupProofVerifier_V2.t.sol`
+
+  2. `blockchain_assets/contracts/Nightfall_V2.sol`
+     `blockchain_assets/test_contracts/Nightfall_V2_t.sol`
+
+  3. `blockchain_assets/contracts/RoundRobinV2.sol`
+     `blockchain_assets/test_contracts/RoundRobin_V2.t.sol`
+
+  4. `blockchain_assets/test_contracts/RollupProofVerificationKey_V2.t.sol`
+
+  5. `blockchain_assets/contracts/X509/X509V2.sol`
+     `blockchain_assets/test_contracts/X509/X509_V2.t.sol`
+
+
+- Add V3 updates, and their related depoyer scripts.
+
+  1. `blockchain_assets/contracts/X509/X509V3.sol`
+     `blockchain_assets/script/upgrade_X509_V3.s.sol`
+
+  2. `blockchain_assets/contracts/Nightfall_V3.sol`
+     `blockchain_assets/script/upgrade_Nightfall_V3.s.sol`
+
+  3. `blockchain_assets/contracts/RoundRobinV3.sol`
+     `blockchain_assets/script/upgrade_RoundRobin_V3.s.sol`
+
+  4. `vk`
+
+  5. `rollup verifier`
+     `rollup verifier`
+
+## Upgrade instruction
+
+Upgrades via UUPS replace the entire implementation behind the proxy. That means you can change function bodies in the new implementation even if the old ones weren’t virtual. The virtual/override pair only matters if your V2 contract inherits from V1 and overrides methods via Solidity inheritance. In V3 examples, you will find we have three types of new updation:
+
+1. replace the whole contract `blockchain_assets/contracts/X509/X509V3.sol`
+
+2. overide one function in original contract: `blockchain_assets/contracts/Nightfall_V3.sol`
+
+3. add a new function/change parameter: `blockchain_assets/contracts/RoundRobinV3.sol`    
+
+### Two valid upgrade patterns
+
+#### Replace implementation (no inheritance)
+
+- Write new version that doesn’t inherit from original contract.
+
+- Keep the exact same storage layout (append-only changes; don’t reorder/rename existing vars; use the gap).
+
+- Keep function selectors (same signatures) you still want to support.
+
+- You can freely change implementations.
+- In this pattern, virtual is irrelevant.
+ for example:
+
+#### Extend via inheritance (V2 is V1)
+
+- For example, `contract NightfallV2 is Nightfall { ... }`
+
+- Override behavior with override.
+- Any function you plan to override in this way must be virtual in V1.
+
+- What to mark virtual?
+
+1. Don’t blanket virtual everything. Mark the likely “extension points” so V2 can override them while keeping the ABI stable:
+
+- External entry points whose internal logic might evolve should be virtual
+
+- Keep simple setters non-virtual unless you really expect to gate/alter them.
+
+### Other upgrade must-knows
+
+- Storage: append-only; preserve ordering/types; keep uint256[50] __gap; for future vars.
+
+- Initializers: don’t re-run initialize. If V2 needs setup, add reinitializer(2) function and call it during/after upgrade.
+
+- Signatures: overriding requires the exact same signature. If you need a new signature, add a new function and keep the old one as a wrapper/stub.
+
+- UUPS guard: _authorizeUpgrade can stay as is; override only if you’re changing who can upgrade.
+
+### Will upgrade clear the old status remembered onchain?
+
+Replacing the implementation in a UUPS (or Transparent) proxy does not clear on-chain state. All our variables—mappings like `feeBinding`, `withdrawalIncluded`, `tokenIdMapping`, `roots`, `owner`, etc.—live in the proxy’s storage, and upgrades only swap the logic contract address the proxy delegates to.
+
+Where people get “state reset” surprises is in these cases:
+
+1. Incompatible storage layout.
+
+- Reordered/removed variables, changed types, or changed inheritance order → variables read/write the wrong slots and look “zeroed” or corrupted.
+
+- Rule: append-only to storage; keep ordering; use the __gap.
+
+2. Accidentally deploying a new proxy instead of upgrading the existing one.
+
+You’ll be looking at a fresh address with empty storage.
+
+3. Re-running an initializer (or calling a bad “setup” function) that overwrites fields.
+
+Don’t call initialize again (OZ guards this). If V2 needs setup, add reinitializer(2) and only set new vars there.
+
+4. Changing which slot a getter reads (e.g., refactoring to a different struct/parent) so values appear different even though the slot still holds the old data.
+
+So: a replace-implementation upgrade preserves all “remembered status” unless you intentionally (or accidentally) change it via the pitfalls above.
+
+
 ## Common upgrade workflow (local dev)
 In this section, we will give example about how to upgrade each contract and how to test.
 
@@ -750,6 +872,11 @@ So far, we verified that we successfully increased required stakes for proposer 
 
 
 ###   RollupProofVerificationKey upgrade (V3): install a “bad” VK
+
+- Intend: Change vk in the updation to mimic a accident update.
+- Before: Proposer can propose a block with .
+- After: When an user sends a `deposit` tx with both `deposit_fee` and `value`, we will see 1 value escrow events and 1 value commitment will be included onchain.
+- Change: `escrow_funds(...)` emits a single DepositEscrowed (no extra “fee” deposit event).
 
 Intent: Simulate verification failures at the VK level.
 
