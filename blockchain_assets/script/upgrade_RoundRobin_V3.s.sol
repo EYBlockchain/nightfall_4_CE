@@ -10,8 +10,7 @@ import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 ///   NF4_SIGNING_KEY   - pk of RoundRobin owner (anvil key ok)
 ///   RPC_URL           - provided via CLI
 ///   ROUNDROBIN_PROXY  - proxy address (used by run())
-///   RR_ARTIFACT       - optional; defaults to "RoundRobinV2.sol:RoundRobinV2"
-/// Also assumes artifacts in "blockchain_assets/artifacts".
+///   RR_ARTIFACT       - optional; defaults to "RoundRobinV3.sol:RoundRobinV3"
 contract UpgradeRoundRobinWithLogging is Script {
     // EIP-1967 slots
     bytes32 constant _IMPL_SLOT  = 0x360894A13BA1A3210667C828492DB98DCA3E2076CC3735A920A3CA505D382BBC;
@@ -85,7 +84,7 @@ contract UpgradeRoundRobinWithLogging is Script {
         require(proxy.code.length > 0, "Proxy has no code on RPC_URL");
 
         // Resolve artifact: default then optional RR_ARTIFACT env, then optional param override
-        string memory artifact = "RoundRobinV2.sol:RoundRobinV2";
+        string memory artifact = "RoundRobinV3.sol:RoundRobinV3";
         // env override
         try this.__readEnvString("RR_ARTIFACT") returns (string memory rr) {
             if (bytes(rr).length != 0) artifact = rr;

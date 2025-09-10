@@ -176,9 +176,11 @@ In short: Upgradable contracts keep a stable address + state via a proxy and rel
 ## Common upgrade workflow (local dev)
 In this section, we will give example about how to upgrade each contract and how to test.
 
-### X509 upgrade (V3): forces revert for validateCertificate)
-In X509V3.sol, we make `validateCertificate` revert no matter it's a valid or invalid certificate.
-
+### X509 upgrade (V3): forces revert for validateCertificate
+- Intend: Upgrade X509 to revert for any certificate validation
+- Before: True validation result for valid certificate, false validation result for invalid certificate.
+- After: False validation result for valid certificate, false validation result for invalid certificate.
+- Change: Make `validateCertificate` revert no matter it's a valid or invalid certificate.
 We set `x509_owner = "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720"  # Anvil account (9)` (same for other examples.)
 
 We first clean the test in `nightfall_test/src/run_tests.rs` (comment the code from line 66 to line 992), so we will start with clean certificate status.
@@ -220,7 +222,7 @@ The first contract defines the new changes we want for X509 contract, and the se
 After copy paste the contracts in, do the followings in a new terminal under nightfall_4_pv:
 
 ```
-// Build the deployer image with the new artifactss
+// Build the deployer image with the new artifacts
 docker compose --profile development build deployer
 
 // One-off shell in the fresh image
@@ -282,10 +284,10 @@ and in terminal you should see "X509V3: forced invalid certificate", this is wha
 JJ: I want someone to test this case, because we only allow one address to have one x509 certificate. Before upgrading, test if you can let client 1 and client 2 use same certificate and same private key, you should get error. Then let client 1 do a successful certificate validation. After upgrading (this should go without saying, you have to do another upgrading contract, otherwise you will fail any validation if you use my example), after verifying your upgrading behavour, let client 2 validate same certificate client 1 used, you should get error, so we ensure upgrading contract wont clean old states. This should also be done for other contracts.
 
 ###  Nightfall upgrade (V3): emit only one deposit event
-
-Intent: Change deposit event semantics without touching balances/roots.
-
-Change: In V3, escrow_funds(...) emits a single DepositEscrowed (no extra “fee” deposit event).
+- Intend: Change deposit event semantics without touching balances/roots.
+- Before: When an user sends a `deposit` tx with both `deposit_fee` and `value`, we will see two escrow events and two commitments will be included onchain.
+- After: When an user sends a `deposit` tx with both `deposit_fee` and `value`, we will see 1 value escrow events and 1 value commitment will be included onchain.
+- Change: `escrow_funds(...)` emits a single DepositEscrowed (no extra “fee” deposit event).
 
 We first clean the test in nightfall_test/src/run_tests.rs (comment the code from line 99 to line 992), so we will start with clean status just after validating everyone's certificate.
 
@@ -412,7 +414,7 @@ The first contract defines the new changes we want for Nightfall contract, and t
 After copy paste the contracts in, do the followings in a new terminal under nightfall_4_pv:
 
 ```
-// Build the deployer image with the new artifactss
+// Build the deployer image with the new artifacts
 docker compose --profile development build deployer
 
 // One-off shell in the fresh image
@@ -644,10 +646,107 @@ nf4_proposer                              | [2025-09-10T11:17:34Z INFO  nightfal
 
 When this L2 block is onchain, check commitment again, and you will find only one commitment is changed to unspent, this is what we expected about new behaviours of NightfallV3.
 
-###   RoundRobin upgrade (V3): stake from 5 wei -> 50 wei
+###   RoundRobin upgrade (V3): change stake required to register as proposers
 
-Intent: Tighten proposer stake requirement without migration.
+- Intend: Raise the global stake in an upgrade from 4 to 40.
+- Before: Proposer need to stake 4 to become proposer.
+- After: New Proposer gets error if it stakes 4
+- Change: `verify_accumulation` reverts.
 
+Note that our proposer registration api only needs new proposer's url, the stake number is read from toml which is set during first time deployment. For this upgrading, we don't plan to change the api. Failing to stake 4 after updrading should be enough to show our upgrading works.
+
+We first clean the test in `nightfall_test/src/run_tests.rs` (comment the code from line 65 to line 992), so we will start with clean status.
+
+Run `docker compose --profile development build` and `docker compose --profile development up`
+
+when you see `nf4_test exited with code 0`, use Postman to check current proposers, and you should see something like:
+
+```
+[
+    {
+        "stake": "0x4",
+        "addr": "0xa0ee7a142d267c1f36714e4a8f75612f20a79720",
+        "url": "http://proposer:3000",
+        "next_addr": "0xa0ee7a142d267c1f36714e4a8f75612f20a79720",
+        "previous_addr": "0xa0ee7a142d267c1f36714e4a8f75612f20a79720"
+    }
+]
+```
+
+This shows our initial round robin setting, you need to stake 4 to be a proposer.
+
+Next, we start the upgrading:
+
+```
+// Build the deployer image with the new artifacts
+docker compose --profile development build deployer
+
+// One-off shell in the fresh image
+docker compose --profile development run --no-deps --rm deployer bash
+
+// set up environment for restarted deployer
+export NF4_RUN_MODE=local
+export NF4_SIGNING_KEY=0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6
+export ROUNDROBIN_PROXY=$(curl -s http://configuration/configuration/toml/addresses.toml | awk -F\" '/^round_robin/{print $2}')
+export FOUNDRY_OUT=blockchain_assets/artifacts
+
+// verify if you set ROUNDROBIN_PROXY correctly, this should be in your terminal log during the first time deployment
+echo "ROUNDROBIN_PROXY=$ROUNDROBIN_PROXY"
+
+export RPC_URL=http://anvil:8545
+
+// Just double check if we put the new things 
+ls -l blockchain_assets/contracts/RoundRobinV3.sol
+ls -l blockchain_assets/script/upgrade_RoundRobin_V3.s.sol
+
+// Build the new changes
+forge build --force
+
+// deploy new updated contract
+forge script blockchain_assets/script/upgrade_RoundRobin_V3.s.sol:UpgradeRoundRobinWithLogging \
+  --sig "run(address)" "$ROUNDROBIN_PROXY" \
+  --rpc-url "$RPC_URL" \
+  --broadcast -vvvv
+
+// Raise the on-chain stake requirement to 40
+
+cat > blockchain_assets/script/rr_set_stake.s.sol <<'SOL'
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+import "forge-std/Script.sol";
+
+interface IRR {
+    function setStakeRequirement(uint256) external;
+    function STAKE() external view returns (uint256);
+}
+
+contract SetStake is Script {
+    function run(address proxy, uint256 newStakeWei) external {
+        uint256 pk = vm.envUint("NF4_SIGNING_KEY");
+        vm.startBroadcast(pk);
+        IRR(proxy).setStakeRequirement(newStakeWei);
+        vm.stopBroadcast();
+    }
+}
+SOL
+
+// Call it with 40:
+
+export NEW_STAKE_WEI="40"
+
+forge script blockchain_assets/script/rr_set_stake.s.sol:SetStake \
+  --sig "run(address,uint256)" "$ROUNDROBIN_PROXY" "$NEW_STAKE_WEI" \
+  --rpc-url "$RPC_URL" \
+  --broadcast -vvvv
+
+// Use certification api to give Proposer 1 a valid certificate, because we asked everyone should have valid certificate before interacting with our contracts.
+
+// Use register proposer api again, this will read the stake from toml and try to register with stake 4
+
+nf4_proposer                              | [2025-09-10T17:46:29Z ERROR ethers_providers::rpc::transports::ws] error=(code: 3, message: execution reverted: revert: You have not paid the correct staking amount during registration, data: Some(String("0x08c379a000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000040596f752068617665206e6f7420706169642074686520636f7272656374207374616b696e6720616d6f756e7420647572696e6720726567697374726174696f6e")))
+```
+
+So far, we verified that we successfully increased required stakes for proposer registration.
 
 
 ###   RollupProofVerificationKey upgrade (V3): install a “bad” VK
@@ -666,12 +765,12 @@ Expected behavior
 
 Nightfall.propose_block(...) reverts with “Rollup proof verification failed” when the proposer submits a block.
 
-###   RollupProofVerifier upgrade (V3): make verify_acc revert
+###   RollupProofVerifier upgrade (V3): make verify_accumulation revert
 
-Intent: Force verification failure in the verifier logic itself.
-Expected behavior
-
-Block proposal fails on-chain with a deterministic revert (or false return) and Nightfall bubbles “Rollup proof verification failed.”
+- Intend: Force verification failure in the `verify_accumulation` logic itself.
+- Before: Proposer can propose a block with valid information.
+- After: Proposer get error during proof verification onchain with valid information.  Block proposal fails on-chain with a deterministic revert (or false return) and Nightfall bubbles “Rollup proof verification failed.”
+- Change: `verify_accumulation` reverts.
 
 ### Cleanup (optional, when the deployer image needs fresh artifacts)
 forge clean

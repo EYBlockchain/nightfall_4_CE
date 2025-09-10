@@ -77,6 +77,9 @@ contract Deployer is Script {
          // 5) Transfer Nightfall ownership to TOML value (same flow as X509)
          _maybeTransferNightfallOwnership(owners, deployed.nightfall);
 
+         // 6) Transfer RoundRobin ownership to TOML value
+        _maybeTransferRoundRobinOwnership(owners, deployed.roundRobin);
+
         _log(deployed, owners);
     }
 
@@ -193,6 +196,14 @@ contract Deployer is Script {
         }
     }
 
+    function _maybeTransferRoundRobinOwnership(Owners memory owners, RoundRobin rr) internal {
+        if (owners.roundRobinOwner != owners.deployer) {
+            vm.startBroadcast(owners.deployerPk);     
+            rr.transferOwnership(owners.roundRobinOwner);
+            vm.stopBroadcast();
+        }
+    }
+
     function _deployRoundRobin(
         string memory toml,
         Owners memory owners,
@@ -252,7 +263,6 @@ contract Deployer is Script {
             init
         );
 
-        // optional transfer (if specified)
         address newOwner = toml.readAddress(string.concat(runMode, ".owners.vk_provider_owner"));
         if (newOwner != address(0) && newOwner != msg.sender) {
             RollupProofVerificationKey(vkProxy).transferOwnership(newOwner);
