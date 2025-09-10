@@ -1,3 +1,23 @@
+///`Block(uint256,uint256,uint256,(uint256,uint256[4],uint256[4],uint256[4])[],bytes)`
+#[derive(
+    Clone,
+    ::ethers::contract::EthAbiType,
+    ::ethers::contract::EthAbiCodec,
+    serde::Serialize,
+    serde::Deserialize,
+    Default,
+    Debug,
+    PartialEq,
+    Eq,
+    Hash
+)]
+pub struct Block {
+    pub commitments_root: ::ethers::core::types::U256,
+    pub nullifier_root: ::ethers::core::types::U256,
+    pub commitments_root_root: ::ethers::core::types::U256,
+    pub transactions: ::std::vec::Vec<OnChainTransaction>,
+    pub rollup_proof: ::ethers::core::types::Bytes,
+}
 ///`DecodedTlv(uint256,uint256,(bool,bytes1),uint256,bytes,bytes,uint256)`
 #[derive(
     Clone,
@@ -36,6 +56,25 @@ pub struct DecodedTlv {
 pub struct Tag {
     pub is_constructed: bool,
     pub tag_type: [u8; 1],
+}
+///`OnChainTransaction(uint256,uint256[4],uint256[4],uint256[4])`
+#[derive(
+    Clone,
+    ::ethers::contract::EthAbiType,
+    ::ethers::contract::EthAbiCodec,
+    serde::Serialize,
+    serde::Deserialize,
+    Default,
+    Debug,
+    PartialEq,
+    Eq,
+    Hash
+)]
+pub struct OnChainTransaction {
+    pub fee: ::ethers::core::types::U256,
+    pub commitments: [::ethers::core::types::U256; 4],
+    pub nullifiers: [::ethers::core::types::U256; 4],
+    pub public_data: [::ethers::core::types::U256; 4],
 }
 ///`Proposer(uint256,address,string,address,address)`
 #[derive(
@@ -149,4 +188,23 @@ pub struct VerificationKey {
     pub open_key_g: G1Point,
     pub h: G2Point,
     pub beta_h: G2Point,
+}
+///`WithdrawData(uint256,address,uint256,uint256)`
+#[derive(
+    Clone,
+    ::ethers::contract::EthAbiType,
+    ::ethers::contract::EthAbiCodec,
+    serde::Serialize,
+    serde::Deserialize,
+    Default,
+    Debug,
+    PartialEq,
+    Eq,
+    Hash
+)]
+pub struct WithdrawData {
+    pub nf_token_id: ::ethers::core::types::U256,
+    pub recipient_address: ::ethers::core::types::Address,
+    pub value: ::ethers::core::types::U256,
+    pub withdraw_fund_salt: ::ethers::core::types::U256,
 }

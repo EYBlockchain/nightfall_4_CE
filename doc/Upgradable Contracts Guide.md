@@ -349,6 +349,8 @@ Use check commitment api now before the L2 block is onchain, you should get
 ]
 ```
 
+The key part you need to check is that you have two commitments with value 9 and value 2, status is `PendingCreation`.
+
 Wait until this deposit is onchain, you check commitment again and you can get:
 ```
 [
@@ -397,7 +399,11 @@ Wait until this deposit is onchain, you check commitment again and you can get:
 ]
 
 ```
+
+The key part you need to check is that you have two commitments with value 9 and value 2, status is `Unspent`.
 So far, we verified that current `blockchain_assets/contracts/Nightfall.sol` works in the way we expect.
+
+Notice that, at the time of writing this document, we restart the test over and over so information such as salt might not be consistant in the example, but it should not affect how we conduct the tests.
 
 Don't stop your docker. But add these contracts in: `blockchain_assets/contracts/NightfallV3.sol`, `blockchain_assets/script/UpgradeNightfallV3.s.sol`.
 
@@ -425,14 +431,14 @@ echo "NIGHTFALL_PROXY=$NIGHTFALL_PROXY"
 export RPC_URL=http://anvil:8545
 
 // Just double check if we put the new things 
-ls -l blockchain_assets/contracts/NightfallV3.sol
-ls -l blockchain_assets/script/UpgradeNightfallV3.s.sol
+ls -l blockchain_assets/contracts/Nightfall_V3.sol
+ls -l blockchain_assets/script/upgrade_Nightfall_V3.s.sol
 
 // Build the new changes
 forge build --force
 
 // deploy new updated contract
-forge script blockchain_assets/script/UpgradeNightfallV3.s.sol:UpgradeNightfallWithLogging \
+forge script blockchain_assets/script/upgrade_Nightfall_V3.s.sol:UpgradeNightfallWithLogging \
   --sig "run(address)" "$NIGHTFALL_PROXY" \
   --rpc-url "$RPC_URL" \
   --broadcast -vvvv
@@ -446,11 +452,195 @@ cast storage $NIGHTFALL_PROXY \
 cast call $NIGHTFALL_PROXY "owner()(address)" --rpc-url $RPC_URL
 ```
 
-Now you can use Postman to start a deposit api call with value 3, deposit_fee 4, in the terminal you should only see one event:
+
+Now you can use Postman to start a deposit api call with value 7, deposit_fee 8, in the terminal you should only see one event:
 ```
+nf4_client                                | [2025-09-10T11:16:17Z INFO  nightfall_client::driven::event_handlers::nightfall_event] Client: Decoded DepositEscrowed event from transaction 0xfa52…0b33, Deposit Transaction with nf_slot_id 3904706575986504511978814088454415652555375037070224197537435603550245942968, value 7, is now on-chain
+
+nf4_client2                               | [2025-09-10T11:16:17Z INFO  nightfall_client::driven::event_handlers::nightfall_event] Client: Decoded DepositEscrowed event from transaction 0xfa52…0b33, Deposit Transaction with nf_slot_id 3904706575986504511978814088454415652555375037070224197537435603550245942968, value 7, is now on-chain
 ```
 
 and then check commitment before L2 block onchain, you will see two commitments with status pending added, this is correct because client 1 will change its commitment db when it's doing deposit.
+
+```
+[
+    {
+        "preimage": {
+            "value": "0000000000000000000000000000000000000000000000000000000000000009",
+            "nf_token_id": "08a1fc507b97f8760820d019fb1c2a0cafa0ab4fda9a58583de92c02fd32f6b8",
+            "nf_slot_id": "08a1fc507b97f8760820d019fb1c2a0cafa0ab4fda9a58583de92c02fd32f6b8",
+            "public_key": "0000000000000000000000000000000000000000000000000000000000000001",
+            "salt": {
+                "type": "Deposit",
+                "value": {
+                    "preimage_one": "2acf9679f6e01a879cccce600e814a59914cc9b273dac3463388403c3910b7d7",
+                    "preimage_two": "1faca2f62815104fca3e44b311c652b39cd8cfc190258e4930bf844b8582a85b",
+                    "preimage_three": "0c50514a6cf86ab4f786e6851a19e230f45a04e1889c22d1e81163442d5fcce0"
+                }
+            }
+        },
+        "status": "Unspent",
+        "_id": "11d7b11fcc310fd2dd85adb3c1dde9a489dc542b24c4fae79133b2df60fca787",
+        "nullifier": "2505fc3ea383cb35a50635eaa54a1daf2559203a151bc332863825ca9d31e7f3",
+        "layer_1_transaction_hash": "0xf66ac23f6db82f78d01be32261f4b60bc1f19cbc24cd98d996aa69a9b2b94594",
+        "layer_2_block_number": "0x0"
+    },
+    {
+        "preimage": {
+            "value": "0000000000000000000000000000000000000000000000000000000000000002",
+            "nf_token_id": "05192843eed16d0c3cf70a2568da2b2b2c1509fae678d495f31573bbd624cb9f",
+            "nf_slot_id": "05192843eed16d0c3cf70a2568da2b2b2c1509fae678d495f31573bbd624cb9f",
+            "public_key": "0000000000000000000000000000000000000000000000000000000000000001",
+            "salt": {
+                "type": "Deposit",
+                "value": {
+                    "preimage_one": "2acf9679f6e01a879cccce600e814a59914cc9b273dac3463388403c3910b7d7",
+                    "preimage_two": "1faca2f62815104fca3e44b311c652b39cd8cfc190258e4930bf844b8582a85b",
+                    "preimage_three": "0c50514a6cf86ab4f786e6851a19e230f45a04e1889c22d1e81163442d5fcce0"
+                }
+            }
+        },
+        "status": "Unspent",
+        "_id": "302a90db36dfbce7b42fb146beb7af12ec17ccfde1046597e6099dc240fab34e",
+        "nullifier": "2d565f98f8742a8918c8fa1954823f4ba5fe720abe4c5be463f4d72e3414660c",
+        "layer_1_transaction_hash": "0xf66ac23f6db82f78d01be32261f4b60bc1f19cbc24cd98d996aa69a9b2b94594",
+        "layer_2_block_number": "0x0"
+    },
+    {
+        "preimage": {
+            "value": "0000000000000000000000000000000000000000000000000000000000000007",
+            "nf_token_id": "08a1fc507b97f8760820d019fb1c2a0cafa0ab4fda9a58583de92c02fd32f6b8",
+            "nf_slot_id": "08a1fc507b97f8760820d019fb1c2a0cafa0ab4fda9a58583de92c02fd32f6b8",
+            "public_key": "0000000000000000000000000000000000000000000000000000000000000001",
+            "salt": {
+                "type": "Deposit",
+                "value": {
+                    "preimage_one": "1c4fda09ded62a1f8f992a381ffd4a57fd12e61470e505bb1e196a84746c0593",
+                    "preimage_two": "20a69a73140f10d24d9b5e7f568c13c78e4ab9e256304cd60492a05bac7f3c56",
+                    "preimage_three": "0f4b4a0f04face3460592fbe9b6ab324052b5554c4c225537249ce8de8a8a108"
+                }
+            }
+        },
+        "status": "PendingCreation",
+        "_id": "0c7e794554915dc7f1d3311a32524b718343587a7a6b721cde17af46ee830e86",
+        "nullifier": "2ef29334fe80e43b1391d78f6af2c732f3c874c48f78fc6feb34da0e65d6dce4",
+        "layer_1_transaction_hash": null,
+        "layer_2_block_number": null
+    },
+    {
+        "preimage": {
+            "value": "0000000000000000000000000000000000000000000000000000000000000008",
+            "nf_token_id": "05192843eed16d0c3cf70a2568da2b2b2c1509fae678d495f31573bbd624cb9f",
+            "nf_slot_id": "05192843eed16d0c3cf70a2568da2b2b2c1509fae678d495f31573bbd624cb9f",
+            "public_key": "0000000000000000000000000000000000000000000000000000000000000001",
+            "salt": {
+                "type": "Deposit",
+                "value": {
+                    "preimage_one": "1c4fda09ded62a1f8f992a381ffd4a57fd12e61470e505bb1e196a84746c0593",
+                    "preimage_two": "20a69a73140f10d24d9b5e7f568c13c78e4ab9e256304cd60492a05bac7f3c56",
+                    "preimage_three": "0f4b4a0f04face3460592fbe9b6ab324052b5554c4c225537249ce8de8a8a108"
+                }
+            }
+        },
+        "status": "PendingCreation",
+        "_id": "1619fb9f40e6e0086670d5d760c49a4cdedad3db7b24ca97cfd58ba94ea0fe95",
+        "nullifier": "2919c48d40545d097dbdfb642a7cea403c4b1be6320cf309b26437b64a18232c",
+        "layer_1_transaction_hash": null,
+        "layer_2_block_number": null
+    }
+]
+
+// when proposer is assembling block, it only have 1 deposit
+nf4_proposer                              | [2025-09-10T11:17:34Z INFO  nightfall_proposer::services::assemble_block] This block has 1 deposit(s), 0 transfer(s), and 0 withdrawal(s)
+
+// after this L2 block is onchain, you will see only commitment with value 7's status is changed to unspent, commitment with value 8 is still pending.
+[
+    {
+        "preimage": {
+            "value": "0000000000000000000000000000000000000000000000000000000000000009",
+            "nf_token_id": "08a1fc507b97f8760820d019fb1c2a0cafa0ab4fda9a58583de92c02fd32f6b8",
+            "nf_slot_id": "08a1fc507b97f8760820d019fb1c2a0cafa0ab4fda9a58583de92c02fd32f6b8",
+            "public_key": "0000000000000000000000000000000000000000000000000000000000000001",
+            "salt": {
+                "type": "Deposit",
+                "value": {
+                    "preimage_one": "2acf9679f6e01a879cccce600e814a59914cc9b273dac3463388403c3910b7d7",
+                    "preimage_two": "1faca2f62815104fca3e44b311c652b39cd8cfc190258e4930bf844b8582a85b",
+                    "preimage_three": "0c50514a6cf86ab4f786e6851a19e230f45a04e1889c22d1e81163442d5fcce0"
+                }
+            }
+        },
+        "status": "Unspent",
+        "_id": "11d7b11fcc310fd2dd85adb3c1dde9a489dc542b24c4fae79133b2df60fca787",
+        "nullifier": "2505fc3ea383cb35a50635eaa54a1daf2559203a151bc332863825ca9d31e7f3",
+        "layer_1_transaction_hash": "0xf66ac23f6db82f78d01be32261f4b60bc1f19cbc24cd98d996aa69a9b2b94594",
+        "layer_2_block_number": "0x0"
+    },
+    {
+        "preimage": {
+            "value": "0000000000000000000000000000000000000000000000000000000000000002",
+            "nf_token_id": "05192843eed16d0c3cf70a2568da2b2b2c1509fae678d495f31573bbd624cb9f",
+            "nf_slot_id": "05192843eed16d0c3cf70a2568da2b2b2c1509fae678d495f31573bbd624cb9f",
+            "public_key": "0000000000000000000000000000000000000000000000000000000000000001",
+            "salt": {
+                "type": "Deposit",
+                "value": {
+                    "preimage_one": "2acf9679f6e01a879cccce600e814a59914cc9b273dac3463388403c3910b7d7",
+                    "preimage_two": "1faca2f62815104fca3e44b311c652b39cd8cfc190258e4930bf844b8582a85b",
+                    "preimage_three": "0c50514a6cf86ab4f786e6851a19e230f45a04e1889c22d1e81163442d5fcce0"
+                }
+            }
+        },
+        "status": "Unspent",
+        "_id": "302a90db36dfbce7b42fb146beb7af12ec17ccfde1046597e6099dc240fab34e",
+        "nullifier": "2d565f98f8742a8918c8fa1954823f4ba5fe720abe4c5be463f4d72e3414660c",
+        "layer_1_transaction_hash": "0xf66ac23f6db82f78d01be32261f4b60bc1f19cbc24cd98d996aa69a9b2b94594",
+        "layer_2_block_number": "0x0"
+    },
+    {
+        "preimage": {
+            "value": "0000000000000000000000000000000000000000000000000000000000000007",
+            "nf_token_id": "08a1fc507b97f8760820d019fb1c2a0cafa0ab4fda9a58583de92c02fd32f6b8",
+            "nf_slot_id": "08a1fc507b97f8760820d019fb1c2a0cafa0ab4fda9a58583de92c02fd32f6b8",
+            "public_key": "0000000000000000000000000000000000000000000000000000000000000001",
+            "salt": {
+                "type": "Deposit",
+                "value": {
+                    "preimage_one": "1c4fda09ded62a1f8f992a381ffd4a57fd12e61470e505bb1e196a84746c0593",
+                    "preimage_two": "20a69a73140f10d24d9b5e7f568c13c78e4ab9e256304cd60492a05bac7f3c56",
+                    "preimage_three": "0f4b4a0f04face3460592fbe9b6ab324052b5554c4c225537249ce8de8a8a108"
+                }
+            }
+        },
+        "status": "Unspent",
+        "_id": "0c7e794554915dc7f1d3311a32524b718343587a7a6b721cde17af46ee830e86",
+        "nullifier": "2ef29334fe80e43b1391d78f6af2c732f3c874c48f78fc6feb34da0e65d6dce4",
+        "layer_1_transaction_hash": "0x68e244c7d91a9fa673e0aa4bd45d8f65548ed394aa6d72451812fd8d94c9f26b",
+        "layer_2_block_number": "0x1"
+    },
+    {
+        "preimage": {
+            "value": "0000000000000000000000000000000000000000000000000000000000000008",
+            "nf_token_id": "05192843eed16d0c3cf70a2568da2b2b2c1509fae678d495f31573bbd624cb9f",
+            "nf_slot_id": "05192843eed16d0c3cf70a2568da2b2b2c1509fae678d495f31573bbd624cb9f",
+            "public_key": "0000000000000000000000000000000000000000000000000000000000000001",
+            "salt": {
+                "type": "Deposit",
+                "value": {
+                    "preimage_one": "1c4fda09ded62a1f8f992a381ffd4a57fd12e61470e505bb1e196a84746c0593",
+                    "preimage_two": "20a69a73140f10d24d9b5e7f568c13c78e4ab9e256304cd60492a05bac7f3c56",
+                    "preimage_three": "0f4b4a0f04face3460592fbe9b6ab324052b5554c4c225537249ce8de8a8a108"
+                }
+            }
+        },
+        "status": "PendingCreation",
+        "_id": "1619fb9f40e6e0086670d5d760c49a4cdedad3db7b24ca97cfd58ba94ea0fe95",
+        "nullifier": "2919c48d40545d097dbdfb642a7cea403c4b1be6320cf309b26437b64a18232c",
+        "layer_1_transaction_hash": null,
+        "layer_2_block_number": null
+    }
+]
+```
 
 When this L2 block is onchain, check commitment again, and you will find only one commitment is changed to unspent, this is what we expected about new behaviours of NightfallV3.
 

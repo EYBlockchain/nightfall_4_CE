@@ -17,6 +17,8 @@ remappings = [
     "@openzeppelin/contracts/=blockchain_assets/solidity_lib/openzeppelin-contracts/contracts/",
     "@forge-std/=blockchain_assets/solidity_lib/forge-std/src/",
     "@erc-3525/=blockchain_assets/solidity_lib/erc-3525/",
+    "@openzeppelin/contracts-upgradable/=blockchain_assets/solidity_lib/openzeppelin-contracts-upgradeable/contracts/",
+    "@openzeppelin/foundry-upgrades/=blockchain_assets/solidity_lib/openzeppelin-foundry-upgrades/contracts/",
 ]
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
 

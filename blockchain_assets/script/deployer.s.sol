@@ -368,6 +368,7 @@ contract Deployer is Script {
     }
 
     function _configureX509locally(X509 x509Contract, string memory toml) internal {
+        console.log("inside _configureX509locally");
         uint256 authorityKeyIdentifier = toml.readUint(string.concat(runMode, ".certificates.authority_key_identifier"));
         bytes memory modulus = vm.parseBytes(toml.readString(string.concat(runMode, ".certificates.modulus")));
         uint256 exponent = toml.readUint(string.concat(runMode, ".certificates.exponent"));
@@ -379,6 +380,9 @@ contract Deployer is Script {
 
         x509Contract.setTrustedPublicKey(nightfallRootPublicKey, authorityKeyIdentifier);
         x509Contract.enableAllowlisting(true);
+
+        _configureExtendedKeyUsages(x509Contract, toml);
+        _configureCertificatePolicies(x509Contract, toml);
 
         string memory pr = vm.projectRoot();
         string memory certPath = string.concat(
@@ -400,6 +404,48 @@ contract Deployer is Script {
             addr: address(0)
         });
         x509Contract.validateCertificate(args);
+    }
+
+    function _configureExtendedKeyUsages(X509 x509Contract, string memory toml) internal {
+        string[] memory extendedKeyUsages = toml.readStringArray(string.concat(runMode, ".certificates.extended_key_usages"));
+        bytes32[] memory extendedKeyUsageOIDs = new bytes32[](extendedKeyUsages.length);
+        for (uint i = 0; i < extendedKeyUsages.length; i++) { 
+            extendedKeyUsageOIDs[i] = parseHexStringToBytes32(extendedKeyUsages[i]);
+        }
+        x509Contract.addExtendedKeyUsage(extendedKeyUsageOIDs);
+    }
+
+    function _configureCertificatePolicies(X509 x509Contract, string memory toml) internal {
+        string[] memory certificatePolicies = toml.readStringArray(string.concat(runMode, ".certificates.certificate_policies"));
+        bytes32[] memory certificatePoliciesOIDs = new bytes32[](certificatePolicies.length);
+        for (uint256 i = 0; i < certificatePolicies.length; i++) {
+            certificatePoliciesOIDs[i] = parseHexStringToBytes32(certificatePolicies[i]);
+        }
+        x509Contract.addCertificatePolicies(certificatePoliciesOIDs);
+    }
+
+    function parseHexStringToBytes32(string memory s) internal pure returns (bytes32) {
+        bytes memory ss = bytes(s);
+        require(ss.length == 66, "Invalid hex string length");
+
+        bytes memory hexData = new bytes(32);
+        for (uint256 i = 2; i < 66; i += 2) {
+            hexData[(i - 2) / 2] = bytes1(parseHexChar(ss[i]) * 16 + parseHexChar(ss[i + 1]));
+        }
+        return bytes32(hexData);
+    }
+    
+    function parseHexChar(bytes1 c) internal pure returns (uint8) {
+        if (c >= bytes1("0") && c <= bytes1("9")) {
+            return uint8(c) - uint8(bytes1("0"));
+        }
+        if (c >= bytes1("a") && c <= bytes1("f")) {
+            return 10 + uint8(c) - uint8(bytes1("a"));
+        }
+        if (c >= bytes1("A") && c <= bytes1("F")) {
+            return 10 + uint8(c) - uint8(bytes1("A"));
+        }
+        revert("Invalid hex character");
     }
 
     // ---------- logs ----------
