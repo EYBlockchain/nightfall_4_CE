@@ -686,60 +686,6 @@ impl From<PendingWithdrawal> for WithdrawData {
     }
 }
 
-// async fn find_and_mark_commitments_atomic(&self, target_value: Fr254) -> Result<Vec<Preimage>, &'static str> {
-//     // 1. Start a session for the transaction
-//     let mut session = self.start_session().await.map_err(|_| "Failed to start database session")?;
-
-//     // 2. Execute the transaction
-//     let selected_commitments_vec = session.with_transaction(|session| async {
-//         // A. Select available commitments
-//         let available_commitments_cursor = self.database(DB)
-//             .collection::<CommitmentEntry>("commitments")
-//             .find_with_session(doc!{"status": "Available"}, None, session)
-//             .await
-//             .map_err(|_| "Failed to find available commitments")?;
-
-//         let available_commitments: Vec<CommitmentEntry> = available_commitments_cursor
-//             .try_collect()
-//             .await
-//             .map_err(|_| "Failed to collect available commitments")?;
-
-//         // B. Filter and select commitments to use
-//         let old_commitments = select_commitment(
-//             &available_commitments,
-//             target_value,
-//             min_num_c, // You need to define these values before the call
-//             max_num_c,
-//         )?;
-
-//         let pending_keys: Vec<String> = old_commitments
-//             .iter()
-//             .map(|c| c.hash().to_hex_string())
-//             .collect();
-
-//         // C. Update selected commitments. This operation is part of the transaction.
-//         let filter = doc! { "_id": { "$in": pending_keys }};
-//         let update = doc! {"$set": { "status": "PendingSpend" }};
-//         let result = self.database(DB)
-//             .collection::<CommitmentEntry>("commitments")
-//             .update_many_with_session(filter, update, session)
-//             .await
-//             .map_err(|_| "Failed to update commitments")?;
-
-//         // D. Check the result: if the number of modified elements doesn't match, the transaction fails.
-//         if result.modified_count as usize != old_commitments.len() {
-//             return Err("Race condition detected: Failed to reserve all commitments");
-//         }
-
-//         let preimages: Vec<Preimage> = old_commitments.into_iter().map(|c| c.preimage).collect();
-
-//         Ok(preimages)
-
-//     }).await.map_err(|e| e.to_string())?;
-
-//     Ok(selected_commitments_vec)
-// }
-
 impl WithdrawalDB<Fr254, PendingWithdrawal> for Client {
     async fn store_withdrawal(&mut self, data: PendingWithdrawal) -> Option<()> {
         let result = self
