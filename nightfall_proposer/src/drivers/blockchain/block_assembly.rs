@@ -323,7 +323,6 @@ where
                 continue;
             }
         };
-        ark_std::println!("Current proposer address: {:?}", current_proposer);
 
         let our_address = get_blockchain_client_connection()
             .await
@@ -331,7 +330,6 @@ where
             .await
             .get_client()
             .address();
-        ark_std::println!("Our address: {:?}", our_address);
 
         // Step 2: If we are not the proposer, wait and retry
         if current_proposer != our_address {

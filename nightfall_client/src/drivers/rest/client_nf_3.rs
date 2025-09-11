@@ -260,11 +260,16 @@ pub async fn handle_deposit<N: NightfallContract>(
         TransactionHandlerError::CustomError(err.to_string())
     })?;
 
-    let mut rng = thread_rng();
     
-    let secret_preimage_one: Fr254 = Fr254::rand(&mut rng);
-    let secret_preimage_two: Fr254 = Fr254::rand(&mut rng);
-    let secret_preimage_three: Fr254 = Fr254::rand(&mut rng);
+    let (secret_preimage_one, secret_preimage_two, secret_preimage_three) = {
+        // RNG is Send and scoped to this block
+        let mut rng = thread_rng();
+        (
+            Fr254::rand(&mut rng),
+            Fr254::rand(&mut rng),
+            Fr254::rand(&mut rng),
+        )
+    };
 
     let secret_preimage = DepositSecret::new(
         secret_preimage_one,
