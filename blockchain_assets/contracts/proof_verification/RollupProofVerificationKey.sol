@@ -20,7 +20,8 @@ contract RollupProofVerificationKey is
     uint64                private _vkVersion; // increment on every replacement
 
     // Gap for future upgrades
-    uint256[46] private __gap;
+    uint256[50] private __gap;
+
 
     // -------- Events --------
     event VKInitialized(bytes32 vkHash, uint64 version);
@@ -30,10 +31,18 @@ contract RollupProofVerificationKey is
         vk = abi.decode(vkBlob, (Types.VerificationKey));
     }
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        // disable initializers on the implementation
+        _disableInitializers();
+    }
+
     // -------- Initialize --------
     /// @notice First-time initialization with a full VK.
     /// @param vkBlob ABI-encoded Types.VerificationKey (abi.encode(vk))
-    function initialize(bytes calldata vkBlob) public initializer {
+    function initialize(bytes calldata vkBlob) external initializer {
+        require(vkBlob.length != 0, "VK: empty");
+
         __Ownable_init(msg.sender);
         __UUPSUpgradeable_init();
 
@@ -48,6 +57,8 @@ contract RollupProofVerificationKey is
     /// @notice Replace the entire VerificationKey atomically.
     /// @param vkBlob ABI-encoded Types.VerificationKey (abi.encode(vk))
     function replaceVK(bytes calldata vkBlob) external onlyOwner {
+        require(vkBlob.length != 0, "VK: empty");
+
         Types.VerificationKey memory vk = _decodeAndSanity(vkBlob);
 
         bytes32 oldHash = _vkHash;
