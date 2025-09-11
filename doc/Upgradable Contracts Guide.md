@@ -364,15 +364,20 @@ echo "X509_PROXY=$X509_PROXY"
 cast code "$X509_PROXY"      --rpc-url "$RPC_URL"  # must not be 0x
 
 // Just double check if we put the new things 
-ls -l blockchain_assets/script/UpgradeX509V3.s.sol
+ls -l blockchain_assets/script/upgrade_X509_V3.s.sol
 ls -l blockchain_assets/contracts/X509/X509V3.sol
 
 // Build the new changes
 forge build --force
 
 // deploy new updated contract
-forge script blockchain_assets/script/UpgradeX509.s.sol:UpgradeX509WithLogging
+forge script blockchain_assets/script/upgrade_X509_V4.s.sol:UpgradeX509WithLogging
  \
+  --rpc-url "$RPC_URL" \
+  --broadcast -vvvv
+
+forge script blockchain_assets/script/upgrade_X509_V4.s.sol:UpgradeX509WithLogging \
+  --sig "run(address)" "$X509_PROXY" \
   --rpc-url "$RPC_URL" \
   --broadcast -vvvv
 
