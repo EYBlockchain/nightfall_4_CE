@@ -13,7 +13,7 @@ use mongodb::{
     bson::doc,
     error::{ErrorKind, WriteFailure::WriteError},
     Client,
-    options::{FindOneAndUpdateOptions,FindOptions, ReturnDocument},
+    options::{FindOneAndUpdateOptions,ReturnDocument},
 };
 use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, str};
@@ -431,8 +431,9 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
                 .await
                 .map_err(|_| "Database update failed")?
             {
+                println!("Reserved commitment: {:?}", updated_commitment);
                 reserved_commitments.push(updated_commitment);
-            }
+            } else {println!("Failed to reserve commitment: {:?}", commitment_id);}
         }
         
         Ok(reserved_commitments)
@@ -513,8 +514,6 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
             .ok()?;
         Some(())
     }
-    
-
 
     async fn mark_commitments_pending_creation(&self, commitments: Vec<Fr254>) -> Option<()> {
         let commitment_str = commitments

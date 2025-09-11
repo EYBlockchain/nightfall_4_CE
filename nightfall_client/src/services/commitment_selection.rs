@@ -32,115 +32,112 @@ pub async fn find_usable_commitments(
     target_value: Fr254,
     db: &Client,
 ) -> Result<[Preimage; MAX_POSSIBLE_COMMITMENTS], &'static str> {
-    
-    // Step 1: Get available commitments.
-    let mut available_commitments = db.get_available_commitments(target_token_id)
-        .await
-        .ok_or("No available commitments found")?;
+    // Step 1: Verify enough commitments and get sorted available commitments
+    let (avaliable_sorted_commitments, min_num_c) =
+        verify_enough_commitments(target_token_id, target_value, db).await?;
 
-    if available_commitments.is_empty() {
-        return Err("No commitments available");
+        println!("Available commitments: {:?}", avaliable_sorted_commitments);
+        println!("Minimum number required: {}", min_num_c);
+
+
+    // Step 2: Determine max number of commitments to use
+    // let max_num_c = avaliable_sorted_commitments.len().min(MAX_POSSIBLE_COMMITMENTS);
+
+    // if max_num_c < min_num_c {
+    //     return Err("Not enough commitments available to cover target value");
+    // }
+    let mut max_num_c = MAX_POSSIBLE_COMMITMENTS;
+    if avaliable_sorted_commitments.len() < MAX_POSSIBLE_COMMITMENTS {
+        max_num_c = avaliable_sorted_commitments.len();
     }
+    // Step 3: Select optimal commitments (dust-first, minimize change)
+    let selected_commitments = select_commitment(
+        &avaliable_sorted_commitments,
+        target_value,
+        min_num_c,
+        max_num_c,
+    )?;
+    println!("Selected commitments: {:?}", selected_commitments);
 
-    // Step 2: Convert to Preimage for business logic functions and sort by value.
-    let mut available_preimages: Vec<Preimage> = available_commitments
+    // Step 4: Get commitment IDs for atomic reservation
+    let commitment_ids = selected_commitments
+        .iter()
+        .map(|c| c.hash())
+        .collect::<Result<Vec<Fr254>, _>>()
+        .map_err(|_| "Preimage hashing failed during commitment selection")?;
+
+    // Step 5: Atomic reservation to avoid TOCTOU
+    let reserved_commitments = db.reserve_commitments_atomic(commitment_ids).await?;
+    if reserved_commitments.len() < min_num_c {
+        return Err("Could not reserve enough commitments - taken by another process");
+    }
+    // Step 6: Convert reserved commitments to Preimage
+    let preimages: Vec<Preimage> = reserved_commitments
         .into_iter()
         .map(|c| c.get_preimage())
         .collect::<Vec<_>>();
-    available_preimages.sort_by_key(|p| p.get_value());
 
-    // Step 3: Calculate minimum number of commitments required.
-    let min_num_c = calculate_minimum_commitments(&mut available_preimages.clone(), target_value)
-        .map_err(|_| "Failed to calculate minimum commitments")?;
-
-    if min_num_c > MAX_POSSIBLE_COMMITMENTS {
-        return Err("Too many commitments required; exceeds maximum allowed");
+    // Step 7: Return as fixed-length array
+    let mut preimages_fixed = [Preimage::default(); MAX_POSSIBLE_COMMITMENTS];
+    for (i, p) in preimages.into_iter().enumerate() {
+        preimages_fixed[i] = p;
     }
-    
-    // Step 4: Determine max number of commitments to use.
-    let max_num_c = available_preimages.len().min(MAX_POSSIBLE_COMMITMENTS);
+    Ok(preimages_fixed)
+    // if preimages.len() != MAX_POSSIBLE_COMMITMENTS {
+    //     return Err("Invalid number of commitments selected for a fixed-length array.");
+    // }
+    // Ok([preimages[0], preimages[1]])
+}
 
-    if max_num_c < min_num_c {
-        return Err("Not enough commitments available to cover target value");
+pub async fn old_find_usable_commitments(
+    target_token_id: Fr254,
+    target_value: Fr254,
+    db: &Client,
+) -> Result<[Preimage; MAX_POSSIBLE_COMMITMENTS], &'static str> {
+    let (avaliable_sorted_commitments, min_num_c) =
+        verify_enough_commitments(target_token_id, target_value, db).await?;
+
+        println!("Available commitments: {:?}", avaliable_sorted_commitments);
+        println!("Minimum number required: {}", min_num_c);
+
+    let mut max_num_c = MAX_POSSIBLE_COMMITMENTS;
+    if avaliable_sorted_commitments.len() < MAX_POSSIBLE_COMMITMENTS {
+        max_num_c = avaliable_sorted_commitments.len();
     }
 
-    // Step 5: Select optimal commitments.
-    let selected_preimages = select_commitment(
-        &available_preimages,
+    // given the avaliable commitment, return the selected commitments
+    // We want to use dusts first
+    // Example: target_value = 3, commitments = [1, 2, 3]
+    // We should use [1, 2] instead of [3] because the change is smaller/0
+    let old_commitments = select_commitment(
+        &avaliable_sorted_commitments,
         target_value,
         min_num_c,
         max_num_c,
     )?;
 
-    // Step 6: Get commitment IDs for atomic reservation.
-    let commitment_ids = selected_preimages
+
+    println!("Selected commitments: {:?}", old_commitments);
+
+    // mark the selected dusts as pending
+    let pending_keys = old_commitments
         .iter()
-        .map(|p| p.hash().expect("Preimage hashing failed")) 
-        .collect::<Vec<Fr254>>();
+        .map(|c| c.hash())
+        .collect::<Result<Vec<Fr254>, _>>()
+        .map_err(|_| "Preimage hashing failed during commitment selection")?;
 
-    // Step 7: ATOMIC RESERVATION to avoid TOCTOU.
-    let reserved_entries = db.reserve_commitments_atomic(commitment_ids).await?;
-    
-    if reserved_entries.len() < min_num_c {
-        return Err("Could not reserve enough commitments - taken by another process");
-    }
+    // Mark Pending
+    debug!(
+        "Marking these commitments as pending: {:?}",
+        pending_keys
+            .iter()
+            .map(|k| k.to_hex_string())
+            .collect::<Vec<_>>()
+    );
+    db.mark_commitments_pending_spend(pending_keys).await;
 
-    // Step 8: Convert reserved entries to Preimage.
-    let preimages: Vec<Preimage> = reserved_entries
-        .into_iter()
-        .map(|c| c.get_preimage()) 
-        .collect::<Vec<_>>();
-
-    // Step 9: Return as fixed-length array.
-    if preimages.len() != MAX_POSSIBLE_COMMITMENTS {
-        return Err("Invalid number of commitments selected for a fixed-length array.");
-    }
-
-    Ok([preimages[0], preimages[1]])
+    Ok([old_commitments[0], old_commitments[1]])
 }
-// pub async fn find_usable_commitments(
-//     target_token_id: Fr254,
-//     target_value: Fr254,
-//     db: &Client,
-// ) -> Result<[Preimage; MAX_POSSIBLE_COMMITMENTS], &'static str> {
-//     let (avaliable_sorted_commitments, min_num_c) =
-//         verify_enough_commitments(target_token_id, target_value, db).await?;
-
-//     let mut max_num_c = MAX_POSSIBLE_COMMITMENTS;
-//     if avaliable_sorted_commitments.len() < MAX_POSSIBLE_COMMITMENTS {
-//         max_num_c = avaliable_sorted_commitments.len();
-//     }
-
-//     // given the avaliable commitment, return the selected commitments
-//     // We want to use dusts first
-//     // Example: target_value = 3, commitments = [1, 2, 3]
-//     // We should use [1, 2] instead of [3] because the change is smaller/0
-//     let old_commitments = select_commitment(
-//         &avaliable_sorted_commitments,
-//         target_value,
-//         min_num_c,
-//         max_num_c,
-//     )?;
-
-//     // mark the selected dusts as pending
-//     let pending_keys = old_commitments
-//         .iter()
-//         .map(|c| c.hash())
-//         .collect::<Result<Vec<Fr254>, _>>()
-//         .map_err(|_| "Preimage hashing failed during commitment selection")?;
-
-//     // Mark Pending
-//     debug!(
-//         "Marking these commitments as pending: {:?}",
-//         pending_keys
-//             .iter()
-//             .map(|k| k.to_hex_string())
-//             .collect::<Vec<_>>()
-//     );
-//     db.mark_commitments_pending_spend(pending_keys).await;
-
-//     Ok([old_commitments[0], old_commitments[1]])
-// }
 
 fn select_commitment(
     commitments: &[Preimage],
@@ -326,6 +323,157 @@ mod test {
     use ark_bn254::Fr as Fr254;
     use lib::tests_utils::{get_db_connection, get_db_connection_uri, get_mongo};
     use url::Host;
+    use mongodb::bson::doc;
+
+    // Example
+    #[tokio::test]
+async fn test_find_usable_commitments_old_version() {
+    let container = get_mongo().await;
+    let db = get_db_connection(&container).await;
+    let commitments_collection = db.database("nightfall").collection::<CommitmentEntry>("commitments");
+
+    // Clear and insert commitments
+    commitments_collection.delete_many(doc!{}).await.unwrap();
+    // Insert same commitments as in the new function test
+    let value_commitments = vec![
+            CommitmentEntry::new(
+                Preimage { value: Fr254::from(5u64), nf_token_id: Fr254::from(1u64), ..Default::default() },
+                Fr254::default(),
+                CommitmentStatus::Unspent,
+            ),
+            CommitmentEntry::new(
+                Preimage { value: Fr254::from(6u64), nf_token_id: Fr254::from(1u64), ..Default::default() },
+                Fr254::default(),
+                CommitmentStatus::Unspent,
+            ),
+            CommitmentEntry::new(
+                Preimage { value: Fr254::from(7u64), nf_token_id: Fr254::from(1u64), ..Default::default() },
+                Fr254::default(),
+                CommitmentStatus::Unspent,
+            ),
+        ];
+    commitments_collection.insert_many(value_commitments).await.unwrap();
+
+    // Call old function
+    let old_result = old_find_usable_commitments(Fr254::from(1u64), Fr254::from(10u64), &db).await;
+    assert!(old_result.is_ok());
+    let selected = old_result.unwrap();
+
+    // Assert expected selections
+    assert_eq!((selected[0].value, selected[0].nf_token_id), (Fr254::from(5u64), Fr254::from(1u64)));
+    assert_eq!((selected[1].value, selected[1].nf_token_id), (Fr254::from(6u64), Fr254::from(1u64)));
+}
+
+
+    #[tokio::test]
+    async fn test_find_usable_commitments_success() {
+        // 1. Setup: start Mongo test container and get DB connection
+        let container = get_mongo().await;
+        let db = get_db_connection(&container).await;
+        let commitments_collection = db
+            .database("nightfall")
+            .collection::<CommitmentEntry>("commitments");
+
+        // Ensure the collection is clean before inserting test data
+        commitments_collection
+            .delete_many(doc! {})
+            .await
+            .expect("Failed to clear commitments collection");
+
+        // Insert commitments for token_id = 1 (value commitments)
+        let value_commitments = vec![
+            CommitmentEntry::new(
+                Preimage { value: Fr254::from(5u64), nf_token_id: Fr254::from(1u64), ..Default::default() },
+                Fr254::default(),
+                CommitmentStatus::Unspent,
+            ),
+            CommitmentEntry::new(
+                Preimage { value: Fr254::from(6u64), nf_token_id: Fr254::from(1u64), ..Default::default() },
+                Fr254::default(),
+                CommitmentStatus::Unspent,
+            ),
+            CommitmentEntry::new(
+                Preimage { value: Fr254::from(7u64), nf_token_id: Fr254::from(1u64), ..Default::default() },
+                Fr254::default(),
+                CommitmentStatus::Unspent,
+            ),
+        ];
+        commitments_collection
+            .insert_many(value_commitments)
+            .await
+            .expect("Failed to insert value commitments");
+
+        // 2. Call function under test (target = 10, token_id = 1)
+        let target_value = Fr254::from(10u64);
+        let token_id = Fr254::from(1u64);
+        let result = find_usable_commitments(token_id, target_value, &db).await;
+
+        // 3. Validate result
+        assert!(result.is_ok(), "Commitment selection failed");
+        let selected = result.unwrap();
+
+        // The function should select commitments 5 and 6 (sum >= 10)
+        assert_eq!(selected[0].value, Fr254::from(5u64));
+        assert_eq!(selected[0].nf_token_id, Fr254::from(1u64));
+        assert_eq!(selected[1].value, Fr254::from(6u64));
+        assert_eq!(selected[1].nf_token_id, Fr254::from(1u64));
+    }
+
+    #[tokio::test]
+    async fn test_find_usable_commitments_exact_fee_match() {
+        // 1. Setup: start Mongo test container and get DB connection
+        let container = get_mongo().await;
+        let db = get_db_connection(&container).await;
+        let commitments_collection = db
+            .database("nightfall")
+            .collection::<CommitmentEntry>("commitments");
+
+        // Ensure the collection is clean before inserting test data
+        commitments_collection
+            .delete_many(doc! {})
+            .await
+            .expect("Failed to clear commitments collection");
+
+        // Insert commitments for token_id = 2 (fee commitments)
+        let fee_commitments = vec![
+            CommitmentEntry::new(
+                Preimage { value: Fr254::from(2u64), nf_token_id: Fr254::from(2u64), ..Default::default() },
+                Fr254::default(),
+                CommitmentStatus::Unspent,
+            ),
+            CommitmentEntry::new(
+                Preimage { value: Fr254::from(12u64), nf_token_id: Fr254::from(2u64), ..Default::default() },
+                Fr254::default(),
+                CommitmentStatus::Unspent,
+            ),
+            CommitmentEntry::new(
+                Preimage { value: Fr254::from(13u64), nf_token_id: Fr254::from(2u64), ..Default::default() },
+                Fr254::default(),
+                CommitmentStatus::Unspent,
+            ),
+        ];
+        commitments_collection
+            .insert_many(fee_commitments)
+            .await
+            .expect("Failed to insert fee commitments");
+
+        // 2. Call function under test (target = 12, token_id = 2)
+        let target_fee = Fr254::from(12u64);
+        let token_id = Fr254::from(2u64);
+        let result = find_usable_commitments(token_id, target_fee, &db).await;
+
+        // 3. Validate result
+        assert!(result.is_ok(), "Fee commitment selection failed");
+        let selected = result.unwrap();
+
+        // Expect an exact match with 12
+        assert_eq!(selected[0].value, Fr254::from(12u64));
+        assert_eq!(selected[0].nf_token_id, Fr254::from(2u64));
+
+        // The second slot should be a dummy (0,0)
+        assert_eq!(selected[1].value, Fr254::from(0u64));
+        assert_eq!(selected[1].nf_token_id, Fr254::from(0u64));
+    }
 
     #[tokio::test]
     async fn test_commitment_selection_case_1_2() {
@@ -503,7 +651,7 @@ mod test {
         {
             let database = db.database("nightfall");
             let commitments_collection = database.collection::<CommitmentEntry>("commitments");
-
+           
             let commitments = vec![
                 CommitmentEntry::new(
                     Preimage {
@@ -569,151 +717,213 @@ mod test {
         }
     }
     #[tokio::test]
-    async fn test_commitment_selection_case_4_5() {
+    async fn test_commitment_selection_case_4_value() {
         // Case 4: all commitments values are smaller than target, and they are enough to cover the target
-        // Case 5: all commitments values are smaller than target, and they are not enough to cover the target (only two commitments can be used)
-        // value: 5,6,7,token_id: 1, target_value: 10, output: 5,6
-        // fee: 2,5,6,12,13,token_id: 2, target_fee: 12, output: 12
+        // value: 5, 6, 7, token_id: 1, target_value: 10, output: 5,6
         // Set up MongoDB test container
         let container = get_mongo().await;
         let db = get_db_connection(&container).await;
-
-        // Insert mock commitments into a single database collection
-        {
-            let database = db.database("nightfall");
-            let commitments_collection = database.collection::<CommitmentEntry>("commitments");
-
-            let commitments = vec![
-                CommitmentEntry {
-                    preimage: Preimage {
-                        value: Fr254::from(5u64),
-                        nf_token_id: Fr254::from(1u64),
-                        ..Default::default()
-                    },
-                    ..Default::default()
-                },
-                CommitmentEntry::new(
-                    Preimage {
-                        value: Fr254::from(6u64),
-                        nf_token_id: Fr254::from(1u64),
-                        ..Default::default()
-                    },
-                    Fr254::default(),
-                    CommitmentStatus::Unspent,
-                ),
-                CommitmentEntry::new(
-                    Preimage {
-                        value: Fr254::from(7u64),
-                        nf_token_id: Fr254::from(1u64),
-                        ..Default::default()
-                    },
-                    Fr254::default(),
-                    CommitmentStatus::Unspent,
-                ),
-                CommitmentEntry::new(
-                    Preimage {
-                        value: Fr254::from(5u64),
-                        nf_token_id: Fr254::from(2u64),
-                        ..Default::default()
-                    },
-                    Fr254::default(),
-                    CommitmentStatus::Unspent,
-                ),
-                CommitmentEntry::new(
-                    Preimage {
-                        value: Fr254::from(6u64),
-                        nf_token_id: Fr254::from(2u64),
-                        ..Default::default()
-                    },
-                    Fr254::default(),
-                    CommitmentStatus::Unspent,
-                ),
-                CommitmentEntry::new(
-                    Preimage {
-                        value: Fr254::from(12u64),
-                        nf_token_id: Fr254::from(2u64),
-                        ..Default::default()
-                    },
-                    Fr254::default(),
-                    CommitmentStatus::Unspent,
-                ),
-                CommitmentEntry::new(
-                    Preimage {
-                        value: Fr254::from(2u64),
-                        nf_token_id: Fr254::from(2u64),
-                        ..Default::default()
-                    },
-                    Fr254::default(),
-                    CommitmentStatus::Unspent,
-                ),
-                CommitmentEntry::new(
-                    Preimage {
-                        value: Fr254::from(13u64),
-                        nf_token_id: Fr254::from(2u64),
-                        ..Default::default()
-                    },
-                    Fr254::default(),
-                    CommitmentStatus::Unspent,
-                ),
-            ];
-
-            commitments_collection
-                .insert_many(commitments)
-                .await
-                .expect("Failed to insert commitments into the database");
-        }
-
-        // Call the function under test
-        let target_value = Fr254::from(10u64);
-        let target_fee = Fr254::from(12u64);
-        let nf_token_id = Fr254::from(1u64);
-        let fee_token_id = Fr254::from(2u64);
-
-        {
-            let value_result = find_usable_commitments(nf_token_id, target_value, &db).await;
-
-            // Validate results
-            assert!(value_result.is_ok(), "Commitment selection failed");
-            let selected_value_commitments = value_result.unwrap();
-
-            let fee_result = find_usable_commitments(fee_token_id, target_fee, &db).await;
-
-            // Validate results
-            assert!(fee_result.is_ok(), "Commitment selection failed");
-            let selected_fee_commitments = fee_result.unwrap();
-
-            // Expected commitments: [5, 0] for value, [5, 6] for fee
-            // old_commitments[0], old_commitments[1], old_fee_commitments[0], old_fee_commitments[1],
-            assert_eq!(
-                (
-                    selected_value_commitments[0].value,
-                    selected_value_commitments[0].nf_token_id
-                ),
-                (Fr254::from(5u64), Fr254::from(1u64))
-            );
-            assert_eq!(
-                (
-                    selected_value_commitments[1].value,
-                    selected_value_commitments[1].nf_token_id
-                ),
-                (Fr254::from(6u64), Fr254::from(1u64))
-            );
-            assert_eq!(
-                (
-                    selected_fee_commitments[0].value,
-                    selected_fee_commitments[0].nf_token_id
-                ),
-                (Fr254::from(12u64), Fr254::from(2u64))
-            );
-            assert_eq!(
-                (
-                    selected_fee_commitments[1].value,
-                    selected_fee_commitments[1].nf_token_id
-                ),
-                (Fr254::from(0u64), Fr254::from(0u64))
-            );
-        }
+        
+        let commitments_collection = db.database("nightfall").collection::<CommitmentEntry>("commitments");
+        
+        // Clear and insert only the value commitments
+        commitments_collection.delete_many(doc!{}).await.expect("Failed to clear commitments");
+        let value_commitments = vec![
+            // Only insert commitments for nf_token_id: 1
+            CommitmentEntry::new(Preimage { value: Fr254::from(5u64), nf_token_id: Fr254::from(1u64), ..Default::default() }, Fr254::default(), CommitmentStatus::Unspent),
+            CommitmentEntry::new(Preimage { value: Fr254::from(6u64), nf_token_id: Fr254::from(1u64), ..Default::default() }, Fr254::default(), CommitmentStatus::Unspent),
+            CommitmentEntry::new(Preimage { value: Fr254::from(7u64), nf_token_id: Fr254::from(1u64), ..Default::default() }, Fr254::default(), CommitmentStatus::Unspent),
+        ];
+        commitments_collection.insert_many(value_commitments).await.expect("Failed to insert value commitments");
+    
+        // Test and validate the value selection
+        let value_result = find_usable_commitments(Fr254::from(1u64), Fr254::from(10u64), &db).await;
+        assert!(value_result.is_ok(), "Commitment selection for value failed");
+        let selected_value_commitments = value_result.unwrap();
+    
+        assert_eq!((selected_value_commitments[0].value, selected_value_commitments[0].nf_token_id), (Fr254::from(5u64), Fr254::from(1u64)));
+        assert_eq!((selected_value_commitments[1].value, selected_value_commitments[1].nf_token_id), (Fr254::from(6u64), Fr254::from(1u64)));
     }
+    #[tokio::test]
+    async fn test_commitment_selection_case_5_fee() {
+        // Case 5: a commitment value exactly matches the target fee
+        // fee: 2, 5, 6, 12, 13, token_id: 2, target_fee: 12, output: 12
+        // Set up MongoDB test container
+        let container = get_mongo().await;
+        let db = get_db_connection(&container).await;
+        
+        let commitments_collection = db.database("nightfall").collection::<CommitmentEntry>("commitments");
+        
+        // Clear and insert only the fee commitments
+        commitments_collection.delete_many(doc!{}).await.expect("Failed to clear commitments");
+        let fee_commitments = vec![
+            // Only insert commitments for nf_token_id: 2
+            CommitmentEntry::new(Preimage { value: Fr254::from(5u64), nf_token_id: Fr254::from(2u64), ..Default::default() }, Fr254::default(), CommitmentStatus::Unspent),
+            CommitmentEntry::new(Preimage { value: Fr254::from(6u64), nf_token_id: Fr254::from(2u64), ..Default::default() }, Fr254::default(), CommitmentStatus::Unspent),
+            CommitmentEntry::new(Preimage { value: Fr254::from(12u64), nf_token_id: Fr254::from(2u64), ..Default::default() }, Fr254::default(), CommitmentStatus::Unspent),
+            CommitmentEntry::new(Preimage { value: Fr254::from(2u64), nf_token_id: Fr254::from(2u64), ..Default::default() }, Fr254::default(), CommitmentStatus::Unspent),
+            CommitmentEntry::new(Preimage { value: Fr254::from(13u64), nf_token_id: Fr254::from(2u64), ..Default::default() }, Fr254::default(), CommitmentStatus::Unspent),
+        ];
+        commitments_collection.insert_many(fee_commitments).await.expect("Failed to insert fee commitments");
+    
+        // Test and validate the fee selection
+        let fee_result = find_usable_commitments(Fr254::from(2u64), Fr254::from(12u64), &db).await;
+        assert!(fee_result.is_ok(), "Commitment selection for fee failed");
+        let selected_fee_commitments = fee_result.unwrap();
+    
+        assert_eq!((selected_fee_commitments[0].value, selected_fee_commitments[0].nf_token_id), (Fr254::from(12u64), Fr254::from(2u64)));
+        assert_eq!((selected_fee_commitments[1].value, selected_fee_commitments[1].nf_token_id), (Fr254::from(0u64), Fr254::from(0u64)));
+    }
+    // #[tokio::test]
+    // async fn test_commitment_selection_case_4_5() {
+       
+    //     // Case 5: all commitments values are smaller than target, and they are not enough to cover the target (only two commitments can be used)
+    //     // value: 5,6,7,token_id: 1, target_value: 10, output: 5,6
+    //     // fee: 2,5,6,12,13,token_id: 2, target_fee: 12, output: 12
+    //     // Set up MongoDB test container
+    //     let container = get_mongo().await;
+    //     let db = get_db_connection(&container).await;
+
+    //     // Insert mock commitments into a single database collection
+    //     {
+    //         let database = db.database("nightfall");
+    //         let commitments_collection = database.collection::<CommitmentEntry>("commitments");
+    //         commitments_collection
+    //         .delete_many(doc!{})
+    //         .await
+    //         .expect("Failed to clear commitments collection");
+
+    //         let commitments = vec![
+    //             CommitmentEntry {
+    //                 preimage: Preimage {
+    //                     value: Fr254::from(5u64),
+    //                     nf_token_id: Fr254::from(1u64),
+    //                     ..Default::default()
+    //                 },
+    //                 ..Default::default()
+    //             },
+    //             CommitmentEntry::new(
+    //                 Preimage {
+    //                     value: Fr254::from(6u64),
+    //                     nf_token_id: Fr254::from(1u64),
+    //                     ..Default::default()
+    //                 },
+    //                 Fr254::default(),
+    //                 CommitmentStatus::Unspent,
+    //             ),
+    //             CommitmentEntry::new(
+    //                 Preimage {
+    //                     value: Fr254::from(7u64),
+    //                     nf_token_id: Fr254::from(1u64),
+    //                     ..Default::default()
+    //                 },
+    //                 Fr254::default(),
+    //                 CommitmentStatus::Unspent,
+    //             ),
+    //             CommitmentEntry::new(
+    //                 Preimage {
+    //                     value: Fr254::from(5u64),
+    //                     nf_token_id: Fr254::from(2u64),
+    //                     ..Default::default()
+    //                 },
+    //                 Fr254::default(),
+    //                 CommitmentStatus::Unspent,
+    //             ),
+    //             CommitmentEntry::new(
+    //                 Preimage {
+    //                     value: Fr254::from(6u64),
+    //                     nf_token_id: Fr254::from(2u64),
+    //                     ..Default::default()
+    //                 },
+    //                 Fr254::default(),
+    //                 CommitmentStatus::Unspent,
+    //             ),
+    //             CommitmentEntry::new(
+    //                 Preimage {
+    //                     value: Fr254::from(12u64),
+    //                     nf_token_id: Fr254::from(2u64),
+    //                     ..Default::default()
+    //                 },
+    //                 Fr254::default(),
+    //                 CommitmentStatus::Unspent,
+    //             ),
+    //             CommitmentEntry::new(
+    //                 Preimage {
+    //                     value: Fr254::from(2u64),
+    //                     nf_token_id: Fr254::from(2u64),
+    //                     ..Default::default()
+    //                 },
+    //                 Fr254::default(),
+    //                 CommitmentStatus::Unspent,
+    //             ),
+    //             CommitmentEntry::new(
+    //                 Preimage {
+    //                     value: Fr254::from(13u64),
+    //                     nf_token_id: Fr254::from(2u64),
+    //                     ..Default::default()
+    //                 },
+    //                 Fr254::default(),
+    //                 CommitmentStatus::Unspent,
+    //             ),
+    //         ];
+
+    //         commitments_collection
+    //             .insert_many(commitments)
+    //             .await
+    //             .expect("Failed to insert commitments into the database");
+    //     }
+
+    //     // Call the function under test
+    //     let target_value = Fr254::from(10u64);
+    //     let target_fee = Fr254::from(12u64);
+    //     let nf_token_id = Fr254::from(1u64);
+    //     let fee_token_id = Fr254::from(2u64);
+
+    //     {
+    //         let value_result = find_usable_commitments(nf_token_id, target_value, &db).await;
+
+    //         // Validate results
+    //         assert!(value_result.is_ok(), "Commitment selection failed");
+    //         let selected_value_commitments = value_result.unwrap();
+
+    //         let fee_result = find_usable_commitments(fee_token_id, target_fee, &db).await;
+
+    //         // Validate results
+    //         assert!(fee_result.is_ok(), "Commitment selection failed");
+    //         let selected_fee_commitments = fee_result.unwrap();
+
+    //         // Expected commitments: [5, 0] for value, [5, 6] for fee
+    //         // old_commitments[0], old_commitments[1], old_fee_commitments[0], old_fee_commitments[1],
+    //         assert_eq!(
+    //             (
+    //                 selected_value_commitments[0].value,
+    //                 selected_value_commitments[0].nf_token_id
+    //             ),
+    //             (Fr254::from(5u64), Fr254::from(1u64))
+    //         );
+    //         assert_eq!(
+    //             (
+    //                 selected_value_commitments[1].value,
+    //                 selected_value_commitments[1].nf_token_id
+    //             ),
+    //             (Fr254::from(6u64), Fr254::from(1u64))
+    //         );
+    //         assert_eq!(
+    //             (
+    //                 selected_fee_commitments[0].value,
+    //                 selected_fee_commitments[0].nf_token_id
+    //             ),
+    //             (Fr254::from(12u64), Fr254::from(2u64))
+    //         );
+    //         assert_eq!(
+    //             (
+    //                 selected_fee_commitments[1].value,
+    //                 selected_fee_commitments[1].nf_token_id
+    //             ),
+    //             (Fr254::from(0u64), Fr254::from(0u64))
+    //         );
+    //     }
+    // }
     #[tokio::test]
     async fn test_commitment_selection_case_6() {
         // Case 6: too many dust commitments, the sum of all commitments is enough to cover the target
@@ -722,7 +932,7 @@ mod test {
         let container = get_mongo().await;
         let db = get_db_connection(&container).await;
 
-        // Insert mock commitments into a single database collection
+        // Insert mock commitments into a single database collections
         {
             let database = db.database("nightfall");
             let commitments_collection = database.collection::<CommitmentEntry>("commitments");
