@@ -408,8 +408,18 @@ This request will ask the X509 smart contract to validate the passed-in X509 cer
 POST /v1/deposit
 
 ```sh
-curl -i -H "X-Request-ID: 16cf74ad-e28c-421e-a125-78bed5e1c435" --request POST 'http://localhost:3000/v1/deposit' \
-    --json '{ "ercAddress": "0x6fcb6af7f7947f8480c36e8ffca0c66f6f2be32b", "tokenId": "0x00", "tokenType": "0", "value": "0x04", "fee": "0x02",  "deposit_fee": "0x05" }' 
+curl -i \
+  -H 'X-Request-ID: 16cf74ad-e28c-421e-a125-78bed5e1c435' \
+  -H 'Content-Type: application/json' \
+  -X POST 'http://localhost:3000/v1/deposit' \
+  --data-raw '{
+    "ercAddress": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+    "tokenId": "0x00",
+    "tokenType": "0",
+    "value": "0x04",
+    "fee": "0x02",
+    "deposit_fee": "0x05"
+  }'
 ```
 
 Returns: `202 Accepted` on success, `503 Service Unavailable` if the transaction queue is full (set at 1000)
