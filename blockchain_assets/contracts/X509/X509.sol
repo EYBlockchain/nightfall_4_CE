@@ -12,6 +12,7 @@ import './DerParser.sol';
 import './Allowlist.sol';
 import './X509Interface.sol';
 import './Sha.sol';
+
 /**
  * @title X509 (upgradeable)
  * @notice Upgrade-safe version of  X509 validator. Constructor removed; use initialize().
@@ -58,6 +59,7 @@ contract X509 is
     // Key usage bitmasks
     bytes1 private usageBitMaskEndUser;
     bytes1 private usageBitMaskIntermediate;
+
 
     // ========= Initializer =========
     function initialize(address owner_) external initializer {

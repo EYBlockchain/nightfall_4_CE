@@ -64,6 +64,7 @@ contract X509V2 is
     bytes1 private usageBitMaskEndUser;
     bytes1 private usageBitMaskIntermediate;
 
+
     // ========= Initializer =========
     function initialize(address owner_) external initializer {
         __UUPSUpgradeable_init();
