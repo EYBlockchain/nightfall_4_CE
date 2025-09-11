@@ -41,10 +41,12 @@ pub fn get_addresses() -> &'static Addresses {
 
         fn parse_addr(s: &str, what: &str) -> Address {
             let s = s.trim();
-            if s.is_empty() || s.eq_ignore_ascii_case("0x0000000000000000000000000000000000000000") {
+            if s.is_empty() || s.eq_ignore_ascii_case("0x0000000000000000000000000000000000000000")
+            {
                 panic!("Missing or zero {what} address");
             }
-            s.parse().unwrap_or_else(|_| panic!("Could not parse {what} address"))
+            s.parse()
+                .unwrap_or_else(|_| panic!("Could not parse {what} address"))
         }
 
         // 1) Try configuration server first
@@ -82,7 +84,6 @@ pub fn get_addresses() -> &'static Addresses {
         .expect("Could not load data from addresses file")
     })
 }
-
 
 #[derive(Debug)]
 pub enum AddressesError {

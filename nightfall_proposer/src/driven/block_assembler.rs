@@ -11,8 +11,8 @@ use configuration::addresses::get_addresses;
 use ethers::types::Bytes;
 use lib::blockchain_client::BlockchainClientConnection;
 use log::{debug, error, warn};
-use nightfall_bindings::{
-    nightfall::{Block as NightfallBlockStruct, OnChainTransaction as NightfallOnChainTransaction},
+use nightfall_bindings::nightfall::{
+    Block as NightfallBlockStruct, OnChainTransaction as NightfallOnChainTransaction,
 };
 use nightfall_client::{
     domain::{entities::ClientTransaction, error::ConversionError},

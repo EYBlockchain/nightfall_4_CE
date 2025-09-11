@@ -1034,9 +1034,6 @@ fn create_nf3_deposit_request(
         value,
         fee,
         deposit_fee,
-        secret_preimage_one: None,
-        secret_preimage_two: None,
-        secret_preimage_three: None,
     }
 }
 

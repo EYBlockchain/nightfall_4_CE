@@ -1,8 +1,7 @@
 use super::models::CertificateReq;
 use crate::{
     blockchain_client::BlockchainClientConnection, error::CertificateVerificationError,
-    initialisation::get_blockchain_client_connection, 
-    models::bad_request,
+    initialisation::get_blockchain_client_connection, models::bad_request,
 };
 use configuration::addresses::get_addresses;
 use ethers::types::{Address, H160, U256};
@@ -36,7 +35,7 @@ pub fn certification_validation_request(
 pub async fn handle_certificate_validation(
     mut x509_data: FormData,
 ) -> Result<impl Reply, warp::Rejection> {
-  // Parse the certificate validation request (by FIELD NAME, not filename)
+    // Parse the certificate validation request (by FIELD NAME, not filename)
     let mut certificate_req = CertificateReq::default();
     while let Some(part_res) = x509_data.try_next().await.transpose() {
         let part = part_res.map_err(|e| {

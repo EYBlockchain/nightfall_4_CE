@@ -11,20 +11,33 @@ use url::Url;
 
 use crate::vk_contract::write_vk_to_nightfall_toml;
 
-use std::{collections::HashMap, fs::File, path::{Path, PathBuf}};
 use ethers::types::Address;
 use serde_json::Value;
+use std::{
+    collections::HashMap,
+    fs::File,
+    path::{Path, PathBuf},
+};
 
 fn proxies_from_broadcast(path: &Path) -> anyhow::Result<HashMap<&'static str, Address>> {
     let v: Value = serde_json::from_reader(File::open(path)?)?;
-    let txs = v.get("transactions").and_then(|t| t.as_array()).ok_or_else(|| anyhow::anyhow!("no transactions in broadcast"))?;
+    let txs = v
+        .get("transactions")
+        .and_then(|t| t.as_array())
+        .ok_or_else(|| anyhow::anyhow!("no transactions in broadcast"))?;
 
     let mut map = HashMap::new();
     let mut last_impl_name: Option<String> = None;
 
     for tx in txs {
-        let ttype   = tx.get("transactionType").and_then(|x| x.as_str()).unwrap_or("");
-        let cname   = tx.get("contractName").and_then(|x| x.as_str()).unwrap_or("");
+        let ttype = tx
+            .get("transactionType")
+            .and_then(|x| x.as_str())
+            .unwrap_or("");
+        let cname = tx
+            .get("contractName")
+            .and_then(|x| x.as_str())
+            .unwrap_or("");
         let caddr_s = tx.get("contractAddress").and_then(|x| x.as_str());
 
         // Upgrades.deployUUPSProxy deploys: implementation (CREATE, contractName = Nightfall/RoundRobin/X509), then ERC1967Proxy (CREATE)
@@ -35,14 +48,20 @@ fn proxies_from_broadcast(path: &Path) -> anyhow::Result<HashMap<&'static str, A
         if ttype == "CREATE" && cname == "ERC1967Proxy" {
             if let (Some(prev), Some(addr_s)) = (last_impl_name.as_deref(), caddr_s) {
                 let addr: Address = addr_s.parse()?;
-                if prev.contains("Nightfall")      { map.insert("nightfall", addr); }
-                else if prev.contains("RoundRobin") { map.insert("round_robin", addr); }
-                else if prev.contains("X509")       { map.insert("x509", addr); }
+                if prev.contains("Nightfall") {
+                    map.insert("nightfall", addr);
+                } else if prev.contains("RoundRobin") {
+                    map.insert("round_robin", addr);
+                } else if prev.contains("X509") {
+                    map.insert("x509", addr);
+                }
             }
         }
     }
 
-    if map.is_empty() { anyhow::bail!("no proxies found in broadcast"); }
+    if map.is_empty() {
+        anyhow::bail!("no proxies found in broadcast");
+    }
     Ok(map)
 }
 
@@ -56,7 +75,12 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn std::er
     }
 
     forge_command(&[
-        "script","Deployer","--fork-url",&settings.ethereum_client_url,"--broadcast","--force",
+        "script",
+        "Deployer",
+        "--fork-url",
+        &settings.ethereum_client_url,
+        "--broadcast",
+        "--force",
     ]);
 
     // -------- read Foundry broadcast --------
@@ -77,35 +101,46 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn std::er
 
     // -------- replace with *proxy* addresses from broadcast --------
     if let Ok(proxy_map) = proxies_from_broadcast(&path_out) {
-        if let Some(a) = proxy_map.get("nightfall")   { addresses.nightfall   = *a; }
-        if let Some(a) = proxy_map.get("round_robin") { addresses.round_robin = *a; }
-        if let Some(a) = proxy_map.get("x509")        { addresses.x509        = *a; }
+        if let Some(a) = proxy_map.get("nightfall") {
+            addresses.nightfall = *a;
+        }
+        if let Some(a) = proxy_map.get("round_robin") {
+            addresses.round_robin = *a;
+        }
+        if let Some(a) = proxy_map.get("x509") {
+            addresses.x509 = *a;
+        }
     }
 
     // -------- save to config server + local fallback --------
     let mut search = |path: &Path| -> Option<PathBuf> {
-        if path.is_absolute() && path.is_file() { return Some(path.to_path_buf()); }
+        if path.is_absolute() && path.is_file() {
+            return Some(path.to_path_buf());
+        }
         let mut cwd = std::env::current_dir().ok()?;
         loop {
             let candidate = cwd.join(path);
-            if candidate.is_file() { return Some(candidate); }
+            if candidate.is_file() {
+                return Some(candidate);
+            }
             cwd = cwd.parent()?.to_path_buf();
         }
     };
 
-    let url = url::Url::parse(&settings.configuration_url)?
-        .join(&settings.contracts.addresses_file)?;
+    let url =
+        url::Url::parse(&settings.configuration_url)?.join(&settings.contracts.addresses_file)?;
     if addresses.save(Sources::Http(url)).await.is_err() {
         warn!("Failed to save to configuration server. Saving locally instead.");
     }
     let file_path = search(Path::new(&settings.contracts.addresses_file))
         .unwrap_or_else(|| PathBuf::from(&settings.contracts.addresses_file));
-    addresses.save(Sources::File(file_path)).await
+    addresses
+        .save(Sources::File(file_path))
+        .await
         .expect("Failed to save addresses locally");
 
     Ok(())
 }
-
 
 // pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn std::error::Error>> {
 //     std::env::set_var("NF4_RUN_MODE", &settings.run_mode);
@@ -166,7 +201,6 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn std::er
 
 //     Ok(())
 // }
-
 
 // pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn Error>> {
 //     // The deployment script will need to know the run mode we are in so that it can use the correct configuration.

@@ -19,7 +19,7 @@ use warp::{
 // use::nightfall_client::drivers::rest::health_check::health_route;
 
 // nightfall_client/src/drivers/rest/balance.rs
-        // .or(get_l1_balance())
+// .or(get_l1_balance())
 // import get_l1_balance from nightfall_client::drivers::rest::balance
 use nightfall_client::drivers::rest::balance::get_l1_balance;
 
