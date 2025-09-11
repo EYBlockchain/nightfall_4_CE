@@ -902,34 +902,8 @@ Nightfall.propose_block(...) reverts with “Rollup proof verification failed”
 - Change: `verify_accumulation` reverts.
 
 ### Cleanup (optional, when the deployer image needs fresh artifacts)
-forge clean
-rm -rf blockchain_assets/artifacts/build-info/*
-forge build --force
+`forge clean`
 
+`rm -rf blockchain_assets/artifacts/build-info/*`
 
-# JJ note
-- Roll back plan
-- multi sig
-- freeze
-- test deployer !== owner
-- Julian's Chatgpt 1
-
-UUPS best-practice missing: lock the implementation
-Every upgradeable implementation should include:
-
-constructor() {
-    _disableInitializers(); // OZ pattern to lock the logic contract
-}
-Without this, someone could initialize the implementation contract itself and seize ownership.
-
-I used to have this, but cant build if adding constructor, need a test to check if this attack exits without using constructor()
-
-- Julian's Chatgpt 2
-UUPS safety invariant not explicitly tested
-Add tests that the new implementation’s proxiableUUID() matches keccak256("eip1967.proxy.implementation") and that upgrades must be invoked via the proxy (OZ’s onlyProxy guard). This prevents bricking via non-UUPS impls.
-
-- Julian's Chatgpt 3
-Add a short “Rollback” subsection (you hinted at it) describing: keep N-1 impl address, run upgradeTo(oldImpl), verify impl slot equals old value, and run smoke tests.
-
-- Julian's Chatgpt 4
-Add “Freeze” guidance: consider PausableUpgradeable or an explicit upgrade freeze switch behind multisig for incident response.
+`forge build --force`
