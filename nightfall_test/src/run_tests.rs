@@ -204,7 +204,7 @@ pub async fn run_tests(
             .join("v1/transfer")
             .unwrap();
         // then make n transfers
-        info!("Making {block_size} transfer transactions");
+        // info!("Making {block_size} transfer transactions");
         let mut large_block_transfer_ids = vec![];
         for _ in 0..n_large_block {
             let large_block_transfer_id = create_nf3_transfer_transaction(
