@@ -137,7 +137,7 @@ contract RoundRobinUpgradeTest is Test {
         assertTrue(implAfter != implBefore, "impl not changed");
 
         // ---------- state preserved ----------
-        assertEq(rr.escrow(), 5, "escrow preserved");
+        assertEq(rr.escrow(), 2, "escrow preserved");
         assertEq(rr.get_proposers().length, 1, "ring size preserved");
 
         // ---------- ownership intact (onlyOwner still works) ----------

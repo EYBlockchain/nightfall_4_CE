@@ -135,7 +135,7 @@ contract RoundRobin is ProposerManager, Certified, UUPSUpgradeable
     // -------- core logic --------
     function rotate_proposer() external virtual override {
         require(can_rotate(), "It is not time to rotate the proposer");
-        if (nightfall.layer2_block_number() == start_l2_block + int(FINALIZATION_BLOCKS)) {
+        if (nightfall.layer2_block_number() == start_l2_block) {
             ding_proposer(current.addr);
         }
         current = proposers[current.next_addr];

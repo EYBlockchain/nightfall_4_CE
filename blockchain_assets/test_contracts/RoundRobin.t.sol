@@ -110,13 +110,12 @@ contract RoundRobinTest is Test {
         uint256 newEscrow = roundRobin.escrow();
         uint256 newStake1 = roundRobin.pending_withdraws(default_proposer_address);
         uint256 newStake2 = roundRobin.pending_withdraws(proposer2_address);
-        assertEq(newEscrow, 5, "Escrow after penalty incorrect");
+        assertEq(newEscrow, 2, "Escrow after penalty incorrect");
         assertEq(newStake1, 0, "Proposer 1 pending withdraw incorrect");
         assertEq(newStake2, 3, "Proposer 2 pending withdraw incorrect"); // 5 - 2 penalty
 
         // rotate to remaining proposer
         vm.roll(block.number + 64);
-        roundRobin.rotate_proposer();
         assertEq(roundRobin.get_current_proposer_address(), default_proposer_address);
 
         // only one proposer remains and is self-linked
