@@ -360,6 +360,8 @@ export FOUNDRY_OUT=blockchain_assets/artifacts
 // verify if you set X509_PROXY correctly, this should be in your terminal log during the first time deployment
 echo "X509_PROXY=$X509_PROXY"
 
+export RPC_URL=http://anvil:8545
+
 // Sanity: proxies have code at this RPC
 cast code "$X509_PROXY"      --rpc-url "$RPC_URL"  # must not be 0x
 
@@ -371,12 +373,8 @@ ls -l blockchain_assets/contracts/X509/X509V3.sol
 forge build --force
 
 // deploy new updated contract
-forge script blockchain_assets/script/upgrade_X509_V4.s.sol:UpgradeX509WithLogging
- \
-  --rpc-url "$RPC_URL" \
-  --broadcast -vvvv
 
-forge script blockchain_assets/script/upgrade_X509_V4.s.sol:UpgradeX509WithLogging \
+forge script blockchain_assets/script/upgrade_X509_V3.s.sol:UpgradeX509WithLogging \
   --sig "run(address)" "$X509_PROXY" \
   --rpc-url "$RPC_URL" \
   --broadcast -vvvv
@@ -534,9 +532,9 @@ So far, we verified that current `blockchain_assets/contracts/Nightfall.sol` wor
 
 Notice that, at the time of writing this document, we restart the test over and over so information such as salt might not be consistant in the example, but it should not affect how we conduct the tests.
 
-Don't stop your docker. But add these contracts in: `blockchain_assets/contracts/NightfallV3.sol`, `blockchain_assets/script/UpgradeNightfallV3.s.sol`.
+Don't stop your docker. But add these contracts in: `blockchain_assets/contracts/Nightfall_V3.sol`, `blockchain_assets/script/upgrade_Nightfall_V3.s.sol`.
 
-The first contract defines the new changes we want for Nightfall contract, and the second contract defines how we deploy and update the contract from `blockchain_assets/contracts/Nightfall.sol` to `blockchain_assets/contracts/NightfallV3.sol`
+The first contract defines the new changes we want for Nightfall contract, and the second contract defines how we deploy and update the contract from `blockchain_assets/contracts/Nightfall.sol` to `blockchain_assets/contracts/Nightfall_V3.sol`
 
 After copy paste the contracts in, do the followings in a new terminal under nightfall_4_pv:
 
@@ -778,7 +776,7 @@ When this L2 block is onchain, check commitment again, and you will find only on
 - Intend: Raise the global stake in an upgrade from 4 to 40.
 - Before: Proposer need to stake 4 to become proposer.
 - After: New Proposer gets error if it stakes 4
-- Change: `verify_accumulation` reverts.
+- Change: Add `setStakeRequirement` function in new version.
 
 Note that our proposer registration api only needs new proposer's url, the stake number is read from toml which is set during first time deployment. For this upgrading, we don't plan to change the api. Failing to stake 4 after updrading should be enough to show our upgrading works.
 
@@ -880,8 +878,7 @@ So far, we verified that we successfully increased required stakes for proposer 
 
 - Intend: Change vk in the updation to mimic a accident update.
 - Before: Proposer can propose a block with valid information.
-- After: Proposer can propose a block with valid information.
-- Change: `escrow_funds(...)` emits a single DepositEscrowed (no extra “fee” deposit event).
+- Change: point the VK provider to an intentionally incorrect key; valid blocks should fail verification.
 
 Intent: Simulate verification failures at the VK level.
 
@@ -901,7 +898,7 @@ Nightfall.propose_block(...) reverts with “Rollup proof verification failed”
 
 - Intend: Force verification failure in the `verify_accumulation` logic itself.
 - Before: Proposer can propose a block with valid information.
-- After: Proposer get error during proof verification onchain with valid information.  Block proposal fails on-chain with a deterministic revert (or false return) and Nightfall bubbles “Rollup proof verification failed.”
+- After: Proposer get error during proof verification onchain with valid information.  Block proposal fails on-chain with a deterministic revert and Nightfall bubbles “Rollup proof verification failed.”
 - Change: `verify_accumulation` reverts.
 
 ### Cleanup (optional, when the deployer image needs fresh artifacts)
@@ -915,3 +912,24 @@ forge build --force
 - multi sig
 - freeze
 - test deployer !== owner
+- Julian's Chatgpt 1
+
+UUPS best-practice missing: lock the implementation
+Every upgradeable implementation should include:
+
+constructor() {
+    _disableInitializers(); // OZ pattern to lock the logic contract
+}
+Without this, someone could initialize the implementation contract itself and seize ownership.
+
+I used to have this, but cant build if adding constructor, need a test to check if this attack exits without using constructor()
+
+- Julian's Chatgpt 2
+UUPS safety invariant not explicitly tested
+Add tests that the new implementation’s proxiableUUID() matches keccak256("eip1967.proxy.implementation") and that upgrades must be invoked via the proxy (OZ’s onlyProxy guard). This prevents bricking via non-UUPS impls.
+
+- Julian's Chatgpt 3
+Add a short “Rollback” subsection (you hinted at it) describing: keep N-1 impl address, run upgradeTo(oldImpl), verify impl slot equals old value, and run smoke tests.
+
+- Julian's Chatgpt 4
+Add “Freeze” guidance: consider PausableUpgradeable or an explicit upgrade freeze switch behind multisig for incident response.
