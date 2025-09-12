@@ -885,7 +885,7 @@ You can make a small change so `nightfall_test/src/run_tests.rs` will produce at
 
 Run `docker compose --profile development build` and `docker compose --profile development up`
 
-When you see `nf4_test exited with code 0`, don't stop your docker. But add these files in: `nightfall_replace_vk.toml`, `blockchain_assets/script/replace_vk_from_toml.s.sol`.
+When you see `nf4_test exited with code 0`, don't stop your docker. But add these files in: `blockchain_assets/nightfall_replace_vk.toml`, `blockchain_assets/script/replace_vk_from_toml.s.sol`.
 
 The first toml file defines the new changes we want for new vk (in this example, we just change one g1 point to generator point.), and the second contract defines how we deploy and update the vk from the one in generated `nightfall.toml` to the one in `nightfall_replace_vk.toml`
 
@@ -898,6 +898,9 @@ docker compose --profile development build deployer
 // One-off shell in the fresh image
 docker compose --profile development run --no-deps --rm deployer bash
 
+// Need to put the file in deployer
+// mv blockchain_assets/nightfall_replace_vk.toml ./
+
 // Just double check if we put the new things 
 ls -l nightfall_replace_vk.toml
 ls -l blockchain_assets/script/replace_vk_from_toml.s.sol
@@ -909,6 +912,10 @@ export NF4_RUN_MODE=local
 export NF4_SIGNING_KEY=0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6
 export VK_PROXY=$(cat configuration/toml/addresses.toml | \
   awk -F'"' '/^(vk_provider|vk)[[:space:]]*=/{print $2}')
+
+// Change this to your vk proxy contract address.
+export VK_PROXY=0x5FC8d32690cc91D4c39d9d3abcBD16989F875707
+
 export FOUNDRY_OUT=blockchain_assets/artifacts
 export RPC_URL=http://anvil:8545
 
@@ -921,8 +928,6 @@ cast code "$VK_PROXY" --rpc-url "$RPC_URL"  # must not be 0x
 # see current version/hash
 cast call "$VK_PROXY" 'vkVersion()(uint64)' --rpc-url "$RPC_URL"
 cast call "$VK_PROXY" 'vkHash()(bytes32)'   --rpc-url "$RPC_URL"
-
-
 
 // Build the new changes
 forge build --force
@@ -937,9 +942,14 @@ forge script blockchain_assets/script/replace_vk_from_toml.s.sol:ReplaceVKFromTo
 cast call "$VK_PROXY" 'vkVersion()(uint64)' --rpc-url "$RPC_URL"
 cast call "$VK_PROXY" 'vkHash()(bytes32)'   --rpc-url "$RPC_URL"
 
+// Start a deposit api call and wait for proposer to make a block
 // Trigger another block -> expect verification failure
 
-
+nf4_proposer | [2025-09-12T19:21:16Z ERROR ethers_providers::rpc::transports
+::ws] error=(code: 3, message: execution reverted: revert: Rollup proof verification failed, data: Some(String("0x08c379a0000000000000000000000000000000000000000000
+0000000000000000000020000000000000000000000000000000000000000000000000000000000000
+0020526f6c6c75702070726f6f6620766572696669636174696f6e206661696c6564")))
+nf4_proposer       | [2025-09-12T19:21:16Z ERROR nightfall_proposer::drivers::blockchain::block_assembly] Failed to propose block: Did not receive a transaction receipt
 ```
 
 ###   RollupProofVerifier upgrade (V3): make verify_accumulation revert
