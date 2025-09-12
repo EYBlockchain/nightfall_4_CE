@@ -760,7 +760,7 @@ POST /v1/register
 
 ```sh
 curl -i --request POST 'http://localhost:3000/v1/register' \
-    --json '{ "url": "http://example.com" }'
+    --json '{ "http://example.com" }'
 ```
 
 Returns: on success `200 OK`
