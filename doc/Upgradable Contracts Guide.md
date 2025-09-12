@@ -907,7 +907,7 @@ ls -l blockchain_assets/script/replace_vk_from_toml.s.sol
 export NF4_RUN_MODE=local
 // 0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6 is the private key of anvil account 9, which is the owner of x509, aka, only account 9 can update x509 contract.
 export NF4_SIGNING_KEY=0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6
-export VK_PROXY=$(curl -s http://configuration/configuration/toml/addresses.toml | \
+export VK_PROXY=$(cat configuration/toml/addresses.toml | \
   awk -F'"' '/^(vk_provider|vk)[[:space:]]*=/{print $2}')
 export FOUNDRY_OUT=blockchain_assets/artifacts
 export RPC_URL=http://anvil:8545
