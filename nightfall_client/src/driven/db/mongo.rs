@@ -17,6 +17,7 @@ use mongodb::{
 };
 use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, str};
+use log::warn;
 
 use crate::{
     domain::entities::{
@@ -431,11 +432,10 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
                 .await
                 .map_err(|_| "Database update failed")?
             {
-                println!("Reserved commitment: {:?}", updated_commitment);
+                info!("Reserved commitment: {updated_commitment:?}");
                 reserved_commitments.push(updated_commitment);
-            } else {println!("Failed to reserve commitment: {:?}", commitment_id);}
+            } else {warn!("Failed to reserve commitment: {commitment_id:?}");} 
         }
-        
         Ok(reserved_commitments)
     }
 
