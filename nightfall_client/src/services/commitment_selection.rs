@@ -686,7 +686,7 @@ mod test {
         let container = get_mongo().await;
         let db = get_db_connection(&container).await;
 
-        // Insert mock commitments into a single database collections
+        // Insert mock commitments into a single database collection
         {
             let database = db.database("nightfall");
             let commitments_collection = database.collection::<CommitmentEntry>("commitments");
