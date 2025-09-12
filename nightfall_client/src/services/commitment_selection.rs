@@ -41,15 +41,12 @@ pub async fn find_usable_commitments(
 
 
     // Step 2: Determine max number of commitments to use
-    // let max_num_c = avaliable_sorted_commitments.len().min(MAX_POSSIBLE_COMMITMENTS);
+    let max_num_c = avaliable_sorted_commitments.len().min(MAX_POSSIBLE_COMMITMENTS);
 
-    // if max_num_c < min_num_c {
-    //     return Err("Not enough commitments available to cover target value");
-    // }
-    let mut max_num_c = MAX_POSSIBLE_COMMITMENTS;
-    if avaliable_sorted_commitments.len() < MAX_POSSIBLE_COMMITMENTS {
-        max_num_c = avaliable_sorted_commitments.len();
+    if max_num_c < min_num_c {
+        return Err("Not enough commitments available to cover target value");
     }
+  
     // Step 3: Select optimal commitments (dust-first, minimize change)
     let selected_commitments = select_commitment(
         &avaliable_sorted_commitments,
@@ -82,7 +79,8 @@ pub async fn find_usable_commitments(
     for (i, p) in preimages.into_iter().enumerate() {
         preimages_fixed[i] = p;
     }
-    Ok(preimages_fixed)
+    //Ok(preimages_fixed)
+    Ok((preimages.len(), preimages_fixed))
     // if preimages.len() != MAX_POSSIBLE_COMMITMENTS {
     //     return Err("Invalid number of commitments selected for a fixed-length array.");
     // }
