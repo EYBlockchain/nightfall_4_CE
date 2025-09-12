@@ -36,7 +36,6 @@ fn with_responses(
 }
 
 /// Poll the Nightfall client queue every 5 seconds and print the length of the queue.
-/// Poll the Nightfall client queue every 5 seconds and print the length of the queue.
 pub async fn poll_queue() {
     let url = &get_settings().nightfall_client.url;
     let url2 = "http://client2:3000";

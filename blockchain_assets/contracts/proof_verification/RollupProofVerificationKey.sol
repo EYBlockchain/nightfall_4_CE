@@ -31,11 +31,6 @@ contract RollupProofVerificationKey is
         vk = abi.decode(vkBlob, (Types.VerificationKey));
     }
 
-    // /// @custom:oz-upgrades-unsafe-allow constructor
-    // constructor() {
-    //     // disable initializers on the implementation
-    //     _disableInitializers();
-    // }
 
     // -------- Initialize --------
     /// @notice First-time initialization with a full VK.

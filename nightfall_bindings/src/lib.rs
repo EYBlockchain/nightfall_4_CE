@@ -102,6 +102,7 @@ pub mod unsafe_upgrades;
 pub mod update_vk_with_toml;
 pub mod upgrade_nightfall_with_logging;
 pub mod upgrade_rollup_proof_verifier;
+pub mod upgrade_rollup_proof_verifier_with_logging;
 pub mod upgrade_round_robin_with_logging;
 pub mod upgrade_x509_with_logging;
 pub mod upgradeable_beacon;

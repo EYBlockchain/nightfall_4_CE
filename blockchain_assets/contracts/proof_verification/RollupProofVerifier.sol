@@ -39,11 +39,6 @@ contract RollupProofVerifier is
     // Global r-modulus cached for mod ops
     uint256 public p;
 
-    // /// @custom:oz-upgrades-unsafe-allow constructor
-    // constructor() {
-    //     // disable initializers on the implementation
-    //     _disableInitializers();
-    // }
 
     function initialize(address vkProviderProxy, address initialOwner) public initializer {
         __Ownable_init(initialOwner);
