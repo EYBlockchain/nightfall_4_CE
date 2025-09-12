@@ -77,6 +77,7 @@ pub mod polynomial_eval;
 pub mod proposer_manager;
 pub mod proxy;
 pub mod proxy_admin;
+pub mod replace_vk_from_toml;
 pub mod rollup_proof_verification_key;
 pub mod rollup_proof_verifier;
 pub mod rollup_proof_verifier_v2;
