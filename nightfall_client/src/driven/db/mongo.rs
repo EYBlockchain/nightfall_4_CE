@@ -403,7 +403,10 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
         }
         Ok(result)
     }
-
+    /// Atomically reserves commitments by changing their status from `Unspent` to `PendingSpend`.
+    /// 
+    /// This prevents race conditions where multiple processes try to spend the same commitments
+    /// at the same time. Only commitments that are still `Unspent` will be updated and returned.
     async fn reserve_commitments_atomic(
         &self, 
         commitment_ids: Vec<Fr254>
