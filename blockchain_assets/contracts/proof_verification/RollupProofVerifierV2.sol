@@ -21,6 +21,7 @@ import ".././X509/Certified.sol";
 @title RollupProofVerifier
 @dev Verifier Implementation for Nightfish Ultra plonk proof verification
 */
+/// @custom:oz-upgrades-from blockchain_assets/contracts/proof_verification/RollupProofVerifier.sol:RollupProofVerifier
 
 contract RollupProofVerifierV2 is     
     INFVerifier,

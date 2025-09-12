@@ -987,7 +987,7 @@ echo "VERIFIER_PROXY=$VERIFIER_PROXY"
 forge build --force
 
 // replace vk
-forge script blockchain_assets/script/upgrade_RollupProofVerifier_V2.s.sol:UpgradeRollupProofVerifier \
+forge script blockchain_assets/script/upgrade_RollupProofVerifier_V2.s.sol:UpgradeRollupProofVerifierWithLogging \
   --rpc-url "$RPC_URL" \
   --broadcast -vvvv
 
