@@ -23,10 +23,14 @@ use mongodb::options::FindOneAndUpdateOptions;
 
 const MAX_POSSIBLE_COMMITMENTS: usize = 2;
 
-// Calculate the minimum commitments and minimum fee commitments to fulfil this selection.
-// The max number of commitments that can be used is 2.
-// If minC is 0, it means that the user doesn't have enough commitments to pay the value.
-// If minC >2, it means that the user has too many dust commitments and we require client to deposit bigger commitment to fullfill this tx.
+// Calculate the minimum commitments required to fulfill this selection.
+// The max number of commitments that can be used is MAX_POSSIBLE_COMMITMENTS.
+// If min_num_c is 0, it means the user doesn't have enough commitments to pay the value.
+// If min_num_c > MAX_POSSIBLE_COMMITMENTS, it means the user has too many dust commitments 
+// and we require the client to deposit larger commitments to fulfill this transaction.
+// 
+// The function returns exactly MAX_POSSIBLE_COMMITMENTS preimages, with unused slots 
+// filled with Preimage::default().
 pub async fn find_usable_commitments(
     target_token_id: Fr254,
     target_value: Fr254,
@@ -36,13 +40,8 @@ pub async fn find_usable_commitments(
     let (avaliable_sorted_commitments, min_num_c) =
         verify_enough_commitments(target_token_id, target_value, db).await?;
 
-        println!("Available commitments: {:?}", avaliable_sorted_commitments);
-        println!("Minimum number required: {}", min_num_c);
-
-
     // Step 2: Determine max number of commitments to use
     let max_num_c = avaliable_sorted_commitments.len().min(MAX_POSSIBLE_COMMITMENTS);
-
     if max_num_c < min_num_c {
         return Err("Not enough commitments available to cover target value");
     }
@@ -54,7 +53,6 @@ pub async fn find_usable_commitments(
         min_num_c,
         max_num_c,
     )?;
-    println!("Selected commitments: {:?}", selected_commitments);
 
     // Step 4: Get commitment IDs for atomic reservation
     let commitment_ids = selected_commitments
@@ -65,10 +63,11 @@ pub async fn find_usable_commitments(
 
     // Step 5: Atomic reservation to avoid TOCTOU
     let reserved_commitments = db.reserve_commitments_atomic(commitment_ids).await?;
+    
     if reserved_commitments.len() < min_num_c {
         return Err("Could not reserve enough commitments - taken by another process");
     }
-    // Step 6: Convert reserved commitments to Preimage
+    // Step 6: Convert reserved commitments to Preimage and return
     let preimages: Vec<Preimage> = reserved_commitments
         .into_iter()
         .map(|c| c.get_preimage())
@@ -79,62 +78,8 @@ pub async fn find_usable_commitments(
     for (i, p) in preimages.into_iter().enumerate() {
         preimages_fixed[i] = p;
     }
-    //Ok(preimages_fixed)
-    Ok((preimages.len(), preimages_fixed))
-    // if preimages.len() != MAX_POSSIBLE_COMMITMENTS {
-    //     return Err("Invalid number of commitments selected for a fixed-length array.");
-    // }
-    // Ok([preimages[0], preimages[1]])
-}
+    Ok(preimages_fixed)
 
-pub async fn old_find_usable_commitments(
-    target_token_id: Fr254,
-    target_value: Fr254,
-    db: &Client,
-) -> Result<[Preimage; MAX_POSSIBLE_COMMITMENTS], &'static str> {
-    let (avaliable_sorted_commitments, min_num_c) =
-        verify_enough_commitments(target_token_id, target_value, db).await?;
-
-        println!("Available commitments: {:?}", avaliable_sorted_commitments);
-        println!("Minimum number required: {}", min_num_c);
-
-    let mut max_num_c = MAX_POSSIBLE_COMMITMENTS;
-    if avaliable_sorted_commitments.len() < MAX_POSSIBLE_COMMITMENTS {
-        max_num_c = avaliable_sorted_commitments.len();
-    }
-
-    // given the avaliable commitment, return the selected commitments
-    // We want to use dusts first
-    // Example: target_value = 3, commitments = [1, 2, 3]
-    // We should use [1, 2] instead of [3] because the change is smaller/0
-    let old_commitments = select_commitment(
-        &avaliable_sorted_commitments,
-        target_value,
-        min_num_c,
-        max_num_c,
-    )?;
-
-
-    println!("Selected commitments: {:?}", old_commitments);
-
-    // mark the selected dusts as pending
-    let pending_keys = old_commitments
-        .iter()
-        .map(|c| c.hash())
-        .collect::<Result<Vec<Fr254>, _>>()
-        .map_err(|_| "Preimage hashing failed during commitment selection")?;
-
-    // Mark Pending
-    debug!(
-        "Marking these commitments as pending: {:?}",
-        pending_keys
-            .iter()
-            .map(|k| k.to_hex_string())
-            .collect::<Vec<_>>()
-    );
-    db.mark_commitments_pending_spend(pending_keys).await;
-
-    Ok([old_commitments[0], old_commitments[1]])
 }
 
 fn select_commitment(

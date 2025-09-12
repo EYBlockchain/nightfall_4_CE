@@ -412,7 +412,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
         for commitment_id in commitment_ids {
             let filter = doc! {
                 "_id": commitment_id.to_hex_string(),
-                "status": "Unspent"  // Match your existing status name
+                "status": "Unspent" // Ensure the commitment is still unspent
             };
             
             let update = doc! {
