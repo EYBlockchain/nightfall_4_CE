@@ -644,6 +644,7 @@ If the wallet is not found or there is an error retrieving the balance, a `404 N
 ***
 
 GET /v1/requests/{:uuid}
+// replace {:uuid} with your X-Request-ID.
 
 ```sh
 curl -i 'http://localhost:3000/v1/request/16cf74ad-e28c-421e-a125-78bed5e1c435
