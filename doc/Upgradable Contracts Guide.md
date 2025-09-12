@@ -414,7 +414,7 @@ JJ: I want someone to test this case, because we only allow one address to have 
 - After: When an user sends a `deposit` tx with both `deposit_fee` and `value`, we will see 1 value escrow events and 1 value commitment will be included onchain.
 - Change: `escrow_funds(...)` emits a single DepositEscrowed (no extra “fee” deposit event).
 
-We first clean the test in nightfall_test/src/run_tests.rs (comment the code from line 99 to line 992), so we will start with clean status just after validating everyone's certificate.
+We first clean the test in `nightfall_test/src/run_tests.rs` (comment the code from line 99 to line 992), so we will start with clean status just after validating everyone's certificate.
 
 Run `docker compose --profile development build` and `docker compose --profile development up`
 
@@ -878,21 +878,69 @@ So far, we verified that we successfully increased required stakes for proposer 
 
 - Intend: Change vk in the updation to mimic a accident update.
 - Before: Proposer can propose a block with valid information.
+- After: Proposer can't propose a block with valid information.
 - Change: point the VK provider to an intentionally incorrect key; valid blocks should fail verification.
 
-Intent: Simulate verification failures at the VK level.
+You can make a small change so `nightfall_test/src/run_tests.rs` will produce at least two blocks, therefore we are sure everything works as we expect.
 
-Steps
+Run `docker compose --profile development build` and `docker compose --profile development up`
 
-Point the VK provider to a deliberately incorrect key (as in your TestVKProvider implementation).
+When you see `nf4_test exited with code 0`, don't stop your docker. But add these files in: `nightfall_replace_vk.toml`, `blockchain_assets/script/replace_vk_from_toml.s.sol`.
 
-Upgrade the VK contract or the provider address reference used by the verifier (depending on your wiring).
+The first toml file defines the new changes we want for new vk (in this example, we just change one g1 point to generator point.), and the second contract defines how we deploy and update the vk from the one in generated `nightfall.toml` to the one in `nightfall_replace_vk.toml`
 
-Try to propose a block.
+After copy paste these files in, do the followings in a new terminal under nightfall_4_pv:
 
-Expected behavior
+```
+// Build the deployer image with the new artifacts
+docker compose --profile development build deployer
 
-Nightfall.propose_block(...) reverts with “Rollup proof verification failed” when the proposer submits a block.
+// One-off shell in the fresh image
+docker compose --profile development run --no-deps --rm deployer bash
+
+// Just double check if we put the new things 
+ls -l nightfall_replace_vk.toml
+ls -l blockchain_assets/script/replace_vk_from_toml.s.sol
+
+
+// set up environment for restarted deployer
+export NF4_RUN_MODE=local
+// 0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6 is the private key of anvil account 9, which is the owner of x509, aka, only account 9 can update x509 contract.
+export NF4_SIGNING_KEY=0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6
+export VK_PROXY=$(curl -s http://configuration/configuration/toml/addresses.toml | \
+  awk -F'"' '/^(vk_provider|vk)[[:space:]]*=/{print $2}')
+export FOUNDRY_OUT=blockchain_assets/artifacts
+export RPC_URL=http://anvil:8545
+
+// verify if you set NIGHTFALL_PROXY correctly, this should be in your terminal log during the first time deployment
+echo "VK_PROXY=$VK_PROXY"
+
+# sanity: the proxy must have code
+cast code "$VK_PROXY" --rpc-url "$RPC_URL"  # must not be 0x
+
+# see current version/hash
+cast call "$VK_PROXY" 'vkVersion()(uint64)' --rpc-url "$RPC_URL"
+cast call "$VK_PROXY" 'vkHash()(bytes32)'   --rpc-url "$RPC_URL"
+
+
+
+// Build the new changes
+forge build --force
+
+// replace vk
+forge script blockchain_assets/script/replace_vk_from_toml.s.sol:ReplaceVKFromToml \
+  --sig "run(address)" "$VK_PROXY" \
+  --rpc-url "$RPC_URL" \
+  --broadcast -vvvv
+
+# verify it changed
+cast call "$VK_PROXY" 'vkVersion()(uint64)' --rpc-url "$RPC_URL"
+cast call "$VK_PROXY" 'vkHash()(bytes32)'   --rpc-url "$RPC_URL"
+
+// Trigger another block -> expect verification failure
+
+
+```
 
 ###   RollupProofVerifier upgrade (V3): make verify_accumulation revert
 
