@@ -643,10 +643,10 @@ If the wallet is not found or there is an error retrieving the balance, a `404 N
 
 ***
 
-GET /v1/requests/:uuid
+GET /v1/requests/{:uuid}
 
 ```sh
-curl -i 'http://localhost:3000/v1/requests/16cf74ad-e28c-421e-a125-78bed5e1c435
+curl -i 'http://localhost:3000/v1/request/16cf74ad-e28c-421e-a125-78bed5e1c435
 ```
 
 Returns the status of a deposit/transfer or withdraw request when provided with the `X-Request-ID` header value that was submitted with the request. The status can be one of:

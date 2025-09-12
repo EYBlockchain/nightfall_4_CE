@@ -90,6 +90,7 @@ pub mod sha;
 pub mod shared_types;
 pub mod signed_math;
 pub mod slot_derivation;
+pub mod std_constants;
 pub mod storage_slot;
 pub mod string_finder;
 pub mod strings;
