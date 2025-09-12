@@ -467,6 +467,7 @@ contract Deployer is Script {
         console.log("X509 proxy:            ", deployed.x509Proxy);
         console.log("X509 owner:            ", owners.x509Owner);
         console.log("VK provider proxy:     ", deployed.vkProxy);
+        console.log("Verifier proxy:        ", address(deployed.verifier));
         console.log("Verifier owner:        ", owners.verifierOwner);
     }
 }
