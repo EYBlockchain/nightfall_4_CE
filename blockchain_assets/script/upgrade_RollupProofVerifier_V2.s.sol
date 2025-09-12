@@ -1,45 +1,98 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "forge-std/Script.sol";
-import {RollupProofVerifierV2} from "../contracts/proof_verification/RollupProofVerifierV2.sol";
+import {Script} from "forge-std/Script.sol";
+import {console} from "forge-std/console.sol";
+import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 
-// Minimal UUPS interface
-interface IUUPS {
-    function upgradeTo(address newImplementation) external;
-}
+/// UUPS upgrade script with before/after logging for RollupProofVerifier
+contract UpgradeRollupProofVerifierWithLogging is Script {
+    // --- EIP-1967 slots ---
+    // keccak256("eip1967.proxy.implementation") - 1
+    bytes32 constant _IMPL_SLOT  = 0x360894A13BA1A3210667C828492DB98DCA3E2076CC3735A920A3CA505D382BBC;
+    // keccak256("eip1967.proxy.admin") - 1 (usually zero for UUPS)
+    bytes32 constant _ADMIN_SLOT = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
 
-// Read proxiable UUID to assert UUPS-compat
-interface IProxiable {
-    function proxiableUUID() external view returns (bytes32);
-}
+    // Compiled artifact for the **new** implementation
+    string constant ARTIFACT = "RollupProofVerifierV2.sol:RollupProofVerifierV2";
 
-contract UpgradeRollupProofVerifier is Script {
-    // EIP-1967 impl slot = keccak256("eip1967.proxy.implementation") - 1
-    bytes32 constant _IMPL_SLOT =
-        0x360894A13BA1A3210667C828492DB98DCA3E2076CC3735A920A3CA505D382BBC;
+    // --- helpers ---
+    function _getImpl(address proxy) internal view returns (address impl) {
+        bytes32 raw = vm.load(proxy, _IMPL_SLOT);
+        impl = address(uint160(uint256(raw)));
+    }
 
-    function run() external {
-        // ---------------------------------------------------------------------
-        // Env:
-        //   VERIFIER_PROXY  = address of the existing RollupProofVerifier proxy
-        //   DEPLOYER_PK     = private key of the proxy owner (uint)
-        // ---------------------------------------------------------------------
-        address proxy = vm.envAddress("VERIFIER_PROXY");
-        uint256 pk    = vm.envUint("DEPLOYER_PK");
+    function _getAdmin(address proxy) internal view returns (address admin) {
+        bytes32 raw = vm.load(proxy, _ADMIN_SLOT);
+        admin = address(uint160(uint256(raw)));
+    }
+
+    function _codehash(address a) internal view returns (bytes32 h) {
+        assembly { h := extcodehash(a) }
+    }
+
+    function _proxiableUUID(address proxy) internal view returns (bytes32 uuid, bool ok) {
+        // Calling proxiableUUID on a UUPS proxy often reverts; we just attempt & log.
+        (bool success, bytes memory ret) =
+            proxy.staticcall(abi.encodeWithSignature("proxiableUUID()"));
+        if (!success || ret.length == 0) return (bytes32(0), false);
+        return (abi.decode(ret, (bytes32)), true);
+    }
+
+    function _logProxyState(string memory tag, address proxy) internal view {
+        address impl  = _getImpl(proxy);
+        address admin = _getAdmin(proxy);
+        (bytes32 uuid, bool hasUUID) = _proxiableUUID(proxy);
+
+        console.log("========== %s ==========", tag);
+        console.log("Proxy:                %s", proxy);
+        console.log("  code length:        %u", proxy.code.length);
+        console.logBytes32(_codehash(proxy));
+
+        console.log("Implementation:        %s", impl);
+        console.log("  code length:        %u", impl.code.length);
+        console.logBytes32(_codehash(impl));
+
+        console.log("Admin (EIP-1967):     %s", admin);
+        if (hasUUID) {
+            console.log("proxiableUUID():");
+            console.logBytes32(uuid);
+        } else {
+            console.log("proxiableUUID(): <call failed or not implemented>");
+        }
+        console.log("==============================");
+    }
+
+    /// Preferred entrypoint: pass the verifier proxy explicitly
+    function run(address proxy) public {
+        // Ensure artifacts resolve from your repo’s path
+        vm.setEnv("FOUNDRY_OUT", "blockchain_assets/artifacts");
+
+        require(proxy != address(0), "proxy arg is zero");
+        require(proxy.code.length > 0, "Verifier proxy has no code on RPC_URL");
+
+        // Must be the proxy owner
+        // (use NF4_SIGNING_KEY for consistency with other scripts)
+        uint256 pk = vm.envUint("NF4_SIGNING_KEY");
+
+        address implBefore = _getImpl(proxy);
+        _logProxyState("Before upgrade", proxy);
 
         vm.startBroadcast(pk);
-
-        // 1) Deploy new implementation
-        RollupProofVerifierV2 impl = new RollupProofVerifierV2();
-
-        // 2) Sanity-check: V2 is UUPS-compatible (proxiableUUID matches EIP-1967 slot)
-        bytes32 uuid = IProxiable(address(impl)).proxiableUUID();
-        require(uuid == _IMPL_SLOT, "V2 impl not UUPS-compatible");
-
-        // 3) Perform the upgrade (owner-only on the proxy)
-        IUUPS(proxy).upgradeTo(address(impl));
-
+        Upgrades.upgradeProxy(proxy, ARTIFACT, bytes(""));
         vm.stopBroadcast();
+
+        address implAfter = _getImpl(proxy);
+        _logProxyState("After upgrade", proxy);
+
+        require(implAfter != address(0), "implAfter is zero");
+        require(implAfter != implBefore, "Implementation did not change");
+        console.log("Verifier upgrade successful: %s -> %s", implBefore, implAfter);
+    }
+
+    /// Convenience entrypoint: reads proxy from env VERIFIER_PROXY
+    function run() external {
+        address proxy = vm.envAddress("VERIFIER_PROXY");
+        run(proxy);
     }
 }

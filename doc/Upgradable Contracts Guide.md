@@ -966,42 +966,28 @@ docker compose --profile development build deployer
 // One-off shell in the fresh image
 docker compose --profile development run --no-deps --rm deployer bash
 
-// Need to put the file in deployer
-// mv blockchain_assets/nightfall_replace_vk.toml ./
-
 // Just double check if we put the new things 
 ls -l blockchain_assets/contracts/proof_verification/RollupProofVerifierV2.sol
 ls -l blockchain_assets/script/upgrade_RollupProofVerifier_V2.s.sol
 
-
 // set up environment for restarted deployer
 export NF4_RUN_MODE=local
-// 0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6 is the private key of anvil account 9, which is the owner of x509, aka, only account 9 can update x509 contract.
 export NF4_SIGNING_KEY=0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6
 
-
 // Change this to your vk proxy contract address.
-export VK_PROXY=0x5FC8d32690cc91D4c39d9d3abcBD16989F875707
+export VERIFIER_PROXY=0x8A791620dd6260079BF849Dc5567aDC3F2FdC318
 
 export FOUNDRY_OUT=blockchain_assets/artifacts
 export RPC_URL=http://anvil:8545
 
 // verify if you set NIGHTFALL_PROXY correctly, this should be in your terminal log during the first time deployment
-echo "VK_PROXY=$VK_PROXY"
-
-# sanity: the proxy must have code
-cast code "$VK_PROXY" --rpc-url "$RPC_URL"  # must not be 0x
-
-# see current version/hash
-cast call "$VK_PROXY" 'vkVersion()(uint64)' --rpc-url "$RPC_URL"
-cast call "$VK_PROXY" 'vkHash()(bytes32)'   --rpc-url "$RPC_URL"
+echo "VERIFIER_PROXY=$VERIFIER_PROXY"
 
 // Build the new changes
 forge build --force
 
 // replace vk
-forge script blockchain_assets/script/replace_vk_from_toml.s.sol:ReplaceVKFromToml \
-  --sig "run(address)" "$VK_PROXY" \
+forge script blockchain_assets/script/upgrade_RollupProofVerifier_V2.s.sol:UpgradeRollupProofVerifier \
   --rpc-url "$RPC_URL" \
   --broadcast -vvvv
 

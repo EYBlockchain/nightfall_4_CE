@@ -36,26 +36,29 @@ fn with_responses(
 }
 
 /// Poll the Nightfall client queue every 5 seconds and print the length of the queue.
+/// Poll the Nightfall client queue every 5 seconds and print the length of the queue.
 pub async fn poll_queue() {
     let url = &get_settings().nightfall_client.url;
     let url2 = "http://client2:3000";
     let client = reqwest::Client::new();
     loop {
         // poll the queue
-        let response = client.get(format!("{url}/v1/queue")).send().await.unwrap();
-        if response.status().is_success() {
-            let body = response.text().await.unwrap();
-            debug!("Client 1 Queue length is : {body}");
-        } else {
-            warn!("Failed to poll the queue");
+        match client.get(format!("{url}/v1/queue")).send().await {
+            Ok(response) if response.status().is_success() => match response.text().await {
+                Ok(body) => debug!("Client 1 Queue length is : {body}"),
+                Err(err) => warn!("Failed to read response body for client1: {err}"),
+            },
+            Ok(resp) => warn!("Client 1 returned status: {}", resp.status()),
+            Err(err) => warn!("Failed to poll client1: {err}"),
         }
         // poll the queue for client 2
-        let response2 = client.get(format!("{url2}/v1/queue")).send().await.unwrap();
-        if response2.status().is_success() {
-            let body2 = response2.text().await.unwrap();
-            debug!("Client 2 Queue length is : {body2}");
-        } else {
-            warn!("Failed to poll the queue");
+        match client.get(format!("{url2}/v1/queue")).send().await {
+            Ok(response) if response.status().is_success() => match response.text().await {
+                Ok(body2) => debug!("Client 2 Queue length is : {body2}"),
+                Err(err) => warn!("Failed to read response body for client2: {err}"),
+            },
+            Ok(resp) => warn!("Client 2 returned status: {}", resp.status()),
+            Err(err) => warn!("Failed to poll client2: {err}"),
         }
         tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
     }
