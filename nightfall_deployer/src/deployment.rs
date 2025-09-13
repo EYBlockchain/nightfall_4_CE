@@ -62,6 +62,8 @@ fn proxies_from_broadcast(path: &Path) -> anyhow::Result<HashMap<&'static str, A
 
 pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn std::error::Error>> {
     std::env::set_var("NF4_RUN_MODE", &settings.run_mode);
+    forge_command(&["clean"]);
+    forge_command(&["build"]);
 
     if !settings.mock_prover && settings.contracts.deploy_contracts {
         forge_command(&["build", "--force"]);

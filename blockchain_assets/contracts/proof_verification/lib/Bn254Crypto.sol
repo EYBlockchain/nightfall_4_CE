@@ -153,7 +153,7 @@ library Bn254Crypto {
             let x := mload(point)
             let y := mload(add(point, 0x20))
             ok := and(
-                and(and(lt(x, p), lt(y, p)), not(or(iszero(x), iszero(y)))),
+                and(and(lt(x, p), lt(y, p)), not(and(iszero(x), iszero(y)))),
                 eq(mulmod(y, y, p), addmod(mulmod(x, mulmod(x, x, p), p), 3, p))
             )
         }
