@@ -15,6 +15,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        # Add Node so npx exists for OZ upgrades validation
+      - name: Setup Node.js (for upgrades-core validator)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
       - name: Run cargo fmt
         run: cargo +nightly fmt
       - name: Run clippy

@@ -38,14 +38,20 @@ library Bn254Crypto {
     }
 
     function negate_fr(uint256 fr) internal pure returns (uint256 res) {
-        return r_mod - (fr % r_mod);
+        uint256 m = r_mod;
+        uint256 a = fr % m;        // a ∈ [0, m-1]
+        if (a == 0) return 0;      // canonical zero
+        return m - a;              // ∈ [1, m-1]
     }
 
     function negate_G1Point(
         Types.G1Point memory p
     ) internal pure returns (Types.G1Point memory) {
         if (isInfinity(p)) return p;
-        return Types.G1Point(p.x, p_mod - (p.y % p_mod));
+        uint256 m = p_mod;
+        uint256 y = p.y % m;
+        uint256 ny = (y == 0) ? 0 : (m - y);
+        return Types.G1Point(p.x % m, ny);
     }
 
     function isInfinity(
