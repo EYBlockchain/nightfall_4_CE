@@ -1,0 +1,3 @@
+#!/bin/sh
+# Restore the original file before committing
+cp ../blockchain_assets/dummy_artifacts/artifacts.rs ../nigthfall_bindings/src/artifacts.rs

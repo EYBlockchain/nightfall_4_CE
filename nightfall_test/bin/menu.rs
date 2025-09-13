@@ -1,7 +1,7 @@
+use alloy::primitives::U256;
 use ark_std::rand;
 use bip32::Mnemonic;
 use dotenv::dotenv;
-use ethers::types::U256;
 use inquire::Select;
 use inquire::Text;
 use lib::hex_conversion::HexConvertible;
@@ -32,6 +32,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Extract the client address from the environment variable CLIENT_ADDRESS
     let client_address =
         std::env::var("CLIENT_ADDRESS").expect("CLIENT_ADDRESS environment variable not set");
+    println!("Client address from .env: {client_address}");
     println!("Client address from .env: {client_address}");
 
     // Read and parse config.toml into url and mnemonic variables
@@ -201,7 +202,7 @@ async fn get_l1_balance(url: &Url) -> Result<U256, Box<dyn std::error::Error>> {
         let text = resp.text().await?.trim().to_string();
         // Use HexConvertible to parse the string into a U256, then downcast to u64
         let u256 = lib::hex_conversion::HexConvertible::from_hex_string(&text)
-            .map_err(|e| format!("Failed to parse hex as U256: {e:?}",))?;
+            .map_err(|e| format!("Failed to parse hex as U256: {e:?}"))?;
         // Convert U256 to u64 (truncating if necessary)
         Ok(u256)
     } else {

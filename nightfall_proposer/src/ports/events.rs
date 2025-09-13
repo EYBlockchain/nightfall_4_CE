@@ -1,4 +1,4 @@
-use ethers::types::TxHash;
+use alloy::primitives::TxHash;
 use nightfall_client::{
     domain::error::EventHandlerError,
     ports::proof::{Proof, ProvingEngine},

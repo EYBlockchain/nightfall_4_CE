@@ -12,9 +12,11 @@ ark-ff = { version = "0.4.2", features = ["parallel"] }
 ark-ed-on-bn254 = "0.4.0"
 ark-ec = { version = "0.4.2", features = ["parallel"] }
 nightfall_client = { path = "../nightfall_client" }
-ethers = { version = "2.0.14", features = ["ws"] }
+nightfall_bindings = {path = "../nightfall_bindings"}
+alloy = { version = "1.0.23", features = ["full"] }
 ark-serialize = "0.4.2"
 serde = { version = "1.0.219", features = ["derive"] }
+tokio-stream = "0.1.17"
 serde_json = "1.0.140"
 serde_repr = "0.1.20"
 serde_bytes = "0.11"
@@ -49,7 +51,6 @@ jf-utils = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", featu
 nf-curves = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git" }
 itertools = { version = "0.10.5", default-features = false }
 sha2 = { version = "0.10.9", default-features = false }
-nightfall-bindings = { path = "../nightfall_bindings" }
 
 [dev-dependencies]
 criterion = { version = "0.4", features = ["html_reports"] }

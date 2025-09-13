@@ -4,18 +4,18 @@ use crate::{
     ports::{contracts::NightfallContract, proving::RecursiveProvingEngine},
     services::assemble_block::assemble_block,
 };
+use alloy::primitives::Address;
+use alloy::{
+    primitives::{TxHash, U64},
+    providers::{Provider, RootProvider},
+    rpc::types::{BlockId, BlockNumberOrTag},
+};
 use ark_serialize::SerializationError;
 use configuration::addresses::get_addresses;
-use configuration::settings::Settings;
-use ethers::prelude::*;
-use ethers::providers::{Middleware, Provider, ProviderError, Ws};
-use ethers::types::H256;
-use ethers::types::{BlockId, BlockNumber};
 use jf_plonk::errors::PlonkError;
 use lib::blockchain_client::BlockchainClientConnection;
 use log::{debug, error, info, warn};
-use nightfall_bindings::proposer_manager::ProposerRotatedFilter;
-use nightfall_bindings::round_robin::RoundRobin;
+use nightfall_bindings::artifacts::RoundRobin;
 use nightfall_client::{
     domain::error::{ConversionError, EventHandlerError, NightfallContractError},
     ports::proof::Proof,
@@ -39,7 +39,7 @@ pub enum BlockAssemblyError {
     ConversionError(ConversionError),
     ProvingError(String),
     ContractError(String),
-    ProviderError(ProviderError),
+    ProviderError(String),
     EventHandlerError(EventHandlerError),
     FinalityTimeout,
     QueueError(String),
@@ -72,7 +72,7 @@ impl Display for BlockAssemblyError {
             Self::FailedToGetDepositData(e) => write!(f, "Failed to acquire deposit data: {e}"),
             Self::ProvingError(s) => write!(f, "Error occurred while proving: {s} "),
             Self::ContractError(s) => write!(f, "Contract error: {s}"),
-            Self::ProviderError(e) => write!(f, "Provider error: {e}"),
+            Self::ProviderError(s) => write!(f, "Provider error: {s}"),
             Self::EventHandlerError(e) => write!(f, "Event handling error: {e}"),
             Self::QueueError(s) => write!(f, "Queued error: {s}"),
             Self::Other(s) => write!(f, "Other error: {s}"),
@@ -106,8 +106,8 @@ impl From<PlonkError> for BlockAssemblyError {
 }
 
 async fn check_l1_finality(
-    client: &Provider<Ws>,
-    tx_hash_l1: H256,
+    client: &RootProvider,
+    tx_hash_l1: TxHash,
     confirmations_required: U64,
     wait_timeout: Option<Duration>,
 ) -> Result<bool, BlockAssemblyError> {
@@ -117,7 +117,7 @@ async fn check_l1_finality(
     loop {
         // Get finalized block (with fallback to latest)
         let finalized_block = match client
-            .get_block(BlockId::Number(BlockNumber::Finalized))
+            .get_block(BlockId::Number(BlockNumberOrTag::Finalized))
             .await
         {
             Ok(Some(block)) => block,
@@ -125,32 +125,37 @@ async fn check_l1_finality(
                 let current_block = client
                     .get_block_number()
                     .await
-                    .map_err(BlockAssemblyError::ProviderError)?;
+                    .map_err(|e| BlockAssemblyError::ProviderError(e.to_string()))?;
                 client
-                    .get_block(BlockId::Number(BlockNumber::Number(current_block)))
+                    .get_block(BlockId::Number(BlockNumberOrTag::Number(current_block)))
                     .await
-                    .map_err(BlockAssemblyError::ProviderError)?
+                    .map_err(|e| BlockAssemblyError::ProviderError(e.to_string()))?
                     .ok_or(BlockAssemblyError::Other("Current block not found".into()))?
             }
-            Err(e) => return Err(BlockAssemblyError::ProviderError(e)),
+            Err(e) => return Err(BlockAssemblyError::ProviderError(e.to_string())),
         };
         // Check transaction receipt
         match client.get_transaction_receipt(tx_hash_l1).await {
             Ok(Some(tx_receipt)) => {
-                if let (Some(receipt_block_number), Some(finalized_block_number)) =
-                    (tx_receipt.block_number, finalized_block.number)
+                if let (Some(receipt_block_number), finalized_block_number) =
+                    (tx_receipt.block_number, finalized_block.header.number)
                 {
                     // Already finalized
                     if receipt_block_number <= finalized_block_number {
                         let confirmations =
                             finalized_block_number.saturating_sub(receipt_block_number);
-                        if confirmations >= confirmations_required {
+                        if U64::from(confirmations) >= confirmations_required {
                             return Ok(true);
                         }
                     }
 
                     // Can never be finalized (tx too new)
-                    if receipt_block_number + confirmations_required > finalized_block_number
+                    println!(
+                        "additional confirmations required: {}",
+                        U64::from(receipt_block_number) + confirmations_required
+                    );
+                    if U64::from(receipt_block_number) + confirmations_required
+                        > U64::from(finalized_block_number)
                         && wait_timeout.is_none()
                     {
                         return Ok(false);
@@ -167,7 +172,7 @@ async fn check_l1_finality(
                     return Ok(false);
                 }
             }
-            Err(e) => return Err(BlockAssemblyError::ProviderError(e)),
+            Err(e) => return Err(BlockAssemblyError::ProviderError(e.to_string())),
         }
 
         // Exit if no waiting requested
@@ -188,37 +193,35 @@ where
     R: RecursiveProvingEngine<P> + Send + Sync + 'static,
     N: NightfallContract,
 {
-    let settings = Settings::new().unwrap();
-    let provider = Provider::<Ws>::connect(&settings.ethereum_client_url)
+    let blockchain_client = get_blockchain_client_connection()
         .await
-        .map_err(BlockAssemblyError::ProviderError)?;
-    let round_robin_instance = Arc::new(RoundRobin::new(
-        get_addresses().round_robin,
-        get_blockchain_client_connection()
-            .await
-            .read()
-            .await
-            .get_client(),
-    ));
-
-    use ethers::types::{Address, H256};
+        .read()
+        .await
+        .get_client()
+        .clone();
+    let client = blockchain_client.root().clone();
+    let round_robin_instance =
+        Arc::new(RoundRobin::new(get_addresses().round_robin, client.clone()));
 
     let rr_addr = get_addresses().round_robin;
-    let code = provider.get_code(rr_addr, None).await.unwrap_or_default();
+    let code = blockchain_client
+        .get_code_at(rr_addr)
+        .await
+        .unwrap_or_default();
     tracing::warn!(
         "RoundRobin address: {rr_addr:?}, bytecode_len: {}",
         code.0.len()
     );
 
     // EIP-1967 implementation slot = keccak256("eip1967.proxy.implementation") - 1
-    let impl_slot: H256 = "0x360894A13BA1A3210667C828492DB98DCA3E2076CC3735A920A3CA505D382BBC"
+    let impl_slot = "0x360894A13BA1A3210667C828492DB98DCA3E2076CC3735A920A3CA505D382BBC"
         .parse()
-        .unwrap();
-    let impl_raw = provider
-        .get_storage_at(rr_addr, impl_slot, None)
+        .expect("valid slot");
+    let impl_raw = blockchain_client
+        .get_storage_at(rr_addr, impl_slot)
         .await
         .unwrap_or_default();
-    let impl_addr = Address::from_slice(&impl_raw.as_fixed_bytes()[12..]);
+    let impl_addr = Address::from_slice(&impl_raw.as_le_bytes()[12..]);
     tracing::warn!("EIP-1967 impl at RR addr: {impl_addr:?}");
 
     let a = get_addresses();
@@ -240,12 +243,11 @@ where
     // we should start this if we have at least one pending block
     let _finality_checker: tokio::task::JoinHandle<Result<(), BlockAssemblyError>> = {
         let pending_blocks = Arc::clone(&pending_blocks);
-        let provider = provider.clone();
-        let round_robin_instance = Arc::clone(&round_robin_instance);
+        let rr = Arc::clone(&round_robin_instance);
         tokio::spawn(async move {
             loop {
                 // Check proposer rotation events
-                let start_block = match round_robin_instance.start_l_1_block().await {
+                let start_block = match rr.start_l1_block().call().await {
                     Ok(block) => block,
                     Err(_) => {
                         return Err(BlockAssemblyError::FailedToAssembleBlock(
@@ -263,22 +265,25 @@ where
                         }
                     }
                 }
-                let round_robin_events = round_robin_instance
-                    .event()
-                    .from_block(start_block.as_u64());
-                let rotate_proposer_log: Vec<(ProposerRotatedFilter, LogMeta)> =
-                    match round_robin_events.query_with_meta().await {
-                        Ok(logs) => logs,
-                        Err(_) => {
-                            return Err(BlockAssemblyError::FailedToAssembleBlock(
-                                "Failed to query round robin rotate proposer events".to_string(),
-                            ));
-                        }
-                    };
+
+                let round_robin_events = rr
+                    .event_filter::<RoundRobin::ProposerRotated>()
+                    .from_block(0u64);
+                let rotate_proposer_log = match round_robin_events.query().await {
+                    Ok(logs) => logs,
+                    Err(_) => {
+                        return Err(BlockAssemblyError::FailedToAssembleBlock(
+                            "Failed to query round robin rotate proposer events".to_string(),
+                        ));
+                    }
+                };
+                let client = blockchain_client.root().clone();
                 for (_, log_meta) in rotate_proposer_log {
-                    let tx_hash = log_meta.transaction_hash;
+                    let tx_hash = log_meta.transaction_hash.ok_or_else(|| {
+                        BlockAssemblyError::Other("Transaction hash is None".to_string())
+                    })?;
                     match check_l1_finality(
-                        &provider,
+                        &client,
                         tx_hash,
                         confirmations_required,
                         Some(finality_check_interval),
@@ -328,8 +333,7 @@ where
             .await
             .read()
             .await
-            .get_client()
-            .address();
+            .get_address();
 
         // Step 2: If we are not the proposer, wait and retry
         if current_proposer != our_address {
@@ -362,8 +366,7 @@ where
             .await
             .read()
             .await
-            .get_client()
-            .address();
+            .get_address();
 
         if current_proposer_after_trigger != our_address {
             info!(

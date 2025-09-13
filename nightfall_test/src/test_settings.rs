@@ -1,5 +1,5 @@
+use alloy::primitives::Address;
 use configuration::settings::Settings;
-use ethers::types::Address;
 use figment::{
     providers::{Format, Toml},
     Figment,
@@ -130,10 +130,10 @@ impl TestSettings {
         let mut json_string = String::new();
         json_file.read_to_string(&mut json_string).unwrap();
         let v: serde_json::Value = serde_json::from_str(&json_string).unwrap();
-        let mut erc20 = Address::zero();
-        let mut erc721 = Address::zero();
-        let mut erc1155 = Address::zero();
-        let mut erc3525 = Address::zero();
+        let mut erc20 = Address::ZERO;
+        let mut erc721 = Address::ZERO;
+        let mut erc1155 = Address::ZERO;
+        let mut erc3525 = Address::ZERO;
         let transaction_array = v["transactions"].as_array().unwrap();
 
         for transaction in transaction_array {
@@ -202,14 +202,13 @@ impl TestSettings {
 mod tests {
     use super::*;
     use crate::test::forge_command;
-    use ethers::{
-        providers::{Http, Middleware, Provider},
-        utils::Anvil,
+    use alloy::providers::{Provider, ProviderBuilder};
+    use alloy_node_bindings::Anvil;
+    use nightfall_bindings::artifacts::{
+        ERC1155Mock as erc1155_mock, ERC20Mock as erc20_mock, ERC3525Mock as erc3525_mock,
+        ERC721Mock as erc721_mock,
     };
-    use nightfall_bindings::{
-        erc1155_mock::ERC1155MOCK_DEPLOYED_BYTECODE, erc20_mock::ERC20MOCK_DEPLOYED_BYTECODE,
-        erc3525_mock::ERC3525MOCK_DEPLOYED_BYTECODE, erc721_mock::ERC721MOCK_DEPLOYED_BYTECODE,
-    };
+
     #[tokio::test]
     async fn test_mock_addresses() {
         // fire up a blockchain simulator
@@ -232,23 +231,16 @@ mod tests {
         let mock_addresses = TestSettings::retrieve_mock_addresses();
 
         // get a blockchain provider so we can interrogate the deployed code
-        let provider = Provider::<Http>::try_from(anvil.endpoint()).unwrap();
-        let erc20_code = provider.get_code(mock_addresses.erc20, None).await.unwrap();
-        let erc721_code = provider
-            .get_code(mock_addresses.erc721, None)
-            .await
-            .unwrap();
-        let erc1155_code = provider
-            .get_code(mock_addresses.erc1155, None)
-            .await
-            .unwrap();
-        let erc3525_code = provider
-            .get_code(mock_addresses.erc3525, None)
-            .await
-            .unwrap();
-        assert_eq!(erc20_code, ERC20MOCK_DEPLOYED_BYTECODE);
-        assert_eq!(erc721_code, ERC721MOCK_DEPLOYED_BYTECODE);
-        assert_eq!(erc1155_code, ERC1155MOCK_DEPLOYED_BYTECODE);
-        assert_eq!(erc3525_code, ERC3525MOCK_DEPLOYED_BYTECODE);
+        let provider = ProviderBuilder::new()
+            .disable_recommended_fillers()
+            .connect_http(anvil.endpoint_url());
+        let erc20_code = provider.get_code_at(mock_addresses.erc20).await.unwrap();
+        let erc721_code = provider.get_code_at(mock_addresses.erc721).await.unwrap();
+        let erc1155_code = provider.get_code_at(mock_addresses.erc1155).await.unwrap();
+        let erc3525_code = provider.get_code_at(mock_addresses.erc3525).await.unwrap();
+        assert_eq!(erc20_code, erc20_mock::DEPLOYED_BYTECODE);
+        assert_eq!(erc721_code, erc721_mock::DEPLOYED_BYTECODE);
+        assert_eq!(erc1155_code, erc1155_mock::DEPLOYED_BYTECODE);
+        assert_eq!(erc3525_code, erc3525_mock::DEPLOYED_BYTECODE);
     }
 }

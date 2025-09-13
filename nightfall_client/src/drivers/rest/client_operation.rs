@@ -17,9 +17,9 @@ use crate::{
     },
     services::client_operation::client_operation,
 };
+use alloy::rpc::types::TransactionReceipt;
 use ark_bn254::Fr as Fr254;
 use configuration::addresses::get_addresses;
-use ethers::types::TransactionReceipt;
 use futures::future::join_all;
 use lib::{
     blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
@@ -27,7 +27,7 @@ use lib::{
 };
 use log::{debug, error, info, warn};
 use nf_curves::ed_on_bn254::Fr as BJJScalar;
-use nightfall_bindings::{proposer_manager::ProposerManager, x509::Proposer};
+use nightfall_bindings::artifacts::ProposerManager;
 use reqwest::{Client, Error as ReqwestError};
 use serde::Serialize;
 use std::{error::Error, fmt::Debug, time::Duration};
@@ -50,6 +50,7 @@ where
     E: ProvingEngine<P> + Send + Sync,
     N: NightfallContract,
 {
+    debug!("{id} Handling client operation: {operation:?}");
     debug!("{id} Handling client operation: {operation:?}");
 
     // get the zkp keys from the global state. They will have been created when the keys were requested using a mnemonic
@@ -171,7 +172,7 @@ fn is_retriable_error(err: &ReqwestError) -> bool {
 }
 async fn send_to_proposer_with_retry<P: Serialize + Sync>(
     client: &Client,
-    proposer: Proposer,
+    proposer: ProposerManager::Proposer,
     l2_transaction: &ClientTransaction<P>,
     id: &str,
     max_retries: u32,
@@ -180,7 +181,7 @@ async fn send_to_proposer_with_retry<P: Serialize + Sync>(
     let url = match Url::parse(&proposer.url).and_then(|base| base.join("/v1/transaction")) {
         Ok(u) => u,
         Err(e) => {
-            warn!("Skipping proposer with invalid URL {}: {e}", proposer.url);
+            warn!("Skipping proposer with invalid URL {}: {}", proposer.url, e);
             return Err((format!("Invalid URL: {e}"), false));
         }
     };
@@ -249,15 +250,16 @@ pub async fn process_transaction_offchain<P: Serialize + Sync>(
     const INITIAL_BACKOFF: Duration = Duration::from_millis(500);
 
     let client = Client::new();
-    let round_robin_instance = ProposerManager::new(
-        get_addresses().round_robin,
-        get_blockchain_client_connection()
-            .await
-            .read()
-            .await
-            .get_client(),
-    );
-    let proposers_struct: Vec<Proposer> = round_robin_instance.get_proposers().call().await?;
+
+    let blockchain_client = get_blockchain_client_connection()
+        .await
+        .read()
+        .await
+        .get_client();
+    let round_robin_instance =
+        ProposerManager::new(get_addresses().round_robin, blockchain_client.root());
+    let proposers_struct: Vec<ProposerManager::Proposer> =
+        round_robin_instance.get_proposers().call().await?;
     let db = get_db_connection().await;
 
     let futures: Vec<_> = proposers_struct

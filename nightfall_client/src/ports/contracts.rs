@@ -5,11 +5,11 @@ use crate::domain::{
     entities::{DepositSecret, TokenData, TokenType, WithdrawData},
     error::{NightfallContractError, TokenContractError},
 };
+use alloy::primitives::{Address, I256};
 use ark_bn254::Fr as Fr254;
 use ark_ff::BigInteger256;
-use ethers::types::{H160, I256};
 use futures::Future;
-use nightfall_bindings::nightfall::Block;
+use nightfall_bindings::artifacts::Nightfall;
 
 /// Interface trait for a token contract.
 pub trait TokenContract {
@@ -59,5 +59,5 @@ pub trait NightfallContract {
 
     fn get_layer2_block_by_number(
         block_number: I256,
-    ) -> impl Future<Output = Result<(H160, Block), NightfallContractError>> + Send;
+    ) -> impl Future<Output = Result<(Address, Nightfall::Block), NightfallContractError>> + Send;
 }

@@ -343,6 +343,7 @@ contract Nightfall is
             require(value == 0, "ERC721 tokens should have a value of zero");
             IERC721(ercAddress).safeTransferFrom(msg.sender, address(this), tokenId, "");
         } else if (token_type == TokenType.ERC20) {
+            console.log("Escrowing ERC20 token");
             require(tokenId == 0, "ERC20 tokens should have a tokenId of 0");
             require(IERC20(ercAddress).transferFrom(msg.sender, address(this), value), "ERC20 transfer failed");
         } else {

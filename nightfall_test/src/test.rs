@@ -1,17 +1,21 @@
+use alloy::{
+    primitives::{keccak256, Address, B256, I256},
+    rpc::types::Filter,
+    signers::local::PrivateKeySigner as LocalWallet,
+};
 use ark_bn254::Fr as Fr254;
 use ark_ec::twisted_edwards::Affine as TEAffine;
 use ark_ff::{BigInteger, PrimeField};
-use ark_std::{collections::HashMap, rand::Rng, test_rng, UniformRand};
+use ark_std::{
+    collections::HashMap,
+    rand::{self, Rng},
+    test_rng, UniformRand,
+};
 use configuration::{
     addresses::{get_addresses, Addresses, AddressesError, Sources},
     settings::Settings,
 };
-use ethers::{
-    signers::{LocalWallet, Signer},
-    types::{BigEndianHash, Filter, H160, H256, I256},
-    utils::keccak256,
-};
-use ethers_middleware::Middleware;
+
 use hex::ToHex;
 use jf_primitives::{
     poseidon::Poseidon,
@@ -596,7 +600,7 @@ pub async fn get_latest_l2_block_number(responses: Arc<Mutex<Vec<Value>>>) -> Op
         .filter_map(|r| match r {
             NotificationPayload::BlockchainEvent {
                 l2_block_number, ..
-            } => Some(l2_block_number.as_u64()),
+            } => Some(l2_block_number),
             _ => None,
         })
         .max()
@@ -653,26 +657,26 @@ pub async fn wait_for_all_responses(
 /// Function to get the L1 block hash of a given layer 2 block number
 pub async fn get_l1_block_hash_of_layer2_block(
     block_number: I256,
-) -> Result<H256, NightfallContractError> {
-    let block_number = block_number - I256::one();
+) -> Result<B256, NightfallContractError> {
+    let block_number = block_number - I256::ONE;
     let client = get_blockchain_client_connection()
         .await
         .read()
         .await
         .get_client();
     let nightfall_address = get_addresses().nightfall();
-    let block_topic = H256::from_uint(&block_number.into_raw());
+    let block_topic = B256::from_slice(&block_number.to_be_bytes::<32>());
 
     let latest_block = client.get_block_number().await.map_err(|e| {
         NightfallContractError::ProviderError(format!("get_block_number error: {e}"))
     })?;
 
-    let event_sig = H256::from(keccak256("BlockProposed(int256)"));
+    let event_sig = B256::from(keccak256("BlockProposed(int256)"));
     let filter = Filter::new()
         .address(nightfall_address)
         .from_block(0u64)
         .to_block(latest_block)
-        .topic0(event_sig)
+        .event_signature(event_sig)
         .topic1(block_topic);
 
     let logs = client
@@ -690,7 +694,7 @@ pub async fn get_l1_block_hash_of_layer2_block(
 
     // Fetch the full transaction to get block hash
     let tx = client
-        .get_transaction(tx_hash)
+        .get_transaction_by_hash(tx_hash)
         .await
         .map_err(|e| NightfallContractError::ProviderError(format!("get_transaction error: {e}")))?
         .ok_or(NightfallContractError::TransactionNotFound(tx_hash))?;
@@ -746,12 +750,10 @@ pub async fn wait_on_chain(
                     if commit.status != CommitmentStatus::Unspent {
                         continue;
                     }
-                    let onchain_hash = commit.hash().map_err(|e| TestError::new(e.to_string()))?;
+                    let onchain_hash = commit.key;
                     if onchain_set.contains(&onchain_hash) {
                         continue;
                     } else {
-                        let onchain_hash =
-                            commit.hash().map_err(|e| TestError::new(e.to_string()))?;
                         debug!("Commitment {} is on-chain", onchain_hash.to_hex_string());
                         count += 1;
                         onchain_set.insert(onchain_hash);
@@ -1142,9 +1144,9 @@ pub fn build_valid_transfer_inputs(rng: &mut impl Rng) -> (PublicInputs, Private
     let nf_token_id = Fr254::from(nf_token_id);
 
     // Retrieve the fee token ID and nightfall address
-    let nf_address = H160::rand(rng);
+    let nf_address = Address::from(rand::thread_rng().gen::<[u8; 20]>());
     // generate a 'random' fee token ID (we just use the keccak hash of 1)
-    let fee_token_id = Fr254::from(BigUint::from_bytes_be(&keccak256([1])) >> 4);
+    let fee_token_id = Fr254::from(BigUint::from_bytes_be(keccak256([1]).as_slice()) >> 4);
 
     // Random values for fee and value
     let mut nullified_fee_one = rand_96_bit(rng);
@@ -1288,17 +1290,14 @@ pub fn build_valid_transfer_inputs(rng: &mut impl Rng) -> (PublicInputs, Private
 }
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use ethers::signers::Wallet;
-    use ethers::types::{TransactionRequest, U256};
-    use ethers::{
-        providers::{Http, Provider},
-        utils::Anvil,
-    };
-    use ethers_middleware::Middleware;
-    use ethers_middleware::SignerMiddleware;
-    use reqwest::Client;
     use std::str::FromStr;
+
+    use super::*;
+    use alloy::primitives::U256;
+    use alloy::providers::{Provider, ProviderBuilder};
+    use alloy::rpc::types::TransactionRequest;
+    use alloy_node_bindings::Anvil;
+    use reqwest::Client;
     #[tokio::test]
     async fn test_get_transactions_in_last_n_blocks() {
         // Start a new Anvil instance
@@ -1308,10 +1307,9 @@ mod tests {
         let client = Client::new();
 
         // Set up ethers provider and wallet
-        let provider = Provider::<Http>::try_from(endpoint.clone()).unwrap();
-        let wallet: Wallet<ethers::core::k256::ecdsa::SigningKey> = anvil.keys()[0].clone().into();
-        let wallet = wallet.with_chain_id(anvil.chain_id());
-        let provider = Arc::new(SignerMiddleware::new(provider, wallet));
+        let provider = ProviderBuilder::new()
+            .disable_recommended_fillers()
+            .connect_http(anvil.endpoint_url());
 
         // Get two accounts
         let accounts = provider.get_accounts().await.unwrap();
@@ -1321,17 +1319,17 @@ mod tests {
         // Send three transactions
         let mut tx_hashes = Vec::new();
         for i in 0..3 {
-            let tx = TransactionRequest::new()
+            let tx = TransactionRequest::default()
                 .from(from)
                 .to(to)
                 .value(U256::from(1_000_000_000_000_000u128 + i));
-            let pending_tx = provider.send_transaction(tx, None).await.unwrap();
-            let receipt = pending_tx.await.unwrap().unwrap();
+            let pending_tx = provider.send_transaction(tx).await.unwrap();
+            let receipt = pending_tx.get_receipt().await.unwrap();
             tx_hashes.push(receipt.transaction_hash);
         }
 
         // Wait for the blocks to be mined
-        let _latest_block = provider.get_block_number().await.unwrap().as_u64();
+        let _latest_block = provider.get_block_number().await.unwrap();
 
         // Retrieve transactions in the last 3 blocks
         let txs_json = get_transactions_in_last_n_blocks(&client, &url, 3)
@@ -1344,7 +1342,8 @@ mod tests {
         for block_txs in txs_json.as_array().unwrap() {
             for tx in block_txs.as_array().unwrap() {
                 let hash_str = tx["hash"].as_str().unwrap();
-                let hash = ethers::types::H256::from_str(hash_str).unwrap();
+                let hash =
+                    Address::from_word(alloy::primitives::FixedBytes::from_str(hash_str).unwrap());
                 found_hashes.push(hash);
             }
         }
@@ -1352,7 +1351,7 @@ mod tests {
         // All submitted tx hashes should be present in the found_hashes
         for hash in tx_hashes {
             assert!(
-                found_hashes.contains(&hash),
+                found_hashes.contains(&Address::from_word(hash)),
                 "Transaction hash {hash:?} not found in last n blocks"
             );
         }
@@ -1362,63 +1361,59 @@ mod tests {
         // Start a new Anvil instance
         let anvil = Anvil::new().spawn();
         let endpoint = anvil.endpoint();
-        let provider = Provider::<Http>::try_from(anvil.endpoint()).unwrap();
+        let provider = ProviderBuilder::new()
+            .disable_recommended_fillers()
+            .connect_http(anvil.endpoint_url());
 
         // Mine three blocks to ensure there is some chain history before reorg
+
         provider
-            .request::<_, ()>("anvil_mine", serde_json::json!([3]))
+            .raw_request::<_, ()>("anvil_mine".into(), serde_json::json!([3]))
             .await
             .unwrap();
-        assert_eq!(
-            provider.get_block_number().await.unwrap(),
-            ethers::types::U64::from(3)
-        );
+        assert_eq!(provider.get_block_number().await.unwrap(), 3u64);
 
         // get the balances of the first two accounts
         let accounts = provider.get_accounts().await.unwrap();
-        let balance1 = provider.get_balance(accounts[0], None).await.unwrap();
-        let balance2 = provider.get_balance(accounts[1], None).await.unwrap();
+        let balance1 = provider.get_balance(accounts[0]).await.unwrap();
+        let balance2 = provider.get_balance(accounts[1]).await.unwrap();
         // transfer 0.1 ether from the first account to the second account
         let from = accounts[0];
         let to = accounts[1];
         let tx = provider
             .send_transaction(
-                ethers::types::TransactionRequest::new()
+                TransactionRequest::default()
                     .from(from)
                     .to(to)
-                    .value(ethers::types::U256::from(100_000_000_000_000_000u128)),
-                None,
+                    .value(U256::from(1_000_000_000_000_000u128)),
             )
             .await
             .unwrap();
         // wait for the transaction to be mined
-        let tx_receipt = tx.await.unwrap().unwrap();
+        let tx_receipt = tx.get_receipt().await.unwrap();
         // check that the block number is 4
-        assert_eq!(
-            tx_receipt.block_number.unwrap(),
-            ethers::types::U64::from(4)
-        );
+        assert_eq!(tx_receipt.block_number.unwrap(), 4u64);
         // check that the node also thinks the block number is 4
-        assert_eq!(
-            provider.get_block_number().await.unwrap(),
-            ethers::types::U64::from(4)
-        );
+        assert_eq!(provider.get_block_number().await.unwrap(), 4u64);
         // check that the transaction is in the block
         let block = provider
-            .get_block_with_txs(tx_receipt.block_number.unwrap())
+            .get_block_by_number(alloy::eips::BlockNumberOrTag::Number(
+                tx_receipt.block_number.unwrap(),
+            ))
             .await
             .unwrap()
             .unwrap();
+
         assert!(block
             .transactions
-            .iter()
-            .any(|t| t.hash == tx_receipt.transaction_hash));
+            .hashes()
+            .any(|t| t.0 == tx_receipt.transaction_hash));
 
         // Check the balances transferred after the transaction
-        let new_balance2 = provider.get_balance(to, None).await.unwrap();
+        let new_balance2: U256 = provider.get_balance(to).await.unwrap();
         assert_eq!(
             new_balance2,
-            balance2 + ethers::types::U256::from(100_000_000_000_000_000u128)
+            balance2 + U256::from(1_000_000_000_000_000u128)
         );
 
         // simulate a reorg of depth 1
@@ -1427,22 +1422,22 @@ mod tests {
         anvil_reorg(&client, &url, 1, false, 5).await.unwrap();
         // Check the block number after the reorg, it should not have changed because the reorged chain has the same depth (a property of Anvil)
         let new_block_number = provider.get_block_number().await.unwrap();
-        assert_eq!(new_block_number, ethers::types::U64::from(4));
+        assert_eq!(new_block_number, 4u64);
         // Check the balances after the reorg, they should be the original balances, before the transaction
-        let reverted_balance1 = provider.get_balance(from, None).await.unwrap();
-        let reverted_balance2 = provider.get_balance(to, None).await.unwrap();
+        let reverted_balance1 = provider.get_balance(from).await.unwrap();
+        let reverted_balance2 = provider.get_balance(to).await.unwrap();
         assert_eq!(reverted_balance1, balance1);
         assert_eq!(reverted_balance2, balance2);
         // Check that the transaction is no longer in the block
         let block = provider
-            .get_block_with_txs(new_block_number)
+            .get_block_by_number(alloy::eips::BlockNumberOrTag::Number(new_block_number))
             .await
             .unwrap()
             .unwrap();
         assert!(!block
             .transactions
-            .iter()
-            .any(|t| t.hash == tx_receipt.transaction_hash));
+            .hashes()
+            .any(|t| t.0 == tx_receipt.transaction_hash));
     }
 
     #[tokio::test]
@@ -1450,64 +1445,58 @@ mod tests {
         // Start a new Anvil instance
         let anvil = Anvil::new().spawn();
         let endpoint = anvil.endpoint();
-        let provider = Provider::<Http>::try_from(anvil.endpoint()).unwrap();
+        let provider = ProviderBuilder::new()
+            .disable_recommended_fillers()
+            .connect_http(anvil.endpoint_url());
 
         // Mine three blocks to ensure there is some chain history before reorg
         provider
-            .request::<_, ()>("anvil_mine", serde_json::json!([3]))
+            .raw_request::<_, ()>("anvil_mine".into(), serde_json::json!([3]))
             .await
             .unwrap();
-        assert_eq!(
-            provider.get_block_number().await.unwrap(),
-            ethers::types::U64::from(3)
-        );
+        assert_eq!(provider.get_block_number().await.unwrap(), 3u64);
 
         // Get the balances of the first two accounts
         let accounts = provider.get_accounts().await.unwrap();
-        let balance1 = provider.get_balance(accounts[0], None).await.unwrap();
-        let balance2 = provider.get_balance(accounts[1], None).await.unwrap();
+        let balance1 = provider.get_balance(accounts[0]).await.unwrap();
+        let balance2 = provider.get_balance(accounts[1]).await.unwrap();
 
         // Transfer 0.1 ether from the first account to the second account
         let from = accounts[0];
         let to = accounts[1];
         let tx = provider
             .send_transaction(
-                ethers::types::TransactionRequest::new()
+                TransactionRequest::default()
                     .from(from)
                     .to(to)
-                    .value(ethers::types::U256::from(100_000_000_000_000_000u128)),
-                None,
+                    .value(U256::from(100_000_000_000_000_000u128)),
             )
             .await
             .unwrap();
         // Wait for the transaction to be mined
-        let tx_receipt = tx.await.unwrap().unwrap();
+        let tx_receipt = tx.get_receipt().await.unwrap();
         // Check that the block number is 4
-        assert_eq!(
-            tx_receipt.block_number.unwrap(),
-            ethers::types::U64::from(4)
-        );
+        assert_eq!(tx_receipt.block_number.unwrap(), 4u64);
         // Check that the node also thinks the block number is 4
-        assert_eq!(
-            provider.get_block_number().await.unwrap(),
-            ethers::types::U64::from(4)
-        );
+        assert_eq!(provider.get_block_number().await.unwrap(), 4u64);
         // Check that the transaction is in the block
         let block = provider
-            .get_block_with_txs(tx_receipt.block_number.unwrap())
+            .get_block_by_number(alloy::eips::BlockNumberOrTag::Number(
+                tx_receipt.block_number.unwrap(),
+            ))
             .await
             .unwrap()
             .unwrap();
         assert!(block
             .transactions
-            .iter()
-            .any(|t| t.hash == tx_receipt.transaction_hash));
+            .hashes()
+            .any(|t| t.0 == tx_receipt.transaction_hash));
 
         // Check the balances transferred after the transaction
-        let new_balance2 = provider.get_balance(to, None).await.unwrap();
+        let new_balance2 = provider.get_balance(to).await.unwrap();
         assert_eq!(
             new_balance2,
-            balance2 + ethers::types::U256::from(100_000_000_000_000_000u128)
+            balance2 + U256::from(100_000_000_000_000_000u128)
         );
 
         // Simulate a reorg of depth 1 with replay = true
@@ -1517,27 +1506,30 @@ mod tests {
 
         // Check the block number after the reorg, it should not have changed because the reorged chain has the same depth (a property of Anvil)
         let new_block_number = provider.get_block_number().await.unwrap();
-        assert_eq!(new_block_number, ethers::types::U64::from(4));
+        assert_eq!(new_block_number, 4u64);
 
         // Check the balances after the reorg, they should be the same as after the transaction, since the tx was replayed
-        let replayed_balance1 = provider.get_balance(from, None).await.unwrap();
-        let replayed_balance2 = provider.get_balance(to, None).await.unwrap();
+        let replayed_balance1 = provider.get_balance(from).await.unwrap();
+        let replayed_balance2 = provider.get_balance(to).await.unwrap();
         assert_eq!(
             replayed_balance2,
-            balance2 + ethers::types::U256::from(100_000_000_000_000_000u128)
+            balance2 + U256::from(100_000_000_000_000_000u128)
         );
         // The sender's balance should be less than or equal to the original balance (due to gas costs)
         assert!(replayed_balance1 < balance1);
 
         // Check that the transaction is still in the block (replayed)
         let block = provider
-            .get_block_with_txs(new_block_number)
+            .get_block_by_number(alloy::eips::BlockNumberOrTag::Number(new_block_number))
             .await
             .unwrap()
             .unwrap();
-        let found = block.transactions.iter().any(|t| {
-            t.to == Some(to) && t.value == ethers::types::U256::from(100_000_000_000_000_000u128)
-        });
+
+        let found = block
+            .transactions
+            .hashes()
+            .any(|t| t.0 == tx_receipt.transaction_hash);
+
         assert!(
             found,
             "Replayed transaction not found in block after reorg with replay"

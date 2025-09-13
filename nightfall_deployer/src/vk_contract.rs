@@ -1,18 +1,11 @@
+use alloy::primitives::U256;
 use ark_bn254::{Bn254, Fq as Fq254, Fr as Fr254};
 use ark_ff::{BigInteger, Field, PrimeField};
 use ark_poly::{EvaluationDomain, Radix2EvaluationDomain};
 use ark_std::vec::Vec;
-use configuration::settings::Settings;
-use ethers::types::U256;
 use jf_plonk::proof_system::structs::{VerifyingKey, VK};
-
 use regex::Regex;
-use std::{
-    fs,
-    fs::File,
-    io::Write,
-    path::{Path, PathBuf},
-};
+use std::path::PathBuf;
 
 fn replace_verifier_block(full: &str, mode: &str, new_block: &str) -> String {
     let had_crlf = full.contains("\r\n");
@@ -76,115 +69,136 @@ pub fn write_vk_to_nightfall_toml(vk: &VerifyingKey<Bn254>) -> anyhow::Result<()
     // ===== Build values =====
     let domain_size = vk.domain_size();
     let domain_size_fr = Fr254::from(domain_size as u32);
-    let domain_size_inv = U256::from_little_endian(
-        &domain_size_fr
+    let domain_size_inv = U256::from_le_bytes::<32>(
+        domain_size_fr
             .inverse()
             .unwrap()
             .into_bigint()
-            .to_bytes_le(),
+            .to_bytes_le()
+            .try_into()
+            .expect("Failed to convert Vec<u8> to [u8; 32]"),
     );
     let domain = Radix2EvaluationDomain::<Fr254>::new(domain_size).unwrap();
     let size_inv = domain_size_inv;
-    let group_gen = U256::from_little_endian(&domain.group_gen().into_bigint().to_bytes_le());
-    let group_gen_inv =
-        U256::from_little_endian(&domain.group_gen_inv().into_bigint().to_bytes_le());
+    let group_gen = U256::from_le_bytes::<32>(
+        domain
+            .group_gen()
+            .into_bigint()
+            .to_bytes_le()
+            .try_into()
+            .expect("Failed to convert Vec<u8> to [u8; 32]"),
+    );
+    let group_gen_inv = U256::from_le_bytes::<32>(
+        domain
+            .group_gen_inv()
+            .into_bigint()
+            .to_bytes_le()
+            .try_into()
+            .expect("Failed to convert Vec<u8> to [u8; 32]"),
+    );
 
     let domain_size_u256 = U256::from(domain_size as u32);
     let num_inputs_u256 = U256::from(vk.num_inputs() as u32);
-
     let sigma_comms_u256: Vec<U256> = vk
         .sigma_comms
         .iter()
-        .flat_map(|c| {
-            let x = U256::from_big_endian(&c.x.into_bigint().to_bytes_be());
-            let y = U256::from_big_endian(&c.y.into_bigint().to_bytes_be());
-            [x, y]
+        .flat_map(|comm| {
+            let x = U256::from_be_bytes::<32>(
+                comm.x
+                    .into_bigint()
+                    .to_bytes_be()
+                    .try_into()
+                    .expect("Failed to convert Vec<u8> to [u8; 32]"),
+            );
+            let y = U256::from_be_bytes::<32>(
+                comm.y
+                    .into_bigint()
+                    .to_bytes_be()
+                    .try_into()
+                    .expect("Failed to convert Vec<u8> to [u8; 32]"),
+            );
+            vec![x, y]
         })
         .collect();
 
     let selector_comms_u256: Vec<U256> = vk
         .selector_comms
         .iter()
-        .flat_map(|c| {
-            let x = U256::from_big_endian(&c.x.into_bigint().to_bytes_be());
-            let y = U256::from_big_endian(&c.y.into_bigint().to_bytes_be());
-            [x, y]
+        .flat_map(|comm| {
+            let x = U256::from_be_bytes::<32>(
+                comm.x
+                    .into_bigint()
+                    .to_bytes_be()
+                    .try_into()
+                    .expect("Failed to convert Vec<u8> to [u8; 32]"),
+            );
+            let y = U256::from_be_bytes::<32>(
+                comm.y
+                    .into_bigint()
+                    .to_bytes_be()
+                    .try_into()
+                    .expect("Failed to convert Vec<u8> to [u8; 32]"),
+            );
+            vec![x, y]
         })
         .collect();
-
     let ks_u256: Vec<U256> =
         vk.k.iter()
-            .map(|k| U256::from_big_endian(&k.into_bigint().to_bytes_be()))
+            .map(|k| {
+                U256::from_be_bytes::<32>(
+                    k.into_bigint()
+                        .to_bytes_be()
+                        .try_into()
+                        .expect("Failed to convert Vec<u8> to [u8; 32]"),
+                )
+            })
             .collect();
-
     let vk_vec_u256 = Vec::<Fq254>::from(vk.clone())
         .into_iter()
-        .map(|x| U256::from_little_endian(&x.into_bigint().to_bytes_le()))
+        .map(|x| {
+            U256::from_le_bytes::<32>(
+                x.into_bigint()
+                    .to_bytes_le()
+                    .try_into()
+                    .expect("Failed to convert Vec<u8> to [u8; 32]"),
+            )
+        })
         .collect::<Vec<_>>();
+    let range_table_comm_u256 = [
+        vk_vec_u256[56], // x
+        vk_vec_u256[57], // y
+    ];
+    let key_table_comm_u256 = [
+        vk_vec_u256[58], // x
+        vk_vec_u256[59], // y
+    ];
+    let table_dom_sep_comm_u256 = [
+        vk_vec_u256[60], // x
+        vk_vec_u256[61], // y
+    ];
+    let q_dom_sep_comm_u256 = [
+        vk_vec_u256[62], // x
+        vk_vec_u256[63], // y
+    ];
 
-    let range_table_comm_u256 = [vk_vec_u256[56], vk_vec_u256[57]];
-    let key_table_comm_u256 = [vk_vec_u256[58], vk_vec_u256[59]];
-    let table_dom_sep_comm_u256 = [vk_vec_u256[60], vk_vec_u256[61]];
-    let q_dom_sep_comm_u256 = [vk_vec_u256[62], vk_vec_u256[63]];
-    let open_key_g = [vk_vec_u256[64], vk_vec_u256[65]];
+    let open_key_g = [
+        vk_vec_u256[64], // x
+        vk_vec_u256[65], // y
+    ];
+
     let h = [
-        vk_vec_u256[67],
-        vk_vec_u256[66],
-        vk_vec_u256[69],
-        vk_vec_u256[68],
-    ];
-    let beta_h = [
-        vk_vec_u256[71],
-        vk_vec_u256[70],
-        vk_vec_u256[73],
-        vk_vec_u256[72],
+        vk_vec_u256[67], // x1
+        vk_vec_u256[66], // x2
+        vk_vec_u256[69], // y1
+        vk_vec_u256[68], // y2
     ];
 
-    // print all the values we are going to write
-    ark_std::println!("domain_size = {}", domain_size_u256);
-    ark_std::println!("num_inputs  = {}", num_inputs_u256);
-    for i in 0..6 {
-        let x = &sigma_comms_u256[2 * i];
-        let y = &sigma_comms_u256[2 * i + 1];
-        ark_std::println!("sigma_comms_{} = [{}, {}]", i + 1, x, y);
-    }
-    for i in 0..18 {
-        let x = &selector_comms_u256[2 * i];
-        let y = &selector_comms_u256[2 * i + 1];
-        ark_std::println!("selector_comms_{} = [{}, {}]", i + 1, x, y);
-    }
-    for i in 0..6 {
-        ark_std::println!("k{} = {}", i + 1, ks_u256[i]);
-    }
-    ark_std::println!(
-        "range_table_comm     = [{}, {}]",
-        range_table_comm_u256[0], range_table_comm_u256[1]
-    );
-    ark_std::println!(
-        "key_table_comm       = [{}, {}]",
-        key_table_comm_u256[0], key_table_comm_u256[1]
-    );
-    ark_std::println!(
-        "table_dom_sep_comm   = [{}, {}]",
-        table_dom_sep_comm_u256[0], table_dom_sep_comm_u256[1]
-    );
-    ark_std::println!(
-        "q_dom_sep_comm       = [{}, {}]",
-        q_dom_sep_comm_u256[0], q_dom_sep_comm_u256[1]
-    );
-    ark_std::println!("size_inv      = {}", size_inv);
-    ark_std::println!("group_gen     = {}", group_gen);
-    ark_std::println!("group_gen_inv = {}", group_gen_inv);
-    ark_std::println!("open_key_g = [{}, {}]", open_key_g[0], open_key_g[1]);
-    ark_std::println!(
-        "h = [{}, {}, {}, {}]",
-        h[0], h[1], h[2], h[3]
-    );
-    ark_std::println!(
-        "beta_h = [{}, {}, {}, {}]",
-        beta_h[0], beta_h[1], beta_h[2], beta_h[3]
-    );
-    
+    let beta_h = [
+        vk_vec_u256[71], // x1
+        vk_vec_u256[70], // x2
+        vk_vec_u256[73], // y1
+        vk_vec_u256[72], // y2
+    ];
 
     // ===== Locate nightfall.toml =====
     let mut cwd = std::env::current_dir()?;
@@ -202,10 +216,10 @@ pub fn write_vk_to_nightfall_toml(vk: &VerifyingKey<Bn254>) -> anyhow::Result<()
 
     // ===== Build new block text =====
     let mode = std::env::var("NF4_RUN_MODE").unwrap_or_else(|_| "development".to_string());
-    let header = format!("[{}.verifier]", mode);
+    let header = format!("[{mode}.verifier]");
 
-    let as_hex = |u: &U256| -> String { format!("{:#x}", u) }; // bare 0x… (for domain_size/num_inputs)
-    let as_q = |u: &U256| -> String { format!("\"{:#x}\"", u) }; // "0x…"
+    let as_hex = |u: &U256| -> String { format!("{u:#x}") }; // bare 0x… (for domain_size/num_inputs)
+    let as_q = |u: &U256| -> String { format!("\"{u:#x}\"") }; // "0x…"
     let pair_q = |a: &U256, b: &U256| -> String { format!("[{}, {}]", as_q(a), as_q(b)) };
 
     let mut block = String::new();
@@ -273,25 +287,10 @@ pub fn write_vk_to_nightfall_toml(vk: &VerifyingKey<Bn254>) -> anyhow::Result<()
         as_q(&beta_h[2]),
         as_q(&beta_h[3])
     ));
-    // (optional) visual spacer before next table
-    block.push_str("\n");
-    // block.push_str("h = [\n");
-    // block.push_str(&format!("  {},\n", as_q(&h[0]))); // x0
-    // block.push_str(&format!("  {},\n", as_q(&h[1]))); // x1
-    // block.push_str(&format!("  {},\n", as_q(&h[2]))); // y0
-    // block.push_str(&format!("  {}\n",  as_q(&h[3]))); // y1
-    // block.push_str("]\n");
-
-    // block.push_str("beta_h = [\n");
-    // block.push_str(&format!("  {},\n", as_q(&beta_h[0]))); // x0
-    // block.push_str(&format!("  {},\n", as_q(&beta_h[1]))); // x1
-    // block.push_str(&format!("  {},\n", as_q(&beta_h[2]))); // y0
-    // block.push_str(&format!("  {}\n",  as_q(&beta_h[3]))); // y1
-    // block.push_str("]\n");
+    block.push('\n');
 
     // ===== Replace or append the section =====
 
-    // println!("Updated [{} .verifier] in {}", mode, nightfall_path.display());
     let had_crlf = toml_txt.contains("\r\n");
     toml_txt = replace_verifier_block(&toml_txt, &mode, &block);
     if had_crlf {

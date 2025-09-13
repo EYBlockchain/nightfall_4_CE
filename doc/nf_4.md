@@ -120,7 +120,7 @@ COPY ./configuration/trust/* /usr/local/share/ca-certificates/
 RUN chmod 644 /usr/local/share/ca-certificates/* && update-ca-certificates
 ```
 
-Build locally to make sure the nightfall_bindings are up to date:
+Build locally to make sure the nightfall_deployer are up to date:
 
 ```sh
 cargo build
@@ -393,10 +393,10 @@ Note that transactions will fail unless you have first had your x509 certificate
 POST /v1/certification
 
 ```sh
-curl -i --request POST 'http://localhost:3000/v1/certification' \
-    --header 'Content-Type: multipart/form-data' \
-    --form 'file=@blockchain_assets/test_contracts/X509/_certificates/user/user-1.der' \
-    --form 'file=@blockchain_assets/test_contracts/X509/_certificates/user/user-1.priv_key'
+curl -i -X POST 'http://localhost:3000/v1/certification' \
+  -H 'Content-Type: multipart/form-data' \
+  -F 'certificate=@blockchain_assets/test_contracts/X509/_certificates/user/user-1.der;type=application/pkix-cert' \
+  -F 'certificate_private_key=@blockchain_assets/test_contracts/X509/_certificates/user/user-1.priv_key;type=application/octet-stream'
 ```
 
 This request will ask the X509 smart contract to validate the passed-in X509 certificate. The `client` whose endpoint is called will also generate a signature over its Ethereum address, using the passed-in private key. This too will be passed to the X509 contract, and the Ethereum address will be added to the contract's 'allow list' if the signature and certifcate match up.

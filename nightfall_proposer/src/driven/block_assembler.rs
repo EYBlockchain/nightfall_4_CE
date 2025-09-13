@@ -5,15 +5,12 @@ use crate::{
     services::assemble_block::get_block_size,
 };
 use async_trait::async_trait;
-use nightfall_bindings::proposer_manager::ProposerManager;
+use nightfall_bindings::artifacts::{Nightfall, ProposerManager};
 
+use alloy::primitives::Bytes;
 use configuration::addresses::get_addresses;
-use ethers::types::Bytes;
 use lib::blockchain_client::BlockchainClientConnection;
 use log::{debug, error, warn};
-use nightfall_bindings::nightfall::{
-    Block as NightfallBlockStruct, OnChainTransaction as NightfallOnChainTransaction,
-};
 use nightfall_client::{
     domain::{entities::ClientTransaction, error::ConversionError},
     driven::contract_functions::contract_type_conversions::{FrBn254, Uint256},
@@ -24,7 +21,6 @@ use tokio::{
     sync::RwLock,
     time::{self, Duration, Instant},
 };
-
 /// SmartTrigger is responsible for deciding when to trigger block assembly,
 /// based on time constraints and mempool state.
 ///
@@ -78,14 +74,14 @@ impl<P: Proof + Send + Sync> BlockAssemblyTrigger for SmartTrigger<P> {
             let elapsed = start.elapsed().as_secs();
             let remaining = self.max_wait_secs.saturating_sub(elapsed);
             // Re-check current proposer
-            let round_robin_instance = ProposerManager::new(
-                get_addresses().round_robin,
-                get_blockchain_client_connection()
-                    .await
-                    .read()
-                    .await
-                    .get_client(),
-            );
+            let blockchain_client = get_blockchain_client_connection()
+                .await
+                .read()
+                .await
+                .get_client();
+            let round_robin_instance =
+                ProposerManager::new(get_addresses().round_robin, blockchain_client.root());
+
             let current_proposer = match round_robin_instance
                 .get_current_proposer_address()
                 .call()
@@ -98,28 +94,38 @@ impl<P: Proof + Send + Sync> BlockAssemblyTrigger for SmartTrigger<P> {
                     continue;
                 }
             };
+
             let our_address = get_blockchain_client_connection()
                 .await
                 .read()
                 .await
-                .get_client()
-                .address();
+                .get_address();
+
             if current_proposer != our_address {
                 debug!(
                     "Lost proposer status during trigger wait. Current proposer: {current_proposer:?}"
                 );
                 break; // Exit loop early
             }
-            if self.status.read().await.is_running() && self.should_assemble().await {
-                debug!("Trigger activated by mempool check.");
-                break;
-            }
-            if elapsed >= self.max_wait_secs {
-                debug!(
-                    "Max wait time elapsed ({}s). Triggering block assembly.",
-                    self.max_wait_secs
-                );
-                break;
+            if self.status.read().await.is_running() {
+                if self.should_assemble().await {
+                    debug!("Trigger activated by mempool check.");
+                    break;
+                }
+                if elapsed >= self.max_wait_secs {
+                    debug!(
+                        "Max wait time elapsed ({}s). Triggering block assembly.",
+                        self.max_wait_secs
+                    );
+                    break;
+                }
+            } else {
+                if self.break_pause().await {
+                    self.status.write().await.resume();
+                    debug!("Block assembly resumed as block is full.");
+                    break;
+                }
+                debug!("Block assembly is currently paused. Waiting...");
             }
 
             // Log status of trigger wait with dynamic information
@@ -167,10 +173,11 @@ impl<P: Proof + Send + Sync> SmartTrigger<P> {
             {
                 Ok(count) => {
                     debug!("Mempool client transactions: {count}");
+                    debug!("Mempool client transactions: {count}");
                     count
                 }
                 Err(e) => {
-                    error!("Error counting client transactions: {e:?}",);
+                    error!("Error counting client transactions: {e:?}");
                     0
                 }
             } as f32;
@@ -192,8 +199,47 @@ impl<P: Proof + Send + Sync> SmartTrigger<P> {
             fill_ratio,
             self.target_block_fill_ratio
         );
-
         fill_ratio >= self.target_block_fill_ratio
+    }
+
+    async fn break_pause(&self) -> bool {
+        let db = self.db;
+
+        let num_deposit_groups =
+            match <mongodb::Client as TransactionsDB<P>>::count_mempool_deposits(db).await {
+                Ok(count) => {
+                    let groups = count.div_ceil(4);
+                    debug!("Mempool deposits: {count}, grouped into: {groups}");
+                    groups
+                }
+                Err(e) => {
+                    error!("Error counting deposits: {e:?}");
+                    0
+                }
+            } as f32;
+
+        let num_client_txs =
+            match <mongodb::Client as TransactionsDB<P>>::count_mempool_client_transactions(db)
+                .await
+            {
+                Ok(count) => {
+                    debug!("Mempool client transactions: {count}");
+                    count
+                }
+                Err(e) => {
+                    error!("Error counting client transactions: {e:?}");
+                    0
+                }
+            } as f32;
+
+        let block_size = match get_block_size() {
+            Ok(size) => size as f32,
+            Err(e) => {
+                log::warn!("Falling back to default block size 64 due to error: {e:?}");
+                64.0
+            }
+        };
+        (num_deposit_groups + num_client_txs) >= block_size
     }
 }
 
@@ -225,7 +271,7 @@ impl Default for BlockAssemblyStatus {
 
 // Converts the Block type used in rust to a struct suitable for the Nightfall solidity contract.
 // this will need updating as the NightfallBlockStruct type becomes more complex.
-impl From<Block> for NightfallBlockStruct {
+impl From<Block> for Nightfall::Block {
     fn from(blk: Block) -> Self {
         Self {
             rollup_proof: Bytes::from(blk.rollup_proof.clone()),
@@ -235,7 +281,7 @@ impl From<Block> for NightfallBlockStruct {
             transactions: blk
                 .transactions
                 .into_iter()
-                .map(NightfallOnChainTransaction::from)
+                .map(Nightfall::OnChainTransaction::from)
                 .collect(),
         }
     }
@@ -243,7 +289,7 @@ impl From<Block> for NightfallBlockStruct {
 
 /// Converts the Domain representation of an onchain transaction (i.e. one that is rolled up into a block)
 /// into one suitable for interacting with the smart contract
-impl From<OnChainTransaction> for NightfallOnChainTransaction {
+impl From<OnChainTransaction> for Nightfall::OnChainTransaction {
     fn from(otx: OnChainTransaction) -> Self {
         Self {
             fee: Uint256::from(otx.fee).into(),
@@ -256,8 +302,8 @@ impl From<OnChainTransaction> for NightfallOnChainTransaction {
 
 /// Converts the NF_4 smart contract representation of an on-chain transaction (i.e. a transaction that is
 /// rolled up into a block), into a form more sutiable for manipulation in Rust.
-impl From<NightfallOnChainTransaction> for OnChainTransaction {
-    fn from(ntx: NightfallOnChainTransaction) -> Self {
+impl From<Nightfall::OnChainTransaction> for OnChainTransaction {
+    fn from(ntx: Nightfall::OnChainTransaction) -> Self {
         Self {
             fee: FrBn254::try_from(ntx.fee)
                 .expect("Conversion of on-chain fee into field element should never fail")
@@ -295,9 +341,9 @@ impl<P> From<&ClientTransaction<P>> for OnChainTransaction {
 
 /// Converts the NF_4 smart contract representation of a block into a Domain struct,
 /// containing data type more suited to manipulation in Rust.
-impl TryFrom<NightfallBlockStruct> for Block {
+impl TryFrom<Nightfall::Block> for Block {
     type Error = ConversionError;
-    fn try_from(nblk: NightfallBlockStruct) -> Result<Self, Self::Error> {
+    fn try_from(nblk: Nightfall::Block) -> Result<Self, Self::Error> {
         Ok(Self {
             commitments_root: FrBn254::try_from(nblk.commitments_root)?.into(),
             nullifiers_root: FrBn254::try_from(nblk.nullifier_root)?.into(),

@@ -3,14 +3,15 @@ use crate::{
     blockchain_client::BlockchainClientConnection, error::CertificateVerificationError,
     initialisation::get_blockchain_client_connection, models::bad_request,
 };
+use alloy::primitives::{Address, U256};
 use configuration::addresses::get_addresses;
-use ethers::types::{Address, H160, U256};
 use futures::stream::TryStreamExt;
 use log::{debug, error, trace, warn};
-use nightfall_bindings::x509::{CertificateArgs, X509};
+use nightfall_bindings::artifacts::X509;
 use reqwest::StatusCode;
 use std::io::Read;
 use warp::{filters::multipart::FormData, path, reply::Reply, Buf, Filter};
+use x509_parser::nom::AsBytes;
 #[derive(Debug)]
 pub struct X509ValidationError;
 
@@ -88,12 +89,17 @@ pub async fn handle_certificate_validation(
     }
 
     // 2) Resolve client + address
-    let blockchain_client = get_blockchain_client_connection()
+    let client = get_blockchain_client_connection()
         .await
         .read()
         .await
         .get_client();
-    let requestor_address = blockchain_client.address();
+    let blockchain_client = client.root();
+    let requestor_address = get_blockchain_client_connection()
+        .await
+        .read()
+        .await
+        .get_address();
     trace!("Requestor address: {requestor_address}");
 
     let x509_addr = get_addresses().x509;
@@ -159,7 +165,7 @@ pub async fn handle_certificate_validation(
 
     // 6) Return POST-STATE truth from chain
     let is_certified_now = x509_instance
-        .x_509_check(requestor_address)
+        .x509Check(requestor_address)
         .call()
         .await
         .map_err(|e| {
@@ -185,39 +191,40 @@ async fn validate_certificate(
     oid_group: u32,
     sender_address: Address,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let blockchain_client = get_blockchain_client_connection()
+    let client = get_blockchain_client_connection()
         .await
         .read()
         .await
         .get_client();
-    let x509_instance = X509::new(x509_contract_address, blockchain_client.clone());
+    let blockchain_client = client.root();
 
-    let number_of_tlvs: U256 = x509_instance
-        .compute_number_of_tlvs(certificate.clone().into(), U256::zero())
+    let x509_instance = X509::new(x509_contract_address, blockchain_client);
+
+    let compute_result = x509_instance
+        .computeNumberOfTlvs(certificate.clone().into(), U256::ZERO)
         .call()
         .await?;
+    let number_of_tlvs: U256 = compute_result; // Convert computeNumberOfTlvsReturn to U256
 
-    let certificate_args = CertificateArgs {
+    let certificate_args = X509::CertificateArgs {
         certificate: certificate.clone().into(),
-        tlv_length: number_of_tlvs,
-        address_signature: ethereum_address_signature.into(),
-        is_end_user,
-        check_only,
-        oid_group: oid_group.into(),
+        tlvLength: number_of_tlvs,
+        addressSignature: ethereum_address_signature.into(),
+        isEndUser: is_end_user,
+        checkOnly: check_only,
+        oidGroup: U256::from(oid_group),
         addr: sender_address,
     };
 
     let tx_receipt = x509_instance
-        .validate_certificate(certificate_args)
+        .validateCertificate(certificate_args)
         .send()
         .await
         .map_err(|e| {
             warn!("{e}");
             X509ValidationError
-        })?
-        .await?;
-
-    if tx_receipt.is_none() {
+        })?;
+    if tx_receipt.get_receipt().await.is_err() {
         error!("X509Validation transaction failed");
         return Err(Box::new(X509ValidationError));
     }
@@ -234,7 +241,7 @@ use std::error::Error;
 /// Sign an Ethereum address using an RSA private key
 pub fn sign_ethereum_address(
     der_private_key: &[u8],
-    address: &H160,
+    address: &Address,
 ) -> Result<Vec<u8>, Box<dyn Error>> {
     // Create an RSA object from the DER-encoded private key
     let private_key = Rsa::private_key_from_der(der_private_key)?;
@@ -256,7 +263,7 @@ pub fn sign_ethereum_address(
 #[allow(dead_code)]
 fn verify_ethereum_address_signature(
     pkey: &PKey<openssl::pkey::Public>,
-    address: &H160,
+    address: &Address,
     signature: &[u8],
 ) -> Result<bool, Box<dyn Error>> {
     // Create a Verifier object for SHA-256
@@ -287,7 +294,7 @@ mod tests {
             .unwrap()
             .try_into()
             .unwrap();
-        let address = H160::from(address_bytes);
+        let address = Address::from(address_bytes);
         let signature =
             sign_ethereum_address(der_private_key, &address).expect("Failed to sign address");
         // print signature in hex format

@@ -24,30 +24,27 @@ use crate::{
     },
     services::data_publisher::DataPublisher,
 };
+use alloy::consensus::Transaction;
+use alloy::sol_types::SolInterface;
 use ark_bn254::Fr as Fr254;
 use ark_ff::BigInteger;
 use configuration::settings::get_settings;
-use ethers::{
-    abi::AbiDecode,
-    providers::Middleware,
-    types::{TxHash, H256, I256, U256},
-};
+
+use alloy::primitives::{TxHash, I256, U256};
 use lib::{
     blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
     initialisation::get_blockchain_client_connection,
 };
 use log::{debug, error, info, warn};
-use nightfall_bindings::nightfall::{
-    BlockProposedFilter, DepositEscrowedFilter, NightfallCalls, NightfallEvents, ProposeBlockCall,
-};
-use std::{collections::HashSet, error::Error, sync::OnceLock};
+use nightfall_bindings::artifacts::Nightfall;
+use std::{collections::HashSet, sync::OnceLock};
 use tokio::{join, sync::Mutex};
 
 // Define a mutable lazy static to hold the layer 2 blocknumber. We need this to
 // check if we're still in sync.
 pub fn get_expected_layer2_blocknumber() -> &'static Mutex<I256> {
     static LAYER2_BLOCKNUMBER: OnceLock<Mutex<I256>> = OnceLock::new();
-    LAYER2_BLOCKNUMBER.get_or_init(|| Mutex::new(I256::zero()))
+    LAYER2_BLOCKNUMBER.get_or_init(|| Mutex::new(I256::ZERO))
 }
 
 /// Implementation of the EventHandler trait for the NightfallEvents enum.
@@ -56,23 +53,24 @@ pub fn get_expected_layer2_blocknumber() -> &'static Mutex<I256> {
 /// This is similar to the proposers event handler but calls different functions and has different traits ultimately.
 /// We could possibly refactor this to use the same event handler in future.
 #[async_trait::async_trait]
-impl<N> EventHandler<N> for NightfallEvents
+impl<N> EventHandler<N> for Nightfall::NightfallEvents
 where
     N: NightfallContract,
 {
-    async fn handle_event(&self, tx_hash: TxHash) -> Result<(), EventHandlerError> {
+    async fn handle_event(&self, tx_hash: Option<TxHash>) -> Result<(), EventHandlerError> {
         // we'll split out individual events here in case that's useful later
         match &self {
-            NightfallEvents::BlockProposedFilter(filter) => {
+            Nightfall::NightfallEvents::BlockProposed(filter) => {
                 info!("Detected a new block has been proposed");
                 process_nightfall_calldata::<N>(tx_hash, filter)
                     .await
                     .map_err(|e| {
                         debug!("{e}");
+                        debug!("{e}");
                         EventHandlerError::InvalidCalldata
                     })?;
             }
-            NightfallEvents::DepositEscrowedFilter(filter) => {
+            Nightfall::NightfallEvents::DepositEscrowed(filter) => {
                 info!("Received DepositEscrowed event");
                 process_deposit_escrowed_event(tx_hash, filter)
                     .await
@@ -81,41 +79,17 @@ where
                         EventHandlerError::InvalidCalldata
                     })?;
             }
-            // NightfallEvents::InitializedFilter(filter) => {
-            //     info!("Received Initialized event");
-            //     todo!();
-            //     // process_initialized_event(tx_hash, filter)
-            //     //     .await
-            //     //     .map_err(|e| {
-            //     //         debug!("{e}");
-            //     //         EventHandlerError::InvalidCalldata
-            //     //     })?;
-            // }
-            // NightfallEvents::UpgradedFilter(filter) => {
-            //     info!("Received Upgraded event");
-            //     todo!();
-            //     // process_upgraded_event(tx_hash, filter)
-            //     //     .await
-            //     //     .map_err(|e| {
-            //     //         debug!("{e}");
-            //     //         EventHandlerError::InvalidCalldata
-            //     //     })?;
-            // }
-            NightfallEvents::InitializedFilter(_filter) => {
+            Nightfall::NightfallEvents::Initialized(_filter) => {
                 info!("Received Initialized event");
-                // TODO: process_initialized_event(tx_hash, _filter).await.map_err(|e| { ... })?;
             }
-            NightfallEvents::UpgradedFilter(_filter) => {
+            Nightfall::NightfallEvents::Upgraded(_filter) => {
                 info!("Received Upgraded event");
-                // TODO: process_upgraded_event(tx_hash, _filter).await.map_err(|e| { ... })?;
             }
-            NightfallEvents::AuthoritiesUpdatedFilter(_filter) => {
+            Nightfall::NightfallEvents::AuthoritiesUpdated(_filter) => {
                 info!("Received AuthoritiesUpdated event");
-                // Todo: refresh cached x509/sanctions addresses here.
             }
-            NightfallEvents::OwnershipTransferredFilter(_filter) => {
+            Nightfall::NightfallEvents::OwnershipTransferred(_filter) => {
                 info!("Received OwnershipTransferred event");
-                // Todo: react to owner changes if you gate actions by owner.
             }
         }
         Ok(())
@@ -125,26 +99,31 @@ where
 /// This function gets the calldata associated with a given transaction and decodes it.
 /// Once decoded, it passes the decoded calldata to the appropriate function for processing.
 pub async fn process_nightfall_calldata<N: NightfallContract>(
-    transaction_hash: H256,
-    filter: &BlockProposedFilter,
-) -> Result<(), Box<dyn Error>> {
+    transaction_hash: Option<TxHash>,
+    filter: &Nightfall::BlockProposed,
+) -> Result<(), EventHandlerError> {
     // get the transaction
+    let tx_hash = transaction_hash.ok_or(EventHandlerError::IOError(
+        "No transaction hash provided".to_string(),
+    ))?;
     let tx = get_blockchain_client_connection()
         .await
         .read()
         .await
         .get_client()
-        .get_transaction(transaction_hash)
-        .await?;
+        .get_transaction_by_hash(tx_hash)
+        .await
+        .map_err(|e| EventHandlerError::IOError(e.to_string()))?;
     // if there is one, decode it. If not, warn someone.
     match tx {
         Some(tx) => {
-            let decoded = NightfallCalls::decode(tx.input)?;
+            let decoded = Nightfall::NightfallCalls::abi_decode(tx.input())
+                .map_err(|e| EventHandlerError::IOError(e.to_string()))?;
             #[allow(clippy::single_match)] // we may add more events later
             match decoded {
-                NightfallCalls::ProposeBlock(decode) => {
+                Nightfall::NightfallCalls::propose_block(decode) => {
                     info!("Processing a block proposed event");
-                    process_propose_block_event::<N>(decode, transaction_hash, filter).await?
+                    process_propose_block_event::<N>(decode, tx_hash, filter).await?
                 }
                 _ => (),
             }
@@ -156,20 +135,20 @@ pub async fn process_nightfall_calldata<N: NightfallContract>(
 
 /// This function is called whenever we receive and decode a valid block
 async fn process_propose_block_event<N: NightfallContract>(
-    decode: ProposeBlockCall,
-    transaction_hash: H256,
-    filter: &BlockProposedFilter,
+    decode: Nightfall::propose_blockCall,
+    transaction_hash: TxHash,
+    filter: &Nightfall::BlockProposed,
 ) -> Result<(), EventHandlerError> {
     info!(
         "Decoded Proposed block call from transaction {}, Layer 2 block number {} is now on-chain",
-        transaction_hash, filter.layer_2_block_number,
+        transaction_hash, filter.layer2_block_number,
     );
 
     let blk = decode.blk;
     // The first thing to do is to make sure that we've not missed any blocks.
     // If we have, then we'll need to resynchronise with the blockchain.
     // note, the L2 block number on chain increments immediately after the BlockProposed event is emitted (hence adding 1).
-    let layer_2_block_number_in_event = filter.layer_2_block_number;
+    let layer_2_block_number_in_event = filter.layer2_block_number;
     let mut expected_onchain_block_number = get_expected_layer2_blocknumber().lock().await;
     if *expected_onchain_block_number < layer_2_block_number_in_event {
         warn!(
@@ -195,13 +174,15 @@ async fn process_propose_block_event<N: NightfallContract>(
         .read()
         .await
         .get_client()
-        .get_transaction(transaction_hash)
+        .get_transaction_by_hash(transaction_hash)
         .await
         .map_err(|_| EventHandlerError::IOError("Could not retrieve transaction".to_string()))?
         .ok_or(EventHandlerError::IOError(
             "Could not retrieve transaction".to_string(),
         ))?
-        .from;
+        .inner
+        .signer();
+
     let store_block_pending = StoredBlock {
         layer2_block_number: layer_2_block_number_in_event_u64,
         commitments: blk
@@ -243,8 +224,8 @@ async fn process_propose_block_event<N: NightfallContract>(
 
         if existing_block.hash() != store_block_pending.hash() {
             warn!(
-                "Block hash mismatch. Expected {existing_block_stored_hash}, got {block_store_pending_hash} in layer 2 block {layer_2_block_number_in_event}"
-            );
+            "Block hash mismatch. Expected {existing_block_stored_hash}, got {block_store_pending_hash} in layer 2 block {layer_2_block_number_in_event}"
+        );
             // Delete the invalid block and clear sync status
             db.delete_block_by_number(layer_2_block_number_in_event_u64)
                 .await;
@@ -254,22 +235,20 @@ async fn process_propose_block_event<N: NightfallContract>(
             ));
         } else {
             debug!(
-                "Block hash matches for layer 2 block {layer_2_block_number_in_event}: {existing_block_stored_hash}"
-            );
+            "Block hash matches for layer 2 block {layer_2_block_number_in_event}: {existing_block_stored_hash}"
+        );
         }
     }
-
-    *expected_onchain_block_number += 1;
+    *expected_onchain_block_number += I256::ONE;
 
     // warn that we're not synced with the blockchain if we're behind
     let current_block_number = N::get_current_layer2_blocknumber().await.map_err(|_| {
         EventHandlerError::IOError("Could not retrieve current block number".to_string())
     })?;
 
-    let delta = current_block_number - filter.layer_2_block_number - I256::one();
-    println!("Current block number is {current_block_number}, delta is {delta}");
+    let delta = current_block_number - filter.layer2_block_number - I256::ONE;
     // if we"re synchronising, we don"t want to check for duplicate keys because we expect to overwrite commitments already in the commitment collection
-    let dup_key_check = if delta != I256::zero() {
+    let dup_key_check = if delta != I256::ZERO {
         warn!("Synchronising - behind blockchain by {delta} layer 2 blocks ");
         false
     } else {
@@ -361,7 +340,7 @@ async fn process_propose_block_event<N: NightfallContract>(
         db.mark_commitments_unspent(
             &commitment_hashes,
             Some(transaction_hash),
-            Some(filter.layer_2_block_number)
+            Some(filter.layer2_block_number)
         ),
         db.mark_commitments_spent(nullifiers)
     );
@@ -382,7 +361,7 @@ async fn process_propose_block_event<N: NightfallContract>(
     let mut commitment_entries = vec![];
     for transaction in blk.transactions.iter() {
         // If all the nullifiers are zero we can skip to the next transaction
-        if transaction.nullifiers == [U256::zero(); 4] {
+        if transaction.nullifiers == [U256::ZERO; 4] {
             continue;
         }
 
@@ -481,7 +460,7 @@ async fn process_propose_block_event<N: NightfallContract>(
 
     let notification = NotificationPayload::BlockchainEvent {
         l1_txn_hash,
-        l2_block_number: filter.layer_2_block_number,
+        l2_block_number: filter.layer2_block_number.as_u64(),
         commitments: owned_commitment_hashes,
         request_ids,
     };
@@ -493,13 +472,13 @@ async fn process_propose_block_event<N: NightfallContract>(
     Ok(())
 }
 
-async fn process_deposit_escrowed_event(
-    transaction_hash: H256,
-    filter: &DepositEscrowedFilter,
+pub async fn process_deposit_escrowed_event(
+    transaction_hash: Option<TxHash>,
+    filter: &Nightfall::DepositEscrowed,
 ) -> Result<(), EventHandlerError> {
     info!(
         "Client: Decoded DepositEscrowed event from transaction {}, Deposit Transaction with nf_slot_id {}, value {}, is now on-chain",
-        transaction_hash, filter.nf_slot_id, filter.value,
+        transaction_hash.unwrap(), filter.nfSlotId, filter.value,
     );
 
     Ok(())

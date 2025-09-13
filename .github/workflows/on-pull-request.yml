@@ -84,11 +84,11 @@ jobs:
       - name: Build
         run: cargo build
       - name: Generate keys
-        run: cargo run --release --bin key_generation
+        run: NF4_MOCK_PROVER=false cargo run --release --bin key_generation
       - name: Build Docker Image
         run: docker compose --profile sync_test build
       - name: Run Integration Test
-        run: docker compose --profile sync_test run test
+        run: docker compose --profile development run test
       - name: Print logs
         run: docker compose --profile development logs
       - name: Shut Down Containers

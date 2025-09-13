@@ -4,59 +4,60 @@ use crate::{
     domain::entities::Block, initialisation::get_blockchain_client_connection,
     ports::contracts::NightfallContract,
 };
+use alloy::primitives::I256;
 use configuration::addresses::get_addresses;
-use ethers::types::{I256, U256};
 use lib::blockchain_client::BlockchainClientConnection;
 use log::info;
-use nightfall_bindings::nightfall::{Block as NightfallBlock, Nightfall};
+use nightfall_bindings::artifacts::Nightfall;
 use nightfall_client::domain::error::NightfallContractError;
 
 #[async_trait::async_trait]
-impl<M> NightfallContract for Nightfall<M> {
+impl NightfallContract for Nightfall::NightfallCalls {
     async fn propose_block(block: Block) -> Result<(), NightfallContractError> {
-        let client = get_blockchain_client_connection()
+        let blockchain_client = get_blockchain_client_connection()
             .await
             .read()
             .await
             .get_client();
+        let client = blockchain_client.root();
+        let signer = get_blockchain_client_connection()
+            .await
+            .read()
+            .await
+            .get_signer();
         let nightfall_address = get_addresses().nightfall();
         let nightfall = Nightfall::new(nightfall_address, client);
-
-        let blk = NightfallBlock::from(block);
+        // Convert the block transactions to the Nightfall format
+        let blk: Nightfall::Block = block.into();
 
         let receipt = nightfall
             .propose_block(blk)
+            .from(signer.address())
             .send()
             .await
             .map_err(|_| NightfallContractError::TransactionError)?
+            .get_receipt()
             .await
             .map_err(|_| NightfallContractError::TransactionError)?;
-
-        match receipt {
-            Some(receipt) => {
-                info!(
-                    "Received receipt for submitted block with hash: {}, gas used was: {}",
-                    receipt.transaction_hash,
-                    receipt.gas_used.unwrap_or_else(U256::zero)
-                );
-            }
-            None => info!("No receipt received for submitted block"),
-        }
-
+        info!(
+            "Received receipt for submitted block with hash: {}, gas used was: {}",
+            receipt.transaction_hash, receipt.gas_used
+        );
         Ok(())
     }
 
     async fn get_current_layer2_blocknumber() -> Result<I256, NightfallContractError> {
-        let client = get_blockchain_client_connection()
+        let blockchain_client = get_blockchain_client_connection()
             .await
             .read()
             .await
             .get_client();
+        let client = blockchain_client.root();
         let nightfall_address = get_addresses().nightfall();
         let nightfall = Nightfall::new(nightfall_address, client);
 
         Ok(nightfall
-            .layer_2_block_number()
+            .layer2_block_number()
             .call()
             .await
             .map_err(|_| NightfallContractError::TransactionError)?)
