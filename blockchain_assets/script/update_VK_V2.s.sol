@@ -33,7 +33,7 @@ contract UpdateVKWithToml is Script {
     function _update(address vkProxy) internal {
         require(vkProxy != address(0), "VK proxy is zero");
 
-        // Keep OZ upgrades happy with custom out dir 
+        // Keep OZ upgrades happy with custom out dir
         vm.setEnv("FOUNDRY_OUT", "blockchain_assets/artifacts");
 
         // Load TOML
@@ -48,7 +48,7 @@ contract UpdateVKWithToml is Script {
         // Introspect before/after
         RollupProofVerificationKey target = RollupProofVerificationKey(vkProxy);
         bytes32 beforeHash = target.vkHash();
-        uint64  beforeVer  = target.vkVersion();
+        uint64 beforeVer = target.vkVersion();
 
         console.log("== VK Update ==");
         console.log("Proxy:   ", vkProxy);
@@ -61,7 +61,7 @@ contract UpdateVKWithToml is Script {
         vm.stopBroadcast();
 
         bytes32 afterHash = target.vkHash();
-        uint64  afterVer  = target.vkVersion();
+        uint64 afterVer = target.vkVersion();
 
         console.log("== VK Updated ==");
         console.logBytes32(afterHash);
@@ -69,13 +69,19 @@ contract UpdateVKWithToml is Script {
 
         require(afterHash != bytes32(0), "afterHash zero");
         require(afterHash != beforeHash, "VK hash did not change");
-        require(afterVer  == beforeVer + 1, "VK version did not increment");
+        require(afterVer == beforeVer + 1, "VK version did not increment");
     }
 
     // ---------- VK readers from TOML ----------
-    function _readVKFromToml(string memory toml) internal view returns (Types.VerificationKey memory vk) {
-        vk.domain_size = toml.readUint(string.concat(runMode, ".verifier.domain_size"));
-        vk.num_inputs  = toml.readUint(string.concat(runMode, ".verifier.num_inputs"));
+    function _readVKFromToml(
+        string memory toml
+    ) internal view returns (Types.VerificationKey memory vk) {
+        vk.domain_size = toml.readUint(
+            string.concat(runMode, ".verifier.domain_size")
+        );
+        vk.num_inputs = toml.readUint(
+            string.concat(runMode, ".verifier.num_inputs")
+        );
 
         // Sigma commitments (1..6)
         vk.sigma_comms_1 = _readG1(toml, ".verifier.sigma_comms_1");
@@ -86,15 +92,15 @@ contract UpdateVKWithToml is Script {
         vk.sigma_comms_6 = _readG1(toml, ".verifier.sigma_comms_6");
 
         // Selector commitments (1..18)
-        vk.selector_comms_1  = _readG1(toml, ".verifier.selector_comms_1");
-        vk.selector_comms_2  = _readG1(toml, ".verifier.selector_comms_2");
-        vk.selector_comms_3  = _readG1(toml, ".verifier.selector_comms_3");
-        vk.selector_comms_4  = _readG1(toml, ".verifier.selector_comms_4");
-        vk.selector_comms_5  = _readG1(toml, ".verifier.selector_comms_5");
-        vk.selector_comms_6  = _readG1(toml, ".verifier.selector_comms_6");
-        vk.selector_comms_7  = _readG1(toml, ".verifier.selector_comms_7");
-        vk.selector_comms_8  = _readG1(toml, ".verifier.selector_comms_8");
-        vk.selector_comms_9  = _readG1(toml, ".verifier.selector_comms_9");
+        vk.selector_comms_1 = _readG1(toml, ".verifier.selector_comms_1");
+        vk.selector_comms_2 = _readG1(toml, ".verifier.selector_comms_2");
+        vk.selector_comms_3 = _readG1(toml, ".verifier.selector_comms_3");
+        vk.selector_comms_4 = _readG1(toml, ".verifier.selector_comms_4");
+        vk.selector_comms_5 = _readG1(toml, ".verifier.selector_comms_5");
+        vk.selector_comms_6 = _readG1(toml, ".verifier.selector_comms_6");
+        vk.selector_comms_7 = _readG1(toml, ".verifier.selector_comms_7");
+        vk.selector_comms_8 = _readG1(toml, ".verifier.selector_comms_8");
+        vk.selector_comms_9 = _readG1(toml, ".verifier.selector_comms_9");
         vk.selector_comms_10 = _readG1(toml, ".verifier.selector_comms_10");
         vk.selector_comms_11 = _readG1(toml, ".verifier.selector_comms_11");
         vk.selector_comms_12 = _readG1(toml, ".verifier.selector_comms_12");
@@ -120,9 +126,15 @@ contract UpdateVKWithToml is Script {
         vk.q_dom_sep_comm = _readG1(toml, ".verifier.q_dom_sep_comm");
 
         // Group params
-        vk.size_inv = toml.readUint(string.concat(runMode, ".verifier.size_inv"));
-        vk.group_gen = toml.readUint(string.concat(runMode, ".verifier.group_gen"));
-        vk.group_gen_inv = toml.readUint(string.concat(runMode, ".verifier.group_gen_inv"));
+        vk.size_inv = toml.readUint(
+            string.concat(runMode, ".verifier.size_inv")
+        );
+        vk.group_gen = toml.readUint(
+            string.concat(runMode, ".verifier.group_gen")
+        );
+        vk.group_gen_inv = toml.readUint(
+            string.concat(runMode, ".verifier.group_gen_inv")
+        );
 
         // Open key
         vk.open_key_g = _readG1(toml, ".verifier.open_key_g");
@@ -133,14 +145,20 @@ contract UpdateVKWithToml is Script {
     }
 
     // --- helpers (same style as your deployer) ---
-    function _readG1(string memory toml, string memory key) internal view returns (Types.G1Point memory p) {
+    function _readG1(
+        string memory toml,
+        string memory key
+    ) internal view returns (Types.G1Point memory p) {
         string[] memory arr = toml.readStringArray(string.concat(runMode, key));
         require(arr.length == 2, "bad G1 array");
         p.x = _parseHexToUint256(arr[0]);
         p.y = _parseHexToUint256(arr[1]);
     }
 
-    function _readG2(string memory toml, string memory key) internal view returns (Types.G2Point memory p) {
+    function _readG2(
+        string memory toml,
+        string memory key
+    ) internal view returns (Types.G2Point memory p) {
         string[] memory arr = toml.readStringArray(string.concat(runMode, key));
         require(arr.length == 4, "bad G2 array");
         p.x0 = _parseHexToUint256(arr[0]);
@@ -149,9 +167,14 @@ contract UpdateVKWithToml is Script {
         p.y1 = _parseHexToUint256(arr[3]);
     }
 
-    function _parseHexToUint256(string memory s) internal pure returns (uint256 out) {
+    function _parseHexToUint256(
+        string memory s
+    ) internal pure returns (uint256 out) {
         bytes memory b = bytes(s);
-        require(b.length >= 3 && b[0] == "0" && (b[1] == "x" || b[1] == "X"), "hex str");
+        require(
+            b.length >= 3 && b[0] == "0" && (b[1] == "x" || b[1] == "X"),
+            "hex str"
+        );
         for (uint256 i = 2; i < b.length; ++i) {
             uint8 c = uint8(b[i]);
             uint8 v;

@@ -15,22 +15,22 @@ contract RollupProofVerificationKey is
     IVKProvider
 {
     // -------- Storage v1 --------
-    Types.VerificationKey private _vk;     // the whole VK, canonical source
-    bytes32               private _vkHash; // keccak256(abi.encode(_vk))
-    uint64                private _vkVersion; // increment on every replacement
+    Types.VerificationKey private _vk; // the whole VK, canonical source
+    bytes32 private _vkHash; // keccak256(abi.encode(_vk))
+    uint64 private _vkVersion; // increment on every replacement
 
     // Gap for future upgrades
     uint256[50] private __gap;
-
 
     // -------- Events --------
     event VKInitialized(bytes32 vkHash, uint64 version);
     event VKReplaced(bytes32 oldHash, bytes32 newHash, uint64 newVersion);
 
-    function _decodeAndSanity(bytes calldata vkBlob) private pure returns (Types.VerificationKey memory vk) {
+    function _decodeAndSanity(
+        bytes calldata vkBlob
+    ) private pure returns (Types.VerificationKey memory vk) {
         vk = abi.decode(vkBlob, (Types.VerificationKey));
     }
-
 
     // -------- Initialize --------
     /// @notice First-time initialization with a full VK.
@@ -65,7 +65,11 @@ contract RollupProofVerificationKey is
     }
 
     // -------- IVKProvider --------
-    function getVerificationKey() external view returns (Types.VerificationKey memory) {
+    function getVerificationKey()
+        external
+        view
+        returns (Types.VerificationKey memory)
+    {
         return _vk;
     }
 
@@ -74,7 +78,9 @@ contract RollupProofVerificationKey is
     }
 
     // operational getters
-    function vkVersion() external view returns (uint64) { return _vkVersion; }
+    function vkVersion() external view returns (uint64) {
+        return _vkVersion;
+    }
 
     // -------- UUPS gate --------
     function _authorizeUpgrade(address) internal override onlyOwner {}

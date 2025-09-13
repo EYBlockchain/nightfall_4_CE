@@ -2,7 +2,11 @@
 pragma solidity ^0.8.20;
 
 import "./proof_verification/INFVerifier.sol";
-import {ERC3525, IERC721Receiver, IERC721} from "@erc-3525/contracts/ERC3525.sol";
+import {
+    ERC3525,
+    IERC721Receiver,
+    IERC721
+} from "@erc-3525/contracts/ERC3525.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
@@ -15,30 +19,30 @@ import "./X509/Certified.sol";
 import "./X509/X509.sol";
 import "forge-std/console.sol";
 
-import {Initializable}   from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
-enum OperationType {	
-    DEPOSIT,	
-    WITHDRAW,	
-    TRANSFER	
-}	
-// in entities.rs, we have defined	
-// TokenType::ERC20 => 0,	
-// TokenType::ERC1155 => 1,	
-// TokenType::ERC721 => 2,	
-// TokenType::ERC3525=> 3,	
-// So, the following enum order can't be changed	
-enum TokenType {	
-    ERC20,    // 0	
-    ERC1155, // 1	
-    ERC721, // 2	
-    ERC3525// 3	
+enum OperationType {
+    DEPOSIT,
+    WITHDRAW,
+    TRANSFER
+}
+// in entities.rs, we have defined
+// TokenType::ERC20 => 0,
+// TokenType::ERC1155 => 1,
+// TokenType::ERC721 => 2,
+// TokenType::ERC3525=> 3,
+// So, the following enum order can't be changed
+enum TokenType {
+    ERC20, // 0
+    ERC1155, // 1
+    ERC721, // 2
+    ERC3525 // 3
 }
 
-// This is the format for a transaction that has been processed by a Proposer and rolled up into a block	
-// Note: fee is needed here, as we don't want proposer to alter some client's fee but keep the total fee unchanged.	
-// Such as client_1_fee = 1, client_2_fee = 2, if proposer makes client_1_fee = 2, client_2_fee = 1 when it submits data to blockchain, (fee_sum is unchanged, but individual fee is changed), then proposer can get more fee from client_1 than it should get.	
+// This is the format for a transaction that has been processed by a Proposer and rolled up into a block
+// Note: fee is needed here, as we don't want proposer to alter some client's fee but keep the total fee unchanged.
+// Such as client_1_fee = 1, client_2_fee = 2, if proposer makes client_1_fee = 2, client_2_fee = 1 when it submits data to blockchain, (fee_sum is unchanged, but individual fee is changed), then proposer can get more fee from client_1 than it should get.
 // The publicdata hash won't be the same, therefore we have to keep this `fee` in OnChainTransaction
 struct OnChainTransaction {
     uint256 fee;
@@ -47,16 +51,16 @@ struct OnChainTransaction {
     uint256[4] public_data; // compressed_secrets in each client proof
 }
 
-struct DepositCommitment { 
-    uint256 nfTokenid; 
-    uint256 nfSlotId; 
-    uint256 value; 
-    uint256 secretHash; 
+struct DepositCommitment {
+    uint256 nfTokenid;
+    uint256 nfSlotId;
+    uint256 value;
+    uint256 secretHash;
 }
-struct DepositFeeState { 
-    uint256 fee; 
-    uint8 escrowed; 
-    uint8 redeemed; 
+struct DepositFeeState {
+    uint256 fee;
+    uint8 escrowed;
+    uint8 redeemed;
 }
 
 struct WithdrawData {
@@ -71,13 +75,13 @@ struct Block {
     uint256 nullifier_root;
     uint256 commitments_root_root;
     OnChainTransaction[] transactions;
-    // fee_sum for transfers and withdrawals || 2 BN254 accumulators, each includes 1 G1 commitments and 1 G1 proof. || one ultra plonk proof. 
-    bytes rollup_proof; 
+    // fee_sum for transfers and withdrawals || 2 BN254 accumulators, each includes 1 G1 commitments and 1 G1 proof. || one ultra plonk proof.
+    bytes rollup_proof;
 }
 
-struct TokenIdValue { 
-    address erc_address; 
-    uint256 token_id; 
+struct TokenIdValue {
+    address erc_address;
+    uint256 token_id;
 }
 
 error escrowFundsError();
@@ -101,7 +105,7 @@ contract Nightfall is
     mapping(bytes32 => uint8) internal withdrawalIncluded;
     // withdrawalIncluded[key] == 1 means this withdraw transaction is in a Layer 2 block and it's onchain
     // withdrawalIncluded[key] == 0 means this withdraw transaction either hasn't showed on chain or there is no fund to withdraw regarding to this withdraw data
-    
+
     // Map Nightfall tokenId to the original ercAddress and tokenId
     mapping(uint256 => TokenIdValue) internal tokenIdMapping;
 
@@ -163,17 +167,21 @@ contract Nightfall is
         x509 = X509(x509_address);
     }
 
-    function set_sanctions_list(address sanctionsListAddress) external onlyOwner {
+    function set_sanctions_list(
+        address sanctionsListAddress
+    ) external onlyOwner {
         sanctionsList = SanctionsListInterface(sanctionsListAddress);
     }
 
-    function set_proposer_manager(ProposerManager proposer_manager_address) external onlyOwner {
+    function set_proposer_manager(
+        ProposerManager proposer_manager_address
+    ) external onlyOwner {
         proposer_manager = proposer_manager_address;
     }
 
-    /***********************************************************************************	   
-     * This function is called by the proposer to submit a new L2 block. It's the main  *	
-     * entry point to the contract.                                                     *	
+    /***********************************************************************************
+     * This function is called by the proposer to submit a new L2 block. It's the main  *
+     * entry point to the contract.                                                     *
      ************************************************************************************/
     function propose_block(Block calldata blk) external virtual onlyCertified {
         require(
@@ -184,39 +192,79 @@ contract Nightfall is
         // Hash the transactions for the public data
         uint256 block_transactions_length;
         assembly {
-            block_transactions_length := calldataload(add(blk, calldataload(add(blk, 0x60))))
+            block_transactions_length := calldataload(
+                add(blk, calldataload(add(blk, 0x60)))
+            )
         }
 
-        uint256[] memory transaction_hashes = new uint256[](block_transactions_length);
+        uint256[] memory transaction_hashes = new uint256[](
+            block_transactions_length
+        );
         for (uint256 i = 0; i < block_transactions_length; ++i) {
             transaction_hashes[i] = hash_transaction(blk.transactions[i]);
         }
 
         uint256[] memory transaction_hashes_new = transaction_hashes;
-        for (uint256 length = block_transactions_length; length > 1; length >>= 1) {
+        for (
+            uint256 length = block_transactions_length;
+            length > 1;
+            length >>= 1
+        ) {
             for (uint256 i = 0; i < (length >> 1); ++i) {
                 // Directly store computed hash in the same array to save memory
                 transaction_hashes_new[i] = sha256_and_shift(
-                    abi.encodePacked(transaction_hashes_new[i << 1], transaction_hashes_new[(i << 1) + 1])
+                    abi.encodePacked(
+                        transaction_hashes_new[i << 1],
+                        transaction_hashes_new[(i << 1) + 1]
+                    )
                 );
             }
         }
         // get the output of verify_rollup_proof
-        (bool verified, uint256 totalFee) = verify_rollup_proof(blk, transaction_hashes[0]);
+        (bool verified, uint256 totalFee) = verify_rollup_proof(
+            blk,
+            transaction_hashes[0]
+        );
         require(verified, "Rollup proof verification failed");
         // now we need to decode the public data for each transaction and do something with it
         for (uint i = 0; i < block_transactions_length; i++) {
-            // Now we work out what transaction we're dealing with and dispatch it to an appropriate handler.	
-            // for deposit transaction, we need to filter out the appended dummy deposits, and only process the real deposits.   	
+            // Now we work out what transaction we're dealing with and dispatch it to an appropriate handler.
+            // for deposit transaction, we need to filter out the appended dummy deposits, and only process the real deposits.
             // a dummy deposit transaction will have compressed_secrets aka. public_data = [0,0,0,0]
             bool is_deposit;
             assembly {
-                is_deposit := iszero(calldataload(add(blk, add(add(calldataload(add(blk, 0x60)), mul(i, 0x1A0)), 0xC0))))
+                is_deposit := iszero(
+                    calldataload(
+                        add(
+                            blk,
+                            add(
+                                add(
+                                    calldataload(add(blk, 0x60)),
+                                    mul(i, 0x1A0)
+                                ),
+                                0xC0
+                            )
+                        )
+                    )
+                )
             }
             if (is_deposit) {
                 bool is_dummy_deposit;
                 assembly {
-                    is_dummy_deposit := iszero(calldataload(add(blk, add(add(calldataload(add(blk, 0x60)), mul(i, 0x1A0)), 0x140))))
+                    is_dummy_deposit := iszero(
+                        calldataload(
+                            add(
+                                blk,
+                                add(
+                                    add(
+                                        calldataload(add(blk, 0x60)),
+                                        mul(i, 0x1A0)
+                                    ),
+                                    0x140
+                                )
+                            )
+                        )
+                    )
                 }
                 if (is_dummy_deposit) continue;
 
@@ -224,12 +272,24 @@ contract Nightfall is
                 uint256 publicData;
                 for (uint j; j < 4; j++) {
                     assembly {
-                        publicData := calldataload(add(blk, add(add(calldataload(add(blk, 0x60)), add(0x20, mul(i, 0x1A0))), add(0x120, mul(j, 0x20)))))
+                        publicData := calldataload(
+                            add(
+                                blk,
+                                add(
+                                    add(
+                                        calldataload(add(blk, 0x60)),
+                                        add(0x20, mul(i, 0x1A0))
+                                    ),
+                                    add(0x120, mul(j, 0x20))
+                                )
+                            )
+                        )
                     }
                     if (publicData == 0) continue;
                     localTotalFee += feeBinding[publicData].fee;
                     require(
-                        feeBinding[publicData].escrowed == 1 && feeBinding[publicData].redeemed == 0,
+                        feeBinding[publicData].escrowed == 1 &&
+                            feeBinding[publicData].redeemed == 0,
                         "Deposit either has not been escrowed or has already been redeemed"
                     );
                     feeBinding[publicData].redeemed = 1;
@@ -241,15 +301,45 @@ contract Nightfall is
             bool is_withdraw;
             assembly {
                 is_withdraw := and(
-                    iszero(calldataload(add(blk, add(add(calldataload(add(blk, 0x60)), mul(i, 0x1A0)), 0x40)))),
-                    iszero(iszero(calldataload(add(blk, add(add(calldataload(add(blk, 0x60)), mul(i, 0x1A0)), 0xC0)))))
+                    iszero(
+                        calldataload(
+                            add(
+                                blk,
+                                add(
+                                    add(
+                                        calldataload(add(blk, 0x60)),
+                                        mul(i, 0x1A0)
+                                    ),
+                                    0x40
+                                )
+                            )
+                        )
+                    ),
+                    iszero(
+                        iszero(
+                            calldataload(
+                                add(
+                                    blk,
+                                    add(
+                                        add(
+                                            calldataload(add(blk, 0x60)),
+                                            mul(i, 0x1A0)
+                                        ),
+                                        0xC0
+                                    )
+                                )
+                            )
+                        )
+                    )
                 )
             }
             if (is_withdraw) {
                 uint256 withdraw_fund_salt = blk.transactions[i].nullifiers[0];
                 WithdrawData memory data = WithdrawData(
                     uint256(blk.transactions[i].public_data[0]),
-                    address(uint160(uint256(blk.transactions[i].public_data[1]))), //recipient_address
+                    address(
+                        uint160(uint256(blk.transactions[i].public_data[1]))
+                    ), //recipient_address
                     blk.transactions[i].public_data[2],
                     withdraw_fund_salt
                 );
@@ -258,7 +348,7 @@ contract Nightfall is
                 assembly {
                     let memPtr := mload(0x40)
                     // Store token_id at memPtr
-                    mstore(memPtr, mload(data))// data.nf_token_id
+                    mstore(memPtr, mload(data)) // data.nf_token_id
                     // Store recipient_address at memPtr + 32, left-padded to 32 bytes
                     mstore(add(memPtr, 32), mload(add(data, 32)))
                     // Store value at memPtr + 64, left-padded to 32 bytes
@@ -269,13 +359,16 @@ contract Nightfall is
                     key := keccak256(memPtr, 128)
                 }
 
-                // the public data (data) here includes the recipient address. When the recipient attempts to	
-                // withdraw the amount they are due, they will have to provide the same public data so that the	
-                // same hash is created. The recipient address will therefore be successfully altered by the caller.	
-                // Thus, if they provide a different address, the call will fail, if not, all they will do is	
+                // the public data (data) here includes the recipient address. When the recipient attempts to
+                // withdraw the amount they are due, they will have to provide the same public data so that the
+                // same hash is created. The recipient address will therefore be successfully altered by the caller.
+                // Thus, if they provide a different address, the call will fail, if not, all they will do is
                 // send the funds for the rightful own, paying gas for the privilege.
 
-                require(withdrawalIncluded[key] == 0, "Funds have already withdrawn");
+                require(
+                    withdrawalIncluded[key] == 0,
+                    "Funds have already withdrawn"
+                );
                 // we will give money to the recipient_address once the descrow_funds function is called
                 withdrawalIncluded[key] = 1;
                 continue;
@@ -286,7 +379,7 @@ contract Nightfall is
         nullifierRoot = blk.nullifier_root;
         historicRootsRoot = blk.commitments_root_root;
 
-         // Pay the proposer totalFee
+        // Pay the proposer totalFee
         address proposer = proposer_manager.get_current_proposer_address();
         (bool success, ) = proposer.call{value: totalFee}("");
         require(success, "Failed to transfer the fee to the proposer");
@@ -294,7 +387,9 @@ contract Nightfall is
         emit BlockProposed(layer2_block_number++);
     }
 
-    function supportsInterface(bytes4 interfaceId) external pure override returns (bool) {
+    function supportsInterface(
+        bytes4 interfaceId
+    ) external pure override returns (bool) {
         return
             interfaceId == type(IERC165).interfaceId ||
             interfaceId == type(IERC3525Receiver).interfaceId ||
@@ -302,13 +397,13 @@ contract Nightfall is
             interfaceId == type(IERC1155Receiver).interfaceId;
     }
 
-    // Called by the client to escrow funds so that they can make Deposit transactions. 	
-    // Currently there is no way to un-escrow funds. This could be implemented with a timelock.	
-    // The deposited funds are keyed by the sha256 hash of DepositData. When data	
-    // is succesfully created its key is pushed into the array PendingDeposits so that	
-    // deposits can be processed in order.	
-    // Note that client can deposit extra deposit_fee, so client can pay for other transactions in the future, but this is not compulsory which means deposit_fee can be 0.	
-    // if msg.value - 2 * fee > 0, then client paid deposit_fee, two DepositData will be created, one for the value deposit, and one for the deposit_fee deposit. msg.value = deposit_fee + 2 * fee in this case, client needs to pay for the value deposit and deposit_fee deposit, that's why we have 2 * fee.	
+    // Called by the client to escrow funds so that they can make Deposit transactions.
+    // Currently there is no way to un-escrow funds. This could be implemented with a timelock.
+    // The deposited funds are keyed by the sha256 hash of DepositData. When data
+    // is succesfully created its key is pushed into the array PendingDeposits so that
+    // deposits can be processed in order.
+    // Note that client can deposit extra deposit_fee, so client can pay for other transactions in the future, but this is not compulsory which means deposit_fee can be 0.
+    // if msg.value - 2 * fee > 0, then client paid deposit_fee, two DepositData will be created, one for the value deposit, and one for the deposit_fee deposit. msg.value = deposit_fee + 2 * fee in this case, client needs to pay for the value deposit and deposit_fee deposit, that's why we have 2 * fee.
     // otherwise if msg.value = fee, it means client only paid for the value deposit, and no deposit_fee deposit is created.
     function escrow_funds(
         uint256 fee,
@@ -317,35 +412,64 @@ contract Nightfall is
         uint256 value,
         uint256 secretHash,
         TokenType token_type
-    ) external virtual payable onlyCertified {
+    ) external payable virtual onlyCertified {
         uint256 nfTokenId = sha256_and_shift(abi.encode(ercAddress, tokenId));
         tokenIdMapping[nfTokenId] = TokenIdValue(ercAddress, tokenId);
 
         uint256 nfSlotId = (token_type == TokenType.ERC3525)
-            ? uint256(keccak256(abi.encode(ercAddress, IERC3525(ercAddress).slotOf(tokenId)))) >> 4
+            ? uint256(
+                keccak256(
+                    abi.encode(ercAddress, IERC3525(ercAddress).slotOf(tokenId))
+                )
+            ) >> 4
             : nfTokenId;
 
         DepositCommitment memory valueCommitment = DepositCommitment(
-            nfTokenId, 
-            nfSlotId, 
-            value, 
+            nfTokenId,
+            nfSlotId,
+            value,
             secretHash
         );
         uint256 key = sha256_and_shift(abi.encode(valueCommitment));
 
-        require(feeBinding[key].escrowed == 0, "Funds have already been escrowed for this Deposit");
+        require(
+            feeBinding[key].escrowed == 0,
+            "Funds have already been escrowed for this Deposit"
+        );
 
         if (token_type == TokenType.ERC3525) {
-            ERC3525(ercAddress).transferFrom(msg.sender, address(this), tokenId);
+            ERC3525(ercAddress).transferFrom(
+                msg.sender,
+                address(this),
+                tokenId
+            );
         } else if (token_type == TokenType.ERC1155) {
-            IERC1155(ercAddress).safeTransferFrom(msg.sender, address(this), tokenId, value, "");
+            IERC1155(ercAddress).safeTransferFrom(
+                msg.sender,
+                address(this),
+                tokenId,
+                value,
+                ""
+            );
         } else if (token_type == TokenType.ERC721) {
             require(value == 0, "ERC721 tokens should have a value of zero");
-            IERC721(ercAddress).safeTransferFrom(msg.sender, address(this), tokenId, "");
+            IERC721(ercAddress).safeTransferFrom(
+                msg.sender,
+                address(this),
+                tokenId,
+                ""
+            );
         } else if (token_type == TokenType.ERC20) {
             console.log("Escrowing ERC20 token");
             require(tokenId == 0, "ERC20 tokens should have a tokenId of 0");
-            require(IERC20(ercAddress).transferFrom(msg.sender, address(this), value), "ERC20 transfer failed");
+            require(
+                IERC20(ercAddress).transferFrom(
+                    msg.sender,
+                    address(this),
+                    value
+                ),
+                "ERC20 transfer failed"
+            );
         } else {
             revert escrowFundsError();
         }
@@ -355,49 +479,92 @@ contract Nightfall is
 
         if (msg.value > 2 * fee) {
             uint256 depositFee = msg.value - 2 * fee;
-            DepositCommitment memory depositFeeCommitment = DepositCommitment(feeId, feeId, depositFee, secretHash);
-            uint256 depositFeeKey = sha256_and_shift(abi.encode(depositFeeCommitment));
-            require(feeBinding[depositFeeKey].escrowed == 0, "Funds have already been escrowed for this fee Deposit");
+            DepositCommitment memory depositFeeCommitment = DepositCommitment(
+                feeId,
+                feeId,
+                depositFee,
+                secretHash
+            );
+            uint256 depositFeeKey = sha256_and_shift(
+                abi.encode(depositFeeCommitment)
+            );
+            require(
+                feeBinding[depositFeeKey].escrowed == 0,
+                "Funds have already been escrowed for this fee Deposit"
+            );
             feeBinding[depositFeeKey] = DepositFeeState(fee, 1, 0);
             emit DepositEscrowed(feeId, depositFee);
         }
     }
 
-    function onERC721Received(address, address, uint256, bytes calldata) external pure override returns (bytes4) {
+    function onERC721Received(
+        address,
+        address,
+        uint256,
+        bytes calldata
+    ) external pure override returns (bytes4) {
         return 0x150b7a02;
     }
 
-    function onERC1155Received(address, address, uint256, uint256, bytes calldata) external pure override returns (bytes4) {
+    function onERC1155Received(
+        address,
+        address,
+        uint256,
+        uint256,
+        bytes calldata
+    ) external pure override returns (bytes4) {
         return 0xf23a6e61;
     }
 
-    function onERC1155BatchReceived(address, address, uint256[] calldata, uint256[] calldata, bytes calldata) external pure override returns (bytes4) {
+    function onERC1155BatchReceived(
+        address,
+        address,
+        uint256[] calldata,
+        uint256[] calldata,
+        bytes calldata
+    ) external pure override returns (bytes4) {
         revert("Unsupported by Nightfall");
     }
 
-    function onERC3525Received(address, uint256, uint256, uint256, bytes calldata) external pure override returns (bytes4) {
+    function onERC3525Received(
+        address,
+        uint256,
+        uint256,
+        uint256,
+        bytes calldata
+    ) external pure override returns (bytes4) {
         return 0x009ce20b;
     }
 
-    // Function to the the ercAddress and tokenId of a token if the only information you have is the nfTokenId	
+    // Function to the the ercAddress and tokenId of a token if the only information you have is the nfTokenId
     // This is useful if someone transfers a Nightfall token to you and you want to know what the underlying token is.
-    function getTokenInfo(uint256 nfTokenId) external view returns (address ercAddress, uint256 tokenId) {
+    function getTokenInfo(
+        uint256 nfTokenId
+    ) external view returns (address ercAddress, uint256 tokenId) {
         TokenIdValue memory tokenData = tokenIdMapping[nfTokenId];
         return (tokenData.erc_address, tokenData.token_id);
     }
 
     // Called by the client to remove their funds from escrow, once they've proved they're entitled to them
-    // by submitting a Withdraw transaction that is then proved in a block. We used the compressed_secrets,	
-    // not because they're really required to prove ownership, but because they are different for every commitment	
+    // by submitting a Withdraw transaction that is then proved in a block. We used the compressed_secrets,
+    // not because they're really required to prove ownership, but because they are different for every commitment
     // and therefore ensure that the public_data_hash is unique.
-    function descrow_funds(WithdrawData calldata data, TokenType token_type) external payable onlyCertified {
+    function descrow_funds(
+        WithdrawData calldata data,
+        TokenType token_type
+    ) external payable onlyCertified {
         bytes32 key = keccak256(abi.encode(data));
-        require(withdrawalIncluded[key] == 1, "Either no funds are available to withdraw, or they are already withdrawn");
+        require(
+            withdrawalIncluded[key] == 1,
+            "Either no funds are available to withdraw, or they are already withdrawn"
+        );
 
         // Now that we know the withdraw is present we get the actual erc-address and tokenId from our mapping.
         TokenIdValue memory original = tokenIdMapping[data.nf_token_id];
         if (original.erc_address == address(0)) {
-            (bool complete, ) = data.recipient_address.call{value: data.value}("");
+            (bool complete, ) = data.recipient_address.call{value: data.value}(
+                ""
+            );
             require(complete, "Could not withdraw fee");
             return;
         }
@@ -406,15 +573,35 @@ contract Nightfall is
         bool success;
 
         if (token_type == TokenType.ERC1155) {
-            IERC1155(original.erc_address).safeTransferFrom(address(this), data.recipient_address, original.token_id, data.value, "");
+            IERC1155(original.erc_address).safeTransferFrom(
+                address(this),
+                data.recipient_address,
+                original.token_id,
+                data.value,
+                ""
+            );
             success = true;
         } else if (token_type == TokenType.ERC721) {
-            require(data.value == 0, "ERC721 tokens should have a value of zero");
-            IERC721(original.erc_address).safeTransferFrom(address(this), data.recipient_address, original.token_id, "");
+            require(
+                data.value == 0,
+                "ERC721 tokens should have a value of zero"
+            );
+            IERC721(original.erc_address).safeTransferFrom(
+                address(this),
+                data.recipient_address,
+                original.token_id,
+                ""
+            );
             success = true;
         } else if (token_type == TokenType.ERC20) {
-            require(original.token_id == 0, "ERC20 tokens should have a tokenId of 0");
-            success = IERC20(original.erc_address).transfer(data.recipient_address, data.value);
+            require(
+                original.token_id == 0,
+                "ERC20 tokens should have a tokenId of 0"
+            );
+            success = IERC20(original.erc_address).transfer(
+                data.recipient_address,
+                data.value
+            );
         }
 
         if (!success) {
@@ -422,17 +609,28 @@ contract Nightfall is
         }
     }
 
-    function sha256_and_shift(bytes memory inputs) public view returns (uint256 result) {
+    function sha256_and_shift(
+        bytes memory inputs
+    ) public view returns (uint256 result) {
         assembly {
             let freePtr := mload(0x40)
-            if iszero(staticcall(gas(), 0x02, add(inputs, 0x20), mload(inputs), freePtr, 0x20)) {
+            if iszero(
+                staticcall(
+                    gas(),
+                    0x02,
+                    add(inputs, 0x20),
+                    mload(inputs),
+                    freePtr,
+                    0x20
+                )
+            ) {
                 revert(0, 0)
             }
             result := shr(4, mload(freePtr))
         }
     }
 
-     // hashes the public data in a transaction, for use by the rollup proof
+    // hashes the public data in a transaction, for use by the rollup proof
     function hash_transaction(
         OnChainTransaction memory txn
     ) public view returns (uint256) {
@@ -474,14 +672,30 @@ contract Nightfall is
         // These are accumulators' comm and proof
         uint256[8] memory acc_low;
         uint256[8] memory acc_high;
-        (acc_low[0], acc_high[0]) = splitToLowHigh(uint256(abi.decode(blk.rollup_proof[32:64], (bytes32))));
-        (acc_low[1], acc_high[1]) = splitToLowHigh(uint256(abi.decode(blk.rollup_proof[64:96], (bytes32))));
-        (acc_low[2], acc_high[2]) = splitToLowHigh(uint256(abi.decode(blk.rollup_proof[96:128], (bytes32))));
-        (acc_low[3], acc_high[3]) = splitToLowHigh(uint256(abi.decode(blk.rollup_proof[128:160], (bytes32))));
-        (acc_low[4], acc_high[4]) = splitToLowHigh(uint256(abi.decode(blk.rollup_proof[160:192], (bytes32))));
-        (acc_low[5], acc_high[5]) = splitToLowHigh(uint256(abi.decode(blk.rollup_proof[192:224], (bytes32))));
-        (acc_low[6], acc_high[6]) = splitToLowHigh(uint256(abi.decode(blk.rollup_proof[224:256], (bytes32))));
-        (acc_low[7], acc_high[7]) = splitToLowHigh(uint256(abi.decode(blk.rollup_proof[256:288], (bytes32))));
+        (acc_low[0], acc_high[0]) = splitToLowHigh(
+            uint256(abi.decode(blk.rollup_proof[32:64], (bytes32)))
+        );
+        (acc_low[1], acc_high[1]) = splitToLowHigh(
+            uint256(abi.decode(blk.rollup_proof[64:96], (bytes32)))
+        );
+        (acc_low[2], acc_high[2]) = splitToLowHigh(
+            uint256(abi.decode(blk.rollup_proof[96:128], (bytes32)))
+        );
+        (acc_low[3], acc_high[3]) = splitToLowHigh(
+            uint256(abi.decode(blk.rollup_proof[128:160], (bytes32)))
+        );
+        (acc_low[4], acc_high[4]) = splitToLowHigh(
+            uint256(abi.decode(blk.rollup_proof[160:192], (bytes32)))
+        );
+        (acc_low[5], acc_high[5]) = splitToLowHigh(
+            uint256(abi.decode(blk.rollup_proof[192:224], (bytes32)))
+        );
+        (acc_low[6], acc_high[6]) = splitToLowHigh(
+            uint256(abi.decode(blk.rollup_proof[224:256], (bytes32)))
+        );
+        (acc_low[7], acc_high[7]) = splitToLowHigh(
+            uint256(abi.decode(blk.rollup_proof[256:288], (bytes32)))
+        );
 
         // Assign to publicInputs
         for (uint i = 0; i < 8; i++) {
@@ -490,15 +704,28 @@ contract Nightfall is
         }
 
         uint256 publicInputsBytes_computed = uint256(
-             sha256_and_shift(abi.encodePacked(publicInputs))
+            sha256_and_shift(abi.encodePacked(publicInputs))
         );
-        publicInputsBytes_computed = publicInputsBytes_computed % 21888242871839275222246405745257275088548364400416034343698204186575808495617;
-        bytes memory publicInputsBytes = abi.encodePacked(publicInputsBytes_computed);
+        publicInputsBytes_computed =
+            publicInputsBytes_computed %
+            21888242871839275222246405745257275088548364400416034343698204186575808495617;
+        bytes memory publicInputsBytes = abi.encodePacked(
+            publicInputsBytes_computed
+        );
 
-        return (verifier.verify(blk.rollup_proof[32:288], blk.rollup_proof[288:], publicInputsBytes), feeSumAsNumber);
+        return (
+            verifier.verify(
+                blk.rollup_proof[32:288],
+                blk.rollup_proof[288:],
+                publicInputsBytes
+            ),
+            feeSumAsNumber
+        );
     }
 
-    function splitToLowHigh(uint256 value) internal pure returns (uint256 low, uint256 high) {
+    function splitToLowHigh(
+        uint256 value
+    ) internal pure returns (uint256 low, uint256 high) {
         // lower 248 bits
         low = value & ((1 << 248) - 1);
         // upper 8 bits
@@ -506,7 +733,9 @@ contract Nightfall is
     }
 
     // Function that can be called to see if funds are able to be de-escrowed following a withdraw transaction.
-    function withdraw_processed(WithdrawData calldata data) public view returns (bool) {
+    function withdraw_processed(
+        WithdrawData calldata data
+    ) public view returns (bool) {
         bytes32 key = keccak256(abi.encode(data));
         return withdrawalIncluded[key] == 1;
     }

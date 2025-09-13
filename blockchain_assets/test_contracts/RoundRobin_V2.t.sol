@@ -50,8 +50,7 @@ contract RoundRobinUpgradeTest is Test {
 
         // ---- Nightfall (UUPS proxy) ----
         Nightfall nfImpl = new Nightfall();
-        uint256 initialNullifierRoot =
-            5626012003977595441102792096342856268135928990590954181023475305010363075697;
+        uint256 initialNullifierRoot = 5626012003977595441102792096342856268135928990590954181023475305010363075697;
         bytes memory nfInit = abi.encodeCall(
             Nightfall.initialize,
             (
@@ -73,14 +72,16 @@ contract RoundRobinUpgradeTest is Test {
             (
                 address(x509),
                 address(sanctions),
-                5,  // STAKE
-                3,  // DING
-                2,  // EXIT_PENALTY
-                1,  // COOLDOWN_BLOCKS
-                0   // ROTATION_BLOCKS
+                5, // STAKE
+                3, // DING
+                2, // EXIT_PENALTY
+                1, // COOLDOWN_BLOCKS
+                0 // ROTATION_BLOCKS
             )
         );
-        rr = RoundRobin(payable(address(new ERC1967Proxy(address(rrImpl), rrInit))));
+        rr = RoundRobin(
+            payable(address(new ERC1967Proxy(address(rrImpl), rrInit)))
+        );
 
         // seed ring (pay stake) + wire Nightfall
         rr.bootstrapDefaultProposer{value: 5}(
@@ -126,10 +127,13 @@ contract RoundRobinUpgradeTest is Test {
             console.log("upgradeTo reverted, reason bytes:");
             console.logBytes(reason);
         }
-
         if (!upgraded) {
             // test-only fallback: directly write the impl slot
-            vm.store(address(rr), _IMPL_SLOT, bytes32(uint256(uint160(address(implV2)))));
+            vm.store(
+                address(rr),
+                _IMPL_SLOT,
+                bytes32(uint256(uint160(address(implV2))))
+            );
         }
 
         address implAfter = _implAt(address(rr));
@@ -153,7 +157,11 @@ contract RoundRobinUpgradeTest is Test {
     }
 
     // external so try/catch captures revert data
-    function _doUpgrade(address proxy, address newImpl, address asOwner) external {
+    function _doUpgrade(
+        address proxy,
+        address newImpl,
+        address asOwner
+    ) external {
         vm.startPrank(asOwner);
         IUUPS(proxy).upgradeTo(newImpl);
         vm.stopPrank();

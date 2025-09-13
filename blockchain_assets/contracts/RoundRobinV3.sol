@@ -5,7 +5,11 @@ import "./RoundRobin.sol";
 
 /// @custom:oz-upgrades-from blockchain_assets/contracts/RoundRobin.sol:RoundRobin
 contract RoundRobinV3 is RoundRobin {
-    event StakeRequirementUpdated(uint oldStake, uint newStake, uint effectiveFromL1Block);
+    event StakeRequirementUpdated(
+        uint oldStake,
+        uint newStake,
+        uint effectiveFromL1Block
+    );
 
     // Owner can raise/lower the stake required for *new* proposers.
     function setStakeRequirement(uint newStake) external onlyOwner {

@@ -12,8 +12,14 @@ abstract contract Certified is Initializable {
     SanctionsListInterface internal sanctionsList;
     address public owner;
 
-    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
-    event AuthoritiesUpdated(address indexed sanctionsList, address indexed x509);
+    event OwnershipTransferred(
+        address indexed previousOwner,
+        address indexed newOwner
+    );
+    event AuthoritiesUpdated(
+        address indexed sanctionsList,
+        address indexed x509
+    );
 
     modifier onlyOwner() {
         require(msg.sender == owner, "Certified: caller is not the owner");
@@ -35,7 +41,10 @@ abstract contract Certified is Initializable {
     }
 
     /// @notice Update the authority contracts.
-    function setAuthorities(address sanctionsListAddress, address x509Address) external onlyOwner {
+    function setAuthorities(
+        address sanctionsListAddress,
+        address x509Address
+    ) external onlyOwner {
         x509 = X509Interface(x509Address);
         sanctionsList = SanctionsListInterface(sanctionsListAddress);
         emit AuthoritiesUpdated(sanctionsListAddress, x509Address);
@@ -50,8 +59,14 @@ abstract contract Certified is Initializable {
 
     /// @notice Gate modifier: requires valid X509 and not sanctioned.
     modifier onlyCertified() {
-        require(x509.x509Check(msg.sender), "Certified: not authorised by X509");
-        require(!sanctionsList.isSanctioned(msg.sender), "Certified: address is sanctioned");
+        require(
+            x509.x509Check(msg.sender),
+            "Certified: not authorised by X509"
+        );
+        require(
+            !sanctionsList.isSanctioned(msg.sender),
+            "Certified: address is sanctioned"
+        );
         _;
     }
 

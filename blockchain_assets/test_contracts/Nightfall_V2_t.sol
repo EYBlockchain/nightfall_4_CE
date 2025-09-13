@@ -25,8 +25,7 @@ interface INightfallV2Marker {
 }
 
 // EIP-1967 impl slot
-bytes32 constant _IMPL_SLOT =
-    0x360894A13BA1A3210667C828492DB98DCA3E2076CC3735A920A3CA505D382BBC;
+bytes32 constant _IMPL_SLOT = 0x360894A13BA1A3210667C828492DB98DCA3E2076CC3735A920A3CA505D382BBC;
 
 // -----------------------------------------------------------------------------
 // Minimal proposer manager mock: only what Nightfall uses
@@ -51,12 +50,12 @@ contract PMMock {
 // Upgrade test
 // -----------------------------------------------------------------------------
 contract NightfallUpgradeTest is Test {
-    Nightfall private nf;          // proxy (cast to Nightfall ABI)
-    address  private proxyAddr;    // proxy address
-    X509     private x509;
+    Nightfall private nf; // proxy (cast to Nightfall ABI)
+    address private proxyAddr; // proxy address
+    X509 private x509;
     SanctionsListMock private sanctions;
     MockVerifier private verifier;
-    PMMock   private pm;
+    PMMock private pm;
 
     address private owner = address(this);
     address private proposer = address(0xABCD);
@@ -69,23 +68,22 @@ contract NightfallUpgradeTest is Test {
         x509.initialize(address(this));
 
         sanctions = new SanctionsListMock(address(0x1234));
-        verifier  = new MockVerifier();
+        verifier = new MockVerifier();
 
         // Nightfall implementation
         Nightfall impl = new Nightfall();
 
         // Init params
-        uint256 initialNullifierRoot =
-            5626012003977595441102792096342856268135928990590954181023475305010363075697;
+        uint256 initialNullifierRoot = 5626012003977595441102792096342856268135928990590954181023475305010363075697;
 
         bytes memory init = abi.encodeCall(
             Nightfall.initialize,
             (
-                initialNullifierRoot,   // nullifier root
-                uint256(0),             // commitment root
-                uint256(0),             // historic roots root
-                int256(0),              // layer2 block number
-                verifier,               // INFVerifier
+                initialNullifierRoot, // nullifier root
+                uint256(0), // commitment root
+                uint256(0), // historic roots root
+                int256(0), // layer2 block number
+                verifier, // INFVerifier
                 address(x509),
                 address(sanctions)
             )
@@ -102,7 +100,11 @@ contract NightfallUpgradeTest is Test {
 
     function test_UUPS_upgrade_preserves_state_and_changes_behavior() public {
         // --- Pre-upgrade sanity ---
-        assertEq(nf.layer2_block_number(), int256(0), "l2 block should start at 0");
+        assertEq(
+            nf.layer2_block_number(),
+            int256(0),
+            "l2 block should start at 0"
+        );
 
         // V2-only function should revert before upgrade
         vm.expectRevert();
@@ -134,7 +136,11 @@ contract NightfallUpgradeTest is Test {
 
         // If harness upgrade failed, force the slot (test-only fallback)
         if (!upgraded) {
-            vm.store(proxyAddr, _IMPL_SLOT, bytes32(uint256(uint160(address(implV2)))));
+            vm.store(
+                proxyAddr,
+                _IMPL_SLOT,
+                bytes32(uint256(uint160(address(implV2))))
+            );
         }
 
         // --- Post-upgrade checks ---
@@ -143,7 +149,11 @@ contract NightfallUpgradeTest is Test {
         assertTrue(implAfter != implBefore, "Implementation did not change");
 
         // State preserved
-        assertEq(nf.layer2_block_number(), int256(0), "state changed unexpectedly");
+        assertEq(
+            nf.layer2_block_number(),
+            int256(0),
+            "state changed unexpectedly"
+        );
 
         // Behavior changed: V2 method now callable
         string memory ver = INightfallV2Marker(address(nf)).versionMarker();

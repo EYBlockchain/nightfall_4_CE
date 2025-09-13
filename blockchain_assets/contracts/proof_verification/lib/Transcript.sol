@@ -40,121 +40,146 @@ library Transcript {
         v = input;
         v =
             ((v &
-                0xFF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00) >> 8) |
+                0xFF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00) >>
+                8) |
             ((v &
-                0x00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF) << 8);
+                0x00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF) <<
+                8);
         v =
             ((v &
-                0xFFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000) >> 16) |
+                0xFFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000) >>
+                16) |
             ((v &
-                0x0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF) << 16);
+                0x0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF) <<
+                16);
         v =
             ((v &
-                0xFFFFFFFF00000000FFFFFFFF00000000FFFFFFFF00000000FFFFFFFF00000000) >> 32) |
+                0xFFFFFFFF00000000FFFFFFFF00000000FFFFFFFF00000000FFFFFFFF00000000) >>
+                32) |
             ((v &
-                0x00000000FFFFFFFF00000000FFFFFFFF00000000FFFFFFFF00000000FFFFFFFF) << 32);
+                0x00000000FFFFFFFF00000000FFFFFFFF00000000FFFFFFFF00000000FFFFFFFF) <<
+                32);
         v =
             ((v &
-                0xFFFFFFFFFFFFFFFF0000000000000000FFFFFFFFFFFFFFFF0000000000000000) >> 64) |
+                0xFFFFFFFFFFFFFFFF0000000000000000FFFFFFFFFFFFFFFF0000000000000000) >>
+                64) |
             ((v &
-                0x0000000000000000FFFFFFFFFFFFFFFF0000000000000000FFFFFFFFFFFFFFFF) << 64);
+                0x0000000000000000FFFFFFFFFFFFFFFF0000000000000000FFFFFFFFFFFFFFFF) <<
+                64);
         v = (v >> 128) | (v << 128);
     }
 
     function compute_vk_hash(
         Types.VerificationKey memory vk
     ) internal pure returns (uint256 vk_hash) {
-       // vk_hash = keccak256(
-    //    vk.domain_size,
-    //    vk.sigma_comms_1..6,
-    //    vk.selector_comms_1..18,
-    //    vk.k1..k6,
-    //    vk.range_table_comm,
-    //    vk.key_table_comm,
-    //    vk.table_dom_sep_comm,
-    //    vk.q_dom_sep_comm
-    // ) mod p
-        
-    assembly {
-        // Free memory pointer & write cursor
-        let ptr := mload(0x40)
-        let offset := ptr
+        // vk_hash = keccak256(
+        //    vk.domain_size,
+        //    vk.sigma_comms_1..6,
+        //    vk.selector_comms_1..18,
+        //    vk.k1..k6,
+        //    vk.range_table_comm,
+        //    vk.key_table_comm,
+        //    vk.table_dom_sep_comm,
+        //    vk.q_dom_sep_comm
+        // ) mod p
 
-        // 1) domain_size (uint256 at vk + 0x00)
-        {
-            let ds := mload(vk) // uint256 in Solidity
-            // write bytes 24..31 (most-significant to least-significant)
-            mstore8(offset,         byte(24, ds))
-            mstore8(add(offset, 1), byte(25, ds))
-            mstore8(add(offset, 2), byte(26, ds))
-            mstore8(add(offset, 3), byte(27, ds))
-            mstore8(add(offset, 4), byte(28, ds))
-            mstore8(add(offset, 5), byte(29, ds))
-            mstore8(add(offset, 6), byte(30, ds))
-            mstore8(add(offset, 7), byte(31, ds))
-            offset := add(offset, 8)
-        }
-
-        // 2) sigma_comms_1..6
-        // Each field in parent struct holds a pointer to a G1Point (x,y).
-        // G1Point memory layout: [x (32 bytes), y (32 bytes)]
-        // Parent VK layout offsets: 0x40, 0x60, 0x80, 0xa0, 0xc0, 0xe0
-        {
-            let base := 0x40
-            for { let i := 0 } lt(i, 6) { i := add(i, 1) } {
-                let g1ptr := mload(add(vk, add(base, mul(i, 0x20))))
-                mstore(offset, mload(g1ptr))                    // x
-                mstore(add(offset, 0x20), mload(add(g1ptr, 0x20))) // y
-                offset := add(offset, 0x40)
+        assembly {
+            // Free memory pointer & write cursor
+            let ptr := mload(0x40)
+            let offset := ptr
+            // 1) domain_size (uint256 at vk + 0x00)
+            {
+                let ds := mload(vk) // uint256 in Solidity
+                // write bytes 24..31 (most-significant to least-significant)
+                mstore8(offset, byte(24, ds))
+                mstore8(add(offset, 1), byte(25, ds))
+                mstore8(add(offset, 2), byte(26, ds))
+                mstore8(add(offset, 3), byte(27, ds))
+                mstore8(add(offset, 4), byte(28, ds))
+                mstore8(add(offset, 5), byte(29, ds))
+                mstore8(add(offset, 6), byte(30, ds))
+                mstore8(add(offset, 7), byte(31, ds))
+                offset := add(offset, 8)
             }
-        }
 
-        // 3) selector_comms_1..18
-        // Parent VK layout starts at 0x100, step 0x20 for each pointer
-        {
-            let base := 0x100
-            for { let i := 0 } lt(i, 18) { i := add(i, 1) } {
-                let g1ptr := mload(add(vk, add(base, mul(i, 0x20))))
-                mstore(offset, mload(g1ptr))                    // x
-                mstore(add(offset, 0x20), mload(add(g1ptr, 0x20))) // y
-                offset := add(offset, 0x40)
+            // 2) sigma_comms_1..6
+            // Each field in parent struct holds a pointer to a G1Point (x,y).
+            // G1Point memory layout: [x (32 bytes), y (32 bytes)]
+            // Parent VK layout offsets: 0x40, 0x60, 0x80, 0xa0, 0xc0, 0xe0
+            {
+                let base := 0x40
+                for {
+                    let i := 0
+                } lt(i, 6) {
+                    i := add(i, 1)
+                } {
+                    let g1ptr := mload(add(vk, add(base, mul(i, 0x20))))
+                    mstore(offset, mload(g1ptr)) // x
+                    mstore(add(offset, 0x20), mload(add(g1ptr, 0x20))) // y
+                    offset := add(offset, 0x40)
+                }
             }
-        }
 
-        // 4) ks: k1..k6 (uint256s)
-        // Parent VK layout: 0x340, 0x360, 0x380, 0x3a0, 0x3c0, 0x3e0
-        {
-            let base := 0x340
-            for { let i := 0 } lt(i, 6) { i := add(i, 1) } {
-                mstore(offset, mload(add(vk, add(base, mul(i, 0x20)))))
-                offset := add(offset, 0x20)
+            // 3) selector_comms_1..18
+            // Parent VK layout starts at 0x100, step 0x20 for each pointer
+            {
+                let base := 0x100
+                for {
+                    let i := 0
+                } lt(i, 18) {
+                    i := add(i, 1)
+                } {
+                    let g1ptr := mload(add(vk, add(base, mul(i, 0x20))))
+                    mstore(offset, mload(g1ptr)) // x
+                    mstore(add(offset, 0x20), mload(add(g1ptr, 0x20))) // y
+                    offset := add(offset, 0x40)
+                }
             }
-        }
 
-        // 5) range_table_comm, key_table_comm, table_dom_sep_comm, q_dom_sep_comm
-        // Parent VK layout: pointers at 0x400, 0x420, 0x440, 0x460
-        {
-            let base := 0x400
-            for { let i := 0 } lt(i, 4) { i := add(i, 1) } {
-                let g1ptr := mload(add(vk, add(base, mul(i, 0x20))))
-                mstore(offset, mload(g1ptr))                    // x
-                mstore(add(offset, 0x20), mload(add(g1ptr, 0x20))) // y
-                offset := add(offset, 0x40)
+            // 4) ks: k1..k6 (uint256s)
+            // Parent VK layout: 0x340, 0x360, 0x380, 0x3a0, 0x3c0, 0x3e0
+            {
+                let base := 0x340
+                for {
+                    let i := 0
+                } lt(i, 6) {
+                    i := add(i, 1)
+                } {
+                    mstore(offset, mload(add(vk, add(base, mul(i, 0x20)))))
+                    offset := add(offset, 0x20)
+                }
             }
+
+            // 5) range_table_comm, key_table_comm, table_dom_sep_comm, q_dom_sep_comm
+            // Parent VK layout: pointers at 0x400, 0x420, 0x440, 0x460
+            {
+                let base := 0x400
+                for {
+                    let i := 0
+                } lt(i, 4) {
+                    i := add(i, 1)
+                } {
+                    let g1ptr := mload(add(vk, add(base, mul(i, 0x20))))
+                    mstore(offset, mload(g1ptr)) // x
+                    mstore(add(offset, 0x20), mload(add(g1ptr, 0x20))) // y
+                    offset := add(offset, 0x40)
+                }
+            }
+
+            // Hash the contiguous region [ptr .. offset)
+            let len := sub(offset, ptr)
+            let h := keccak256(ptr, len)
+
+            // advance free memory pointer
+            mstore(0x40, add(ptr, len))
+
+            // Reduce mod BN254 scalar field prime
+            // p = 21888242871839275222246405745257275088548364400416034343698204186575808495617
+            vk_hash := mod(
+                h,
+                21888242871839275222246405745257275088548364400416034343698204186575808495617
+            )
         }
-
-        // Hash the contiguous region [ptr .. offset)
-        let len := sub(offset, ptr)
-        let h := keccak256(ptr, len)
-
-        // advance free memory pointer
-        mstore(0x40, add(ptr, len))
-
-        // Reduce mod BN254 scalar field prime
-        // p = 21888242871839275222246405745257275088548364400416034343698204186575808495617
-        vk_hash := mod(h, 21888242871839275222246405745257275088548364400416034343698204186575808495617)
-    }
-    
     }
 
     function compute_challengs(
@@ -216,7 +241,10 @@ library Transcript {
         self.transcript = transcript_con;
     }
 
-    function append_K1_K6(TranscriptData memory self, Types.VerificationKey memory vk) internal pure {
+    function append_K1_K6(
+        TranscriptData memory self,
+        Types.VerificationKey memory vk
+    ) internal pure {
         append_field_element(self, vk.k1);
         append_field_element(self, vk.k2);
         append_field_element(self, vk.k3);
@@ -274,10 +302,18 @@ library Transcript {
             let total := add(public_input_byte_length, 32)
             mstore(0x40, add(ptr, total))
             calldatacopy(add(ptr, 32), 68, public_input_byte_length)
-            for { let i := 0 } lt(i, public_input_byte_length) { i := add(i, 32) } {
+            for {
+                let i := 0
+            } lt(i, public_input_byte_length) {
+                i := add(i, 32)
+            } {
                 let a := add(ptr, add(32, i))
                 let b := add(a, 31)
-                for { let j := 0 } lt(j, 16) { j := add(j, 1) } {
+                for {
+                    let j := 0
+                } lt(j, 16) {
+                    j := add(j, 1)
+                } {
                     let tmp := mload(a)
                     mstore(a, mload(b))
                     mstore(b, tmp)
@@ -318,16 +354,23 @@ library Transcript {
         );
     }
 
-    function removeLeadingZeros(bytes memory x) internal pure returns (bytes memory x1) {
-        uint256 i; uint256 length = x.length;
+    function removeLeadingZeros(
+        bytes memory x
+    ) internal pure returns (bytes memory x1) {
+        uint256 i;
+        uint256 length = x.length;
         assembly {
             let leadingZeros := 0
-            for { } lt(i, length) { i := add(i, 32) } {
+            for {} lt(i, length) {
+                i := add(i, 32)
+            } {
                 leadingZeros := add(leadingZeros, iszero(mload(add(x, i))))
             }
             x1 := mload(0x40)
             mstore(x1, sub(length, leadingZeros))
-            for { } lt(i, length) { i := add(i, 32) } {
+            for {} lt(i, length) {
+                i := add(i, 32)
+            } {
                 mstore(add(x1, add(32, i)), mload(add(x, add(32, i))))
             }
             mstore(x1, add(32, mload(x1)))
@@ -344,7 +387,11 @@ library Transcript {
         assembly {
             let src := add(data, 0x20)
             let dst := add(result, 0x20)
-            for { let i := 0 } lt(i, length) { i := add(i, 1) } {
+            for {
+                let i := 0
+            } lt(i, length) {
+                i := add(i, 1)
+            } {
                 let temp := mload(add(src, add(i, index)))
                 mstore(add(dst, i), temp)
             }
@@ -374,7 +421,10 @@ library Transcript {
         bytes32 buf = keccak256(input);
         self.state[0] = buf;
         self.transcript = "";
-        return Bn254Crypto.fromBeBytesModOrder(BytesLib.slice(abi.encodePacked(buf), 0, 32));
+        return
+            Bn254Crypto.fromBeBytesModOrder(
+                BytesLib.slice(abi.encodePacked(buf), 0, 32)
+            );
     }
 
     function generate_alpha_challenges(
@@ -387,7 +437,10 @@ library Transcript {
         bytes32 buf = keccak256(input);
         self.state[0] = buf;
         self.transcript = "";
-        return Bn254Crypto.fromBeBytesModOrder(BytesLib.slice(abi.encodePacked(buf), 0, 32));
+        return
+            Bn254Crypto.fromBeBytesModOrder(
+                BytesLib.slice(abi.encodePacked(buf), 0, 32)
+            );
     }
 
     function generate_zeta_challenges(
@@ -404,7 +457,10 @@ library Transcript {
         bytes32 buf = keccak256(input);
         self.state[0] = buf;
         self.transcript = "";
-        return Bn254Crypto.fromBeBytesModOrder(BytesLib.slice(abi.encodePacked(buf), 0, 32));
+        return
+            Bn254Crypto.fromBeBytesModOrder(
+                BytesLib.slice(abi.encodePacked(buf), 0, 32)
+            );
     }
 
     function generate_v_challenges(
@@ -444,7 +500,10 @@ library Transcript {
         bytes32 buf = keccak256(input);
         self.state[0] = buf;
         self.transcript = "";
-        return Bn254Crypto.fromBeBytesModOrder(BytesLib.slice(abi.encodePacked(buf), 0, 32));
+        return
+            Bn254Crypto.fromBeBytesModOrder(
+                BytesLib.slice(abi.encodePacked(buf), 0, 32)
+            );
     }
 
     function generate_u_challenges(
@@ -457,6 +516,9 @@ library Transcript {
         bytes32 buf = keccak256(input);
         self.state[0] = buf;
         self.transcript = "";
-        return Bn254Crypto.fromBeBytesModOrder(BytesLib.slice(abi.encodePacked(buf), 0, 32));
+        return
+            Bn254Crypto.fromBeBytesModOrder(
+                BytesLib.slice(abi.encodePacked(buf), 0, 32)
+            );
     }
 }

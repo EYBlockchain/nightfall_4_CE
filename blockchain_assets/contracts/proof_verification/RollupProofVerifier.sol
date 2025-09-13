@@ -15,14 +15,12 @@ import {Bn254Crypto} from "./lib/Bn254Crypto.sol";
 import {PolynomialEval} from "./lib/PolynomialEval.sol";
 import ".././X509/Certified.sol";
 
-
-
 /**
 @title RollupProofVerifier
 @dev Verifier Implementation for Nightfish Ultra plonk proof verification
 */
 
-contract RollupProofVerifier is     
+contract RollupProofVerifier is
     INFVerifier,
     OwnableUpgradeable,
     UUPSUpgradeable
@@ -39,8 +37,10 @@ contract RollupProofVerifier is
     // Global r-modulus cached for mod ops
     uint256 public p;
 
-
-    function initialize(address vkProviderProxy, address initialOwner) public initializer {
+    function initialize(
+        address vkProviderProxy,
+        address initialOwner
+    ) public initializer {
         __Ownable_init(initialOwner);
         __UUPSUpgradeable_init();
         // __Certified_init(msg.sender, x509_address, sanctionsListAddress);
@@ -51,7 +51,10 @@ contract RollupProofVerifier is
 
     function _authorizeUpgrade(address) internal virtual override onlyOwner {}
 
-    event VKProviderUpdated(address indexed oldProvider, address indexed newProvider);
+    event VKProviderUpdated(
+        address indexed oldProvider,
+        address indexed newProvider
+    );
 
     function setVKProvider(address newProvider) external onlyOwner {
         require(newProvider != address(0), "zero addr");
@@ -71,16 +74,16 @@ contract RollupProofVerifier is
         uint256 v_base;
     }
 
- struct compute_buffer_v_and_uv_basis_3_parameters {
-         Types.ChallengeTranscript  chal;
-        Types.VerificationKey  vk;
+    struct compute_buffer_v_and_uv_basis_3_parameters {
+        Types.ChallengeTranscript chal;
+        Types.VerificationKey vk;
         Types.Proof proof;
         uint256 start_index;
-        uint256[]  buffer_v_and_uv_basis;
+        uint256[] buffer_v_and_uv_basis;
         uint256 v_base;
         uint256 uv_base;
         uint256[] commScalars;
-        Types.G1Point[]  commBases;
+        Types.G1Point[] commBases;
     }
     // A struct for add_splitted_quotient_commitments() input parameters to avoid stack too deep error
     struct add_splitted_quotient_commitments_parameter {
@@ -107,8 +110,8 @@ contract RollupProofVerifier is
      * @param publicInputsHashBytes- bytes of public data
      */
     function verify(
-        bytes calldata acc_proof, 
-        bytes calldata proofBytes, 
+        bytes calldata acc_proof,
+        bytes calldata proofBytes,
         bytes calldata publicInputsHashBytes
     ) external view override returns (bool result) {
         // parse the hardecoded vk and construct a vk object
@@ -118,7 +121,9 @@ contract RollupProofVerifier is
         uint256 public_inputs_hash;
 
         assembly {
-            public_inputs_hash := calldataload(add(publicInputsHashBytes.offset, 0))
+            public_inputs_hash := calldataload(
+                add(publicInputsHashBytes.offset, 0)
+            )
         }
 
         // parse the input calldata and construct a proof object and public_inputs
@@ -129,7 +134,12 @@ contract RollupProofVerifier is
         // Compute the transcripts by appending vk, public inputs and proof
         // reconstruct the tau, beta, gamma, alpha, zeta, v and u challenges based on the transcripts
         Transcript.TranscriptData memory transcripts;
-        Transcript.compute_challengs(transcripts, vk, decoded_proof, public_inputs_hash);
+        Transcript.compute_challengs(
+            transcripts,
+            vk,
+            decoded_proof,
+            public_inputs_hash
+        );
         Types.ChallengeTranscript memory full_challenges = transcripts
             .challenges;
 
@@ -143,10 +153,12 @@ contract RollupProofVerifier is
             full_challenges
         );
 
-        return (verify_OpeningProof(full_challenges, pcsInfo, decoded_proof, vk) && verify_accumulation(
-            acc_proof,
+        return (verify_OpeningProof(
+            full_challenges,
+            pcsInfo,
+            decoded_proof,
             vk
-        ));
+        ) && verify_accumulation(acc_proof, vk));
     }
 
     function verify_accumulation(
@@ -156,7 +168,7 @@ contract RollupProofVerifier is
         require(acc_proof.length == 256, "Invalid accumulator proof length");
         bytes32[8] memory acc;
         for (uint i = 0; i < 8; i++) {
-            acc[i] = bytes32(acc_proof[i*32:(i+1)*32]);
+            acc[i] = bytes32(acc_proof[i * 32:(i + 1) * 32]);
         }
         //blk.rollup_proof[32:64], accumulator_1_comm_x, acc[0]
         //blk.rollup_proof[64:96], accumulator_1_comm_y, acc[1]
@@ -168,9 +180,23 @@ contract RollupProofVerifier is
         //blk.rollup_proof[256:288], accumulator_2_proof2_y, acc[7]
 
         // First accumulator
-        bool res_1 = Bn254Crypto.pairingProd2(Types.G1Point(uint256(acc[2]), uint256(acc[3])), vk.beta_h, Bn254Crypto.negate_G1Point(Types.G1Point(uint256(acc[0]), uint256(acc[1]))), vk.h);
+        bool res_1 = Bn254Crypto.pairingProd2(
+            Types.G1Point(uint256(acc[2]), uint256(acc[3])),
+            vk.beta_h,
+            Bn254Crypto.negate_G1Point(
+                Types.G1Point(uint256(acc[0]), uint256(acc[1]))
+            ),
+            vk.h
+        );
         // Second accumulator
-        bool res_2 = Bn254Crypto.pairingProd2(Types.G1Point(uint256(acc[6]), uint256(acc[7])), vk.beta_h, Bn254Crypto.negate_G1Point(Types.G1Point(uint256(acc[4]), uint256(acc[5]))), vk.h);
+        bool res_2 = Bn254Crypto.pairingProd2(
+            Types.G1Point(uint256(acc[6]), uint256(acc[7])),
+            vk.beta_h,
+            Bn254Crypto.negate_G1Point(
+                Types.G1Point(uint256(acc[4]), uint256(acc[5]))
+            ),
+            vk.h
+        );
         return (res_1 && res_2);
     }
 
@@ -193,14 +219,27 @@ contract RollupProofVerifier is
             full_challenges.alpha,
             p
         );
-        uint256 alpha_3 =   mulmod(full_challenges.alpha2, full_challenges.alpha, p);
-        uint256 alpha_4 =   mulmod(full_challenges.alpha2, full_challenges.alpha2, p);
-        uint256 alpha_5 =   mulmod(full_challenges.alpha2, alpha_3, p);
-        uint256 alpha_6 =   mulmod(alpha_4, full_challenges.alpha2, p);
-         full_challenges.alpha_powers = [full_challenges.alpha2, alpha_3, alpha_4, alpha_5, alpha_6];
-         full_challenges.alpha_base= 1;
-         full_challenges.alpha7= mulmod(alpha_3, alpha_4, p);
-
+        uint256 alpha_3 = mulmod(
+            full_challenges.alpha2,
+            full_challenges.alpha,
+            p
+        );
+        uint256 alpha_4 = mulmod(
+            full_challenges.alpha2,
+            full_challenges.alpha2,
+            p
+        );
+        uint256 alpha_5 = mulmod(full_challenges.alpha2, alpha_3, p);
+        uint256 alpha_6 = mulmod(alpha_4, full_challenges.alpha2, p);
+        full_challenges.alpha_powers = [
+            full_challenges.alpha2,
+            alpha_3,
+            alpha_4,
+            alpha_5,
+            alpha_6
+        ];
+        full_challenges.alpha_base = 1;
+        full_challenges.alpha7 = mulmod(alpha_3, alpha_4, p);
 
         // get the domain evaluation information
         // including 2 ^ domainSize, domainSize, sizeInv, groupGen
@@ -221,7 +260,6 @@ contract RollupProofVerifier is
         uint256[] memory commScalars = new uint256[](58);
         Types.G1Point[] memory commBases = new Types.G1Point[](58);
 
-       
         uint256 eval = prepare_OpeningProof(
             publicInput,
             vk,
@@ -257,10 +295,10 @@ contract RollupProofVerifier is
         Types.G1Point memory A;
         Types.G1Point memory B;
         // A = [open_proof] + u * [shifted_open_proof]
-        A = compute_A(proof, challenge);     
+        A = compute_A(proof, challenge);
         // B = eval_point * open_proof + u * next_eval_point *
         //   shifted_open_proof + comm - eval * [1]1`.
-        B = compute_B(pcsInfo, proof, challenge, vk);    
+        B = compute_B(pcsInfo, proof, challenge, vk);
 
         // Check e(A, [x]2) ?= e(B, [1]2)
         /// By Schwartz-Zippel lemma, it's equivalent to check that for a random r:
@@ -306,7 +344,6 @@ contract RollupProofVerifier is
 
             pcsInfo.commScalars[56] = Bn254Crypto.negate_fr(pcsInfo.eval);
             pcsInfo.commBases[56] = vk.open_key_g;
-            
 
             // Accumulate scalars which have the same base
             (
@@ -316,7 +353,7 @@ contract RollupProofVerifier is
                     pcsInfo.commBases,
                     pcsInfo.commScalars
                 );
-                B = Bn254Crypto.negate_G1Point(
+            B = Bn254Crypto.negate_G1Point(
                 Bn254Crypto.multiScalarMul(bases_after_acc, scalars_after_acc)
             );
         }
@@ -344,9 +381,8 @@ contract RollupProofVerifier is
         Types.G1Point[] memory commBases,
         PolynomialEval.EvalDomain memory domain
     ) internal view returns (uint256) {
-        
-       uint256 lin_poly_constant = compute_lin_poly_constant_term(
-        publicInput,
+        uint256 lin_poly_constant = compute_lin_poly_constant_term(
+            publicInput,
             chal,
             proof,
             evalData,
@@ -399,116 +435,77 @@ contract RollupProofVerifier is
             evalData.vanish_eval,
             p
         );
-        uint256 result = mulmod(publicInput[0], mulmod(vanish_eval_div_n, Bn254Crypto.invert(addmod(chal.zeta, p - 1, p)), p), p);
-         
+        uint256 result = mulmod(
+            publicInput[0],
+            mulmod(
+                vanish_eval_div_n,
+                Bn254Crypto.invert(addmod(chal.zeta, p - 1, p)),
+                p
+            ),
+            p
+        );
+
         //  results - alpha_powers[0] * lagrange_1_eval
         // let mut tmp = self.evaluate_pi_poly(pi, &challenges.zeta, vanish_eval, vk.is_merged)?
-        uint256 tmp = addmod(result, Bn254Crypto.negate_fr(mulmod(chal.alpha2, evalData.lagrange_1_eval, p)), p);
-        uint256 plookup_constant = compute_plookup_constant(chal, proof, evalData, domain);
+        uint256 tmp = addmod(
+            result,
+            Bn254Crypto.negate_fr(
+                mulmod(chal.alpha2, evalData.lagrange_1_eval, p)
+            ),
+            p
+        );
+        uint256 plookup_constant = compute_plookup_constant(
+            chal,
+            proof,
+            evalData,
+            domain
+        );
         uint256 tmpOut = compute_tmp(tmp, chal, proof);
-        tmpOut = addmod(tmpOut, mulmod(chal.alpha_powers[1], plookup_constant, p), p);
+        tmpOut = addmod(
+            tmpOut,
+            mulmod(chal.alpha_powers[1], plookup_constant, p),
+            p
+        );
         uint256 result_lin = mulmod(chal.alpha_base, tmpOut, p);
         return result_lin;
     }
 
     function compute_plookup_constant(
-    Types.ChallengeTranscript memory chal,
-    Types.Proof memory proof,
-    PolynomialEval.EvalData memory evalData,
-    PolynomialEval.EvalDomain memory domain
-) internal view returns (uint256) {
-    uint256 gamma_mul_beta_plus_one = mulmod(
-        addmod(chal.beta, 1, p),
-        chal.gamma,
-        p
-    );
-
-    uint256 term1 = mulmod(
-        evalData.lagrange_n_eval,
-        addmod(
-            proof.h_1_eval,
-            p - addmod(proof.h_2_next_eval, chal.alpha_powers[0], p),
-            p
-        ),
-        p
-    );
-
-    uint256 term2 = mulmod(chal.alpha, evalData.lagrange_1_eval, p);
-
-    uint256 part = mulmod(
-        chal.alpha_powers[1],
-        mulmod(
-            addmod(chal.zeta, p - domain.groupGenInv, p),
-            proof.prod_next_eval,
-            p
-        ),
-        p
-    );
-
-    part = mulmod(
-        part,
-        addmod(
-            gamma_mul_beta_plus_one,
-            addmod(proof.h_1_eval, mulmod(chal.beta, proof.h_1_next_eval, p), p),
-            p
-        ),
-        p
-    );
-
-    part = mulmod(
-        part,
-        addmod(
-            gamma_mul_beta_plus_one,
-            mulmod(chal.beta, proof.h_2_next_eval, p),
-            p
-        ),
-        p
-    );
-
-    return addmod(
-        addmod(term1, p - term2, p),
-        p - part,
-        p
-    );
-}
-
- function compute_tmp(
-    uint256 tmp,
-    Types.ChallengeTranscript memory chal,
-    Types.Proof memory proof
-) internal view returns (uint256) {
-     uint256[5] memory first_w_evals = [proof.wires_evals_1, proof.wires_evals_2, proof.wires_evals_3, proof.wires_evals_4, proof.wires_evals_5];
-        uint256 last_w_eval = proof.wires_evals_6;
-        uint256[5] memory sigma_evals = [proof.wire_sigma_evals_1, proof.wire_sigma_evals_2, proof.wire_sigma_evals_3, proof.wire_sigma_evals_4, proof.wire_sigma_evals_5];
-        uint256 acc =  mulmod(mulmod(chal.alpha,proof.perm_next_eval,p),addmod(chal.gamma,last_w_eval,p),p);
-        for (uint256 i = 0; i < 5; i++) {
-            acc = mulmod(acc,addmod(addmod(chal.gamma, first_w_evals[i], p), mulmod(chal.beta, sigma_evals[i], p), p),p);
-        }
-        tmp = addmod(tmp, Bn254Crypto.negate_fr(acc), p);
-    return tmp;
-    }
-    // a helper function to avoid stack too deep error when computing plookup_constant
-    function help(
         Types.ChallengeTranscript memory chal,
         Types.Proof memory proof,
+        PolynomialEval.EvalData memory evalData,
         PolynomialEval.EvalDomain memory domain
     ) internal view returns (uint256) {
-        uint256 gamma_mul_beta_plus_one = mulmod(addmod(chal.beta, 1, p), chal.gamma, p);
-       uint256 res =  mulmod(
-        mulmod(
-            mulmod(
-                chal.alpha_powers[1],
-                addmod(
-                    chal.zeta,
-                    p - domain.groupGenInv,
-                    p
-                ),
+        uint256 gamma_mul_beta_plus_one = mulmod(
+            addmod(chal.beta, 1, p),
+            chal.gamma,
+            p
+        );
+
+        uint256 term1 = mulmod(
+            evalData.lagrange_n_eval,
+            addmod(
+                proof.h_1_eval,
+                p - addmod(proof.h_2_next_eval, chal.alpha_powers[0], p),
                 p
             ),
-            proof.prod_next_eval,
             p
-        ),
-        mulmod(
+        );
+
+        uint256 term2 = mulmod(chal.alpha, evalData.lagrange_1_eval, p);
+
+        uint256 part = mulmod(
+            chal.alpha_powers[1],
+            mulmod(
+                addmod(chal.zeta, p - domain.groupGenInv, p),
+                proof.prod_next_eval,
+                p
+            ),
+            p
+        );
+
+        part = mulmod(
+            part,
             addmod(
                 gamma_mul_beta_plus_one,
                 addmod(
@@ -518,16 +515,102 @@ contract RollupProofVerifier is
                 ),
                 p
             ),
+            p
+        );
+
+        part = mulmod(
+            part,
             addmod(
                 gamma_mul_beta_plus_one,
                 mulmod(chal.beta, proof.h_2_next_eval, p),
                 p
             ),
             p
-        ),
-        p
-    );
-     return res;
+        );
+
+        return addmod(addmod(term1, p - term2, p), p - part, p);
+    }
+
+    function compute_tmp(
+        uint256 tmp,
+        Types.ChallengeTranscript memory chal,
+        Types.Proof memory proof
+    ) internal view returns (uint256) {
+        uint256[5] memory first_w_evals = [
+            proof.wires_evals_1,
+            proof.wires_evals_2,
+            proof.wires_evals_3,
+            proof.wires_evals_4,
+            proof.wires_evals_5
+        ];
+        uint256 last_w_eval = proof.wires_evals_6;
+        uint256[5] memory sigma_evals = [
+            proof.wire_sigma_evals_1,
+            proof.wire_sigma_evals_2,
+            proof.wire_sigma_evals_3,
+            proof.wire_sigma_evals_4,
+            proof.wire_sigma_evals_5
+        ];
+        uint256 acc = mulmod(
+            mulmod(chal.alpha, proof.perm_next_eval, p),
+            addmod(chal.gamma, last_w_eval, p),
+            p
+        );
+        for (uint256 i = 0; i < 5; i++) {
+            acc = mulmod(
+                acc,
+                addmod(
+                    addmod(chal.gamma, first_w_evals[i], p),
+                    mulmod(chal.beta, sigma_evals[i], p),
+                    p
+                ),
+                p
+            );
+        }
+        tmp = addmod(tmp, Bn254Crypto.negate_fr(acc), p);
+        return tmp;
+    }
+    // a helper function to avoid stack too deep error when computing plookup_constant
+    function help(
+        Types.ChallengeTranscript memory chal,
+        Types.Proof memory proof,
+        PolynomialEval.EvalDomain memory domain
+    ) internal view returns (uint256) {
+        uint256 gamma_mul_beta_plus_one = mulmod(
+            addmod(chal.beta, 1, p),
+            chal.gamma,
+            p
+        );
+        uint256 res = mulmod(
+            mulmod(
+                mulmod(
+                    chal.alpha_powers[1],
+                    addmod(chal.zeta, p - domain.groupGenInv, p),
+                    p
+                ),
+                proof.prod_next_eval,
+                p
+            ),
+            mulmod(
+                addmod(
+                    gamma_mul_beta_plus_one,
+                    addmod(
+                        proof.h_1_eval,
+                        mulmod(chal.beta, proof.h_1_next_eval, p),
+                        p
+                    ),
+                    p
+                ),
+                addmod(
+                    gamma_mul_beta_plus_one,
+                    mulmod(chal.beta, proof.h_2_next_eval, p),
+                    p
+                ),
+                p
+            ),
+            p
+        );
+        return res;
     }
 
     /**
@@ -575,7 +658,7 @@ contract RollupProofVerifier is
                 commScalars,
                 commBases
             );
-            // have 32 scalars
+        // have 32 scalars
 
         // Add wire sigma polynomial commitments. The last sigma commitment is excluded.
         compute_buffer_v_and_uv_basis_2_parameters memory z;
@@ -586,7 +669,7 @@ contract RollupProofVerifier is
         z.commScalars = commScalars;
         z.commBases = commBases;
         z.v_base = v_base;
-        uint256 new_v_base= compute_buffer_v_and_uv_basis_2(z);
+        uint256 new_v_base = compute_buffer_v_and_uv_basis_2(z);
 
         compute_buffer_v_and_uv_basis_3_parameters memory z3;
         z3.chal = chal;
@@ -623,7 +706,7 @@ contract RollupProofVerifier is
 
         uint256[] memory buffer_v_and_uv_basis = new uint256[](27);
         // Add poly commitments to be evaluated at point `zeta * g`.
-       
+
         Types.G1Point memory proof_elem2;
         uint256 p_local = Bn254Crypto.r_mod;
 
@@ -646,13 +729,12 @@ contract RollupProofVerifier is
             mstore(add(commScalars, mul(add(commIndex, 1), 0x20)), uv_base)
             proof_elem2 := mload(add(proof, 0x180)) //prod_perm_poly_comm
             mstore(add(commBases, mul(add(commIndex, 1), 0x20)), proof_elem2)
-            
         }
 
         buffer_v_and_uv_basis[11] = uv_base;
         commScalars[38] = uv_base;
         commBases[38] = proof.prod_perm_poly_comm;
-        return (buffer_v_and_uv_basis, v_base,mulmod(uv_base, v, p_local));
+        return (buffer_v_and_uv_basis, v_base, mulmod(uv_base, v, p_local));
     }
 
     /**
@@ -662,9 +744,9 @@ contract RollupProofVerifier is
      */
     function compute_buffer_v_and_uv_basis_2(
         compute_buffer_v_and_uv_basis_2_parameters memory z
-    ) internal pure returns (uint256 res){
+    ) internal pure returns (uint256 res) {
         uint256[] memory buffer_v_and_uv_basis = z.buffer_v_and_uv_basis;
-        uint256 start_index = 27;//z.start_index;
+        uint256 start_index = 27; //z.start_index;
         Types.VerificationKey memory verifyingKey = z.verifyingKey;
         Types.ChallengeTranscript memory chal = z.chal;
         uint256[] memory commScalars = z.commScalars;
@@ -677,7 +759,7 @@ contract RollupProofVerifier is
         assembly {
             for {
                 let i := 6
-            } lt(i, 11) { 
+            } lt(i, 11) {
                 i := add(i, 1)
             } {
                 let commIndex := add(start_index, i)
@@ -694,19 +776,16 @@ contract RollupProofVerifier is
             }
         }
         res = v_base;
-       
-
     }
 
     // Add Plookup polynomial commitments
-     function compute_buffer_v_and_uv_basis_3(
+    function compute_buffer_v_and_uv_basis_3(
         compute_buffer_v_and_uv_basis_3_parameters memory z
     ) internal pure {
         uint256 p_local = Bn254Crypto.r_mod;
         uint256 v = z.chal.v;
-        z.start_index =39;
-        Types.G1Point[6] memory plookup_comms = 
-        [
+        z.start_index = 39;
+        Types.G1Point[6] memory plookup_comms = [
             z.vk.range_table_comm,
             z.vk.key_table_comm,
             z.proof.h_poly_comm_1,
@@ -714,7 +793,7 @@ contract RollupProofVerifier is
             z.vk.table_dom_sep_comm,
             z.vk.q_dom_sep_comm
         ];
-        
+
         for (uint256 i = 0; i < 6; i++) {
             z.buffer_v_and_uv_basis[12 + i] = z.v_base;
             z.commScalars[z.start_index + i] = z.v_base;
@@ -722,26 +801,25 @@ contract RollupProofVerifier is
             z.v_base = mulmod(z.v_base, v, p_local);
         }
 
-Types.G1Point[9] memory plookup_shifted_comms =[
-    z.proof.prod_lookup_poly_comm, //45
-    z.vk.range_table_comm, //46
-    z.vk.key_table_comm, //47
-    z.proof.h_poly_comm_1, //48
-    z.proof.h_poly_comm_2, //49
-    // q_dom_sep_comm, z.vk.selector_comms_18
-    z.vk.selector_comms_18, // 50
-    z.proof.wires_poly_comms_4, //51
-    z.proof.wires_poly_comms_5, //52
-    z.vk.table_dom_sep_comm //53
-];
+        Types.G1Point[9] memory plookup_shifted_comms = [
+            z.proof.prod_lookup_poly_comm, //45
+            z.vk.range_table_comm, //46
+            z.vk.key_table_comm, //47
+            z.proof.h_poly_comm_1, //48
+            z.proof.h_poly_comm_2, //49
+            // q_dom_sep_comm, z.vk.selector_comms_18
+            z.vk.selector_comms_18, // 50
+            z.proof.wires_poly_comms_4, //51
+            z.proof.wires_poly_comms_5, //52
+            z.vk.table_dom_sep_comm //53
+        ];
 
-z.start_index =45;
- for (uint256 i = 0; i < 9; i++) {
+        z.start_index = 45;
+        for (uint256 i = 0; i < 9; i++) {
             z.buffer_v_and_uv_basis[18 + i] = z.uv_base;
             z.commScalars[z.start_index + i] = z.uv_base;
             z.commBases[z.start_index + i] = plookup_shifted_comms[i];
             z.uv_base = mulmod(z.uv_base, v, p_local);
-
         }
     }
     function linearization_scalars_and_bases(
@@ -759,12 +837,11 @@ z.start_index =45;
             proof,
             challenge
         );
-        
+
         scalars[1] = compute_second_scalar(proof, challenge);
-       
 
         // compute first base and second base
-       
+
         assembly {
             // G1Point prod_perm_poly_comm;
             mstore(add(bases, 0x20), mload(add(proof, 0xc0)))
@@ -782,11 +859,17 @@ z.start_index =45;
 
         add_selector_polynomial_commitments(x);
 
-        add_plookup_commitments(bases,scalars,proof,challenge,domain,evalData);
-       
+        add_plookup_commitments(
+            bases,
+            scalars,
+            proof,
+            challenge,
+            domain,
+            evalData
+        );
+
         add_splitted_quotient_commitments_parameter memory y;
 
-       
         y.index = 21; // 21 scalars so far
         y.challenge_zeta = challenge.zeta;
         y.evalData_vanish_eval = evalData.vanish_eval;
@@ -833,7 +916,7 @@ z.start_index =45;
                 mload(add(evalData, 0x20)), //lagrange_1_eval
                 p_local
             )
-            
+
             // firstScalar += w_evals
             //             .iter()
             //             .zip(vk.k.iter())
@@ -855,7 +938,7 @@ z.start_index =45;
                 challenge_beta,
                 mload(add(verifyingKey, 0x360)),
                 p_local
-            )//K2
+            ) //K2
             tmp := mulmod(tmp, challenge_zeta, p_local)
             tmp := addmod(tmp, challenge_gamma, p_local)
             tmp := addmod(tmp, mload(add(proof, 0x220)), p_local) // wires_evals_2
@@ -865,7 +948,7 @@ z.start_index =45;
                 challenge_beta,
                 mload(add(verifyingKey, 0x380)),
                 p_local
-            )//k3
+            ) //k3
             tmp := mulmod(tmp, challenge_zeta, p_local)
             tmp := addmod(tmp, challenge_gamma, p_local)
             tmp := addmod(tmp, mload(add(proof, 0x240)), p_local) // wires_evals_3
@@ -875,7 +958,7 @@ z.start_index =45;
                 challenge_beta,
                 mload(add(verifyingKey, 0x3a0)),
                 p_local
-            )//k4
+            ) //k4
             tmp := mulmod(tmp, challenge_zeta, p_local)
             tmp := addmod(tmp, challenge_gamma, p_local)
             tmp := addmod(tmp, mload(add(proof, 0x260)), p_local) // wires_evals_4
@@ -883,7 +966,7 @@ z.start_index =45;
 
             tmp := mulmod(
                 challenge_beta,
-                mload(add(verifyingKey,0x3c0)),
+                mload(add(verifyingKey, 0x3c0)),
                 p_local
             ) // k5
             tmp := mulmod(tmp, challenge_zeta, p_local)
@@ -893,7 +976,7 @@ z.start_index =45;
 
             tmp := mulmod(
                 challenge_beta,
-                mload(add(verifyingKey,0x3e0)),
+                mload(add(verifyingKey, 0x3e0)),
                 p_local
             ) // k6
             tmp := mulmod(tmp, challenge_zeta, p_local)
@@ -902,7 +985,6 @@ z.start_index =45;
             acc := mulmod(acc, tmp, p_local)
 
             firstScalar := addmod(firstScalar, acc, p_local)
-
         }
         return firstScalar;
     }
@@ -953,7 +1035,7 @@ z.start_index =45;
             tmp := addmod(tmp, mload(add(proof, 0x260)), p_local) // wires_evals_4
             secondScalar := mulmod(secondScalar, tmp, p_local)
 
-            tmp := mulmod(challenge_beta, mload(add(proof, 0x340)), p_local) 
+            tmp := mulmod(challenge_beta, mload(add(proof, 0x340)), p_local)
             // wire_sigma_evals_5
             tmp := addmod(tmp, challenge_gamma, p_local)
             tmp := addmod(tmp, mload(add(proof, 0x280)), p_local) // wires_evals_5
@@ -1051,49 +1133,91 @@ z.start_index =45;
                     p_local
                 )
             )
-               //// q_scalars[13] = w_evals[0] * w_evals[3] * w_evals[2] * w_evals[3]
+            //// q_scalars[13] = w_evals[0] * w_evals[3] * w_evals[2] * w_evals[3]
             //     + w_evals[1] * w_evals[2] * w_evals[2] * w_evals[3];
-             mstore(
+            mstore(
                 add(scalarsPtr, 0x1A0),
-        addmod(
-           mulmod( mulmod(mulmod(wires_evals_1, wires_evals_4, p_local), wires_evals_3, p_local), wires_evals_4, p_local),
-           mulmod( mulmod(mulmod(wires_evals_2, wires_evals_3, p_local), wires_evals_3, p_local), wires_evals_4, p_local),
-            p_local
-        )
-        )
-        // q_scalars[14] = w_evals[0] * w_evals[2]
+                addmod(
+                    mulmod(
+                        mulmod(
+                            mulmod(wires_evals_1, wires_evals_4, p_local),
+                            wires_evals_3,
+                            p_local
+                        ),
+                        wires_evals_4,
+                        p_local
+                    ),
+                    mulmod(
+                        mulmod(
+                            mulmod(wires_evals_2, wires_evals_3, p_local),
+                            wires_evals_3,
+                            p_local
+                        ),
+                        wires_evals_4,
+                        p_local
+                    ),
+                    p_local
+                )
+            )
+            // q_scalars[14] = w_evals[0] * w_evals[2]
             //     + w_evals[1] * w_evals[3]
             //     + E::ScalarField::from(2u8) * w_evals[0] * w_evals[3]
             //     + E::ScalarField::from(2u8) * w_evals[1] * w_evals[2];
-          mstore(
+            mstore(
                 add(scalarsPtr, 0x1C0),
-        addmod(
-           mulmod(wires_evals_1, wires_evals_3, p_local),
-              addmod(
-                mulmod(wires_evals_2, wires_evals_4, p_local),
                 addmod(
-                     mulmod(2, mulmod(wires_evals_1, wires_evals_4, p_local), p_local),
-                     mulmod(2, mulmod(wires_evals_2, wires_evals_3, p_local), p_local),
-                     p_local
-                ),
-                p_local
-        ),
-        p_local
-        )
-        )
-        // q_scalars[15] = w_evals[2] * w_evals[2] * w_evals[3] * w_evals[3];
-        mstore( add(scalarsPtr, 0x1E0),
-        mulmod( mulmod(mulmod(wires_evals_3, wires_evals_3, p_local), wires_evals_4, p_local), wires_evals_4, p_local)
-        )
-        // q_scalars[16] =
+                    mulmod(wires_evals_1, wires_evals_3, p_local),
+                    addmod(
+                        mulmod(wires_evals_2, wires_evals_4, p_local),
+                        addmod(
+                            mulmod(
+                                2,
+                                mulmod(wires_evals_1, wires_evals_4, p_local),
+                                p_local
+                            ),
+                            mulmod(
+                                2,
+                                mulmod(wires_evals_2, wires_evals_3, p_local),
+                                p_local
+                            ),
+                            p_local
+                        ),
+                        p_local
+                    ),
+                    p_local
+                )
+            )
+            // q_scalars[15] = w_evals[2] * w_evals[2] * w_evals[3] * w_evals[3];
+            mstore(
+                add(scalarsPtr, 0x1E0),
+                mulmod(
+                    mulmod(
+                        mulmod(wires_evals_3, wires_evals_3, p_local),
+                        wires_evals_4,
+                        p_local
+                    ),
+                    wires_evals_4,
+                    p_local
+                )
+            )
+            // q_scalars[16] =
             //     w_evals[0] * w_evals[0] * w_evals[1] + w_evals[0] * w_evals[1] * w_evals[1];
-        mstore( add(scalarsPtr, 0x200),
-        addmod(
-              mulmod(mulmod(wires_evals_1, wires_evals_1, p_local), wires_evals_2, p_local),
-                mulmod(mulmod(wires_evals_1, wires_evals_2, p_local), wires_evals_2, p_local),
-                p_local
-        )
-        )
+            mstore(
+                add(scalarsPtr, 0x200),
+                addmod(
+                    mulmod(
+                        mulmod(wires_evals_1, wires_evals_1, p_local),
+                        wires_evals_2,
+                        p_local
+                    ),
+                    mulmod(
+                        mulmod(wires_evals_1, wires_evals_2, p_local),
+                        wires_evals_2,
+                        p_local
+                    ),
+                    p_local
+                )
+            )
             mstore(basesPtr, mload(add(verifyingKeyPtr, 0x100))) //selector_comms_1
             mstore(add(basesPtr, 0x20), mload(add(verifyingKeyPtr, 0x120))) //selector_comms_2
             mstore(add(basesPtr, 0x40), mload(add(verifyingKeyPtr, 0x140))) //selector_comms_3
@@ -1107,16 +1231,14 @@ z.start_index =45;
             mstore(add(basesPtr, 0x140), mload(add(verifyingKeyPtr, 0x240))) //selector_comms_11
             mstore(add(basesPtr, 0x160), mload(add(verifyingKeyPtr, 0x260))) //selector_comms_12
             mstore(add(basesPtr, 0x180), mload(add(verifyingKeyPtr, 0x280))) //selector_comms_13
-             mstore(add(basesPtr, 0x1A0), mload(add(verifyingKeyPtr, 0x2a0))) //selector_comms_14
+            mstore(add(basesPtr, 0x1A0), mload(add(verifyingKeyPtr, 0x2a0))) //selector_comms_14
             mstore(add(basesPtr, 0x1C0), mload(add(verifyingKeyPtr, 0x2c0))) //selector_comms_15
             mstore(add(basesPtr, 0x1E0), mload(add(verifyingKeyPtr, 0x2e0))) //selector_comms_16
             mstore(add(basesPtr, 0x200), mload(add(verifyingKeyPtr, 0x300))) //selector_comms_17
             mstore(add(basesPtr, 0x220), mload(add(verifyingKeyPtr, 0x320))) //selector_comms_18
-
         }
 
         scalars[start_index + 10] = Bn254Crypto.negate_fr(proof.wires_evals_5);
-       
     }
 
     // add Plookup related commitments
@@ -1126,36 +1248,41 @@ z.start_index =45;
         Types.Proof memory proof,
         Types.ChallengeTranscript memory challenge,
         PolynomialEval.EvalDomain memory domain,
-         PolynomialEval.EvalData memory evalData
+        PolynomialEval.EvalData memory evalData
     ) internal view {
-     scalars[19] =add_plookup_commitments_helper1(
-         proof,
-         challenge,
-         domain,
-         evalData
-     );
-     bases[19] = proof.prod_lookup_poly_comm;
-     scalars[20] = add_plookup_commitments_helper2(
+        scalars[19] = add_plookup_commitments_helper1(
             proof,
             challenge,
-            domain
+            domain,
+            evalData
         );
-     bases[20] = proof.h_poly_comm_2;
+        bases[19] = proof.prod_lookup_poly_comm;
+        scalars[20] = add_plookup_commitments_helper2(proof, challenge, domain);
+        bases[20] = proof.h_poly_comm_2;
     }
-    
+
     // to avoid the stack too deep error
-     function add_plookup_commitments_helper1(
+    function add_plookup_commitments_helper1(
         Types.Proof memory proof,
         Types.ChallengeTranscript memory challenge,
         PolynomialEval.EvalDomain memory domain,
         PolynomialEval.EvalData memory evalData
     ) internal view returns (uint256 res) {
-       uint256 merged_lookup_x = add_plookup_commitments_helper1_1(proof, challenge);
+        uint256 merged_lookup_x = add_plookup_commitments_helper1_1(
+            proof,
+            challenge
+        );
 
-       uint256 merged_table_x = add_plookup_commitments_helper1_2(proof, challenge);
+        uint256 merged_table_x = add_plookup_commitments_helper1_2(
+            proof,
+            challenge
+        );
 
-       uint256 merged_table_xw = add_plookup_commitments_helper1_3(proof, challenge);
-        res = add_plookup_commitments_helper1_4 (
+        uint256 merged_table_xw = add_plookup_commitments_helper1_3(
+            proof,
+            challenge
+        );
+        res = add_plookup_commitments_helper1_4(
             challenge,
             domain,
             evalData,
@@ -1169,21 +1296,129 @@ z.start_index =45;
         Types.Proof memory proof,
         Types.ChallengeTranscript memory challenge
     ) internal view returns (uint256 res) {
-       res = addmod(proof.wires_evals_6, mulmod(proof.q_lookup_eval, mulmod(challenge.tau, addmod(proof.q_dom_sep_eval, mulmod(challenge.tau, addmod(proof.wires_evals_1, mulmod(challenge.tau, addmod(proof.wires_evals_2, mulmod(challenge.tau, proof.wires_evals_3, p), p), p), p), p), p), p), p), p);
+        res = addmod(
+            proof.wires_evals_6,
+            mulmod(
+                proof.q_lookup_eval,
+                mulmod(
+                    challenge.tau,
+                    addmod(
+                        proof.q_dom_sep_eval,
+                        mulmod(
+                            challenge.tau,
+                            addmod(
+                                proof.wires_evals_1,
+                                mulmod(
+                                    challenge.tau,
+                                    addmod(
+                                        proof.wires_evals_2,
+                                        mulmod(
+                                            challenge.tau,
+                                            proof.wires_evals_3,
+                                            p
+                                        ),
+                                        p
+                                    ),
+                                    p
+                                ),
+                                p
+                            ),
+                            p
+                        ),
+                        p
+                    ),
+                    p
+                ),
+                p
+            ),
+            p
+        );
     }
 
     function add_plookup_commitments_helper1_2(
         Types.Proof memory proof,
         Types.ChallengeTranscript memory challenge
     ) internal view returns (uint256 res) {
-       res = addmod(proof.range_table_eval, mulmod(proof.q_lookup_eval, mulmod(challenge.tau, addmod(proof.table_dom_sep_eval, mulmod(challenge.tau, addmod(proof.key_table_eval, mulmod(challenge.tau, addmod(proof.wires_evals_4, mulmod(challenge.tau, proof.wires_evals_5, p), p), p), p), p), p), p), p), p);
+        res = addmod(
+            proof.range_table_eval,
+            mulmod(
+                proof.q_lookup_eval,
+                mulmod(
+                    challenge.tau,
+                    addmod(
+                        proof.table_dom_sep_eval,
+                        mulmod(
+                            challenge.tau,
+                            addmod(
+                                proof.key_table_eval,
+                                mulmod(
+                                    challenge.tau,
+                                    addmod(
+                                        proof.wires_evals_4,
+                                        mulmod(
+                                            challenge.tau,
+                                            proof.wires_evals_5,
+                                            p
+                                        ),
+                                        p
+                                    ),
+                                    p
+                                ),
+                                p
+                            ),
+                            p
+                        ),
+                        p
+                    ),
+                    p
+                ),
+                p
+            ),
+            p
+        );
     }
 
     function add_plookup_commitments_helper1_3(
         Types.Proof memory proof,
         Types.ChallengeTranscript memory challenge
     ) internal view returns (uint256 res) {
-       res = addmod(proof.range_table_next_eval, mulmod(proof.q_lookup_next_eval, mulmod(challenge.tau, addmod(proof.table_dom_sep_next_eval, mulmod(challenge.tau, addmod(proof.key_table_next_eval, mulmod(challenge.tau, addmod(proof.w_3_next_eval, mulmod(challenge.tau, proof.w_4_next_eval, p), p), p), p), p), p), p), p), p);
+        res = addmod(
+            proof.range_table_next_eval,
+            mulmod(
+                proof.q_lookup_next_eval,
+                mulmod(
+                    challenge.tau,
+                    addmod(
+                        proof.table_dom_sep_next_eval,
+                        mulmod(
+                            challenge.tau,
+                            addmod(
+                                proof.key_table_next_eval,
+                                mulmod(
+                                    challenge.tau,
+                                    addmod(
+                                        proof.w_3_next_eval,
+                                        mulmod(
+                                            challenge.tau,
+                                            proof.w_4_next_eval,
+                                            p
+                                        ),
+                                        p
+                                    ),
+                                    p
+                                ),
+                                p
+                            ),
+                            p
+                        ),
+                        p
+                    ),
+                    p
+                ),
+                p
+            ),
+            p
+        );
     }
 
     function add_plookup_commitments_helper1_4(
@@ -1191,74 +1426,84 @@ z.start_index =45;
         PolynomialEval.EvalDomain memory domain,
         PolynomialEval.EvalData memory evalData,
         uint256 merged_lookup_x,
-        uint256  merged_table_x,
-        uint256  merged_table_xw
+        uint256 merged_table_x,
+        uint256 merged_table_xw
     ) internal view returns (uint256 res) {
-      
-    uint256 b = add_plookup_commitments_helper1_4_1 (challenge, domain, evalData, merged_lookup_x, merged_table_x, merged_table_xw);
+        uint256 b = add_plookup_commitments_helper1_4_1(
+            challenge,
+            domain,
+            evalData,
+            merged_lookup_x,
+            merged_table_x,
+            merged_table_xw
+        );
 
-       res = mulmod( challenge.alpha_base, b, p);
+        res = mulmod(challenge.alpha_base, b, p);
     }
     function add_plookup_commitments_helper1_4_1(
         Types.ChallengeTranscript memory challenge,
         PolynomialEval.EvalDomain memory domain,
         PolynomialEval.EvalData memory evalData,
         uint256 merged_lookup_x,
-        uint256  merged_table_x,
-        uint256  merged_table_xw
+        uint256 merged_table_x,
+        uint256 merged_table_xw
     ) internal view returns (uint256 res) {
-      
-uint256 c = mulmod(
-                challenge.alpha_powers[4],
-                addmod(challenge.zeta, Bn254Crypto.negate_fr(domain.groupGenInv), p),
+        uint256 c = mulmod(
+            challenge.alpha_powers[4],
+            addmod(
+                challenge.zeta,
+                Bn254Crypto.negate_fr(domain.groupGenInv),
                 p
-            );
-     
-     
-      res =addmod(
-   add_plookup_commitments_helper1_4_2 (challenge, evalData),
-    mulmod(
-    mulmod(
-        mulmod(
-            c,
-            addmod(challenge.beta, 1, p),
+            ),
             p
-        ),
-        addmod(challenge.gamma, merged_lookup_x, p),
-        p
-    ),
-    add_plookup_commitments_helper1_4_3 (challenge,  merged_table_x, merged_table_xw),
-    p
-),
-    p
-);
+        );
+
+        res = addmod(
+            add_plookup_commitments_helper1_4_2(challenge, evalData),
+            mulmod(
+                mulmod(
+                    mulmod(c, addmod(challenge.beta, 1, p), p),
+                    addmod(challenge.gamma, merged_lookup_x, p),
+                    p
+                ),
+                add_plookup_commitments_helper1_4_3(
+                    challenge,
+                    merged_table_x,
+                    merged_table_xw
+                ),
+                p
+            ),
+            p
+        );
     }
-function add_plookup_commitments_helper1_4_2(
+    function add_plookup_commitments_helper1_4_2(
         Types.ChallengeTranscript memory challenge,
         PolynomialEval.EvalData memory evalData
     ) internal view returns (uint256 res) {
-        res =addmod(
-        mulmod(challenge.alpha_powers[2], evalData.lagrange_1_eval, p),
-        mulmod(challenge.alpha_powers[3], evalData.lagrange_n_eval, p),
-        p
-    );
+        res = addmod(
+            mulmod(challenge.alpha_powers[2], evalData.lagrange_1_eval, p),
+            mulmod(challenge.alpha_powers[3], evalData.lagrange_n_eval, p),
+            p
+        );
     }
     function add_plookup_commitments_helper1_4_3(
         Types.ChallengeTranscript memory challenge,
         uint256 merged_table_x,
-        uint256  merged_table_xw
+        uint256 merged_table_xw
     ) internal view returns (uint256 res) {
-        res =addmod(
-        addmod(mulmod(addmod(challenge.beta,1,p), challenge.gamma,p), merged_table_x, p),
-        mulmod(challenge.beta, merged_table_xw, p),
-        p
-    );
+        res = addmod(
+            addmod(
+                mulmod(addmod(challenge.beta, 1, p), challenge.gamma, p),
+                merged_table_x,
+                p
+            ),
+            mulmod(challenge.beta, merged_table_xw, p),
+            p
+        );
     }
 
-
-
-     // to avoid the stack too deep error
-     function add_plookup_commitments_helper2(
+    // to avoid the stack too deep error
+    function add_plookup_commitments_helper2(
         Types.Proof memory proof,
         Types.ChallengeTranscript memory challenge,
         PolynomialEval.EvalDomain memory domain
@@ -1268,15 +1513,27 @@ function add_plookup_commitments_helper1_4_2(
                 mulmod(
                     mulmod(
                         challenge.alpha_powers[4],
-                        addmod(Bn254Crypto.negate_fr(challenge.zeta), domain.groupGenInv, p),
+                        addmod(
+                            Bn254Crypto.negate_fr(challenge.zeta),
+                            domain.groupGenInv,
+                            p
+                        ),
                         p
                     ),
                     proof.prod_next_eval,
                     p
                 ),
                 addmod(
-                    addmod(mulmod(addmod(challenge.beta,1,p), challenge.gamma,p), proof.h_1_eval,p),
-                    mulmod(challenge.beta, proof.h_1_next_eval,p),
+                    addmod(
+                        mulmod(
+                            addmod(challenge.beta, 1, p),
+                            challenge.gamma,
+                            p
+                        ),
+                        proof.h_1_eval,
+                        p
+                    ),
+                    mulmod(challenge.beta, proof.h_1_next_eval, p),
                     p
                 ),
                 p
@@ -1341,8 +1598,8 @@ function add_plookup_commitments_helper1_4_2(
             // mstore(add(basesPtr, 0x80), split_quot_poly_comms_5)
 
             mstore(add(scalarsPtr, 0xa0), coeff)
-            // mstore(add(basesPtr, 0xa0), split_quot_poly_comms_6)
         }
+        // mstore(add(basesPtr, 0xa0), split_quot_poly_comms_6)
         bases[index] = proof.split_quot_poly_comms_1;
         bases[index + 1] = proof.split_quot_poly_comms_2;
         bases[index + 2] = proof.split_quot_poly_comms_3;
@@ -1365,19 +1622,25 @@ function add_plookup_commitments_helper1_4_2(
         uint256 uniqueCount = 0;
 
         for (uint256 i = 0; i < bases.length; i++) {
-    bool found = false;
-    for (uint256 j = 0; j < uniqueCount && !found; j++) {
-        if (bases[i].x == tempBases[j].x && bases[i].y == tempBases[j].y) {
-            tempScalars[j] = addmod(tempScalars[j], scalars[i], p_local);
-            found = true;
+            bool found = false;
+            for (uint256 j = 0; j < uniqueCount && !found; j++) {
+                if (
+                    bases[i].x == tempBases[j].x && bases[i].y == tempBases[j].y
+                ) {
+                    tempScalars[j] = addmod(
+                        tempScalars[j],
+                        scalars[i],
+                        p_local
+                    );
+                    found = true;
+                }
+            }
+            if (!found) {
+                tempBases[uniqueCount] = bases[i];
+                tempScalars[uniqueCount] = scalars[i];
+                uniqueCount++;
+            }
         }
-    }
-    if (!found) {
-        tempBases[uniqueCount] = bases[i];
-        tempScalars[uniqueCount] = scalars[i];
-        uniqueCount++;
-    }
-}
 
         Types.G1Point[] memory finalBases = new Types.G1Point[](uniqueCount);
         uint256[] memory finalScalars = new uint256[](uniqueCount);
@@ -1421,25 +1684,88 @@ function add_plookup_commitments_helper1_4_2(
                 )
             }
         }
-        eval = addmod(eval,mulmod(buffer_v_and_uv_basis[11],proof.perm_next_eval,p),p);        
-        
-        // for lookup
-                eval = addmod(eval,mulmod(buffer_v_and_uv_basis[12],proof.range_table_eval,p),p);
-                eval = addmod(eval,mulmod(buffer_v_and_uv_basis[13],proof.key_table_eval,p),p);
-                eval = addmod(eval,mulmod(buffer_v_and_uv_basis[14],proof.h_1_eval,p),p);
-                eval = addmod(eval,mulmod(buffer_v_and_uv_basis[15],proof.q_lookup_eval,p),p);
-                eval = addmod(eval,mulmod(buffer_v_and_uv_basis[16],proof.table_dom_sep_eval,p),p);
-                eval = addmod(eval,mulmod(buffer_v_and_uv_basis[17],proof.q_dom_sep_eval,p),p);
-                eval = addmod(eval,mulmod(buffer_v_and_uv_basis[18],proof.prod_next_eval,p),p);
-                eval = addmod(eval,mulmod(buffer_v_and_uv_basis[19],proof.range_table_next_eval,p),p);
-                eval = addmod(eval,mulmod(buffer_v_and_uv_basis[20],proof.key_table_next_eval,p),p);
-                eval = addmod(eval,mulmod(buffer_v_and_uv_basis[21],proof.h_1_next_eval,p),p);
-                eval = addmod(eval,mulmod(buffer_v_and_uv_basis[22],proof.h_2_next_eval,p),p);
-                eval = addmod(eval,mulmod(buffer_v_and_uv_basis[23],proof.q_lookup_next_eval,p),p);
-                eval = addmod(eval,mulmod(buffer_v_and_uv_basis[24],proof.w_3_next_eval,p),p);
-                eval = addmod(eval,mulmod(buffer_v_and_uv_basis[25],proof.w_4_next_eval,p),p);
-                eval = addmod(eval,mulmod(buffer_v_and_uv_basis[26],proof.table_dom_sep_next_eval,p),p);
+        eval = addmod(
+            eval,
+            mulmod(buffer_v_and_uv_basis[11], proof.perm_next_eval, p),
+            p
+        );
 
+        // for lookup
+        eval = addmod(
+            eval,
+            mulmod(buffer_v_and_uv_basis[12], proof.range_table_eval, p),
+            p
+        );
+        eval = addmod(
+            eval,
+            mulmod(buffer_v_and_uv_basis[13], proof.key_table_eval, p),
+            p
+        );
+        eval = addmod(
+            eval,
+            mulmod(buffer_v_and_uv_basis[14], proof.h_1_eval, p),
+            p
+        );
+        eval = addmod(
+            eval,
+            mulmod(buffer_v_and_uv_basis[15], proof.q_lookup_eval, p),
+            p
+        );
+        eval = addmod(
+            eval,
+            mulmod(buffer_v_and_uv_basis[16], proof.table_dom_sep_eval, p),
+            p
+        );
+        eval = addmod(
+            eval,
+            mulmod(buffer_v_and_uv_basis[17], proof.q_dom_sep_eval, p),
+            p
+        );
+        eval = addmod(
+            eval,
+            mulmod(buffer_v_and_uv_basis[18], proof.prod_next_eval, p),
+            p
+        );
+        eval = addmod(
+            eval,
+            mulmod(buffer_v_and_uv_basis[19], proof.range_table_next_eval, p),
+            p
+        );
+        eval = addmod(
+            eval,
+            mulmod(buffer_v_and_uv_basis[20], proof.key_table_next_eval, p),
+            p
+        );
+        eval = addmod(
+            eval,
+            mulmod(buffer_v_and_uv_basis[21], proof.h_1_next_eval, p),
+            p
+        );
+        eval = addmod(
+            eval,
+            mulmod(buffer_v_and_uv_basis[22], proof.h_2_next_eval, p),
+            p
+        );
+        eval = addmod(
+            eval,
+            mulmod(buffer_v_and_uv_basis[23], proof.q_lookup_next_eval, p),
+            p
+        );
+        eval = addmod(
+            eval,
+            mulmod(buffer_v_and_uv_basis[24], proof.w_3_next_eval, p),
+            p
+        );
+        eval = addmod(
+            eval,
+            mulmod(buffer_v_and_uv_basis[25], proof.w_4_next_eval, p),
+            p
+        );
+        eval = addmod(
+            eval,
+            mulmod(buffer_v_and_uv_basis[26], proof.table_dom_sep_next_eval, p),
+            p
+        );
     }
 
     function validate_scalar_field(uint256 fr) internal pure {
@@ -1501,19 +1827,18 @@ function add_plookup_commitments_helper1_4_2(
         Bn254Crypto.validate_scalar_field(proof.q_lookup_next_eval);
         Bn254Crypto.validate_scalar_field(proof.w_3_next_eval);
         Bn254Crypto.validate_scalar_field(proof.w_4_next_eval);
-        
-        
+
         Bn254Crypto.validate_G1Point(proof.opening_proof);
         Bn254Crypto.validate_G1Point(proof.shifted_opening_proof);
     }
-    
+
     function get_verification_key()
         internal
         view
         returns (Types.VerificationKey memory)
     {
-       return vkProvider.getVerificationKey();
-    //    return UltraPlonkVerificationKey.getVerificationKey();
+        return vkProvider.getVerificationKey();
+        //    return UltraPlonkVerificationKey.getVerificationKey();
     }
 
     function deserialize_proof(
@@ -1521,39 +1846,53 @@ function add_plookup_commitments_helper1_4_2(
     ) internal pure returns (Types.Proof memory proof) {
         uint256 data_ptr;
         assembly {
-        data_ptr := proofBytes.offset
-
-        // Allocate memory for the Proof struct
-        let proof_ptr := mload(0x40)
-        mstore(0x40, add(proof, 0x5A0)) // advance free memory pointer by size of Types.Proof struct
-        // Initialize each field in the struct to point to memory slots
-        // Allocate G1Point structs (each 0x40 bytes) for each commitment and proof
-        // proof := proof_ptr
-        // wires_poly_comms (6)
-        for { let i := 0 } lt(i, 16) { i := add(i, 1) } {
-            let ptr := add(proof, mul(i, 0x20)) // G1Point* ptrs at proof[0x00, 0x20, ..., 0xa0]
-            let g1 := mload(0x40)
-            mstore(0x40, add(g1, 0x40))
-            mstore(ptr, g1)
-            mstore(g1, calldataload(data_ptr))
-            mstore(add(g1, 0x20), calldataload(add(data_ptr, 0x20)))
-            data_ptr := add(data_ptr, 0x40)
-        }
-        // from    uint256 wires_evals_1 to      uint256 w_4_next_eval; 
-        for { let i := 0 } lt(i, 27) { i := add(i, 1) } {
-            mstore(add(proof, add(0x200, mul(i, 0x20))), calldataload(data_ptr))
-            data_ptr := add(data_ptr, 0x20)
-        }
-        //   G1Point opening_proof; and G1Point shifted_opening_proof;
-        for { let i := 0 } lt(i, 2) { i := add(i, 1) } {
-            let ptr := add(proof, add(0x560, mul(i, 0x20))) // proof[0x340, ..., 0x3a0]
-            let g1 := mload(0x40)
-            mstore(0x40, add(g1, 0x40))
-            mstore(ptr, g1)
-            mstore(g1, calldataload(data_ptr))
-            mstore(add(g1, 0x20), calldataload(add(data_ptr, 0x20)))
-            data_ptr := add(data_ptr, 0x40)
-        }
+            data_ptr := proofBytes.offset
+            // Allocate memory for the Proof struct
+            let proof_ptr := mload(0x40)
+            mstore(0x40, add(proof, 0x5A0)) // advance free memory pointer by size of Types.Proof struct
+            // Initialize each field in the struct to point to memory slots
+            // Allocate G1Point structs (each 0x40 bytes) for each commitment and proof
+            // proof := proof_ptr
+            // wires_poly_comms (6)
+            for {
+                let i := 0
+            } lt(i, 16) {
+                i := add(i, 1)
+            } {
+                let ptr := add(proof, mul(i, 0x20)) // G1Point* ptrs at proof[0x00, 0x20, ..., 0xa0]
+                let g1 := mload(0x40)
+                mstore(0x40, add(g1, 0x40))
+                mstore(ptr, g1)
+                mstore(g1, calldataload(data_ptr))
+                mstore(add(g1, 0x20), calldataload(add(data_ptr, 0x20)))
+                data_ptr := add(data_ptr, 0x40)
+            }
+            // from    uint256 wires_evals_1 to      uint256 w_4_next_eval;
+            for {
+                let i := 0
+            } lt(i, 27) {
+                i := add(i, 1)
+            } {
+                mstore(
+                    add(proof, add(0x200, mul(i, 0x20))),
+                    calldataload(data_ptr)
+                )
+                data_ptr := add(data_ptr, 0x20)
+            }
+            //   G1Point opening_proof; and G1Point shifted_opening_proof;
+            for {
+                let i := 0
+            } lt(i, 2) {
+                i := add(i, 1)
+            } {
+                let ptr := add(proof, add(0x560, mul(i, 0x20))) // proof[0x340, ..., 0x3a0]
+                let g1 := mload(0x40)
+                mstore(0x40, add(g1, 0x40))
+                mstore(ptr, g1)
+                mstore(g1, calldataload(data_ptr))
+                mstore(add(g1, 0x20), calldataload(add(data_ptr, 0x20)))
+                data_ptr := add(data_ptr, 0x40)
+            }
         }
         return proof;
     }
@@ -1561,4 +1900,3 @@ function add_plookup_commitments_helper1_4_2(
     // storage gap for future variables
     uint256[50] private __gap;
 }
-

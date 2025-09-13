@@ -21,7 +21,9 @@ library Bn254Crypto {
         assembly {
             success := staticcall(sub(gas(), 2000), 7, input, 0x80, r, 0x60)
             switch success
-            case 0 { revert(0, 0) }
+            case 0 {
+                revert(0, 0)
+            }
         }
         require(success, "Bn254: scalar mul failed!");
     }
@@ -39,9 +41,9 @@ library Bn254Crypto {
 
     function negate_fr(uint256 fr) internal pure returns (uint256 res) {
         uint256 m = r_mod;
-        uint256 a = fr % m;        // a ∈ [0, m-1]
-        if (a == 0) return 0;      // canonical zero
-        return m - a;              // ∈ [1, m-1]
+        uint256 a = fr % m; // a ∈ [0, m-1]
+        if (a == 0) return 0; // canonical zero
+        return m - a; // ∈ [1, m-1]
     }
 
     function negate_G1Point(
@@ -69,13 +71,17 @@ library Bn254Crypto {
         Types.G1Point memory p2
     ) internal view returns (Types.G1Point memory r) {
         uint256[4] memory input;
-        input[0] = p1.x; input[1] = p1.y;
-        input[2] = p2.x; input[3] = p2.y;
+        input[0] = p1.x;
+        input[1] = p1.y;
+        input[2] = p2.x;
+        input[3] = p2.y;
         bool success;
         assembly {
             success := staticcall(sub(gas(), 2000), 6, input, 0xc0, r, 0x60)
             switch success
-            case 0 { revert(0, 0) }
+            case 0 {
+                revert(0, 0)
+            }
         }
         require(success, "Bn254: group addition failed!");
     }
@@ -86,19 +92,32 @@ library Bn254Crypto {
         assembly {
             let len := mload(leBytes)
             let byteData := add(leBytes, 0x20)
-            for { let i := 0 } lt(i, len) { i := add(i, 1) } {
+            for {
+                let i := 0
+            } lt(i, len) {
+                i := add(i, 1)
+            } {
                 ret := mulmod(ret, 256, r_mod)
-                let byteVal := byte(0, mload(sub(sub(add(byteData, len), i), 1)))
+                let byteVal := byte(
+                    0,
+                    mload(sub(sub(add(byteData, len), i), 1))
+                )
                 ret := addmod(ret, byteVal, r_mod)
             }
         }
     }
 
-    function fromBeBytesModOrder(bytes memory beBytes) internal pure returns (uint256 ret) {
+    function fromBeBytesModOrder(
+        bytes memory beBytes
+    ) internal pure returns (uint256 ret) {
         assembly {
             let len := mload(beBytes)
             let byteData := add(beBytes, 0x20)
-            for { let i := 0 } lt(i, len) { i := add(i, 1) } {
+            for {
+                let i := 0
+            } lt(i, len) {
+                i := add(i, 1)
+            } {
                 ret := mulmod(ret, 256, r_mod)
                 let byteVal := byte(0, mload(add(byteData, i)))
                 ret := addmod(ret, byteVal, r_mod)
@@ -107,7 +126,9 @@ library Bn254Crypto {
     }
 
     function invert(uint256 fr) internal view returns (uint256) {
-        uint256 output; bool success; uint256 p = r_mod;
+        uint256 output;
+        bool success;
+        uint256 p = r_mod;
         assembly {
             let mPtr := mload(0x40)
             mstore(mPtr, 0x20)
@@ -131,7 +152,8 @@ library Bn254Crypto {
     ) internal view returns (bool) {
         validate_G1Point(a1);
         validate_G1Point(b1);
-        bool success; uint256 out;
+        bool success;
+        uint256 out;
         assembly {
             let mPtr := mload(0x40)
             mstore(mPtr, mload(a1))
@@ -154,7 +176,8 @@ library Bn254Crypto {
     }
 
     function validate_G1Point(Types.G1Point memory point) internal pure {
-        bool ok; uint256 p = p_mod;
+        bool ok;
+        uint256 p = p_mod;
         assembly {
             let x := mload(point)
             let y := mload(add(point, 0x20))
@@ -168,7 +191,9 @@ library Bn254Crypto {
 
     function validate_scalar_field(uint256 fr) internal pure {
         bool isValid;
-        assembly { isValid := lt(fr, r_mod) }
+        assembly {
+            isValid := lt(fr, r_mod)
+        }
         require(isValid, "Bn254: invalid scalar field");
     }
 }

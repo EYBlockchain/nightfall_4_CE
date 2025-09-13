@@ -21,7 +21,11 @@ contract VKProviderTest is Test {
 
     function testGetVK() public view {
         Types.VerificationKey memory t = vk.getVerificationKey();
-        assertEq(t.domain_size, 0x2000000, "domain_size mismatch after initialize");
+        assertEq(
+            t.domain_size,
+            0x2000000,
+            "domain_size mismatch after initialize"
+        );
     }
 
     function testReplaceVK_UpdatesAllAndBumpsVersion() public {
@@ -30,12 +34,16 @@ contract VKProviderTest is Test {
         newVK.domain_size = 0x3000000;
 
         bytes32 oldHash = vk.vkHash();
-        uint64  oldVer  = vk.vkVersion();
+        uint64 oldVer = vk.vkVersion();
 
         vk.replaceVK(abi.encode(newVK));
 
         Types.VerificationKey memory t = vk.getVerificationKey();
-        assertEq(t.domain_size, 0x3000000, "domain_size not updated by replaceVK");
+        assertEq(
+            t.domain_size,
+            0x3000000,
+            "domain_size not updated by replaceVK"
+        );
 
         // Version increments
         assertEq(vk.vkVersion(), oldVer + 1, "vkVersion did not increment");

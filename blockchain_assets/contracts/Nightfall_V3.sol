@@ -4,7 +4,6 @@ pragma solidity ^0.8.20;
 import "./Nightfall.sol";
 import "forge-std/console.sol";
 
-
 /// @custom:oz-upgrades-from blockchain_assets/contracts/Nightfall.sol:Nightfall
 contract NightfallV3 is Nightfall {
     /// @dev V3: do NOT deal with deposit_fee commitment.
@@ -15,29 +14,63 @@ contract NightfallV3 is Nightfall {
         uint256 value,
         uint256 secretHash,
         TokenType token_type
-    ) external virtual override payable onlyCertified {
+    ) external payable virtual override onlyCertified {
         uint256 nfTokenId = sha256_and_shift(abi.encode(ercAddress, tokenId));
         tokenIdMapping[nfTokenId] = TokenIdValue(ercAddress, tokenId);
 
         uint256 nfSlotId = (token_type == TokenType.ERC3525)
-            ? uint256(keccak256(abi.encode(ercAddress, IERC3525(ercAddress).slotOf(tokenId)))) >> 4
+            ? uint256(
+                keccak256(
+                    abi.encode(ercAddress, IERC3525(ercAddress).slotOf(tokenId))
+                )
+            ) >> 4
             : nfTokenId;
 
-        DepositCommitment memory valueCommitment = DepositCommitment(nfTokenId, nfSlotId, value, secretHash);
+        DepositCommitment memory valueCommitment = DepositCommitment(
+            nfTokenId,
+            nfSlotId,
+            value,
+            secretHash
+        );
         uint256 key = sha256_and_shift(abi.encode(valueCommitment));
 
-        require(feeBinding[key].escrowed == 0, "Funds have already been escrowed for this Deposit");
+        require(
+            feeBinding[key].escrowed == 0,
+            "Funds have already been escrowed for this Deposit"
+        );
 
         if (token_type == TokenType.ERC3525) {
-            ERC3525(ercAddress).transferFrom(msg.sender, address(this), tokenId);
+            ERC3525(ercAddress).transferFrom(
+                msg.sender,
+                address(this),
+                tokenId
+            );
         } else if (token_type == TokenType.ERC1155) {
-            IERC1155(ercAddress).safeTransferFrom(msg.sender, address(this), tokenId, value, "");
+            IERC1155(ercAddress).safeTransferFrom(
+                msg.sender,
+                address(this),
+                tokenId,
+                value,
+                ""
+            );
         } else if (token_type == TokenType.ERC721) {
             require(value == 0, "ERC721 tokens should have a value of zero");
-            IERC721(ercAddress).safeTransferFrom(msg.sender, address(this), tokenId, "");
+            IERC721(ercAddress).safeTransferFrom(
+                msg.sender,
+                address(this),
+                tokenId,
+                ""
+            );
         } else if (token_type == TokenType.ERC20) {
             require(tokenId == 0, "ERC20 tokens should have a tokenId of 0");
-            require(IERC20(ercAddress).transferFrom(msg.sender, address(this), value), "ERC20 transfer failed");
+            require(
+                IERC20(ercAddress).transferFrom(
+                    msg.sender,
+                    address(this),
+                    value
+                ),
+                "ERC20 transfer failed"
+            );
         } else {
             revert escrowFundsError();
         }

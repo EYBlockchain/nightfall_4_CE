@@ -9,12 +9,15 @@ import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 contract UpgradeRollupProofVerifierWithLogging is Script {
     // --- EIP-1967 slots ---
     // keccak256("eip1967.proxy.implementation") - 1
-    bytes32 constant _IMPL_SLOT  = 0x360894A13BA1A3210667C828492DB98DCA3E2076CC3735A920A3CA505D382BBC;
+    bytes32 constant _IMPL_SLOT =
+        0x360894A13BA1A3210667C828492DB98DCA3E2076CC3735A920A3CA505D382BBC;
     // keccak256("eip1967.proxy.admin") - 1 (usually zero for UUPS)
-    bytes32 constant _ADMIN_SLOT = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
+    bytes32 constant _ADMIN_SLOT =
+        0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
 
     // Compiled artifact for the **new** implementation
-    string constant ARTIFACT = "RollupProofVerifierV2.sol:RollupProofVerifierV2";
+    string constant ARTIFACT =
+        "RollupProofVerifierV2.sol:RollupProofVerifierV2";
 
     // --- helpers ---
     function _getImpl(address proxy) internal view returns (address impl) {
@@ -28,19 +31,24 @@ contract UpgradeRollupProofVerifierWithLogging is Script {
     }
 
     function _codehash(address a) internal view returns (bytes32 h) {
-        assembly { h := extcodehash(a) }
+        assembly {
+            h := extcodehash(a)
+        }
     }
 
-    function _proxiableUUID(address proxy) internal view returns (bytes32 uuid, bool ok) {
+    function _proxiableUUID(
+        address proxy
+    ) internal view returns (bytes32 uuid, bool ok) {
         // Calling proxiableUUID on a UUPS proxy often reverts; we just attempt & log.
-        (bool success, bytes memory ret) =
-            proxy.staticcall(abi.encodeWithSignature("proxiableUUID()"));
-        if (!success || ret.length == 0) return (bytes32(0), false);
+        (bool success, bytes memory ret) = proxy.staticcall(
+            abi.encodeWithSignature("proxiableUUID()")
+        );
+        if (!success || ret.length != 32) return (bytes32(0), false);
         return (abi.decode(ret, (bytes32)), true);
     }
 
     function _logProxyState(string memory tag, address proxy) internal view {
-        address impl  = _getImpl(proxy);
+        address impl = _getImpl(proxy);
         address admin = _getAdmin(proxy);
         (bytes32 uuid, bool hasUUID) = _proxiableUUID(proxy);
 
@@ -86,8 +94,15 @@ contract UpgradeRollupProofVerifierWithLogging is Script {
         _logProxyState("After upgrade", proxy);
 
         require(implAfter != address(0), "implAfter is zero");
-        require(implAfter != implBefore, "Implementation did not change");
-        console.log("Verifier upgrade successful: %s -> %s", implBefore, implAfter);
+        require(
+            _codehash(implAfter) != _codehash(implBefore),
+            "Implementation did not change"
+        );
+        console.log(
+            "Verifier upgrade successful: %s -> %s",
+            implBefore,
+            implAfter
+        );
     }
 
     /// Convenience entrypoint: reads proxy from env VERIFIER_PROXY

@@ -18,7 +18,9 @@ abstract contract Allowlist is Initializable {
         __Allowlist_init_unchained(owner_);
     }
 
-    function __Allowlist_init_unchained(address owner_) internal onlyInitializing {
+    function __Allowlist_init_unchained(
+        address owner_
+    ) internal onlyInitializing {
         require(owner == address(0), "Allowlist: already initialized");
         owner = owner_;
         allowlisting = true;
