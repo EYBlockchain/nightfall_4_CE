@@ -21,7 +21,7 @@ contract RoundRobin is ProposerManager, Certified, UUPSUpgradeable
 {
     // -------- config that used to be `immutable` (can’t be immutable in proxies) --------
     uint public STAKE;
-    uint public DING;
+    uint public LAZY_PENALTY;
     uint public EXIT_PENALTY;
     uint public COOLDOWN_BLOCKS;
     uint public ROTATION_BLOCKS;
@@ -51,9 +51,9 @@ contract RoundRobin is ProposerManager, Certified, UUPSUpgradeable
     function initialize(
         address x509_address,
         address sanctionsListAddress,
-        uint stake,
-        uint ding,
-        uint exit_penalty, //// When the current proposer voluntarily deregisters, a small but nontrivial penalty is deducted.
+        uint stake, // Proposer needs to stake this much to join the ring
+        uint lazy_penalty, // If a proposer fails to propose when it is their turn, this amount is deducted from their stake
+        uint exit_penalty, // When the current proposer voluntarily deregisters, a small but nontrivial penalty is deducted.
         uint cooling_blocks, // This is the number of blocks that must pass before a proposer can reregister after exiting
         uint rotation_blocks
     ) public initializer {
@@ -65,10 +65,10 @@ contract RoundRobin is ProposerManager, Certified, UUPSUpgradeable
 
         require(cooling_blocks > 0, "Cooling blocks must be > 0");
         require(stake >= exit_penalty, "Stake < exit penalty");
-        require(ding  >  exit_penalty, "Ding <= exit penalty");
+        require(lazy_penalty > exit_penalty, "LazyPenalty <= exit penalty");
 
         STAKE           = stake;
-        DING            = ding;
+        LAZY_PENALTY    = lazy_penalty;
         EXIT_PENALTY    = exit_penalty;
         COOLDOWN_BLOCKS = cooling_blocks;
         ROTATION_BLOCKS = rotation_blocks;
@@ -136,7 +136,7 @@ contract RoundRobin is ProposerManager, Certified, UUPSUpgradeable
     function rotate_proposer() external virtual override {
         require(can_rotate(), "It is not time to rotate the proposer");
         if (nightfall.layer2_block_number() == start_l2_block) {
-            ding_proposer(current.addr);
+            lazy_penalize_proposer(current.addr);
         }
         current = proposers[current.next_addr];
         start_l1_block = block.number;
@@ -277,15 +277,15 @@ contract RoundRobin is ProposerManager, Certified, UUPSUpgradeable
     }
 
     // provides a mechanism for fining a lazy proposer
-    function ding_proposer(address proposer_addr) private {
+    function lazy_penalize_proposer(address proposer_addr) private {
         Proposer storage proposer = proposers[proposer_addr];
-        int new_stake = int(proposer.stake) - int(DING);
-        if (new_stake < 0) {
+        if (proposer.stake < LAZY_PENALTY) {
             _remove_proposer(proposer_addr);
             return;
         }
-        proposer.stake = uint(new_stake);
-        escrow -= DING;
+        proposer.stake -= LAZY_PENALTY;
+        require(escrow >= LAZY_PENALTY, "escrow underflow");
+        escrow -= LAZY_PENALTY;
     }
 
     // --- UUPS guard (use Certified’s onlyOwner) ---
