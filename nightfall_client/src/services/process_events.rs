@@ -10,5 +10,9 @@ pub async fn process_events<N: NightfallContract>(
     e: impl EventHandler<N>,
     log: Log,
 ) -> Result<(), EventHandlerError> {
+    ark_std::println!(
+        "Processing event with transaction hash: {:?}",
+        log.transaction_hash
+    );
     e.handle_event(log.transaction_hash).await
 }

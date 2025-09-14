@@ -1,0 +1,351 @@
+Attaching to anvil, nf4_client, nf4_client2, nf4_configuration, nf4_db_client, nf4_db_client2, nf4_db_proposer, nf4_deployer, nf4_proposer, nf4_test
+anvil  | Waiting for anvil to be ready... (1)
+nf4_configuration  | 2025/09/14 02:56:52 [notice] 1#1: using the "epoll" event method
+nf4_configuration  | 2025/09/14 02:56:52 [notice] 1#1: nginx/1.29.1
+nf4_configuration  | 2025/09/14 02:56:52 [notice] 1#1: built by gcc 12.2.0 (Debian 12.2.0-14+deb12u1) 
+nf4_configuration  | 2025/09/14 02:56:52 [notice] 1#1: OS: Linux 6.10.14-linuxkit
+nf4_configuration  | 2025/09/14 02:56:52 [notice] 1#1: getrlimit(RLIMIT_NOFILE): 1048576:1048576
+nf4_configuration  | 2025/09/14 02:56:52 [notice] 1#1: start worker processes
+nf4_configuration  | 2025/09/14 02:56:52 [notice] 1#1: start worker process 29
+nf4_configuration  | 2025/09/14 02:56:52 [notice] 1#1: start worker process 30
+nf4_configuration  | 2025/09/14 02:56:52 [notice] 1#1: start worker process 31
+nf4_configuration  | 2025/09/14 02:56:52 [notice] 1#1: start worker process 32
+nf4_configuration  | 2025/09/14 02:56:52 [notice] 1#1: start worker process 33
+nf4_configuration  | 2025/09/14 02:56:52 [notice] 1#1: start worker process 34
+nf4_configuration  | 2025/09/14 02:56:52 [notice] 1#1: start worker process 35
+anvil              | Compiling 94 files with Solc 0.8.29
+anvil              | installing solc version "0.8.29"
+anvil              | Successfully installed solc 0.8.29
+nf4_deployer       | 
+nf4_deployer       | ███╗   ██╗██╗ ██████╗ ██╗  ██╗████████╗███████╗ █████╗ ██╗     ██╗        ██╗  ██╗
+nf4_deployer       | ████╗  ██║██║██╔════╝ ██║  ██║╚══██╔══╝██╔════╝██╔══██╗██║     ██║        ██║  ██║
+nf4_deployer       | ██╔██╗ ██║██║██║  ███╗███████║   ██║   █████╗  ███████║██║     ██║        ███████║
+nf4_deployer       | ██║╚██╗██║██║██║   ██║██╔══██║   ██║   ██╔══╝  ██╔══██║██║     ██║        ╚════██║
+nf4_deployer       | ██║ ╚████║██║╚██████╔╝██║  ██║   ██║   ██║     ██║  ██║███████╗███████╗███████╗██║
+nf4_deployer       | ╚═╝  ╚═══╝╚═╝╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚═╝     ╚═╝  ╚═╝╚══════╝╚══════╝╚══════╝╚═╝
+nf4_deployer       | 
+nf4_deployer       | A Zero-Knowledge Proof (ZKP) based application that enables private transfers of ERC20, ERC721, ERC1155, and ERC3525 tokens on public blockchains, 
+nf4_deployer       | leveraging a Layer 2 ZK-ZK rollup architecture to combine scalability with enterprise-grade privacy.
+nf4_deployer       | https://github.com/EYBlockchain/nightfall_4_CE
+nf4_deployer       | 
+nf4_deployer       | [0m[38;5;8m[[0m2025-09-14T02:57:02Z [0m[32mINFO [0m nightfall_deployer[0m[38;5;8m][0m Deployer has started
+nf4_deployer       | [0m[38;5;8m[[0m2025-09-14T02:57:02Z [0m[32mINFO [0m nightfall_deployer[0m[38;5;8m][0m Deploying contracts
+nf4_deployer       | [0m[38;5;8m[[0m2025-09-14T02:57:02Z [0m[32mINFO [0m nightfall_deployer::deployment[0m[38;5;8m][0m DEBUG: Running forge command: ["clean"]
+nf4_deployer       | [0m[38;5;8m[[0m2025-09-14T02:57:02Z [0m[32mINFO [0m nightfall_deployer::deployment[0m[38;5;8m][0m Command 'forge ["clean"]' executed successfully: 
+nf4_deployer       | [0m[38;5;8m[[0m2025-09-14T02:57:02Z [0m[32mINFO [0m nightfall_deployer::deployment[0m[38;5;8m][0m DEBUG: Running forge command: ["build"]
+anvil              | Solc 0.8.29 finished in 11.65s
+anvil              | Compiler run successful!
+anvil              | Script ran successfully.
+anvil              | 
+anvil              | == Logs ==
+anvil              |   Deployed ERC20Mock to: 0x5FbDB2315678afecb367f032d93F642f64180aa3
+anvil              |   Deployed ERC721Mock to: 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+anvil              |   Deployed ERC1155Mock to: 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0
+anvil              |   Deployed ERC3525Mock to: 0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9
+anvil              | 
+anvil              | ## Setting up 1 EVM.
+anvil              | 
+anvil              | ==========================
+anvil              | 
+anvil              | Chain 31337
+anvil              | 
+anvil              | Estimated gas price: 101.500000001 gwei
+anvil              | 
+anvil              | Estimated total gas used for script: 7851384
+anvil              | 
+anvil              | Estimated amount required: 0.796915476007851384 ETH
+anvil              | 
+anvil              | ==========================
+anvil              | 
+anvil              | 
+anvil              | ==========================
+anvil              | 
+anvil              | ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+anvil              | 
+anvil              | Transactions saved to: /blockchain_assets/logs/mock_deployment.s.sol/31337/run-latest.json
+anvil              | 
+anvil              | Sensitive values saved to: /blockchain_assets/cache/mock_deployment.s.sol/31337/run-latest.json
+anvil              | 
+nf4_deployer       | [0m[38;5;8m[[0m2025-09-14T02:57:20Z [0m[32mINFO [0m nightfall_deployer::deployment[0m[38;5;8m][0m Command 'forge ["build"]' executed successfully: Compiling 132 files with Solc 0.8.29
+nf4_deployer       |     installing solc version "0.8.29"
+nf4_deployer       |     Successfully installed solc 0.8.29
+nf4_deployer       |     Solc 0.8.29 finished in 15.99s
+nf4_deployer       |     Compiler run successful with warnings:
+nf4_deployer       |     Warning (2018): Function state mutability can be restricted to pure
+nf4_deployer       |       --> blockchain_assets/solidity_lib/openzeppelin-foundry-upgrades/src/internal/StringFinder.sol:15:5:
+nf4_deployer       |        |
+nf4_deployer       |     15 |     function contains(string memory subject, string memory search) internal returns (bool) {
+nf4_deployer       |        |     ^ (Relevant source part starts here and spans across multiple lines).
+nf4_deployer       |     
+nf4_deployer       |     Warning (2018): Function state mutability can be restricted to pure
+nf4_deployer       |        --> blockchain_assets/solidity_lib/openzeppelin-foundry-upgrades/src/internal/DefenderDeploy.sol:226:5:
+nf4_deployer       |         |
+nf4_deployer       |     226 |     function _parseLine(
+nf4_deployer       |         |     ^ (Relevant source part starts here and spans across multiple lines).
+nf4_deployer       |     
+nf4_deployer       |     
+nf4_deployer       | [0m[38;5;8m[[0m2025-09-14T02:57:20Z [0m[32mINFO [0m nightfall_deployer::deployment[0m[38;5;8m][0m DEBUG: Running forge command: ["script", "Deployer", "--fork-url", "ws://anvil:8545", "--broadcast", "--force"]
+nf4_deployer       | [0m[38;5;8m[[0m2025-09-14T02:57:48Z [0m[32mINFO [0m nightfall_deployer::deployment[0m[38;5;8m][0m Command 'forge ["script", "Deployer", "--fork-url", "ws://anvil:8545", "--broadcast", "--force"]' executed successfully: Compiling 112 files with Solc 0.8.29
+nf4_deployer       |     Solc 0.8.29 finished in 10.26s
+nf4_deployer       |     Compiler run successful with warnings:
+nf4_deployer       |     Warning (2018): Function state mutability can be restricted to pure
+nf4_deployer       |       --> blockchain_assets/solidity_lib/openzeppelin-foundry-upgrades/src/internal/StringFinder.sol:15:5:
+nf4_deployer       |        |
+nf4_deployer       |     15 |     function contains(string memory subject, string memory search) internal returns (bool) {
+nf4_deployer       |        |     ^ (Relevant source part starts here and spans across multiple lines).
+nf4_deployer       |     
+nf4_deployer       |     Warning (2018): Function state mutability can be restricted to pure
+nf4_deployer       |        --> blockchain_assets/solidity_lib/openzeppelin-foundry-upgrades/src/internal/DefenderDeploy.sol:226:5:
+nf4_deployer       |         |
+nf4_deployer       |     226 |     function _parseLine(
+nf4_deployer       |         |     ^ (Relevant source part starts here and spans across multiple lines).
+nf4_deployer       |     
+nf4_deployer       |     Script ran successfully.
+nf4_deployer       |     
+nf4_deployer       |     == Logs ==
+nf4_deployer       |       inside _configureX509locally
+nf4_deployer       |       Bootstrapping default proposer...
+nf4_deployer       |       defaultProposerAddress:  0xa0Ee7A142d267C1f36714E4a8F75612F20a79720
+nf4_deployer       |       defaultProposerUrl:  http://proposer:3000
+nf4_deployer       |       nightfallAddress:  0x68B1D87F95878fE05B998F19b66F4baba5De1aed
+nf4_deployer       |       Nightfall proxy:        0x68B1D87F95878fE05B998F19b66F4baba5De1aed
+nf4_deployer       |       Nightfall owner:        0xa0Ee7A142d267C1f36714E4a8F75612F20a79720
+nf4_deployer       |       RoundRobin proxy:       0xc6e7DF5E7b4f2A278906862b61205850344D4e7d
+nf4_deployer       |       RoundRobin owner:       0xa0Ee7A142d267C1f36714E4a8F75612F20a79720
+nf4_deployer       |       X509 proxy:             0x610178dA211FEF7D417bC0e6FeD39F05609AD788
+nf4_deployer       |       X509 owner:             0xa0Ee7A142d267C1f36714E4a8F75612F20a79720
+nf4_deployer       |       VK provider proxy:      0x5FC8d32690cc91D4c39d9d3abcBD16989F875707
+nf4_deployer       |       Verifier proxy:         0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6
+nf4_deployer       |       Verifier owner:         0xa0Ee7A142d267C1f36714E4a8F75612F20a79720
+nf4_deployer       |     
+nf4_deployer       |     ## Setting up 1 EVM.
+nf4_deployer       |     
+nf4_deployer       |     ==========================
+nf4_deployer       |     
+nf4_deployer       |     Chain 31337
+nf4_deployer       |     
+nf4_deployer       |     Estimated gas price: 36.882365773 gwei
+nf4_deployer       |     
+nf4_deployer       |     Estimated total gas used for script: 24571135
+nf4_deployer       |     
+nf4_deployer       |     Estimated amount required: 0.906241588527762355 ETH
+nf4_deployer       |     
+nf4_deployer       |     ==========================
+nf4_deployer       |     
+nf4_deployer       |     
+nf4_deployer       |     ==========================
+nf4_deployer       |     
+nf4_deployer       |     ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+nf4_deployer       |     
+nf4_deployer       |     Transactions saved to: /app/blockchain_assets/logs/deployer.s.sol/31337/run-latest.json
+nf4_deployer       |     
+nf4_deployer       |     Sensitive values saved to: /app/blockchain_assets/cache/deployer.s.sol/31337/run-latest.json
+nf4_deployer       |     
+nf4_deployer       |     
+nf4_configuration  | 172.18.0.7 - - [14/Sep/2025:02:57:48 +0000] "PUT /configuration/toml/addresses.toml HTTP/1.1" 204 0 "-" "-" "-"
+[Knf4_deployer exited with code 0
+nf4_proposer       | [0m[38;5;8m[[0m2025-09-14T02:57:49Z [0m[32mINFO [0m nightfall_proposer[0m[38;5;8m][0m Dropping database: nightfall
+nf4_proposer       | [0m[38;5;8m[[0m2025-09-14T02:57:49Z [0m[32mINFO [0m nightfall_proposer[0m[38;5;8m][0m Using MockProver
+nf4_proposer       | [0m[38;5;8m[[0m2025-09-14T02:57:49Z [0m[32mINFO [0m nightfall_proposer::drivers::blockchain::nightfall_event_listener[0m[38;5;8m][0m Proposer event listener (attempt 1)...
+nf4_proposer       | [0m[38;5;8m[[0m2025-09-14T02:57:49Z [0m[32mINFO [0m nightfall_proposer::drivers::blockchain::nightfall_event_listener[0m[38;5;8m][0m Proposer event listener (attempt 1)...
+nf4_proposer       | [0m[38;5;8m[[0m2025-09-14T02:57:49Z [0m[32mINFO [0m nightfall_proposer[0m[38;5;8m][0m Starting warp server, block assembler and event_handler threads
+nf4_proposer       | [0m[38;5;8m[[0m2025-09-14T02:57:49Z [0m[32mINFO [0m lib::wallets[0m[38;5;8m][0m Created signer with address: 0xa0ee7a142d267c1f36714e4a8f75612f20a79720
+nf4_configuration  | 172.18.0.7 - - [14/Sep/2025:02:57:49 +0000] "GET /configuration/toml/addresses.toml HTTP/1.1" 200 168 "-" "-" "-"
+nf4_proposer       | [0m[38;5;8m[[0m2025-09-14T02:57:49Z [0m[33mWARN [0m configuration::addresses[0m[38;5;8m][0m Loaded contract addresses from configuration server: http://configuration/configuration/toml/addresses.toml
+nf4_proposer       | [0m[38;5;8m[[0m2025-09-14T02:57:49Z [0m[33mWARN [0m nightfall_proposer::drivers::blockchain::block_assembly[0m[38;5;8m][0m RoundRobin address: 0xc6e7df5e7b4f2a278906862b61205850344d4e7d, bytecode_len: 163
+nf4_proposer       | [0m[38;5;8m[[0m2025-09-14T02:57:49Z [0m[33mWARN [0m nightfall_proposer::drivers::blockchain::block_assembly[0m[38;5;8m][0m EIP-1967 impl at RR addr: 0xca97c70db1eba53a000000000000000000000000
+nf4_proposer       | [0m[38;5;8m[[0m2025-09-14T02:57:49Z [0m[32mINFO [0m nightfall_proposer::drivers::blockchain::block_assembly[0m[38;5;8m][0m Using addresses — nightfall: 0x68b1d87f95878fe05b998f19b66f4baba5de1aed, round_robin: 0xc6e7df5e7b4f2a278906862b61205850344d4e7d, x509: 0x610178da211fef7d417bc0e6fed39f05609ad788
+nf4_proposer       | [0m[38;5;8m[[0m2025-09-14T02:57:49Z [0m[32mINFO [0m nightfall_proposer::drivers::blockchain::block_assembly[0m[38;5;8m][0m We are the current proposer. Awaiting trigger...
+nf4_proposer       | additional confirmations required: 23
+nf4_proposer       | [0m[38;5;8m[[0m2025-09-14T02:57:49Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 0s, remaining: 120s, will wait for more txs or until timeout (120s).
+nf4_proposer       | [0m[38;5;8m[[0m2025-09-14T02:57:49Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 0s, remaining: 120s, will wait for more txs or until timeout (120s).
+nf4_proposer       | additional confirmations required: 23
+nf4_proposer       | additional confirmations required: 23
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:57:54Z [0m[32mINFO [0m nightfall_client[0m[38;5;8m][0m Starting warp server, request queue, and event_handler threads
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:57:54Z [0m[32mINFO [0m nightfall_client::drivers::blockchain::nightfall_event_listener[0m[38;5;8m][0m Client event listener (attempt 1)...
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:57:54Z [0m[32mINFO [0m nightfall_client::drivers::blockchain::nightfall_event_listener[0m[38;5;8m][0m Client event listener (attempt 1)...
+nf4_client2        | [0m[38;5;8m[[0m2025-09-14T02:57:54Z [0m[32mINFO [0m nightfall_client[0m[38;5;8m][0m Starting warp server, request queue, and event_handler threads
+nf4_client2        | [0m[38;5;8m[[0m2025-09-14T02:57:54Z [0m[32mINFO [0m nightfall_client::drivers::blockchain::nightfall_event_listener[0m[38;5;8m][0m Client event listener (attempt 1)...
+nf4_client2        | [0m[38;5;8m[[0m2025-09-14T02:57:54Z [0m[32mINFO [0m nightfall_client::drivers::blockchain::nightfall_event_listener[0m[38;5;8m][0m Client event listener (attempt 1)...
+nf4_client2        | [0m[38;5;8m[[0m2025-09-14T02:57:54Z [0m[32mINFO [0m lib::wallets[0m[38;5;8m][0m Created signer with address: 0x976ea74026e726554db657fa54763abd0c3a0aa9
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:57:54Z [0m[32mINFO [0m lib::wallets[0m[38;5;8m][0m Created signer with address: 0x23618e81e3f5cdf7f54c3d65f7fbc0abf5b21e8f
+nf4_configuration  | 172.18.0.8 - - [14/Sep/2025:02:57:54 +0000] "GET /configuration/toml/addresses.toml HTTP/1.1" 200 168 "-" "-" "-"
+nf4_configuration  | 172.18.0.9 - - [14/Sep/2025:02:57:54 +0000] "GET /configuration/toml/addresses.toml HTTP/1.1" 200 168 "-" "-" "-"
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:57:54Z [0m[33mWARN [0m configuration::addresses[0m[38;5;8m][0m Loaded contract addresses from configuration server: http://configuration/configuration/toml/addresses.toml
+nf4_client2        | [0m[38;5;8m[[0m2025-09-14T02:57:54Z [0m[33mWARN [0m configuration::addresses[0m[38;5;8m][0m Loaded contract addresses from configuration server: http://configuration/configuration/toml/addresses.toml
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:57:54Z [0m[32mINFO [0m nightfall_client::drivers::blockchain::nightfall_event_listener[0m[38;5;8m][0m Listening for events on the Nightfall contract at address: 0x68B1D87F95878fE05B998F19b66F4baba5De1aed
+nf4_client2        | [0m[38;5;8m[[0m2025-09-14T02:57:54Z [0m[32mINFO [0m nightfall_client::drivers::blockchain::nightfall_event_listener[0m[38;5;8m][0m Listening for events on the Nightfall contract at address: 0x68B1D87F95878fE05B998F19b66F4baba5De1aed
+nf4_proposer       | additional confirmations required: 23
+nf4_proposer       | additional confirmations required: 23
+nf4_proposer       | additional confirmations required: 23
+nf4_proposer       | [0m[38;5;8m[[0m2025-09-14T02:57:59Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 10s, remaining: 110s, will wait for more txs or until timeout (120s).
+nf4_test           | [0m[38;5;8m[[0m2025-09-14T02:58:00Z [0m[32mINFO [0m nightfall_test[0m[38;5;8m][0m Starting webhook server...
+nf4_test           | [0m[38;5;8m[[0m2025-09-14T02:58:00Z [0m[32mINFO [0m nightfall_test[0m[38;5;8m][0m Running tests...
+nf4_test           | [0m[38;5;8m[[0m2025-09-14T02:58:00Z [0m[32mINFO [0m nightfall_test[0m[38;5;8m][0m Waiting for client services to be ready...
+nf4_test           | [0m[38;5;8m[[0m2025-09-14T02:58:00Z [0m[32mINFO [0m nightfall_test::run_tests[0m[38;5;8m][0m Running tests on nightall_client http:// interface
+nf4_test           | [0m[38;5;8m[[0m2025-09-14T02:58:00Z [0m[32mINFO [0m nightfall_test[0m[38;5;8m][0m Service http://client:3000/v1/health is ready!
+nf4_test           | [0m[38;5;8m[[0m2025-09-14T02:58:00Z [0m[32mINFO [0m nightfall_test[0m[38;5;8m][0m Service http://client2:3000/v1/health is ready!
+nf4_test           | [0m[38;5;8m[[0m2025-09-14T02:58:00Z [0m[32mINFO [0m nightfall_test[0m[38;5;8m][0m Starting queue polling...
+nf4_test           | [0m[38;5;8m[[0m2025-09-14T02:58:00Z [0m[32mINFO [0m nightfall_test::run_tests[0m[38;5;8m][0m * zkp keys created
+nf4_test           | [0m[38;5;8m[[0m2025-09-14T02:58:00Z [0m[32mINFO [0m nightfall_test::run_tests[0m[38;5;8m][0m * contract addresses obtained
+nf4_test           | [0m[38;5;8m[[0m2025-09-14T02:58:00Z [0m[32mINFO [0m nightfall_test::validate_certs[0m[38;5;8m][0m Validating Client 1's certificate
+nf4_proposer       | additional confirmations required: 23
+nf4_proposer       | additional confirmations required: 23
+nf4_proposer       | [0m[38;5;8m[[0m2025-09-14T02:58:04Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 15s, remaining: 105s, will wait for more txs or until timeout (120s).
+nf4_proposer       | additional confirmations required: 23
+nf4_proposer       | additional confirmations required: 23
+nf4_proposer       | additional confirmations required: 23
+nf4_test           | [0m[38;5;8m[[0m2025-09-14T02:58:10Z [0m[32mINFO [0m nightfall_test::validate_certs[0m[38;5;8m][0m Validating Client 2's certificate
+nf4_proposer       | additional confirmations required: 23
+nf4_proposer       | additional confirmations required: 23
+nf4_proposer       | [0m[38;5;8m[[0m2025-09-14T02:58:14Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 25s, remaining: 95s, will wait for more txs or until timeout (120s).
+nf4_proposer       | additional confirmations required: 23
+nf4_proposer       | additional confirmations required: 23
+nf4_proposer       | additional confirmations required: 23
+nf4_proposer       | [0m[38;5;8m[[0m2025-09-14T02:58:19Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 30s, remaining: 90s, will wait for more txs or until timeout (120s).
+nf4_test           | [0m[38;5;8m[[0m2025-09-14T02:58:20Z [0m[32mINFO [0m nightfall_test::validate_certs[0m[38;5;8m][0m Validating Proposer's certificate
+nf4_proposer       | [0m[38;5;8m[[0m2025-09-14T02:58:20Z [0m[32mINFO [0m lib::wallets[0m[38;5;8m][0m Created signer with address: 0xa0ee7a142d267c1f36714e4a8f75612f20a79720
+nf4_proposer       | additional confirmations required: 23
+nf4_proposer       | additional confirmations required: 23
+nf4_proposer       | additional confirmations required: 23
+nf4_proposer       | additional confirmations required: 23
+nf4_proposer       | additional confirmations required: 23
+nf4_proposer       | [0m[38;5;8m[[0m2025-09-14T02:58:29Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 40s, remaining: 80s, will wait for more txs or until timeout (120s).
+nf4_test           | [0m[38;5;8m[[0m2025-09-14T02:58:30Z [0m[32mINFO [0m nightfall_test::run_tests[0m[38;5;8m][0m Commencing tests using the client_nf_3 API
+nf4_test           | [0m[38;5;8m[[0m2025-09-14T02:58:30Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Creating deposit transaction onchain a9369962-57c6-4dc3-bf2a-2376f58c4abc
+nf4_test           | [0m[38;5;8m[[0m2025-09-14T02:58:30Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Creating deposit transaction onchain 21528b6b-192b-4c64-98a8-79ad71328be0
+nf4_test           | [0m[38;5;8m[[0m2025-09-14T02:58:30Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Creating deposit transaction onchain 7b179304-6d71-4492-ae21-d29ed5a3942e
+nf4_test           | [0m[38;5;8m[[0m2025-09-14T02:58:30Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Creating deposit transaction onchain 78202f8a-6932-42ec-86a8-bd56914d3096
+nf4_test           | [0m[38;5;8m[[0m2025-09-14T02:58:30Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Creating deposit transaction onchain 51e2719b-0829-4e2e-b375-3fc592c027e5
+nf4_test           | [0m[38;5;8m[[0m2025-09-14T02:58:30Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Creating deposit transaction onchain 7f40a703-2079-4f28-b17a-394a36955e6a
+nf4_test           | [0m[38;5;8m[[0m2025-09-14T02:58:30Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Creating deposit transaction onchain b051f451-dca0-4147-914d-aac2fbdaa01d
+nf4_test           | [0m[38;5;8m[[0m2025-09-14T02:58:30Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Creating deposit transaction onchain 412b6cd4-5a46-4f11-9bb8-b4e4bbc3cfb7
+nf4_test           | [0m[38;5;8m[[0m2025-09-14T02:58:30Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Creating deposit transaction onchain fd2246e6-4f3f-4e73-a436-e7290c205458
+nf4_test           | [0m[38;5;8m[[0m2025-09-14T02:58:30Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Creating deposit transaction onchain 04058388-5e93-4b99-a8c9-223a342db577
+nf4_test           | [0m[38;5;8m[[0m2025-09-14T02:58:30Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Deposit transaction a9369962-57c6-4dc3-bf2a-2376f58c4abc has been accepted by the client
+nf4_test           | [0m[38;5;8m[[0m2025-09-14T02:58:30Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Deposit transaction 7f40a703-2079-4f28-b17a-394a36955e6a has been accepted by the client
+nf4_configuration  | 172.18.0.250 - - [14/Sep/2025:02:58:30 +0000] "GET /configuration/toml/addresses.toml HTTP/1.1" 200 168 "-" "-" "-"
+nf4_test           | [0m[38;5;8m[[0m2025-09-14T02:58:30Z [0m[33mWARN [0m configuration::addresses[0m[38;5;8m][0m Loaded contract addresses from configuration server: http://configuration/configuration/toml/addresses.toml
+nf4_test           | [0m[38;5;8m[[0m2025-09-14T02:58:30Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Deposit transaction 78202f8a-6932-42ec-86a8-bd56914d3096 has been accepted by the client
+nf4_test           | [0m[38;5;8m[[0m2025-09-14T02:58:30Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Deposit transaction 51e2719b-0829-4e2e-b375-3fc592c027e5 has been accepted by the client
+nf4_test           | [0m[38;5;8m[[0m2025-09-14T02:58:30Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Deposit transaction b051f451-dca0-4147-914d-aac2fbdaa01d has been accepted by the client
+nf4_test           | [0m[38;5;8m[[0m2025-09-14T02:58:30Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Deposit transaction 412b6cd4-5a46-4f11-9bb8-b4e4bbc3cfb7 has been accepted by the client
+nf4_test           | [0m[38;5;8m[[0m2025-09-14T02:58:30Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Deposit transaction fd2246e6-4f3f-4e73-a436-e7290c205458 has been accepted by the client
+nf4_test           | [0m[38;5;8m[[0m2025-09-14T02:58:30Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Deposit transaction 04058388-5e93-4b99-a8c9-223a342db577 has been accepted by the client
+nf4_test           | [0m[38;5;8m[[0m2025-09-14T02:58:30Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Deposit transaction 21528b6b-192b-4c64-98a8-79ad71328be0 has been accepted by the client
+nf4_test           | [0m[38;5;8m[[0m2025-09-14T02:58:30Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Deposit transaction 7b179304-6d71-4492-ae21-d29ed5a3942e has been accepted by the client
+nf4_test           | [0m[38;5;8m[[0m2025-09-14T02:58:30Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Have 10 IDs and 0 processed client transactions
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:58:31Z [0m[32mINFO [0m nightfall_client::driven::queue[0m[38;5;8m][0m Processing request: a9369962-57c6-4dc3-bf2a-2376f58c4abc
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:58:31Z [0m[32mINFO [0m nightfall_client::drivers::rest::client_nf_3[0m[38;5;8m][0m Deposit raw request: NF3DepositRequest { erc_address: "5fbdb2315678afecb367f032d93f642f64180aa3", token_id: "0x00", token_type: "0", value: "0x01", fee: "0x00", deposit_fee: "0x00" }
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:58:31Z [0m[32mINFO [0m nightfall_client::drivers::rest::client_nf_3[0m[38;5;8m][0m Deposit raw request: NF3DepositRequest { erc_address: "5fbdb2315678afecb367f032d93f642f64180aa3", token_id: "0x00", token_type: "0", value: "0x01", fee: "0x00", deposit_fee: "0x00" }
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:58:31Z [0m[32mINFO [0m nightfall_client::services::client_operation[0m[38;5;8m][0m a9369962-57c6-4dc3-bf2a-2376f58c4abc Setting transfer approval
+nf4_proposer       | additional confirmations required: 23
+nf4_proposer       | additional confirmations required: 23
+nf4_proposer       | [0m[38;5;8m[[0m2025-09-14T02:58:34Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 45s, remaining: 75s, will wait for more txs or until timeout (120s).
+nf4_proposer       | additional confirmations required: 23
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:58:35Z [0m[32mINFO [0m nightfall_client::services::client_operation[0m[38;5;8m][0m a9369962-57c6-4dc3-bf2a-2376f58c4abc Escrowing funds
+nf4_proposer       | additional confirmations required: 23
+nf4_proposer       | additional confirmations required: 23
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:58:40Z [0m[32mINFO [0m nightfall_client::driven::contract_functions::nightfall_contract[0m[38;5;8m][0m Gas used in escrow funds: 93682
+nf4_client         | JJ: I get nf_token_id: 3904706575986504511978814088454415652555375037070224197537435603550245942968
+nf4_client         | JJ: I get nf_slot_id: 3904706575986504511978814088454415652555375037070224197537435603550245942968
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:58:40Z [0m[32mINFO [0m nightfall_client::driven::queue[0m[38;5;8m][0m Request a9369962-57c6-4dc3-bf2a-2376f58c4abc processed successfully: 
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:58:40Z [0m[32mINFO [0m nightfall_client::driven::queue[0m[38;5;8m][0m Response: TransactionEvent { response: "[\"0fbdd75bd2247fc7f399f3578ab247c4e1948bb69fa0428ca3e0db19d4d1215d\"]", uuid: "\"a9369962-57c6-4dc3-bf2a-2376f58c4abc\"" }
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:58:40Z [0m[32mINFO [0m nightfall_client::driven::queue[0m[38;5;8m][0m Processing request: 04058388-5e93-4b99-a8c9-223a342db577
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:58:40Z [0m[32mINFO [0m nightfall_client::drivers::rest::client_nf_3[0m[38;5;8m][0m Deposit raw request: NF3DepositRequest { erc_address: "9fe46736679d2d9a65f0992f2272de9f3c7fa6e0", token_id: "0x49", token_type: "1", value: "0x00", fee: "0x15", deposit_fee: "0x16" }
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:58:40Z [0m[32mINFO [0m nightfall_client::drivers::rest::client_nf_3[0m[38;5;8m][0m Deposit raw request: NF3DepositRequest { erc_address: "9fe46736679d2d9a65f0992f2272de9f3c7fa6e0", token_id: "0x49", token_type: "1", value: "0x00", fee: "0x15", deposit_fee: "0x16" }
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:58:40Z [0m[32mINFO [0m nightfall_client::services::client_operation[0m[38;5;8m][0m 04058388-5e93-4b99-a8c9-223a342db577 Setting transfer approval
+nf4_test           | [0m[38;5;8m[[0m2025-09-14T02:58:40Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Have 10 IDs and 1 processed client transactions
+nf4_proposer       | additional confirmations required: 23
+nf4_proposer       | additional confirmations required: 23
+nf4_proposer       | [0m[38;5;8m[[0m2025-09-14T02:58:44Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 55s, remaining: 65s, will wait for more txs or until timeout (120s).
+nf4_proposer       | additional confirmations required: 23
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:58:45Z [0m[32mINFO [0m nightfall_client::services::client_operation[0m[38;5;8m][0m 04058388-5e93-4b99-a8c9-223a342db577 Escrowing funds
+nf4_proposer       | additional confirmations required: 23
+nf4_proposer       | [0m[38;5;8m[[0m2025-09-14T02:58:49Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 60s, remaining: 60s, will wait for more txs or until timeout (120s).
+nf4_proposer       | additional confirmations required: 23
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:58:50Z [0m[32mINFO [0m nightfall_client::driven::contract_functions::nightfall_contract[0m[38;5;8m][0m Gas used in escrow funds: 111122
+nf4_client         | JJ: I get nf_token_id: 681312288448056498769063475112669641998027501290369702966647401453774173416
+nf4_client         | JJ: I get nf_slot_id: 681312288448056498769063475112669641998027501290369702966647401453774173416
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:58:50Z [0m[32mINFO [0m nightfall_client::driven::queue[0m[38;5;8m][0m Request 04058388-5e93-4b99-a8c9-223a342db577 processed successfully: 
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:58:50Z [0m[32mINFO [0m nightfall_client::driven::queue[0m[38;5;8m][0m Response: TransactionEvent { response: "[\"0d387ea7cc2c231fbc69a1f29253862b1be70d191c8fbc8ba2923f63eeb008e9\",\"000b4d9e4459160c5d86a3c59c35324e9ae9f9e0842c175bb284f94788362ba7\"]", uuid: "\"04058388-5e93-4b99-a8c9-223a342db577\"" }
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:58:50Z [0m[32mINFO [0m nightfall_client::driven::queue[0m[38;5;8m][0m Processing request: 7f40a703-2079-4f28-b17a-394a36955e6a
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:58:50Z [0m[32mINFO [0m nightfall_client::drivers::rest::client_nf_3[0m[38;5;8m][0m Deposit raw request: NF3DepositRequest { erc_address: "cf7ed3acca5a467e9e704c703e8d87f634fb0fc9", token_id: "0x07", token_type: "3", value: "0x09", fee: "0x0a", deposit_fee: "0x0b" }
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:58:50Z [0m[32mINFO [0m nightfall_client::drivers::rest::client_nf_3[0m[38;5;8m][0m Deposit raw request: NF3DepositRequest { erc_address: "cf7ed3acca5a467e9e704c703e8d87f634fb0fc9", token_id: "0x07", token_type: "3", value: "0x09", fee: "0x0a", deposit_fee: "0x0b" }
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:58:50Z [0m[32mINFO [0m nightfall_client::services::client_operation[0m[38;5;8m][0m 7f40a703-2079-4f28-b17a-394a36955e6a Setting transfer approval
+nf4_test           | [0m[38;5;8m[[0m2025-09-14T02:58:50Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Have 10 IDs and 2 processed client transactions
+nf4_proposer       | additional confirmations required: 23
+nf4_proposer       | additional confirmations required: 23
+nf4_proposer       | additional confirmations required: 23
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:58:55Z [0m[32mINFO [0m nightfall_client::services::client_operation[0m[38;5;8m][0m 7f40a703-2079-4f28-b17a-394a36955e6a Escrowing funds
+nf4_proposer       | additional confirmations required: 23
+nf4_proposer       | [0m[38;5;8m[[0m2025-09-14T02:58:59Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 70s, remaining: 50s, will wait for more txs or until timeout (120s).
+nf4_proposer       | additional confirmations required: 23
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:59:00Z [0m[32mINFO [0m nightfall_client::driven::contract_functions::nightfall_contract[0m[38;5;8m][0m Gas used in escrow funds: 127133
+nf4_client         | JJ: I get nf_token_id: 2724696797603631541376449849816490290779772018353693013891565432121307603010
+nf4_client         | JJ: I get nf_slot_id: 879547487268782931698094455305891646080603792358868725469426512743186875243
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:59:00Z [0m[32mINFO [0m nightfall_client::driven::queue[0m[38;5;8m][0m Request 7f40a703-2079-4f28-b17a-394a36955e6a processed successfully: 
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:59:00Z [0m[32mINFO [0m nightfall_client::driven::queue[0m[38;5;8m][0m Response: TransactionEvent { response: "[\"0fe341bc17424064e3a5dbb0ced91ee9e983168e980d26d875eced1b0a8edd4a\",\"152d12b6c1fa0fee5a3d73005a23400db880877267656ea13957520ae18d0cdf\"]", uuid: "\"7f40a703-2079-4f28-b17a-394a36955e6a\"" }
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:59:00Z [0m[32mINFO [0m nightfall_client::driven::queue[0m[38;5;8m][0m Processing request: 21528b6b-192b-4c64-98a8-79ad71328be0
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:59:00Z [0m[32mINFO [0m nightfall_client::drivers::rest::client_nf_3[0m[38;5;8m][0m Deposit raw request: NF3DepositRequest { erc_address: "5fbdb2315678afecb367f032d93f642f64180aa3", token_id: "0x00", token_type: "0", value: "0x03", fee: "0x02", deposit_fee: "0x27" }
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:59:00Z [0m[32mINFO [0m nightfall_client::drivers::rest::client_nf_3[0m[38;5;8m][0m Deposit raw request: NF3DepositRequest { erc_address: "5fbdb2315678afecb367f032d93f642f64180aa3", token_id: "0x00", token_type: "0", value: "0x03", fee: "0x02", deposit_fee: "0x27" }
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:59:00Z [0m[32mINFO [0m nightfall_client::services::client_operation[0m[38;5;8m][0m 21528b6b-192b-4c64-98a8-79ad71328be0 Setting transfer approval
+nf4_test           | [0m[38;5;8m[[0m2025-09-14T02:59:00Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Have 10 IDs and 3 processed client transactions
+nf4_proposer       | additional confirmations required: 23
+nf4_proposer       | additional confirmations required: 23
+nf4_proposer       | [0m[38;5;8m[[0m2025-09-14T02:59:04Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 75s, remaining: 45s, will wait for more txs or until timeout (120s).
+nf4_proposer       | additional confirmations required: 23
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:59:05Z [0m[32mINFO [0m nightfall_client::services::client_operation[0m[38;5;8m][0m 21528b6b-192b-4c64-98a8-79ad71328be0 Escrowing funds
+nf4_proposer       | additional confirmations required: 23
+nf4_proposer       | additional confirmations required: 23
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:59:10Z [0m[32mINFO [0m nightfall_client::driven::contract_functions::nightfall_contract[0m[38;5;8m][0m Gas used in escrow funds: 93694
+nf4_client         | JJ: I get nf_token_id: 3904706575986504511978814088454415652555375037070224197537435603550245942968
+nf4_client         | JJ: I get nf_slot_id: 3904706575986504511978814088454415652555375037070224197537435603550245942968
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:59:10Z [0m[32mINFO [0m nightfall_client::driven::queue[0m[38;5;8m][0m Request 21528b6b-192b-4c64-98a8-79ad71328be0 processed successfully: 
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:59:10Z [0m[32mINFO [0m nightfall_client::driven::queue[0m[38;5;8m][0m Response: TransactionEvent { response: "[\"220cac63c134074068a31a1f78c0776a11349785f6eec8695c1a475d20f3924d\",\"1634f7bade9381a3898fed1cecbc8038bad920f7964681191cf0fa7ebce64908\"]", uuid: "\"21528b6b-192b-4c64-98a8-79ad71328be0\"" }
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:59:10Z [0m[32mINFO [0m nightfall_client::driven::queue[0m[38;5;8m][0m Processing request: 7b179304-6d71-4492-ae21-d29ed5a3942e
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:59:10Z [0m[32mINFO [0m nightfall_client::drivers::rest::client_nf_3[0m[38;5;8m][0m Deposit raw request: NF3DepositRequest { erc_address: "5fbdb2315678afecb367f032d93f642f64180aa3", token_id: "0x00", token_type: "0", value: "0x04", fee: "0x05", deposit_fee: "0x06" }
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:59:10Z [0m[32mINFO [0m nightfall_client::drivers::rest::client_nf_3[0m[38;5;8m][0m Deposit raw request: NF3DepositRequest { erc_address: "5fbdb2315678afecb367f032d93f642f64180aa3", token_id: "0x00", token_type: "0", value: "0x04", fee: "0x05", deposit_fee: "0x06" }
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:59:10Z [0m[32mINFO [0m nightfall_client::services::client_operation[0m[38;5;8m][0m 7b179304-6d71-4492-ae21-d29ed5a3942e Setting transfer approval
+nf4_test           | [0m[38;5;8m[[0m2025-09-14T02:59:10Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Have 10 IDs and 4 processed client transactions
+nf4_proposer       | additional confirmations required: 23
+nf4_proposer       | additional confirmations required: 23
+nf4_proposer       | [0m[38;5;8m[[0m2025-09-14T02:59:14Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 85s, remaining: 35s, will wait for more txs or until timeout (120s).
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:59:15Z [0m[32mINFO [0m nightfall_client::services::client_operation[0m[38;5;8m][0m 7b179304-6d71-4492-ae21-d29ed5a3942e Escrowing funds
+nf4_proposer       | additional confirmations required: 23
+nf4_proposer       | additional confirmations required: 23
+nf4_proposer       | [0m[38;5;8m[[0m2025-09-14T02:59:19Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 90s, remaining: 30s, will wait for more txs or until timeout (120s).
+nf4_proposer       | additional confirmations required: 23
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:59:20Z [0m[32mINFO [0m nightfall_client::driven::contract_functions::nightfall_contract[0m[38;5;8m][0m Gas used in escrow funds: 93694
+nf4_client         | JJ: I get nf_token_id: 3904706575986504511978814088454415652555375037070224197537435603550245942968
+nf4_client         | JJ: I get nf_slot_id: 3904706575986504511978814088454415652555375037070224197537435603550245942968
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:59:20Z [0m[32mINFO [0m nightfall_client::driven::queue[0m[38;5;8m][0m Request 7b179304-6d71-4492-ae21-d29ed5a3942e processed successfully: 
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:59:20Z [0m[32mINFO [0m nightfall_client::driven::queue[0m[38;5;8m][0m Response: TransactionEvent { response: "[\"1dd8b2bea05dc3562c00a55cbc524381ab5666e1e231f09e342f3af5b9824d8d\",\"1dab20cc3ad17d1bdecfea00505988f75ad5287203159f6c11a1812fc36ef6c3\"]", uuid: "\"7b179304-6d71-4492-ae21-d29ed5a3942e\"" }
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:59:20Z [0m[32mINFO [0m nightfall_client::driven::queue[0m[38;5;8m][0m Processing request: 412b6cd4-5a46-4f11-9bb8-b4e4bbc3cfb7
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:59:20Z [0m[32mINFO [0m nightfall_client::drivers::rest::client_nf_3[0m[38;5;8m][0m Deposit raw request: NF3DepositRequest { erc_address: "9fe46736679d2d9a65f0992f2272de9f3c7fa6e0", token_id: "0x02", token_type: "1", value: "0x0f", fee: "0x10", deposit_fee: "0x11" }
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:59:20Z [0m[32mINFO [0m nightfall_client::drivers::rest::client_nf_3[0m[38;5;8m][0m Deposit raw request: NF3DepositRequest { erc_address: "9fe46736679d2d9a65f0992f2272de9f3c7fa6e0", token_id: "0x02", token_type: "1", value: "0x0f", fee: "0x10", deposit_fee: "0x11" }
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:59:20Z [0m[32mINFO [0m nightfall_client::services::client_operation[0m[38;5;8m][0m 412b6cd4-5a46-4f11-9bb8-b4e4bbc3cfb7 Setting transfer approval
+nf4_test           | [0m[38;5;8m[[0m2025-09-14T02:59:20Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Have 10 IDs and 5 processed client transactions
+nf4_proposer       | additional confirmations required: 23
+nf4_proposer       | additional confirmations required: 23
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:59:25Z [0m[32mINFO [0m nightfall_client::services::client_operation[0m[38;5;8m][0m 412b6cd4-5a46-4f11-9bb8-b4e4bbc3cfb7 Escrowing funds
+nf4_proposer       | additional confirmations required: 23
+nf4_proposer       | additional confirmations required: 23
+nf4_proposer       | [0m[38;5;8m[[0m2025-09-14T02:59:29Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 100s, remaining: 20s, will wait for more txs or until timeout (120s).
+nf4_proposer       | additional confirmations required: 23
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:59:30Z [0m[32mINFO [0m nightfall_client::driven::contract_functions::nightfall_contract[0m[38;5;8m][0m Gas used in escrow funds: 111134
+nf4_client         | JJ: I get nf_token_id: 1583836401199189261136383140479458724518940778160520644614240238697947290287
+nf4_client         | JJ: I get nf_slot_id: 1583836401199189261136383140479458724518940778160520644614240238697947290287
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:59:30Z [0m[32mINFO [0m nightfall_client::driven::queue[0m[38;5;8m][0m Request 412b6cd4-5a46-4f11-9bb8-b4e4bbc3cfb7 processed successfully: 
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:59:30Z [0m[32mINFO [0m nightfall_client::driven::queue[0m[38;5;8m][0m Response: TransactionEvent { response: "[\"20f4a671f7f32d68df5c8806bc7f8a90c7aa5ef3b2efd478b1141aeeae80c560\",\"1a0c4967bc06deb6593c214d946061b388e47f9a156a11580874c3ff77cb4aed\"]", uuid: "\"412b6cd4-5a46-4f11-9bb8-b4e4bbc3cfb7\"" }
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:59:30Z [0m[32mINFO [0m nightfall_client::driven::queue[0m[38;5;8m][0m Processing request: 51e2719b-0829-4e2e-b375-3fc592c027e5
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:59:30Z [0m[32mINFO [0m nightfall_client::drivers::rest::client_nf_3[0m[38;5;8m][0m Deposit raw request: NF3DepositRequest { erc_address: "e7f1725e7734ce288f8367e1bb143e90bb3f0512", token_id: "0x01aa", token_type: "2", value: "0x00", fee: "0x07", deposit_fee: "0x08" }
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:59:30Z [0m[32mINFO [0m nightfall_client::drivers::rest::client_nf_3[0m[38;5;8m][0m Deposit raw request: NF3DepositRequest { erc_address: "e7f1725e7734ce288f8367e1bb143e90bb3f0512", token_id: "0x01aa", token_type: "2", value: "0x00", fee: "0x07", deposit_fee: "0x08" }
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:59:30Z [0m[32mINFO [0m nightfall_client::services::client_operation[0m[38;5;8m][0m 51e2719b-0829-4e2e-b375-3fc592c027e5 Setting transfer approval
+nf4_test           | [0m[38;5;8m[[0m2025-09-14T02:59:30Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Have 10 IDs and 6 processed client transactions
+nf4_proposer       | additional confirmations required: 23
+nf4_proposer       | additional confirmations required: 23
+nf4_proposer       | [0m[38;5;8m[[0m2025-09-14T02:59:34Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 105s, remaining: 15s, will wait for more txs or until timeout (120s).
+nf4_client         | [0m[38;5;8m[[0m2025-09-14T02:59:35Z [0m[32mINFO [0m nightfall_client::services::client_operation[0m[38;5;8m][0m 51e2719b-0829-4e2e-b375-3fc592c027e5 Escrowing funds
+nf4_proposer       | additional confirmations required: 23
+nf4_proposer       | additional confirmations required: 23

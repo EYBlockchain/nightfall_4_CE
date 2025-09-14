@@ -58,6 +58,7 @@ where
     N: NightfallContract,
 {
     async fn handle_event(&self, tx_hash: Option<TxHash>) -> Result<(), EventHandlerError> {
+        info!("handle_event called with event: {:?}", self);
         // we'll split out individual events here in case that's useful later
         match &self {
             Nightfall::NightfallEvents::BlockProposed(filter) => {

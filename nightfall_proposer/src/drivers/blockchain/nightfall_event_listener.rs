@@ -110,6 +110,10 @@ where
         .event_signature(vec![
             Nightfall::BlockProposed::SIGNATURE_HASH,
             Nightfall::DepositEscrowed::SIGNATURE_HASH,
+            Nightfall::Initialized::SIGNATURE_HASH,
+            Nightfall::Upgraded::SIGNATURE_HASH,
+            Nightfall::AuthoritiesUpdated::SIGNATURE_HASH,
+            Nightfall::OwnershipTransferred::SIGNATURE_HASH,
         ])
         .from_block(start_block as u64);
 
