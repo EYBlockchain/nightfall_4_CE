@@ -229,6 +229,8 @@ pub async fn deposit_operation<T: TokenContract, N: NightfallContract>(
         token_type,
     )
     .await?;
+    ark_std::println!("JJ: I get nf_token_id: {nf_token_id}");
+    ark_std::println!("JJ: I get nf_slot_id: {nf_slot_id}");
 
     let fee_token_id = get_fee_token_id();
 

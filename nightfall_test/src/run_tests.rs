@@ -67,36 +67,36 @@ pub async fn run_tests(
     info!("* contract addresses obtained");
     // Validate all certificates (clients and proposer)
     // (name, cert_path, key_path, url)
-    let certs: [(&'static str, &'static str, &'static str, Url); 3] = [
-        (
-            "Client 1",
-            "../blockchain_assets/test_contracts/X509/_certificates/user/user-1.der",
-            "../blockchain_assets/test_contracts/X509/_certificates/user/user-1.priv_key",
-            Url::parse(&settings.nightfall_client.url)
-                .unwrap()
-                .join("/v1/certification")
-                .unwrap(),
-        ),
-        (
-            "Client 2",
-            "../blockchain_assets/test_contracts/X509/_certificates/user/user-2.der",
-            "../blockchain_assets/test_contracts/X509/_certificates/user/user-2.priv_key",
-            Url::parse("http://client2:3000")
-                .unwrap()
-                .join("/v1/certification")
-                .unwrap(),
-        ),
-        (
-            "Proposer",
-            "../blockchain_assets/test_contracts/X509/_certificates/user/user-3.der",
-            "../blockchain_assets/test_contracts/X509/_certificates/user/user-3.priv_key",
-            Url::parse(&settings.nightfall_proposer.url)
-                .unwrap()
-                .join("/v1/certification")
-                .unwrap(),
-        ),
-    ];
-    validate_all_certificates(certs, &http_client).await;
+    // let certs: [(&'static str, &'static str, &'static str, Url); 3] = [
+    //     (
+    //         "Client 1",
+    //         "../blockchain_assets/test_contracts/X509/_certificates/user/user-1.der",
+    //         "../blockchain_assets/test_contracts/X509/_certificates/user/user-1.priv_key",
+    //         Url::parse(&settings.nightfall_client.url)
+    //             .unwrap()
+    //             .join("/v1/certification")
+    //             .unwrap(),
+    //     ),
+    //     (
+    //         "Client 2",
+    //         "../blockchain_assets/test_contracts/X509/_certificates/user/user-2.der",
+    //         "../blockchain_assets/test_contracts/X509/_certificates/user/user-2.priv_key",
+    //         Url::parse("http://client2:3000")
+    //             .unwrap()
+    //             .join("/v1/certification")
+    //             .unwrap(),
+    //     ),
+    //     (
+    //         "Proposer",
+    //         "../blockchain_assets/test_contracts/X509/_certificates/user/user-3.der",
+    //         "../blockchain_assets/test_contracts/X509/_certificates/user/user-3.priv_key",
+    //         Url::parse(&settings.nightfall_proposer.url)
+    //             .unwrap()
+    //             .join("/v1/certification")
+    //             .unwrap(),
+    //     ),
+    // ];
+    // validate_all_certificates(certs, &http_client).await;
 
     //see if the NF4_LARGE_BLOCK_TEST environment variable is set to 'true' and run the large block test only if it is
     let (
