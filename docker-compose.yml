@@ -220,7 +220,7 @@ services:
     profiles:
       - sync_test
     build:
-      dockerfile: nightfall
+      dockerfile: nightfall_proposer/Dockerfile
     platform: linux/amd64 # Required for building on M1 Macs
     ports:
       - "3003:3000"

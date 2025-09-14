@@ -35,6 +35,33 @@ pub mod iuups {
                         },
                     ],
                 ),
+                (
+                    ::std::borrow::ToOwned::to_owned("upgradeToAndCall"),
+                    ::std::vec![
+                        ::ethers::core::abi::ethabi::Function {
+                            name: ::std::borrow::ToOwned::to_owned("upgradeToAndCall"),
+                            inputs: ::std::vec![
+                                ::ethers::core::abi::ethabi::Param {
+                                    name: ::std::borrow::ToOwned::to_owned("newImplementation"),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::Address,
+                                    internal_type: ::core::option::Option::Some(
+                                        ::std::borrow::ToOwned::to_owned("address"),
+                                    ),
+                                },
+                                ::ethers::core::abi::ethabi::Param {
+                                    name: ::std::borrow::ToOwned::to_owned("data"),
+                                    kind: ::ethers::core::abi::ethabi::ParamType::Bytes,
+                                    internal_type: ::core::option::Option::Some(
+                                        ::std::borrow::ToOwned::to_owned("bytes"),
+                                    ),
+                                },
+                            ],
+                            outputs: ::std::vec![],
+                            constant: ::core::option::Option::None,
+                            state_mutability: ::ethers::core::abi::ethabi::StateMutability::Payable,
+                        },
+                    ],
+                ),
             ]),
             events: ::std::collections::BTreeMap::new(),
             errors: ::std::collections::BTreeMap::new(),
@@ -92,6 +119,16 @@ pub mod iuups {
                 .method_hash([54, 89, 207, 230], new_implementation)
                 .expect("method not found (this should never happen)")
         }
+        ///Calls the contract's `upgradeToAndCall` (0x4f1ef286) function
+        pub fn upgrade_to_and_call(
+            &self,
+            new_implementation: ::ethers::core::types::Address,
+            data: ::ethers::core::types::Bytes,
+        ) -> ::ethers::contract::builders::ContractCall<M, ()> {
+            self.0
+                .method_hash([79, 30, 242, 134], (new_implementation, data))
+                .expect("method not found (this should never happen)")
+        }
     }
     impl<M: ::ethers::providers::Middleware> From<::ethers::contract::Contract<M>>
     for IUUPS<M> {
@@ -115,5 +152,86 @@ pub mod iuups {
     #[ethcall(name = "upgradeTo", abi = "upgradeTo(address)")]
     pub struct UpgradeToCall {
         pub new_implementation: ::ethers::core::types::Address,
+    }
+    ///Container type for all input parameters for the `upgradeToAndCall` function with signature `upgradeToAndCall(address,bytes)` and selector `0x4f1ef286`
+    #[derive(
+        Clone,
+        ::ethers::contract::EthCall,
+        ::ethers::contract::EthDisplay,
+        serde::Serialize,
+        serde::Deserialize,
+        Default,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash
+    )]
+    #[ethcall(name = "upgradeToAndCall", abi = "upgradeToAndCall(address,bytes)")]
+    pub struct UpgradeToAndCallCall {
+        pub new_implementation: ::ethers::core::types::Address,
+        pub data: ::ethers::core::types::Bytes,
+    }
+    ///Container type for all of the contract's call
+    #[derive(
+        Clone,
+        ::ethers::contract::EthAbiType,
+        serde::Serialize,
+        serde::Deserialize,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash
+    )]
+    pub enum IUUPSCalls {
+        UpgradeTo(UpgradeToCall),
+        UpgradeToAndCall(UpgradeToAndCallCall),
+    }
+    impl ::ethers::core::abi::AbiDecode for IUUPSCalls {
+        fn decode(
+            data: impl AsRef<[u8]>,
+        ) -> ::core::result::Result<Self, ::ethers::core::abi::AbiError> {
+            let data = data.as_ref();
+            if let Ok(decoded) = <UpgradeToCall as ::ethers::core::abi::AbiDecode>::decode(
+                data,
+            ) {
+                return Ok(Self::UpgradeTo(decoded));
+            }
+            if let Ok(decoded) = <UpgradeToAndCallCall as ::ethers::core::abi::AbiDecode>::decode(
+                data,
+            ) {
+                return Ok(Self::UpgradeToAndCall(decoded));
+            }
+            Err(::ethers::core::abi::Error::InvalidData.into())
+        }
+    }
+    impl ::ethers::core::abi::AbiEncode for IUUPSCalls {
+        fn encode(self) -> Vec<u8> {
+            match self {
+                Self::UpgradeTo(element) => {
+                    ::ethers::core::abi::AbiEncode::encode(element)
+                }
+                Self::UpgradeToAndCall(element) => {
+                    ::ethers::core::abi::AbiEncode::encode(element)
+                }
+            }
+        }
+    }
+    impl ::core::fmt::Display for IUUPSCalls {
+        fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+            match self {
+                Self::UpgradeTo(element) => ::core::fmt::Display::fmt(element, f),
+                Self::UpgradeToAndCall(element) => ::core::fmt::Display::fmt(element, f),
+            }
+        }
+    }
+    impl ::core::convert::From<UpgradeToCall> for IUUPSCalls {
+        fn from(value: UpgradeToCall) -> Self {
+            Self::UpgradeTo(value)
+        }
+    }
+    impl ::core::convert::From<UpgradeToAndCallCall> for IUUPSCalls {
+        fn from(value: UpgradeToAndCallCall) -> Self {
+            Self::UpgradeToAndCall(value)
+        }
     }
 }

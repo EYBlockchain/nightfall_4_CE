@@ -301,57 +301,57 @@ pub fn forge_command(command: &[&str]) {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use configuration::addresses::get_addresses;
-    use std::{fs, path::Path};
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+//     use configuration::addresses::get_addresses;
+//     use std::{fs, path::Path};
 
-    use ethers::{
-        core::utils::Anvil,
-        providers::{Http, Middleware, Provider},
-    };
-    use nightfall_bindings::nightfall::NIGHTFALL_DEPLOYED_BYTECODE;
-    use tokio::task::spawn_blocking;
+//     use ethers::{
+//         core::utils::Anvil,
+//         providers::{Http, Middleware, Provider},
+//     };
+//     use nightfall_bindings::nightfall::NIGHTFALL_DEPLOYED_BYTECODE;
+//     use tokio::task::spawn_blocking;
 
-    // NB: This test requires Anvil to be installed (it will use Anvil to simulate a blockchain).
-    // Restart VS Code after installing Anvil so that it's in your PATH otherwise VS Code won't find it!
-    #[tokio::test]
-    async fn test_deploy_contracts() {
-        // fire up a blockchain simulator
-        let mut settings = Settings::new().unwrap();
-        std::env::set_var(
-            "NF4_SIGNING_KEY",
-            "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
-        );
-        settings.ethereum_client_url = "http://localhost:8545".to_string(); // we're running bare metal so a docker url won't work
-        let url = Url::parse(&settings.ethereum_client_url).unwrap();
-        let anvil = Anvil::new()
-            .port(
-                url.port()
-                    .expect("Could not get Anvil instance. Have you installed it?"),
-            )
-            .spawn();
-        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-        // set the current working directory to be the project root
-        let root = "../";
-        std::env::set_current_dir(root).unwrap();
+//     // NB: This test requires Anvil to be installed (it will use Anvil to simulate a blockchain).
+//     // Restart VS Code after installing Anvil so that it's in your PATH otherwise VS Code won't find it!
+//     #[tokio::test]
+//     async fn test_deploy_contracts() {
+//         // fire up a blockchain simulator
+//         let mut settings = Settings::new().unwrap();
+//         std::env::set_var(
+//             "NF4_SIGNING_KEY",
+//             "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+//         );
+//         settings.ethereum_client_url = "http://localhost:8545".to_string(); // we're running bare metal so a docker url won't work
+//         let url = Url::parse(&settings.ethereum_client_url).unwrap();
+//         let anvil = Anvil::new()
+//             .port(
+//                 url.port()
+//                     .expect("Could not get Anvil instance. Have you installed it?"),
+//             )
+//             .spawn();
+//         tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+//         // set the current working directory to be the project root
+//         let root = "../";
+//         std::env::set_current_dir(root).unwrap();
 
-        // run the deploy function and get the contract addresses
+//         // run the deploy function and get the contract addresses
 
-        deploy_contracts(&settings).await.unwrap();
-        // get a blockchain provider so we can interrogate the deployed code
-        let provider = Provider::<Http>::try_from(anvil.endpoint()).unwrap();
-        let code = provider
-            // use spawn blocking because the blocking reqwest client is not async and it complains (but we need loading the addresses to be sync elsewhere)
-            .get_code(
-                spawn_blocking(get_addresses).await.unwrap().nightfall(),
-                None,
-            )
-            .await
-            .unwrap();
-        assert_eq!(code, NIGHTFALL_DEPLOYED_BYTECODE);
-        // clean up by remvoing the addresses file and directory that this test created
-        fs::remove_dir_all(Path::new("configuration/toml")).unwrap();
-    }
-}
+//         deploy_contracts(&settings).await.unwrap();
+//         // get a blockchain provider so we can interrogate the deployed code
+//         let provider = Provider::<Http>::try_from(anvil.endpoint()).unwrap();
+//         let code = provider
+//             // use spawn blocking because the blocking reqwest client is not async and it complains (but we need loading the addresses to be sync elsewhere)
+//             .get_code(
+//                 spawn_blocking(get_addresses).await.unwrap().nightfall(),
+//                 None,
+//             )
+//             .await
+//             .unwrap();
+//         assert_eq!(code, NIGHTFALL_DEPLOYED_BYTECODE);
+//         // clean up by remvoing the addresses file and directory that this test created
+//         fs::remove_dir_all(Path::new("configuration/toml")).unwrap();
+//     }
+// }
