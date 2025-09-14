@@ -97,52 +97,6 @@ pub async fn listen_for_events<N: NightfallContract>(
         get_addresses().nightfall()
     );
 
-    // 0a) Ensure Alloy Address (convert if needed)
-    let nf_addr = get_addresses().nightfall();
-
-    // 0b) Topic0 OR (use event_signature OR or topic0 — either is fine; we’ll verify JSON)
-    let sigs = vec![
-        Nightfall::BlockProposed::SIGNATURE_HASH,
-        Nightfall::DepositEscrowed::SIGNATURE_HASH,
-        Nightfall::Initialized::SIGNATURE_HASH,
-        Nightfall::Upgraded::SIGNATURE_HASH,
-        Nightfall::AuthoritiesUpdated::SIGNATURE_HASH,
-        Nightfall::OwnershipTransferred::SIGNATURE_HASH,
-    ];
-
-    let latest = blockchain_client.get_block_number().await.unwrap();
-    let from = latest.saturating_sub(200u64);
-
-    let hist = Filter::new()
-        .address(nf_addr)
-        .event_signature(sigs.clone()) // OR on topic0 via Into<Topic> from Vec<B256>
-        .from_block(from)
-        .to_block(latest);
-
-    // (D1) Print the exact JSON we are sending
-    let json = serde_json::to_string(&hist).unwrap();
-    ark_std::println!("hist filter JSON: {json}");
-
-    let logs = blockchain_client.get_logs(&hist).await.unwrap();
-    ark_std::println!("hist logs matched = {}", logs.len());
-    use alloy::primitives::Bytes;
-    use alloy::primitives::Log as PrimLog;
-    use alloy::sol_types::SolEvent;
-    for l in logs.iter().take(3) {
-        ark_std::println!(
-            "sample log: addr={}, topics_len={}.",
-            l.address(),
-            l.topics().len()
-        );
-        // let raw = EthLog { topics: l.topics().clone(), data: Bytes::from(l.data().clone()) };
-        let pl: PrimLog = l.clone().into();
-
-        match Nightfall::NightfallEvents::decode_log(&pl) {
-            Ok(e) => log::debug!("decoded: {:?}", e),
-            Err(e) => log::warn!("decode failed: {e:?}"),
-        }
-    }
-
     // get the events from the Nightfall contract from the specified start block
 
     // Subscribe to the combined events filter
@@ -166,6 +120,11 @@ pub async fn listen_for_events<N: NightfallContract>(
     ark_std::println!("JJ: after events_subscription");
 
     let mut events_stream = events_subscription.into_stream();
+    ark_std::println!("events_stream: {events_stream:?}");
+    let test = events_stream.next().await;
+    ark_std::println!("JJ: after first events_stream.next(): {test:?}");
+
+
     while let Some(evt) = events_stream.next().await {
         ark_std::println!("JJ: inside events_stream loop");
         // process each event in the stream and handle any errors
@@ -194,6 +153,8 @@ pub async fn listen_for_events<N: NightfallContract>(
             }
         }
     }
+
+    ark_std::println!("after loop");
 
     Err(EventHandlerError::StreamTerminated)
 }
