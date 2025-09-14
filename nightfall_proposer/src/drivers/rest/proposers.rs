@@ -102,7 +102,6 @@ pub fn remove_proposer() -> impl Filter<Extract = impl warp::Reply, Error = warp
 
 async fn handle_remove_proposer() -> Result<impl Reply, warp::Rejection> {
     // get a ManageProposers instance
-    // get a ManageProposers instance
     let blockchain_client = get_blockchain_client_connection()
         .await
         .read()

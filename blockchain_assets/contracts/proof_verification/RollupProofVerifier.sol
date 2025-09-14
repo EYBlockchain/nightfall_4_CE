@@ -43,7 +43,6 @@ contract RollupProofVerifier is
     ) public initializer {
         __Ownable_init(initialOwner);
         __UUPSUpgradeable_init();
-        // __Certified_init(msg.sender, x509_address, sanctionsListAddress);
 
         p = Bn254Crypto.r_mod;
         vkProvider = IVKProvider(vkProviderProxy);
@@ -1133,7 +1132,7 @@ contract RollupProofVerifier is
                     p_local
                 )
             )
-            //// q_scalars[13] = w_evals[0] * w_evals[3] * w_evals[2] * w_evals[3]
+            // q_scalars[13] = w_evals[0] * w_evals[3] * w_evals[2] * w_evals[3]
             //     + w_evals[1] * w_evals[2] * w_evals[2] * w_evals[3];
             mstore(
                 add(scalarsPtr, 0x1A0),
