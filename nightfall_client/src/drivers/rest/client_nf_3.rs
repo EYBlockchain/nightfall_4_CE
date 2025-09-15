@@ -196,6 +196,7 @@ where
     E: ProvingEngine<P>,
     N: NightfallContract,
 {
+    ark_std::println("handle_request");
     match request {
         TransactionRequest::Deposit(deposit_req) => {
             handle_deposit::<N>(deposit_req, request_id).await
