@@ -55,6 +55,7 @@ pub fn get_expected_layer2_blocknumber() -> &'static Mutex<I256> {
 /// and pass them to the appropriate handler.
 /// This is similar to the proposers event handler but calls different functions and has different traits ultimately.
 /// We could possibly refactor this to use the same event handler in future.
+/// Testing push to plume
 #[async_trait::async_trait]
 impl<N> EventHandler<N> for NightfallEvents
 where

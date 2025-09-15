@@ -109,7 +109,6 @@ pub mod upgrades;
 pub mod utils;
 pub mod uups_upgradeable;
 pub mod versions;
-pub mod vk_sanity;
 pub mod x509;
 pub mod x509_interface;
 pub mod x509v2;

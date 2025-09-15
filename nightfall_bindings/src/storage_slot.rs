@@ -26,13 +26,13 @@ pub mod storage_slot {
         __abi,
     );
     #[rustfmt::skip]
-    const __BYTECODE: &[u8] = b"`U`2`\x0B\x82\x82\x829\x80Q_\x1A`s\x14`&WcNH{q`\xE0\x1B_R_`\x04R`$_\xFD[0_R`s\x81S\x82\x81\xF3\xFEs\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x000\x14`\x80`@R_\x80\xFD\xFE\xA2dipfsX\"\x12 \x88\xD6\x9Fw\x8F\xFF\x87\x87\x83(}\x8B\x07\x81n\x0C\xDEv\x93!q\xC8\x0EC\x84}\xBF\xDB\x1E\xEErAdsolcC\0\x08\x18\x003";
+    const __BYTECODE: &[u8] = b"`U`2`\x0B\x82\x82\x829\x80Q_\x1A`s\x14`&WcNH{q`\xE0\x1B_R_`\x04R`$_\xFD[0_R`s\x81S\x82\x81\xF3\xFEs\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x000\x14`\x80`@R__\xFD\xFE\xA2dipfsX\"\x12 \xA0\x05\x89\x1D\x85\x19\xAC\x1C\xE12\x943\x12\x19\x1ArAr1\xEF\xA2\xA4pm\xE6\xBD\xE2\xFD\xFB\xC5zPdsolcC\0\x08\x1C\x003";
     /// The bytecode of the contract.
     pub static STORAGESLOT_BYTECODE: ::ethers::core::types::Bytes = ::ethers::core::types::Bytes::from_static(
         __BYTECODE,
     );
     #[rustfmt::skip]
-    const __DEPLOYED_BYTECODE: &[u8] = b"s\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x000\x14`\x80`@R_\x80\xFD\xFE\xA2dipfsX\"\x12 \x88\xD6\x9Fw\x8F\xFF\x87\x87\x83(}\x8B\x07\x81n\x0C\xDEv\x93!q\xC8\x0EC\x84}\xBF\xDB\x1E\xEErAdsolcC\0\x08\x18\x003";
+    const __DEPLOYED_BYTECODE: &[u8] = b"s\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x000\x14`\x80`@R__\xFD\xFE\xA2dipfsX\"\x12 \xA0\x05\x89\x1D\x85\x19\xAC\x1C\xE12\x943\x12\x19\x1ArAr1\xEF\xA2\xA4pm\xE6\xBD\xE2\xFD\xFB\xC5zPdsolcC\0\x08\x1C\x003";
     /// The deployed bytecode of the contract.
     pub static STORAGESLOT_DEPLOYED_BYTECODE: ::ethers::core::types::Bytes = ::ethers::core::types::Bytes::from_static(
         __DEPLOYED_BYTECODE,

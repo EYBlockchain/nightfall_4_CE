@@ -26,13 +26,13 @@ pub mod string_finder {
         __abi,
     );
     #[rustfmt::skip]
-    const __BYTECODE: &[u8] = b"`U`2`\x0B\x82\x82\x829\x80Q_\x1A`s\x14`&WcNH{q`\xE0\x1B_R_`\x04R`$_\xFD[0_R`s\x81S\x82\x81\xF3\xFEs\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x000\x14`\x80`@R_\x80\xFD\xFE\xA2dipfsX\"\x12 \xD4\xF1\xB9\xAD\x83\xB4\x02:J\xE0\x80g\xFA\xBE#\xF1/q\xBD\\\x8A\x16J\x8A\x8B\xC4\x9F\x80\x07\x14\x9F\xD5dsolcC\0\x08\x18\x003";
+    const __BYTECODE: &[u8] = b"`U`2`\x0B\x82\x82\x829\x80Q_\x1A`s\x14`&WcNH{q`\xE0\x1B_R_`\x04R`$_\xFD[0_R`s\x81S\x82\x81\xF3\xFEs\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x000\x14`\x80`@R__\xFD\xFE\xA2dipfsX\"\x12 \x13\xE4\xF7h\x02p\x13V\xE5\x7F\xFF\xC1\xB5\xC6)\x8C\xC6\xCD\xFAe\x8F\xDD_\x84\xB2m-]/\xD7\xBC\xA0dsolcC\0\x08\x1C\x003";
     /// The bytecode of the contract.
     pub static STRINGFINDER_BYTECODE: ::ethers::core::types::Bytes = ::ethers::core::types::Bytes::from_static(
         __BYTECODE,
     );
     #[rustfmt::skip]
-    const __DEPLOYED_BYTECODE: &[u8] = b"s\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x000\x14`\x80`@R_\x80\xFD\xFE\xA2dipfsX\"\x12 \xD4\xF1\xB9\xAD\x83\xB4\x02:J\xE0\x80g\xFA\xBE#\xF1/q\xBD\\\x8A\x16J\x8A\x8B\xC4\x9F\x80\x07\x14\x9F\xD5dsolcC\0\x08\x18\x003";
+    const __DEPLOYED_BYTECODE: &[u8] = b"s\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\x000\x14`\x80`@R__\xFD\xFE\xA2dipfsX\"\x12 \x13\xE4\xF7h\x02p\x13V\xE5\x7F\xFF\xC1\xB5\xC6)\x8C\xC6\xCD\xFAe\x8F\xDD_\x84\xB2m-]/\xD7\xBC\xA0dsolcC\0\x08\x1C\x003";
     /// The deployed bytecode of the contract.
     pub static STRINGFINDER_DEPLOYED_BYTECODE: ::ethers::core::types::Bytes = ::ethers::core::types::Bytes::from_static(
         __DEPLOYED_BYTECODE,
