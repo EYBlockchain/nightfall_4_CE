@@ -5,7 +5,7 @@
 ```bash
 git clone https://github.com/EYBlockchain/nightfall_4_CE.git
 cd nightfall_4_CE
-git checkout plume_testnet
+git checkout Plume_testnet_client
 ```
 
 ---
@@ -22,7 +22,7 @@ docker system prune -a --volumes
 
 ## 3) Generate proving keys
 
-This will download a large file (approximately 12GB):
+This will download a large file (approximately 6GB):
 ```bash
 cargo run --release --bin key_generation
 ```
