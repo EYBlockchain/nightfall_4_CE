@@ -72,9 +72,7 @@ Create a file named `local.env` in the repo root with the following content. Rep
 
 ```bash
 CLIENT_SIGNING_KEY="0x......." # your private key
-CLIENT2_SIGNING_KEY=
 CLIENT_ADDRESS="0x......." # your public address
-CLIENT2_ADDRESS="0xf2Fca7419389fB8f5Db220cdEe9039AD2FFb03b5"
 PROPOSER_SIGNING_KEY="0x745e9fb463ee15a748b2245e08e798dc5f6388870f4d38c4a7d33f9def590723"
 PROPOSER_2_SIGNING_KEY=
 DEPLOYER_SIGNING_KEY="0xf07873bcae1dda8c0b2c47e61c761ce55f0c9f11cd493e892ce2650acc60edd8"
@@ -102,3 +100,7 @@ docker compose --profile indie-client build
 
 docker compose --profile indie-client --env-file local.env up
 ```
+
+## 9) Deployment script
+
+You can also deploy your own ERC-20/721/1155/3525 contracts using the following script: `blockchain_assets/script/mock_deployment.s.sol`
