@@ -256,7 +256,6 @@ where
                 let mut blocks = pending_blocks.lock().await;
                 // If start_block is zero, then we assume the contract has just been deployed and rotation has not yet started.
                 if start_block.is_zero() && !blocks.is_empty() {
-                    info!("Proposing {} pending blocks", blocks.len());
                     for block in blocks.drain(..) {
                         if let Err(e) = N::propose_block(block).await {
                             error!("Failed to propose block: {e}");
@@ -287,8 +286,6 @@ where
                     {
                         Ok(true) => {
                             // Process all pending blocks
-                            info!("Rotate Proposer Transaction finalized: {tx_hash:?}");
-                            info!("Proposing {} pending blocks", blocks.len());
                             for block in blocks.drain(..) {
                                 if let Err(e) = N::propose_block(block).await {
                                     error!("Failed to propose block: {e}");
