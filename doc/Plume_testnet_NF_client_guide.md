@@ -22,7 +22,7 @@ docker system prune -a --volumes
 
 ## 3) Generate proving keys
 
-This will download a large file (approximately 6GB):
+This will download a large file (approximately 72 GB):
 ```bash
 cargo run --release --bin key_generation
 ```
