@@ -1,9 +1,0 @@
-   Compiling nightfall-bindings v0.1.0 (/Users/jiajiezhang/EYProject/plume_testnet_client_demo/nightfall_4_CE/nightfall_bindings)
-   Compiling nightfall_deployer v0.1.0 (/Users/jiajiezhang/EYProject/plume_testnet_client_demo/nightfall_4_CE/nightfall_deployer)
-   Compiling lib v0.1.0 (/Users/jiajiezhang/EYProject/plume_testnet_client_demo/nightfall_4_CE/lib)
-   Compiling nightfall_client v0.1.0 (/Users/jiajiezhang/EYProject/plume_testnet_client_demo/nightfall_4_CE/nightfall_client)
-   Compiling nightfall_proposer v0.1.0 (/Users/jiajiezhang/EYProject/plume_testnet_client_demo/nightfall_4_CE/nightfall_proposer)
-   Compiling nightfall_test v0.1.0 (/Users/jiajiezhang/EYProject/plume_testnet_client_demo/nightfall_4_CE/nightfall_test)
-    Finished `release` profile [optimized] target(s) in 1m 34s
-     Running `target/release/key_generation`
-Generating keys for Plume Testnet Client
