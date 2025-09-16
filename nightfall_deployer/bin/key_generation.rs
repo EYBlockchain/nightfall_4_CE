@@ -3,25 +3,19 @@ use ark_ec::twisted_edwards::Affine as TEAffine;
 use ark_serialize::{CanonicalSerialize, Write};
 use ark_std::{
     rand::{self, Rng},
-    UniformRand, Zero,
+    UniformRand,
 };
-use configuration::settings::{self, Settings};
 use ethers::utils::{hex, keccak256};
-use itertools::izip;
 use jf_plonk::{
     errors::PlonkError,
-    nightfall::{FFTPlonk, UnivariateUniversalIpaParams},
+    nightfall::FFTPlonk,
     proof_system::UniversalSNARK,
-    recursion::RecursiveProver,
-    transcript::RescueTranscript,
 };
 use jf_primitives::{
     pcs::prelude::*,
     poseidon::Poseidon,
     rescue::sponge::RescueCRHF,
     trees::{
-        imt::{IndexedMerkleTree, LeafDBEntry},
-        timber::Timber,
         Directions, MembershipProof, PathElement, TreeHasher,
     },
 };
@@ -39,24 +33,18 @@ use nightfall_client::{
 };
 use nightfall_proposer::{
     domain::entities::DepositData,
-    driven::{deposit_circuit::deposit_circuit_builder, rollup_prover::RollupProver},
-    services::assemble_block::get_block_size,
+    driven::{deposit_circuit::deposit_circuit_builder},
 };
 use num_bigint::BigUint;
-use std::{collections::HashMap, fs::File};
+use std::fs::File;
 
 fn main() {
-    let settings: Settings = settings::Settings::new().unwrap();
-    if settings.mock_prover {
-        println!("Generating keys for MOCK rollup prover");
-    } else {
-        println!("Generating keys for REAL rollup prover");
-    }
-    generate_proving_keys(&settings).unwrap();
+    println!("Generating keys for Plume Testnet Client");
+    generate_proving_keys().unwrap();
 }
 
 /// Generates the proving key and writes it to file.
-pub fn generate_proving_keys(settings: &Settings) -> Result<(), PlonkError> {
+pub fn generate_proving_keys() -> Result<(), PlonkError> {
     // Generate a dummy circuit.
     let (mut public_inputs, mut private_inputs) =
         build_valid_transfer_inputs(&mut ark_std::rand::thread_rng());
@@ -68,7 +56,6 @@ pub fn generate_proving_keys(settings: &Settings) -> Result<(), PlonkError> {
     let mut deposit_public_inputs = PublicInputs::new();
     let mut deposit_circuit = deposit_circuit_builder(&deposit_data, &mut deposit_public_inputs)?;
     deposit_circuit.finalize_for_recursive_arithmetization::<RescueCRHF<Fq254>>()?;
-    let mut rng = rand::thread_rng();
 
     // locate the configuration directory
     let path = std::env::current_dir()?.as_path().join("configuration");

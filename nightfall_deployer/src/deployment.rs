@@ -6,8 +6,7 @@ use configuration::{
 use log::{info, warn};
 
 use nightfall_proposer::driven::rollup_prover::RollupProver;
-use std::{error::Error, os::unix::process::ExitStatusExt};
-use url::Url;
+use std::os::unix::process::ExitStatusExt;
 
 use crate::vk_contract::write_vk_to_nightfall_toml;
 
@@ -113,7 +112,7 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn std::er
     }
 
     // -------- save to config server + local fallback --------
-    let mut search = |path: &Path| -> Option<PathBuf> {
+    let search = |path: &Path| -> Option<PathBuf> {
         if path.is_absolute() && path.is_file() {
             return Some(path.to_path_buf());
         }

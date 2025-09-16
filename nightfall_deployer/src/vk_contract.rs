@@ -2,17 +2,11 @@ use ark_bn254::{Bn254, Fq as Fq254, Fr as Fr254};
 use ark_ff::{BigInteger, Field, PrimeField};
 use ark_poly::{EvaluationDomain, Radix2EvaluationDomain};
 use ark_std::vec::Vec;
-use configuration::settings::Settings;
 use ethers::types::U256;
 use jf_plonk::proof_system::structs::{VerifyingKey, VK};
 
 use regex::Regex;
-use std::{
-    fs,
-    fs::File,
-    io::Write,
-    path::{Path, PathBuf},
-};
+use std::path::PathBuf;
 
 fn replace_verifier_block(full: &str, mode: &str, new_block: &str) -> String {
     let had_crlf = full.contains("\r\n");
@@ -156,10 +150,10 @@ pub fn write_vk_to_nightfall_toml(vk: &VerifyingKey<Bn254>) -> anyhow::Result<()
 
     // ===== Build new block text =====
     let mode = std::env::var("NF4_RUN_MODE").unwrap_or_else(|_| "development".to_string());
-    let header = format!("[{}.verifier]", mode);
+    let header = format!("[{mode}.verifier]");
 
-    let as_hex = |u: &U256| -> String { format!("{:#x}", u) }; // bare 0x… (for domain_size/num_inputs)
-    let as_q = |u: &U256| -> String { format!("\"{:#x}\"", u) }; // "0x…"
+    let as_hex = |u: &U256| -> String { format!("{u:#x}") }; // bare 0x… (for domain_size/num_inputs)
+    let as_q = |u: &U256| -> String { format!("\"{u:#x}\"") }; // "0x…"
     let pair_q = |a: &U256, b: &U256| -> String { format!("[{}, {}]", as_q(a), as_q(b)) };
 
     let mut block = String::new();
@@ -227,21 +221,7 @@ pub fn write_vk_to_nightfall_toml(vk: &VerifyingKey<Bn254>) -> anyhow::Result<()
         as_q(&beta_h[2]),
         as_q(&beta_h[3])
     ));
-    // (optional) visual spacer before next table
-    block.push_str("\n");
-    // block.push_str("h = [\n");
-    // block.push_str(&format!("  {},\n", as_q(&h[0]))); // x0
-    // block.push_str(&format!("  {},\n", as_q(&h[1]))); // x1
-    // block.push_str(&format!("  {},\n", as_q(&h[2]))); // y0
-    // block.push_str(&format!("  {}\n",  as_q(&h[3]))); // y1
-    // block.push_str("]\n");
-
-    // block.push_str("beta_h = [\n");
-    // block.push_str(&format!("  {},\n", as_q(&beta_h[0]))); // x0
-    // block.push_str(&format!("  {},\n", as_q(&beta_h[1]))); // x1
-    // block.push_str(&format!("  {},\n", as_q(&beta_h[2]))); // y0
-    // block.push_str(&format!("  {}\n",  as_q(&beta_h[3]))); // y1
-    // block.push_str("]\n");
+    block.push('\n');
 
     // ===== Replace or append the section =====
 
