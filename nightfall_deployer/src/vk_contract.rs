@@ -140,52 +140,6 @@ pub fn write_vk_to_nightfall_toml(vk: &VerifyingKey<Bn254>) -> anyhow::Result<()
         vk_vec_u256[72],
     ];
 
-    // print all the values we are going to write
-    ark_std::println!("domain_size = {}", domain_size_u256);
-    ark_std::println!("num_inputs  = {}", num_inputs_u256);
-    for i in 0..6 {
-        let x = &sigma_comms_u256[2 * i];
-        let y = &sigma_comms_u256[2 * i + 1];
-        ark_std::println!("sigma_comms_{} = [{}, {}]", i + 1, x, y);
-    }
-    for i in 0..18 {
-        let x = &selector_comms_u256[2 * i];
-        let y = &selector_comms_u256[2 * i + 1];
-        ark_std::println!("selector_comms_{} = [{}, {}]", i + 1, x, y);
-    }
-    for i in 0..6 {
-        ark_std::println!("k{} = {}", i + 1, ks_u256[i]);
-    }
-    ark_std::println!(
-        "range_table_comm     = [{}, {}]",
-        range_table_comm_u256[0], range_table_comm_u256[1]
-    );
-    ark_std::println!(
-        "key_table_comm       = [{}, {}]",
-        key_table_comm_u256[0], key_table_comm_u256[1]
-    );
-    ark_std::println!(
-        "table_dom_sep_comm   = [{}, {}]",
-        table_dom_sep_comm_u256[0], table_dom_sep_comm_u256[1]
-    );
-    ark_std::println!(
-        "q_dom_sep_comm       = [{}, {}]",
-        q_dom_sep_comm_u256[0], q_dom_sep_comm_u256[1]
-    );
-    ark_std::println!("size_inv      = {}", size_inv);
-    ark_std::println!("group_gen     = {}", group_gen);
-    ark_std::println!("group_gen_inv = {}", group_gen_inv);
-    ark_std::println!("open_key_g = [{}, {}]", open_key_g[0], open_key_g[1]);
-    ark_std::println!(
-        "h = [{}, {}, {}, {}]",
-        h[0], h[1], h[2], h[3]
-    );
-    ark_std::println!(
-        "beta_h = [{}, {}, {}, {}]",
-        beta_h[0], beta_h[1], beta_h[2], beta_h[3]
-    );
-    
-
     // ===== Locate nightfall.toml =====
     let mut cwd = std::env::current_dir()?;
     let nightfall_path: PathBuf = loop {
