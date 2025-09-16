@@ -24,7 +24,7 @@ docker system prune -a --volumes
 
 This will download a large file (approximately 72 GB):
 ```bash
-cargo run --release --bin key_generation
+nohup env NF4_MOCK_PROVER=false cargo run --release --bin key_generation >keygen.log 2>&1 &
 ```
 
 ---
@@ -72,11 +72,13 @@ Create a file named `local.env` in the repo root with the following content. Rep
 
 ```bash
 CLIENT_SIGNING_KEY="0x......." # your private key
+CLIENT2_SIGNING_KEY= 
 CLIENT_ADDRESS="0x......." # your public address
+CLIENT2_ADDRESS="0xf2Fca7419389fB8f5Db220cdEe9039AD2FFb03b5" 
 PROPOSER_SIGNING_KEY="0x745e9fb463ee15a748b2245e08e798dc5f6388870f4d38c4a7d33f9def590723"
 PROPOSER_2_SIGNING_KEY=
-DEPLOYER_SIGNING_KEY="0xf07873bcae1dda8c0b2c47e61c761ce55f0c9f11cd493e892ce2650acc60edd8"
-NIGHTFALL_ADDRESS="0x68B1D87F95878fE05B998F19b66F4baba5De1aed"
+DEPLOYER_SIGNING_KEY="0x....." # same as your private key
+NIGHTFALL_ADDRESS="0xe407c6d6D86178Dd3Bba8596bf554f0C2624A2Ab"
 WEBHOOK_URL=
 AZURE_VAULT_URL=
 DEPLOYER_SIGNING_KEY_NAME=
