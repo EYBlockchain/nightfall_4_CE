@@ -22,16 +22,7 @@ docker system prune -a --volumes
 
 ---
 
-## 3) Generate proving keys
-
-This will download a large file (approximately 72 GB):
-```bash
-nohup env NF4_MOCK_PROVER=false cargo run --release --bin key_generation >keygen.log 2>&1 &
-```
-
----
-
-## 4) Specify Nightfall contract addresses
+## 3) Specify Nightfall contract addresses
 
 Create the TOML config folder:
 
@@ -49,7 +40,7 @@ x509 = "0xF12b0578237Ea2479Ec97BB5bbd69a52D828F451"
 
 ---
 
-## 5) Wallet setup: MetaMask + Plume testnet
+## 4) Wallet setup: MetaMask + Plume testnet
 
 1. Install the MetaMask browser extension: [https://metamask.io/en-GB](https://metamask.io/en-GB)
 2. Create a **new network** in MetaMask for **Plume testnet** using the parameters published here: [https://thirdweb.com/plume-testnet](https://thirdweb.com/plume-testnet)
@@ -57,7 +48,7 @@ x509 = "0xF12b0578237Ea2479Ec97BB5bbd69a52D828F451"
 
 ---
 
-## 6) Create `local.env`
+## 5) Create `local.env`
 
 Create a file named `local.env` in the repo root with the following content. Replace placeholders (`0x....`) with your values where indicated.
 
@@ -87,7 +78,7 @@ Please remove all comments (beginning with `#`) in your local.env file.
 
 ---
 
-## 7) Build and run the Nightfall client
+## 6) Build and run the Nightfall client
 
 From the repo root:
 
@@ -97,7 +88,7 @@ docker compose --profile indie-client build
 docker compose --profile indie-client --env-file local.env up
 ```
 
-## 8) Deployment script
+## 7) Deployment script
 
 You can also deploy your own ERC-20/721/1155/3525 contracts using the following script: `blockchain_assets/script/mock_deployment.s.sol`
 
