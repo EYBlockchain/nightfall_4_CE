@@ -108,3 +108,5 @@ docker compose --profile indie-client --env-file local.env up
 ## 9) Deployment script
 
 You can also deploy your own ERC-20/721/1155/3525 contracts using the following script: `blockchain_assets/script/mock_deployment.s.sol`
+
+You can then interact with those contract using the APIs: https://github.com/EYBlockchain/nightfall_4_CE/blob/master/doc/nf_4.md#client-apis
