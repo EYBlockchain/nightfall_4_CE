@@ -224,8 +224,6 @@ pub fn write_vk_to_nightfall_toml(vk: &VerifyingKey<Bn254>) -> anyhow::Result<()
     block.push('\n');
 
     // ===== Replace or append the section =====
-
-    // println!("Updated [{} .verifier] in {}", mode, nightfall_path.display());
     let had_crlf = toml_txt.contains("\r\n");
     toml_txt = replace_verifier_block(&toml_txt, &mode, &block);
     if had_crlf {
