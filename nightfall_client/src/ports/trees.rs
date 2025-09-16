@@ -44,8 +44,8 @@ where
         Self: MutableTree<F, Error = MerkleTreeError<mongodb::error::Error>>,
     {
         let _ = <Self as MutableTree<F>>::reset_mutable_tree(self, Self::TREE_NAME).await;
-        // select the proposer to use
-        let uri = &get_settings().nightfall_proposer.db_url;
+        // select the client to use
+        let uri = &get_settings().nightfall_client.db_url;
         let client = Client::with_uri_str(uri)
             .await
             .expect("Could not create database connection");
