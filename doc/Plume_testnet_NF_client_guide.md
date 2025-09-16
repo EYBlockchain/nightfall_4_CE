@@ -49,18 +49,7 @@ x509 = "0xF12b0578237Ea2479Ec97BB5bbd69a52D828F451"
 
 ---
 
-## 5) Ensure the Docker image copies your addresses
-
-Open `nightfall_client/Dockerfile` and uncomment the copy line (line \~21):
-
-```diff
-- # COPY configuration/toml/addresses.toml configuration/toml/
-+ COPY configuration/toml/addresses.toml configuration/toml/
-```
-
----
-
-## 6) Wallet setup: MetaMask + Plume testnet
+## 5) Wallet setup: MetaMask + Plume testnet
 
 1. Install the MetaMask browser extension: [https://metamask.io/en-GB](https://metamask.io/en-GB)
 2. Create a **new network** in MetaMask for **Plume testnet** using the parameters published here: [https://thirdweb.com/plume-testnet](https://thirdweb.com/plume-testnet)
@@ -68,7 +57,7 @@ Open `nightfall_client/Dockerfile` and uncomment the copy line (line \~21):
 
 ---
 
-## 7) Create `local.env`
+## 6) Create `local.env`
 
 Create a file named `local.env` in the repo root with the following content. Replace placeholders (`0x....`) with your values where indicated.
 
@@ -81,6 +70,7 @@ PROPOSER_SIGNING_KEY="0x745e9fb463ee15a748b2245e08e798dc5f6388870f4d38c4a7d33f9d
 PROPOSER_2_SIGNING_KEY=
 DEPLOYER_SIGNING_KEY="0x....." # same as your private key
 NIGHTFALL_ADDRESS="0xe407c6d6D86178Dd3Bba8596bf554f0C2624A2Ab"
+NF4_SIGNING_KEY="0x..." # same as your private key
 WEBHOOK_URL=
 AZURE_VAULT_URL=
 DEPLOYER_SIGNING_KEY_NAME=
@@ -93,9 +83,11 @@ AZURE_CLIENT_SECRET=
 AZURE_TENANT_ID=
 ```
 
+Please remove all comments (beginning with `#`) in your local.env file.
+
 ---
 
-## 8) Build and run the Nightfall client
+## 7) Build and run the Nightfall client
 
 From the repo root:
 
@@ -105,8 +97,15 @@ docker compose --profile indie-client build
 docker compose --profile indie-client --env-file local.env up
 ```
 
-## 9) Deployment script
+## 8) Deployment script
 
 You can also deploy your own ERC-20/721/1155/3525 contracts using the following script: `blockchain_assets/script/mock_deployment.s.sol`
+
+Mock ERC deployments
+
+1.	`forge build` 
+2.	`export $(grep -v '^#' local.env | xargs)`  
+3.      `forge script blockchain_assets/script/mock_deployment.s.sol:MockDeployer --rpc-url https://testnet-rpc.plume.org --broadcast --legacy --slow`	
+
 
 You can then interact with those contract using the APIs: https://github.com/EYBlockchain/nightfall_4_CE/blob/master/doc/nf_4.md#client-apis
