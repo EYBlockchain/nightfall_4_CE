@@ -8,6 +8,8 @@ cd nightfall_4_CE
 git checkout Plume_testnet_client
 ```
 
+Make sure you pulled the latest changes.
+
 ---
 
 ## 2) Stop & clean previous Docker state
