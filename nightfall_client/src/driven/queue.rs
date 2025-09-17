@@ -72,7 +72,9 @@ where
         };
         if sync_state == Desynchronized {
             warn!("Client is not synchronised with the blockchain, restarting event listener");
-            restart_event_listener::<N>(0).await;
+            tokio::spawn(async {
+                restart_event_listener::<N>(0).await;
+            });
         }
         while let Some(request) = {
             let mut queue = get_queue().await.write().await;
