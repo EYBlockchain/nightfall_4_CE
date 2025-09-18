@@ -57,7 +57,12 @@ fn benchmark_deposit_circuit(c: &mut Criterion) {
 
     let srs = FFTPlonk::<UnivariateKzgPCS<Bn254>>::universal_setup_for_testing(srs_size, &mut rng)
         .unwrap();
-    let (pk, vk) = FFTPlonk::<UnivariateKzgPCS<Bn254>>::preprocess(&srs, &circuit).unwrap();
+    let (pk, vk) = FFTPlonk::<UnivariateKzgPCS<Bn254>>::preprocess(
+        &srs,
+        Some(VerificationKeyId::Deposit),
+        &circuit,
+    )
+    .unwrap();
     let start = Instant::now();
     let proof = FFTPlonk::<UnivariateKzgPCS<Bn254>>::prove::<_, _, StandardTranscript>(
         &mut rng, &circuit, &pk, None,

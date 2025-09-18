@@ -378,7 +378,12 @@ fn benchmark_unified_circuit(c: &mut Criterion) {
     let srs_size = circuit.srs_size().unwrap();
     let srs = FFTPlonk::<UnivariateKzgPCS<Bn254>>::universal_setup_for_testing(srs_size, &mut rng)
         .unwrap();
-    let (pk, vk) = FFTPlonk::<UnivariateKzgPCS<Bn254>>::preprocess(&srs, &circuit).unwrap();
+    let (pk, vk) = FFTPlonk::<UnivariateKzgPCS<Bn254>>::preprocess(
+        &srs,
+        Some(VerificationKeyId::Client),
+        &circuit,
+    )
+    .unwrap();
     let start = Instant::now();
     let proof = FFTPlonk::<UnivariateKzgPCS<Bn254>>::prove::<_, _, StandardTranscript>(
         &mut rng, &circuit, &pk, None,

@@ -89,7 +89,17 @@ pub fn generate_proving_keys(settings: &Settings) -> Result<(), PlonkError> {
         UnivariateKzgPCS::universal_setup_bn254(&ptau_file, 1 << MAX_KZG_DEGREE).unwrap()
     };
     // transfer/withdraw pk vk
-    let (pk, _vk) = FFTPlonk::<UnivariateKzgPCS<Bn254>>::preprocess(&kzg_srs, &circuit)?;
+    let (pk, _) = FFTPlonk::<UnivariateKzgPCS<Bn254>>::preprocess(
+        &kzg_srs,
+        Some(VerificationKeyId::Client),
+        &circuit,
+    )?;
+    // deposit pk vk
+    let (deposit_pk, _) = FFTPlonk::<UnivariateKzgPCS<Bn254>>::preprocess(
+        &kzg_srs,
+        Some(VerificationKeyId::Deposit),
+        &deposit_circuit,
+    )?;
     // deposit pk vk
     let (deposit_pk, _) =
         FFTPlonk::<UnivariateKzgPCS<Bn254>>::preprocess(&kzg_srs, &deposit_circuit)?;
