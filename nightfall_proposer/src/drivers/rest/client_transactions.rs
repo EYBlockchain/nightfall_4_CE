@@ -1,5 +1,5 @@
 use crate::domain::error::ProposerRejection;
-use crate::driven::nightfall_client_transaction::process_nightfall_client_transaction;
+use crate::services::process_client_transaction::process_client_transaction;
 use log::{error, info};
 use nightfall_client::{
     domain::entities::ClientTransaction,
@@ -31,7 +31,7 @@ where
     // then we should add the transaction to the database
     // Luckily, there is a function that does that.
     info!("Received client transaction");
-    let result = process_nightfall_client_transaction::<P, E>(transaction).await;
+    let result = process_client_transaction::<P, E>(transaction).await;
     match result {
         Ok(_) => Ok(StatusCode::CREATED),
         Err(e) => {
