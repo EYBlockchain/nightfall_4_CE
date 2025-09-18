@@ -2,7 +2,11 @@ use ark_bn254::Bn254;
 use ark_ff::Zero;
 use ark_std::UniformRand;
 use criterion::{criterion_group, criterion_main, Criterion};
-use jf_plonk::{nightfall::FFTPlonk, proof_system::UniversalSNARK, transcript::StandardTranscript};
+use jf_plonk::{
+    nightfall::{ipa_structs::VerificationKeyId, FFTPlonk},
+    proof_system::UniversalSNARK,
+    transcript::StandardTranscript,
+};
 use jf_primitives::pcs::prelude::UnivariateKzgPCS;
 use jf_relation::{Arithmetization, Circuit, PlonkCircuit};
 use jf_utils::test_rng;

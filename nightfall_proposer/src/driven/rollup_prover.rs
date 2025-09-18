@@ -14,23 +14,22 @@ use ark_bn254::{Bn254, Fq as Fq254, Fr as Fr254};
 
 use ark_ff::{BigInteger, PrimeField};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
-use ark_std::{cfg_chunks, cfg_into_iter, cfg_iter, One, Zero};
+use ark_std::{cfg_iter, One, Zero};
 use itertools::{izip, Itertools};
 use jf_plonk::{
     errors::PlonkError,
     nightfall::{
         accumulation::accumulation_structs::AtomicInstance,
-        ipa_structs::{ProvingKey, VerifyingKey, VK},
-        mle::{mle_structs::MLEProvingKey, MLEPlonk},
+        ipa_structs::{ProvingKey, VerifyingKey},
+        mle::mle_structs::MLEProvingKey,
         FFTPlonk,
     },
     proof_system::{
         structs::{ProvingKey as PlonkProvingKey, VerifyingKey as PlonkVerifyingKey},
-        PlonkKzgSnark, RecursiveOutput, UniversalSNARK,
+        RecursiveOutput, UniversalSNARK,
     },
     recursion::{
         circuits::{Kzg, Zmorph},
-        merge_functions::{Bn254CircuitOutput, GrumpkinCircuitOutput},
         RecursiveProof, RecursiveProver,
     },
     transcript::RescueTranscript,
@@ -225,9 +224,6 @@ pub fn get_decider_proving_key() -> &'static Arc<PlonkProvingKey<Bn254>> {
         Arc::new(pk)
     })
 }
-
-type GrumpkinOut = (PlonkCircuit<Fq254>, GrumpkinCircuitOutput);
-type Bn254Out = (PlonkCircuit<Fr254>, Bn254CircuitOutput);
 
 #[derive(Debug, Clone)]
 /// The prover struct for the rollup prover. It contains the vk_hash_list and the key_store.

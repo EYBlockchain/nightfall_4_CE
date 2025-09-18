@@ -320,7 +320,9 @@ mod tests {
     use ark_ff::{PrimeField, Zero};
     use ark_std::{rand::rngs::StdRng, UniformRand};
     use jf_plonk::{
-        nightfall::FFTPlonk, proof_system::UniversalSNARK, transcript::StandardTranscript,
+        nightfall::{ipa_structs::VerificationKeyId, FFTPlonk},
+        proof_system::UniversalSNARK,
+        transcript::StandardTranscript,
     };
     use jf_primitives::{
         pcs::prelude::UnivariateKzgPCS,

@@ -10,7 +10,7 @@ use configuration::settings::{self, Settings};
 use itertools::izip;
 use jf_plonk::{
     errors::PlonkError,
-    nightfall::{FFTPlonk, UnivariateUniversalIpaParams},
+    nightfall::{ipa_structs::VerificationKeyId, FFTPlonk, UnivariateUniversalIpaParams},
     proof_system::UniversalSNARK,
     recursion::RecursiveProver,
     transcript::RescueTranscript,
@@ -100,9 +100,6 @@ pub fn generate_proving_keys(settings: &Settings) -> Result<(), PlonkError> {
         Some(VerificationKeyId::Deposit),
         &deposit_circuit,
     )?;
-    // deposit pk vk
-    let (deposit_pk, _) =
-        FFTPlonk::<UnivariateKzgPCS<Bn254>>::preprocess(&kzg_srs, &deposit_circuit)?;
 
     let pk_path = path.join("bin/proving_key");
     let mut file = File::create(pk_path).map_err(PlonkError::IoError)?;

@@ -8,7 +8,11 @@ use ark_ec::{twisted_edwards::Affine, AffineRepr};
 use ark_ff::{PrimeField, Zero};
 use ark_std::{rand::rngs::StdRng, UniformRand};
 use criterion::{criterion_group, criterion_main, Criterion};
-use jf_plonk::{nightfall::FFTPlonk, proof_system::UniversalSNARK, transcript::StandardTranscript};
+use jf_plonk::{
+    nightfall::{ipa_structs::VerificationKeyId, FFTPlonk},
+    proof_system::UniversalSNARK,
+    transcript::StandardTranscript,
+};
 use jf_primitives::{
     pcs::prelude::UnivariateKzgPCS,
     poseidon::{FieldHasher, Poseidon},
