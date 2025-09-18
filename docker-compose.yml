@@ -333,8 +333,8 @@ services:
     command: mongod --quiet --logpath /dev/null 
     networks:
       - nightfall_network
-  #  volumes:
-  #    - mongodb_proposer_data:/data/db
+    volumes:
+      - mongodb_proposer_data:/data/db
     environment:
       - NF4_RUN_MODE=${NF4_RUN_MODE:-development}
 
@@ -553,7 +553,7 @@ services:
 volumes:
   # mongodb_client_data:
   # mongodb_client2_data:
-  # mongodb_proposer_data:
+  mongodb_proposer_data:
   address_data:
 
 networks:
