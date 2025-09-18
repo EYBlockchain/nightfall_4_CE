@@ -100,7 +100,7 @@ where
                         warn!("No webhook URL provided, skipping notification of successful transaction");
                     } else {
                         // Publish the notification
-                        info!("Response: {response:?}");
+                        debug!("Response: {response:?}");
                         publisher.publish(response).await;
                     }
                 }

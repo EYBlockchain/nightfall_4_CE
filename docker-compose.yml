@@ -279,8 +279,8 @@ services:
       - "27017:27017"    
     networks:
       - nightfall_network
-  #  volumes:
-  #    - mongodb_client_data:/data/db
+    volumes:
+      - mongodb_client_data:/data/db
     environment:
       - NF4_RUN_MODE=${NF4_RUN_MODE:-development}
 
@@ -549,7 +549,7 @@ services:
         condition: service_healthy
     
 volumes:
-  # mongodb_client_data:
+  mongodb_client_data:
   # mongodb_client2_data:
   # mongodb_proposer_data:
   address_data:

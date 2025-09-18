@@ -67,15 +67,15 @@ pub fn get_client_proving_key() -> &'static Arc<ProvingKey<UnivariateKzgPCS<Bn25
             }
         }
 
-        // We'll try to load from the configuration server first.
-        if let Some(key_bytes) = load_key_from_server("proving_key") {
-            let pk = ProvingKey::<UnivariateKzgPCS<Bn254>>::deserialize_compressed_unchecked(
-                &*key_bytes,
-            )
-            .expect("Could not deserialise proving key");
-            return Arc::new(pk);
-        }
-        // If that fails, we'll try to load from a local file
+        //We'll try to load from the configuration server first.
+        // if let Some(key_bytes) = load_key_from_server("proving_key") {
+        //     let pk = ProvingKey::<UnivariateKzgPCS<Bn254>>::deserialize_compressed_unchecked(
+        //         &*key_bytes,
+        //     )
+        //     .expect("Could not deserialise proving key");
+        //     return Arc::new(pk);
+        // }
+        //If that fails, we'll try to load from a local file
         warn!("Could not load proving key from server. Loading from local file");
         let path = Path::new("./configuration/bin/proving_key");
         let source_file = find(path).expect("Could not find path");
