@@ -204,27 +204,6 @@ pub fn get_base_bn254_proving_key() -> &'static Arc<ProvingKey<Kzg>> {
     })
 }
 
-/// This function is used to retrieve the merge grumpkin proving key.
-pub fn get_merge_grumpkin_proving_key() -> &'static Arc<MLEProvingKey<Zmorph>> {
-    static PK: OnceLock<Arc<MLEProvingKey<Zmorph>>> = OnceLock::new();
-    PK.get_or_init(|| {
-        if let Some(key_bytes) = load_key_from_server("merge_grumpkin_pk") {
-            let pk = MLEProvingKey::<Zmorph>::deserialize_compressed_unchecked(&*key_bytes)
-                .expect("Could not deserialise proving key");
-            return Arc::new(pk);
-        }
-        // If that fails, we'll try to load from a local file
-        warn!("Could not load deposit proving key from server. Loading from local file");
-        let path = Path::new("./configuration/bin/merge_grumpkin_pk");
-        let source_file = find(path).unwrap();
-        let pk = MLEProvingKey::<Zmorph>::deserialize_compressed_unchecked(
-            &*std::fs::read(source_file).expect("Could not read proving key"),
-        )
-        .expect("Could not deserialise proving key");
-        Arc::new(pk)
-    })
-}
-
 /// This function is used to retrieve the decider proving key.
 pub fn get_decider_proving_key() -> &'static Arc<PlonkProvingKey<Bn254>> {
     static PK: OnceLock<Arc<PlonkProvingKey<Bn254>>> = OnceLock::new();
@@ -586,14 +565,42 @@ impl RecursiveProver for RollupProver {
         get_base_bn254_proving_key().deref().clone()
     }
 
-    fn get_merge_grumpkin_pk() -> MLEProvingKey<Zmorph> {
-        get_merge_grumpkin_proving_key().deref().clone()
+    fn get_merge_grumpkin_pks() -> Vec<MLEProvingKey<Zmorph>> {
+        static GRUMPKIN_MERGE_PKS: OnceLock<Vec<Arc<MLEProvingKey<Zmorph>>>> = OnceLock::new();
+
+        GRUMPKIN_MERGE_PKS
+            .get_or_init(|| {
+                let config_path = get_configuration_path()
+                    .expect("Configuration path not found")
+                    .join("bin");
+
+                let mut pks = Vec::new();
+                let mut i = 0;
+                loop {
+                    let filename = format!("merge_grumpkin_pk_{i}");
+                    let path: PathBuf = config_path.join(&filename);
+                    if let Some(source_file) = find(&path) {
+                        let pk = MLEProvingKey::<Zmorph>::deserialize_compressed_unchecked(
+                            &*std::fs::read(source_file).expect("Could not read MLE proving key"),
+                        )
+                        .expect("Could not deserialise MLE proving key");
+                        pks.push(Arc::new(pk));
+                        i += 1;
+                    } else {
+                        break;
+                    }
+                }
+                pks
+            })
+            .iter()
+            .map(|arc_pk| (**arc_pk).clone())
+            .collect()
     }
 
     fn get_merge_bn254_pks() -> Vec<ProvingKey<Kzg>> {
-        static MERGE_PKS: OnceLock<Vec<Arc<ProvingKey<Kzg>>>> = OnceLock::new();
+        static BN254_MERGE_PKS: OnceLock<Vec<Arc<ProvingKey<Kzg>>>> = OnceLock::new();
 
-        MERGE_PKS
+        BN254_MERGE_PKS
             .get_or_init(|| {
                 let config_path = get_configuration_path()
                     .expect("Configuration path not found")
@@ -648,15 +655,19 @@ impl RecursiveProver for RollupProver {
         file.write_all(&buf).ok()
     }
 
-    fn store_merge_grumpkin_pk(pk: MLEProvingKey<Zmorph>) -> Option<()> {
+    fn store_merge_grumpkin_pks(pks: Vec<MLEProvingKey<Zmorph>>) -> Option<()> {
         let config_path = get_configuration_path()?;
-        let file_path = config_path.join("bin/merge_grumpkin_pk");
+        for (i, pk) in pks.into_iter().enumerate() {
+            let file_path = config_path.join(format!("bin/merge_grumpkin_pk_{i}"));
 
-        let mut buf = Vec::<u8>::new();
-        pk.serialize_compressed(&mut buf).ok()?;
-        let mut file = File::create(file_path).ok()?;
+            let mut buf = Vec::<u8>::new();
+            pk.serialize_compressed(&mut buf).ok()?;
 
-        file.write_all(&buf).ok()
+            let mut file = File::create(file_path).ok()?;
+            file.write_all(&buf).ok()?;
+        }
+
+        Some(())
     }
 
     fn store_merge_bn254_pks(pks: Vec<ProvingKey<Kzg>>) -> Option<()> {
