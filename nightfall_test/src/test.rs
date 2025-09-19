@@ -524,7 +524,7 @@ pub async fn verify_deposit_commitments_nf_token_id(
 }
 
 // get a ZKP key object from the client container (client knows how to generate them)
-pub async fn get_key(url: Url, key_request: &KeyRequest) -> Result<ZKPKeys, TestError> {
+pub async fn get_key(url: Url, key_request: &KeyRequest) -> Result<String, TestError> {
     // getting a key is easy; we just pass in a mnemonic and a key object is returned from the nightfall client
     let client = reqwest::Client::new();
     let res = client
@@ -534,11 +534,14 @@ pub async fn get_key(url: Url, key_request: &KeyRequest) -> Result<ZKPKeys, Test
         .send()
         .await
         .map_err(|e| TestError::new(e.to_string()))?;
-    let key = res
-        .json::<ZKPKeys>()
-        .await
+    let key_json = res.text().await.map_err(|e| TestError::new(e.to_string()))?;
+    // Parse JSON and extract just the zkp_public_key
+    let parsed: serde_json::Value = serde_json::from_str(&key_json)
         .map_err(|e| TestError::new(e.to_string()))?;
-    Ok(key)
+    let zkp_public_key = parsed["zkp_public_key"]
+        .as_str()
+        .ok_or_else(|| TestError::new("zkp_public_key not found in response".to_string()))?;
+    Ok(zkp_public_key.to_string())
 }
 
 pub fn load_addresses(settings: &Settings) -> Result<Addresses, AddressesError> {
@@ -860,7 +863,7 @@ pub async fn create_nf3_deposit_transaction(
 }
 
 pub async fn create_nf3_transfer_transaction(
-    recipient_zkp_key: ZKPKeys,
+    recipient_zkp_key: String,
     client: &reqwest::Client,
     url: Url,
     token_type: TokenType,
@@ -1043,7 +1046,7 @@ fn create_nf3_deposit_request(
 }
 
 fn create_nf3_transfer_request(
-    recipient_zkp_key: ZKPKeys,
+    recipient_zkp_key: String,
     value: String,
     fee: String,
     token_type: TokenType,
@@ -1054,11 +1057,7 @@ fn create_nf3_transfer_request(
         token_id,
         recipient_data: NF3RecipientData {
             values: vec![value],
-            recipient_compressed_zkp_public_keys: vec![hex::encode(
-                recipient_zkp_key
-                    .compressed_public_key()
-                    .map_err(|e| TestError::new(e.to_string()))?,
-            )],
+            recipient_compressed_zkp_public_keys: vec![recipient_zkp_key],
         },
         fee,
     })
