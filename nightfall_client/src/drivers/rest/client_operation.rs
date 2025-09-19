@@ -186,13 +186,14 @@ async fn send_to_proposer_with_retry<P: Serialize + Sync>(
     };
 
     for attempt in 1..=max_retries {
-        let body = serde_json::to_string(l2_transaction).unwrap();
-let resp = client.post(url.clone())
-    .header("Content-Type", "application/json")
-    .header("Content-Length", body.len().to_string()) // force length
-    .body(body)
-    .send()
-    .await;
+        let body = serde_json::to_string(l2_transaction).expect("Failed to serialize transaction");
+        let resp = client
+            .post(url.clone())
+            .header("Content-Type", "application/json")
+            .header("Content-Length", body.len().to_string()) // force length
+            .body(body)
+            .send()
+            .await;
         match resp {
             Ok(response) => {
                 let status = response.status();

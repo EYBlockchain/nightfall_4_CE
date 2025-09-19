@@ -16,7 +16,7 @@ use ethers::{
 };
 use jf_plonk::nightfall::ipa_structs::ProvingKey;
 use jf_primitives::pcs::prelude::UnivariateKzgPCS;
-use lib::utils::load_key_from_server;
+// use lib::utils::load_key_from_server;
 use log::warn;
 use num::BigUint;
 use std::{

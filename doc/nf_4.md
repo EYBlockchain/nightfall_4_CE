@@ -370,6 +370,49 @@ The Webhook also returns a BlockchainEvent object, when a L2 block is on-chain. 
 The uuid is the X-Request-ID for the original deposit/transfer/withdraw transaction. This enables the webhook response to be correlated with the original request.
 The webhook URL can be set in the `Nightfall.toml` configuration file.
 
+Below, we give a minimal, testing-only webhook you can run on your host. In this example: containers reach webhook at http://host.docker.internal:8080/webhook.
+
+1) Minimal Python (Flask)
+```
+# Create and run a tiny Flask server on your host
+python3 -m venv .venv
+source .venv/bin/activate
+pip install Flask
+cat > webhook.py <<'EOF'
+from flask import Flask, request
+from datetime import datetime
+app = Flask(__name__)
+@app.route("/webhook", methods=["POST"])
+def webhook():
+    data = request.get_json(silent=True)
+    # Heuristics to classify payload
+    kind = "TransactionEvent" if isinstance(data, dict) and "uuid" in data else \
+           "BlockchainEvent"  if isinstance(data, dict) and "l1_txn_hash" in data else \
+           "Unknown"
+    print(f"[{datetime.utcnow().isoformat()}Z] {kind}: {data}")
+    return "", 200
+if __name__ == "__main__":
+    # Bind to 0.0.0.0 so Docker containers can reach it
+    app.run(host="0.0.0.0", port=8080)
+EOF
+python3 webhook.py
+```
+
+2) Point Nightfall to the host webhook
+Set the URL via Nightfall.toml and env:
+
+`WEBHOOK_URL=http://host.docker.internal:8080/webhook`
+
+Then ensure your services consume it. For example, client already has:
+
+- NF4_NIGHTFALL_CLIENT__WEBHOOK_URL=${WEBHOOK_URL}
+
+(If other services also publish, give them the same env var.)
+
+Nightfall.toml:
+
+`webhook_url = "http://host.docker.internal:8080/webhook"`
+
 ## APIs
 
 These API urls are examples. Some values such as erc addresses are implementation-specific, so the values given won't work everywhere but they show the general form of an API call. The values below arise from using the deployer container with Anvil and a wallet mneumonic of `test test test test test test test test test test test junk`.

@@ -6,18 +6,12 @@ use ark_std::{
     UniformRand,
 };
 use ethers::utils::{hex, keccak256};
-use jf_plonk::{
-    errors::PlonkError,
-    nightfall::FFTPlonk,
-    proof_system::UniversalSNARK,
-};
+use jf_plonk::{errors::PlonkError, nightfall::FFTPlonk, proof_system::UniversalSNARK};
 use jf_primitives::{
     pcs::prelude::*,
     poseidon::Poseidon,
     rescue::sponge::RescueCRHF,
-    trees::{
-        Directions, MembershipProof, PathElement, TreeHasher,
-    },
+    trees::{Directions, MembershipProof, PathElement, TreeHasher},
 };
 use lib::hex_conversion::HexConvertible;
 use nf_curves::ed_on_bn254::{BabyJubjub as BabyJubJub, Fr as BJJScalar};
@@ -32,8 +26,7 @@ use nightfall_client::{
     },
 };
 use nightfall_proposer::{
-    domain::entities::DepositData,
-    driven::{deposit_circuit::deposit_circuit_builder},
+    domain::entities::DepositData, driven::deposit_circuit::deposit_circuit_builder,
 };
 use num_bigint::BigUint;
 use std::fs::File;
