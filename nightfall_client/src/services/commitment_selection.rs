@@ -36,17 +36,17 @@ pub async fn find_usable_commitments(
     target_value: Fr254,
     db: &Client,
 ) -> Result<[Preimage; MAX_POSSIBLE_COMMITMENTS], &'static str> {
-    // Step 1: Verify enough commitments and get sorted available commitments
+    // Verify enough commitments and get sorted available commitments
     let (avaliable_sorted_commitments, min_num_c) =
         verify_enough_commitments(target_token_id, target_value, db).await?;
 
-    // Step 2: Determine max number of commitments to use
+    // Determine max number of commitments to use
     let max_num_c = avaliable_sorted_commitments.len().min(MAX_POSSIBLE_COMMITMENTS);
     if max_num_c < min_num_c {
         return Err("Not enough commitments available to cover target value");
     }
   
-    // Step 3: Select optimal commitments (dust-first, minimize change)
+    // Given the available commitments, select the ones to use for this transfer
     let selected_commitments = select_commitment(
         &avaliable_sorted_commitments,
         target_value,
@@ -54,26 +54,25 @@ pub async fn find_usable_commitments(
         max_num_c,
     )?;
 
-    // Step 4: Get commitment IDs for atomic reservation
+    // Get commitment IDs for atomic reservation
     let commitment_ids = selected_commitments
         .iter()
         .map(|c| c.hash())
         .collect::<Result<Vec<Fr254>, _>>()
         .map_err(|_| "Preimage hashing failed during commitment selection")?;
 
-    // Step 5: Atomic reservation to avoid TOCTOU
+    // Atomic reservation to avoid TOCTOU
     let reserved_commitments = db.reserve_commitments_atomic(commitment_ids).await?;
     
     if reserved_commitments.len() < min_num_c {
         return Err("Could not reserve enough commitments - taken by another process");
     }
-    // Step 6: Convert reserved commitments to Preimage and return
+    // Convert reserved commitments to Preimage and return
     let preimages: Vec<Preimage> = reserved_commitments
         .into_iter()
         .map(|c| c.get_preimage())
         .collect::<Vec<_>>();
 
-    // Step 7: Return as fixed-length array
     let mut preimages_fixed = [Preimage::default(); MAX_POSSIBLE_COMMITMENTS];
     for (i, p) in preimages.into_iter().enumerate() {
         preimages_fixed[i] = p;

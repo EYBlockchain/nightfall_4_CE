@@ -522,6 +522,7 @@ where
                 match find_usable_commitments(fee_token_id, fee, db).await {
                     Ok(commitments) => commitments,
                     Err(e) => {
+                        error!("{id} Could not find enough usable fee commitments, suggest depositing more fee: {e}");
                         // rollback the value commitments to unspent if fails to find fee commitments
                         let value_commitment_ids = spend_value_commitments
                             .iter()
@@ -715,6 +716,7 @@ where
             match find_usable_commitments(fee_token_id, fee, db).await {
                 Ok(commitments) => commitments,
                 Err(e) => {
+                    error!("{id} Could not find enough usable fee commitments to complete this withdraw, suggest depositing more fee: {e}");
                     // rollback the value commitments to unspent if fails to find fee commitments
                     let value_commitment_ids = spend_value_commitments
                         .iter()
@@ -863,3 +865,5 @@ where
     // Return the response as JSON
     Ok(NotificationPayload::TransactionEvent { response, uuid })
 }
+
+
