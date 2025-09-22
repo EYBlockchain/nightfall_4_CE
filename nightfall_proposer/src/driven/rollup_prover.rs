@@ -59,7 +59,6 @@ use nightfall_client::{
     domain::error::ConversionError, driven::plonk_prover::plonk_proof::PlonkProof,
     get_client_proving_key, ports::proof::PublicInputs,
 };
-use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
