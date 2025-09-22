@@ -278,25 +278,22 @@ impl RecursiveProver for RollupProver {
     // these checks are implementation of RecursiveProver in Nightfish and will be called by each corresponding circuit
     fn base_bn254_extra_checks(
         specific_pis: &[Variable],
+        root_m_proof_length: usize,
+        commitment_info_length: usize,
+        nullifier_info_length: usize,
         circuit: &mut PlonkCircuit<Fr254>,
     ) -> Result<Vec<Variable>, CircuitError> {
         let (first_pis, second_pis) = specific_pis.split_at(specific_pis.len() / 2);
-        let root_m_proof_length =
-            BigUint::from(circuit.witness(first_pis[0])?).to_u32_digits()[0] as usize;
-        let commitment_info_length =
-            BigUint::from(circuit.witness(first_pis[1])?).to_u32_digits()[0] as usize;
-        let nullifier_info_length =
-            BigUint::from(circuit.witness(first_pis[2])?).to_u32_digits()[0] as usize;
 
         let mut start_roots_comm = Vec::new();
         let mut start_roots_null = Vec::new();
         let mut end_roots_comm = Vec::new();
         let mut end_roots_null = Vec::new();
         for pi in [first_pis, second_pis] {
-            pi[11..]
+            pi[8..]
                 .chunks(root_m_proof_length + 1)
                 .take(8)
-                .zip(pi[3..11].iter())
+                .zip(pi[..8].iter())
                 .try_for_each(|(chunk, leaf_root)| {
                     let field_elems = chunk[..root_m_proof_length]
                         .iter()
@@ -319,7 +316,7 @@ impl RecursiveProver for RollupProver {
                     circuit.enforce_true(check_var.into())
                 })?;
 
-            let comm_insert_vec = pi[11 + 8 * (root_m_proof_length + 1)..]
+            let comm_insert_vec = pi[8 * (root_m_proof_length + 2)..]
                 .iter()
                 .take(commitment_info_length)
                 .map(|var| circuit.witness(*var))
@@ -338,7 +335,7 @@ impl RecursiveProver for RollupProver {
             end_roots_comm.push(circuit_info.new_root);
 
             let nullifier_insert_vec = pi
-                [11 + 8 * (root_m_proof_length + 1) + commitment_info_length..]
+                [8 * (root_m_proof_length + 2) + commitment_info_length..]
                 .iter()
                 .take(nullifier_info_length)
                 .map(|var| circuit.witness(*var))
@@ -370,6 +367,7 @@ impl RecursiveProver for RollupProver {
             end_roots_null[1],
         ])
     }
+
     fn base_bn254_checks(
         specific_pis: &[Vec<Variable>],
         circuit: &mut PlonkCircuit<Fr254>,
