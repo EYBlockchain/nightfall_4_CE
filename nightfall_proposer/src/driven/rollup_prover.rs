@@ -334,8 +334,7 @@ impl RecursiveProver for RollupProver {
             start_roots_comm.push(circuit_info.old_root);
             end_roots_comm.push(circuit_info.new_root);
 
-            let nullifier_insert_vec = pi
-                [8 * (root_m_proof_length + 2) + commitment_info_length..]
+            let nullifier_insert_vec = pi[8 * (root_m_proof_length + 2) + commitment_info_length..]
                 .iter()
                 .take(nullifier_info_length)
                 .map(|var| circuit.witness(*var))
