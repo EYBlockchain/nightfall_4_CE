@@ -644,7 +644,7 @@ where
                 .map(|c| c.hash().unwrap())
                 .collect::<Vec<_>>();
             let _ = db.mark_commitments_unspent(&commitment_ids, None, None).await;
-            return Err(e); 
+            Err(TransactionHandlerError::CustomError(e.to_string()))
         }
     }
 }
