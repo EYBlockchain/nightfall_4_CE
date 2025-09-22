@@ -514,6 +514,7 @@ impl RecursiveProver for RollupProver {
 
     fn decider_circuit_checks(
         specific_pis: &[Vec<Variable>],
+        root_m_proof_length: usize,
         circuit: &mut PlonkCircuit<Fr254>,
         lookup_vars: &mut Vec<(Variable, Variable, Variable)>,
     ) -> Result<Vec<Variable>, CircuitError> {
@@ -546,10 +547,8 @@ impl RecursiveProver for RollupProver {
             circuit.full_shifted_sha256_hash(&[sha_left, sha_right], lookup_vars)?;
 
         circuit.finalize_for_sha256_hash(lookup_vars)?;
-        let root_m_proof_length =
-            BigUint::from(circuit.witness(specific_pis[2][0])?).to_u32_digits()[0] as usize;
 
-        let field_elems = specific_pis[2][1..1 + root_m_proof_length]
+        let field_elems = specific_pis[2][..root_m_proof_length]
             .iter()
             .map(|var| circuit.witness(*var))
             .collect::<Result<Vec<Fr254>, _>>()?;
@@ -562,7 +561,7 @@ impl RecursiveProver for RollupProver {
 
         let old_root_calc = m_proof_var.calculate_new_root(circuit, &circuit.zero())?;
 
-        circuit.enforce_equal(old_root_calc, specific_pis[2][1 + root_m_proof_length])?;
+        circuit.enforce_equal(old_root_calc, specific_pis[2][root_m_proof_length])?;
         Ok(vec![
             fee_sum,
             final_sha,
@@ -570,7 +569,7 @@ impl RecursiveProver for RollupProver {
             end_root_comm_two,
             start_root_null_one,
             end_root_null_two,
-            specific_pis[2][1 + root_m_proof_length],
+            specific_pis[2][root_m_proof_length],
             new_historic_root,
         ])
     }
