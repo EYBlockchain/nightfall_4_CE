@@ -528,8 +528,15 @@ where
                             .iter()
                             .filter_map(|c| c.hash().ok())
                             .collect::<Vec<_>>();
-                        let _ = db.mark_commitments_unspent(&value_commitment_ids, None, None).await;
-            
+                       for commitment_id in &value_commitment_ids {
+                            if let Some(existing) = db.get_commitment(commitment_id).await {
+                                let _ = db.mark_commitments_unspent(
+                                    &[*commitment_id], 
+                                    existing.layer_1_transaction_hash, 
+                                    existing.layer_2_block_number
+                                ).await;
+                            }
+                        }
                         return Err(TransactionHandlerError::CustomError(e.to_string()));
                     }
                 }
@@ -638,13 +645,21 @@ where
     ).await {
         Ok(res) =>  Ok(res),
         Err(e) => {
-            //  ROLLBACK to UNSPENT status if handle_client_operation fails
+            //  rollback to UNSPENT status if handle_client_operation fails
             let db = get_db_connection().await;
             let commitment_ids = spend_commitments
                 .iter()
                 .map(|c| c.hash().unwrap())
                 .collect::<Vec<_>>();
-            let _ = db.mark_commitments_unspent(&commitment_ids, None, None).await;
+           for commitment_id in &commitment_ids {
+                if let Some(existing) = db.get_commitment(commitment_id).await {
+                    let _ = db.mark_commitments_unspent(
+                        &[*commitment_id], 
+                        existing.layer_1_transaction_hash, 
+                        existing.layer_2_block_number
+                    ).await;
+                }
+            }
             Err(TransactionHandlerError::CustomError(e.to_string()))
         }
     }
@@ -722,8 +737,15 @@ where
                         .iter()
                         .filter_map(|c| c.hash().ok())
                         .collect::<Vec<_>>();
-                    let _ = db.mark_commitments_unspent(&value_commitment_ids, None, None).await;
-        
+                    for commitment_id in &value_commitment_ids {
+                        if let Some(existing) = db.get_commitment(commitment_id).await {
+                            let _ = db.mark_commitments_unspent(
+                                &[*commitment_id], 
+                                existing.layer_1_transaction_hash, 
+                                existing.layer_2_block_number
+                            ).await;
+                        }
+                    }
                     return Err(TransactionHandlerError::CustomError(e.to_string()));
                 }
             }
@@ -836,13 +858,21 @@ where
     ).await {
         Ok(res) => res,
         Err(e) => {
-            //  ROLLBACK to UNSPENT status if handle_client_operation fails
+            //  rollback to UNSPENT status if handle_client_operation fails
             let db = get_db_connection().await;
             let commitment_ids = spend_commitments
                 .iter()
                 .map(|c| c.hash().unwrap())
                 .collect::<Vec<_>>();
-            let _ = db.mark_commitments_unspent(&commitment_ids, None, None).await;
+            for commitment_id in &commitment_ids {
+                if let Some(existing) = db.get_commitment(commitment_id).await {
+                    let _ = db.mark_commitments_unspent(
+                        &[*commitment_id], 
+                        existing.layer_1_transaction_hash, 
+                        existing.layer_2_block_number
+                    ).await;
+                }
+            }
             return Err(e);
         }
     };
