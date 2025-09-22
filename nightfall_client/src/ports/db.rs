@@ -29,7 +29,6 @@ where
     async fn get_balance(&self, k: &K) -> Option<Fr254>;
     async fn reserve_commitments_atomic(&self, commitment_ids: Vec<K>) -> Result<Vec<V>, &'static str>;
     async fn get_available_commitments(&self, nf_token_id: Fr254) -> Option<Vec<V>>;
-    async fn mark_commitments_pending_spend(&self, commitments: Vec<K>) -> Option<()>;
     async fn mark_commitments_pending_creation(&self, commitments: Vec<K>) -> Option<()>;
     async fn mark_commitments_unspent(
         &self,

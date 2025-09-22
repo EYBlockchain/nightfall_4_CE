@@ -503,21 +503,6 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
         Some(balance)
     }
 
-    async fn mark_commitments_pending_spend(&self, commitments: Vec<Fr254>) -> Option<()> {
-        let commitment_str = commitments
-            .into_iter()
-            .map(|c| c.to_hex_string())
-            .collect::<Vec<_>>();
-        let filter = doc! { "_id": { "$in": commitment_str }};
-        let update = doc! {"$set": { "status": "PendingSpend" }};
-        self.database(DB)
-            .collection::<CommitmentEntry>("commitments")
-            .update_many(filter, update)
-            .await
-            .ok()?;
-        Some(())
-    }
-
     async fn mark_commitments_pending_creation(&self, commitments: Vec<Fr254>) -> Option<()> {
         let commitment_str = commitments
             .into_iter()
