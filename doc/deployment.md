@@ -2,6 +2,26 @@
 
 This section is useful if you want to deploy to a testnet for longer-term testing in a more 'production like' scenario where you will keep a proposer running and perhaps have serveral clients moving funds between themselves. These instructions may also work for mainnet deployment, but that hasn't been tested.
 
+### Configuration file
+
+Add a stanza to the `nightfall.toml` file for your testnet configuration, if it doesn't already exist. The `[base_sepolia]` section can be used as a guide. The testnet-dependent items are:
+
+- `genesis_block`: If you are deploying contracts for the first time, set this to roughly the current layer 1 blocknumber for the testnet. This will make responses faster because nightfall will not look for events prior to this block when synchronising.
+- `chain_id`: The chain id of the testnet. This is useful because deployments will be logged under a folder with the same name as the chain id. This allows one to distinguish from Anvil deploys, for example.
+- `proposer_url`: We need to expose the port 3001, so that client can reach it. update the url with expose url, in `nightfall.toml` and in `docker-compose.yml` for `indie-client`.
+- `contracts.contract_addresses`: If you have already deployed the contracts then their addresses can be placed here so that nightfall knows where to find the contracts. Otherwise it will attempt to read the latest deployment log file, which is less reliable (e.g. you may not have deployed the contracts so your log file won't contain the correct information). If you don't want this to happen, leave the values blank (empty strings). These values will be ignored if you've told nightfall to deploy contracts via the `deploy_contracts` configuration item.
+- `deploy_contracts`: If true, deployer will deploy new contracts, otherwise it will run and set up keys but won't deploy contracts before exiting. It's often convenient to override this value with an environment variable (see later) to save rebuilding the containers.
+
+Other items may of course require configuring but they're not anything to do with which chain nightfall is deployed on. *You must rebuild the containers for these changes to take effect*.
+
+### Environment variables
+
+Set the environment variable `NF4_RUN_MODE=` like for base_sepolia set it as `NF4_RUN_MODE=base_sepolia`. This will cause Nightfall to use the `[base_sepolia]` section of `nightfall.toml` rather than the `[development]` section.
+
+If you need to, override the `deploy_contracts` configuration item, e.g.: `NF4_CONTRACTS__DEPLOY_CONTRACTS=false` (note the double underscore, which replaces the more common 'dot' notation).
+
+Set `ethereum_client_url`: The url of the rpc endpoint of your layer 1 client. Alternatively, you can set this via `NF4_ETHEREUM_CLIENT_URL` in the `local.env` file.
+
 ### Beta testing preliminaries
 
 1. Make sure you have tokens in an ERC20|721|1155|3525 contract that your `client` can access. Your `client` will need some L1 funds to move into L2.
