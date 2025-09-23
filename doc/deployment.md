@@ -34,6 +34,9 @@ AZURE_CLIENT_ID=
 AZURE_CLIENT_SECRET=
 AZURE_TENANT_ID=`
 
+NOTE : If you want to turn off the x509 certificate check for testnet please change this line ` x509Contract.enableAllowlisting(true) ` in `blockchain_assets/script/deployer.s.sol` to ` x509Contract.enableAllowlisting(false) `
+
+
 The below assumes you use docker compose to orchestrate your containers, but anything else that works is fine and you probably shouldn't be using docker compose in anything approaching a production environment. The docker compose version will create database containers for the `client` and the `proposer`.
 
 ### Beta testing configuration
@@ -56,7 +59,18 @@ docker compose --profile indie-deployer build
 docker compose --profile indie-deployer --env-file local.env up
 ```
 
-This should deploy all the Nightfall contracts. Their addresses will have been written to `configuration/toml/addresses.toml` and will also be in the deployment logs `blockchain_assets/logs`. Provide these addresses to the `client` and `proposer` via either the configuration server, their `addresses.toml` file or by adding them to their `nightfall.toml` file (in the latter case don't forget to set `deploy_contracts=false` or they'll be ignored). Use whichever method is most appropriate for your infrastructure.
+This should deploy all the Nightfall contracts. These logs will be written to  will also be in the deployment logs `blockchain_assets/logs`.
+Please write these addresses to `configuration/toml/addresses.toml`. 
+
+Create the TOML config folder:
+` mkdir -p configuration/toml `
+
+Create `configuration/toml/addresses.toml` with the following content:
+`nightfall = "0x... " # nightfall address from deployement logs
+ round_robin = "0x... " # round_robin address from deployement logs
+ x509 = "0x... " ` # x509 address from deployement logs
+
+Provide these addresses to the `client` and `proposer` via either the configuration server, their `addresses.toml` file or by adding them to their `nightfall.toml` file (in the latter case don't forget to set `deploy_contracts=false` or they'll be ignored). Use whichever method is most appropriate for your infrastructure.
 
 As usual, a `Code 0` exit indicates a successful outcome.
 
