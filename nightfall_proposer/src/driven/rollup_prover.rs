@@ -229,25 +229,6 @@ pub fn get_decider_proving_key() -> &'static Arc<PlonkProvingKey<Bn254>> {
 /// The prover struct for the rollup prover. It contains the vk_hash_list and the key_store.
 pub struct RollupProver;
 
-impl RollupProver {
-    pub fn get_decider_vk() -> PlonkVerifyingKey<Bn254> {
-        let path = Path::new("./configuration/bin/decider_vk");
-        let source_file = find(path).unwrap();
-        PlonkVerifyingKey::<Bn254>::deserialize_compressed_unchecked(
-            &*std::fs::read(source_file).expect("Could not read verifying key"),
-        )
-        .expect("Could not deserialise verifying key")
-    }
-
-    pub fn store_decider_vk(vk: &PlonkVerifyingKey<Bn254>) {
-        let path = get_configuration_path().unwrap().join("bin/decider_vk");
-        let mut file = File::create(path).unwrap();
-        let mut compressed_bytes = Vec::new();
-        vk.serialize_compressed(&mut compressed_bytes).unwrap();
-        file.write_all(&compressed_bytes).unwrap();
-    }
-}
-
 impl RecursiveProver for RollupProver {
     // these checks are implementation of RecursiveProver in Nightfish and will be called by each corresponding circuit
     fn base_bn254_extra_checks(
@@ -629,6 +610,17 @@ impl RecursiveProver for RollupProver {
         get_decider_proving_key().deref().clone()
     }
 
+    fn get_decider_vk() -> PlonkVerifyingKey<Bn254> {
+        let path = get_configuration_path()
+            .expect("Configuration path not found")
+            .join("bin/decider_vk");
+        let source_file = find(&path).unwrap();
+        PlonkVerifyingKey::<Bn254>::deserialize_compressed_unchecked(
+            &*std::fs::read(source_file).expect("Could not read verifying key"),
+        )
+        .expect("Could not deserialise verifying key")
+    }
+
     fn store_base_grumpkin_pk(pk: MLEProvingKey<Zmorph>) -> Option<()> {
         let config_path = get_configuration_path()?;
         let file_path = config_path.join("bin/base_grumpkin_pk");
@@ -690,6 +682,14 @@ impl RecursiveProver for RollupProver {
         let mut file = File::create(file_path).ok()?;
 
         file.write_all(&buf).ok()
+    }
+
+    fn store_decider_vk(vk: &PlonkVerifyingKey<Bn254>) {
+        let path = get_configuration_path().unwrap().join("bin/decider_vk");
+        let mut file = File::create(path).unwrap();
+        let mut compressed_bytes = Vec::new();
+        vk.serialize_compressed(&mut compressed_bytes).unwrap();
+        file.write_all(&compressed_bytes).unwrap();
     }
 
     fn generate_vk_check_constraint(
