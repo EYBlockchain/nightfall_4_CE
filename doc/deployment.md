@@ -34,7 +34,8 @@ Set `ethereum_client_url`: The url of the rpc endpoint of your layer 1 client. A
 8. Note that, like most blockchain clients, Nightfall expects you to provide appropriate load balancing and security infrastructure. These things are not part of the application. As an example, you should terminate any `https://`, handle access tokens, and pass the payload to nightfall within your infrastructure; you should ensure any internet facing ports are appropriately firewalled.
 9. Create a file named local.env in the repo root with the following content. Replace placeholders (0x....) with your values where indicated.
  
-`CLIENT_SIGNING_KEY="0x......." # your private key
+```bash
+CLIENT_SIGNING_KEY="0x......." # your private key
 CLIENT2_SIGNING_KEY= 
 CLIENT_ADDRESS="0x......." # your public address
 CLIENT2_ADDRESS="0xf2Fca7419389fB8f5Db220cdEe9039AD2FFb03b5" 
@@ -52,7 +53,8 @@ CLIENT_SIGNING_KEY_NAME=
 CLIENT2_SIGNING_KEY_NAME=
 AZURE_CLIENT_ID=
 AZURE_CLIENT_SECRET=
-AZURE_TENANT_ID=`
+AZURE_TENANT_ID=
+```
 
 NOTE : If you want to turn off the x509 certificate check for testnet please change this line ` x509Contract.enableAllowlisting(true) ` in `blockchain_assets/script/deployer.s.sol` to ` x509Contract.enableAllowlisting(false) `
 
