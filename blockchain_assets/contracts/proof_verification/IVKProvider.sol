@@ -8,5 +8,4 @@ interface IVKProvider {
         external
         view
         returns (Types.VerificationKey memory vk);
-    // function vkHash() external view returns (bytes32);
 }
