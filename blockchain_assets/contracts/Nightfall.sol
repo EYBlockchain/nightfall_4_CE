@@ -75,7 +75,7 @@ struct Block {
     uint256 nullifier_root;
     uint256 commitments_root_root;
     OnChainTransaction[] transactions;
-    // fee_sum for transfers and withdrawals || 2 BN254 accumulators, each includes 1 G1 commitments and 1 G1 proof. || one ultra plonk proof.
+    // fee_sum for transfers and withdrawals || 2 BN254 accumulators, each includes 1 G1 commitment and 1 G1 proof. || one ultra plonk proof.
     bytes rollup_proof;
 }
 
@@ -569,6 +569,7 @@ contract Nightfall is
             return;
         }
 
+        // To avoid re-entrancy attacks, we set the withdrawalIncluded[key] to 0 before transferring the funds.
         withdrawalIncluded[key] = 0;
         bool success;
 
@@ -604,6 +605,8 @@ contract Nightfall is
             );
         }
 
+        // If the transfer failed, we revert the state change
+        // and set withdrawalIncluded[key] back to 1 so that the withdraw can be retried.
         if (!success) {
             withdrawalIncluded[key] = 1;
         }
@@ -612,22 +615,23 @@ contract Nightfall is
     function sha256_and_shift(
         bytes memory inputs
     ) public view returns (uint256 result) {
-        assembly {
-            let freePtr := mload(0x40)
-            if iszero(
-                staticcall(
-                    gas(),
-                    0x02,
-                    add(inputs, 0x20),
-                    mload(inputs),
-                    freePtr,
-                    0x20
-                )
-            ) {
-                revert(0, 0)
-            }
-            result := shr(4, mload(freePtr))
-        }
+        // assembly {
+        //     let freePtr := mload(0x40)
+        //     if iszero(
+        //         staticcall(
+        //             gas(),
+        //             0x02,
+        //             add(inputs, 0x20),
+        //             mload(inputs),
+        //             freePtr,
+        //             0x20
+        //         )
+        //     ) {
+        //         revert(0, 0)
+        //     }
+        //     result := shr(4, mload(freePtr))
+        // }
+        return uint256(sha256(inputs)) >> 4;
     }
 
     // hashes the public data in a transaction, for use by the rollup proof
