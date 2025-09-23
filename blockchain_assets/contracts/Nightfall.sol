@@ -614,7 +614,7 @@ contract Nightfall is
 
     function sha256_and_shift(
         bytes memory inputs
-    ) public view returns (uint256 result) {
+    ) public pure returns (uint256 result) {
         // assembly {
         //     let freePtr := mload(0x40)
         //     if iszero(
