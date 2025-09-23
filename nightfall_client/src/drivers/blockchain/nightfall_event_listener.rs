@@ -141,8 +141,6 @@ pub async fn listen_for_events<N: NightfallContract>(
         }
     }
 
-    ark_std::println!("after loop");
-
     Err(EventHandlerError::StreamTerminated)
 }
 

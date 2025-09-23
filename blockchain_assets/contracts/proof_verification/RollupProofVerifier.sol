@@ -1837,7 +1837,6 @@ contract RollupProofVerifier is
         returns (Types.VerificationKey memory)
     {
         return vkProvider.getVerificationKey();
-        //    return UltraPlonkVerificationKey.getVerificationKey();
     }
 
     function deserialize_proof(
@@ -1851,7 +1850,6 @@ contract RollupProofVerifier is
             mstore(0x40, add(proof, 0x5A0)) // advance free memory pointer by size of Types.Proof struct
             // Initialize each field in the struct to point to memory slots
             // Allocate G1Point structs (each 0x40 bytes) for each commitment and proof
-            // proof := proof_ptr
             // wires_poly_comms (6)
             for {
                 let i := 0

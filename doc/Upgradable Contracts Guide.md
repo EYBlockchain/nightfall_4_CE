@@ -2,51 +2,55 @@
 
 This document explains why we’re upgrading each on-chain component, how our contracts are made upgradeable, what to watch out for when authoring new versions, and a step-by-step test plan (with commands) for each contract.
 
-## How Upgradble Contracts Work
+## 1 Why we need Upgradble Contracts in Nightfall_4
+Upgradeable contracts are essential for maintaining long-lived blockchain applications, especially on testnet, because deployed contracts are immutable by default. Without an upgrade path, any discovered bug, security vulnerability, or need for new functionality would require redeploying a new contract and migrating all state, which is error-prone and disruptive. By introducing upgradeability, we preserve contract state while enabling controlled enhancements, security patches, and protocol evolution over time. This ensures that the system remains flexible, secure, and future-proof while minimizing operational overhead for users and developers.
 
-### What “upgradable” really means
+## 2 How Upgradble Contracts Work
+
+### 2.1 What “upgradable” really means
 - Address stays the same, logic changes. Users interact with a proxy contract whose address never changes. The proxy delegates every call to a separate implementation (logic) contract.
 
 - State lives in the proxy. Because calls use delegatecall, all storage (balances, mappings, configs) is read/written in the proxy’s storage, so upgrading the implementation doesn’t erase state.
 
-### Core pieces
+### 2.2 Core pieces
 #### Proxy
-1. Minimal contract that forwards calls via delegatecall.
+- Minimal contract that forwards calls via delegatecall.
 
-2. Stores two special EIP-1967 slots:
+- Stores two special EIP-1967 slots:
 implementation (logic address)
 (sometimes) admin (who can change the implementation)
 
 #### Implementation (logic)
-1. The actual contract code (functions).
+- The actual contract code (functions).
 
-2. Use initializer functions instead of constructors (constructors don’t run through a proxy).
+- Use initializer functions instead of constructors (constructors don’t run through a proxy).
 
 #### Upgrade mechanism
-1. A function that changes the implementation slot, guarded by access control (e.g., onlyOwner, multisig, timelock).
 
-2. Patterns:
-- Transparent Proxy (Admin can’t call logic functions through the proxy).
+- A function that changes the implementation slot, guarded by access control (e.g., onlyOwner, multisig, timelock).
 
-- UUPS (logic contract exposes upgradeTo, proxy is dumb; recommended by OZ).
+- Patterns:
+    - Transparent Proxy (Admin can’t call logic functions through the proxy).
+
+    - UUPS (logic contract exposes upgradeTo, proxy is dumb; recommended by OZ).
 Beacon (many proxies read implementation from a shared beacon).
 
-###  The UUPS pattern (most common today)
+### 2.3 The UUPS pattern (most common today)
 - Implementation inherits `UUPSUpgradeable` and defines:
 
-1. `initialize(...)` (or `reinitializer(x)`) for setting initial state.
+    - `initialize(...)` (or `reinitializer(x)`) for setting initial state.
 
-2. `_authorizeUpgrade(address)` to restrict upgrades (e.g., onlyOwner).
+    - `_authorizeUpgrade(address)` to restrict upgrades (e.g., onlyOwner).
 
 - Upgrade flow:
 
-1. Deploy new implementation.
+   - Deploy new implementation.
 
-2. Call `upgradeTo(newImpl)` via proxy (authorized caller only).
+   - Call `upgradeTo(newImpl)` via proxy (authorized caller only).
 
-3. (Optional) `upgradeToAndCall(newImpl, data)` to run a post-upgrade init/migration.
+   - (Optional) `upgradeToAndCall(newImpl, data)` to run a post-upgrade init/migration.
 
-### Storage layout rules (most important!)
+### 2.4 Storage layout rules (most important!)
 - Do not reorder, remove, or change types of existing storage variables.
 
 - Only append new variables at the end of the storage layout.
@@ -55,7 +59,7 @@ Beacon (many proxies read implementation from a shared beacon).
 
 - If you must migrate data, do it in a one-time reinitializer and keep it simple and auditable.
 
-###  Initializers, not constructors
+### 2.5 Initializers, not constructors
 Constructors run only at the logic contract’s own address, not through the proxy.
 Use:
 - `function initialize(args...) public initializer { ... }`
@@ -64,7 +68,7 @@ Use:
 
 For new versions: `reinitializer(2)` to set up new state safely once.
 
-###  Security & governance best practices
+### 2.6 Security & governance best practices
 - Restrict upgrades. Use a multisig and ideally a timelock for production.
 
 - Run storage layout checks (OpenZeppelin/Foundry plugins) during CI.
@@ -75,31 +79,31 @@ For new versions: `reinitializer(2)` to set up new state safely once.
 
 - Consider Pause (Pausable) for emergency response.
 
-###  Testing & operations checklist
+### 2.7 Testing & operations checklist
 - Unit tests: old state remains valid, new behavior works, access control enforced, events unchanged unless intentional.
 
 - Upgrade tests: deploy V1 -> initialize -> write state -> upgrade to V2 -> verify state unchanged & behavior changed.
 
 - On-chain verification:
 
-1. Read EIP-1967 implementation slot to confirm update.
+    - Read EIP-1967 implementation slot to confirm update.
 
-2. cast code `<proxy>` must be non-zero.
+    - cast code `<proxy>` must be non-zero.
 
-3. Rollbacks: keep previous implementation artifact/hash handy; upgrade back if needed.
+    - Rollbacks: keep previous implementation artifact/hash handy; upgrade back if needed.
 
-###  Common pitfalls
-1. Using constructors for state (won’t run through proxy).
+### 2.8 Common pitfalls
+- Using constructors for state (won’t run through proxy).
 
-2. Storage collisions from reordering variables.
+- Storage collisions from reordering variables.
 
-3. Forgetting `_authorizeUpgrade`.
+- Forgetting `_authorizeUpgrade`.
 
-4. external API (function selector changes) that clients depend on.
+- external API (function selector changes) that clients depend on.
 
-5. Event schema changes without updating indexers/consumers.
+- Event schema changes without updating indexers/consumers.
 
-### When not to use upgradability
+### 2.9 When not to use upgradability
 
 - If immutability is a hard requirement (governance, compliance, or trust concerns).
 
@@ -109,9 +113,9 @@ For new versions: `reinitializer(2)` to set up new state safely once.
 
 In short: Upgradable contracts keep a stable address + state via a proxy and rely on strict storage layout discipline, initializer patterns, and governed upgrade rights. Do that well, and you can evolve features safely without breaking users or losing data.
 
-## What Contracts in NF_4 need to be updated and Why
+## 3 What Contracts in NF_4 need to be updated and Why
 
-### Why these contracts are being updated
+### 3.1 Why these contracts are being updated
 
 #### X509-Allowlist.sol
 
@@ -147,7 +151,7 @@ In short: Upgradable contracts keep a stable address + state via a proxy and rel
 
 - Hot-patch the verifier logic (e.g., change sub-checks like verify_acc) without touching L2 data structures.
 
-### How upgrades work (and who can upgrade)
+### 3.2 How upgrades work (and who can upgrade)
 
 - We use UUPS proxies (OpenZeppelin’s UUPSUpgradeable + Initializable):
 
@@ -157,18 +161,18 @@ In short: Upgradable contracts keep a stable address + state via a proxy and rel
 
 - Each implementation defines:
 
-1. `initialize(...)` (runs once via proxy; replaces constructors),
+    - `initialize(...)` (runs once via proxy; replaces constructors),
 
-2. `_authorizeUpgrade(address newImpl)` (we gate this with onlyOwner).
+    - `_authorizeUpgrade(address newImpl)` (we gate this with onlyOwner).
 
-3. Only the proxy owner (the address behind NF4_SIGNING_KEY) can upgrade.
+    - Only the proxy owner (the address behind NF4_SIGNING_KEY) can upgrade. We currently only support one owner, multi-sig will be added in the future.
 
-4. We use openzeppelin-foundry-upgrades’ `Upgrades.upgradeProxy(...)`, which runs storage-layout safety checks at build time.
+    - We use openzeppelin-foundry-upgrades’ `Upgrades.upgradeProxy(...)`, which runs storage-layout safety checks at build time.
 
-5. Proxies for the local dev environment are read from `addresses.toml` (via the configuration service). Always verify the proxy really exists on your RPC_URL before running an upgrade.
+    - Proxies for the local dev environment are read from `addresses.toml` (via the configuration service). Always verify the proxy really exists on your RPC_URL before running an upgrade.
 
-## Authoring a new version: do’s and don’ts
-### Do
+## 4 Authoring a new version: do’s and don’ts
+### 4.1 Do
 
 - Preserve the storage layout.
 
@@ -194,7 +198,7 @@ In short: Upgradable contracts keep a stable address + state via a proxy and rel
 
 - Run storage checks and unit/integration tests before broadcasting.
 
-###  Don’t
+### 4.2 Don’t
 
 -  Don’t delete or rename existing storage vars, even if “unused.”
 
@@ -206,76 +210,76 @@ In short: Upgradable contracts keep a stable address + state via a proxy and rel
 
 -  Don’t break invariants around balances, roots, or auth without explicit migration logic.
 
-## The new changes added 
-- Make original contracts upgradable.
-  1. `blockchain_assets/contracts/proof_verification/RollupProofVerificationKey.sol`
+## 5 The new changes added 
+- To be make original contracts upgradable, the following contracts are changed.
+    - `blockchain_assets/contracts/proof_verification/RollupProofVerificationKey.sol`
 
-  2. `blockchain_assets/contracts/proof_verification/RollupProofVerifier.sol`
+    - `blockchain_assets/contracts/proof_verification/RollupProofVerifier.sol`
 
-  3. `blockchain_assets/contracts/X509/Allowlist.sol`
+    - `blockchain_assets/contracts/X509/Allowlist.sol`
 
-  4. `blockchain_assets/contracts/X509/Certified.sol`
+    - `blockchain_assets/contracts/X509/Certified.sol`
 
-  5. `blockchain_assets/contracts/X509/X509.sol`
+    - `blockchain_assets/contracts/X509/X509.sol`
 
-  6. `blockchain_assets/contracts/Nightfall.sol`
+     - `blockchain_assets/contracts/Nightfall.sol`
 
-  7. `blockchain_assets/contracts/RoundRobin.sol`
+    - `blockchain_assets/contracts/RoundRobin.sol`
 
-- Add V2 updates, and their related contract unit test. 
+- To test if aforementioned contracts are upgradable, we add V2 updates of these contracts, and also their related contract unit tests to show that we can upgrade them to expected version. 
 
-This is to make sure contract changes in last step are able to be updated.
-And also give the contract unit test, so every update should follow this pattern, do write contract unit test.
-  1. `blockchain_assets/contracts/proof_verification/RollupProofVerifierV2.sol`
+    This step also give an example to show how to write the contract unit test for upgrable contracts, so every update should follow this pattern, do write contract unit test. Belows are the v2 contract and its contract unit test.
+    - `blockchain_assets/contracts/proof_verification/RollupProofVerifierV2.sol`
      `blockchain_assets/test_contracts/RollupProofVerifier_V2.t.sol`
 
-  2. `blockchain_assets/contracts/Nightfall_V2.sol`
+    - `blockchain_assets/contracts/Nightfall_V2.sol`
      `blockchain_assets/test_contracts/Nightfall_V2_t.sol`
 
-  3. `blockchain_assets/contracts/RoundRobinV2.sol`
+    - `blockchain_assets/contracts/RoundRobinV2.sol`
      `blockchain_assets/test_contracts/RoundRobin_V2.t.sol`
 
-  4. `blockchain_assets/test_contracts/RollupProofVerificationKey_V2.t.sol`
+    - `blockchain_assets/test_contracts/RollupProofVerificationKey_V2.t.sol`
 
-  5. `blockchain_assets/contracts/X509/X509V2.sol`
+    - `blockchain_assets/contracts/X509/X509V2.sol`
      `blockchain_assets/test_contracts/X509/X509_V2.t.sol`
 
 
-- Add V3 updates, and their related depoyer scripts.
+- To mimic the real life updaget, we add V3 updates of these contracts, and their related depoyer scripts, so you can follow the same pattern about how to write the deployment script if you need to upgrade contract.
 
-These are used in the tests, which shows updates are correctly done with its related script to deploy new updates onchain. Scripts can be resused in future if we need to update any contract here, only need to change the name of new contracts. Note that every new version of contract need to claim which contract it's updating, for example:
+    These are used in the test example in the last section of this file, which shows updates are correctly done with its related script to deploy new updates onchain. Scripts can be resused in future if we need to update any contract here, only need to change the name of new contracts. Note that every new version of contract need to claim which contract it's updating, for example:
 
 ```
 /// @custom:oz-upgrades-from blockchain_assets/contracts/proof_verification/RollupProofVerifier.sol:RollupProofVerifier
 ```
+    Belows are the version 3 contract and its deploy script contract.
 
-  1. `blockchain_assets/contracts/X509/X509V3.sol`
+  - `blockchain_assets/contracts/X509/X509V3.sol`
      `blockchain_assets/script/upgrade_X509_V3.s.sol`
 
-  2. `blockchain_assets/contracts/Nightfall_V3.sol`
+  - `blockchain_assets/contracts/Nightfall_V3.sol`
      `blockchain_assets/script/upgrade_Nightfall_V3.s.sol`
 
-  3. `blockchain_assets/contracts/RoundRobinV3.sol`
+  - `blockchain_assets/contracts/RoundRobinV3.sol`
      `blockchain_assets/script/upgrade_RoundRobin_V3.s.sol`
 
-  4. `blockchain_assets/script/replace_vk_from_toml.s.sol`
+  - `blockchain_assets/script/replace_vk_from_toml.s.sol`
      `blockchain_assets/nightfall_replace_vk.toml`
       
 
-  5. `blockchain_assets/contracts/proof_verification/RollupProofVerifierV2.sol`
+  - `blockchain_assets/contracts/proof_verification/RollupProofVerifierV2.sol`
      `blockchain_assets/script/upgrade_RollupProofVerifier_V2.s.sol`
 
-## Upgrade instruction
+## 6 Upgrade instruction
 
 Upgrades via UUPS replace the entire implementation behind the proxy. That means you can change function bodies in the new implementation even if the old ones weren’t virtual. The virtual/override pair only matters if your V2 contract inherits from V1 and overrides methods via Solidity inheritance. In V3 examples, you will find we have three types of new updation:
 
-1. replace the whole contract `blockchain_assets/contracts/X509/X509V3.sol`
+- replace the whole contract, e.g., `blockchain_assets/contracts/X509/X509V3.sol`
 
-2. overide one function in original contract: `blockchain_assets/contracts/Nightfall_V3.sol`
+- overide one function in original contract, e.g., `blockchain_assets/contracts/Nightfall_V3.sol`
 
-3. add a new function/change parameter: `blockchain_assets/contracts/RoundRobinV3.sol`    
+- add a new function/change parameter, e.g., `blockchain_assets/contracts/RoundRobinV3.sol`    
 
-### Two valid upgrade patterns
+### 6.1 Two valid upgrade patterns
 
 #### Replace implementation (no inheritance)
 
@@ -297,55 +301,53 @@ Upgrades via UUPS replace the entire implementation behind the proxy. That means
 
 - What to mark virtual?
 
-1. Don’t blanket virtual everything. Mark the likely “extension points” so V2 can override them while keeping the ABI stable:
+    - Don’t blanket virtual everything. Mark the likely “extension points” so V2 can override them while keeping the ABI stable.
 
-2. External entry points whose internal logic might evolve should be virtual
+    - External entry points whose internal logic might evolve should be virtual.
 
-3. Keep simple setters non-virtual unless you really expect to gate/alter them.
+    - Keep simple setters non-virtual unless you really expect to gate/alter them.
 
-### Other upgrade must-knows
+### 6.2 Other upgrade must-knows
 
-- Storage: append-only; preserve ordering/types; keep uint256[50] __gap; for future vars.
+- Storage: append-only; preserve ordering/types; keep `uint256[50] __gap;` for future vars.
 
-- Initializers: don’t re-run initialize. If V2 needs setup, add reinitializer(2) function and call it during/after upgrade.
+- Initializers: don’t re-run initialize. If V2 needs setup, add `reinitializer(2)` function and call it during/after upgrade.
 
 - Signatures: overriding requires the exact same signature. If you need a new signature, add a new function and keep the old one as a wrapper/stub.
 
-- UUPS guard: _authorizeUpgrade can stay as is; override only if you’re changing who can upgrade.
+- UUPS guard: `_authorizeUpgrade` can stay as is; override only if you’re changing who can upgrade.
 
-### Will upgrade clear the old status remembered onchain?
+### 6.3 Will upgrade clear the old status remembered onchain?
 
 Replacing the implementation in a UUPS (or Transparent) proxy does not clear on-chain state. All our variables—mappings like `feeBinding`, `withdrawalIncluded`, `tokenIdMapping`, `roots`, `owner`, etc.—live in the proxy’s storage, and upgrades only swap the logic contract address the proxy delegates to.
 
 Where people get “state reset” surprises is in these cases:
 
-1. Incompatible storage layout.
+- Incompatible storage layout.
 
-- Reordered/removed variables, changed types, or changed inheritance order -> variables read/write the wrong slots and look “zeroed” or corrupted.
+    - Reordered/removed variables, changed types, or changed inheritance order -> variables read/write the wrong slots and look “zeroed” or corrupted.
 
-- Rule: append-only to storage; keep ordering; use the __gap.
+    - Rule: append-only to storage; keep ordering; use the __gap.
 
-2. Accidentally deploying a new proxy instead of upgrading the existing one.
+-  Accidentally deploying a new proxy instead of upgrading the existing one. You’ll be looking at a fresh address with empty storage.
 
-You’ll be looking at a fresh address with empty storage.
-
-3. Re-running an initializer (or calling a bad “setup” function) that overwrites fields.
-
+-  Re-running an initializer (or calling a bad “setup” function) that overwrites fields.
 Don’t call initialize again (OpenZeppelin guards this). If V2 needs setup, add reinitializer(2) and only set new vars there.
 
-4. Changing which slot a getter reads (e.g., refactoring to a different struct/parent) so values appear different even though the slot still holds the old data.
+-  Changing which slot a getter reads (e.g., refactoring to a different struct/parent) so values appear different even though the slot still holds the old data.
 
 So: a replace-implementation upgrade preserves all “remembered status” unless you intentionally (or accidentally) change it via the pitfalls above.
 
 
-## Common upgrade workflow (local dev)
+## 7 Common upgrade workflow (local dev)
 In this section, we will give examples about how to upgrade each contract and how to test. If you run this on server, only change is that you need to give the proxy address manully, the docker internal https doesnt work on server.
 
-### X509 upgrade (V3): forces revert for `validateCertificate`
+### 7.1 X509 upgrade (V3): forces revert for `validateCertificate`
 - Intend: Upgrade X509 to revert for any certificate validation
 - Before: True validation result for valid certificate, false validation result for invalid certificate.
 - After: False validation result for valid certificate, false validation result for invalid certificate.
 - Change: Make `validateCertificate` revert no matter it's a valid or invalid certificate.
+
 We set `x509_owner = "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720"  # Anvil account (9)` (same for other examples.)
 
 We first clean the test in `nightfall_test/src/run_tests.rs` (comment the code from line 66 to line 992), so we will start with clean certificate status.
@@ -450,7 +452,7 @@ and then try an invalid certificate (for example, you can use same certificate b
 and in terminal you should see "X509V3: forced invalid certificate", this is what we expected about new behaviours of X509V3.
 
 
-###  Nightfall upgrade (V3): emit only one deposit event
+### 7.2 Nightfall upgrade (V3): emit only one deposit event
 - Intend: Change deposit event semantics without touching balances/roots.
 - Before: When an user sends a `deposit` tx with both `deposit_fee` and `value`, we will see two escrow events and two commitments will be included onchain.
 - After: When an user sends a `deposit` tx with both `deposit_fee` and `value`, we will see 1 value escrow events and 1 value commitment will be included onchain.
@@ -462,7 +464,7 @@ Run `docker compose --profile development build` and `docker compose --profile d
 
 when you see `nf4_test exited with code 0`, use Postman to check client_1 health -> expect healthy.
 
-Now you can use Postman to start a deposit api call with value 9, deposit_fee 2.
+Now you can use Postman to start a deposit api call with `value 9`, `deposit_fee 2`.
 in the terminal, you will find we have 2 events emitted. 
 ```
 nf4_client         | [2025-09-09T18:24:29Z INFO  nightfall_client::driven::event_handlers::nightfall_event] Client: Decoded DepositEscrowed event from transaction 0x371b…0151, Deposit Transaction with nf_slot_id 3904706575986504511978814088454415652555375037070224197537435603550245942968, value 9, is now on-chain
@@ -518,7 +520,7 @@ Use check commitment api now before the L2 block is onchain, you should get
 ]
 ```
 
-The key part you need to check is that you have two commitments with value 9 and value 2, status is `PendingCreation`.
+The key part you need to check is that you have two commitments with `value 9` and `value 2`, status is `PendingCreation`.
 
 Wait until this deposit is onchain, you check commitment again and you can get:
 ```
@@ -569,16 +571,16 @@ Wait until this deposit is onchain, you check commitment again and you can get:
 
 ```
 
-The key part you need to check is that you have two commitments with value 9 and value 2, status is `Unspent`.
+The key part you need to check is that you have two commitments with `value 9` and `value 2`, status is `Unspent`.
 So far, we verified that current `blockchain_assets/contracts/Nightfall.sol` works in the way we expect.
 
-Notice that, at the time of writing this document, we restart the test over and over so information such as salt might not be consistant in the example, but it should not affect how we conduct the tests.
+Notice that, at the time of writing this document, we restart the test over and over so information such as `salt` might not be consistant in the example, but it should not affect how we conduct the tests.
 
 Don't stop your docker. But add these contracts in: `blockchain_assets/contracts/Nightfall_V3.sol`, `blockchain_assets/script/upgrade_Nightfall_V3.s.sol`.
 
 The first contract defines the new changes we want for Nightfall contract, and the second contract defines how we deploy and update the contract from `blockchain_assets/contracts/Nightfall.sol` to `blockchain_assets/contracts/Nightfall_V3.sol`
 
-After copy paste the contracts in, do the followings in a new terminal under nightfall_4_pv:
+After copy paste the contracts in, do the followings in a new terminal under `nightfall_4_pv`:
 
 ```
 // Build the deployer image with the new artifacts
@@ -622,7 +624,7 @@ cast call $NIGHTFALL_PROXY "owner()(address)" --rpc-url $RPC_URL
 ```
 
 
-Now you can use Postman to start a deposit api call with value 7, deposit_fee 8, in the terminal you should only see one event:
+Now you can use Postman to start a deposit api call with `value 7`, `deposit_fee 8`, in the terminal you should only see one event:
 ```
 nf4_client                                | [2025-09-10T11:16:17Z INFO  nightfall_client::driven::event_handlers::nightfall_event] Client: Decoded DepositEscrowed event from transaction 0xfa52…0b33, Deposit Transaction with nf_slot_id 3904706575986504511978814088454415652555375037070224197537435603550245942968, value 7, is now on-chain
 
@@ -811,9 +813,9 @@ nf4_proposer                              | [2025-09-10T11:17:34Z INFO  nightfal
 ]
 ```
 
-When this L2 block is onchain, check commitment again, and you will find only one commitment is changed to unspent, this is what we expected about new behaviours of NightfallV3.
+When this L2 block is onchain, check commitment again, and you will find only one commitment is changed to `unspent`, this is what we expected about new behaviours of `NightfallV3`.
 
-###   RoundRobin upgrade (V3): change stake required to register as proposers
+### 7.3  RoundRobin upgrade (V3): change stake required to register as proposers
 
 - Intend: Raise the global stake in an upgrade from 4 to 40.
 - Before: Proposer need to stake 4 to become proposer.
@@ -916,7 +918,7 @@ nf4_proposer                              | [2025-09-10T17:46:29Z ERROR ethers_p
 So far, we verified that we successfully increased required stakes for proposer registration.
 
 
-###   RollupProofVerificationKey upgrade (V3): install a “bad” VK
+### 7.4 RollupProofVerificationKey upgrade (V3): install a “bad” VK
 
 - Intend: Change vk in the updation to mimic a accident update.
 - Before: Proposer can propose a block with valid information.
@@ -994,7 +996,7 @@ nf4_proposer | [2025-09-12T19:21:16Z ERROR ethers_providers::rpc::transports
 nf4_proposer       | [2025-09-12T19:21:16Z ERROR nightfall_proposer::drivers::blockchain::block_assembly] Failed to propose block: Did not receive a transaction receipt
 ```
 
-###   RollupProofVerifier upgrade (V2): make verification fail
+### 7.5 RollupProofVerifier upgrade (V2): make verification fail
 
 - Intend: Force verification failure in the `verify_OpeningProof` logic itself.
 - Before: Proposer can propose a block with valid information.
@@ -1053,7 +1055,7 @@ nf4_proposer | [2025-09-12T19:21:16Z ERROR ethers_providers::rpc::transports
 nf4_proposer       | [2025-09-12T19:21:16Z ERROR nightfall_proposer::drivers::blockchain::block_assembly] Failed to propose block: Did not receive a transaction receipt
 ```
 
-### Cleanup (optional, when the deployer image needs fresh artifacts)
+### 7.6 Cleanup (optional, when the deployer image needs fresh artifacts)
 `forge clean`
 
 `rm -rf blockchain_assets/artifacts/build-info/*`
