@@ -43,9 +43,7 @@ pub fn start_event_listener<N: NightfallContract>(
         loop {
             attempts += 1;
             log::info!("Client event listener (attempt {attempts})...");
-            log::info!("Client event listener (attempt {attempts})...");
             let result = listen_for_events::<N>(start_block).await;
-            ark_std::println!("JJ: listen_for_events returned with result: {result:?}");
             match result {
                 Ok(_) => {
                     log::info!("Client event listener finished successfully.");
@@ -84,9 +82,6 @@ async fn notify_failure_client(message: &str) -> Result<(), ()> {
 pub async fn listen_for_events<N: NightfallContract>(
     start_block: usize,
 ) -> Result<(), EventHandlerError> {
-    ark_std::println!(
-        "JJ: am inside of listen_for_events: Starting event listener from block {start_block}"
-    );
     let blockchain_client = get_blockchain_client_connection()
         .await
         .read()
@@ -117,16 +112,10 @@ pub async fn listen_for_events<N: NightfallContract>(
         .subscribe_logs(&events_filter)
         .await
         .map_err(|_| EventHandlerError::NoEventStream)?;
-    ark_std::println!("JJ: after events_subscription");
 
     let mut events_stream = events_subscription.into_stream();
-    ark_std::println!("events_stream: {events_stream:?}");
-    let test = events_stream.next().await;
-    ark_std::println!("JJ: after first events_stream.next(): {test:?}");
-
 
     while let Some(evt) = events_stream.next().await {
-        ark_std::println!("JJ: inside events_stream loop");
         // process each event in the stream and handle any errors
         let event = match Nightfall::NightfallEvents::decode_log(&evt.inner) {
             Ok(e) => e,
@@ -135,8 +124,6 @@ pub async fn listen_for_events<N: NightfallContract>(
                 continue; // Skip malformed events
             }
         };
-        ark_std::println!("Received event: {:?}", event);
-        ark_std::println!("about to call process_events");
         let result = process_events::<N>(event.data, evt).await;
         match result {
             Ok(_) => continue,
