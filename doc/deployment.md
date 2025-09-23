@@ -88,10 +88,11 @@ Create the TOML config folder:
 ` mkdir -p configuration/toml `
 
 Create `configuration/toml/addresses.toml` with the following content:
-`nightfall = "0x... " # nightfall address from deployement logs
+```toml
+ nightfall = "0x... " # nightfall address from deployement logs
  round_robin = "0x... " # round_robin address from deployement logs
  x509 = "0x... " ` # x509 address from deployement logs
-
+```
 Provide these addresses to the `client` and `proposer` via either the configuration server, their `addresses.toml` file or by adding them to their `nightfall.toml` file (in the latter case don't forget to set `deploy_contracts=false` or they'll be ignored). Use whichever method is most appropriate for your infrastructure.
 
 As usual, a `Code 0` exit indicates a successful outcome.
