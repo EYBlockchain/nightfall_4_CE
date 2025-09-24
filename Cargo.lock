@@ -4659,7 +4659,7 @@ checksum = "4a5f13b858c8d314ee3e8f639011f7ccefe71f97f96e50151fb991f267928e2c"
 [[package]]
 name = "jf-plonk"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git?branch=livesey%2Fextra-checks#d5c77f42741ae474ca769b482823e9942d4a7818"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#6b7f9b69c595081a86acf668d91ac4936499cdcb"
 dependencies = [
  "ark-bn254",
  "ark-crypto-primitives",
@@ -4696,7 +4696,7 @@ dependencies = [
 [[package]]
 name = "jf-primitives"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git?branch=livesey%2Fextra-checks#d5c77f42741ae474ca769b482823e9942d4a7818"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#6b7f9b69c595081a86acf668d91ac4936499cdcb"
 dependencies = [
  "anyhow",
  "arithmetic",
@@ -4746,7 +4746,7 @@ dependencies = [
 [[package]]
 name = "jf-relation"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git?branch=livesey%2Fextra-checks#d5c77f42741ae474ca769b482823e9942d4a7818"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#6b7f9b69c595081a86acf668d91ac4936499cdcb"
 dependencies = [
  "ark-bls12-377",
  "ark-bls12-381",
@@ -4778,7 +4778,7 @@ dependencies = [
 [[package]]
 name = "jf-utils"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git?branch=livesey%2Fextra-checks#d5c77f42741ae474ca769b482823e9942d4a7818"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#6b7f9b69c595081a86acf668d91ac4936499cdcb"
 dependencies = [
  "ark-ec",
  "ark-ff 0.4.2",
@@ -5316,7 +5316,7 @@ dependencies = [
 [[package]]
 name = "nf-curves"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git?branch=livesey%2Fextra-checks#d5c77f42741ae474ca769b482823e9942d4a7818"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#6b7f9b69c595081a86acf668d91ac4936499cdcb"
 dependencies = [
  "ark-bn254",
  "ark-ec",
