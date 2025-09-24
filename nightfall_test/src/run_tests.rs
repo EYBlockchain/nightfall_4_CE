@@ -25,7 +25,7 @@ use lib::{
 };
 use log::{debug, info, warn};
 use nightfall_client::drivers::rest::{client_nf_3::WithdrawResponse, models::DeEscrowDataReq};
-use nightfall_proposer::{services::assemble_block::get_block_size};
+use nightfall_proposer::services::assemble_block::get_block_size;
 use serde_json::Value;
 use test::{
     anvil_reorg, count_spent_commitments, get_erc20_balance, get_erc721_balance, get_fee_balance,
@@ -240,7 +240,7 @@ pub async fn run_tests(
             .filter(|n| !((Fr254::from_hex_string(n.as_str().unwrap()).unwrap()).is_zero()))
             .count();
 
-       // now we can resume block assembly
+        // now we can resume block assembly
         let resume_url = Url::parse(&settings.nightfall_proposer.url)
             .unwrap()
             .join("v1/resume")

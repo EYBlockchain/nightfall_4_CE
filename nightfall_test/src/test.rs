@@ -534,10 +534,13 @@ pub async fn get_key(url: Url, key_request: &KeyRequest) -> Result<String, TestE
         .send()
         .await
         .map_err(|e| TestError::new(e.to_string()))?;
-    let key_json = res.text().await.map_err(|e| TestError::new(e.to_string()))?;
-    // Parse JSON and extract just the zkp_public_key
-    let parsed: serde_json::Value = serde_json::from_str(&key_json)
+    let key_json = res
+        .text()
+        .await
         .map_err(|e| TestError::new(e.to_string()))?;
+    // Parse JSON and extract just the zkp_public_key
+    let parsed: serde_json::Value =
+        serde_json::from_str(&key_json).map_err(|e| TestError::new(e.to_string()))?;
     let zkp_public_key = parsed["zkp_public_key"]
         .as_str()
         .ok_or_else(|| TestError::new("zkp_public_key not found in response".to_string()))?;

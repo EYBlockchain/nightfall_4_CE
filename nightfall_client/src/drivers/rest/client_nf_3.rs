@@ -34,13 +34,12 @@ use crate::{
 use ark_bn254::Fr as Fr254;
 use ark_ec::twisted_edwards::Affine;
 use ark_ff::{BigInteger256, Zero};
-use ark_serialize::CanonicalDeserialize;
 use ark_std::{rand::thread_rng, UniformRand};
 use configuration::{addresses::get_addresses, settings::get_settings};
 use jf_primitives::poseidon::{FieldHasher, Poseidon};
-use lib::{hex_conversion::HexConvertible,serialization::ark_de_hex};
+use lib::{hex_conversion::HexConvertible, serialization::ark_de_hex};
 use log::{debug, error, info};
-use nf_curves::ed_on_bn254::{BabyJubjub, Fr as BJJScalar, BJJTEAffine as JubJub};
+use nf_curves::ed_on_bn254::{BJJTEAffine as JubJub, BabyJubjub, Fr as BJJScalar};
 use nightfall_bindings::artifacts::{Nightfall, IERC1155, IERC20, IERC3525, IERC721};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -483,7 +482,7 @@ where
         error!("{id} Error when reading fee: {e}");
         TransactionHandlerError::CustomError(e.to_string())
     })?;
-    
+
     let first_key = recipient_data
         .recipient_compressed_zkp_public_keys
         .first()
@@ -493,14 +492,15 @@ where
         })?;
 
     // Create a JSON string that represents the tuple struct content
-    let json_wrapped = format!("\"{}\"", first_key);
-    let deserialized_public_key: JubJubPubKey = serde_json::from_str(&json_wrapped).map_err(|e| {
-        error!("{id} Could not deserialize recipient public key: {e}");
-        TransactionHandlerError::CustomError(e.to_string())
-    })?;
+    let json_wrapped = format!("\"{first_key}\"");
+    let deserialized_public_key: JubJubPubKey =
+        serde_json::from_str(&json_wrapped).map_err(|e| {
+            error!("{id} Could not deserialize recipient public key: {e}");
+            TransactionHandlerError::CustomError(e.to_string())
+        })?;
 
     let recipient_public_key = deserialized_public_key.0;
-   
+
     let ephemeral_private_key = {
         let mut rng = ark_std::rand::thread_rng(); // TODO initialise in main and pass around as a rwlock
         BJJScalar::rand(&mut rng)

@@ -94,7 +94,7 @@ pub async fn listen_for_events<N: NightfallContract>(
     );
 
     // get the events from the Nightfall contract from the specified start block
-    
+
     // Subscribe to the combined events filter
     let events_filter = Filter::new()
         .address(get_addresses().nightfall())
