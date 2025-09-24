@@ -1,10 +1,9 @@
-use alloy::primitives::U256;
+use alloy::{primitives::U256, providers::Provider};
 use configuration::{addresses::get_addresses, settings::get_settings};
 use log::{info, warn};
 use nightfall_bindings::artifacts::RoundRobin;
 /// APIs for managing proposers
 use warp::{hyper::StatusCode, path, reply::Reply, Filter};
-
 use crate::{domain::error::ProposerRejection, initialisation::get_blockchain_client_connection};
 use lib::blockchain_client::BlockchainClientConnection;
 use nightfall_client::drivers::rest::proposers::ProposerError;
@@ -87,7 +86,7 @@ async fn handle_add_proposer(url: String) -> Result<impl Reply, warp::Rejection>
         info!("Registered proposer with address: {:?}", tx.from);
         Ok(StatusCode::OK)
     } else {
-        warn!("Failed to add proposer");
+        warn!("Failed to add proposer with address: {:?}", tx.from);
         Err(warp::reject::custom(ProposerRejection::FailedToAddProposer))
     }
 }

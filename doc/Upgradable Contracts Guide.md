@@ -344,7 +344,7 @@ In this section, we will give examples about how to upgrade each contract and ho
 
 ### 7.1 X509 upgrade (V3): forces revert for `validateCertificate`
 - Intend: Upgrade X509 to revert for any certificate validation
-- Before: True validation result for valid certificate, false validation result for invalid certificate.
+- Before: False validation result for invalid certificate, true validation result for valid certificate, 
 - After: False validation result for valid certificate, false validation result for invalid certificate.
 - Change: Make `validateCertificate` revert no matter it's a valid or invalid certificate.
 
@@ -359,7 +359,7 @@ and
 
 when you see `nf4_test exited with code 0`, use Postman to check client1 health -> expect healthy, or you can also use curl, see `doc/nf_4.md` for all api definition.
 
-Now you can use Postman to start a X509 api call with valid certificate, you should get 
+Now you can use Postman to start a X509 api call with invalid certificate, you should get 
 ```
 {
     "status", "ok",
@@ -368,14 +368,16 @@ Now you can use Postman to start a X509 api call with valid certificate, you sho
 ```
 ,
 
-and then try an invalid certificate (for example, you can use same certificate but with the private key from another certificate), you should get
+and then try an valid certificate (for example, you can use same certificate but with the private key from another certificate), you should get
 
 ```
 {
     "status", "ok",
-    "certified": false
+    "certified": true
 }
 ```
+
+Note that this api will return the status of user's X509 certificate validation onchain, so you should do an invalid cert check and then do an valid cert check.
 
 So far, we verified that current `blockchain_assets/contracts/X509/X509.sol` works in the way we expect.
 

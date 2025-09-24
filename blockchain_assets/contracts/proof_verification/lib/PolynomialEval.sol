@@ -54,8 +54,7 @@ library PolynomialEval {
         uint256 zeta
     ) internal pure returns (uint256 res) {
         uint256 p = Bn254Crypto.r_mod;
-        res = power(zeta, self.size, p);
-        res = res - 1;
+        res = addmod(power(zeta, self.size, p), p - 1, p);
     }
 
     function power(

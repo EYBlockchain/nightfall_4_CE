@@ -5,6 +5,8 @@ import "./X509Interface.sol";
 import "./SanctionsListInterface.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
+import "forge-std/console.sol";
+
 /// @notice Base contract providing X.509 and sanctions gating for upgradeable contracts.
 /// @dev No constructor. Call __Certified_init(...) from the child’s initialize().
 abstract contract Certified is Initializable {
@@ -64,6 +66,7 @@ abstract contract Certified is Initializable {
 
     /// @notice Gate modifier: requires valid X509 and not sanctioned.
     modifier onlyCertified() {
+        console.log("Certified: msg.sender is", msg.sender);
         require(
             x509.x509Check(msg.sender),
             "Certified: not authorised by X509"
