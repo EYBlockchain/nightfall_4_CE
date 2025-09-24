@@ -14,6 +14,11 @@ contract RollupProofVerificationKey is
     OwnableUpgradeable,
     IVKProvider
 {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     // -------- Storage v1 --------
     Types.VerificationKey private _vk; // the whole VK, canonical source
     bytes32 private _vkHash; // keccak256(abi.encode(_vk))

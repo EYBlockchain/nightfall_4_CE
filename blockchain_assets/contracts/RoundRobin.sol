@@ -18,6 +18,12 @@ import "forge-std/console.sol";
 ///  - Payable seeding split into `bootstrapDefaultProposer{value:...}()` so we can cleanly fund the first stake.
 ///  - UUPS: `_authorizeUpgrade` guarded by Certified’s `onlyOwner`.
 contract RoundRobin is ProposerManager, Certified, UUPSUpgradeable {
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+    
     // -------- config that used to be `immutable` (can’t be immutable in proxies) --------
     uint public STAKE;
     uint public LAZY_PENALTY;
@@ -60,9 +66,6 @@ contract RoundRobin is ProposerManager, Certified, UUPSUpgradeable {
     ) public initializer {
         __UUPSUpgradeable_init();
         __Certified_init(msg.sender, x509_address, sanctionsListAddress);
-
-        // Set Certified.owner since Certified’s constructor won’t run on the proxy
-        owner = msg.sender;
 
         require(cooling_blocks > 0, "Cooling blocks must be > 0");
         require(stake >= exit_penalty, "Stake < exit penalty");

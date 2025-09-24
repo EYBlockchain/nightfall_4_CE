@@ -26,6 +26,11 @@ contract X509 is
     Sha,
     X509Interface
 {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     uint256 constant SECONDS_PER_DAY = 24 * 60 * 60;
     int256 constant OFFSET19700101 = 2440588;
 

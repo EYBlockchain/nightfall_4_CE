@@ -8,6 +8,11 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 /// @notice Base contract providing X.509 and sanctions gating for upgradeable contracts.
 /// @dev No constructor. Call __Certified_init(...) from the child’s initialize().
 abstract contract Certified is Initializable {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     X509Interface internal x509;
     SanctionsListInterface internal sanctionsList;
     address public owner;

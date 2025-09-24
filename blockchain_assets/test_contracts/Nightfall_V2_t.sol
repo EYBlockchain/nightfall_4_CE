@@ -64,9 +64,12 @@ contract NightfallUpgradeTest is Test {
         vm.deal(address(this), 100 ether);
 
         // Core deps
-        x509 = new X509();
-        x509.initialize(address(this));
-
+        // IMPORTANT: since the implementation has `constructor(){ _disableInitializers(); }`
+        // we must initialize THROUGH THE PROXY, not by calling initialize on the impl.
+        X509 x509Impl = new X509();
+        bytes memory x509Init = abi.encodeCall(X509.initialize, (address(this)));
+        x509 = X509(address(new ERC1967Proxy(address(x509Impl), x509Init)));
+        
         sanctions = new SanctionsListMock(address(0x1234));
         verifier = new MockVerifier();
 

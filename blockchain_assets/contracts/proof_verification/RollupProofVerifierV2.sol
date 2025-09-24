@@ -26,6 +26,11 @@ contract RollupProofVerifierV2 is
     OwnableUpgradeable,
     UUPSUpgradeable
 {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+    
     IVKProvider public vkProvider;
     /**
         Calldata formatting:

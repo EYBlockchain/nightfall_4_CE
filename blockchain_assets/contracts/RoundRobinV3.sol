@@ -5,6 +5,12 @@ import "./RoundRobin.sol";
 
 /// @custom:oz-upgrades-from blockchain_assets/contracts/RoundRobin.sol:RoundRobin
 contract RoundRobinV3 is RoundRobin {
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     event StakeRequirementUpdated(
         uint oldStake,
         uint newStake,

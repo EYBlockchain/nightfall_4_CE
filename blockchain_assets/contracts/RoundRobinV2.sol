@@ -6,6 +6,12 @@ import "./RoundRobin.sol";
 /// Tell OZ validator what this upgrades from (fully-qualified path + name)
 /// @custom:oz-upgrades-from blockchain_assets/contracts/RoundRobinUUPS.sol:RoundRobin
 contract RoundRobinV2 is RoundRobin {
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     /// Behavior change for the test: disable rotations in V2
     /// NOTE: V1's `rotate_proposer` must be `virtual` for this to override cleanly.
     function rotate_proposer() external pure override {

@@ -412,8 +412,12 @@ contract RollupProofVerifierUpgradeTest is Test {
         verifier = RollupProofVerifier(verifierProxyAddr);
 
         // --- X509 + sanctions (like your existing setup) ---
-        x509Contract = new X509();
-        x509Contract.initialize(owner);
+        // IMPORTANT: if X509 (or its base) disables initializers in the constructor,
+        // you must initialize via proxy, not by calling initialize on the impl.
+        X509 x509Impl = new X509();
+        bytes memory x509Init = abi.encodeCall(X509.initialize, (address(this)));
+        ERC1967Proxy x509Proxy = new ERC1967Proxy(address(x509Impl), x509Init);
+        x509Contract = X509(address(x509Proxy));
 
         address sanctionedUser = address(0x123);
         SanctionsListMock sanctionsListMock = new SanctionsListMock(

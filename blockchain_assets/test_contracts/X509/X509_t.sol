@@ -3,6 +3,8 @@ pragma solidity >=0.8.19;
 
 import "forge-std/Test.sol";
 import "../../contracts/X509/X509.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+
 contract X509Test is Test {
     X509 x509;
     DERParser derParser;
@@ -12,8 +14,12 @@ contract X509Test is Test {
 
     function setUp() public {
         // Upgradeable contract: deploy then initialize owner
-        x509 = new X509();
-        x509.initialize(address(this)); // test contract is the owner
+        // IMPORTANT: since the implementation has `constructor(){ _disableInitializers(); }`
+        // we must initialize THROUGH THE PROXY, not by calling initialize on the impl.
+        X509 x509Impl = new X509();
+        bytes memory x509Init = abi.encodeCall(X509.initialize, (address(this)));
+        x509 = X509(address(new ERC1967Proxy(address(x509Impl), x509Init)));
+        
         derParser = new DERParser();
     }
 

@@ -75,7 +75,7 @@ struct Block {
     uint256 nullifier_root;
     uint256 commitments_root_root;
     OnChainTransaction[] transactions;
-    // fee_sum for transfers and withdrawals || 2 BN254 accumulators, each includes 1 G1 commitment and 1 G1 proof. || one ultra plonk proof.
+    // rollup_proof contains fee_sum for transfers and withdrawals || 2 BN254 accumulators, each includes 1 G1 commitment and 1 G1 proof. || one ultra plonk proof.
     bytes rollup_proof;
 }
 
@@ -96,6 +96,12 @@ contract Nightfall is
     IERC1155Receiver,
     IERC3525Receiver
 {
+    
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     event BlockProposed(int256 indexed layer2_block_number);
     event DepositEscrowed(uint256 nfSlotId, uint256 value);
 
@@ -136,9 +142,6 @@ contract Nightfall is
         commitmentRoot = initialCommitmentRoot;
         historicRootsRoot = initialHistoricRootsRoot;
         layer2_block_number = initialLayer2BlockNumber;
-
-        // Set Certified owner (its constructor won’t run on proxy)
-        owner = msg.sender;
 
         // Wire authorities directly (avoid external self-calls)
         x509 = X509(x509_address);
@@ -336,7 +339,7 @@ contract Nightfall is
             if (is_withdraw) {
                 uint256 withdraw_fund_salt = blk.transactions[i].nullifiers[0];
                 WithdrawData memory data = WithdrawData(
-                    uint256(blk.transactions[i].public_data[0]),
+                    uint256(blk.transactions[i].public_data[0]), //nf_token_id
                     address(
                         uint160(uint256(blk.transactions[i].public_data[1]))
                     ), //recipient_address
@@ -637,7 +640,7 @@ contract Nightfall is
     // hashes the public data in a transaction, for use by the rollup proof
     function hash_transaction(
         OnChainTransaction memory txn
-    ) public view returns (uint256) {
+    ) public pure returns (uint256) {
         bytes memory concatenatedInputs = abi.encode(
             txn.commitments[0],
             txn.commitments[1],
