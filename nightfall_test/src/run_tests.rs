@@ -107,7 +107,7 @@ pub async fn run_tests(
     // ) = if std::env::var("NF4_LARGE_BLOCK_TEST").is_ok()
     //     && std::env::var("NF4_LARGE_BLOCK_TEST").unwrap() == "true"
     // {
-    //     warn!("Running large block test");
+        warn!("Running large block test");
         let block_size = match get_block_size() {
             Ok(size) => size,
             Err(e) => {
@@ -191,8 +191,8 @@ pub async fn run_tests(
 
         info!("A large block full of ERC20 Deposits is now on-chain");
 
-    //     // next, we'll do transfers
-    //     // but first we need to pause block assembly so that we can make all the transfers in the same block
+        // next, we'll do transfers
+        // but first we need to pause block assembly so that we can make all the transfers in the same block
     //     let pause_url = Url::parse(&settings.nightfall_proposer.url)
     //         .unwrap()
     //         .join("v1/pause")

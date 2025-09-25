@@ -1,12 +1,12 @@
-use alloy::{primitives::U256, providers::Provider};
+use crate::{domain::error::ProposerRejection, initialisation::get_blockchain_client_connection};
+use alloy::primitives::U256;
 use configuration::{addresses::get_addresses, settings::get_settings};
+use lib::blockchain_client::BlockchainClientConnection;
 use log::{info, warn};
 use nightfall_bindings::artifacts::RoundRobin;
+use nightfall_client::drivers::rest::proposers::ProposerError;
 /// APIs for managing proposers
 use warp::{hyper::StatusCode, path, reply::Reply, Filter};
-use crate::{domain::error::ProposerRejection, initialisation::get_blockchain_client_connection};
-use lib::blockchain_client::BlockchainClientConnection;
-use nightfall_client::drivers::rest::proposers::ProposerError;
 
 /// Get request for proposer rotation
 pub fn rotate_proposer() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone
@@ -68,14 +68,15 @@ async fn handle_add_proposer(url: String) -> Result<impl Reply, warp::Rejection>
     let signers = get_blockchain_client_connection()
         .await
         .read()
-        .await.get_address();
+        .await
+        .get_address();
     let proposer_manager = RoundRobin::new(get_addresses().round_robin, blockchain_client.root());
     // add the proposer
     let tx = proposer_manager
         .add_proposer(url)
         .value(U256::from(get_settings().nightfall_deployer.proposer_stake))
-        .send()
         .from(signers)
+        .send()
         .await
         .map_err(|e| {
             warn!("{e}");
