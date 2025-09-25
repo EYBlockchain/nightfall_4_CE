@@ -221,6 +221,7 @@ services:
       - sync_test
     build:
       dockerfile: nightfall_proposer/Dockerfile
+      context: .
     platform: linux/amd64 # Required for building on M1 Macs
     ports:
       - "3003:3000"
