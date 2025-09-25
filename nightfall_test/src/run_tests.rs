@@ -115,81 +115,81 @@ pub async fn run_tests(
     //             64
     //         }
     //     };
-    //     let n_large_block: usize = block_size;
-    //     const DEPOSIT_FEE: &str = "0x06";
-    //     // work out how much we'll change the balance of the two clients by making the large block deposits
-    //     let client2_starting_balance = n_large_block as i64
-    //         * i64::from_hex_string(&test_settings.erc20_transfer_large_block.value).unwrap();
-    //     let client1_starting_balance = n_large_block as i64
-    //         * 2
-    //         * i64::from_hex_string(&test_settings.erc20_deposit_large_block.value).unwrap()
-    //         - client2_starting_balance;
-    //     let client2_starting_fee_balance = n_large_block as i64
-    //         * i64::from_hex_string(&test_settings.erc20_transfer_large_block.fee).unwrap();
-    //     let client1_starting_fee_balance =
-    //         n_large_block as i64 * 2 * i64::from_hex_string(DEPOSIT_FEE).unwrap()
-    //             - client2_starting_fee_balance;
+        let n_large_block: usize = 1;
+        const DEPOSIT_FEE: &str = "0x06";
+        // work out how much we'll change the balance of the two clients by making the large block deposits
+        let client2_starting_balance = n_large_block as i64
+            * i64::from_hex_string(&test_settings.erc20_transfer_large_block.value).unwrap();
+        let client1_starting_balance = n_large_block as i64
+            * 2
+            * i64::from_hex_string(&test_settings.erc20_deposit_large_block.value).unwrap()
+            - client2_starting_balance;
+        let client2_starting_fee_balance = n_large_block as i64
+            * i64::from_hex_string(&test_settings.erc20_transfer_large_block.fee).unwrap();
+        let client1_starting_fee_balance =
+            n_large_block as i64 * 2 * i64::from_hex_string(DEPOSIT_FEE).unwrap()
+                - client2_starting_fee_balance;
 
-    //     // make up to 64 deposits so that we can test a large block (reuse deposit 2 data)
-    //     //first we need to pause block assembly so that we can make all the deposits in the same block
-    //     let pause_url = Url::parse(&settings.nightfall_proposer.url)
-    //         .unwrap()
-    //         .join("v1/pause")
-    //         .unwrap();
-    //     let res = http_client.get(pause_url).send().await.unwrap();
-    //     assert!(res.status().is_success());
-    //     // create deposit transactions first
-    //     info!("Making {} deposit transactions", block_size * 4);
-    //     let url = Url::parse(&settings.nightfall_client.url)
-    //         .unwrap()
-    //         .join("v1/deposit")
-    //         .unwrap();
-    //     let mut large_block_deposit_ids = vec![];
-    //     for _ in 0..n_large_block * 2 {
-    //         let large_block_deposit_id = create_nf3_deposit_transaction(
-    //             &http_client,
-    //             url.clone(),
-    //             TokenType::ERC20,
-    //             test_settings.erc20_deposit_large_block.clone(),
-    //             DEPOSIT_FEE.to_string(), //deposit_fee
-    //         );
-    //         // save the IDs of the deposits so that we can wait for them to be on-chain
-    //         large_block_deposit_ids.push(large_block_deposit_id);
-    //     }
+        // make up to 64 deposits so that we can test a large block (reuse deposit 2 data)
+        //first we need to pause block assembly so that we can make all the deposits in the same block
+        let pause_url = Url::parse(&settings.nightfall_proposer.url)
+            .unwrap()
+            .join("v1/pause")
+            .unwrap();
+        let res = http_client.get(pause_url).send().await.unwrap();
+        assert!(res.status().is_success());
+        // create deposit transactions first
+        info!("Making {} deposit transactions", block_size * 4);
+        let url = Url::parse(&settings.nightfall_client.url)
+            .unwrap()
+            .join("v1/deposit")
+            .unwrap();
+        let mut large_block_deposit_ids = vec![];
+        for _ in 0..n_large_block * 2 {
+            let large_block_deposit_id = create_nf3_deposit_transaction(
+                &http_client,
+                url.clone(),
+                TokenType::ERC20,
+                test_settings.erc20_deposit_large_block.clone(),
+                DEPOSIT_FEE.to_string(), //deposit_fee
+            );
+            // save the IDs of the deposits so that we can wait for them to be on-chain
+            large_block_deposit_ids.push(large_block_deposit_id);
+        }
 
-    //     // throw all the transactions at the client as fast as we can
-    //     let large_block_deposit_ids = try_join_all(large_block_deposit_ids).await.unwrap();
-    //     let large_block_deposit_ids = large_block_deposit_ids
-    //         .iter()
-    //         .map(|(uuid, _)| *uuid)
-    //         .collect::<Vec<_>>();
+        // throw all the transactions at the client as fast as we can
+        let large_block_deposit_ids = try_join_all(large_block_deposit_ids).await.unwrap();
+        let large_block_deposit_ids = large_block_deposit_ids
+            .iter()
+            .map(|(uuid, _)| *uuid)
+            .collect::<Vec<_>>();
 
-    //     // wait for all the responses to come back and convert the json responses to a vector of Fr254 commitments
-    //     info!("Waiting for deposit responses");
-    //     let large_block_deposits =
-    //         wait_for_all_responses(&large_block_deposit_ids, responses.clone())
-    //             .await
-    //             .into_iter()
-    //             .flat_map(|(_, l)| {
-    //                 serde_json::from_str::<Vec<String>>(&l).expect("Failed to parse response")
-    //             })
-    //             .map(|l| Fr254::from_hex_string(&l).unwrap())
-    //             .collect::<Vec<_>>();
-    //     // note that the responses vector is now empty
+        // wait for all the responses to come back and convert the json responses to a vector of Fr254 commitments
+        info!("Waiting for deposit responses");
+        let large_block_deposits =
+            wait_for_all_responses(&large_block_deposit_ids, responses.clone())
+                .await
+                .into_iter()
+                .flat_map(|(_, l)| {
+                    serde_json::from_str::<Vec<String>>(&l).expect("Failed to parse response")
+                })
+                .map(|l| Fr254::from_hex_string(&l).unwrap())
+                .collect::<Vec<_>>();
+        // note that the responses vector is now empty
 
-    //     //now we can resume block assembly
-    //     let resume_url = Url::parse(&settings.nightfall_proposer.url)
-    //         .unwrap()
-    //         .join("v1/resume")
-    //         .unwrap();
-    //     let res = http_client.get(resume_url).send().await.unwrap();
-    //     assert!(res.status().is_success());
-    //     info!("Waiting for deposits to be on-chain");
-    //     wait_on_chain(&large_block_deposits, &get_settings().nightfall_client.url)
-    //         .await
-    //         .unwrap();
+        //now we can resume block assembly
+        let resume_url = Url::parse(&settings.nightfall_proposer.url)
+            .unwrap()
+            .join("v1/resume")
+            .unwrap();
+        let res = http_client.get(resume_url).send().await.unwrap();
+        assert!(res.status().is_success());
+        info!("Waiting for deposits to be on-chain");
+        wait_on_chain(&large_block_deposits, &get_settings().nightfall_client.url)
+            .await
+            .unwrap();
 
-    //     info!("A large block full of ERC20 Deposits is now on-chain");
+        info!("A large block full of ERC20 Deposits is now on-chain");
 
     //     // next, we'll do transfers
     //     // but first we need to pause block assembly so that we can make all the transfers in the same block
