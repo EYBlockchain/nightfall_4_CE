@@ -440,6 +440,9 @@ services:
       dockerfile: configuration/Dockerfile
       context: .
     platform: linux/amd64 # Required for building on M1 Macs
+    restart: unless-stopped
+    ports:
+      - "8080:80"  
     volumes:
       - type: bind
         source: ./configuration/toml
