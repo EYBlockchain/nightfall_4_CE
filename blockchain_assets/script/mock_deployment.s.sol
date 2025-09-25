@@ -18,9 +18,6 @@ contract MockDeployer is Script {
         address client2 = vm.envAddress("CLIENT2_ADDRESS");
         // This is the address of the Nightfall contract, which is not used in this script
         address nightfallAddress = vm.envAddress("NIGHTFALL_ADDRESS");
-        console.log("MockDeployer Owner address:", owner);
-        console.log("MockDeployer Client2 address:", client2);
-        console.log("MockDeployer Nightfall address:", nightfallAddress);
         vm.startBroadcast(deployerPrivateKey);
         ERC20Mock erc20 = new ERC20Mock(2000, nightfallAddress, owner, client2);
         ERC721Mock erc721 = new ERC721Mock(426, owner, nightfallAddress);
