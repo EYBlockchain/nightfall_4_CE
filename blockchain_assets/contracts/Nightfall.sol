@@ -463,7 +463,8 @@ contract Nightfall is
                 ""
             );
         } else if (token_type == TokenType.ERC20) {
-            console.log("Escrowing ERC20 token");
+            console.log("Escrowing ERC20 token, msg.sender:", msg.sender);
+            
             require(tokenId == 0, "ERC20 tokens should have a tokenId of 0");
             require(
                 IERC20(ercAddress).transferFrom(
