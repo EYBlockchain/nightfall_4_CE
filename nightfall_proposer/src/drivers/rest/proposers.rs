@@ -65,12 +65,17 @@ async fn handle_add_proposer(url: String) -> Result<impl Reply, warp::Rejection>
         .read()
         .await
         .get_client();
+    let signers = get_blockchain_client_connection()
+        .await
+        .read()
+        .await.get_address();
     let proposer_manager = RoundRobin::new(get_addresses().round_robin, blockchain_client.root());
     // add the proposer
     let tx = proposer_manager
         .add_proposer(url)
         .value(U256::from(get_settings().nightfall_deployer.proposer_stake))
         .send()
+        .from(signers)
         .await
         .map_err(|e| {
             warn!("{e}");

@@ -108,13 +108,13 @@ pub async fn run_tests(
     //     && std::env::var("NF4_LARGE_BLOCK_TEST").unwrap() == "true"
     // {
     //     warn!("Running large block test");
-    //     let block_size = match get_block_size() {
-    //         Ok(size) => size,
-    //         Err(e) => {
-    //             log::warn!("Falling back to default block size 64 due to error: {e:?}");
-    //             64
-    //         }
-    //     };
+        let block_size = match get_block_size() {
+            Ok(size) => size,
+            Err(e) => {
+                log::warn!("Falling back to default block size 64 due to error: {e:?}");
+                64
+            }
+        };
         let n_large_block: usize = 1;
         const DEPOSIT_FEE: &str = "0x06";
         // work out how much we'll change the balance of the two clients by making the large block deposits

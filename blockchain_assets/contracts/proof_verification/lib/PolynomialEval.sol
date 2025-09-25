@@ -53,8 +53,10 @@ library PolynomialEval {
         EvalDomain memory self,
         uint256 zeta
     ) internal pure returns (uint256 res) {
+        // zeta.pow([self.size() as u64]) - self.coset_offset_pow_size()
         uint256 p = Bn254Crypto.r_mod;
-        res = addmod(power(zeta, self.size, p), p - 1, p);
+        res = power(zeta, self.size, p);
+        res = res - 1;
     }
 
     function power(
