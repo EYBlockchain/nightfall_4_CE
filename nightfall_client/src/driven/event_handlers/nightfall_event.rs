@@ -111,8 +111,7 @@ pub async fn process_nightfall_calldata<N: NightfallContract>(
             match decoded {
                 Nightfall::NightfallCalls::propose_block(decode) => {
                     info!("Processing a block proposed event");
-                    process_propose_block_event::<N>(decode, tx_hash, filter)
-                        .await?
+                    process_propose_block_event::<N>(decode, tx_hash, filter).await?
                 }
                 _ => (),
             }

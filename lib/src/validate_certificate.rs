@@ -6,10 +6,10 @@ use crate::{
 use alloy::primitives::{Address, U256};
 use configuration::addresses::get_addresses;
 use futures::stream::TryStreamExt;
-use log::{debug, error,trace, warn};
+use log::{debug, error, trace, warn};
 use nightfall_bindings::artifacts::X509;
 use reqwest::StatusCode;
-use std::{io::Read};
+use std::io::Read;
 use warp::{path, reply::Reply, Buf, Filter};
 use x509_parser::nom::AsBytes;
 #[derive(Debug)]

@@ -107,7 +107,7 @@ impl<P: Proof + Send + Sync> BlockAssemblyTrigger for SmartTrigger<P> {
                 break; // Exit loop early
             }
             if self.status.read().await.is_running() {
-                if  self.should_assemble().await {
+                if self.should_assemble().await {
                     debug!("Trigger activated by mempool check.");
                     break;
                 }
@@ -238,7 +238,7 @@ impl<P: Proof + Send + Sync> SmartTrigger<P> {
                 64.0
             }
         };
-       (num_deposit_groups + num_client_txs) >= block_size
+        (num_deposit_groups + num_client_txs) >= block_size
     }
 }
 

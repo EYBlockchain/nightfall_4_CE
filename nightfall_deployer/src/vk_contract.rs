@@ -1,4 +1,4 @@
-use alloy::primitives::{U256, TxHash};
+use alloy::primitives::{TxHash, U256};
 use ark_bn254::{Bn254, Fq as Fq254, Fr as Fr254};
 use ark_ff::{BigInteger, Field, PrimeField};
 use ark_poly::{EvaluationDomain, Radix2EvaluationDomain};
