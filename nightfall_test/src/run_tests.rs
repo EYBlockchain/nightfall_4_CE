@@ -208,7 +208,7 @@ pub async fn run_tests(
         let mut large_block_transfer_ids = vec![];
         for _ in 0..n_large_block {
             let large_block_transfer_id = create_nf3_transfer_transaction(
-                zkp_key2,
+                zkp_key2.clone(),
                 &http_client,
                 url.clone(),
                 TokenType::ERC20,
@@ -578,7 +578,7 @@ pub async fn run_tests(
         .unwrap();
 
     transaction_ids.push(create_nf3_transfer_transaction(
-        zkp_key2,
+        zkp_key2.clone(),
         &http_client,
         url.clone(),
         TokenType::ERC20,
@@ -586,7 +586,7 @@ pub async fn run_tests(
     ));
 
     transaction_ids.push(create_nf3_transfer_transaction(
-        zkp_key2,
+        zkp_key2.clone(),
         &http_client,
         url.clone(),
         TokenType::ERC20,
@@ -595,7 +595,7 @@ pub async fn run_tests(
 
     debug!("transaction_erc20_transfer_1 has been created");
     transaction_ids.push(create_nf3_transfer_transaction(
-        zkp_key2,
+        zkp_key2.clone(),
         &http_client,
         url.clone(),
         TokenType::ERC20,
@@ -668,7 +668,7 @@ pub async fn run_tests(
     let mut transaction_ids = vec![];
 
     transaction_ids.push(create_nf3_transfer_transaction(
-        zkp_key2,
+        zkp_key2.clone(),
         &http_client,
         url.clone(),
         TokenType::ERC721,
@@ -677,7 +677,7 @@ pub async fn run_tests(
     debug!("transaction_erc721_transfer has been created");
 
     transaction_ids.push(create_nf3_transfer_transaction(
-        zkp_key2,
+        zkp_key2.clone(),
         &http_client,
         url.clone(),
         TokenType::ERC3525,
@@ -686,7 +686,7 @@ pub async fn run_tests(
     debug!("transaction_erc3525_transfer_1 has been created");
 
     transaction_ids.push(create_nf3_transfer_transaction(
-        zkp_key2,
+        zkp_key2.clone(),
         &http_client,
         url.clone(),
         TokenType::ERC3525,
@@ -695,7 +695,7 @@ pub async fn run_tests(
     debug!("transaction_erc3525_transfer_2 has been created");
 
     transaction_ids.push(create_nf3_transfer_transaction(
-        zkp_key2,
+        zkp_key2.clone(),
         &http_client,
         url.clone(),
         TokenType::ERC1155,
@@ -704,7 +704,7 @@ pub async fn run_tests(
     debug!("transaction_erc1155_transfer_1 has been created");
 
     transaction_ids.push(create_nf3_transfer_transaction(
-        zkp_key2,
+        zkp_key2.clone(),
         &http_client,
         url.clone(),
         TokenType::ERC1155,

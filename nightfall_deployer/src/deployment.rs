@@ -168,6 +168,8 @@ pub fn forge_command(command: &[&str]) {
     }
 }
 
+
+// Todo: fix unwrap panic in test and re-enable test
 // #[cfg(test)]
 // mod tests {
 //     use super::*;
@@ -178,6 +180,10 @@ pub fn forge_command(command: &[&str]) {
 //     use std::{fs, path::Path};
 //     use tokio::task::spawn_blocking;
 //     use url::Url;
+//     use std::{fs, path::Path};
+
+//     use nightfall_bindings::artifacts::Nightfall;
+//     use tokio::task::spawn_blocking;
 
 //     // NB: This test requires Anvil to be installed (it will use Anvil to simulate a blockchain).
 //     // Restart VS Code after installing Anvil so that it's in your PATH otherwise VS Code won't find it!
