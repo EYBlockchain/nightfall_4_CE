@@ -230,7 +230,7 @@ webhook_url = "http://172.18.0.250:8080/webhook" # The webhook URL for the clien
 max_queue_size = 1000
 
 [plume_testnet.nightfall_proposer]
-url = "http://proposer:3000"
+url = "http://35.225.105.10:3001"
 log_level = "info"
 wallet_type = "local"
 db_url = "mongodb://nf4_db_proposer:27017"
