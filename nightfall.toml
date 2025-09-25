@@ -215,7 +215,7 @@ test_x509_certificates = true
 mock_prover = false
 genesis_block = 0
 ethereum_client_url = "wss://testnet-rpc.plume.org"
-configuration_url = "http://configuration:80" # The name of the proposer config to use can be overridden by env var NF4_PROPOSER_CONFIG
+configuration_url = "http://35.225.105.10:8080" # The name of the proposer config to use can be overridden by env var NF4_PROPOSER_CONFIG
 
 [plume_testnet.network]
 chain_id = 98867 
