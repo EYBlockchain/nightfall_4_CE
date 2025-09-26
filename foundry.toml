@@ -18,7 +18,7 @@ remappings = [
     "@forge-std/=blockchain_assets/solidity_lib/forge-std/src/",
     "@erc-3525/=blockchain_assets/solidity_lib/erc-3525/",
     "@openzeppelin/contracts-upgradable/=blockchain_assets/solidity_lib/openzeppelin-contracts-upgradeable/contracts/",
-    "@openzeppelin/foundry-upgrades/=blockchain_assets/solidity_lib/openzeppelin-foundry-upgrades/contracts/",
+    "@openzeppelin/foundry-upgrades/=blockchain_assets/solidity_lib/openzeppelin-foundry-upgrades/src/",
 ]
 optimizer = true       # Enable the optimizer
 optimizer_runs = 200   # Lower = smaller bytecode (but higher runtime gas)
