@@ -66,7 +66,6 @@ abstract contract Certified is Initializable {
 
     /// @notice Gate modifier: requires valid X509 and not sanctioned.
     modifier onlyCertified() {
-        console.log("Certified: msg.sender is", msg.sender);
         require(
             x509.x509Check(msg.sender),
             "Certified: not authorised by X509"
