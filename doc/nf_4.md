@@ -370,7 +370,7 @@ The Webhook also returns a BlockchainEvent object, when a L2 block is on-chain. 
 The uuid is the X-Request-ID for the original deposit/transfer/withdraw transaction. This enables the webhook response to be correlated with the original request.
 The webhook URL can be set in the `Nightfall.toml` configuration file.
 
-Below, we give a minimal, testing-only webhook you can run on your host. In this example: containers reach webhook at http://172.18.0.250:8080/webhook .
+Below, we give a minimal, testing-only webhook you can run on your host. In this example: containers reach webhook at `http://host.docker.internal:8080/webhook`.
 
 1) Minimal Python (Flask)
 ```
@@ -401,7 +401,7 @@ python3 webhook.py
 2) Point Nightfall to the host webhook
 Set the URL via Nightfall.toml and env:
 
-`WEBHOOK_URL=http://172.18.0.250:8080/webhook `
+`WEBHOOK_URL=http://host.docker.internal:8080/webhook`
 
 Then ensure your services consume it. For example, client already has:
 
@@ -411,7 +411,7 @@ Then ensure your services consume it. For example, client already has:
 
 Nightfall.toml:
 
-`webhook_url = "http://172.18.0.250:8080/webhook "`
+`webhook_url = "http://host.docker.internal:8080/webhook"`
 
 ## APIs
 
