@@ -56,7 +56,7 @@ fn bench_poseidon_hash_gadget_criterion(
     let srs = FFTPlonk::<UnivariateKzgPCS<Bn254>>::universal_setup_for_testing(srs_size, &mut rng)
         .unwrap();
 
-    let (pk, vk) = FFTPlonk::<UnivariateKzgPCS<Bn254>>::preprocess(&srs, circuit).unwrap();
+    let (pk, vk) = FFTPlonk::<UnivariateKzgPCS<Bn254>>::preprocess(&srs, None, circuit).unwrap();
 
     //Proving time
     c.bench_function("Poseidon Proving time:", |b| {
