@@ -679,7 +679,7 @@ mod tests {
         let mut rng = test_rng();
         let srs_size = circuit.srs_size().unwrap();
         let srs = PlonkKzgSnark::<Bn254>::universal_setup_for_testing(srs_size, &mut rng).unwrap();
-        let (pk, vk) = PlonkKzgSnark::<Bn254>::preprocess(&srs, &circuit).unwrap();
+        let (pk, vk) = PlonkKzgSnark::<Bn254>::preprocess(&srs, None, &circuit).unwrap();
         create_vk_contract::<true>(&vk, &settings);
 
         let proof = PlonkKzgSnark::<Bn254>::prove::<_, _, SolidityTranscript>(
