@@ -4,6 +4,8 @@ use configuration::{
     addresses::{Addresses, Sources},
     settings::Settings,
 };
+use jf_plonk::recursion::RecursiveProver;
+
 use log::{info, warn};
 use nightfall_proposer::driven::rollup_prover::RollupProver;
 use serde_json::Value;

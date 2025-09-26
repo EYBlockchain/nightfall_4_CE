@@ -229,6 +229,7 @@ pub fn write_vk_to_nightfall_toml(vk: &VerifyingKey<Bn254>) -> anyhow::Result<()
     block.push_str(&format!("domain_size = {}\n", as_hex(&domain_size_u256)));
     block.push_str(&format!("num_inputs  = {}\n", as_hex(&num_inputs_u256)));
 
+
     for i in 0..6 {
         let x = &sigma_comms_u256[2 * i];
         let y = &sigma_comms_u256[2 * i + 1];
