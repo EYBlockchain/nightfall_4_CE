@@ -5,15 +5,12 @@ use nightfall_client::driven::{
     db::mongo::DB,
     plonk_prover::plonk_proof::{PlonkProof, PlonkProvingEngine},
 };
+use nightfall_proposer::drivers::blockchain::event_listener_manager::ensure_running;
 use nightfall_proposer::{
     driven::{mock_prover::MockProver, rollup_prover::RollupProver},
-    drivers::{
-        blockchain::block_assembly::start_block_assembly,
-        rest::routes,
-    },
+    drivers::{blockchain::block_assembly::start_block_assembly, rest::routes},
 };
 use std::error::Error;
-use nightfall_proposer::drivers::blockchain::event_listener_manager::ensure_running;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
