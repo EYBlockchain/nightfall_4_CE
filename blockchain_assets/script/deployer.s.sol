@@ -20,7 +20,7 @@ import "../contracts/X509/X509.sol";
 import "../contracts/SanctionsListMock.sol";
 
 // OZ Foundry Upgrades
-import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
+import {Upgrades} from "@openzeppelin/foundry-upgrades/Upgrades.sol";
 import "forge-std/console.sol";
 
 contract Deployer is Script {

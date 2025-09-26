@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 import {Script} from "forge-std/Script.sol";
 import {console} from "forge-std/console.sol";
-import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
+import {Upgrades} from "@openzeppelin/foundry-upgrades/Upgrades.sol";
 
 /// UUPS upgrade script with before/after logging for RollupProofVerifier
 contract UpgradeRollupProofVerifierWithLogging is Script {
