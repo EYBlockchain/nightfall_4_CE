@@ -4,8 +4,8 @@ use crate::{
     domain::entities::Block, initialisation::get_blockchain_client_connection,
     ports::contracts::NightfallContract,
 };
-use alloy::primitives::I256;
-use configuration::addresses::get_addresses;
+use alloy::{primitives::I256, providers::Provider};
+use configuration::{addresses::get_addresses, settings::get_settings};
 use lib::blockchain_client::BlockchainClientConnection;
 use log::info;
 use nightfall_bindings::artifacts::Nightfall;
@@ -30,15 +30,34 @@ impl NightfallContract for Nightfall::NightfallCalls {
         // Convert the block transactions to the Nightfall format
         let blk: Nightfall::Block = block.into();
 
-        let receipt = nightfall
+        let nonce = client.get_transaction_count(signer.address()).await.map_err(|e| {
+            NightfallContractError::EscrowError(format!("Transaction unsuccesful: {e}"))
+        })?;
+        let gas_price = client.get_gas_price().await.map_err(|e| {
+            NightfallContractError::EscrowError(format!("Transaction unsuccesful: {e}"))
+        })?;
+        let max_fee_per_gas = gas_price * 2;
+        let max_priority_fee_per_gas = gas_price;
+        let gas_limit = 500000000u64;
+        let call = nightfall
             .propose_block(blk)
-            .from(signer.address())
-            .send()
+            .nonce(nonce)
+            .gas(gas_limit)
+            .max_fee_per_gas(max_fee_per_gas)
+            .max_priority_fee_per_gas(max_priority_fee_per_gas)
+            .chain_id(get_settings().network.chain_id) // Linea testnet chain ID
+            .build_raw_transaction(signer).await
+            .map_err(|e| {
+                NightfallContractError::EscrowError(format!("Transaction unsuccesful: {e}"))
+            })?;
+
+            let receipt = client.send_raw_transaction(&call)
             .await
             .map_err(|_| NightfallContractError::TransactionError)?
             .get_receipt()
             .await
             .map_err(|_| NightfallContractError::TransactionError)?;
+    
         info!(
             "Received receipt for submitted block with hash: {}, gas used was: {}",
             receipt.transaction_hash, receipt.gas_used
