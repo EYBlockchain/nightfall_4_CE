@@ -642,7 +642,7 @@ Returns: on success, the balance of the user's Layer 1 wallet (Ethereum address)
 If the wallet is not found or there is an error retrieving the balance, a `404 NOT FOUND` status code will be returned.
 
 ***
-git a
+
 GET /v1/request/{:uuid}
 // replace {:uuid} with your X-Request-ID.
 
