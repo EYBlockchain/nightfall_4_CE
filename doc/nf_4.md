@@ -436,13 +436,13 @@ Note that transactions will fail unless you have first had your x509 certificate
 POST /v1/certification
 
 ```sh
-curl -i --request POST 'http://localhost:3000/v1/certification' \
-    --header 'Content-Type: multipart/form-data' \
-    --form 'file=@blockchain_assets/test_contracts/X509/_certificates/user/user-1.der' \
-    --form 'file=@blockchain_assets/test_contracts/X509/_certificates/user/user-1.priv_key'
+curl -i -X POST 'http://localhost:3000/v1/certification' \
+  -H 'Content-Type: multipart/form-data' \
+  -F 'certificate=@blockchain_assets/test_contracts/X509/_certificates/user/user-1.der;type=application/pkix-cert' \
+  -F 'certificate_private_key=@blockchain_assets/test_contracts/X509/_certificates/user/user-1.priv_key;type=application/octet-stream'
 ```
 
-This request will ask the X509 smart contract to validate the passed-in X509 certificate. The `client` whose endpoint is called will also generate a signature over its Ethereum address, using the passed-in private key. This too will be passed to the X509 contract, and the Ethereum address will be added to the contract's 'allow list' if the signature and certifcate match up.
+This request will ask the X509 smart contract to validate the passed-in X509 certificate. The `client` whose endpoint is called will also generate a signature over its Ethereum address, using the passed-in private key. This too will be passed to the X509 contract, and the Ethereum address will be added to the contract's 'allow list' if the signature and certifcate match up. Note that this api call will return you the status of the caller's X509 validation onchain.
 
 #### Value transactions
 
@@ -451,8 +451,18 @@ This request will ask the X509 smart contract to validate the passed-in X509 cer
 POST /v1/deposit
 
 ```sh
-curl -i -H "X-Request-ID: 16cf74ad-e28c-421e-a125-78bed5e1c435" --request POST 'http://localhost:3000/v1/deposit' \
-    --json '{ "ercAddress": "0x6fcb6af7f7947f8480c36e8ffca0c66f6f2be32b", "tokenId": "0x00", "tokenType": "0", "value": "0x04", "fee": "0x02",  "deposit_fee": "0x05" }' 
+curl -i \
+  -H 'X-Request-ID: 16cf74ad-e28c-421e-a125-78bed5e1c435' \
+  -H 'Content-Type: application/json' \
+  -X POST 'http://localhost:3000/v1/deposit' \
+  --data-raw '{
+    "ercAddress": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+    "tokenId": "0x00",
+    "tokenType": "0",
+    "value": "0x04",
+    "fee": "0x02",
+    "deposit_fee": "0x05"
+  }'
 ```
 
 Returns: `202 Accepted` on success, `503 Service Unavailable` if the transaction queue is full (set at 1000)
@@ -477,8 +487,20 @@ Note: In this case, unlike NF_3, the client does not generate the proof. Instead
 POST /v1/transfer
 
 ```sh
-curl -i  -H "X-Request-ID: 16cf74ad-e28c-421e-a125-78bed5e1c435" --request POST 'http://localhost:3000/v1/transfer' \
-    --json '{ "ercAddress": "95bd8d42f30351685e96c62eddc0d0613bf9a87a", "tokenId": "0x00", "recipientData": { "values": ["0x06"], "recipientCompressedZkpPublicKeys": ["2a2fec73694898850dccccaf188853d3d69b251c8aa2538fcb2be6f470aa7205"] }, "fee": "0x02" }'
+curl -i \
+  -H 'X-Request-ID: 16cf74ad-e28c-421e-a125-78bed5e1c435' \
+  -H 'Content-Type: application/json' \
+  -X POST 'http://localhost:3000/v1/transfer' \
+  --data-raw '{
+    "ercAddress": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+    "tokenId": "0x00",
+    "recipientData": {
+      "values": ["0x01"],
+      "recipientCompressedZkpPublicKeys": ["2a2fec73694898850dccccaf188853d3d69b251c8aa2538fcb2be6f470aa7205"]
+    },
+    "fee": "0x01"
+  }'
+
 ```
 
 Returns: `202 Accepted` on success, `503 Service Unavailable` if the transaction queue is full (set at 1000)
@@ -664,10 +686,11 @@ If the wallet is not found or there is an error retrieving the balance, a `404 N
 
 ***
 
-GET /v1/requests/:uuid
+GET /v1/request/{:uuid}
+// replace {:uuid} with your X-Request-ID.
 
 ```sh
-curl -i 'http://localhost:3000/v1/requests/16cf74ad-e28c-421e-a125-78bed5e1c435
+curl -i 'http://localhost:3000/v1/request/16cf74ad-e28c-421e-a125-78bed5e1c435
 ```
 
 Returns the status of a deposit/transfer or withdraw request when provided with the `X-Request-ID` header value that was submitted with the request. The status can be one of:
@@ -781,7 +804,7 @@ POST /v1/register
 
 ```sh
 curl -i --request POST 'http://localhost:3000/v1/register' \
-    --json '{ "url": "http://example.com" }'
+    --json '{ "http://example.com" }'
 ```
 
 Returns: on success `200 OK`

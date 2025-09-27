@@ -9,7 +9,7 @@ contract ERC721Mock is ERC721 {
         address initialOwner,
         address spender
     ) ERC721("ERC721Mock", "E721") {
-            mint(initialOwner,spender, initial_id);
+        mint(initialOwner, spender, initial_id);
     }
 
     function mint(address owner, address spender, uint256 tokenId) public {

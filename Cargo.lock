@@ -5517,6 +5517,7 @@ version = "0.1.0"
 dependencies = [
  "alloy",
  "alloy-node-bindings",
+ "anyhow",
  "ark-bn254",
  "ark-ec",
  "ark-ed-on-bn254",
@@ -5541,6 +5542,7 @@ dependencies = [
  "nightfall_proposer",
  "nightfall_test",
  "num-bigint",
+ "regex",
  "reqwest 0.11.27",
  "serde",
  "serde_json",
@@ -5595,6 +5597,7 @@ dependencies = [
  "testcontainers",
  "tokio",
  "tokio-stream",
+ "tracing",
  "url",
  "warp",
 ]

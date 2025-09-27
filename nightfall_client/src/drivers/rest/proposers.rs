@@ -1,12 +1,10 @@
-use configuration::addresses::get_addresses;
-use warp::reply;
-use warp::{path, reply::Reply, Filter};
-
 use crate::domain::entities::Proposer;
+use configuration::addresses::get_addresses;
 use lib::{
     blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
 };
-use nightfall_bindings::artifacts::RoundRobin;
+use nightfall_bindings::artifacts::ProposerManager;
+use warp::{path, reply, reply::Reply, Filter};
 
 /// Error type for proposer rotation
 #[derive(Debug)]
@@ -41,12 +39,14 @@ pub fn get_proposers() -> impl Filter<Extract = impl warp::Reply, Error = warp::
 
 async fn handle_get_proposers() -> Result<impl Reply, warp::Rejection> {
     // get a ManageProposers instance
-    let blcokchain_client = get_blockchain_client_connection()
+    let blockchain_client = get_blockchain_client_connection()
         .await
         .read()
         .await
-        .get_client();
-    let proposer_manager = RoundRobin::new(get_addresses().round_robin, blcokchain_client.root());
+        .get_client(); // returns impl Provider or dyn Provider
+
+    let proposer_manager =
+        ProposerManager::new(get_addresses().round_robin, blockchain_client.root());
     // get the proposers
     let proposer_list =
         proposer_manager.get_proposers().call().await.map_err(|_| {

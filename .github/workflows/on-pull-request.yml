@@ -15,6 +15,20 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        # Add Node so npx exists for OZ upgrades validation
+      - name: Setup Node.js (for upgrades-core validator)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install upgrades-core globally and verify npx
+        run: |
+          npm i -g @openzeppelin/upgrades-core@^1.37.0
+          which node && node -v
+          which npm && npm -v
+          which npx && npx --version
+        shell: bash
+      - name: Export PATH for child processes
+        run: echo "PATH=$PATH" >> $GITHUB_ENV
       - name: Run cargo fmt
         run: cargo +nightly fmt
       - name: Run clippy
