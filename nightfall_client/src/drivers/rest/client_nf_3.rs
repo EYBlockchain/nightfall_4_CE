@@ -223,9 +223,6 @@ pub async fn handle_deposit<N: NightfallContract>(
         value,
         fee,
         deposit_fee,
-        secret_preimage_one,
-        secret_preimage_two,
-        secret_preimage_three,
         ..
     } = req;
 
@@ -261,39 +258,16 @@ pub async fn handle_deposit<N: NightfallContract>(
         error!("{id} Could not wrangle value {err}");
         TransactionHandlerError::CustomError(err.to_string())
     })?;
-    let (secret_preimage_one, secret_preimage_two, secret_preimage_three) =
-        if let (Some(p1), Some(p2), Some(p3)) = (
-            secret_preimage_one,
-            secret_preimage_two,
-            secret_preimage_three,
-        ) {
-            let secret_preimage_one: Fr254 =
-                Fr254::from_hex_string(p1.as_str()).map_err(|err| {
-                    error!("{id} Could not wrangle secret preimage one {err}");
-                    TransactionHandlerError::CustomError(err.to_string())
-                })?;
-            let secret_preimage_two: Fr254 = Fr254::from_hex_string(p2.as_str())
-                .map_err(|err| TransactionHandlerError::CustomError(err.to_string()))?;
-            let secret_preimage_three: Fr254 =
-                Fr254::from_hex_string(p3.as_str()).map_err(|err| {
-                    error!("{id} Could not wrangle secret preimage three {err}");
-                    TransactionHandlerError::CustomError(err.to_string())
-                })?;
-            (
-                secret_preimage_one,
-                secret_preimage_two,
-                secret_preimage_three,
-            )
-        } else {
-            info!("{id} No secret preimage found for deposit request, generating");
-            let mut rng = thread_rng();
 
-            (
-                Fr254::rand(&mut rng),
-                Fr254::rand(&mut rng),
-                Fr254::rand(&mut rng),
-            )
-        };
+    let (secret_preimage_one, secret_preimage_two, secret_preimage_three) = {
+        // RNG is Send and scoped to this block
+        let mut rng = thread_rng();
+        (
+            Fr254::rand(&mut rng),
+            Fr254::rand(&mut rng),
+            Fr254::rand(&mut rng),
+        )
+    };
 
     let secret_preimage = DepositSecret::new(
         secret_preimage_one,
@@ -367,11 +341,10 @@ pub async fn handle_deposit<N: NightfallContract>(
         .nullifier_hash(&nullifier_key)
         .expect("Could not hash commitment {}");
     let commitment_hash = preimage_value.hash().expect("Could not hash commitment");
-
     let commitment_entry =
         CommitmentEntry::new(preimage_value, nullifier, CommitmentStatus::PendingCreation);
 
-    db.store_commitment(commitment_entry.clone())
+    db.store_commitment(commitment_entry)
         .await
         .ok_or(TransactionHandlerError::DatabaseError)?;
 

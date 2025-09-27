@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: CC0-1.0
+
 pragma solidity ^0.8.20;
 
 library Types {
@@ -77,16 +79,13 @@ library Types {
         uint256 alpha2; // 0xe0
         uint256[5] alpha_powers; // 0x100
         uint256 alpha7; // 0x100
-        uint256 alpha_base;// 0x120
+        uint256 alpha_base; // 0x120
     }
-
 
     struct G1Point {
         uint256 x;
         uint256 y;
     }
-
-
 
     struct VerificationKey {
         uint256 domain_size; //0x00
@@ -124,12 +123,10 @@ library Types {
         // elliptic curve selector
         G1Point selector_comms_13; //0x280
         G1Point selector_comms_14; //0x2a0
-        G1Point selector_comms_15;  //0x2c0
+        G1Point selector_comms_15; //0x2c0
         G1Point selector_comms_16; //0x2e0
         G1Point selector_comms_17; //0x300
         G1Point selector_comms_18; //0x320
-
-
         // coset representatives
         // wire types == 5
         uint256 k1; //0x340
@@ -139,7 +136,7 @@ library Types {
         uint256 k5; //0x3c0
         uint256 k6; //0x3e0
         /// PlookupVerifyingKey<E>>
-        //range_table_comm 
+        //range_table_comm
         G1Point range_table_comm; //0x400
         //key_table_comm
         G1Point key_table_comm; //0x420
