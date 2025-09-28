@@ -16,7 +16,7 @@ services:
       - ./nginx/reverse-proxy.conf:/etc/nginx/conf.d/default.conf:ro
 
     depends_on:
-      - proposer
-      - configuration
+      - nf4_indie_proposer
+      - nf4_configuration
     networks:
       - nightfall_network
