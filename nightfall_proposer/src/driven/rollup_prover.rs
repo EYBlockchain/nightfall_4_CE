@@ -41,7 +41,6 @@ use jf_primitives::{
     },
     pcs::prelude::UnivariateKzgPCS,
     rescue::sponge::RescueCRHF,
-    trees::MembershipProof,
 };
 use jf_relation::{errors::CircuitError, Circuit, PlonkCircuit, Variable};
 use log::{debug, warn};
@@ -480,14 +479,8 @@ impl RecursiveProver for RollupProver {
 
         circuit.finalize_for_sha256_hash(lookup_vars)?;
 
-        let field_elems = specific_pis[2][..root_m_proof_length]
-            .iter()
-            .map(|var| circuit.witness(*var))
-            .collect::<Result<Vec<Fr254>, _>>()?;
-        let membership_proof = MembershipProof::<Fr254>::try_from(field_elems).map_err(|_| {
-            CircuitError::ParameterError("Could not convert to MembershipProof".to_string())
-        })?;
-        let m_proof_var = MembershipProofVar::from_membership_proof(circuit, &membership_proof)?;
+        let m_proof_var =
+            MembershipProofVar::from_vars(circuit, &specific_pis[2][..root_m_proof_length])?;
 
         let new_historic_root = m_proof_var.calculate_new_root(circuit, &end_root_comm_two)?;
 
@@ -1069,6 +1062,7 @@ mod tests {
         trees::{
             imt::{IndexedMerkleTree, LeafDBEntry},
             timber::Timber,
+            MembershipProof,
         },
     };
     use std::collections::HashMap;
