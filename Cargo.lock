@@ -4760,7 +4760,7 @@ checksum = "4a5f13b858c8d314ee3e8f639011f7ccefe71f97f96e50151fb991f267928e2c"
 [[package]]
 name = "jf-plonk"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#76cf5f056f6d451eb6149b010752bfd8b9681e3c"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#38daf0ca14391037c0d7762934c34173beb0722b"
 dependencies = [
  "ark-bn254",
  "ark-crypto-primitives",
@@ -4791,6 +4791,7 @@ dependencies = [
  "rayon",
  "reqwest 0.11.27",
  "serde",
+ "sha2 0.10.9",
  "sha3",
  "tagged-base64",
 ]
@@ -4798,7 +4799,7 @@ dependencies = [
 [[package]]
 name = "jf-primitives"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#76cf5f056f6d451eb6149b010752bfd8b9681e3c"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#38daf0ca14391037c0d7762934c34173beb0722b"
 dependencies = [
  "anyhow",
  "arithmetic",
@@ -4848,7 +4849,7 @@ dependencies = [
 [[package]]
 name = "jf-relation"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#76cf5f056f6d451eb6149b010752bfd8b9681e3c"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#38daf0ca14391037c0d7762934c34173beb0722b"
 dependencies = [
  "ark-bls12-377",
  "ark-bls12-381",
@@ -4880,7 +4881,7 @@ dependencies = [
 [[package]]
 name = "jf-utils"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#76cf5f056f6d451eb6149b010752bfd8b9681e3c"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#38daf0ca14391037c0d7762934c34173beb0722b"
 dependencies = [
  "ark-ec",
  "ark-ff 0.4.2",
@@ -5424,7 +5425,7 @@ dependencies = [
 [[package]]
 name = "nf-curves"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#76cf5f056f6d451eb6149b010752bfd8b9681e3c"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#38daf0ca14391037c0d7762934c34173beb0722b"
 dependencies = [
  "ark-bn254",
  "ark-ec",
