@@ -13,7 +13,6 @@ use lib::{
 use log::debug;
 use nightfall_bindings::artifacts::{IERC1155, IERC20, IERC3525, IERC721};
 
-
 impl TokenContract for IERC20::IERC20Calls {
     async fn set_approval(
         erc_address: Fr254,
@@ -57,18 +56,13 @@ impl TokenContract for IERC20::IERC20Calls {
                 )
             })?;
 
-        debug!(
-            "ERC20 approval tx mined, from: {:?}",
-            tx_receipt.from
-        );
+        debug!("ERC20 approval tx mined, from: {:?}", tx_receipt.from);
 
-        if tx_receipt.status() != true {
-            return Err(
-                BlockchainClientConnectionError::ProviderError(
-                    "ERC20 SetApproval Transaction reverted (status=0)".to_string(),
-                )
-                .into(),
-            );
+        if !tx_receipt.status() {
+            return Err(BlockchainClientConnectionError::ProviderError(
+                "ERC20 SetApproval Transaction reverted (status=0)".to_string(),
+            )
+            .into());
         }
 
         Ok(())
@@ -117,18 +111,13 @@ impl TokenContract for IERC721::IERC721Calls {
                 )
             })?;
 
-        debug!(
-            "ERC721 approval tx mined, from: {:?}",
-            tx_receipt.from
-        );
+        debug!("ERC721 approval tx mined, from: {:?}", tx_receipt.from);
 
-        if tx_receipt.status() != true {
-            return Err(
-                BlockchainClientConnectionError::ProviderError(
-                    "ERC721 SetApproval Transaction reverted (status=0)".to_string(),
-                )
-                .into(),
-            );
+        if !tx_receipt.status() {
+            return Err(BlockchainClientConnectionError::ProviderError(
+                "ERC721 SetApproval Transaction reverted (status=0)".to_string(),
+            )
+            .into());
         }
 
         Ok(())
@@ -173,18 +162,13 @@ impl TokenContract for IERC1155::IERC1155Calls {
                 )
             })?;
 
-        debug!(
-            "ERC1155 approval tx mined, from: {:?}",
-            tx_receipt.from
-        );
+        debug!("ERC1155 approval tx mined, from: {:?}", tx_receipt.from);
 
-        if tx_receipt.status() != true {
-            return Err(
-                BlockchainClientConnectionError::ProviderError(
-                    "ERC1155 SetApproval Transaction reverted (status=0)".to_string(),
-                )
-                .into(),
-            );
+        if !tx_receipt.status() {
+            return Err(BlockchainClientConnectionError::ProviderError(
+                "ERC1155 SetApproval Transaction reverted (status=0)".to_string(),
+            )
+            .into());
         }
 
         Ok(())
@@ -209,7 +193,7 @@ impl TokenContract for IERC3525::IERC3525Calls {
         let client = provider.root();
         let caller = read.get_address();
 
-        debug!("ERC3525 caller: {:?}", caller);
+        debug!("ERC3525 caller: {caller:?}");
 
         // NOTE: IERC3525 has overloaded approve functions in many implementations.
         // Here we use the 2-arg overload approve(address to, uint256 tokenId),
@@ -232,21 +216,15 @@ impl TokenContract for IERC3525::IERC3525Calls {
                 )
             })?;
 
-        debug!(
-            "ERC3525 approval tx mined, from: {:?}",
-            tx_receipt.from
-        );
+        debug!("ERC3525 approval tx mined, from: {:?}", tx_receipt.from);
 
-        if tx_receipt.status() != true {
-            return Err(
-                BlockchainClientConnectionError::ProviderError(
-                    "ERC3525 SetApproval Transaction reverted (status=0)".to_string(),
-                )
-                .into(),
-            );
+        if !tx_receipt.status() {
+            return Err(BlockchainClientConnectionError::ProviderError(
+                "ERC3525 SetApproval Transaction reverted (status=0)".to_string(),
+            )
+            .into());
         }
 
         Ok(())
     }
 }
-
