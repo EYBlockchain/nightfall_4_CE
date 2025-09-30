@@ -206,7 +206,7 @@ services:
     stdin_open: true # keep stdin open, so we can print things in docker compose up
     tty: true # required for logs to print in colour
     environment:
-      - NF4_RUN_MODE=${NF4_RUN_MODE:-base_sepolia}
+      - NF4_RUN_MODE=${NF4_RUN_MODE:-plume_testnet}
       - RUST_BACKTRACE=${RUST_BACKTRACE:-0}
       - NF4_SIGNING_KEY=${PROPOSER_SIGNING_KEY}
       - NF4_MOCK_PROVER=${NF4_MOCK_PROVER:-false}
@@ -332,8 +332,8 @@ services:
     command: mongod --quiet --logpath /dev/null 
     networks:
       - nightfall_network
-  #  volumes:
-  #    - mongodb_proposer_data:/data/db
+    volumes:
+      - mongodb_proposer_data:/data/db
     environment:
       - NF4_RUN_MODE=${NF4_RUN_MODE:-development}
 
@@ -419,7 +419,7 @@ services:
     stdin_open: true # keep stdin open, so we can print things in docker compose up
     tty: true # required for logs to print in colour
     environment:
-      - NF4_RUN_MODE=${NF4_RUN_MODE:-base_sepolia}
+      - NF4_RUN_MODE=${NF4_RUN_MODE:-plume_testnet}
       - NF4_CONTRACTS__DEPLOY_CONTRACTS=${NF4_CONTRACTS__DEPLOY_CONTRACTS:-true}
       - RUST_BACKTRACE=${RUST_BACKTRACE:-0}
       - NF4_SIGNING_KEY=${DEPLOYER_SIGNING_KEY}
@@ -438,6 +438,9 @@ services:
     build:
       dockerfile: configuration/Dockerfile
       context: .
+    restart: unless-stopped
+    ports:
+      - "8080:80" 
     platform: linux/amd64 # Required for building on M1 Macs
     volumes:
       - type: bind
@@ -552,7 +555,7 @@ services:
 volumes:
   # mongodb_client_data:
   # mongodb_client2_data:
-  # mongodb_proposer_data:
+  mongodb_proposer_data:
   address_data:
 
 networks:
