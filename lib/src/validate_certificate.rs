@@ -1,6 +1,6 @@
 use super::models::CertificateReq;
 use crate::{
-    blockchain_client::{self, BlockchainClientConnection}, error::CertificateVerificationError,
+    blockchain_client::BlockchainClientConnection, error::CertificateVerificationError,
     initialisation::get_blockchain_client_connection, models::bad_request,
 };
 use alloy::primitives::{Address, U256};
@@ -196,7 +196,7 @@ async fn validate_certificate(
         .read()
         .await;
     let provider = read_connection.get_client();
-    let blockchain_client = client.root();
+    let blockchain_client = provider.root();
     let caller = read_connection.get_address();
 
 

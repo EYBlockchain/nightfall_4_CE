@@ -109,7 +109,7 @@ async fn handle_remove_proposer() -> Result<impl Reply, warp::Rejection> {
             .read()
             .await;
     let blockchain_client = read_connection.get_client();
-    let signer_addresss = read_connection.get_address();
+    let signer_address = read_connection.get_address();
     let client = blockchain_client.root();
     let proposer_manager = RoundRobin::new(get_addresses().round_robin, client.clone());
 
@@ -176,8 +176,6 @@ async fn handle_withdraw(amount: u64) -> Result<impl Reply, warp::Rejection> {
             .await;
     let blockchain_client = read_connection.get_client();
     let caller = read_connection.get_address();
-    let client = blockchain_client.root();
-
     let proposer_manager = RoundRobin::new(get_addresses().round_robin, blockchain_client.root());
     // attemp to withdraw the stake
     let tx = proposer_manager

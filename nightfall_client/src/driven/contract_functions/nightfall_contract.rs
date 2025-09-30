@@ -68,11 +68,6 @@ impl NightfallContract for Nightfall::NightfallCalls {
         } else {
             fee + fee + deposit_fee
         };
-        let total_fee = if deposit_fee == Fr254::zero() {
-            fee
-        } else {
-            fee + fee + deposit_fee
-        };
         /* If your chain doesn't support signing transactions locally, and need to be signed at the client and need to use send_raw_tansaction uncomment the code below */
         // let nonce = client.get_transaction_count(signer.address()).await.map_err(|e| {
         //     NightfallContractError::EscrowError(format!("Transaction unsuccesful: {e}"))

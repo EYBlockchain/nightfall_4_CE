@@ -3,7 +3,7 @@
 use super::contract_type_conversions::{Addr, Uint256};
 use crate::{domain::error::TokenContractError, ports::contracts::TokenContract};
 use ark_bn254::Fr as Fr254;
-use ark_ff::BigInteger256;
+use ark_ff::{BigInteger, BigInteger256};
 use ark_std::Zero;
 use configuration::addresses::get_addresses;
 use lib::{
