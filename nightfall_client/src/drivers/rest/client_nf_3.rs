@@ -663,28 +663,10 @@ where
                     commitment_ids.len(),
                     commitment_ids
                 );
-        //    for commitment_id in &commitment_ids {
-        //         if let Some(existing) = db.get_commitment(commitment_id).await {
-        //             info!("{id} Before rollback - commitment {} status: {:?}", 
-        //             commitment_id.to_hex_string(), 
-        //             existing.status);
 
-        //             let _ = db.mark_commitments_unspent(
-        //                 &[*commitment_id], 
-        //                 existing.layer_1_transaction_hash, 
-        //                 existing.layer_2_block_number
-        //             ).await;
-        //         }
-        //     }
         for commitment_id in &commitment_ids {
             if let Some(existing) = db.get_commitment(commitment_id).await {
-                info!(
-                    "{id} Before rollback - commitment {} status: {:?}",
-                    commitment_id.to_hex_string(),
-                    existing.status
-                );
         
-                // Tentative de rollback
                 let rollback_result = db
                     .mark_commitments_unspent(
                         &[*commitment_id],
@@ -695,20 +677,12 @@ where
         
                 match rollback_result {
                     Some(_) => {
-                        if let Some(updated) = db.get_commitment(commitment_id).await {
-                            info!(
-                                "{id} After rollback - commitment {} status: {:?}",
-                                commitment_id.to_hex_string(),
-                                updated.status
-                            );
-                        } else {
-                            warn!(
-                                "{id} Commitment {} not found after rollback",
-                                commitment_id.to_hex_string()
-                            );
-                        }
+                        info!(
+                            "{id} Rolled back commitment {} to Unspent",
+                            commitment_id.to_hex_string()
+                        );
                     }
-                    None => warn!(
+                    None => error!(
                         "{id} Failed to rollback commitment {}",
                         commitment_id.to_hex_string()
                     ),
@@ -721,72 +695,33 @@ where
             .iter() 
             .map(|c| c.hash().unwrap())
             .collect::<Vec<_>>();
-        
-            warn!(
-                "{id} Deleting {} new commitments: {:?}",
-                new_commitment_ids.len(),
-                new_commitment_ids
-            );
-
-            for new_commit_id in &new_commitment_ids {
-                if let Some(existing) = db.get_commitment(new_commit_id).await {
-                    info!(
-                        "{id} New commitment {} exists before delete - status: {:?}, layer_2_block: {:?}",
-                        new_commit_id.to_hex_string(),
-                        existing.status,
-                        existing.layer_2_block_number
-                    );
-                } else {
-                    warn!(
-                        "{id} New commitment {} NOT FOUND before delete attempt",
-                        new_commit_id.to_hex_string()
-                    );
-                }
-            }
-            
-            // EFFECTUER LE DELETE
+    
+            info!("{id} Deleting {} new commitments", new_commitment_ids.len());
+            // Delete the commitments
             let delete_result = db.delete_commitments(new_commitment_ids.clone()).await;
             
-            // VÉRIFIER LE RÉSULTAT
-            // match delete_result {
-            //     Ok(count) => {
-            //         info!("{id} Successfully deleted {count} new commitments");
-            //     }
-            //     Err(e) => {
-            //         error!("{id} Failed to delete new commitments: {:?}", e);
-            //     }
-            // }
-            match delete_result {
-                Some(_) => {
-                    info!("{id} Delete operation completed (returned Some)");
+                match delete_result {
+                    Some(_) => {
+                        info!("{id} Successfully deleted new commitments");
+                    }
+                    None => {
+                        error!("{id} Failed to delete new commitments");
+                    }
                 }
-                None => {
-                    error!("{id} ✗ Delete operation failed (returned None)");
+                // Verify deletion 
+                for new_commit_id in &new_commitment_ids {
+                    if let Some(still_exists) = db.get_commitment(new_commit_id).await {
+                        error!(
+                            "{id} New commitment {} still exists after delete - status: {:?}",
+                            new_commit_id.to_hex_string(),
+                            still_exists.status
+                        );
+                    }
                 }
-            }
-            
-            // VÉRIFIER APRÈS DELETE
-            for new_commit_id in &new_commitment_ids {
-                if let Some(still_exists) = db.get_commitment(new_commit_id).await {
-                    error!(
-                        "{id} PROBLEM: New commitment {} STILL EXISTS after delete - status: {:?}",
-                        new_commit_id.to_hex_string(),
-                        still_exists.status
-                    );
-                } else {
-                    info!(
-                        "{id} Confirmed: New commitment {} successfully deleted",
-                        new_commit_id.to_hex_string()
-                    );
-                }
-            }
-
-                //let _ = db.delete_commitments(new_commitment_ids).await;
-            
-            info!("{id} Rollback completed + delete of new commitments completed");
-            Err(TransactionHandlerError::CustomError(e.to_string()))
+        info!("{id} Rollback completed + delete of new commitments completed");
+        Err(TransactionHandlerError::CustomError(e.to_string()))
         }
-    }
+     }
 }
 
 async fn handle_withdraw<P, E, N>(
@@ -971,35 +906,113 @@ where
                 .expect("Failed to hash spend_commitments[0]"),
         ])
         .unwrap();
+    // match handle_client_operation::<P, E, N>(
+    //     op,
+    //     spend_commitments,
+    //     new_commitments,
+    //     BJJScalar::zero(),
+    //     recipient_address,
+    //     secret_preimages,
+    //     id,
+    // ).await {
+    //     Ok(res) => res,
+    //     Err(e) => {
+    //         //  rollback to UNSPENT status if handle_client_operation fails
+    //         let db = get_db_connection().await;
+    //         let commitment_ids = spend_commitments
+    //             .iter()
+    //             .map(|c| c.hash().unwrap())
+    //             .collect::<Vec<_>>();
+    //         for commitment_id in &commitment_ids {
+    //             if let Some(existing) = db.get_commitment(commitment_id).await {
+    //                 let _ = db.mark_commitments_unspent(
+    //                     &[*commitment_id], 
+    //                     existing.layer_1_transaction_hash, 
+    //                     existing.layer_2_block_number
+    //                 ).await;
+    //             }
+    //         }
+    //         return Err(e);
+    //     }
+    // };
     match handle_client_operation::<P, E, N>(
         op,
         spend_commitments,
         new_commitments,
         BJJScalar::zero(),
-        recipient_address,
+        Fr254::zero(),
         secret_preimages,
         id,
     ).await {
         Ok(res) => res,
         Err(e) => {
-            //  rollback to UNSPENT status if handle_client_operation fails
+            // Rollback to UNSPENT status if handle_client_operation fails
             let db = get_db_connection().await;
+            
+            // Rollback spend commitments
             let commitment_ids = spend_commitments
                 .iter()
                 .map(|c| c.hash().unwrap())
                 .collect::<Vec<_>>();
+    
+            info!("{id} Rolling back {} spend commitments to Unspent", commitment_ids.len());
             for commitment_id in &commitment_ids {
                 if let Some(existing) = db.get_commitment(commitment_id).await {
-                    let _ = db.mark_commitments_unspent(
-                        &[*commitment_id], 
-                        existing.layer_1_transaction_hash, 
-                        existing.layer_2_block_number
-                    ).await;
+                    let rollback_result = db
+                        .mark_commitments_unspent(
+                            &[*commitment_id],
+                            existing.layer_1_transaction_hash,
+                            existing.layer_2_block_number,
+                        )
+                        .await;
+                    
+                    match rollback_result {
+                        Some(_) => {
+                            info!("{id} Rolled back commitment {} to Unspent", commitment_id.to_hex_string());
+                        }
+                        None => {
+                            error!("{id} Failed to rollback commitment {}", commitment_id.to_hex_string());
+                        }
+                    }
+                } else {
+                    warn!("{id} Commitment {} not found in DB during rollback", commitment_id.to_hex_string());
                 }
             }
+            
+            // Delete new commitments
+            let new_commitment_ids = new_commitments
+                .iter() 
+                .map(|c| c.hash().unwrap())
+                .collect::<Vec<_>>();
+            
+            info!("{id} Deleting {} new commitments", new_commitment_ids.len());
+            
+            let delete_result = db.delete_commitments(new_commitment_ids.clone()).await;
+            match delete_result {
+                Some(_) => {
+                    info!("{id} Successfully deleted new commitments");
+                }
+                None => {
+                    error!("{id} Failed to delete new commitments");
+                }
+            }
+            // Verify deletion (only log problems)
+            for new_commit_id in &new_commitment_ids {
+                if let Some(still_exists) = db.get_commitment(new_commit_id).await {
+                    error!(
+                        "{id} CRITICAL: New commitment {} still exists after delete - status: {:?}",
+                        new_commit_id.to_hex_string(),
+                        still_exists.status
+                    );
+                }
+            }
+            
+            info!("{id} Rollback completed");
+            //Err(TransactionHandlerError::CustomError(e.to_string()))
             return Err(e);
         }
     };
+
     // Build the response
     let withdraw_response = WithdrawResponse {
         success: true,
