@@ -634,6 +634,40 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
             }
         }
     }
+    async fn delete_commitments(&self, commitment_ids: Vec<Fr254>) -> Option<()> {
+        if commitment_ids.is_empty() {
+            return Some(());
+        }
+    
+        let commitment_strs: Vec<String> = commitment_ids
+            .into_iter()
+            .map(|c| c.to_hex_string())
+            .collect();
+    
+        debug!(
+            "Deleting commitments with hashes {:?}",
+            commitment_strs
+        );
+    
+        let filter = doc! { "_id": { "$in": &commitment_strs }};
+    
+        let res = self
+            .database(DB)
+            .collection::<CommitmentEntry>("commitments")
+            .delete_many(filter)
+            .await;
+    
+        match res {
+            Ok(del_res) => {
+                debug!("Deleted {} commitments", del_res.deleted_count);
+                Some(())
+            }
+            Err(e) => {
+                error!("Error deleting commitments {:?}: {e}", commitment_strs);
+                None
+            }
+        }
+    }    
 }
 
 /// Struct stored in the pending withdrawal database

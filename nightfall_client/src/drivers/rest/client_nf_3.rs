@@ -39,7 +39,7 @@ use ark_std::{rand::thread_rng, UniformRand};
 use configuration::{addresses::get_addresses, settings::get_settings};
 use jf_primitives::poseidon::{FieldHasher, Poseidon};
 use lib::hex_conversion::HexConvertible;
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use nf_curves::ed_on_bn254::{BabyJubjub, Fr as BJJScalar};
 use nightfall_bindings::artifacts::{Nightfall, IERC1155, IERC20, IERC3525, IERC721};
 use serde::{Deserialize, Serialize};
@@ -528,6 +528,11 @@ where
                             .iter()
                             .filter_map(|c| c.hash().ok())
                             .collect::<Vec<_>>();
+
+                            log::warn!(
+                                "{id} Rolling back value commitments to unspent because fee commitments could not be found: {:?}",
+                                value_commitment_ids
+                            );
                        for commitment_id in &value_commitment_ids {
                             if let Some(existing) = db.get_commitment(commitment_id).await {
                                 let _ = db.mark_commitments_unspent(
@@ -651,15 +656,80 @@ where
                 .iter()
                 .map(|c| c.hash().unwrap())
                 .collect::<Vec<_>>();
-           for commitment_id in &commitment_ids {
-                if let Some(existing) = db.get_commitment(commitment_id).await {
-                    let _ = db.mark_commitments_unspent(
-                        &[*commitment_id], 
-                        existing.layer_1_transaction_hash, 
-                        existing.layer_2_block_number
-                    ).await;
+
+                warn!(
+                    "{id} Rolling back {} spend commitments to Unspent: {:?}",
+                    commitment_ids.len(),
+                    commitment_ids
+                );
+        //    for commitment_id in &commitment_ids {
+        //         if let Some(existing) = db.get_commitment(commitment_id).await {
+        //             info!("{id} Before rollback - commitment {} status: {:?}", 
+        //             commitment_id.to_hex_string(), 
+        //             existing.status);
+
+        //             let _ = db.mark_commitments_unspent(
+        //                 &[*commitment_id], 
+        //                 existing.layer_1_transaction_hash, 
+        //                 existing.layer_2_block_number
+        //             ).await;
+        //         }
+        //     }
+        for commitment_id in &commitment_ids {
+            if let Some(existing) = db.get_commitment(commitment_id).await {
+                info!(
+                    "{id} Before rollback - commitment {} status: {:?}",
+                    commitment_id.to_hex_string(),
+                    existing.status
+                );
+        
+                // Tentative de rollback
+                let rollback_result = db
+                    .mark_commitments_unspent(
+                        &[*commitment_id],
+                        existing.layer_1_transaction_hash,
+                        existing.layer_2_block_number,
+                    )
+                    .await;
+        
+                match rollback_result {
+                    Some(_) => {
+                        if let Some(updated) = db.get_commitment(commitment_id).await {
+                            info!(
+                                "{id} After rollback - commitment {} status: {:?}",
+                                commitment_id.to_hex_string(),
+                                updated.status
+                            );
+                        } else {
+                            warn!(
+                                "{id} Commitment {} not found after rollback",
+                                commitment_id.to_hex_string()
+                            );
+                        }
+                    }
+                    None => warn!(
+                        "{id} Failed to rollback commitment {}",
+                        commitment_id.to_hex_string()
+                    ),
                 }
+            } else {
+                warn!("{id} Commitment {} not found in DB", commitment_id.to_hex_string());
             }
+        }
+            let new_commitment_ids = new_commitments
+            .iter() 
+            .map(|c| c.hash().unwrap())
+            .collect::<Vec<_>>();
+        
+            warn!(
+                "{id} Deleting {} new commitments: {:?}",
+                new_commitment_ids.len(),
+                new_commitment_ids
+            );
+
+                let _ = db.delete_commitments(new_commitment_ids).await;
+            
+            info!("{id} Rollback completed + delete of new commitments completed");
             Err(TransactionHandlerError::CustomError(e.to_string()))
         }
     }

@@ -24,6 +24,7 @@ where
 {
     async fn store_commitment(&self, commitment_entry: V) -> Option<()>;
     async fn store_commitments(&self, commitment_entries: &[V], dup_key_check: bool) -> Option<()>;
+    async fn delete_commitments(&self, commitment_ids: Vec<K>) -> Option<()>;
     async fn get_all_commitments(&self) -> Result<Vec<(K, V)>, mongodb::error::Error>;
     async fn get_commitment(&self, k: &K) -> Option<V>;
     async fn get_balance(&self, k: &K) -> Option<Fr254>;
