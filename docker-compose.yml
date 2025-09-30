@@ -438,6 +438,9 @@ services:
     build:
       dockerfile: configuration/Dockerfile
       context: .
+    restart: unless-stopped
+    ports:
+      - "8080:80" 
     platform: linux/amd64 # Required for building on M1 Macs
     volumes:
       - type: bind
