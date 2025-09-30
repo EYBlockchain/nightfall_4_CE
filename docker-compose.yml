@@ -442,7 +442,7 @@ services:
     platform: linux/amd64 # Required for building on M1 Macs
     restart: unless-stopped
     ports:
-      - "3001:80"  
+      - "8080:80"  
     volumes:
       - type: bind
         source: ./configuration/toml
