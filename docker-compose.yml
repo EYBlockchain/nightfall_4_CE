@@ -214,7 +214,6 @@ services:
       - NF4_CONTRACTS__DEPLOY_CONTRACTS=${NF4_CONTRACTS__DEPLOY_CONTRACTS:-false}
       - NF4_NIGHTFALL_PROPOSER__DB_URL=mongodb://nf4_db_proposer:27017
 
-
   proposer2:
     container_name: nf4_proposer2
     stop_grace_period: 3s

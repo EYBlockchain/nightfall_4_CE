@@ -244,7 +244,7 @@ block_size = 64
 [plume_testnet.nightfall_deployer]
 log_level = "info"
 default_proposer_address = "0xd1Fe296737888f2310EDD943bc6342a41d8Da409"
-default_proposer_url = "http://proposer:3000"
+default_proposer_url = "http://35.225.105.10:3001"
 proposer_stake = 4
 proposer_ding = 3                                                       # how much to fine a proposer for not making a block
 proposer_exit_penalty = 2                                               # how much to fine a proposer for deregister during its turn
