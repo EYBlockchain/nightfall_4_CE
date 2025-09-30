@@ -300,7 +300,6 @@ impl NightfallContract for Nightfall::NightfallCalls {
 
         let result = nightfall_instance
             .withdraw_processed(decode_data)
-            .nonce(nonce)
             .from(signer.address())
             .call()
             .await
