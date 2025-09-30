@@ -652,6 +652,7 @@ where
         Err(e) => {
             //  rollback to UNSPENT status if handle_client_operation fails
             let db = get_db_connection().await;
+          
             let commitment_ids = spend_commitments
                 .iter()
                 .map(|c| c.hash().unwrap())
@@ -727,7 +728,60 @@ where
                 new_commitment_ids
             );
 
-                let _ = db.delete_commitments(new_commitment_ids).await;
+            for new_commit_id in &new_commitment_ids {
+                if let Some(existing) = db.get_commitment(new_commit_id).await {
+                    info!(
+                        "{id} New commitment {} exists before delete - status: {:?}, layer_2_block: {:?}",
+                        new_commit_id.to_hex_string(),
+                        existing.status,
+                        existing.layer_2_block_number
+                    );
+                } else {
+                    warn!(
+                        "{id} New commitment {} NOT FOUND before delete attempt",
+                        new_commit_id.to_hex_string()
+                    );
+                }
+            }
+            
+            // EFFECTUER LE DELETE
+            let delete_result = db.delete_commitments(new_commitment_ids.clone()).await;
+            
+            // VÉRIFIER LE RÉSULTAT
+            // match delete_result {
+            //     Ok(count) => {
+            //         info!("{id} Successfully deleted {count} new commitments");
+            //     }
+            //     Err(e) => {
+            //         error!("{id} Failed to delete new commitments: {:?}", e);
+            //     }
+            // }
+            match delete_result {
+                Some(_) => {
+                    info!("{id} Delete operation completed (returned Some)");
+                }
+                None => {
+                    error!("{id} ✗ Delete operation failed (returned None)");
+                }
+            }
+            
+            // VÉRIFIER APRÈS DELETE
+            for new_commit_id in &new_commitment_ids {
+                if let Some(still_exists) = db.get_commitment(new_commit_id).await {
+                    error!(
+                        "{id} PROBLEM: New commitment {} STILL EXISTS after delete - status: {:?}",
+                        new_commit_id.to_hex_string(),
+                        still_exists.status
+                    );
+                } else {
+                    info!(
+                        "{id} Confirmed: New commitment {} successfully deleted",
+                        new_commit_id.to_hex_string()
+                    );
+                }
+            }
+
+                //let _ = db.delete_commitments(new_commitment_ids).await;
             
             info!("{id} Rollback completed + delete of new commitments completed");
             Err(TransactionHandlerError::CustomError(e.to_string()))
