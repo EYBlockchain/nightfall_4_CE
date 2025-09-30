@@ -170,7 +170,6 @@ pub fn forge_command(command: &[&str]) {
     }
 }
 
-
 // Todo: fix unwrap panic in test and re-enable test
 // #[cfg(test)]
 // mod tests {
