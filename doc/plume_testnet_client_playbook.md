@@ -23,26 +23,7 @@ docker system prune -a --volumes
 
 ---
 
-## 3) Specify Nightfall contract addresses
-
-Create the TOML config folder:
-
-```bash
-mkdir -p configuration/toml
-```
-
-Create `configuration/toml/addresses.toml` with the following content:
-
-```toml
-nightfall = "0xe407c6d6D86178Dd3Bba8596bf554f0C2624A2Ab"
-round_robin = "0x955F325CBd3C664333d12cceaAE714089fdF7a84"
-x509 = "0xF12b0578237Ea2479Ec97BB5bbd69a52D828F451"
-```
-These are pre-deployed contracts addresses on plume testnet.
-
----
-
-## 4) Wallet setup: MetaMask + Plume testnet
+## 3) Wallet setup: MetaMask + Plume testnet
 
 1. Install the MetaMask browser extension: [https://metamask.io/en-GB](https://metamask.io/en-GB)
 2. Create a **new network** in MetaMask for **Plume testnet** using the parameters published here: [https://thirdweb.com/plume-testnet](https://thirdweb.com/plume-testnet)
@@ -50,7 +31,7 @@ These are pre-deployed contracts addresses on plume testnet.
 
 ---
 
-## 5) Create `local.env`
+## 4) Create `local.env`
 
 Create a file named `local.env` in the repo root with the following content. Replace placeholders (`0x....`) with your values where indicated.
 
@@ -80,7 +61,7 @@ Please remove all comments (beginning with `#`) in your local.env file.
 
 ---
 
-## 6) Build and run the Nightfall client
+## 5) Build and run the Nightfall client
 
 From the repo root:
 
@@ -90,7 +71,7 @@ docker compose --profile indie-client build
 docker compose --profile indie-client --env-file local.env up
 ```
 
-## 7) Deployment script
+## 6) Deployment script
 
 You can also deploy your own ERC-20/721/1155/3525 contracts using the following script: `blockchain_assets/script/mock_deployment.s.sol`
 
