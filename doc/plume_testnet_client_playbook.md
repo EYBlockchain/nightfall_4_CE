@@ -56,7 +56,7 @@ AZURE_CLIENT_ID=
 AZURE_CLIENT_SECRET=
 AZURE_TENANT_ID=
 ```
-If you host a online webhook, please put you url in `WEBHOOK_URL`, if you want to host a local webhook, you can follow nf_4.md about how to host a local webhook and replace the webhook url. Webhook is essential to de-escrow fund back to host chain.
+If you host a online webhook, please put you url in `WEBHOOK_URL`, if you want to host a local webhook, you can follow nf_4.md about how to host a local webhook and replace the webhook url. For easier start, run `python3 webhook.py` in seperate terminal to start a testing local webhook. Webhook is essential to de-escrow fund back to host chain.
 Please remove all comments (beginning with `#`) in your local.env file.
 
 ---
