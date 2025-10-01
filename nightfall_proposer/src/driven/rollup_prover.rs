@@ -207,11 +207,12 @@ pub fn get_base_bn254_proving_key() -> &'static Arc<ProvingKey<Kzg>> {
 pub fn get_decider_proving_key() -> &'static Arc<PlonkProvingKey<Bn254>> {
     static PK: OnceLock<Arc<PlonkProvingKey<Bn254>>> = OnceLock::new();
     PK.get_or_init(|| {
-        if let Some(key_bytes) = load_key_from_server("decider_pk") {
-            let pk = PlonkProvingKey::<Bn254>::deserialize_compressed_unchecked(&*key_bytes)
-                .expect("Could not deserialise proving key");
-            return Arc::new(pk);
-        }
+        /* Downloading from servers takes too longs, generate it yourself and save it, the  read ir from local */
+        // if let Some(key_bytes) = load_key_from_server("decider_pk") {
+        //     let pk = PlonkProvingKey::<Bn254>::deserialize_compressed_unchecked(&*key_bytes)
+        //         .expect("Could not deserialise proving key");
+        //     return Arc::new(pk);
+        // }
         let path = Path::new("./configuration/bin/decider_pk");
         let source_file = find(path).unwrap();
         let mut file = std::fs::File::open(source_file).unwrap();
