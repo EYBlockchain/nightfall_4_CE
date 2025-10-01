@@ -191,12 +191,14 @@ async fn validate_certificate(
     oid_group: u32,
     sender_address: Address,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let client = get_blockchain_client_connection()
+    let read_connection = get_blockchain_client_connection()
         .await
         .read()
-        .await
-        .get_client();
-    let blockchain_client = client.root();
+        .await;
+    let provider = read_connection.get_client();
+    let blockchain_client = provider.root();
+    let caller = read_connection.get_address();
+
 
     let x509_instance = X509::new(x509_contract_address, blockchain_client);
 
@@ -218,6 +220,7 @@ async fn validate_certificate(
 
     let tx_receipt = x509_instance
         .validateCertificate(certificate_args)
+        .from(caller)
         .send()
         .await
         .map_err(|e| {
