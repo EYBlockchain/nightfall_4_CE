@@ -19,7 +19,7 @@ use alloy::{
 use ark_bn254::Fr as Fr254;
 use ark_ff::BigInteger256;
 use ark_std::Zero;
-use configuration::addresses::get_addresses;
+use configuration::{addresses::get_addresses, settings::get_settings};
 use lib::{
     blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
 };
@@ -68,6 +68,50 @@ impl NightfallContract for Nightfall::NightfallCalls {
         } else {
             fee + fee + deposit_fee
         };
+        // let call = contract
+        //     .escrow_funds(
+        //         solidity_fee.0,
+        //         solidity_token_address.0,
+        //         solidity_token_id.0,
+        //         solidity_value.0,
+        //         solidity_secret_hash.0,
+        //         token_type.into(),
+        //     )
+        //     .value(Uint256::from(total_fee).0)
+        //     .from(signer.address());
+
+        // // Send transaction directly through Alloy
+        // let receipt = call
+        //     .send()
+        //     .await
+        //     .map_err(|e| {
+        //         if e.as_revert_data().is_some() {
+        //             format!(
+        //                 "Revert when calling escrow: {:?}",
+        //                 e.as_decoded_error::<ERC20Mock::ERC20InsufficientBalance>()
+        //             )
+        //         } else {
+        //             format!("Contract error: {e}")
+        //         }
+        //     })
+        //     .expect("Error sending transaction")
+        //     .get_receipt()
+        //     .await
+        //     .map_err(|e| {
+        //         NightfallContractError::EscrowError(format!("Transaction unsuccesful: {e}"))
+        //     })?;
+        let nonce = client
+            .get_transaction_count(signer.address())
+            .await
+            .map_err(|e| {
+                NightfallContractError::EscrowError(format!("Transaction unsuccesful: {e}"))
+            })?;
+        let gas_price = client.get_gas_price().await.map_err(|e| {
+            NightfallContractError::EscrowError(format!("Transaction unsuccesful: {e}"))
+        })?;
+        let max_fee_per_gas = gas_price * 2;
+        let max_priority_fee_per_gas = gas_price;
+        let gas_limit = 5000000u64;
         let call = contract
             .escrow_funds(
                 solidity_fee.0,
@@ -78,23 +122,23 @@ impl NightfallContract for Nightfall::NightfallCalls {
                 token_type.into(),
             )
             .value(Uint256::from(total_fee).0)
-            .from(signer.address());
-
-        // Send transaction directly through Alloy
-        let receipt = call
-            .send()
+            .nonce(nonce)
+            .gas(gas_limit)
+            .max_fee_per_gas(max_fee_per_gas)
+            .max_priority_fee_per_gas(max_priority_fee_per_gas)
+            .chain_id(get_settings().network.chain_id) // Linea testnet chain ID
+            .build_raw_transaction(signer)
             .await
             .map_err(|e| {
-                if e.as_revert_data().is_some() {
-                    format!(
-                        "Revert when calling escrow: {:?}",
-                        e.as_decoded_error::<ERC20Mock::ERC20InsufficientBalance>()
-                    )
-                } else {
-                    format!("Contract error: {e}")
-                }
-            })
-            .expect("Error sending transaction")
+                NightfallContractError::EscrowError(format!("Transaction unsuccesful: {e}"))
+            })?;
+
+        let receipt = client
+            .send_raw_transaction(&call)
+            .await
+            .map_err(|e| {
+                NightfallContractError::EscrowError(format!("Error getting receipt: {e}"))
+            })?
             .get_receipt()
             .await
             .map_err(|e| {
@@ -163,23 +207,59 @@ impl NightfallContract for Nightfall::NightfallCalls {
 
         let contract = Nightfall::new(get_addresses().nightfall(), client.clone());
 
-        let call = contract
-            .descrow_funds(decode_data, token_type.into())
-            .from(signer.address());
+        // let call = contract
+        //     .descrow_funds(decode_data, token_type.into())
+        //     .from(signer.address());
 
-        let receipt = call
-            .send()
+        // let receipt = call
+        //     .send()
+        //     .await
+        //     .map_err(|e| {
+        //         if e.as_revert_data().is_some() {
+        //             format!(
+        //                 "Revert when calling escrow: {:?}",
+        //                 e.as_decoded_error::<ERC20Mock::ERC20InsufficientBalance>()
+        //             )
+        //         } else {
+        //             format!("Contract error: {e}")
+        //         }
+        //     })
+        //     .map_err(|e| {
+        //         NightfallContractError::EscrowError(format!("Error getting receipt: {e}"))
+        //     })?
+        //     .get_receipt()
+        //     .await
+        //     .map_err(|e| {
+        //         NightfallContractError::EscrowError(format!("Transaction unsuccesful: {e}"))
+        //     })?;
+        let nonce = client
+            .get_transaction_count(signer.address())
             .await
             .map_err(|e| {
-                if e.as_revert_data().is_some() {
-                    format!(
-                        "Revert when calling escrow: {:?}",
-                        e.as_decoded_error::<ERC20Mock::ERC20InsufficientBalance>()
-                    )
-                } else {
-                    format!("Contract error: {e}")
-                }
-            })
+                NightfallContractError::EscrowError(format!("Transaction unsuccesful: {e}"))
+            })?;
+        let gas_price = client.get_gas_price().await.map_err(|e| {
+            NightfallContractError::EscrowError(format!("Transaction unsuccesful: {e}"))
+        })?;
+        let max_fee_per_gas = gas_price * 2;
+        let max_priority_fee_per_gas = gas_price;
+        let gas_limit = 500000000u64;
+        let call = contract
+            .descrow_funds(decode_data, token_type.into())
+            .nonce(nonce)
+            .gas(gas_limit)
+            .max_fee_per_gas(max_fee_per_gas)
+            .max_priority_fee_per_gas(max_priority_fee_per_gas)
+            .chain_id(get_settings().network.chain_id) // Linea testnet chain ID
+            .build_raw_transaction(signer)
+            .await
+            .map_err(|e| {
+                NightfallContractError::EscrowError(format!("Transaction unsuccesful: {e}"))
+            })?;
+
+        let receipt = client
+            .send_raw_transaction(&call)
+            .await
             .map_err(|e| {
                 NightfallContractError::EscrowError(format!("Error getting receipt: {e}"))
             })?
