@@ -26,7 +26,7 @@ use jf_plonk::{
     },
     proof_system::{
         structs::{ProvingKey as PlonkProvingKey, VerifyingKey as PlonkVerifyingKey},
-        RecursiveOutput, UniversalSNARK,
+        RecursiveOutput, UniversalRecursiveSNARK,
     },
     recursion::{
         circuits::{Kzg, Zmorph},
@@ -1056,7 +1056,7 @@ impl RecursiveProvingEngine<PlonkProof> for RollupProver {
 mod tests {
     use super::*;
     use ark_std::Zero;
-    use jf_plonk::nightfall::mle::MLEPlonk;
+    use jf_plonk::{nightfall::mle::MLEPlonk, proof_system::UniversalSNARK};
     use jf_primitives::{
         poseidon::Poseidon,
         trees::{

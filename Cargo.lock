@@ -90,6 +90,7 @@ checksum = "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923"
 [[package]]
 name = "alloy"
 version = "1.0.38"
+version = "1.0.38"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b17c19591d57add4f0c47922877a48aae1f47074e3433436545f8948353b3bbb"
 dependencies = [
@@ -4770,7 +4771,7 @@ checksum = "4a5f13b858c8d314ee3e8f639011f7ccefe71f97f96e50151fb991f267928e2c"
 [[package]]
 name = "jf-plonk"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#38daf0ca14391037c0d7762934c34173beb0722b"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#1a2aa8581dec4e0b8503ce32fba839062de8f8f2"
 dependencies = [
  "ark-bn254",
  "ark-crypto-primitives",
@@ -4809,7 +4810,7 @@ dependencies = [
 [[package]]
 name = "jf-primitives"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#38daf0ca14391037c0d7762934c34173beb0722b"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#1a2aa8581dec4e0b8503ce32fba839062de8f8f2"
 dependencies = [
  "anyhow",
  "arithmetic",
@@ -4859,7 +4860,7 @@ dependencies = [
 [[package]]
 name = "jf-relation"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#38daf0ca14391037c0d7762934c34173beb0722b"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#1a2aa8581dec4e0b8503ce32fba839062de8f8f2"
 dependencies = [
  "ark-bls12-377",
  "ark-bls12-381",
@@ -4891,7 +4892,7 @@ dependencies = [
 [[package]]
 name = "jf-utils"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#38daf0ca14391037c0d7762934c34173beb0722b"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#1a2aa8581dec4e0b8503ce32fba839062de8f8f2"
 dependencies = [
  "ark-ec",
  "ark-ff 0.4.2",
@@ -5073,9 +5074,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.176"
+version = "0.2.177"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "58f929b4d672ea937a23a1ab494143d968337a5f47e56d0815df1e0890ddf174"
+checksum = "2874a2af47a2325c2001a6e6fad9b16a53b802102b528163885171cf92b15976"
 
 [[package]]
 name = "libm"
@@ -5435,7 +5436,7 @@ dependencies = [
 [[package]]
 name = "nf-curves"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#38daf0ca14391037c0d7762934c34173beb0722b"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#1a2aa8581dec4e0b8503ce32fba839062de8f8f2"
 dependencies = [
  "ark-bn254",
  "ark-ec",
