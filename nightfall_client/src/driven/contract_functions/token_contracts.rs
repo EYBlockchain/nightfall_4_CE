@@ -94,7 +94,10 @@ impl TokenContract for IERC20::IERC20Calls {
         //         )
         //     })?;
 
-        debug!("ERC20 approval tx mined, from: {:?}", tx_receipt.as_ref().unwrap().from);
+        debug!(
+            "ERC20 approval tx mined, from: {:?}",
+            tx_receipt.as_ref().unwrap().from
+        );
 
         if !tx_receipt.unwrap().status() {
             return Err(BlockchainClientConnectionError::ProviderError(
@@ -185,7 +188,10 @@ impl TokenContract for IERC721::IERC721Calls {
             .get_receipt()
             .await;
 
-        debug!("ERC721 approval tx mined, from: {:?}", tx_receipt.as_ref().unwrap().from);
+        debug!(
+            "ERC721 approval tx mined, from: {:?}",
+            tx_receipt.as_ref().unwrap().from
+        );
 
         if !tx_receipt.unwrap().status() {
             return Err(BlockchainClientConnectionError::ProviderError(
@@ -278,7 +284,10 @@ impl TokenContract for IERC1155::IERC1155Calls {
         //         )
         //     })?;
 
-        debug!("ERC1155 approval tx mined, from: {:?}", tx_receipt.as_ref().unwrap().from);
+        debug!(
+            "ERC1155 approval tx mined, from: {:?}",
+            tx_receipt.as_ref().unwrap().from
+        );
 
         if !tx_receipt.unwrap().status() {
             return Err(BlockchainClientConnectionError::ProviderError(
@@ -341,14 +350,12 @@ impl TokenContract for IERC3525::IERC3525Calls {
         //         BlockchainClientConnectionError::ProviderError(format!("Contract error: {e}"))
         //     })?;
 
-        
         // let tx_receipt = client.send_raw_transaction(&raw_tx).await
         //     .map_err(|e| {
         //         BlockchainClientConnectionError::ProviderError(format!("Contract error: {e}"))
         //     })?
         //     .get_receipt()
         //     .await;
-
 
         // NOTE: IERC3525 has overloaded approve functions in many implementations.
         // Here we use the 2-arg overload approve(address to, uint256 tokenId),
@@ -402,7 +409,10 @@ impl TokenContract for IERC3525::IERC3525Calls {
             .get_receipt()
             .await;
 
-        debug!("ERC3525 approval tx mined, from: {:?}", tx_receipt.as_ref().unwrap().from);
+        debug!(
+            "ERC3525 approval tx mined, from: {:?}",
+            tx_receipt.as_ref().unwrap().from
+        );
 
         if !tx_receipt.unwrap().status() {
             return Err(BlockchainClientConnectionError::ProviderError(
