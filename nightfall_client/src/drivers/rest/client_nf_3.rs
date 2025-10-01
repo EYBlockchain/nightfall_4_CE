@@ -17,7 +17,7 @@ use crate::{
         db::mongo::CommitmentEntry,
         queue::{get_queue, QueuedRequest, TransactionRequest},
     },
-    drivers::derive_key::ZKPKeys,
+    drivers::{derive_key::ZKPKeys, DOMAIN_SHARED_SALT},
     get_fee_token_id, get_zkp_keys,
     initialisation::get_db_connection,
     ports::{
@@ -33,6 +33,7 @@ use crate::{
 };
 use ark_bn254::Fr as Fr254;
 use ark_ec::twisted_edwards::Affine;
+use ark_serialize::Valid;
 use ark_ff::{BigInteger256, Zero};
 use ark_std::{rand::thread_rng, UniformRand};
 use configuration::{addresses::get_addresses, settings::get_settings};
@@ -548,13 +549,23 @@ where
         .sum::<Fr254>();
     let fee_change = total_fee_value - fee;
 
+    let poseidon = Poseidon::<Fr254>::new();
+    // Derive a shared salt from the shared secret using domain-separated Poseidon hash.
+    let shared_salt_hash = poseidon
+        .hash(&[shared_secret.x, shared_secret.y, DOMAIN_SHARED_SALT])
+        .map_err(|e| {
+            error!("{id} Failed to derive shared salt with Poseidon: {e}");
+            TransactionHandlerError::CustomError(e.to_string())
+        })?;
+    let shared_salt = Salt::Transfer(shared_salt_hash);
+
     // transferred value commitment, salt is the y-coordinate of the shared secret
     let new_commitment_one = Preimage::new(
         value,
         nf_token_id,
         spend_commitments[0].get_nf_slot_id(),
         recipient_public_key,
-        Salt::Transfer(Fr254::new((shared_secret.y).into())),
+        shared_salt,
     );
 
     let new_commitment_two = if !token_change.is_zero() {
