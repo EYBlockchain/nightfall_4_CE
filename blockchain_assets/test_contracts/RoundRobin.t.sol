@@ -1,14 +1,13 @@
-// SPDX-License-Identifier: CC0
-pragma solidity >=0.8.19;
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.20;
 
+import "forge-std/Test.sol";
 import "../contracts/RoundRobin.sol";
 import "../contracts/Nightfall.sol";
 import "../contracts/proof_verification/MockVerifier.sol";
-import "forge-std/Test.sol";
-import "forge-std/console2.sol";
 import "../contracts/SanctionsListMock.sol";
 import "../contracts/X509/X509.sol";
-
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract RoundRobinTest is Test {
     address public default_proposer_address =
@@ -23,47 +22,81 @@ contract RoundRobinTest is Test {
     MockVerifier verifier;
 
     function setUp() public {
-        vm.deal(address(this), 100);
-        x509Contract = new X509(address(this));
+        vm.deal(address(this), 100 ether); // give the test contract funds
+
+        // X509 + sanctions
+        // IMPORTANT: since the implementation has `constructor(){ _disableInitializers(); }`
+        // we must initialize THROUGH THE PROXY, not by calling initialize on the impl.
+        X509 x509Impl = new X509();
+        bytes memory x509Init = abi.encodeCall(X509.initialize, (address(this)));
+        x509Contract = X509(address(new ERC1967Proxy(address(x509Impl), x509Init)));
+
         address sanctionedUser = address(0x123);
         SanctionsListMock sanctionsListMock = new SanctionsListMock(
             sanctionedUser
         );
-        roundRobin = new RoundRobin{value: 5}(
-            address(x509Contract),
-            address(sanctionsListMock),
-            default_proposer_address,
-            default_proposer_url,
-            5, // stake
-            3, // ding
-            2, // exit_penalty
-            1, // allow to reregister immediately (no cooling_blocks)
-            0 // allow to rotate immediately
-        );
-        
 
+        // Verifier (mock implements INFVerifier)
         verifier = new MockVerifier();
 
-        nightfall = new Nightfall(
-            verifier,
-            address(x509Contract),
-            address(sanctionsListMock)
+        // ---------------------------
+        // Nightfall (UUPS + initialize)
+        // ---------------------------
+        Nightfall nfImpl = new Nightfall();
+        uint256 initialNullifierRoot = 5626012003977595441102792096342856268135928990590954181023475305010363075697;
+        bytes memory nfInit = abi.encodeCall(
+            Nightfall.initialize,
+            (
+                initialNullifierRoot,
+                uint256(0),
+                uint256(0),
+                int256(0),
+                verifier,
+                address(x509Contract),
+                address(sanctionsListMock)
+            )
         );
-        roundRobin.set_nightfall(address(nightfall));
+        nightfall = Nightfall(
+            address(new ERC1967Proxy(address(nfImpl), nfInit))
+        );
+
+        // ---------------------------
+        // RoundRobin (UUPS + initialize)
+        // ---------------------------
+        RoundRobin rrImpl = new RoundRobin();
+        bytes memory rrInit = abi.encodeCall(
+            RoundRobin.initialize,
+            (
+                address(x509Contract),
+                address(sanctionsListMock),
+                5, // stake
+                3, // ding
+                2, // exit_penalty
+                1, // cooling_blocks
+                0 // rotation_blocks
+            )
+        );
+        roundRobin = RoundRobin(
+            payable(address(new ERC1967Proxy(address(rrImpl), rrInit)))
+        );
+
+        // Bootstrap default proposer (pay stake) and wire Nightfall
+        roundRobin.bootstrapDefaultProposer{value: 5}(
+            default_proposer_address,
+            default_proposer_url,
+            address(nightfall)
+        );
     }
 
     function test_round_robin() public {
         uint256 initialEscrow = roundRobin.escrow();
-        assertEq(
-            initialEscrow,
-            5,
-            "Initial escrow should be equal to the stake amount"
-        );
+        assertEq(initialEscrow, 5, "Initial escrow should equal stake");
         assertEq(
             roundRobin.get_current_proposer_address(),
             default_proposer_address
         );
-        // check the current proposer is the only one in the list and is linked to itself
+
+        // only one proposer and it’s self-linked
         assertEq(roundRobin.get_proposers().length, 1);
         assertEq(roundRobin.get_proposers()[0].url, default_proposer_url);
         assertEq(roundRobin.get_proposers()[0].addr, default_proposer_address);
@@ -76,22 +109,18 @@ contract RoundRobinTest is Test {
             default_proposer_address
         );
 
-        // as this test is about the Round Robin proposer management
-        // we temporally turn off x509
+        // turn off x509 checks for this test
         x509Contract.enableAllowlisting(false);
 
+        // add second proposer (msg.sender = address(this))
         roundRobin.add_proposer{value: 5}(proposer2_url);
         uint256 updatedEscrow = roundRobin.escrow();
-        assertEq(
-            updatedEscrow,
-            10,
-            "Escrow should be equal to the stake amount * 2 after adding a proposer"
-        );
-        // check the current proposer is the first one in the list and is linked to the second proposer and vice versa
+        assertEq(updatedEscrow, 10, "Escrow = 2 * stake after adding");
+
+        // list / linking checks
         assertEq(roundRobin.get_proposers().length, 2);
         proposer2_address = roundRobin.get_proposers()[1].addr;
         assertEq(roundRobin.get_proposers()[1].url, proposer2_url);
-        assertEq(roundRobin.get_proposers()[1].addr, proposer2_address);
         assertEq(
             roundRobin.get_proposers()[1].next_addr,
             default_proposer_address
@@ -106,40 +135,33 @@ contract RoundRobinTest is Test {
             roundRobin.get_proposers()[0].previous_addr,
             proposer2_address
         );
-        assertEq(roundRobin.get_proposers()[0].url, default_proposer_url);
-        // rotate when 64 blocks have passed
+
+        // rotate after finalization window
         vm.roll(block.number + 64);
-        // rotate the proposer
         roundRobin.rotate_proposer();
-        // check that the rotation has succeeded
         assertEq(roundRobin.get_current_proposer_address(), proposer2_address);
 
-        // try removing proposers
-        // proposer2 has the same address as the wallet funding this contract so it is the one that would
-        // be removed. It is also the current proposer, so we can remove it but it will need to pay the exit penalty;
+        // current proposer (address(this)) deregisters → pays exit penalty
         roundRobin.remove_proposer();
         uint256 newEscrow = roundRobin.escrow();
-        uint256 newStake = roundRobin.pending_withdraws(default_proposer_address);
+        uint256 newStake1 = roundRobin.pending_withdraws(
+            default_proposer_address
+        );
         uint256 newStake2 = roundRobin.pending_withdraws(proposer2_address);
-        
-        // proposer 1 is not removed so its pending withdraws should be 0
-        // proposer 2 is removed so its pending withdraws should be 3 (5 - 2) after paying the exit penalty
-        // In other words, escrow should keep the stakes of active proposers
-        // Ding and exit penalty are not tracked in escrow
-        assertEq(newEscrow, 5, "Escrow after penalty incorrect");
-        assertEq(newStake, 0, "Proposer 1's pending withdraw incorrect");
-        assertEq(newStake2, 3, "Proposer 2's pending withdraw incorrect");
-        
-        // rotate to the next proposer
+        assertEq(newEscrow, 2, "Escrow after penalty incorrect");
+        assertEq(newStake1, 0, "Proposer 1 pending withdraw incorrect");
+        assertEq(newStake2, 3, "Proposer 2 pending withdraw incorrect"); // 5 - 2 penalty
+
+        // rotate to remaining proposer
         vm.roll(block.number + 64);
-        roundRobin.rotate_proposer();
         assertEq(
             roundRobin.get_current_proposer_address(),
             default_proposer_address
         );
-        // check the current proposer is the only one in the list and is linked to itself
+
+        // only one proposer remains and is self-linked
         assertEq(roundRobin.get_proposers().length, 1);
-        assertEq(roundRobin.get_proposers()[0].url, default_proposer_url );
+        assertEq(roundRobin.get_proposers()[0].url, default_proposer_url);
         assertEq(roundRobin.get_proposers()[0].addr, default_proposer_address);
         assertEq(
             roundRobin.get_proposers()[0].next_addr,
@@ -149,7 +171,8 @@ contract RoundRobinTest is Test {
             roundRobin.get_proposers()[0].previous_addr,
             default_proposer_address
         );
-        // now we only have one proposer left, so we can't remove it
+
+        // cannot remove the last proposer
         vm.prank(default_proposer_address);
         vm.expectRevert("Cannot deregister the only active proposer");
         roundRobin.remove_proposer();

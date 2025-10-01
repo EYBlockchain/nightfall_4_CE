@@ -8,7 +8,11 @@ use ark_ec::{twisted_edwards::Affine, AffineRepr};
 use ark_ff::{PrimeField, Zero};
 use ark_std::{rand::rngs::StdRng, UniformRand};
 use criterion::{criterion_group, criterion_main, Criterion};
-use jf_plonk::{nightfall::FFTPlonk, proof_system::UniversalSNARK, transcript::StandardTranscript};
+use jf_plonk::{
+    nightfall::{ipa_structs::VerificationKeyId, FFTPlonk},
+    proof_system::UniversalSNARK,
+    transcript::StandardTranscript,
+};
 use jf_primitives::{
     pcs::prelude::UnivariateKzgPCS,
     poseidon::{FieldHasher, Poseidon},
@@ -378,7 +382,12 @@ fn benchmark_unified_circuit(c: &mut Criterion) {
     let srs_size = circuit.srs_size().unwrap();
     let srs = FFTPlonk::<UnivariateKzgPCS<Bn254>>::universal_setup_for_testing(srs_size, &mut rng)
         .unwrap();
-    let (pk, vk) = FFTPlonk::<UnivariateKzgPCS<Bn254>>::preprocess(&srs, &circuit).unwrap();
+    let (pk, vk) = FFTPlonk::<UnivariateKzgPCS<Bn254>>::preprocess(
+        &srs,
+        Some(VerificationKeyId::Client),
+        &circuit,
+    )
+    .unwrap();
     let start = Instant::now();
     let proof = FFTPlonk::<UnivariateKzgPCS<Bn254>>::prove::<_, _, StandardTranscript>(
         &mut rng, &circuit, &pk, None,

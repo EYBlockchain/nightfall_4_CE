@@ -3,6 +3,7 @@ use alloy::sol;
 sol!(
     #[sol(rpc)]
     #[derive(Debug)]
+    #[allow(clippy::too_many_arguments)]
     Nightfall,
     "../blockchain_assets/artifacts/Nightfall.sol/Nightfall.json"
 );
@@ -69,9 +70,17 @@ sol!(
     ERC3525Mock,
     "../blockchain_assets/artifacts/ERC3525Mock.sol/ERC3525Mock.json"
 );
+
 sol!(
     #[sol(rpc)]
     #[derive(Debug)]
     ERC721Mock,
     "../blockchain_assets/artifacts/ERC721Mock.sol/ERC721Mock.json"
+);
+
+sol!(
+    #[sol(rpc)]
+    #[derive(Debug)]
+    ProposerManager,
+    "../blockchain_assets/artifacts/ProposerManager.sol/ProposerManager.json"
 );

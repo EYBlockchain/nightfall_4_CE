@@ -2,7 +2,6 @@
 
 pragma solidity ^0.8.3;
 
-
 // This contract can parse a DER object, such as a suitably encoded x509 certificate
 contract DERParser {
     struct DecodedTlv {
@@ -24,23 +23,21 @@ contract DERParser {
     /*
   Parses the input tag.
   */
-    function getTlvTag(bytes1 tagByte, uint256 pointer)
-        private
-        pure
-        returns (
-            Tag memory,
-            uint256,
-            uint256
-        )
-    {
+    function getTlvTag(
+        bytes1 tagByte,
+        uint256 pointer
+    ) private pure returns (Tag memory, uint256, uint256) {
         bytes1 tagClass = tagByte & 0xC0;
         bool isConstructed = (tagByte & 0x20) != 0;
         bytes1 tagType = tagByte & 0x1F;
         uint256 headerLength = 0;
-        require(tagType < 0x1F, 'DERParser: Tag is Long Form, which is not supported');
+        require(
+            tagType < 0x1F,
+            "DERParser: Tag is Long Form, which is not supported"
+        );
         require(
             tagClass == 0 || tagClass == 0x80,
-            'DERParser: Only the Universal or ContextSpecific tag classes are supported'
+            "DERParser: Only the Universal or ContextSpecific tag classes are supported"
         );
         headerLength++;
         return (Tag(isConstructed, tagType), ++pointer, headerLength);
@@ -53,24 +50,19 @@ contract DERParser {
         bytes calldata derSlice,
         uint256 pointer,
         uint256 headerLength
-    )
-        private
-        pure
-        returns (
-            uint256,
-            uint256,
-            uint256
-        )
-    {
+    ) private pure returns (uint256, uint256, uint256) {
         headerLength++;
         bool shortForm = (derSlice[0] & 0x80) == 0;
         uint256 lengthBits = uint256(uint8(derSlice[0] & 0x7F)); // this contains either the length value (shortform) or the number of following octets that contain the length value (long form)
         if (shortForm) return (lengthBits, ++pointer, headerLength); //it's a short form length, so we're done
         // it's not short form so more work to do
-        require(lengthBits != 0, 'DERParser: Indefinite lengths are not supported');
+        require(
+            lengthBits != 0,
+            "DERParser: Indefinite lengths are not supported"
+        );
         require(
             lengthBits != 0x7F,
-            'DERParser: A value of 0x7F for a long form length is a reserved value'
+            "DERParser: A value of 0x7F for a long form length is a reserved value"
         );
         uint256 length = 0;
         for (uint256 i = 0; i < lengthBits; i++) {
@@ -106,10 +98,27 @@ contract DERParser {
         uint256 headerLength;
         uint256 start = pointer;
         (tag, pointer, headerLength) = getTlvTag(derSlice[pointer], pointer);
-        (length, pointer, headerLength) = getTlvLength(derSlice[pointer:], pointer, headerLength);
-        (value, pointer) = getTlvValue(derSlice[pointer:], length, pointer, tag);
+        (length, pointer, headerLength) = getTlvLength(
+            derSlice[pointer:],
+            pointer,
+            headerLength
+        );
+        (value, pointer) = getTlvValue(
+            derSlice[pointer:],
+            length,
+            pointer,
+            tag
+        );
         bytes memory octets = derSlice[start:start + headerLength + length];
-        DecodedTlv memory tlv = DecodedTlv(start, headerLength, tag, length, value, octets, depth);
+        DecodedTlv memory tlv = DecodedTlv(
+            start,
+            headerLength,
+            tag,
+            length,
+            value,
+            octets,
+            depth
+        );
         return (tlv, pointer);
     }
 
@@ -146,11 +155,10 @@ contract DERParser {
     This function is like walkDerTree but it doesn't store any tlvs. It can be used without gas cost
     To compute the length of the tlv array (we could make a nodejs version of this in the future)
     */
-    function computeNumberOfTlvs(bytes calldata derBytes, uint256 pointer)
-        external
-        pure
-        returns (uint256)
-    {
+    function computeNumberOfTlvs(
+        bytes calldata derBytes,
+        uint256 pointer
+    ) external pure returns (uint256) {
         DecodedTlv memory tlv;
         uint256 depth = 0;
         uint256 id = 0;

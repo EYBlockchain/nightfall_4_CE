@@ -320,7 +320,9 @@ mod tests {
     use ark_ff::{PrimeField, Zero};
     use ark_std::{rand::rngs::StdRng, UniformRand};
     use jf_plonk::{
-        nightfall::FFTPlonk, proof_system::UniversalSNARK, transcript::StandardTranscript,
+        nightfall::{ipa_structs::VerificationKeyId, FFTPlonk},
+        proof_system::UniversalSNARK,
+        transcript::StandardTranscript,
     };
     use jf_primitives::{
         pcs::prelude::UnivariateKzgPCS,
@@ -1260,7 +1262,12 @@ mod tests {
         let srs =
             FFTPlonk::<UnivariateKzgPCS<Bn254>>::universal_setup_for_testing(srs_size, &mut rng)
                 .unwrap();
-        let (pk, vk) = FFTPlonk::<UnivariateKzgPCS<Bn254>>::preprocess(&srs, &circuit).unwrap();
+        let (pk, vk) = FFTPlonk::<UnivariateKzgPCS<Bn254>>::preprocess(
+            &srs,
+            Some(VerificationKeyId::Client),
+            &circuit,
+        )
+        .unwrap();
         let proof = FFTPlonk::<UnivariateKzgPCS<Bn254>>::prove::<_, _, StandardTranscript>(
             &mut rng, &circuit, &pk, None,
         )

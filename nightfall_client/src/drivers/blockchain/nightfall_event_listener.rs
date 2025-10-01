@@ -43,7 +43,6 @@ pub fn start_event_listener<N: NightfallContract>(
         loop {
             attempts += 1;
             log::info!("Client event listener (attempt {attempts})...");
-            log::info!("Client event listener (attempt {attempts})...");
             let result = listen_for_events::<N>(start_block).await;
             match result {
                 Ok(_) => {
@@ -94,13 +93,17 @@ pub async fn listen_for_events<N: NightfallContract>(
     );
 
     // get the events from the Nightfall contract from the specified start block
-    
+
     // Subscribe to the combined events filter
     let events_filter = Filter::new()
         .address(get_addresses().nightfall())
         .event_signature(vec![
             Nightfall::BlockProposed::SIGNATURE_HASH,
             Nightfall::DepositEscrowed::SIGNATURE_HASH,
+            Nightfall::Initialized::SIGNATURE_HASH,
+            Nightfall::Upgraded::SIGNATURE_HASH,
+            Nightfall::AuthoritiesUpdated::SIGNATURE_HASH,
+            Nightfall::OwnershipTransferred::SIGNATURE_HASH,
         ])
         .from_block(start_block as u64);
 
@@ -111,6 +114,7 @@ pub async fn listen_for_events<N: NightfallContract>(
         .map_err(|_| EventHandlerError::NoEventStream)?;
 
     let mut events_stream = events_subscription.into_stream();
+
     while let Some(evt) = events_stream.next().await {
         // process each event in the stream and handle any errors
         let event = match Nightfall::NightfallEvents::decode_log(&evt.inner) {
