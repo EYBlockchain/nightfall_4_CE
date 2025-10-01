@@ -316,6 +316,40 @@ impl TokenContract for IERC3525::IERC3525Calls {
 
         debug!("ERC3525 caller: {caller:?}");
 
+        // let nonce = client.get_transaction_count(caller).await.map_err(|e| {
+        //     BlockchainClientConnectionError::ProviderError(format!(
+        //         "Contract error: {e}"
+        //     ))
+        // })?;
+        // let gas_price = client.get_gas_price().await.map_err(|e| {
+        //     BlockchainClientConnectionError::ProviderError(format!(
+        //         "Contract error: {e}"
+        //     ))
+        // })?;
+        // let max_fee_per_gas = gas_price * 2;
+        // let max_priority_fee_per_gas = gas_price;
+        // let gas_limit = 500000000u64;
+        // let raw_tx = erc3525
+        //     .approve_0(spender, token_id_u256.0)
+        //     .nonce(nonce)
+        //     .gas(gas_limit)
+        //     .max_fee_per_gas(max_fee_per_gas)
+        //     .max_priority_fee_per_gas(max_priority_fee_per_gas)
+        //     .chain_id(get_settings().network.chain_id) // Linea testnet chain ID
+        //     .build_raw_transaction(caller).await
+        //     .map_err(|e| {
+        //         BlockchainClientConnectionError::ProviderError(format!("Contract error: {e}"))
+        //     })?;
+
+        
+        // let tx_receipt = client.send_raw_transaction(&raw_tx).await
+        //     .map_err(|e| {
+        //         BlockchainClientConnectionError::ProviderError(format!("Contract error: {e}"))
+        //     })?
+        //     .get_receipt()
+        //     .await;
+
+
         // NOTE: IERC3525 has overloaded approve functions in many implementations.
         // Here we use the 2-arg overload approve(address to, uint256 tokenId),
         // which bindings expose as `approve_0`.

@@ -68,6 +68,19 @@ impl NightfallContract for Nightfall::NightfallCalls {
         } else {
             fee + fee + deposit_fee
         };
+<<<<<<< HEAD
+=======
+        /* If your chain doesn't support signing transactions locally, and need to be signed at the client and need to use send_raw_tansaction uncomment the code below */
+        // let nonce = client.get_transaction_count(signer.address()).await.map_err(|e| {
+        //     NightfallContractError::EscrowError(format!("Transaction unsuccesful: {e}"))
+        // })?;
+        // let gas_price = client.get_gas_price().await.map_err(|e| {
+        //     NightfallContractError::EscrowError(format!("Transaction unsuccesful: {e}"))
+        // })?;
+        // let max_fee_per_gas = gas_price * 2;
+        // let max_priority_fee_per_gas = gas_price;
+        // let gas_limit = 5000000u64;
+>>>>>>> origin/master
         // let call = contract
         //     .escrow_funds(
         //         solidity_fee.0,
@@ -78,6 +91,7 @@ impl NightfallContract for Nightfall::NightfallCalls {
         //         token_type.into(),
         //     )
         //     .value(Uint256::from(total_fee).0)
+<<<<<<< HEAD
         //     .from(signer.address());
 
         // // Send transaction directly through Alloy
@@ -95,11 +109,29 @@ impl NightfallContract for Nightfall::NightfallCalls {
         //         }
         //     })
         //     .expect("Error sending transaction")
+=======
+        //     .nonce(nonce)
+        //     .gas(gas_limit)
+        //     .max_fee_per_gas(max_fee_per_gas)
+        //     .max_priority_fee_per_gas(max_priority_fee_per_gas)
+        //     .chain_id(get_settings().network.chain_id) // Linea testnet chain ID
+        //     .build_raw_transaction(signer).await
+        //     .map_err(|e| {
+        //         NightfallContractError::EscrowError(format!("Transaction unsuccesful: {e}"))
+        //     })?;
+
+        // let receipt = client.send_raw_transaction(&call)
+        //     .await
+        //     .map_err(|e| {
+        //         NightfallContractError::EscrowError(format!("Error getting receipt: {e}"))
+        //     })?
+>>>>>>> origin/master
         //     .get_receipt()
         //     .await
         //     .map_err(|e| {
         //         NightfallContractError::EscrowError(format!("Transaction unsuccesful: {e}"))
         //     })?;
+<<<<<<< HEAD
         let nonce = client
             .get_transaction_count(signer.address())
             .await
@@ -112,6 +144,8 @@ impl NightfallContract for Nightfall::NightfallCalls {
         let max_fee_per_gas = gas_price * 2;
         let max_priority_fee_per_gas = gas_price;
         let gas_limit = 5000000u64;
+=======
+>>>>>>> origin/master
         let call = contract
             .escrow_funds(
                 solidity_fee.0,
@@ -207,9 +241,49 @@ impl NightfallContract for Nightfall::NightfallCalls {
 
         let contract = Nightfall::new(get_addresses().nightfall(), client.clone());
 
+<<<<<<< HEAD
         // let call = contract
         //     .descrow_funds(decode_data, token_type.into())
         //     .from(signer.address());
+=======
+        /* If your chain doesn't support signing transactions locally, and need to be signed at the client and need to use send_raw_tansaction uncomment the code below */
+
+        // let nonce = client.get_transaction_count(signer.address()).await.map_err(|e| {
+        //     NightfallContractError::EscrowError(format!("Transaction unsuccesful: {e}"))
+        // })?;
+        // let gas_price = client.get_gas_price().await.map_err(|e| {
+        //     NightfallContractError::EscrowError(format!("Transaction unsuccesful: {e}"))
+        // })?;
+        // let max_fee_per_gas = gas_price * 2;
+        // let max_priority_fee_per_gas = gas_price;
+        // let gas_limit = 500000000u64;
+        // let call = contract
+        //     .descrow_funds(decode_data, token_type.into())
+        //     .nonce(nonce)
+        //     .gas(gas_limit)
+        //     .max_fee_per_gas(max_fee_per_gas)
+        //     .max_priority_fee_per_gas(max_priority_fee_per_gas)
+        //     .chain_id(get_settings().network.chain_id) // Linea testnet chain ID
+        //     .build_raw_transaction(signer).await
+        //     .map_err(|e| {
+        //         NightfallContractError::EscrowError(format!("Transaction unsuccesful: {e}"))
+        //     })?;
+
+        // let receipt = client.send_raw_transaction(&call)
+        //     .await
+        //     .map_err(|e| {
+        //         NightfallContractError::EscrowError(format!("Error getting receipt: {e}"))
+        //     })?
+        //     .get_receipt()
+        //     .await
+        //     .map_err(|e| {
+        //         NightfallContractError::EscrowError(format!("Transaction unsuccesful: {e}"))
+        //     })?;
+
+        let call = contract
+            .descrow_funds(decode_data, token_type.into())
+            .from(signer.address());
+>>>>>>> origin/master
 
         // let receipt = call
         //     .send()
@@ -298,6 +372,7 @@ impl NightfallContract for Nightfall::NightfallCalls {
             value: data.value,
             withdraw_fund_salt: data.withdraw_fund_salt,
         };
+
         let result = nightfall_instance
             .withdraw_processed(decode_data)
             .from(signer.address())
