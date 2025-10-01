@@ -8,7 +8,7 @@ RUN chmod 644 /usr/local/share/ca-certificates/* && update-ca-certificates
 WORKDIR /app
 RUN mkdir bin
 COPY --exclude=configuration/bin/*  . .
-COPY configuration/bin/proving_key configuration/bin/
+# COPY configuration/bin/proving_key configuration/bin/
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/app/target \
     --mount=type=cache,target=/usr/local/cargo/git \
