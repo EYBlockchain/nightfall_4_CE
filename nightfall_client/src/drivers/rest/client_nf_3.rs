@@ -559,7 +559,7 @@ where
         })?;
     let shared_salt = Salt::Transfer(shared_salt_hash);
 
-    // transferred value commitment, salt is the y-coordinate of the shared secret
+    // transferred value commitment, salt is derived from the shared secret
     let new_commitment_one = Preimage::new(
         value,
         nf_token_id,

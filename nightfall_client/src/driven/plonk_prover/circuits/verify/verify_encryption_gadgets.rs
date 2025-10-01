@@ -28,8 +28,6 @@ impl VerifyEncryptionCircuit for PlonkCircuit<Fr254> {
         withdraw_address: Variable,
         withdraw_flag: BoolVar,
     ) -> Result<Vec<Variable>, CircuitError> {
-        // We use the y coordinate of the shared secret as the salt for the transferred commitment.
-        // Then when appearing on chain we compress the point
 
         let (epk, mut cipher_text_kem_dem) = self.kemdem(
             ephemeral_key,
