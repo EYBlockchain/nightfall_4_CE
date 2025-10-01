@@ -28,7 +28,6 @@ impl VerifyEncryptionCircuit for PlonkCircuit<Fr254> {
         withdraw_address: Variable,
         withdraw_flag: BoolVar,
     ) -> Result<Vec<Variable>, CircuitError> {
-
         let (epk, mut cipher_text_kem_dem) = self.kemdem(
             ephemeral_key,
             shared_secret,

@@ -33,8 +33,8 @@ use crate::{
 };
 use ark_bn254::Fr as Fr254;
 use ark_ec::twisted_edwards::Affine;
-use ark_serialize::Valid;
 use ark_ff::{BigInteger256, Zero};
+use ark_serialize::Valid;
 use ark_std::{rand::thread_rng, UniformRand};
 use configuration::{addresses::get_addresses, settings::get_settings};
 use jf_primitives::poseidon::{FieldHasher, Poseidon};

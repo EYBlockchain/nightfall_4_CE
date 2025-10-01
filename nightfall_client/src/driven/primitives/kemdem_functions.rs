@@ -1,10 +1,10 @@
+use crate::drivers::DOMAIN_SHARED_SALT;
 use ark_ec::twisted_edwards::Affine as TEAffine;
 use ark_ff::{BigInteger, One, PrimeField, Zero};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use jf_primitives::poseidon::{FieldHasher, Poseidon, PoseidonError};
-use nf_curves::ed_on_bn254::{BabyJubjub, Fq as Fr254, Fr as BJJScalar};
-use crate::drivers::DOMAIN_SHARED_SALT;
 use log::error;
+use nf_curves::ed_on_bn254::{BabyJubjub, Fq as Fr254, Fr as BJJScalar};
 
 use super::*;
 
@@ -100,7 +100,7 @@ pub fn kemdem_decrypt(
         let tmp: Fr254 = poseidon.hash(&[decryption_key, DOMAIN_DEM, Fr254::from(i as u64)])?;
         plain_text.push(*cipher - tmp);
     }
-    
+
     let poseidon = Poseidon::<Fr254>::new();
     // Derive a shared salt from the shared secret using domain-separated Poseidon hash.
     let shared_salt = poseidon
