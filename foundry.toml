@@ -1,6 +1,10 @@
 [profile.default]
 src = "blockchain_assets/contracts"
 out = "blockchain_assets/artifacts"
+build_info = true
+extra_output = ["storageLayout"]
+ast = true
+ffi = true
 script = "blockchain_assets/script"
 libs = ["blockchain_assets/solidity_lib"]
 test = "blockchain_assets/test_contracts"
@@ -13,9 +17,15 @@ remappings = [
     "@openzeppelin/contracts/=blockchain_assets/solidity_lib/openzeppelin-contracts/contracts/",
     "@forge-std/=blockchain_assets/solidity_lib/forge-std/src/",
     "@erc-3525/=blockchain_assets/solidity_lib/erc-3525/",
+    "@openzeppelin/contracts-upgradable/=blockchain_assets/solidity_lib/openzeppelin-contracts-upgradeable/contracts/",
+    "@openzeppelin/foundry-upgrades/=blockchain_assets/solidity_lib/openzeppelin-foundry-upgrades/src/",
 ]
 optimizer = true       # Enable the optimizer
 optimizer_runs = 200   # Lower = smaller bytecode (but higher runtime gas)
 via_ir = false         # Disable IR compilation (can sometimes reduce size)
 debug = false          # Strip debug symbols
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
+
+[profile.deploy]
+inherit = "default"
+ffi = true

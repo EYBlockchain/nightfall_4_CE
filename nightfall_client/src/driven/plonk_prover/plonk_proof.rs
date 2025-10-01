@@ -4,7 +4,7 @@ use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError
 use jf_plonk::{
     errors::PlonkError,
     nightfall::{
-        ipa_structs::{Proof as JFProof, ProvingKey, VerifyingKey, VK},
+        ipa_structs::{Proof as JFProof, ProvingKey, VerificationKeyId, VerifyingKey, VK},
         reproduce_transcript, FFTPlonk,
     },
     proof_system::{RecursiveOutput, UniversalSNARK},
@@ -32,7 +32,7 @@ pub struct PlonkProof {
     #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
     pi_hash: Fr254,
     #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
-    vk_hash: Fr254,
+    vk_id: Option<VerificationKeyId>,
 }
 
 #[derive(Debug)]
@@ -113,11 +113,15 @@ impl ProvingEngine<PlonkProof> for PlonkProvingEngine {
 
 impl PlonkProof {
     /// Creates a new [`PlonkProof`]
-    pub fn new(proof: JFProof<UnivariateKzgPCS<Bn254>>, pi_hash: Fr254, vk_hash: Fr254) -> Self {
+    pub fn new(
+        proof: JFProof<UnivariateKzgPCS<Bn254>>,
+        pi_hash: Fr254,
+        vk_id: Option<VerificationKeyId>,
+    ) -> Self {
         Self {
             proof,
             pi_hash,
-            vk_hash,
+            vk_id,
         }
     }
 
@@ -131,11 +135,11 @@ impl PlonkProof {
         vk: &VerifyingKey<UnivariateKzgPCS<Bn254>>,
     ) -> Self {
         let RecursiveOutput { proof, pi_hash, .. } = output;
-        let vk_hash = vk.hash();
+        let vk_id = vk.id();
         Self {
             proof,
             pi_hash,
-            vk_hash,
+            vk_id,
         }
     }
 }
@@ -153,12 +157,12 @@ impl TryFrom<PlonkProof>
         let PlonkProof {
             proof,
             pi_hash,
-            vk_hash,
+            vk_id,
         } = client_proof;
 
         let transcript =
             reproduce_transcript::<UnivariateKzgPCS<Bn254>, _, Fq254, RescueTranscript<Fr254>>(
-                vk_hash, pi_hash, &proof,
+                vk_id, pi_hash, &proof,
             )?;
         Ok(RecursiveOutput {
             proof,

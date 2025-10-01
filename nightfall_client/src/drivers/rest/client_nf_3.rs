@@ -34,13 +34,12 @@ use crate::{
 use ark_bn254::Fr as Fr254;
 use ark_ec::twisted_edwards::Affine;
 use ark_ff::{BigInteger256, Zero};
-use ark_serialize::CanonicalDeserialize;
 use ark_std::{rand::thread_rng, UniformRand};
 use configuration::{addresses::get_addresses, settings::get_settings};
 use jf_primitives::poseidon::{FieldHasher, Poseidon};
-use lib::hex_conversion::HexConvertible;
+use lib::{hex_conversion::HexConvertible, serialization::ark_de_hex};
 use log::{debug, error, info};
-use nf_curves::ed_on_bn254::{BabyJubjub, Fr as BJJScalar};
+use nf_curves::ed_on_bn254::{BJJTEAffine as JubJub, BabyJubjub, Fr as BJJScalar};
 use nightfall_bindings::artifacts::{Nightfall, IERC1155, IERC20, IERC3525, IERC721};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -56,6 +55,8 @@ pub struct WithdrawResponse {
     message: String,
     pub withdraw_fund_salt: String, // Return the withdraw_fund_salt
 }
+#[derive(Deserialize)]
+struct JubJubPubKey(#[serde(deserialize_with = "ark_de_hex")] JubJub);
 // A simplified client interface, which provides Deposit, Transfer and Withdraw operations,
 // with automated commitment selection, but without the flexibility of the lower-level
 // client_operation API.
@@ -222,9 +223,6 @@ pub async fn handle_deposit<N: NightfallContract>(
         value,
         fee,
         deposit_fee,
-        secret_preimage_one,
-        secret_preimage_two,
-        secret_preimage_three,
         ..
     } = req;
 
@@ -260,39 +258,16 @@ pub async fn handle_deposit<N: NightfallContract>(
         error!("{id} Could not wrangle value {err}");
         TransactionHandlerError::CustomError(err.to_string())
     })?;
-    let (secret_preimage_one, secret_preimage_two, secret_preimage_three) =
-        if let (Some(p1), Some(p2), Some(p3)) = (
-            secret_preimage_one,
-            secret_preimage_two,
-            secret_preimage_three,
-        ) {
-            let secret_preimage_one: Fr254 =
-                Fr254::from_hex_string(p1.as_str()).map_err(|err| {
-                    error!("{id} Could not wrangle secret preimage one {err}");
-                    TransactionHandlerError::CustomError(err.to_string())
-                })?;
-            let secret_preimage_two: Fr254 = Fr254::from_hex_string(p2.as_str())
-                .map_err(|err| TransactionHandlerError::CustomError(err.to_string()))?;
-            let secret_preimage_three: Fr254 =
-                Fr254::from_hex_string(p3.as_str()).map_err(|err| {
-                    error!("{id} Could not wrangle secret preimage three {err}");
-                    TransactionHandlerError::CustomError(err.to_string())
-                })?;
-            (
-                secret_preimage_one,
-                secret_preimage_two,
-                secret_preimage_three,
-            )
-        } else {
-            info!("{id} No secret preimage found for deposit request, generating");
-            let mut rng = thread_rng();
 
-            (
-                Fr254::rand(&mut rng),
-                Fr254::rand(&mut rng),
-                Fr254::rand(&mut rng),
-            )
-        };
+    let (secret_preimage_one, secret_preimage_two, secret_preimage_three) = {
+        // RNG is Send and scoped to this block
+        let mut rng = thread_rng();
+        (
+            Fr254::rand(&mut rng),
+            Fr254::rand(&mut rng),
+            Fr254::rand(&mut rng),
+        )
+    };
 
     let secret_preimage = DepositSecret::new(
         secret_preimage_one,
@@ -366,11 +341,10 @@ pub async fn handle_deposit<N: NightfallContract>(
         .nullifier_hash(&nullifier_key)
         .expect("Could not hash commitment {}");
     let commitment_hash = preimage_value.hash().expect("Could not hash commitment");
-
     let commitment_entry =
         CommitmentEntry::new(preimage_value, nullifier, CommitmentStatus::PendingCreation);
 
-    db.store_commitment(commitment_entry.clone())
+    db.store_commitment(commitment_entry)
         .await
         .ok_or(TransactionHandlerError::DatabaseError)?;
 
@@ -482,24 +456,23 @@ where
         TransactionHandlerError::CustomError(e.to_string())
     })?;
 
-    let decoded_recipient_key = hex::decode(
-        recipient_data
-            .recipient_compressed_zkp_public_keys
-            .first()
-            .unwrap(),
-    )
-    .map_err(|e| {
-        error!("{id} Could not parse compressed recipient public key from String: {e}");
-        TransactionHandlerError::CustomError(e.to_string())
-    })?;
+    let first_key = recipient_data
+        .recipient_compressed_zkp_public_keys
+        .first()
+        .ok_or_else(|| {
+            error!("{id} No recipient public key provided");
+            TransactionHandlerError::CustomError("missing recipient public key".into())
+        })?;
 
-    let recipient_public_key = Affine::<BabyJubjub>::deserialize_compressed(
-        decoded_recipient_key.as_slice(),
-    )
-    .map_err(|e| {
-        error!("{id} Could not deserialize recipient public key: {e}");
-        TransactionHandlerError::CustomError(e.to_string())
-    })?;
+    // Create a JSON string that represents the tuple struct content
+    let json_wrapped = format!("\"{first_key}\"");
+    let deserialized_public_key: JubJubPubKey =
+        serde_json::from_str(&json_wrapped).map_err(|e| {
+            error!("{id} Could not deserialize recipient public key: {e}");
+            TransactionHandlerError::CustomError(e.to_string())
+        })?;
+
+    let recipient_public_key = deserialized_public_key.0;
 
     let ephemeral_private_key = {
         let mut rng = ark_std::rand::thread_rng(); // TODO initialise in main and pass around as a rwlock

@@ -82,12 +82,6 @@ pub struct NF3DepositRequest {
     pub value: String,
     pub fee: String,
     pub deposit_fee: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub secret_preimage_one: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub secret_preimage_two: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub secret_preimage_three: Option<String>,
 }
 
 /// structure representing an NF_3 deposit request to provide a simpler,

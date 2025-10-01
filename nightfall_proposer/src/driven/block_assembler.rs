@@ -5,12 +5,12 @@ use crate::{
     services::assemble_block::get_block_size,
 };
 use async_trait::async_trait;
+use nightfall_bindings::artifacts::{Nightfall, ProposerManager};
 
 use alloy::primitives::Bytes;
 use configuration::addresses::get_addresses;
 use lib::blockchain_client::BlockchainClientConnection;
 use log::{debug, error, warn};
-use nightfall_bindings::artifacts::{Nightfall, RoundRobin};
 use nightfall_client::{
     domain::{entities::ClientTransaction, error::ConversionError},
     driven::contract_functions::contract_type_conversions::{FrBn254, Uint256},
@@ -74,13 +74,14 @@ impl<P: Proof + Send + Sync> BlockAssemblyTrigger for SmartTrigger<P> {
             let elapsed = start.elapsed().as_secs();
             let remaining = self.max_wait_secs.saturating_sub(elapsed);
             // Re-check current proposer
-            let blockchian_client = get_blockchain_client_connection()
+            let blockchain_client = get_blockchain_client_connection()
                 .await
                 .read()
                 .await
                 .get_client();
             let round_robin_instance =
-                RoundRobin::new(get_addresses().round_robin, blockchian_client.root());
+                ProposerManager::new(get_addresses().round_robin, blockchain_client.root());
+
             let current_proposer = match round_robin_instance
                 .get_current_proposer_address()
                 .call()
@@ -107,7 +108,7 @@ impl<P: Proof + Send + Sync> BlockAssemblyTrigger for SmartTrigger<P> {
                 break; // Exit loop early
             }
             if self.status.read().await.is_running() {
-                if  self.should_assemble().await {
+                if self.should_assemble().await {
                     debug!("Trigger activated by mempool check.");
                     break;
                 }
@@ -238,7 +239,7 @@ impl<P: Proof + Send + Sync> SmartTrigger<P> {
                 64.0
             }
         };
-       (num_deposit_groups + num_client_txs) >= block_size
+        (num_deposit_groups + num_client_txs) >= block_size
     }
 }
 

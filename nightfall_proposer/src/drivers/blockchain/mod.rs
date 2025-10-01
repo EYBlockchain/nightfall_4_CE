@@ -1,2 +1,3 @@
 pub mod block_assembly;
+pub mod event_listener_manager;
 pub mod nightfall_event_listener;

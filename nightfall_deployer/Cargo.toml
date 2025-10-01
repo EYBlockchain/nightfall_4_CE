@@ -10,16 +10,18 @@ path = "bin/key_generation.rs"
 
 
 [dependencies]
+serde_json = "1.0.143"
 jf-utils = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", features = [
     "parallel",
 ] }
+anyhow = "1.0.99"
+regex = "1.11.2"
 itertools = "0.10.5"
 dotenv = "0.15.0"
 alloy = { version = "1.0.23", features = ["full"] }
 alloy-node-bindings =  "1.0.23"
 tokio = { version = "1.45.0", features = ["full"] }
 ethers-solc = "2.0.14"
-serde_json = "1.0.140"
 configuration = { path = "../configuration" }
 nightfall_bindings = { path = "../nightfall_bindings" }
 lib = { path = "../lib" }
