@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.9;
 
-import './X509/SanctionsListInterface.sol';
+import "./X509/SanctionsListInterface.sol";
 
 contract SanctionsListMock is SanctionsListInterface {
     address sanctionedUser;

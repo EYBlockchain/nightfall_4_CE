@@ -13,10 +13,15 @@ contract ERC1155Mock is ERC1155 {
         address initialOwner
     ) ERC1155("ERC1155Mock") {
         mint(initialOwner, spender, initial_id, value);
-        mint(initialOwner, spender,  initial_id_two, value_two);
+        mint(initialOwner, spender, initial_id_two, value_two);
     }
 
-    function mint(address owner, address spender, uint256 tokenId, uint256 value) public {
+    function mint(
+        address owner,
+        address spender,
+        uint256 tokenId,
+        uint256 value
+    ) public {
         ERC1155._setApprovalForAll(owner, spender, true);
         ERC1155._mint(owner, tokenId, value, "");
     }

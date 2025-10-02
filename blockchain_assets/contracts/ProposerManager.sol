@@ -20,6 +20,6 @@ interface ProposerManager {
     function rotate_proposer() external;
     function add_proposer(string calldata proposer_url) external payable;
     function remove_proposer() external;
-    function get_current_proposer_address() external view returns(address);
+    function get_current_proposer_address() external view returns (address);
     function get_proposers() external view returns (Proposer[] memory);
 }

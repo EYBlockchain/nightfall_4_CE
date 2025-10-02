@@ -79,6 +79,18 @@ where
                         EventHandlerError::InvalidCalldata
                     })?;
             }
+            Nightfall::NightfallEvents::Initialized(_filter) => {
+                info!("Received Initialized event");
+            }
+            Nightfall::NightfallEvents::Upgraded(_filter) => {
+                info!("Received Upgraded event");
+            }
+            Nightfall::NightfallEvents::AuthoritiesUpdated(_filter) => {
+                info!("Received AuthoritiesUpdated event");
+            }
+            Nightfall::NightfallEvents::OwnershipTransferred(_filter) => {
+                info!("Received OwnershipTransferred event");
+            }
         }
         Ok(())
     }

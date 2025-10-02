@@ -1,3 +1,4 @@
+use crate::domain::error::ProposerRejection;
 use crate::drivers::rest::{
     block_data::get_block_data, client_transactions::client_transaction,
     proposers::rotate_proposer, synchronisation::synchronisation,
@@ -14,8 +15,6 @@ use warp::{
     reply::{self, Reply},
     Filter,
 };
-
-use crate::domain::error::ProposerRejection;
 
 pub mod block_assembly;
 pub mod block_data;

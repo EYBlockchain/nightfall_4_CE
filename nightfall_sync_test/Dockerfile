@@ -4,8 +4,6 @@ FROM rust:1.88.0 AS runtime
 COPY ./configuration/trust/* /usr/local/share/ca-certificates/
 RUN chmod 644 /usr/local/share/ca-certificates/* && update-ca-certificates
 
- 
-
 WORKDIR /app
 RUN mkdir bin
 COPY --exclude=configuration/bin/* . .

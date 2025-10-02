@@ -14,7 +14,7 @@ contract ERC3525Mock is ERC3525 {
         uint256 slot,
         address initialOwner
     ) ERC3525("ERC3525Mock", "ERC3525", 100) {
-        mint(spender,initialOwner, initial_id, slot, value);
+        mint(spender, initialOwner, initial_id, slot, value);
         mint(spender, initialOwner, initial_id_two, slot, value_two);
     }
 

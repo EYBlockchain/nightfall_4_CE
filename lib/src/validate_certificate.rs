@@ -10,7 +10,7 @@ use log::{debug, error, trace, warn};
 use nightfall_bindings::artifacts::X509;
 use reqwest::StatusCode;
 use std::io::Read;
-use warp::{path, reply::Reply, Buf, Filter};
+use warp::{filters::multipart::FormData, path, reply::Reply, Buf, Filter};
 use x509_parser::nom::AsBytes;
 #[derive(Debug)]
 pub struct X509ValidationError;
@@ -34,7 +34,7 @@ pub fn certification_validation_request(
 
 // Middleware to validate the certificate
 pub async fn handle_certificate_validation(
-    mut x509_data: warp::multipart::FormData,
+    mut x509_data: FormData,
 ) -> Result<impl Reply, warp::Rejection> {
     // Parse the certificate validation request (by FIELD NAME, not filename)
     let mut certificate_req = CertificateReq::default();
@@ -181,7 +181,6 @@ pub async fn handle_certificate_validation(
     }));
     Ok(warp::reply::with_status(body, StatusCode::ACCEPTED))
 }
-
 // Function to perform certificate validation via smart contract
 async fn validate_certificate(
     x509_contract_address: Address,
@@ -192,12 +191,14 @@ async fn validate_certificate(
     oid_group: u32,
     sender_address: Address,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let client = get_blockchain_client_connection()
+    let read_connection = get_blockchain_client_connection()
         .await
         .read()
-        .await
-        .get_client();
-    let blockchain_client = client.root();
+        .await;
+    let provider = read_connection.get_client();
+    let blockchain_client = provider.root();
+    let caller = read_connection.get_address();
+
 
     let x509_instance = X509::new(x509_contract_address, blockchain_client);
 
@@ -219,6 +220,7 @@ async fn validate_certificate(
 
     let tx_receipt = x509_instance
         .validateCertificate(certificate_args)
+        .from(caller)
         .send()
         .await
         .map_err(|e| {

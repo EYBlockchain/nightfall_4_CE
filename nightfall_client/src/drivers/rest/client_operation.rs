@@ -27,7 +27,7 @@ use lib::{
 };
 use log::{debug, error, info, warn};
 use nf_curves::ed_on_bn254::Fr as BJJScalar;
-use nightfall_bindings::artifacts::RoundRobin;
+use nightfall_bindings::artifacts::ProposerManager;
 use reqwest::{Client, Error as ReqwestError};
 use serde::Serialize;
 use std::{error::Error, fmt::Debug, time::Duration};
@@ -172,7 +172,7 @@ fn is_retriable_error(err: &ReqwestError) -> bool {
 }
 async fn send_to_proposer_with_retry<P: Serialize + Sync>(
     client: &Client,
-    proposer: RoundRobin::Proposer,
+    proposer: ProposerManager::Proposer,
     l2_transaction: &ClientTransaction<P>,
     id: &str,
     max_retries: u32,
@@ -187,7 +187,15 @@ async fn send_to_proposer_with_retry<P: Serialize + Sync>(
     };
 
     for attempt in 1..=max_retries {
-        match client.post(url.clone()).json(l2_transaction).send().await {
+        let body = serde_json::to_string(l2_transaction).unwrap();
+        let resp = client
+            .post(url.clone())
+            .header("Content-Type", "application/json")
+            .header("Content-Length", body.len().to_string()) // force length
+            .body(body)
+            .send()
+            .await;
+        match resp {
             Ok(response) => {
                 let status = response.status();
                 if status.is_success() {
@@ -250,15 +258,15 @@ pub async fn process_transaction_offchain<P: Serialize + Sync>(
     const INITIAL_BACKOFF: Duration = Duration::from_millis(500);
 
     let client = Client::new();
+
     let blockchain_client = get_blockchain_client_connection()
         .await
         .read()
         .await
         .get_client();
     let round_robin_instance =
-        RoundRobin::new(get_addresses().round_robin, blockchain_client.root());
-
-    let proposers_struct: Vec<RoundRobin::Proposer> =
+        ProposerManager::new(get_addresses().round_robin, blockchain_client.root());
+    let proposers_struct: Vec<ProposerManager::Proposer> =
         round_robin_instance.get_proposers().call().await?;
     let db = get_db_connection().await;
 

@@ -22,7 +22,7 @@ use self::{
     withdraw::de_escrow,
 };
 
-mod balance;
+pub mod balance;
 pub mod client_nf_3;
 pub mod client_operation;
 mod commitment;
