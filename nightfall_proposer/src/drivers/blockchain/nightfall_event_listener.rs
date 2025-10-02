@@ -162,10 +162,7 @@ where
                 }
             }
         } else {
-            println!(
-                "Start block {} is greater than latest block {}. No past events to process.",
-                start_block, latest_block
-            );
+            println!( "Start block {start_block} is greater than latest block {latest_block}. No past events to process.");
         }
     }
 
