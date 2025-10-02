@@ -108,22 +108,22 @@ async fn handle_add_proposer(url: String) -> Result<impl Reply, warp::Rejection>
     //         ProposerError::ProviderError(e.to_string())
     //     })?;
     // // add the proposer
-    // let tx = proposer_manager
-    //     .add_proposer(url)
-    //     .value(U256::from(get_settings().nightfall_deployer.proposer_stake))
-    //     .from(caller)
-    //     .send()
-    //     .await
-    //     .map_err(|e| {
-    //         warn!("{e}");
-    //         ProposerRejection::FailedToAddProposer
-    //     })?
-    //     .get_receipt()
-    //     .await
-    //     .map_err(|e| {
-    //         warn!("Failed to get transaction receipt: {e}");
-    //         ProposerError::ProviderError(e.to_string())
-    //     })?;
+    let tx = proposer_manager
+        .add_proposer(url)
+        .value(U256::from(get_settings().nightfall_deployer.proposer_stake))
+        .from(caller)
+        .send()
+        .await
+        .map_err(|e| {
+            warn!("{e}");
+            ProposerRejection::FailedToAddProposer
+        })?
+        .get_receipt()
+        .await
+        .map_err(|e| {
+            warn!("Failed to get transaction receipt: {e}");
+            ProposerError::ProviderError(e.to_string())
+        })?;
     if tx.status() {
         info!("Registered proposer with address: {:?}", tx.from);
         Ok(StatusCode::OK)
@@ -211,21 +211,21 @@ async fn handle_remove_proposer() -> Result<impl Reply, warp::Rejection> {
     //     })?;
 
     // // remove the proposer
-    // let tx = proposer_manager
-    //     .remove_proposer()
-    //     .from(signer_address)
-    //     .send()
-    //     .await
-    //     .map_err(|_e| {
-    //         warn!("Failed to remove proposer");
-    //         ProposerRejection::FailedToRemoveProposer
-    //     })?
-    //     .get_receipt()
-    //     .await
-    //     .map_err(|e| {
-    //         warn!("Failed to get transaction receipt: {e}");
-    //         ProposerError::ProviderError(e.to_string())
-    //     })?;
+    let tx = proposer_manager
+        .remove_proposer()
+        .from(signer_address)
+        .send()
+        .await
+        .map_err(|_e| {
+            warn!("Failed to remove proposer");
+            ProposerRejection::FailedToRemoveProposer
+        })?
+        .get_receipt()
+        .await
+        .map_err(|e| {
+            warn!("Failed to get transaction receipt: {e}");
+            ProposerError::ProviderError(e.to_string())
+        })?;
     if tx.status() {
         info!("Removed proposer with address: {:?}", tx.from);
         Ok(StatusCode::OK)
