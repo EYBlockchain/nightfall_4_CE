@@ -1,6 +1,30 @@
 # Nightfall Client Playbook — Plume Testnet
 
-Clients are the application that normal users will employ to make transactions that are hidden by ZKP.
+For Plume documentation and testnet details refer this, https://docs.plume.org/plume/developers/network-information
+
+Clients are the application that normal users will employ to make transactions that are hidden by ZKP. the user can intitiate three types of transaction via the `client`:
+
+1. Deposit: This will pass a payment from the user to the Nightfall smart contract (an escrow transaction). It will create a pending deposit which will later be picked up by the proposer and turned into deposit commitment(s) with an associated proof (this enables a deposit to be treated as a special case of a transfer transaction). User can deposit a fee in a deposit request which can be used to pay other transactions in the future, but it's not compulsory. If user deposit a so-called `deposit_fee`, then this deposit request will generate two commitments: one deposit commitment represents the `value` of the token the user intends to deposit, while the other is a `deposit_fee` commitment, which represents the fee the user deposits into Nightfall to pay the proposer for future transactions. If `deposit_fee == 0`, then there is only one value deposit commitment.
+
+2. Transfer: This operation will select one or two existing commitments of suitable value (sum equal to or greater than the transfer value, with the tokenId matching the tokenId to be transferred). In addition to the transfer value, it will also account for the required fee. Two new output commitments will be created: one for the new owner receiving the transferred commitment, and the other for any change returned to the original owner of the input commitments. A separate fee commitment and fee change commitment will also be generated. All of these commitments will be validated by creating an UltraPlonk proof, ensuring that the operation is correct. The resulting commitments and proof are wrapped into a `ClientTransaction<P>` struct, which is then sent to one or more `proposer`s for inclusion in a Layer 2 block.
+
+3. Withdraw: This is a special case of a Transfer but, rather than output commitments being created, suffienct funds are de-escrowed for the recipient to withdraw the amount they are being paid from the Nightfall contract.
+
+*Note that all of these transactions expect a `X-Request-ID` header to be provided in UUID v4 format, and will fail with a bad request if this is not provided. The value of this header will be reported in log messages and returned with the response.*
+
+### Prerequisites for local installation
+
+The following applications are required:
+
+- forge >=0.2.0
+- anvil >=0.2.0
+- docker
+- openssl
+- rust >=1.81.0 +nightly (nightly features are required for using certain unstable options (such as ignore in `rustfmt.toml`) when running `cargo +nightly fmt`. The normal `cargo fmt` on the stable toolchain will ignore these unstable features but will still format the rest of the code).
+- git
+
+forge and anvil can be installed as part of the [Foundry](https://github.com/foundry-rs/foundry) suite.
+
 ## 1) Get the source
 
 ```bash
@@ -20,6 +44,11 @@ Make sure you pulled the latest changes.
 docker compose --profile indie-client down -v
 # DANGER: removes images, containers, networks, and volumes
 docker system prune -a --volumes
+
+# Clean the previous state
+forge clean && forge build
+cargo clean && cargo build
+
 ```
 
 ---

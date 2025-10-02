@@ -1,8 +1,23 @@
-### How to run a proposer node
+### How to run a proposer node for Plume testnet
+
+For Plume documentation and testnet details refer this, https://docs.plume.org/plume/developers/network-information
 
 The purpose of the `proposer` is to make Layer 2 blocks. It makes an endpoint available to `clients`. Clients are the application that normal users will employ to make transactions that are hidden by ZKP.
 
 Do not forget that the `proposer` will need to run on a large server (144 cores, 750GB RAM is a good size). Moreover, expose the port `3001` of that large server, so the clients nodes can reach you.
+
+### Prerequisites for local installation
+
+The following applications are required:
+
+- forge >=0.2.0
+- anvil >=0.2.0
+- docker
+- openssl
+- rust >=1.81.0 +nightly (nightly features are required for using certain unstable options (such as ignore in `rustfmt.toml`) when running `cargo +nightly fmt`. The normal `cargo fmt` on the stable toolchain will ignore these unstable features but will still format the rest of the code).
+- git
+
+forge and anvil can be installed as part of the [Foundry](https://github.com/foundry-rs/foundry) suite. 
 
 ## 1) Get the source
 
@@ -20,6 +35,11 @@ git checkout plume_testnet_proposer
 docker compose --profile indie-proposer down -v
 # DANGER: removes images, containers, networks, and volumes
 docker system prune -a --volumes
+
+# Clean the previous state
+forge clean && forge build
+cargo clean && cargo build
+
 ```
 
 ---
