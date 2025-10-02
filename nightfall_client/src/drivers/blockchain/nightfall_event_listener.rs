@@ -3,9 +3,8 @@ use crate::{
         entities::{OnChainTransaction, SynchronisationPhase, SynchronisationStatus},
         error::EventHandlerError,
     },
-    driven::db::mongo::{BlockStorageDB, StoredBlock},
-    driven::event_handlers::nightfall_event::get_expected_layer2_blocknumber,
-    drivers::blockchain::nightfall_event_listener::SynchronisationPhase::Synchronized,
+    driven::{db::mongo::{BlockStorageDB, StoredBlock}, event_handlers::nightfall_event::get_expected_layer2_blocknumber},
+    drivers::blockchain::{event_listener_manager::restart, nightfall_event_listener::SynchronisationPhase::Synchronized},
     initialisation::get_db_connection,
     ports::{contracts::NightfallContract, trees::CommitmentTree},
     services::process_events::process_events,
@@ -91,30 +90,77 @@ pub async fn listen_for_events<N: NightfallContract>(
         "Listening for events on the Nightfall contract at address: {}",
         get_addresses().nightfall()
     );
-
-    // get the events from the Nightfall contract from the specified start block
-
-    // Subscribe to the combined events filter
+ 
     let events_filter = Filter::new()
-        .address(get_addresses().nightfall())
-        .event_signature(vec![
-            Nightfall::BlockProposed::SIGNATURE_HASH,
-            Nightfall::DepositEscrowed::SIGNATURE_HASH,
-            Nightfall::Initialized::SIGNATURE_HASH,
-            Nightfall::Upgraded::SIGNATURE_HASH,
-            Nightfall::AuthoritiesUpdated::SIGNATURE_HASH,
-            Nightfall::OwnershipTransferred::SIGNATURE_HASH,
-        ])
-        .from_block(start_block as u64);
-
+    .address(get_addresses().nightfall())
+    .event_signature(vec![
+        Nightfall::BlockProposed::SIGNATURE_HASH,
+        Nightfall::DepositEscrowed::SIGNATURE_HASH,
+        Nightfall::Initialized::SIGNATURE_HASH,
+        Nightfall::Upgraded::SIGNATURE_HASH,
+        Nightfall::AuthoritiesUpdated::SIGNATURE_HASH,
+        Nightfall::OwnershipTransferred::SIGNATURE_HASH,
+    ])
+    .from_block(start_block as u64);
+{
+ 
+    let latest_block = blockchain_client
+        .get_block_number()
+        .await
+        .expect("could not get latest block number");
+   
+ 
+    if latest_block >= start_block as u64 {
+        let past_events = blockchain_client
+            .get_logs(&events_filter.clone().to_block(latest_block))
+            .await
+            .expect("could not get past events");
+        // if !past_events.is_empty() {
+        //     set_synching
+        // }
+        log::info!("Found {} past events to process", past_events.len());
+        for evt in past_events {
+            let event = match Nightfall::NightfallEvents::decode_log(&evt.inner) {
+                Ok(e) => e,
+                Err(e) => {
+                    warn!("Failed to decode log: {e:?}");
+                    continue; // Skip malformed events
+                }
+            };
+            let result = process_events::<N>(event.data, evt).await;
+            match result {
+                Ok(_) => continue,
+                Err(e) => {
+                    match e {
+                        // we're missing blocks, so we need to re-synchronise
+                        EventHandlerError::MissingBlocks(n) => {
+                            warn!("Missing blocks. Last contiguous block was {n}. Restarting event listener");
+                            restart::<N>().await;
+                            return Err(EventHandlerError::StreamTerminated);
+                        }
+                        _ => panic!("Error processing event: {e:?}"),
+                    }
+                }
+            }
+        }
+    } else {
+        println!("Start block {} is greater than latest block {}. No past events to process.", start_block, latest_block);
+    }
+}
+ 
     // Subscribe to the combined events filter
     let events_subscription = blockchain_client
         .subscribe_logs(&events_filter)
         .await
         .map_err(|_| EventHandlerError::NoEventStream)?;
-
+    // let events_subscription = blockchain_client.subscribe(params![events_filter])
+    //     .await
+    //     .map_err(|_| EventHandlerError::NoEventStream)?;
+    // println!("Subscribed to events {:?}", events_subscription);
+ 
     let mut events_stream = events_subscription.into_stream();
-
+    println!("Subscribed to events.");
+ 
     while let Some(evt) = events_stream.next().await {
         // process each event in the stream and handle any errors
         let event = match Nightfall::NightfallEvents::decode_log(&evt.inner) {
@@ -132,7 +178,7 @@ pub async fn listen_for_events<N: NightfallContract>(
                     // we're missing blocks, so we need to re-synchronise
                     EventHandlerError::MissingBlocks(n) => {
                         warn!("Missing blocks. Last contiguous block was {n}. Restarting event listener");
-                        restart_event_listener::<N>(start_block).await;
+                        restart::<N>().await;
                         return Err(EventHandlerError::StreamTerminated);
                     }
                     _ => panic!("Error processing event: {e:?}"),
@@ -140,7 +186,7 @@ pub async fn listen_for_events<N: NightfallContract>(
             }
         }
     }
-
+ 
     Err(EventHandlerError::StreamTerminated)
 }
 
