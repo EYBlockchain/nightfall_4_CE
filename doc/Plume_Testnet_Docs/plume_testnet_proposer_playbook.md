@@ -31,7 +31,7 @@ This will download a large file (approximately 12GB):
 cargo run --release --bin key_generation
 ```
 
-or you can get the keys using the configuartion url, `curl -v http://35.225.105.10:8080/<key_name> -o configuration/bin/<key_name>
+or you can get the keys using the configuration url, `curl -v http://35.225.105.10:8080/<key_name> -o configuration/bin/<key_name>
 where you need to it for following keys  
 ```bash
 base_bn254_pk    
