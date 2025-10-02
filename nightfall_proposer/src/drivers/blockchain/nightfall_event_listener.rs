@@ -116,6 +116,58 @@ where
             Nightfall::OwnershipTransferred::SIGNATURE_HASH,
         ])
         .from_block(start_block as u64);
+    {
+        let latest_block = blockchain_client
+            .get_block_number()
+            .await
+            .expect("could not get latest block number");
+
+        if latest_block >= start_block as u64 {
+            let past_events = blockchain_client
+                .get_logs(&events_filter.clone().to_block(latest_block))
+                .await
+                .expect("could not get past events");
+            log::info!("Found {} past events to process", past_events.len());
+            for evt in past_events {
+                let event = match Nightfall::NightfallEvents::decode_log(&evt.inner) {
+                    Ok(e) => e,
+                    Err(e) => {
+                        warn!("Failed to decode log: {e:?}");
+                        continue; // Skip malformed events
+                    }
+                };
+                let result = process_events::<P, E, N>(event.data, evt).await;
+                match result {
+                    Ok(_) => continue,
+                    Err(e) => {
+                        match e {
+                            // we're missing blocks, so we need to re-synchronise
+                            EventHandlerError::MissingBlocks(n) => {
+                                warn!("Missing blocks. Last contiguous block was {n}. Restarting event listener");
+                                restart_event_listener::<P, E, N>(start_block).await;
+                                return Err(EventHandlerError::StreamTerminated);
+                            }
+
+                            EventHandlerError::BlockHashError(expected, found) => {
+                                warn!(
+                                    "Block hash mismatch: expected {expected:?}, found {found:?}. Restarting event listener"
+                                );
+                                restart_event_listener::<P, E, N>(start_block).await;
+                                return Err(EventHandlerError::StreamTerminated);
+                            }
+
+                            _ => panic!("Error processing event: {e:?}"),
+                        }
+                    }
+                }
+            }
+        } else {
+            println!(
+                "Start block {} is greater than latest block {}. No past events to process.",
+                start_block, latest_block
+            );
+        }
+    }
 
     // Subscribe to the combined events filter
     let events_subscription = blockchain_client
