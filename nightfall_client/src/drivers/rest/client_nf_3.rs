@@ -494,6 +494,9 @@ where
 
     // Create a JSON string that represents the tuple struct content
     let json_wrapped = format!("\"{first_key}\"");
+
+    // Note: ark_de_hex deserialization additionally ensures the point is on-curve and in correct subgroup
+    // Unit tests verify this validation behavior remains consistent
     let deserialized_public_key: JubJubPubKey =
         serde_json::from_str(&json_wrapped).map_err(|e| {
             error!("{id} Could not deserialize recipient public key: {e}");
@@ -501,6 +504,12 @@ where
         })?;
 
     let recipient_public_key = deserialized_public_key.0;
+
+    // Check that the recipient public key is not the identity point 
+    if recipient_public_key.is_zero() {
+        error!("{id} Recipient public key cannot be the identity point");
+        return Err(TransactionHandlerError::CustomError("Recipient public key cannot be the identity point".to_string()));
+    }
 
     let ephemeral_private_key = {
         let mut rng = ark_std::rand::thread_rng(); // TODO initialise in main and pass around as a rwlock
