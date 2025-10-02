@@ -74,13 +74,13 @@ services:
         condition: service_healthy
     tty: true # required for logs to print in colour
     environment:
-      - NF4_RUN_MODE=${NF4_RUN_MODE:-base_sepolia}
+      - NF4_RUN_MODE=${NF4_RUN_MODE:-plume_testnet}
       - RUST_BACKTRACE=${RUST_BACKTRACE:-0}
       - NF4_SIGNING_KEY=${CLIENT_SIGNING_KEY}
       - NF4_NIGHTFALL_CLIENT__DB_URL=mongodb://nf4_db_client:27017
       - NF4_ETHEREUM_CLIENT_URL
       - NF4_MOCK_PROVER=${NF4_MOCK_PROVER:-false}
-      - NF4_NIGHTFALL_PROPOSER__URL= ${NF4_NIGHTFALL_PROPOSER__URL:-localhost:3001}
+      - NF4_NIGHTFALL_PROPOSER__URL= ${NF4_NIGHTFALL_PROPOSER__URL:-http://35.225.105.10:3001}
 
   client2:
     container_name: nf4_client2
@@ -221,7 +221,6 @@ services:
       - sync_test
     build:
       dockerfile: nightfall_proposer/Dockerfile
-      context: .
     platform: linux/amd64 # Required for building on M1 Macs
     ports:
       - "3003:3000"
@@ -280,8 +279,8 @@ services:
       - "27017:27017"    
     networks:
       - nightfall_network
-  #  volumes:
-  #    - mongodb_client_data:/data/db
+    volumes:
+      - mongodb_client_data:/data/db
     environment:
       - NF4_RUN_MODE=${NF4_RUN_MODE:-development}
 
@@ -553,7 +552,7 @@ services:
         condition: service_healthy
     
 volumes:
-  # mongodb_client_data:
+  mongodb_client_data:
   # mongodb_client2_data:
   # mongodb_proposer_data:
   address_data:

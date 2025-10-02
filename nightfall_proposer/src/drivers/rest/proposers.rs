@@ -60,10 +60,7 @@ pub fn add_proposer() -> impl Filter<Extract = impl warp::Reply, Error = warp::R
 
 async fn handle_add_proposer(url: String) -> Result<impl Reply, warp::Rejection> {
     // get a ManageProposers instance
-    let read_connection = get_blockchain_client_connection()
-            .await
-            .read()
-            .await;
+    let read_connection = get_blockchain_client_connection().await.read().await;
     let blockchain_client = read_connection.get_client();
     let caller = read_connection.get_address();
     let client = blockchain_client.root();
@@ -104,10 +101,7 @@ pub fn remove_proposer() -> impl Filter<Extract = impl warp::Reply, Error = warp
 
 async fn handle_remove_proposer() -> Result<impl Reply, warp::Rejection> {
     // get a ManageProposers instance
-    let read_connection = get_blockchain_client_connection()
-            .await
-            .read()
-            .await;
+    let read_connection = get_blockchain_client_connection().await.read().await;
     let blockchain_client = read_connection.get_client();
     let signer_address = read_connection.get_address();
     let client = blockchain_client.root();
@@ -170,10 +164,7 @@ pub fn withdraw() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejec
 
 async fn handle_withdraw(amount: u64) -> Result<impl Reply, warp::Rejection> {
     // get a ManageProposers instance
-    let read_connection = get_blockchain_client_connection()
-            .await
-            .read()
-            .await;
+    let read_connection = get_blockchain_client_connection().await.read().await;
     let blockchain_client = read_connection.get_client();
     let caller = read_connection.get_address();
     let proposer_manager = RoundRobin::new(get_addresses().round_robin, blockchain_client.root());

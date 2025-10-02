@@ -10,3 +10,6 @@ LICENSE
 remappings.txt
 **/*.ptau
 nightfall_bindings/build.rs
+.venv
+__pycache__/
+*.pyc
