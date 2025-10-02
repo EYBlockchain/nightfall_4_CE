@@ -1,7 +1,9 @@
+use crate::drivers::DOMAIN_SHARED_SALT;
 use ark_ec::twisted_edwards::Affine as TEAffine;
 use ark_ff::{BigInteger, One, PrimeField, Zero};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use jf_primitives::poseidon::{FieldHasher, Poseidon, PoseidonError};
+use log::error;
 use nf_curves::ed_on_bn254::{BabyJubjub, Fq as Fr254, Fr as BJJScalar};
 
 use super::*;
@@ -98,7 +100,17 @@ pub fn kemdem_decrypt(
         let tmp: Fr254 = poseidon.hash(&[decryption_key, DOMAIN_DEM, Fr254::from(i as u64)])?;
         plain_text.push(*cipher - tmp);
     }
-    plain_text.push(shared_secret.y);
+
+    let poseidon = Poseidon::<Fr254>::new();
+    // Derive a shared salt from the shared secret using domain-separated Poseidon hash.
+    let shared_salt = poseidon
+        .hash(&[shared_secret.x, shared_secret.y, DOMAIN_SHARED_SALT])
+        .map_err(|e| {
+            error!("Failed to derive shared salt with Poseidon: {e}");
+            PoseidonError::InvalidInputs
+        })?;
+
+    plain_text.push(shared_salt);
     Ok(plain_text)
 }
 
@@ -149,7 +161,12 @@ mod tests {
         let shared_secret: TEAffine<BabyJubjub> =
             (recipient_public_key * ephemeral_private_key).into();
 
-        assert_eq!(shared_secret.y, decrypted[3]);
+        let poseidon = Poseidon::<Fr254>::new();
+        // Derive a shared salt from the shared secret using domain-separated Poseidon hash.
+        let shared_salt = poseidon
+            .hash(&[shared_secret.x, shared_secret.y, DOMAIN_SHARED_SALT])
+            .unwrap();
+        assert_eq!(shared_salt, decrypted[3]);
     }
 
     #[test]
