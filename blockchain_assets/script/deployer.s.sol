@@ -523,7 +523,7 @@ contract Deployer is Script {
             nightfallRootPublicKey,
             authorityKeyIdentifier
         );
-        x509Contract.enableAllowlisting(true);
+        x509Contract.enableAllowlisting(false);
 
         _configureExtendedKeyUsages(x509Contract, toml);
         _configureCertificatePolicies(x509Contract, toml);

@@ -1,5 +1,4 @@
 FROM nginx:latest
-
 # Install additional CA certificates if needed
 COPY ./configuration/trust/* /usr/local/share/ca-certificates/
 RUN chmod 644 /usr/local/share/ca-certificates/* && update-ca-certificates || true

@@ -203,6 +203,87 @@ certificate_policies = [
     "0x06032d0607000000000000000000000000000000000000000000000000000000",
 ]
 
+[plume_testnet]
+# This is the plume_testnet environment - add an appropriate configuration here, using development as a template
+signing_key = "Key not set" #key (0)
+azure_vault_url = "vault url is not set"
+azure_key_name = "key name not set"
+log_app_only = true
+test_x509_certificates = true
+mock_prover = false
+genesis_block = 0
+ethereum_client_url = "wss://testnet-rpc.plume.org"
+configuration_url = "http://35.225.105.10:8080" # The name of the proposer config to use can be overridden by env var NF4_PROPOSER_CONFIG
+
+[plume_testnet.network]
+chain_id = 98867 
+
+[plume_testnet.nightfall_client]
+url = "http://client:3000"
+log_level = "info"
+wallet_type = "local"
+db_url = "mongodb://nf4_db_client:27017"
+max_event_listener_attempts = 10
+webhook_url = "http://172.18.0.250:8080/webhook" # The webhook URL for the client to send notifications to the propose
+max_queue_size = 1000
+
+[plume_testnet.nightfall_proposer]
+url = "http://35.225.105.10:3001"
+log_level = "info"
+wallet_type = "local"
+db_url = "mongodb://nf4_db_proposer:27017"
+block_assembly_max_wait_secs = 120 
+block_assembly_target_fill_ratio = 0.25 
+block_assembly_initial_interval_secs = 15
+max_event_listener_attempts = 10
+block_size = 64
+
+
+[plume_testnet.nightfall_deployer]
+log_level = "info"
+default_proposer_address = "0xd1Fe296737888f2310EDD943bc6342a41d8Da409"
+default_proposer_url = "http://35.225.105.10:3001"
+proposer_stake = 4
+proposer_ding = 3                                                       # how much to fine a proposer for not making a block
+proposer_exit_penalty = 2                                               # how much to fine a proposer for deregister during its turn
+proposer_cooling_blocks = 4                                             # how many blocks before a de-registered proposer can register again
+proposer_rotation_blocks = 4                                            # how many blocks before we rotate proposers
+
+[plume_testnet.nightfall_test]
+log_level = "info"
+
+[plume_testnet.owners]
+vk_provider_owner = "0x32fE75423eFaC83B636E41115152A0Fe6D14C7c2"  
+x509_owner = "0x32fE75423eFaC83B636E41115152A0Fe6D14C7c2"  
+verifier_owner = "0x32fE75423eFaC83B636E41115152A0Fe6D14C7c2"  
+round_robin_owner = "0x32fE75423eFaC83B636E41115152A0Fe6D14C7c2"
+nightfall_owner = "0x32fE75423eFaC83B636E41115152A0Fe6D14C7c2"
+
+[plume_testnet.contracts]
+assets = "./blockchain_assets/artifacts"
+rust_bindings = "./nightfall_bindings"
+addresses_file = "configuration/toml/addresses.toml"
+deployment_file = "./blockchain_assets/logs/deployer.s.sol"
+deploy_contracts = true
+
+[plume_testnet.contracts.contract_addresses] # Contract addresses for the development network. These are used if deploy_contracts is false and they are not empty
+nightfall = ""
+round_robin = ""
+x509 = ""
+
+[plume_testnet.certificates]
+authority_key_identifier = "0xA469FF28BFAB9C4DB09220B24038D6F18EA57F75"
+modulus = "0x009DEA9DCA80BFA87C29232B18D6C0072898922A7E7E224A7FF638F61851B5F36392E7FBFDBFF3A0AE409763E2A04CDD3DC692A6DE447391FFE6722456957DD7F031B8D9A7999579F6F4258490AE6E9D629BC40815F689C58037C03B46502243BFD29B02116454453810D160DE1D8C8DDD624B30A25A011185E60BCA9BF71181DD3256112F1EFDBECF19E77AF9640EDE4DB8FF51855E6B490424FC4F5631DD9551D7CD762420E3AFA0B20E6B403A0CB71FA16861F8C591B2BD7BDD564EC6D5A17A932E310876D1D65AF3F3F213D1C49086F32C7C8A0F53750127DF8709F6035688E02E613F1C57A525A21DD83FA27D0622FC0EFC76ABA114194A7FDA1B0879013D0790F3B8D387ACA238FC37135F9BA6BB0C87A972143568B010B62EE8BA71C78202858170F292596AD95DD4FA2DC8E9ABA359B8F511B5F3894906F3FD0A22CA3DEB2E67B2A97CD2B847AC73BE28F69996A4CF51B6FD87B9F932F6049F886AC5A7725755693842DF00795A9D00C76E2C4446BDDA5E595CBE8CDF51E050632DB110D155343188A57F273B4334E5DA5EC556AD3CADC3327268DC0C528FE41F837A393B5B2F76E476CFA64A2A24BA71F5F7078F5360EBF316D4275AB292B031B9CF8787ACB009D3DC5DCD5038C05E1B2225909E596DFE2E968CFAE077FDFF540E3F78FC464966BB19E280DE34F81079B9DCA111904CDC7C5B6FD5CD44A215B0B5A6A9"
+exponent = 65537
+extended_key_usages = [
+    "0x06082b0601050507030400000000000000000000000000000000000000000000",
+    "0x06082b0601050507030800000000000000000000000000000000000000000000",
+]
+certificate_policies = [
+    "0x06032d0607000000000000000000000000000000000000000000000000000000",
+]
+
+
 [production]
 # This is the production environment - add an appropriate configuration here, using development as a template
 
