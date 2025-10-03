@@ -1,7 +1,10 @@
-use bip32::DerivationPath;
-use warp::{hyper::StatusCode, path, reject, reply, Filter, Reply};
+use bip32::{DerivationPath, Mnemonic};
+use warp::{hyper::StatusCode, path, reject, reply, Filter, Reply, Rejection};
 
-use crate::drivers::derive_key::ZKPKeys;
+use crate::{
+    drivers::derive_key::ZKPKeys,
+    get_zkp_keys,
+};
 
 use super::models::KeyRequest;
 
@@ -15,22 +18,33 @@ pub fn derive_key_mnemonic(
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     path!("v1" / "deriveKey")
         .and(warp::post())
-        .and(warp::body::json())
+        // make body optional
+        .and(warp::body::json().map(Some).or_else(|_| async { Ok::<(Option<KeyRequest>,), Rejection>((None,)) }))
         .and_then(handle_derive_key)
 }
 
-pub async fn handle_derive_key(key_request: KeyRequest) -> Result<impl Reply, warp::Rejection> {
-    let valid_mnemonic = bip32::Mnemonic::new(key_request.mnemonic, Default::default())
-        .map_err(|_| reject::custom(BadKeyRequest))?;
-    let valid_derivation_path: DerivationPath = key_request
-        .child_path
-        .parse()
-        .map_err(|_| reject::custom(BadKeyRequest))?;
+pub async fn handle_derive_key(key_request: Option<KeyRequest>) -> Result<impl Reply, warp::Rejection> {
+    if let Some(req) = key_request {
+        // validate mnemonic and path
+        let valid_mnemonic = Mnemonic::new(req.mnemonic, Default::default())
+            .map_err(|_| reject::custom(BadKeyRequest))?;
+        let valid_derivation_path: DerivationPath = req
+            .child_path
+            .parse()
+            .map_err(|_| reject::custom(BadKeyRequest))?;
 
-    if let Ok(key) = ZKPKeys::derive_from_mnemonic(&valid_mnemonic, &valid_derivation_path) {
-        Ok(reply::with_status(reply::json(&key), StatusCode::OK))
+        if let Ok(key) = ZKPKeys::derive_from_mnemonic(&valid_mnemonic, &valid_derivation_path) {
+            // update the static
+            let mut zkpk = get_zkp_keys().lock().expect("Poisoned lock");
+            *zkpk = key.clone(); // store derived key
+            Ok(reply::with_status(reply::json(&key), StatusCode::OK))
+        } else {
+            Err(reject::not_found())
+        }
     } else {
-        Err(reject::not_found())
+        // no body -> return existing static keys
+        let zkpk = get_zkp_keys().lock().expect("Poisoned lock");
+        Ok(reply::with_status(reply::json(&*zkpk), StatusCode::OK))
     }
 }
 
