@@ -634,6 +634,8 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
             }
         }
     }
+
+    /// Delete commitments by their IDs (hashes)
     async fn delete_commitments(&self, commitment_ids: Vec<Fr254>) -> Option<()> {
         if commitment_ids.is_empty() {
             return Some(());
@@ -644,10 +646,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
             .map(|c| c.to_hex_string())
             .collect();
     
-        debug!(
-            "Deleting commitments with hashes {:?}",
-            commitment_strs
-        );
+        debug!("Deleting commitments with hashes {commitment_strs:?}");
     
         let filter = doc! { "_id": { "$in": &commitment_strs }};
     
@@ -663,7 +662,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
                 Some(())
             }
             Err(e) => {
-                error!("Error deleting commitments {:?}: {e}", commitment_strs);
+                error!("Error deleting commitments {commitment_strs:?}: {e}");
                 None
             }
         }

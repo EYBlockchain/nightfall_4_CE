@@ -561,195 +561,195 @@ pub async fn run_tests(
     info!("Balance of ERC20 tokens held as layer 2 commitments by client 2: {balance}");
     assert_eq!(balance, 7 + client2_starting_balance);
 
-    // info!("Sending transfer transactions");
-    // let pause_url = Url::parse(&settings.nightfall_proposer.url)
-    //     .unwrap()
-    //     .join("v1/pause")
-    //     .unwrap();
-    // let res = http_client.get(pause_url).send().await.unwrap();
-    // assert!(res.status().is_success());
+    info!("Sending transfer transactions");
+    let pause_url = Url::parse(&settings.nightfall_proposer.url)
+        .unwrap()
+        .join("v1/pause")
+        .unwrap();
+    let res = http_client.get(pause_url).send().await.unwrap();
+    assert!(res.status().is_success());
 
-    // // create transfer requests
-    // let mut transaction_ids = vec![];
+    // create transfer requests
+    let mut transaction_ids = vec![];
 
-    // let url = Url::parse(&settings.nightfall_client.url)
-    //     .unwrap()
-    //     .join("v1/transfer")
-    //     .unwrap();
+    let url = Url::parse(&settings.nightfall_client.url)
+        .unwrap()
+        .join("v1/transfer")
+        .unwrap();
 
-    // transaction_ids.push(create_nf3_transfer_transaction(
-    //     zkp_key2,
-    //     &http_client,
-    //     url.clone(),
-    //     TokenType::ERC20,
-    //     test_settings.erc20_transfer_0,
-    // ));
+    transaction_ids.push(create_nf3_transfer_transaction(
+        zkp_key2,
+        &http_client,
+        url.clone(),
+        TokenType::ERC20,
+        test_settings.erc20_transfer_0,
+    ));
 
-    // transaction_ids.push(create_nf3_transfer_transaction(
-    //     zkp_key2,
-    //     &http_client,
-    //     url.clone(),
-    //     TokenType::ERC20,
-    //     test_settings.erc20_transfer_1,
-    // ));
+    transaction_ids.push(create_nf3_transfer_transaction(
+        zkp_key2,
+        &http_client,
+        url.clone(),
+        TokenType::ERC20,
+        test_settings.erc20_transfer_1,
+    ));
 
-    // debug!("transaction_erc20_transfer_1 has been created");
-    // transaction_ids.push(create_nf3_transfer_transaction(
-    //     zkp_key2,
-    //     &http_client,
-    //     url.clone(),
-    //     TokenType::ERC20,
-    //     test_settings.erc20_transfer_2,
-    // ));
+    debug!("transaction_erc20_transfer_1 has been created");
+    transaction_ids.push(create_nf3_transfer_transaction(
+        zkp_key2,
+        &http_client,
+        url.clone(),
+        TokenType::ERC20,
+        test_settings.erc20_transfer_2,
+    ));
 
-    // // throw all the transactions at the client as fast as we can
-    // let transaction_ids = try_join_all(transaction_ids).await.unwrap();
+    // throw all the transactions at the client as fast as we can
+    let transaction_ids = try_join_all(transaction_ids).await.unwrap();
 
-    // // wait for the responses to the transfer requests to come back to the webhook server
-    // let transactions = wait_for_all_responses(&transaction_ids, responses.clone())
-    //     .await
-    //     .into_iter()
-    //     .map(|(_, l)| {
-    //         serde_json::from_str::<(Value, Option<TransactionReceipt>)>(&l)
-    //             .expect("Failed to parse response")
-    //     })
-    //     .map(|l| l.0)
-    //     .collect::<Vec<_>>();
+    // wait for the responses to the transfer requests to come back to the webhook server
+    let transactions = wait_for_all_responses(&transaction_ids, responses.clone())
+        .await
+        .into_iter()
+        .map(|(_, l)| {
+            serde_json::from_str::<(Value, Option<TransactionReceipt>)>(&l)
+                .expect("Failed to parse response")
+        })
+        .map(|l| l.0)
+        .collect::<Vec<_>>();
 
-    // info!("Starting chain reorg, {} blocks reorged", 200);
+    info!("Starting chain reorg, {} blocks reorged", 200);
 
-    // anvil_reorg(
-    //     &http_client,
-    //     &Url::parse("http://anvil:8545").unwrap(),
-    //     200,
-    //     true,
-    //     5,
-    // )
-    // .await
-    // .unwrap();
+    anvil_reorg(
+        &http_client,
+        &Url::parse("http://anvil:8545").unwrap(),
+        200,
+        true,
+        5,
+    )
+    .await
+    .unwrap();
 
-    // info!("====== Chain reorg completed =========");
+    info!("====== Chain reorg completed =========");
 
-    // // compute the commmitments for the transactions
-    // let commitment_hashes = transactions
-    //     .iter()
-    //     .map(|l| Fr254::from_hex_string(l["commitments"][0].as_str().unwrap()).unwrap())
-    //     .collect::<Vec<_>>();
+    // compute the commmitments for the transactions
+    let commitment_hashes = transactions
+        .iter()
+        .map(|l| Fr254::from_hex_string(l["commitments"][0].as_str().unwrap()).unwrap())
+        .collect::<Vec<_>>();
 
-    // debug!("transaction_erc20_transfer_2 has been created");
-    // let resume_url = Url::parse(&settings.nightfall_proposer.url)
-    //     .unwrap()
-    //     .join("v1/resume")
-    //     .unwrap();
-    // let res = http_client.get(resume_url).send().await.unwrap();
-    // assert!(res.status().is_success());
+    debug!("transaction_erc20_transfer_2 has been created");
+    let resume_url = Url::parse(&settings.nightfall_proposer.url)
+        .unwrap()
+        .join("v1/resume")
+        .unwrap();
+    let res = http_client.get(resume_url).send().await.unwrap();
+    assert!(res.status().is_success());
 
-    // wait_on_chain(&commitment_hashes, "http://client2:3000")
-    //     .await
-    //     .unwrap();
-    // info!("ERC20 Transfer commitments are now on-chain");
+    wait_on_chain(&commitment_hashes, "http://client2:3000")
+        .await
+        .unwrap();
+    info!("ERC20 Transfer commitments are now on-chain");
 
-    // // check that we have nullified the correct number of commitments
-    // let nullifier_count = transactions
-    //     .iter()
-    //     .flat_map(|l| l["nullifiers"].as_array().unwrap())
-    //     .map(|n| Fr254::from_hex_string(n.as_str().unwrap()).unwrap())
-    //     .filter(|&n| !n.is_zero())
-    //     .count()
-    //     + nullified_count;
+    // check that we have nullified the correct number of commitments
+    let nullifier_count = transactions
+        .iter()
+        .flat_map(|l| l["nullifiers"].as_array().unwrap())
+        .map(|n| Fr254::from_hex_string(n.as_str().unwrap()).unwrap())
+        .filter(|&n| !n.is_zero())
+        .count()
+        + nullified_count;
 
-    // info!("Expected spent commitment count: {nullifier_count}");
-    // let spent_commitments = count_spent_commitments(&http_client, url.clone())
-    //     .await
-    //     .unwrap();
-    // assert_eq!(spent_commitments, nullifier_count);
+    info!("Expected spent commitment count: {nullifier_count}");
+    let spent_commitments = count_spent_commitments(&http_client, url.clone())
+        .await
+        .unwrap();
+    assert_eq!(spent_commitments, nullifier_count);
 
-    // // create transfer requests for the other token types
-    // let mut transaction_ids = vec![];
+    // create transfer requests for the other token types
+    let mut transaction_ids = vec![];
 
-    // transaction_ids.push(create_nf3_transfer_transaction(
-    //     zkp_key2,
-    //     &http_client,
-    //     url.clone(),
-    //     TokenType::ERC721,
-    //     test_settings.erc721_transfer,
-    // ));
-    // debug!("transaction_erc721_transfer has been created");
+    transaction_ids.push(create_nf3_transfer_transaction(
+        zkp_key2,
+        &http_client,
+        url.clone(),
+        TokenType::ERC721,
+        test_settings.erc721_transfer,
+    ));
+    debug!("transaction_erc721_transfer has been created");
 
-    // transaction_ids.push(create_nf3_transfer_transaction(
-    //     zkp_key2,
-    //     &http_client,
-    //     url.clone(),
-    //     TokenType::ERC3525,
-    //     test_settings.erc3525_transfer_1,
-    // ));
-    // debug!("transaction_erc3525_transfer_1 has been created");
+    transaction_ids.push(create_nf3_transfer_transaction(
+        zkp_key2,
+        &http_client,
+        url.clone(),
+        TokenType::ERC3525,
+        test_settings.erc3525_transfer_1,
+    ));
+    debug!("transaction_erc3525_transfer_1 has been created");
 
-    // transaction_ids.push(create_nf3_transfer_transaction(
-    //     zkp_key2,
-    //     &http_client,
-    //     url.clone(),
-    //     TokenType::ERC3525,
-    //     test_settings.erc3525_transfer_2,
-    // ));
-    // debug!("transaction_erc3525_transfer_2 has been created");
+    transaction_ids.push(create_nf3_transfer_transaction(
+        zkp_key2,
+        &http_client,
+        url.clone(),
+        TokenType::ERC3525,
+        test_settings.erc3525_transfer_2,
+    ));
+    debug!("transaction_erc3525_transfer_2 has been created");
 
-    // transaction_ids.push(create_nf3_transfer_transaction(
-    //     zkp_key2,
-    //     &http_client,
-    //     url.clone(),
-    //     TokenType::ERC1155,
-    //     test_settings.erc1155_transfer_1,
-    // ));
-    // debug!("transaction_erc1155_transfer_1 has been created");
+    transaction_ids.push(create_nf3_transfer_transaction(
+        zkp_key2,
+        &http_client,
+        url.clone(),
+        TokenType::ERC1155,
+        test_settings.erc1155_transfer_1,
+    ));
+    debug!("transaction_erc1155_transfer_1 has been created");
 
-    // transaction_ids.push(create_nf3_transfer_transaction(
-    //     zkp_key2,
-    //     &http_client,
-    //     url.clone(),
-    //     TokenType::ERC1155,
-    //     test_settings.erc1155_transfer_2_nft,
-    // ));
-    // debug!("transaction_erc1155_transfer_2 has been created");
+    transaction_ids.push(create_nf3_transfer_transaction(
+        zkp_key2,
+        &http_client,
+        url.clone(),
+        TokenType::ERC1155,
+        test_settings.erc1155_transfer_2_nft,
+    ));
+    debug!("transaction_erc1155_transfer_2 has been created");
 
-    // // throw all the transactions at the client as fast as we can
-    // let transaction_ids = try_join_all(transaction_ids).await.unwrap();
+    // throw all the transactions at the client as fast as we can
+    let transaction_ids = try_join_all(transaction_ids).await.unwrap();
 
-    // // wait for the responses to the transfer requests to come back to the webhook server
-    // let transactions = wait_for_all_responses(&transaction_ids, responses.clone())
-    //     .await
-    //     .into_iter()
-    //     .map(|(_, l)| {
-    //         serde_json::from_str::<(Value, Option<TransactionReceipt>)>(&l)
-    //             .expect("Failed to parse response")
-    //     })
-    //     .map(|l| l.0)
-    //     .collect::<Vec<_>>();
+    // wait for the responses to the transfer requests to come back to the webhook server
+    let transactions = wait_for_all_responses(&transaction_ids, responses.clone())
+        .await
+        .into_iter()
+        .map(|(_, l)| {
+            serde_json::from_str::<(Value, Option<TransactionReceipt>)>(&l)
+                .expect("Failed to parse response")
+        })
+        .map(|l| l.0)
+        .collect::<Vec<_>>();
 
-    // // compute the commmitments for the transactions
-    // let commitment_hashes = transactions
-    //     .iter()
-    //     .map(|l| Fr254::from_hex_string(l["commitments"][0].as_str().unwrap()).unwrap())
-    //     .collect::<Vec<_>>();
+    // compute the commmitments for the transactions
+    let commitment_hashes = transactions
+        .iter()
+        .map(|l| Fr254::from_hex_string(l["commitments"][0].as_str().unwrap()).unwrap())
+        .collect::<Vec<_>>();
 
-    // wait_on_chain(&commitment_hashes, "http://client2:3000")
-    //     .await
-    //     .unwrap();
-    // info!("Transfer commitments are now on-chain");
+    wait_on_chain(&commitment_hashes, "http://client2:3000")
+        .await
+        .unwrap();
+    info!("Transfer commitments are now on-chain");
 
-    // check that the new balances are as expected
-    // let balance = get_erc20_balance(
-    //     &http_client,
-    //     Url::parse(&settings.nightfall_client.url).unwrap(),
-    // )
-    // .await;
-    // info!("Balance of ERC20 tokens held as layer 2 commitments by client 1: {balance}");
+    //check that the new balances are as expected
+    let balance = get_erc20_balance(
+        &http_client,
+        Url::parse(&settings.nightfall_client.url).unwrap(),
+    )
+    .await;
+    info!("Balance of ERC20 tokens held as layer 2 commitments by client 1: {balance}");
 
-    // assert_eq!(balance, 1 + client1_starting_balance);
+    assert_eq!(balance, 1 + client1_starting_balance);
 
-    // let balance = get_erc20_balance(&http_client, Url::parse("http://client2:3000").unwrap()).await;
-    // info!("Balance of ERC20 tokens held as layer 2 commitments by client2: {balance}");
-    // assert_eq!(balance, 20 + client2_starting_balance);
+    let balance = get_erc20_balance(&http_client, Url::parse("http://client2:3000").unwrap()).await;
+    info!("Balance of ERC20 tokens held as layer 2 commitments by client2: {balance}");
+    assert_eq!(balance, 20 + client2_starting_balance);
 
     // create withdraw requests
     let mut withdraw_data = vec![];

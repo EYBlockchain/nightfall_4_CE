@@ -55,15 +55,6 @@ pub async fn find_usable_commitments(
         max_num_c,
     )?;
 
-    // After selecting commitments
-    info!("Selected commitments for target_value {target_value}:");
-    for c in &selected_commitments {
-        match c.hash() {
-            Ok(hash) => info!("  Commitment ID: {}", hash.to_hex_string()),
-            Err(_) => warn!("  Failed to hash commitment: {:?}", c),
-        }
-    }
-
     // Get commitment IDs for atomic reservation
     let commitment_ids = selected_commitments
         .iter()
@@ -77,14 +68,10 @@ pub async fn find_usable_commitments(
     if reserved_commitments.len() < min_num_c {
         return Err("Could not reserve enough commitments - taken by another process");
     }
-        info!("=========Reserved commitments after atomic update:");
-    for c in &reserved_commitments {
-        info!("  ==========Commitment ID: {} | status: {:?}", c.hash().unwrap().to_hex_string(), c.status);
-    }
-
+       
     // Convert reserved commitments to Preimage and return
     let preimages: Vec<Preimage> = reserved_commitments
-        .into_iter()
+        .iter()
         .map(|c| c.get_preimage())
         .collect::<Vec<_>>();
 
@@ -92,6 +79,32 @@ pub async fn find_usable_commitments(
     for (i, p) in preimages.into_iter().enumerate() {
         preimages_fixed[i] = p;
     }
+    // CRITICAL: Verify we have enough real commitments (not defaults) in critical positions.
+    let num_real = preimages_fixed
+    .iter()
+    .take(min_num_c)  
+    .filter(|p| !p.value.is_zero() && !p.nf_token_id.is_zero())
+    .count();
+
+    if num_real < min_num_c {
+            //  // Rollback the commitments we just reserved
+             let commitment_ids_to_rollback: Vec<Fr254> = reserved_commitments
+             .iter()
+             .filter_map(|c| c.hash().ok())
+             .collect();
+     
+             for commitment_id in &commitment_ids_to_rollback {
+                 if let Some(existing) = db.get_commitment(commitment_id).await {
+                     let _ = db.mark_commitments_unspent(
+                         &[*commitment_id],
+                         existing.layer_1_transaction_hash,
+                         existing.layer_2_block_number
+                     ).await;
+                 }
+             }
+        return Err("Not enough commitments available - please deposit more tokens");
+    }
+
     Ok(preimages_fixed)
 
 }
