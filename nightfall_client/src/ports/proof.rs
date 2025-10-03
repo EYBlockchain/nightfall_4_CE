@@ -146,7 +146,7 @@ pub struct PrivateInputs {
     pub membership_proofs: [MembershipProof<Fr254>; 4],
     /// Values of any change commitments, first for the token second for the fee.
     pub commitments_values: [Fr254; 2],
-    /// Only three as the first commitment salt is the y coordinate of the shared secret between sender and recipient
+    /// Only three as the first commitment salt is derived from the shared secret between sender and recipient
     pub commitments_salts: [Fr254; 3],
     /// The public keys of the owners of the old commitments that will be nullified.
     pub public_keys: [TEAffine<BabyJubjub>; 4],
