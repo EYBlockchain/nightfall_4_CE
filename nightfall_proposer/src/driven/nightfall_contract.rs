@@ -30,6 +30,31 @@ impl NightfallContract for Nightfall::NightfallCalls {
         // Convert the block transactions to the Nightfall format
         let blk: Nightfall::Block = block.into();
 
+        // let nonce = blockchain_client.get_transaction_count(signer.address()).await.map_err(|_| NightfallContractError::TransactionError)?;
+        // let gas_price = blockchain_client.get_gas_price().await.map_err(|_| NightfallContractError::TransactionError)?;
+        // let max_fee_per_gas = gas_price * 2;
+        // let max_priority_fee_per_gas = gas_price;
+        // let gas_limit = 5000000u64;
+
+    
+        // let raw_tx = nightfall
+        //     .propose_block(blk)
+        //     .nonce(nonce)
+        //     .gas(gas_limit)
+        //     .max_fee_per_gas(max_fee_per_gas)
+        //     .max_priority_fee_per_gas(max_priority_fee_per_gas)
+        //     .chain_id(get_settings().network.chain_id) // Linea testnet chain ID
+        //     .build_raw_transaction(signer).await
+        //     .map_err(|_| NightfallContractError::TransactionError)?;
+
+        // let receipt = blockchain_client
+        //     .send_raw_transaction(&raw_tx)
+        //     .await
+        //     .map_err(|_| NightfallContractError::TransactionError)?
+        //     .get_receipt()
+        //     .await
+        //     .map_err(|_| NightfallContractError::TransactionError)?;
+
         let receipt = nightfall
             .propose_block(blk)
             .from(signer.address())

@@ -560,7 +560,7 @@ curl -i --request POST 'http://localhost:3000/v1/de-escrow' \
     "tokenId": "0x00",
     "ercAddress": "0x959922be3caee4b8cd9a407cc3ac1c251c2007b1", 
     "recipientAddress": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-    "value": "0x01", 
+    "value": "0x01",  // this value has to be the whole value associated with the withraw you did before.
     "tokenType": "10",
     "withdrawFundSalt": "cb56f2a1befb9954b4d7885f5d3d29cfe9f7417118f1ec0f1bb9741abae01f0c"
 }'
@@ -890,11 +890,7 @@ TBD once environment is confirmed
 
 ## Appendix
 
-### Note on `VerifierKey.sol`
+### Note on `L1 submission`
 
-There is a VerificationKey.sol contract in blockchain_assets/contracts i.e. the normal place for a Solidity contract. This contract's job is to put the verification key into memory, which it does via assembly code, directly placing the values into memory locations. This is to support the RollupVerifier contract, which also uses assembly code that expects to find a key in particular locations. VerificationKey.sol is only relevant for the full Rollup prover. Neither the Mock prover nor the unit tests reference it.
-VerificationKey.sol is never actually used directly. When the Deployer runs, it overwrites the contract file with a new one, which is similar in format, but contains the Rollup verification keys that have been computed during key generation. Note that this overwriting only happens when we are using a full rollup prover. This explains why VerificationKey.sol is not updated in Git, even though the keys change: the updated file is never seen by Git because we never push from a machine that is running a full rollup prover.
-The overwriting is an unusual approach. Normally one would have a static VerificationKey.sol which contains a function that lets us update the key on deployment. However, the current approach is taken because we want to control exactly how the key data is stored in memory so that we can benefit from the speed increase we get from assembly. Achieving this is much easier if all the key data is hard-coded. We therefore generate the code in Rust so that we can have hard-coded keys (in Solidity) that can be still changed (in Rust) at deployment if they need to be updated.
-The unit tests compute their own keys and use a test contract (test_contracts/TestVerifier.sol) which is kept separate from the 'production' contract. This seems sensible because we don't want the unit test to change the main contract as it's more a test of the key generation.
-Is there a better way? Probably not. It's the use of Assembly, which creates the requirement to store a large amount of key data in specific locations, that makes this a sensible approach in this case.
-We don't actually need VerificationKey.sol so it could be removed from the repository, in principle. However RollupVerifier.sol expects it to be there. Having a work around for that seems more trouble than keeping a 'placeholder' VerificationKey.sol.
+Some Ethereum-compatible chains do not support server-side signing with `eth_sendTransaction`, since the RPC node typically runs without unlocked accounts; in these cases the transaction must be signed client-side using your configured CLIENT_SIGNING_KEY, CLIENT_ADDRESS, and wallet_type = "local", and then submitted with eth_sendRawTransaction. In our code we have already prepared a hook for this: simply uncomment the section below `/* If your chain doesn't support signing transactions locally, and need to be signed at the client level and need to use send_raw_tansaction uncomment the code below */`
+ to obtain a local signer and ensure that transactions are signed before being broadcast.
