@@ -17,8 +17,6 @@ use mongodb::{
 };
 use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, str};
-use log::warn;
-
 use crate::{
     domain::entities::{
         CommitmentStatus, Preimage, Request, RequestCommitmentMapping, RequestStatus, WithdrawData,
@@ -416,7 +414,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
         for commitment_id in commitment_ids {
             let filter = doc! {
                 "_id": commitment_id.to_hex_string(),
-                "status": "Unspent" // Ensure the commitment is still unspent
+                "status": "Unspent" 
             };
             
             let update = doc! {
@@ -426,8 +424,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
             let options = FindOneAndUpdateOptions::builder()
                 .return_document(ReturnDocument::After)
                 .build();
-            
-            // ATOMIC: Find + Update in one operation
+            // Atomically find and update the commitment
             if let Some(updated_commitment) = self.database(DB)
                 .collection::<CommitmentEntry>("commitments")
                 .find_one_and_update(filter, update)
@@ -435,9 +432,8 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
                 .await
                 .map_err(|_| "Database update failed")?
             {
-                info!("Reserved commitment: {updated_commitment:?}");
                 reserved_commitments.push(updated_commitment);
-            } else {warn!("Failed to reserve commitment: {commitment_id:?}");} 
+            } else {debug!("Failed to reserve commitment: {commitment_id:?}");} 
         }
         Ok(reserved_commitments)
     }

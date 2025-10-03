@@ -10,7 +10,6 @@ use crate::{
         db::{CommitmentDB, CommitmentEntryDB},
     },
 };
-use log::{warn, info};
 use ark_bn254::Fr as Fr254;
 use ark_ff::{BigInteger256, PrimeField, Zero};
 use lib::hex_conversion::HexConvertible;
