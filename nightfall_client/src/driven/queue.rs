@@ -2,8 +2,8 @@ use crate::{
     domain::entities::{RequestStatus, SynchronisationPhase::Desynchronized},
     driven::notifier::webhook_notifier::WebhookNotifier,
     drivers::{
-        blockchain::nightfall_event_listener::{
-            get_synchronisation_status, restart_event_listener,
+        blockchain::{
+            event_listener_manager::restart, nightfall_event_listener::get_synchronisation_status,
         },
         rest::{
             client_nf_3::handle_request,
@@ -27,7 +27,6 @@ use tokio::{
 };
 /// This module implements a queue of received requests. Requests can be added to the queue
 /// asynchronously but are executed with a concurrency of 1.
-///
 pub struct QueuedRequest {
     pub transaction_request: TransactionRequest,
     pub uuid: String,
@@ -71,10 +70,8 @@ where
             }
         };
         if sync_state == Desynchronized {
-            warn!("Client is not synchronised with the blockchain, restarting event listener");
-            tokio::spawn(async {
-                restart_event_listener::<N>(0).await;
-            });
+            warn!("Client is not synchronised with the blockchain, restarting event listener on thread {:?}", std::thread::current().id());
+            restart::<N>().await;
         }
         while let Some(request) = {
             let mut queue = get_queue().await.write().await;
