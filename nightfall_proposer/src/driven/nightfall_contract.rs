@@ -5,7 +5,7 @@ use crate::{
     ports::contracts::NightfallContract,
 };
 use alloy::primitives::I256;
-use configuration::addresses::get_addresses;
+use configuration::{addresses::get_addresses, settings::get_settings};
 use lib::blockchain_client::BlockchainClientConnection;
 use log::info;
 use nightfall_bindings::artifacts::Nightfall;
@@ -29,36 +29,25 @@ impl NightfallContract for Nightfall::NightfallCalls {
         let nightfall = Nightfall::new(nightfall_address, client);
         // Convert the block transactions to the Nightfall format
         let blk: Nightfall::Block = block.into();
-
-        // let nonce = blockchain_client.get_transaction_count(signer.address()).await.map_err(|_| NightfallContractError::TransactionError)?;
-        // let gas_price = blockchain_client.get_gas_price().await.map_err(|_| NightfallContractError::TransactionError)?;
-        // let max_fee_per_gas = gas_price * 2;
-        // let max_priority_fee_per_gas = gas_price;
-        // let gas_limit = 5000000u64;
+        let nonce = blockchain_client.get_transaction_count(signer.address()).await.map_err(|_| NightfallContractError::TransactionError)?;
+        let gas_price = blockchain_client.get_gas_price().await.map_err(|_| NightfallContractError::TransactionError)?;
+        let max_fee_per_gas = gas_price * 2;
+        let max_priority_fee_per_gas = gas_price;
+        let gas_limit = 5000000u64;
 
     
-        // let raw_tx = nightfall
-        //     .propose_block(blk)
-        //     .nonce(nonce)
-        //     .gas(gas_limit)
-        //     .max_fee_per_gas(max_fee_per_gas)
-        //     .max_priority_fee_per_gas(max_priority_fee_per_gas)
-        //     .chain_id(get_settings().network.chain_id) // Linea testnet chain ID
-        //     .build_raw_transaction(signer).await
-        //     .map_err(|_| NightfallContractError::TransactionError)?;
-
-        // let receipt = blockchain_client
-        //     .send_raw_transaction(&raw_tx)
-        //     .await
-        //     .map_err(|_| NightfallContractError::TransactionError)?
-        //     .get_receipt()
-        //     .await
-        //     .map_err(|_| NightfallContractError::TransactionError)?;
-
-        let receipt = nightfall
+        let raw_tx = nightfall
             .propose_block(blk)
-            .from(signer.address())
-            .send()
+            .nonce(nonce)
+            .gas(gas_limit)
+            .max_fee_per_gas(max_fee_per_gas)
+            .max_priority_fee_per_gas(max_priority_fee_per_gas)
+            .chain_id(get_settings().network.chain_id) // Linea testnet chain ID
+            .build_raw_transaction(signer).await
+            .map_err(|_| NightfallContractError::TransactionError)?;
+
+        let receipt = blockchain_client
+            .send_raw_transaction(&raw_tx)
             .await
             .map_err(|_| NightfallContractError::TransactionError)?
             .get_receipt()
