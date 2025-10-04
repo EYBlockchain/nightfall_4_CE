@@ -5,6 +5,7 @@ use crate::{
         verify_encryption_gadgets::VerifyEncryptionCircuit,
         verify_nullifiers_gadgets::VerifyNullifiersCircuit,
     },
+    drivers::DOMAIN_SHARED_SALT,
     ports::proof::{PrivateInputs, PrivateInputsVar, PublicInputs},
 };
 use alloy::{
@@ -15,6 +16,7 @@ use alloy::{
 use ark_ec::{twisted_edwards::Affine, AffineRepr};
 use ark_ff::{One, Zero};
 use jf_plonk::errors::PlonkError;
+use jf_primitives::circuit::poseidon::PoseidonHashGadget;
 use jf_relation::{errors::CircuitError, gadgets::ecc::Point, Circuit, PlonkCircuit, Variable};
 use nf_curves::ed_on_bn254::{BabyJubjub, Fq as Fr254};
 use num_bigint::BigUint;
@@ -148,6 +150,13 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
         let withdraw_flag = self.is_zero(withdraw_address)?;
         let withdraw_flag = self.logic_neg(withdraw_flag)?;
 
+        let domain_shared_salt = self.create_variable(DOMAIN_SHARED_SALT)?;
+        let shared_salt = self.poseidon_hash(&[
+            shared_secret.get_x(),
+            shared_secret.get_y(),
+            domain_shared_salt,
+        ])?;
+
         let commitments = self.verify_commitments(
             fee_token_id,
             nf_address,
@@ -155,7 +164,7 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
             nf_slot_id,
             value,
             fee,
-            shared_secret.get_y(),
+            shared_salt,
             &commitments_values,
             &[recipient_public_key, zkp_pub_key],
             &commitments_salts,
@@ -320,7 +329,9 @@ mod tests {
     use ark_ff::{PrimeField, Zero};
     use ark_std::{rand::rngs::StdRng, UniformRand};
     use jf_plonk::{
-        nightfall::FFTPlonk, proof_system::UniversalSNARK, transcript::StandardTranscript,
+        nightfall::{ipa_structs::VerificationKeyId, FFTPlonk},
+        proof_system::UniversalSNARK,
+        transcript::StandardTranscript,
     };
     use jf_primitives::{
         pcs::prelude::UnivariateKzgPCS,
@@ -694,12 +705,20 @@ mod tests {
         let shared_secret = (recipient_public_key * ephemeral_key).into_affine();
         let contract_nf_address =
             Affine::<BabyJubjub>::new_unchecked(Fr254::zero(), nf_address_field);
+
+        let poseidon = Poseidon::<Fr254>::new();
+        // Derive a shared salt from the shared secret using domain-separated Poseidon hash.
+        let shared_salt_hash = poseidon
+            .hash(&[shared_secret.x, shared_secret.y, DOMAIN_SHARED_SALT])
+            .unwrap();
+        let shared_salt = Salt::Transfer(shared_salt_hash);
+
         let preimage_one = Preimage::new(
             value,
             nf_token_id,
             nf_slot_id,
             recipient_public_key,
-            Salt::Transfer(shared_secret.y),
+            shared_salt,
         );
         let preimage_two = Preimage::new(
             value_change,
@@ -1260,7 +1279,12 @@ mod tests {
         let srs =
             FFTPlonk::<UnivariateKzgPCS<Bn254>>::universal_setup_for_testing(srs_size, &mut rng)
                 .unwrap();
-        let (pk, vk) = FFTPlonk::<UnivariateKzgPCS<Bn254>>::preprocess(&srs, &circuit).unwrap();
+        let (pk, vk) = FFTPlonk::<UnivariateKzgPCS<Bn254>>::preprocess(
+            &srs,
+            Some(VerificationKeyId::Client),
+            &circuit,
+        )
+        .unwrap();
         let proof = FFTPlonk::<UnivariateKzgPCS<Bn254>>::prove::<_, _, StandardTranscript>(
             &mut rng, &circuit, &pk, None,
         )

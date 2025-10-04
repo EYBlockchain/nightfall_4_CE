@@ -1,25 +1,69 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
 pragma solidity >=0.8.20;
-pragma experimental ABIEncoderV2;
+import "./lib/BytesLib.sol";
+import "./lib/Types.sol";
+import "./IVKProvider.sol";
 
-error INVALID_VERIFICATION_KEY_HASH(uint256 expected, uint256 actual);
-
-import "./BytesLib.sol";
-import "./Types.sol";
-import "./RollupProofVerificationKey.sol";
 import {INFVerifier} from "./INFVerifier.sol";
+
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Transcript} from "./lib/Transcript.sol";
+import {Bn254Crypto} from "./lib/Bn254Crypto.sol";
+import {PolynomialEval} from "./lib/PolynomialEval.sol";
+import ".././X509/Certified.sol";
 
 /**
 @title RollupProofVerifier
 @dev Verifier Implementation for Nightfish Ultra plonk proof verification
 */
 
-contract RollupProofVerifier is INFVerifier{
-
-    uint256 public p;
+contract RollupProofVerifier is
+    INFVerifier,
+    OwnableUpgradeable,
+    UUPSUpgradeable
+{
+    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
+        _disableInitializers();
+    }
+
+    IVKProvider public vkProvider;
+    /**
+        Calldata formatting:
+        0x00 - 0x04 : function signature
+        0x04 - 0x24 : proof_data pointer (location in calldata that contains the proof_data array)
+        0x44 - 0x64 : length of `proof_data` array
+        0x64 - ???? : array containing our zk proof data
+    **/
+
+    // Global r-modulus cached for mod ops
+    uint256 public p;
+
+    function initialize(
+        address vkProviderProxy,
+        address initialOwner
+    ) public initializer {
+        __Ownable_init(initialOwner);
+        __UUPSUpgradeable_init();
+
         p = Bn254Crypto.r_mod;
+        vkProvider = IVKProvider(vkProviderProxy);
+    }
+
+    function _authorizeUpgrade(address) internal virtual override onlyOwner {}
+
+    event VKProviderUpdated(
+        address indexed oldProvider,
+        address indexed newProvider
+    );
+
+    function setVKProvider(address newProvider) external onlyOwner {
+        require(newProvider != address(0), "zero addr");
+        emit VKProviderUpdated(address(vkProvider), newProvider);
+        vkProvider = IVKProvider(newProvider);
     }
 
     // A struct for compute_buffer_v_and_uv_basis_2() input parameters to avoid stack too deep error
@@ -34,16 +78,16 @@ contract RollupProofVerifier is INFVerifier{
         uint256 v_base;
     }
 
- struct compute_buffer_v_and_uv_basis_3_parameters {
-         Types.ChallengeTranscript  chal;
-        Types.VerificationKey  vk;
+    struct compute_buffer_v_and_uv_basis_3_parameters {
+        Types.ChallengeTranscript chal;
+        Types.VerificationKey vk;
         Types.Proof proof;
         uint256 start_index;
-        uint256[]  buffer_v_and_uv_basis;
+        uint256[] buffer_v_and_uv_basis;
         uint256 v_base;
         uint256 uv_base;
         uint256[] commScalars;
-        Types.G1Point[]  commBases;
+        Types.G1Point[] commBases;
     }
     // A struct for add_splitted_quotient_commitments() input parameters to avoid stack too deep error
     struct add_splitted_quotient_commitments_parameter {
@@ -64,30 +108,42 @@ contract RollupProofVerifier is INFVerifier{
     }
 
     /**
-     * @dev Verify a UltraPlonk proof from Jellyfish with 4 input wires
+     * @dev Verify a rollup proof and accumulators
+     * @param acc_proof- array of serialized accumulators data: every elements is 32 bytes
      * @param proofBytes- array of serialized proof data: every elements is 32 bytes
      * @param publicInputsHashBytes- bytes of public data
      */
-function verify(bytes calldata acc_proof, bytes calldata proofBytes, bytes calldata publicInputsHashBytes) external view override returns (bool result) {
+    function verify(
+        bytes calldata acc_proof,
+        bytes calldata proofBytes,
+        bytes calldata publicInputsHashBytes
+    ) external view override returns (bool result) {
         // parse the hardecoded vk and construct a vk object
         Types.VerificationKey memory vk = get_verification_key();
         // parse the second part of calldata to get public input
         // we hashed all public inputs into a single value
         uint256 public_inputs_hash;
+
         assembly {
-            public_inputs_hash := calldataload(add(publicInputsHashBytes.offset, 0))
+            public_inputs_hash := calldataload(
+                add(publicInputsHashBytes.offset, 0)
+            )
         }
 
         // parse the input calldata and construct a proof object and public_inputs
-        Types.Proof memory decoded_proof
-        = deserialize_proof(proofBytes);
+        Types.Proof memory decoded_proof = deserialize_proof(proofBytes);
         validate_proof(decoded_proof);
         validate_scalar_field(public_inputs_hash);
 
         // Compute the transcripts by appending vk, public inputs and proof
         // reconstruct the tau, beta, gamma, alpha, zeta, v and u challenges based on the transcripts
         Transcript.TranscriptData memory transcripts;
-        Transcript.compute_challengs(transcripts, vk, decoded_proof, public_inputs_hash);
+        Transcript.compute_challengs(
+            transcripts,
+            vk,
+            decoded_proof,
+            public_inputs_hash
+        );
         Types.ChallengeTranscript memory full_challenges = transcripts
             .challenges;
 
@@ -101,36 +157,52 @@ function verify(bytes calldata acc_proof, bytes calldata proofBytes, bytes calld
             full_challenges
         );
 
-        return (verify_OpeningProof(full_challenges, pcsInfo, decoded_proof, vk) && verify_accumulation(
-            acc_proof,
+        return (verify_OpeningProof(
+            full_challenges,
+            pcsInfo,
+            decoded_proof,
             vk
-        ));
+        ) && verify_accumulation(acc_proof, vk));
     }
 
     function verify_accumulation(
         bytes calldata acc_proof,
         Types.VerificationKey memory vk
     ) internal view returns (bool) {
-    require(acc_proof.length == 256, "Invalid accumulator proof length");
-    bytes32[8] memory acc;
-    for (uint i = 0; i < 8; i++) {
-        acc[i] = bytes32(acc_proof[i*32:(i+1)*32]);
-    }
-    //blk.rollup_proof[32:64], accumulator_1_comm_x, acc[0]
-    //blk.rollup_proof[64:96], accumulator_1_comm_y, acc[1]
-    //blk.rollup_proof[96:128], accumulator_1_proof_x, acc[2]
-    //blk.rollup_proof[128:160], accumulator_1_proof_y, acc[3]
-    //blk.rollup_proof[160:192], accumulator_2_comm_x, acc[4]
-    //blk.rollup_proof[192:224], accumulator_2_comm_y, acc[5]
-    //blk.rollup_proof[224:256], accumulator_2_proof2_x, acc[6]
-    //blk.rollup_proof[256:288], accumulator_2_proof2_y, acc[7]
+        require(acc_proof.length == 256, "Invalid accumulator proof length");
+        bytes32[8] memory acc;
+        for (uint i = 0; i < 8; i++) {
+            acc[i] = bytes32(acc_proof[i * 32:(i + 1) * 32]);
+        }
+        //blk.rollup_proof[32:64], accumulator_1_comm_x, acc[0]
+        //blk.rollup_proof[64:96], accumulator_1_comm_y, acc[1]
+        //blk.rollup_proof[96:128], accumulator_1_proof_x, acc[2]
+        //blk.rollup_proof[128:160], accumulator_1_proof_y, acc[3]
+        //blk.rollup_proof[160:192], accumulator_2_comm_x, acc[4]
+        //blk.rollup_proof[192:224], accumulator_2_comm_y, acc[5]
+        //blk.rollup_proof[224:256], accumulator_2_proof2_x, acc[6]
+        //blk.rollup_proof[256:288], accumulator_2_proof2_y, acc[7]
 
-    // First accumulator
-    bool res_1 = Bn254Crypto.pairingProd2(Types.G1Point(uint256(acc[2]), uint256(acc[3])), vk.beta_h, Bn254Crypto.negate_G1Point(Types.G1Point(uint256(acc[0]), uint256(acc[1]))), vk.h);
-    // Second accumulator
-    bool res_2 = Bn254Crypto.pairingProd2(Types.G1Point(uint256(acc[6]), uint256(acc[7])), vk.beta_h, Bn254Crypto.negate_G1Point(Types.G1Point(uint256(acc[4]), uint256(acc[5]))), vk.h);
-    return (res_1 && res_2);
-}
+        // First accumulator
+        bool res_1 = Bn254Crypto.pairingProd2(
+            Types.G1Point(uint256(acc[2]), uint256(acc[3])),
+            vk.beta_h,
+            Bn254Crypto.negate_G1Point(
+                Types.G1Point(uint256(acc[0]), uint256(acc[1]))
+            ),
+            vk.h
+        );
+        // Second accumulator
+        bool res_2 = Bn254Crypto.pairingProd2(
+            Types.G1Point(uint256(acc[6]), uint256(acc[7])),
+            vk.beta_h,
+            Bn254Crypto.negate_G1Point(
+                Types.G1Point(uint256(acc[4]), uint256(acc[5]))
+            ),
+            vk.h
+        );
+        return (res_1 && res_2);
+    }
 
     /**
      * @dev Compute polynomial commitment evaluation info
@@ -151,14 +223,27 @@ function verify(bytes calldata acc_proof, bytes calldata proofBytes, bytes calld
             full_challenges.alpha,
             p
         );
-        uint256 alpha_3 =   mulmod(full_challenges.alpha2, full_challenges.alpha, p);
-        uint256 alpha_4 =   mulmod(full_challenges.alpha2, full_challenges.alpha2, p);
-        uint256 alpha_5 =   mulmod(full_challenges.alpha2, alpha_3, p);
-        uint256 alpha_6 =   mulmod(alpha_4, full_challenges.alpha2, p);
-         full_challenges.alpha_powers = [full_challenges.alpha2, alpha_3, alpha_4, alpha_5, alpha_6];
-         full_challenges.alpha_base= 1;
-         full_challenges.alpha7= mulmod(alpha_3, alpha_4, p);
-
+        uint256 alpha_3 = mulmod(
+            full_challenges.alpha2,
+            full_challenges.alpha,
+            p
+        );
+        uint256 alpha_4 = mulmod(
+            full_challenges.alpha2,
+            full_challenges.alpha2,
+            p
+        );
+        uint256 alpha_5 = mulmod(full_challenges.alpha2, alpha_3, p);
+        uint256 alpha_6 = mulmod(alpha_4, full_challenges.alpha2, p);
+        full_challenges.alpha_powers = [
+            full_challenges.alpha2,
+            alpha_3,
+            alpha_4,
+            alpha_5,
+            alpha_6
+        ];
+        full_challenges.alpha_base = 1;
+        full_challenges.alpha7 = mulmod(alpha_3, alpha_4, p);
 
         // get the domain evaluation information
         // including 2 ^ domainSize, domainSize, sizeInv, groupGen
@@ -179,7 +264,6 @@ function verify(bytes calldata acc_proof, bytes calldata proofBytes, bytes calld
         uint256[] memory commScalars = new uint256[](58);
         Types.G1Point[] memory commBases = new Types.G1Point[](58);
 
-       
         uint256 eval = prepare_OpeningProof(
             publicInput,
             vk,
@@ -215,7 +299,7 @@ function verify(bytes calldata acc_proof, bytes calldata proofBytes, bytes calld
         Types.G1Point memory A;
         Types.G1Point memory B;
         // A = [open_proof] + u * [shifted_open_proof]
-        A = compute_A(proof, challenge);     
+        A = compute_A(proof, challenge);
         // B = eval_point * open_proof + u * next_eval_point *
         //   shifted_open_proof + comm - eval * [1]1`.
         B = compute_B(pcsInfo, proof, challenge, vk);
@@ -264,7 +348,6 @@ function verify(bytes calldata acc_proof, bytes calldata proofBytes, bytes calld
 
             pcsInfo.commScalars[56] = Bn254Crypto.negate_fr(pcsInfo.eval);
             pcsInfo.commBases[56] = vk.open_key_g;
-            
 
             // Accumulate scalars which have the same base
             (
@@ -274,7 +357,7 @@ function verify(bytes calldata acc_proof, bytes calldata proofBytes, bytes calld
                     pcsInfo.commBases,
                     pcsInfo.commScalars
                 );
-                B = Bn254Crypto.negate_G1Point(
+            B = Bn254Crypto.negate_G1Point(
                 Bn254Crypto.multiScalarMul(bases_after_acc, scalars_after_acc)
             );
         }
@@ -302,9 +385,8 @@ function verify(bytes calldata acc_proof, bytes calldata proofBytes, bytes calld
         Types.G1Point[] memory commBases,
         PolynomialEval.EvalDomain memory domain
     ) internal view returns (uint256) {
-        
-       uint256 lin_poly_constant = compute_lin_poly_constant_term(
-        publicInput,
+        uint256 lin_poly_constant = compute_lin_poly_constant_term(
+            publicInput,
             chal,
             proof,
             evalData,
@@ -357,116 +439,77 @@ function verify(bytes calldata acc_proof, bytes calldata proofBytes, bytes calld
             evalData.vanish_eval,
             p
         );
-        uint256 result = mulmod(publicInput[0], mulmod(vanish_eval_div_n, Bn254Crypto.invert(addmod(chal.zeta, p - 1, p)), p), p);
-         
+        uint256 result = mulmod(
+            publicInput[0],
+            mulmod(
+                vanish_eval_div_n,
+                Bn254Crypto.invert(addmod(chal.zeta, p - 1, p)),
+                p
+            ),
+            p
+        );
+
         //  results - alpha_powers[0] * lagrange_1_eval
         // let mut tmp = self.evaluate_pi_poly(pi, &challenges.zeta, vanish_eval, vk.is_merged)?
-        uint256 tmp = addmod(result, Bn254Crypto.negate_fr(mulmod(chal.alpha2, evalData.lagrange_1_eval, p)), p);
-        uint256 plookup_constant = compute_plookup_constant(chal, proof, evalData, domain);
+        uint256 tmp = addmod(
+            result,
+            Bn254Crypto.negate_fr(
+                mulmod(chal.alpha2, evalData.lagrange_1_eval, p)
+            ),
+            p
+        );
+        uint256 plookup_constant = compute_plookup_constant(
+            chal,
+            proof,
+            evalData,
+            domain
+        );
         uint256 tmpOut = compute_tmp(tmp, chal, proof);
-        tmpOut = addmod(tmpOut, mulmod(chal.alpha_powers[1], plookup_constant, p), p);
+        tmpOut = addmod(
+            tmpOut,
+            mulmod(chal.alpha_powers[1], plookup_constant, p),
+            p
+        );
         uint256 result_lin = mulmod(chal.alpha_base, tmpOut, p);
         return result_lin;
     }
 
     function compute_plookup_constant(
-    Types.ChallengeTranscript memory chal,
-    Types.Proof memory proof,
-    PolynomialEval.EvalData memory evalData,
-    PolynomialEval.EvalDomain memory domain
-) internal view returns (uint256) {
-    uint256 gamma_mul_beta_plus_one = mulmod(
-        addmod(chal.beta, 1, p),
-        chal.gamma,
-        p
-    );
-
-    uint256 term1 = mulmod(
-        evalData.lagrange_n_eval,
-        addmod(
-            proof.h_1_eval,
-            p - addmod(proof.h_2_next_eval, chal.alpha_powers[0], p),
-            p
-        ),
-        p
-    );
-
-    uint256 term2 = mulmod(chal.alpha, evalData.lagrange_1_eval, p);
-
-    uint256 part = mulmod(
-        chal.alpha_powers[1],
-        mulmod(
-            addmod(chal.zeta, p - domain.groupGenInv, p),
-            proof.prod_next_eval,
-            p
-        ),
-        p
-    );
-
-    part = mulmod(
-        part,
-        addmod(
-            gamma_mul_beta_plus_one,
-            addmod(proof.h_1_eval, mulmod(chal.beta, proof.h_1_next_eval, p), p),
-            p
-        ),
-        p
-    );
-
-    part = mulmod(
-        part,
-        addmod(
-            gamma_mul_beta_plus_one,
-            mulmod(chal.beta, proof.h_2_next_eval, p),
-            p
-        ),
-        p
-    );
-
-    return addmod(
-        addmod(term1, p - term2, p),
-        p - part,
-        p
-    );
-}
-
- function compute_tmp(
-    uint256 tmp,
-    Types.ChallengeTranscript memory chal,
-    Types.Proof memory proof
-) internal view returns (uint256) {
-     uint256[5] memory first_w_evals = [proof.wires_evals_1, proof.wires_evals_2, proof.wires_evals_3, proof.wires_evals_4, proof.wires_evals_5];
-        uint256 last_w_eval = proof.wires_evals_6;
-        uint256[5] memory sigma_evals = [proof.wire_sigma_evals_1, proof.wire_sigma_evals_2, proof.wire_sigma_evals_3, proof.wire_sigma_evals_4, proof.wire_sigma_evals_5];
-        uint256 acc =  mulmod(mulmod(chal.alpha,proof.perm_next_eval,p),addmod(chal.gamma,last_w_eval,p),p);
-        for (uint256 i = 0; i < 5; i++) {
-            acc = mulmod(acc,addmod(addmod(chal.gamma, first_w_evals[i], p), mulmod(chal.beta, sigma_evals[i], p), p),p);
-        }
-        tmp = addmod(tmp, Bn254Crypto.negate_fr(acc), p);
-    return tmp;
-    }
-    // a helper function to avoid stack too deep error when computing plookup_constant
-    function help(
         Types.ChallengeTranscript memory chal,
         Types.Proof memory proof,
+        PolynomialEval.EvalData memory evalData,
         PolynomialEval.EvalDomain memory domain
     ) internal view returns (uint256) {
-        uint256 gamma_mul_beta_plus_one = mulmod(addmod(chal.beta, 1, p), chal.gamma, p);
-       uint256 res =  mulmod(
-        mulmod(
-            mulmod(
-                chal.alpha_powers[1],
-                addmod(
-                    chal.zeta,
-                    p - domain.groupGenInv,
-                    p
-                ),
+        uint256 gamma_mul_beta_plus_one = mulmod(
+            addmod(chal.beta, 1, p),
+            chal.gamma,
+            p
+        );
+
+        uint256 term1 = mulmod(
+            evalData.lagrange_n_eval,
+            addmod(
+                proof.h_1_eval,
+                p - addmod(proof.h_2_next_eval, chal.alpha_powers[0], p),
                 p
             ),
-            proof.prod_next_eval,
             p
-        ),
-        mulmod(
+        );
+
+        uint256 term2 = mulmod(chal.alpha, evalData.lagrange_1_eval, p);
+
+        uint256 part = mulmod(
+            chal.alpha_powers[1],
+            mulmod(
+                addmod(chal.zeta, p - domain.groupGenInv, p),
+                proof.prod_next_eval,
+                p
+            ),
+            p
+        );
+
+        part = mulmod(
+            part,
             addmod(
                 gamma_mul_beta_plus_one,
                 addmod(
@@ -476,16 +519,102 @@ function verify(bytes calldata acc_proof, bytes calldata proofBytes, bytes calld
                 ),
                 p
             ),
+            p
+        );
+
+        part = mulmod(
+            part,
             addmod(
                 gamma_mul_beta_plus_one,
                 mulmod(chal.beta, proof.h_2_next_eval, p),
                 p
             ),
             p
-        ),
-        p
-    );
-     return res;
+        );
+
+        return addmod(addmod(term1, p - term2, p), p - part, p);
+    }
+
+    function compute_tmp(
+        uint256 tmp,
+        Types.ChallengeTranscript memory chal,
+        Types.Proof memory proof
+    ) internal view returns (uint256) {
+        uint256[5] memory first_w_evals = [
+            proof.wires_evals_1,
+            proof.wires_evals_2,
+            proof.wires_evals_3,
+            proof.wires_evals_4,
+            proof.wires_evals_5
+        ];
+        uint256 last_w_eval = proof.wires_evals_6;
+        uint256[5] memory sigma_evals = [
+            proof.wire_sigma_evals_1,
+            proof.wire_sigma_evals_2,
+            proof.wire_sigma_evals_3,
+            proof.wire_sigma_evals_4,
+            proof.wire_sigma_evals_5
+        ];
+        uint256 acc = mulmod(
+            mulmod(chal.alpha, proof.perm_next_eval, p),
+            addmod(chal.gamma, last_w_eval, p),
+            p
+        );
+        for (uint256 i = 0; i < 5; i++) {
+            acc = mulmod(
+                acc,
+                addmod(
+                    addmod(chal.gamma, first_w_evals[i], p),
+                    mulmod(chal.beta, sigma_evals[i], p),
+                    p
+                ),
+                p
+            );
+        }
+        tmp = addmod(tmp, Bn254Crypto.negate_fr(acc), p);
+        return tmp;
+    }
+    // a helper function to avoid stack too deep error when computing plookup_constant
+    function help(
+        Types.ChallengeTranscript memory chal,
+        Types.Proof memory proof,
+        PolynomialEval.EvalDomain memory domain
+    ) internal view returns (uint256) {
+        uint256 gamma_mul_beta_plus_one = mulmod(
+            addmod(chal.beta, 1, p),
+            chal.gamma,
+            p
+        );
+        uint256 res = mulmod(
+            mulmod(
+                mulmod(
+                    chal.alpha_powers[1],
+                    addmod(chal.zeta, p - domain.groupGenInv, p),
+                    p
+                ),
+                proof.prod_next_eval,
+                p
+            ),
+            mulmod(
+                addmod(
+                    gamma_mul_beta_plus_one,
+                    addmod(
+                        proof.h_1_eval,
+                        mulmod(chal.beta, proof.h_1_next_eval, p),
+                        p
+                    ),
+                    p
+                ),
+                addmod(
+                    gamma_mul_beta_plus_one,
+                    mulmod(chal.beta, proof.h_2_next_eval, p),
+                    p
+                ),
+                p
+            ),
+            p
+        );
+        return res;
     }
 
     /**
@@ -533,7 +662,7 @@ function verify(bytes calldata acc_proof, bytes calldata proofBytes, bytes calld
                 commScalars,
                 commBases
             );
-            // have 32 scalars
+        // have 32 scalars
 
         // Add wire sigma polynomial commitments. The last sigma commitment is excluded.
         compute_buffer_v_and_uv_basis_2_parameters memory z;
@@ -544,7 +673,7 @@ function verify(bytes calldata acc_proof, bytes calldata proofBytes, bytes calld
         z.commScalars = commScalars;
         z.commBases = commBases;
         z.v_base = v_base;
-        uint256 new_v_base= compute_buffer_v_and_uv_basis_2(z);
+        uint256 new_v_base = compute_buffer_v_and_uv_basis_2(z);
 
         compute_buffer_v_and_uv_basis_3_parameters memory z3;
         z3.chal = chal;
@@ -581,7 +710,7 @@ function verify(bytes calldata acc_proof, bytes calldata proofBytes, bytes calld
 
         uint256[] memory buffer_v_and_uv_basis = new uint256[](27);
         // Add poly commitments to be evaluated at point `zeta * g`.
-       
+
         Types.G1Point memory proof_elem2;
         uint256 p_local = Bn254Crypto.r_mod;
 
@@ -604,13 +733,12 @@ function verify(bytes calldata acc_proof, bytes calldata proofBytes, bytes calld
             mstore(add(commScalars, mul(add(commIndex, 1), 0x20)), uv_base)
             proof_elem2 := mload(add(proof, 0x180)) //prod_perm_poly_comm
             mstore(add(commBases, mul(add(commIndex, 1), 0x20)), proof_elem2)
-            
         }
 
         buffer_v_and_uv_basis[11] = uv_base;
         commScalars[38] = uv_base;
         commBases[38] = proof.prod_perm_poly_comm;
-        return (buffer_v_and_uv_basis, v_base,mulmod(uv_base, v, p_local));
+        return (buffer_v_and_uv_basis, v_base, mulmod(uv_base, v, p_local));
     }
 
     /**
@@ -620,9 +748,9 @@ function verify(bytes calldata acc_proof, bytes calldata proofBytes, bytes calld
      */
     function compute_buffer_v_and_uv_basis_2(
         compute_buffer_v_and_uv_basis_2_parameters memory z
-    ) internal pure returns (uint256 res){
+    ) internal pure returns (uint256 res) {
         uint256[] memory buffer_v_and_uv_basis = z.buffer_v_and_uv_basis;
-        uint256 start_index = 27;//z.start_index;
+        uint256 start_index = 27; //z.start_index;
         Types.VerificationKey memory verifyingKey = z.verifyingKey;
         Types.ChallengeTranscript memory chal = z.chal;
         uint256[] memory commScalars = z.commScalars;
@@ -635,7 +763,7 @@ function verify(bytes calldata acc_proof, bytes calldata proofBytes, bytes calld
         assembly {
             for {
                 let i := 6
-            } lt(i, 11) { 
+            } lt(i, 11) {
                 i := add(i, 1)
             } {
                 let commIndex := add(start_index, i)
@@ -652,19 +780,16 @@ function verify(bytes calldata acc_proof, bytes calldata proofBytes, bytes calld
             }
         }
         res = v_base;
-       
-
     }
 
     // Add Plookup polynomial commitments
-     function compute_buffer_v_and_uv_basis_3(
+    function compute_buffer_v_and_uv_basis_3(
         compute_buffer_v_and_uv_basis_3_parameters memory z
     ) internal pure {
         uint256 p_local = Bn254Crypto.r_mod;
         uint256 v = z.chal.v;
-        z.start_index =39;
-        Types.G1Point[6] memory plookup_comms = 
-        [
+        z.start_index = 39;
+        Types.G1Point[6] memory plookup_comms = [
             z.vk.range_table_comm,
             z.vk.key_table_comm,
             z.proof.h_poly_comm_1,
@@ -672,7 +797,7 @@ function verify(bytes calldata acc_proof, bytes calldata proofBytes, bytes calld
             z.vk.table_dom_sep_comm,
             z.vk.q_dom_sep_comm
         ];
-        
+
         for (uint256 i = 0; i < 6; i++) {
             z.buffer_v_and_uv_basis[12 + i] = z.v_base;
             z.commScalars[z.start_index + i] = z.v_base;
@@ -680,26 +805,25 @@ function verify(bytes calldata acc_proof, bytes calldata proofBytes, bytes calld
             z.v_base = mulmod(z.v_base, v, p_local);
         }
 
-Types.G1Point[9] memory plookup_shifted_comms =[
-    z.proof.prod_lookup_poly_comm, //45
-    z.vk.range_table_comm, //46
-    z.vk.key_table_comm, //47
-    z.proof.h_poly_comm_1, //48
-    z.proof.h_poly_comm_2, //49
-    // q_dom_sep_comm, z.vk.selector_comms_18
-    z.vk.selector_comms_18, // 50
-    z.proof.wires_poly_comms_4, //51
-    z.proof.wires_poly_comms_5, //52
-    z.vk.table_dom_sep_comm //53
-];
+        Types.G1Point[9] memory plookup_shifted_comms = [
+            z.proof.prod_lookup_poly_comm, //45
+            z.vk.range_table_comm, //46
+            z.vk.key_table_comm, //47
+            z.proof.h_poly_comm_1, //48
+            z.proof.h_poly_comm_2, //49
+            // q_dom_sep_comm, z.vk.selector_comms_18
+            z.vk.selector_comms_18, // 50
+            z.proof.wires_poly_comms_4, //51
+            z.proof.wires_poly_comms_5, //52
+            z.vk.table_dom_sep_comm //53
+        ];
 
-z.start_index =45;
- for (uint256 i = 0; i < 9; i++) {
+        z.start_index = 45;
+        for (uint256 i = 0; i < 9; i++) {
             z.buffer_v_and_uv_basis[18 + i] = z.uv_base;
             z.commScalars[z.start_index + i] = z.uv_base;
             z.commBases[z.start_index + i] = plookup_shifted_comms[i];
             z.uv_base = mulmod(z.uv_base, v, p_local);
-
         }
     }
     function linearization_scalars_and_bases(
@@ -717,12 +841,11 @@ z.start_index =45;
             proof,
             challenge
         );
-        
+
         scalars[1] = compute_second_scalar(proof, challenge);
-       
 
         // compute first base and second base
-       
+
         assembly {
             // G1Point prod_perm_poly_comm;
             mstore(add(bases, 0x20), mload(add(proof, 0xc0)))
@@ -740,11 +863,17 @@ z.start_index =45;
 
         add_selector_polynomial_commitments(x);
 
-        add_plookup_commitments(bases,scalars,proof,challenge,domain,evalData);
-       
+        add_plookup_commitments(
+            bases,
+            scalars,
+            proof,
+            challenge,
+            domain,
+            evalData
+        );
+
         add_splitted_quotient_commitments_parameter memory y;
 
-       
         y.index = 21; // 21 scalars so far
         y.challenge_zeta = challenge.zeta;
         y.evalData_vanish_eval = evalData.vanish_eval;
@@ -791,7 +920,7 @@ z.start_index =45;
                 mload(add(evalData, 0x20)), //lagrange_1_eval
                 p_local
             )
-            
+
             // firstScalar += w_evals
             //             .iter()
             //             .zip(vk.k.iter())
@@ -813,7 +942,7 @@ z.start_index =45;
                 challenge_beta,
                 mload(add(verifyingKey, 0x360)),
                 p_local
-            )//K2
+            ) //K2
             tmp := mulmod(tmp, challenge_zeta, p_local)
             tmp := addmod(tmp, challenge_gamma, p_local)
             tmp := addmod(tmp, mload(add(proof, 0x220)), p_local) // wires_evals_2
@@ -823,7 +952,7 @@ z.start_index =45;
                 challenge_beta,
                 mload(add(verifyingKey, 0x380)),
                 p_local
-            )//k3
+            ) //k3
             tmp := mulmod(tmp, challenge_zeta, p_local)
             tmp := addmod(tmp, challenge_gamma, p_local)
             tmp := addmod(tmp, mload(add(proof, 0x240)), p_local) // wires_evals_3
@@ -833,7 +962,7 @@ z.start_index =45;
                 challenge_beta,
                 mload(add(verifyingKey, 0x3a0)),
                 p_local
-            )//k4
+            ) //k4
             tmp := mulmod(tmp, challenge_zeta, p_local)
             tmp := addmod(tmp, challenge_gamma, p_local)
             tmp := addmod(tmp, mload(add(proof, 0x260)), p_local) // wires_evals_4
@@ -841,7 +970,7 @@ z.start_index =45;
 
             tmp := mulmod(
                 challenge_beta,
-                mload(add(verifyingKey,0x3c0)),
+                mload(add(verifyingKey, 0x3c0)),
                 p_local
             ) // k5
             tmp := mulmod(tmp, challenge_zeta, p_local)
@@ -851,7 +980,7 @@ z.start_index =45;
 
             tmp := mulmod(
                 challenge_beta,
-                mload(add(verifyingKey,0x3e0)),
+                mload(add(verifyingKey, 0x3e0)),
                 p_local
             ) // k6
             tmp := mulmod(tmp, challenge_zeta, p_local)
@@ -860,7 +989,6 @@ z.start_index =45;
             acc := mulmod(acc, tmp, p_local)
 
             firstScalar := addmod(firstScalar, acc, p_local)
-
         }
         return firstScalar;
     }
@@ -911,7 +1039,7 @@ z.start_index =45;
             tmp := addmod(tmp, mload(add(proof, 0x260)), p_local) // wires_evals_4
             secondScalar := mulmod(secondScalar, tmp, p_local)
 
-            tmp := mulmod(challenge_beta, mload(add(proof, 0x340)), p_local) 
+            tmp := mulmod(challenge_beta, mload(add(proof, 0x340)), p_local)
             // wire_sigma_evals_5
             tmp := addmod(tmp, challenge_gamma, p_local)
             tmp := addmod(tmp, mload(add(proof, 0x280)), p_local) // wires_evals_5
@@ -1009,49 +1137,91 @@ z.start_index =45;
                     p_local
                 )
             )
-               //// q_scalars[13] = w_evals[0] * w_evals[3] * w_evals[2] * w_evals[3]
+            // q_scalars[13] = w_evals[0] * w_evals[3] * w_evals[2] * w_evals[3]
             //     + w_evals[1] * w_evals[2] * w_evals[2] * w_evals[3];
-             mstore(
+            mstore(
                 add(scalarsPtr, 0x1A0),
-        addmod(
-           mulmod( mulmod(mulmod(wires_evals_1, wires_evals_4, p_local), wires_evals_3, p_local), wires_evals_4, p_local),
-           mulmod( mulmod(mulmod(wires_evals_2, wires_evals_3, p_local), wires_evals_3, p_local), wires_evals_4, p_local),
-            p_local
-        )
-        )
-        // q_scalars[14] = w_evals[0] * w_evals[2]
+                addmod(
+                    mulmod(
+                        mulmod(
+                            mulmod(wires_evals_1, wires_evals_4, p_local),
+                            wires_evals_3,
+                            p_local
+                        ),
+                        wires_evals_4,
+                        p_local
+                    ),
+                    mulmod(
+                        mulmod(
+                            mulmod(wires_evals_2, wires_evals_3, p_local),
+                            wires_evals_3,
+                            p_local
+                        ),
+                        wires_evals_4,
+                        p_local
+                    ),
+                    p_local
+                )
+            )
+            // q_scalars[14] = w_evals[0] * w_evals[2]
             //     + w_evals[1] * w_evals[3]
             //     + E::ScalarField::from(2u8) * w_evals[0] * w_evals[3]
             //     + E::ScalarField::from(2u8) * w_evals[1] * w_evals[2];
-          mstore(
+            mstore(
                 add(scalarsPtr, 0x1C0),
-        addmod(
-           mulmod(wires_evals_1, wires_evals_3, p_local),
-              addmod(
-                mulmod(wires_evals_2, wires_evals_4, p_local),
                 addmod(
-                     mulmod(2, mulmod(wires_evals_1, wires_evals_4, p_local), p_local),
-                     mulmod(2, mulmod(wires_evals_2, wires_evals_3, p_local), p_local),
-                     p_local
-                ),
-                p_local
-        ),
-        p_local
-        )
-        )
-        // q_scalars[15] = w_evals[2] * w_evals[2] * w_evals[3] * w_evals[3];
-        mstore( add(scalarsPtr, 0x1E0),
-        mulmod( mulmod(mulmod(wires_evals_3, wires_evals_3, p_local), wires_evals_4, p_local), wires_evals_4, p_local)
-        )
-        // q_scalars[16] =
+                    mulmod(wires_evals_1, wires_evals_3, p_local),
+                    addmod(
+                        mulmod(wires_evals_2, wires_evals_4, p_local),
+                        addmod(
+                            mulmod(
+                                2,
+                                mulmod(wires_evals_1, wires_evals_4, p_local),
+                                p_local
+                            ),
+                            mulmod(
+                                2,
+                                mulmod(wires_evals_2, wires_evals_3, p_local),
+                                p_local
+                            ),
+                            p_local
+                        ),
+                        p_local
+                    ),
+                    p_local
+                )
+            )
+            // q_scalars[15] = w_evals[2] * w_evals[2] * w_evals[3] * w_evals[3];
+            mstore(
+                add(scalarsPtr, 0x1E0),
+                mulmod(
+                    mulmod(
+                        mulmod(wires_evals_3, wires_evals_3, p_local),
+                        wires_evals_4,
+                        p_local
+                    ),
+                    wires_evals_4,
+                    p_local
+                )
+            )
+            // q_scalars[16] =
             //     w_evals[0] * w_evals[0] * w_evals[1] + w_evals[0] * w_evals[1] * w_evals[1];
-        mstore( add(scalarsPtr, 0x200),
-        addmod(
-              mulmod(mulmod(wires_evals_1, wires_evals_1, p_local), wires_evals_2, p_local),
-                mulmod(mulmod(wires_evals_1, wires_evals_2, p_local), wires_evals_2, p_local),
-                p_local
-        )
-        )
+            mstore(
+                add(scalarsPtr, 0x200),
+                addmod(
+                    mulmod(
+                        mulmod(wires_evals_1, wires_evals_1, p_local),
+                        wires_evals_2,
+                        p_local
+                    ),
+                    mulmod(
+                        mulmod(wires_evals_1, wires_evals_2, p_local),
+                        wires_evals_2,
+                        p_local
+                    ),
+                    p_local
+                )
+            )
             mstore(basesPtr, mload(add(verifyingKeyPtr, 0x100))) //selector_comms_1
             mstore(add(basesPtr, 0x20), mload(add(verifyingKeyPtr, 0x120))) //selector_comms_2
             mstore(add(basesPtr, 0x40), mload(add(verifyingKeyPtr, 0x140))) //selector_comms_3
@@ -1065,16 +1235,14 @@ z.start_index =45;
             mstore(add(basesPtr, 0x140), mload(add(verifyingKeyPtr, 0x240))) //selector_comms_11
             mstore(add(basesPtr, 0x160), mload(add(verifyingKeyPtr, 0x260))) //selector_comms_12
             mstore(add(basesPtr, 0x180), mload(add(verifyingKeyPtr, 0x280))) //selector_comms_13
-             mstore(add(basesPtr, 0x1A0), mload(add(verifyingKeyPtr, 0x2a0))) //selector_comms_14
+            mstore(add(basesPtr, 0x1A0), mload(add(verifyingKeyPtr, 0x2a0))) //selector_comms_14
             mstore(add(basesPtr, 0x1C0), mload(add(verifyingKeyPtr, 0x2c0))) //selector_comms_15
             mstore(add(basesPtr, 0x1E0), mload(add(verifyingKeyPtr, 0x2e0))) //selector_comms_16
             mstore(add(basesPtr, 0x200), mload(add(verifyingKeyPtr, 0x300))) //selector_comms_17
             mstore(add(basesPtr, 0x220), mload(add(verifyingKeyPtr, 0x320))) //selector_comms_18
-
         }
 
         scalars[start_index + 10] = Bn254Crypto.negate_fr(proof.wires_evals_5);
-       
     }
 
     // add Plookup related commitments
@@ -1084,36 +1252,41 @@ z.start_index =45;
         Types.Proof memory proof,
         Types.ChallengeTranscript memory challenge,
         PolynomialEval.EvalDomain memory domain,
-         PolynomialEval.EvalData memory evalData
+        PolynomialEval.EvalData memory evalData
     ) internal view {
-     scalars[19] =add_plookup_commitments_helper1(
-         proof,
-         challenge,
-         domain,
-         evalData
-     );
-     bases[19] = proof.prod_lookup_poly_comm;
-     scalars[20] = add_plookup_commitments_helper2(
+        scalars[19] = add_plookup_commitments_helper1(
             proof,
             challenge,
-            domain
+            domain,
+            evalData
         );
-     bases[20] = proof.h_poly_comm_2;
+        bases[19] = proof.prod_lookup_poly_comm;
+        scalars[20] = add_plookup_commitments_helper2(proof, challenge, domain);
+        bases[20] = proof.h_poly_comm_2;
     }
-    
+
     // to avoid the stack too deep error
-     function add_plookup_commitments_helper1(
+    function add_plookup_commitments_helper1(
         Types.Proof memory proof,
         Types.ChallengeTranscript memory challenge,
         PolynomialEval.EvalDomain memory domain,
         PolynomialEval.EvalData memory evalData
     ) internal view returns (uint256 res) {
-       uint256 merged_lookup_x = add_plookup_commitments_helper1_1(proof, challenge);
+        uint256 merged_lookup_x = add_plookup_commitments_helper1_1(
+            proof,
+            challenge
+        );
 
-       uint256 merged_table_x = add_plookup_commitments_helper1_2(proof, challenge);
+        uint256 merged_table_x = add_plookup_commitments_helper1_2(
+            proof,
+            challenge
+        );
 
-       uint256 merged_table_xw = add_plookup_commitments_helper1_3(proof, challenge);
-        res = add_plookup_commitments_helper1_4 (
+        uint256 merged_table_xw = add_plookup_commitments_helper1_3(
+            proof,
+            challenge
+        );
+        res = add_plookup_commitments_helper1_4(
             challenge,
             domain,
             evalData,
@@ -1127,21 +1300,129 @@ z.start_index =45;
         Types.Proof memory proof,
         Types.ChallengeTranscript memory challenge
     ) internal view returns (uint256 res) {
-       res = addmod(proof.wires_evals_6, mulmod(proof.q_lookup_eval, mulmod(challenge.tau, addmod(proof.q_dom_sep_eval, mulmod(challenge.tau, addmod(proof.wires_evals_1, mulmod(challenge.tau, addmod(proof.wires_evals_2, mulmod(challenge.tau, proof.wires_evals_3, p), p), p), p), p), p), p), p), p);
+        res = addmod(
+            proof.wires_evals_6,
+            mulmod(
+                proof.q_lookup_eval,
+                mulmod(
+                    challenge.tau,
+                    addmod(
+                        proof.q_dom_sep_eval,
+                        mulmod(
+                            challenge.tau,
+                            addmod(
+                                proof.wires_evals_1,
+                                mulmod(
+                                    challenge.tau,
+                                    addmod(
+                                        proof.wires_evals_2,
+                                        mulmod(
+                                            challenge.tau,
+                                            proof.wires_evals_3,
+                                            p
+                                        ),
+                                        p
+                                    ),
+                                    p
+                                ),
+                                p
+                            ),
+                            p
+                        ),
+                        p
+                    ),
+                    p
+                ),
+                p
+            ),
+            p
+        );
     }
 
     function add_plookup_commitments_helper1_2(
         Types.Proof memory proof,
         Types.ChallengeTranscript memory challenge
     ) internal view returns (uint256 res) {
-       res = addmod(proof.range_table_eval, mulmod(proof.q_lookup_eval, mulmod(challenge.tau, addmod(proof.table_dom_sep_eval, mulmod(challenge.tau, addmod(proof.key_table_eval, mulmod(challenge.tau, addmod(proof.wires_evals_4, mulmod(challenge.tau, proof.wires_evals_5, p), p), p), p), p), p), p), p), p);
+        res = addmod(
+            proof.range_table_eval,
+            mulmod(
+                proof.q_lookup_eval,
+                mulmod(
+                    challenge.tau,
+                    addmod(
+                        proof.table_dom_sep_eval,
+                        mulmod(
+                            challenge.tau,
+                            addmod(
+                                proof.key_table_eval,
+                                mulmod(
+                                    challenge.tau,
+                                    addmod(
+                                        proof.wires_evals_4,
+                                        mulmod(
+                                            challenge.tau,
+                                            proof.wires_evals_5,
+                                            p
+                                        ),
+                                        p
+                                    ),
+                                    p
+                                ),
+                                p
+                            ),
+                            p
+                        ),
+                        p
+                    ),
+                    p
+                ),
+                p
+            ),
+            p
+        );
     }
 
     function add_plookup_commitments_helper1_3(
         Types.Proof memory proof,
         Types.ChallengeTranscript memory challenge
     ) internal view returns (uint256 res) {
-       res = addmod(proof.range_table_next_eval, mulmod(proof.q_lookup_next_eval, mulmod(challenge.tau, addmod(proof.table_dom_sep_next_eval, mulmod(challenge.tau, addmod(proof.key_table_next_eval, mulmod(challenge.tau, addmod(proof.w_3_next_eval, mulmod(challenge.tau, proof.w_4_next_eval, p), p), p), p), p), p), p), p), p);
+        res = addmod(
+            proof.range_table_next_eval,
+            mulmod(
+                proof.q_lookup_next_eval,
+                mulmod(
+                    challenge.tau,
+                    addmod(
+                        proof.table_dom_sep_next_eval,
+                        mulmod(
+                            challenge.tau,
+                            addmod(
+                                proof.key_table_next_eval,
+                                mulmod(
+                                    challenge.tau,
+                                    addmod(
+                                        proof.w_3_next_eval,
+                                        mulmod(
+                                            challenge.tau,
+                                            proof.w_4_next_eval,
+                                            p
+                                        ),
+                                        p
+                                    ),
+                                    p
+                                ),
+                                p
+                            ),
+                            p
+                        ),
+                        p
+                    ),
+                    p
+                ),
+                p
+            ),
+            p
+        );
     }
 
     function add_plookup_commitments_helper1_4(
@@ -1149,74 +1430,84 @@ z.start_index =45;
         PolynomialEval.EvalDomain memory domain,
         PolynomialEval.EvalData memory evalData,
         uint256 merged_lookup_x,
-        uint256  merged_table_x,
-        uint256  merged_table_xw
+        uint256 merged_table_x,
+        uint256 merged_table_xw
     ) internal view returns (uint256 res) {
-      
-    uint256 b = add_plookup_commitments_helper1_4_1 (challenge, domain, evalData, merged_lookup_x, merged_table_x, merged_table_xw);
+        uint256 b = add_plookup_commitments_helper1_4_1(
+            challenge,
+            domain,
+            evalData,
+            merged_lookup_x,
+            merged_table_x,
+            merged_table_xw
+        );
 
-       res = mulmod( challenge.alpha_base, b, p);
+        res = mulmod(challenge.alpha_base, b, p);
     }
     function add_plookup_commitments_helper1_4_1(
         Types.ChallengeTranscript memory challenge,
         PolynomialEval.EvalDomain memory domain,
         PolynomialEval.EvalData memory evalData,
         uint256 merged_lookup_x,
-        uint256  merged_table_x,
-        uint256  merged_table_xw
+        uint256 merged_table_x,
+        uint256 merged_table_xw
     ) internal view returns (uint256 res) {
-      
-uint256 c = mulmod(
-                challenge.alpha_powers[4],
-                addmod(challenge.zeta, Bn254Crypto.negate_fr(domain.groupGenInv), p),
+        uint256 c = mulmod(
+            challenge.alpha_powers[4],
+            addmod(
+                challenge.zeta,
+                Bn254Crypto.negate_fr(domain.groupGenInv),
                 p
-            );
-     
-     
-      res =addmod(
-   add_plookup_commitments_helper1_4_2 (challenge, evalData),
-    mulmod(
-    mulmod(
-        mulmod(
-            c,
-            addmod(challenge.beta, 1, p),
+            ),
             p
-        ),
-        addmod(challenge.gamma, merged_lookup_x, p),
-        p
-    ),
-    add_plookup_commitments_helper1_4_3 (challenge,  merged_table_x, merged_table_xw),
-    p
-),
-    p
-);
+        );
+
+        res = addmod(
+            add_plookup_commitments_helper1_4_2(challenge, evalData),
+            mulmod(
+                mulmod(
+                    mulmod(c, addmod(challenge.beta, 1, p), p),
+                    addmod(challenge.gamma, merged_lookup_x, p),
+                    p
+                ),
+                add_plookup_commitments_helper1_4_3(
+                    challenge,
+                    merged_table_x,
+                    merged_table_xw
+                ),
+                p
+            ),
+            p
+        );
     }
-function add_plookup_commitments_helper1_4_2(
+    function add_plookup_commitments_helper1_4_2(
         Types.ChallengeTranscript memory challenge,
         PolynomialEval.EvalData memory evalData
     ) internal view returns (uint256 res) {
-        res =addmod(
-        mulmod(challenge.alpha_powers[2], evalData.lagrange_1_eval, p),
-        mulmod(challenge.alpha_powers[3], evalData.lagrange_n_eval, p),
-        p
-    );
+        res = addmod(
+            mulmod(challenge.alpha_powers[2], evalData.lagrange_1_eval, p),
+            mulmod(challenge.alpha_powers[3], evalData.lagrange_n_eval, p),
+            p
+        );
     }
     function add_plookup_commitments_helper1_4_3(
         Types.ChallengeTranscript memory challenge,
         uint256 merged_table_x,
-        uint256  merged_table_xw
+        uint256 merged_table_xw
     ) internal view returns (uint256 res) {
-        res =addmod(
-        addmod(mulmod(addmod(challenge.beta,1,p), challenge.gamma,p), merged_table_x, p),
-        mulmod(challenge.beta, merged_table_xw, p),
-        p
-    );
+        res = addmod(
+            addmod(
+                mulmod(addmod(challenge.beta, 1, p), challenge.gamma, p),
+                merged_table_x,
+                p
+            ),
+            mulmod(challenge.beta, merged_table_xw, p),
+            p
+        );
     }
 
-
-
-     // to avoid the stack too deep error
-     function add_plookup_commitments_helper2(
+    // to avoid the stack too deep error
+    function add_plookup_commitments_helper2(
         Types.Proof memory proof,
         Types.ChallengeTranscript memory challenge,
         PolynomialEval.EvalDomain memory domain
@@ -1226,15 +1517,27 @@ function add_plookup_commitments_helper1_4_2(
                 mulmod(
                     mulmod(
                         challenge.alpha_powers[4],
-                        addmod(Bn254Crypto.negate_fr(challenge.zeta), domain.groupGenInv, p),
+                        addmod(
+                            Bn254Crypto.negate_fr(challenge.zeta),
+                            domain.groupGenInv,
+                            p
+                        ),
                         p
                     ),
                     proof.prod_next_eval,
                     p
                 ),
                 addmod(
-                    addmod(mulmod(addmod(challenge.beta,1,p), challenge.gamma,p), proof.h_1_eval,p),
-                    mulmod(challenge.beta, proof.h_1_next_eval,p),
+                    addmod(
+                        mulmod(
+                            addmod(challenge.beta, 1, p),
+                            challenge.gamma,
+                            p
+                        ),
+                        proof.h_1_eval,
+                        p
+                    ),
+                    mulmod(challenge.beta, proof.h_1_next_eval, p),
                     p
                 ),
                 p
@@ -1299,8 +1602,8 @@ function add_plookup_commitments_helper1_4_2(
             // mstore(add(basesPtr, 0x80), split_quot_poly_comms_5)
 
             mstore(add(scalarsPtr, 0xa0), coeff)
-            // mstore(add(basesPtr, 0xa0), split_quot_poly_comms_6)
         }
+        // mstore(add(basesPtr, 0xa0), split_quot_poly_comms_6)
         bases[index] = proof.split_quot_poly_comms_1;
         bases[index + 1] = proof.split_quot_poly_comms_2;
         bases[index + 2] = proof.split_quot_poly_comms_3;
@@ -1323,19 +1626,25 @@ function add_plookup_commitments_helper1_4_2(
         uint256 uniqueCount = 0;
 
         for (uint256 i = 0; i < bases.length; i++) {
-    bool found = false;
-    for (uint256 j = 0; j < uniqueCount && !found; j++) {
-        if (bases[i].x == tempBases[j].x && bases[i].y == tempBases[j].y) {
-            tempScalars[j] = addmod(tempScalars[j], scalars[i], p_local);
-            found = true;
+            bool found = false;
+            for (uint256 j = 0; j < uniqueCount && !found; j++) {
+                if (
+                    bases[i].x == tempBases[j].x && bases[i].y == tempBases[j].y
+                ) {
+                    tempScalars[j] = addmod(
+                        tempScalars[j],
+                        scalars[i],
+                        p_local
+                    );
+                    found = true;
+                }
+            }
+            if (!found) {
+                tempBases[uniqueCount] = bases[i];
+                tempScalars[uniqueCount] = scalars[i];
+                uniqueCount++;
+            }
         }
-    }
-    if (!found) {
-        tempBases[uniqueCount] = bases[i];
-        tempScalars[uniqueCount] = scalars[i];
-        uniqueCount++;
-    }
-}
 
         Types.G1Point[] memory finalBases = new Types.G1Point[](uniqueCount);
         uint256[] memory finalScalars = new uint256[](uniqueCount);
@@ -1379,25 +1688,88 @@ function add_plookup_commitments_helper1_4_2(
                 )
             }
         }
-        eval = addmod(eval,mulmod(buffer_v_and_uv_basis[11],proof.perm_next_eval,p),p);        
-        
-        // for lookup
-                eval = addmod(eval,mulmod(buffer_v_and_uv_basis[12],proof.range_table_eval,p),p);
-                eval = addmod(eval,mulmod(buffer_v_and_uv_basis[13],proof.key_table_eval,p),p);
-                eval = addmod(eval,mulmod(buffer_v_and_uv_basis[14],proof.h_1_eval,p),p);
-                eval = addmod(eval,mulmod(buffer_v_and_uv_basis[15],proof.q_lookup_eval,p),p);
-                eval = addmod(eval,mulmod(buffer_v_and_uv_basis[16],proof.table_dom_sep_eval,p),p);
-                eval = addmod(eval,mulmod(buffer_v_and_uv_basis[17],proof.q_dom_sep_eval,p),p);
-                eval = addmod(eval,mulmod(buffer_v_and_uv_basis[18],proof.prod_next_eval,p),p);
-                eval = addmod(eval,mulmod(buffer_v_and_uv_basis[19],proof.range_table_next_eval,p),p);
-                eval = addmod(eval,mulmod(buffer_v_and_uv_basis[20],proof.key_table_next_eval,p),p);
-                eval = addmod(eval,mulmod(buffer_v_and_uv_basis[21],proof.h_1_next_eval,p),p);
-                eval = addmod(eval,mulmod(buffer_v_and_uv_basis[22],proof.h_2_next_eval,p),p);
-                eval = addmod(eval,mulmod(buffer_v_and_uv_basis[23],proof.q_lookup_next_eval,p),p);
-                eval = addmod(eval,mulmod(buffer_v_and_uv_basis[24],proof.w_3_next_eval,p),p);
-                eval = addmod(eval,mulmod(buffer_v_and_uv_basis[25],proof.w_4_next_eval,p),p);
-                eval = addmod(eval,mulmod(buffer_v_and_uv_basis[26],proof.table_dom_sep_next_eval,p),p);
+        eval = addmod(
+            eval,
+            mulmod(buffer_v_and_uv_basis[11], proof.perm_next_eval, p),
+            p
+        );
 
+        // for lookup
+        eval = addmod(
+            eval,
+            mulmod(buffer_v_and_uv_basis[12], proof.range_table_eval, p),
+            p
+        );
+        eval = addmod(
+            eval,
+            mulmod(buffer_v_and_uv_basis[13], proof.key_table_eval, p),
+            p
+        );
+        eval = addmod(
+            eval,
+            mulmod(buffer_v_and_uv_basis[14], proof.h_1_eval, p),
+            p
+        );
+        eval = addmod(
+            eval,
+            mulmod(buffer_v_and_uv_basis[15], proof.q_lookup_eval, p),
+            p
+        );
+        eval = addmod(
+            eval,
+            mulmod(buffer_v_and_uv_basis[16], proof.table_dom_sep_eval, p),
+            p
+        );
+        eval = addmod(
+            eval,
+            mulmod(buffer_v_and_uv_basis[17], proof.q_dom_sep_eval, p),
+            p
+        );
+        eval = addmod(
+            eval,
+            mulmod(buffer_v_and_uv_basis[18], proof.prod_next_eval, p),
+            p
+        );
+        eval = addmod(
+            eval,
+            mulmod(buffer_v_and_uv_basis[19], proof.range_table_next_eval, p),
+            p
+        );
+        eval = addmod(
+            eval,
+            mulmod(buffer_v_and_uv_basis[20], proof.key_table_next_eval, p),
+            p
+        );
+        eval = addmod(
+            eval,
+            mulmod(buffer_v_and_uv_basis[21], proof.h_1_next_eval, p),
+            p
+        );
+        eval = addmod(
+            eval,
+            mulmod(buffer_v_and_uv_basis[22], proof.h_2_next_eval, p),
+            p
+        );
+        eval = addmod(
+            eval,
+            mulmod(buffer_v_and_uv_basis[23], proof.q_lookup_next_eval, p),
+            p
+        );
+        eval = addmod(
+            eval,
+            mulmod(buffer_v_and_uv_basis[24], proof.w_3_next_eval, p),
+            p
+        );
+        eval = addmod(
+            eval,
+            mulmod(buffer_v_and_uv_basis[25], proof.w_4_next_eval, p),
+            p
+        );
+        eval = addmod(
+            eval,
+            mulmod(buffer_v_and_uv_basis[26], proof.table_dom_sep_next_eval, p),
+            p
+        );
     }
 
     function validate_scalar_field(uint256 fr) internal pure {
@@ -1459,17 +1831,17 @@ function add_plookup_commitments_helper1_4_2(
         Bn254Crypto.validate_scalar_field(proof.q_lookup_next_eval);
         Bn254Crypto.validate_scalar_field(proof.w_3_next_eval);
         Bn254Crypto.validate_scalar_field(proof.w_4_next_eval);
-        
-        
+
         Bn254Crypto.validate_G1Point(proof.opening_proof);
         Bn254Crypto.validate_G1Point(proof.shifted_opening_proof);
     }
- function get_verification_key()
+
+    function get_verification_key()
         internal
-        pure
+        view
         returns (Types.VerificationKey memory)
     {
-       return UltraPlonkVerificationKey.getVerificationKey();
+        return vkProvider.getVerificationKey();
     }
 
     function deserialize_proof(
@@ -1477,1116 +1849,56 @@ function add_plookup_commitments_helper1_4_2(
     ) internal pure returns (Types.Proof memory proof) {
         uint256 data_ptr;
         assembly {
-        data_ptr := proofBytes.offset
-
-        // Allocate memory for the Proof struct
-        let proof_ptr := mload(0x40)
-        mstore(0x40, add(proof, 0x5A0)) // advance free memory pointer by size of Types.Proof struct
-        // Initialize each field in the struct to point to memory slots
-        // Allocate G1Point structs (each 0x40 bytes) for each commitment and proof
-        // proof := proof_ptr
-        // wires_poly_comms (6)
-        for { let i := 0 } lt(i, 16) { i := add(i, 1) } {
-            let ptr := add(proof, mul(i, 0x20)) // G1Point* ptrs at proof[0x00, 0x20, ..., 0xa0]
-            let g1 := mload(0x40)
-            mstore(0x40, add(g1, 0x40))
-            mstore(ptr, g1)
-            mstore(g1, calldataload(data_ptr))
-            mstore(add(g1, 0x20), calldataload(add(data_ptr, 0x20)))
-            data_ptr := add(data_ptr, 0x40)
-        }
-        // from    uint256 wires_evals_1 to      uint256 w_4_next_eval; 
-        for { let i := 0 } lt(i, 27) { i := add(i, 1) } {
-            mstore(add(proof, add(0x200, mul(i, 0x20))), calldataload(data_ptr))
-            data_ptr := add(data_ptr, 0x20)
-        }
-        //   G1Point opening_proof; and G1Point shifted_opening_proof;
-        for { let i := 0 } lt(i, 2) { i := add(i, 1) } {
-            let ptr := add(proof, add(0x560, mul(i, 0x20))) // proof[0x340, ..., 0x3a0]
-            let g1 := mload(0x40)
-            mstore(0x40, add(g1, 0x40))
-            mstore(ptr, g1)
-            mstore(g1, calldataload(data_ptr))
-            mstore(add(g1, 0x20), calldataload(add(data_ptr, 0x20)))
-            data_ptr := add(data_ptr, 0x40)
-        }
+            data_ptr := proofBytes.offset
+            // Allocate memory for the Proof struct
+            let proof_ptr := mload(0x40)
+            mstore(0x40, add(proof, 0x5A0)) // advance free memory pointer by size of Types.Proof struct
+            // Initialize each field in the struct to point to memory slots
+            // Allocate G1Point structs (each 0x40 bytes) for each commitment and proof
+            // wires_poly_comms (6)
+            for {
+                let i := 0
+            } lt(i, 16) {
+                i := add(i, 1)
+            } {
+                let ptr := add(proof, mul(i, 0x20)) // G1Point* ptrs at proof[0x00, 0x20, ..., 0xa0]
+                let g1 := mload(0x40)
+                mstore(0x40, add(g1, 0x40))
+                mstore(ptr, g1)
+                mstore(g1, calldataload(data_ptr))
+                mstore(add(g1, 0x20), calldataload(add(data_ptr, 0x20)))
+                data_ptr := add(data_ptr, 0x40)
+            }
+            // from    uint256 wires_evals_1 to      uint256 w_4_next_eval;
+            for {
+                let i := 0
+            } lt(i, 27) {
+                i := add(i, 1)
+            } {
+                mstore(
+                    add(proof, add(0x200, mul(i, 0x20))),
+                    calldataload(data_ptr)
+                )
+                data_ptr := add(data_ptr, 0x20)
+            }
+            //   G1Point opening_proof; and G1Point shifted_opening_proof;
+            for {
+                let i := 0
+            } lt(i, 2) {
+                i := add(i, 1)
+            } {
+                let ptr := add(proof, add(0x560, mul(i, 0x20))) // proof[0x340, ..., 0x3a0]
+                let g1 := mload(0x40)
+                mstore(0x40, add(g1, 0x40))
+                mstore(ptr, g1)
+                mstore(g1, calldataload(data_ptr))
+                mstore(add(g1, 0x20), calldataload(add(data_ptr, 0x20)))
+                data_ptr := add(data_ptr, 0x40)
+            }
         }
         return proof;
     }
-}
 
-library Transcript {
-    struct TranscriptData {
-        bytes32[2] state;
-        bytes transcript;
-        Types.ChallengeTranscript challenges;
-    }
-
-    function append_G1_element(
-        TranscriptData memory self,
-        Types.G1Point memory point
-    ) internal pure {
-        append_field_element(self, point.x);
-        append_field_element(self, point.y);
-    }
-
-    function append_field_element(
-        TranscriptData memory self,
-        uint256 fieldElement
-    ) internal pure {
-        // appendMessage(self, abi.encodePacked(reverse_Endianness(fieldElement)));
-        appendMessage(self, abi.encodePacked(fieldElement));
-    }
-
-    function appendMessage(
-        TranscriptData memory self,
-        bytes memory message
-    ) internal pure {
-        self.transcript = abi.encodePacked(self.transcript, message);
-    }
-
-    function reverse_Endianness(
-        uint256 input
-    ) internal pure returns (uint256 v) {
-        v = input;
-        // swap bytes
-        v =
-            ((v &
-                0xFF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00) >>
-                8) |
-            ((v &
-                0x00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF00FF) <<
-                8);
-
-        // swap 2-byte long pairs
-        v =
-            ((v &
-                0xFFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000) >>
-                16) |
-            ((v &
-                0x0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF0000FFFF) <<
-                16);
-
-        // swap 4-byte long pairs
-        v =
-            ((v &
-                0xFFFFFFFF00000000FFFFFFFF00000000FFFFFFFF00000000FFFFFFFF00000000) >>
-                32) |
-            ((v &
-                0x00000000FFFFFFFF00000000FFFFFFFF00000000FFFFFFFF00000000FFFFFFFF) <<
-                32);
-
-        // swap 8-byte long pairs
-        v =
-            ((v &
-                0xFFFFFFFFFFFFFFFF0000000000000000FFFFFFFFFFFFFFFF0000000000000000) >>
-                64) |
-            ((v &
-                0x0000000000000000FFFFFFFFFFFFFFFF0000000000000000FFFFFFFFFFFFFFFF) <<
-                64);
-
-        // swap 16-byte long pairs
-        v = (v >> 128) | (v << 128);
-    }
-
-    function compute_vk_hash(Types.VerificationKey memory vk) internal pure returns (uint256 vk_hash) 
-    {
-    // vk_hash = keccak256(
-    //    vk.domain_size,
-    //    vk.sigma_comms_1..6,
-    //    vk.selector_comms_1..18,
-    //    vk.k1..k6,
-    //    vk.range_table_comm,
-    //    vk.key_table_comm,
-    //    vk.table_dom_sep_comm,
-    //    vk.q_dom_sep_comm
-    // ) mod p
-        
-    assembly {
-        // Free memory pointer & write cursor
-        let ptr := mload(0x40)
-        let offset := ptr
-
-        // 1) domain_size (uint256 at vk + 0x00)
-        {
-            let ds := mload(vk) // uint256 in Solidity
-            // write bytes 24..31 (most-significant to least-significant)
-            mstore8(offset,         byte(24, ds))
-            mstore8(add(offset, 1), byte(25, ds))
-            mstore8(add(offset, 2), byte(26, ds))
-            mstore8(add(offset, 3), byte(27, ds))
-            mstore8(add(offset, 4), byte(28, ds))
-            mstore8(add(offset, 5), byte(29, ds))
-            mstore8(add(offset, 6), byte(30, ds))
-            mstore8(add(offset, 7), byte(31, ds))
-            offset := add(offset, 8)
-        }
-
-        // 2) sigma_comms_1..6
-        // Each field in parent struct holds a pointer to a G1Point (x,y).
-        // G1Point memory layout: [x (32 bytes), y (32 bytes)]
-        // Parent VK layout offsets: 0x40, 0x60, 0x80, 0xa0, 0xc0, 0xe0
-        {
-            let base := 0x40
-            for { let i := 0 } lt(i, 6) { i := add(i, 1) } {
-                let g1ptr := mload(add(vk, add(base, mul(i, 0x20))))
-                mstore(offset, mload(g1ptr))                    // x
-                mstore(add(offset, 0x20), mload(add(g1ptr, 0x20))) // y
-                offset := add(offset, 0x40)
-            }
-        }
-
-        // 3) selector_comms_1..18
-        // Parent VK layout starts at 0x100, step 0x20 for each pointer
-        {
-            let base := 0x100
-            for { let i := 0 } lt(i, 18) { i := add(i, 1) } {
-                let g1ptr := mload(add(vk, add(base, mul(i, 0x20))))
-                mstore(offset, mload(g1ptr))                    // x
-                mstore(add(offset, 0x20), mload(add(g1ptr, 0x20))) // y
-                offset := add(offset, 0x40)
-            }
-        }
-
-        // 4) ks: k1..k6 (uint256s)
-        // Parent VK layout: 0x340, 0x360, 0x380, 0x3a0, 0x3c0, 0x3e0
-        {
-            let base := 0x340
-            for { let i := 0 } lt(i, 6) { i := add(i, 1) } {
-                mstore(offset, mload(add(vk, add(base, mul(i, 0x20)))))
-                offset := add(offset, 0x20)
-            }
-        }
-
-        // 5) range_table_comm, key_table_comm, table_dom_sep_comm, q_dom_sep_comm
-        // Parent VK layout: pointers at 0x400, 0x420, 0x440, 0x460
-        {
-            let base := 0x400
-            for { let i := 0 } lt(i, 4) { i := add(i, 1) } {
-                let g1ptr := mload(add(vk, add(base, mul(i, 0x20))))
-                mstore(offset, mload(g1ptr))                    // x
-                mstore(add(offset, 0x20), mload(add(g1ptr, 0x20))) // y
-                offset := add(offset, 0x40)
-            }
-        }
-
-        // Hash the contiguous region [ptr .. offset)
-        let len := sub(offset, ptr)
-        let h := keccak256(ptr, len)
-
-        // advance free memory pointer
-        mstore(0x40, add(ptr, len))
-
-        // Reduce mod BN254 scalar field prime
-        // p = 21888242871839275222246405745257275088548364400416034343698204186575808495617
-        vk_hash := mod(h, 21888242871839275222246405745257275088548364400416034343698204186575808495617)
-    }
-
-    if (vk_hash != uint256(getVerificationKeyHash())) {
-        revert INVALID_VERIFICATION_KEY_HASH(uint256(vk_hash), uint256(getVerificationKeyHash()));
-    }
-}
-
-    function getVerificationKeyHash() internal pure returns (bytes32) {
-        return UltraPlonkVerificationKey.getVerificationKeyHash();
-    }
-
-    function compute_challengs(
-        TranscriptData memory self,
-        Types.VerificationKey memory vk,
-        Types.Proof memory proof,
-        uint256  public_inputs_hash
-    ) internal pure {
-        // compute vk hash
-        uint256 vk_hash = compute_vk_hash(vk);
-        append_field_element(self, vk_hash);    
-        append_field_element(self, public_inputs_hash);
-        append_G1_element(self, proof.wires_poly_comms_1);
-        append_G1_element(self, proof.wires_poly_comms_2);
-        append_G1_element(self, proof.wires_poly_comms_3);
-        append_G1_element(self, proof.wires_poly_comms_4);
-        append_G1_element(self, proof.wires_poly_comms_5);
-        append_G1_element(self, proof.wires_poly_comms_6);
-        // tau:
-        //    buf0=hash(transcript||0)
-        //    buf1=hash(transcript||1)
-        //    state=[buf0,buf1]
-        //    tau = state[..48]
-        Transcript.generate_tau_challenge(self);
-        // self.transcript = Transcript.slice_from_index(self.transcript, 64);
-        // beta:
-        //    transcript:h_poly_comms
-        //    buf0=hash(state||transcript-first 64 zeros||0)
-        //    buf1=hash(state||transcript-first 64 zeros||1)
-        //    state=[buf0,buf1]
-        //    tau = state[..48]
-        // self.challenges.beta = 
-        Transcript.generate_beta_challenges(self, proof);
-        //  gamma
-        //    buf0=hash(state||transcript-first 64 zeros||0)
-        //    buf1=hash(state||transcript-first 64 zeros||1)
-        //    state=[buf0,buf1]
-        //    tau = state[..48]
-        self.challenges.gamma = Transcript.generate_gamma_challenges(self);
-        // alpha
-        //    transcript:prod_perm_poly_comm
-        //    transcript:prod_lookup_poly_comm
-        //    buf0=hash(state||transcript-first 64 zeros||0)
-        //    buf1=hash(state||transcript-first 64 zeros||1)
-        //    state=[buf0,buf1]
-        //    tau = state[..48]
-        self.challenges.alpha = Transcript.generate_alpha_challenges(
-            self,
-            proof
-        );
-        // zeta
-        //    transcript:proof.split_quot_poly_comms
-        //    buf0=hash(state||transcript-first 64 zeros||0)
-        //    buf1=hash(state||transcript-first 64 zeros||1)
-        //    state=[buf0,buf1]
-        //    tau = state[..48]
-        self.challenges.zeta = Transcript.generate_zeta_challenges(self, proof);
-        // v
-        //    transcript:proof.range_table_eval
-        //    transcript:proof.h_1_eval
-        //    transcript:proof.prod_next_eval
-        //    transcript:proof.range_table_next_eval
-        //    transcript:proof.h_1_next_eval
-        //    transcript:proof.h_2_next_eval
-        //    buf0=hash(state||transcript-first 64 zeros||0)
-        //    buf1=hash(state||transcript-first 64 zeros||1)
-        //    state=[buf0,buf1]
-        //    tau = state[..48]
-        self.challenges.v = Transcript.generate_v_challenges(self, proof);
-         // u
-        //    transcript:proof.opening_proof
-        //    transcript:proof.shifted_opening_proof
-        //    buf0=hash(state||transcript-first 64 zeros||0)
-        //    buf1=hash(state||transcript-first 64 zeros||1)
-        //    state=[buf0,buf1]
-        //    tau = state[..48]
-        self.challenges.u = Transcript.generate_u_challenges(self, proof);
-    }
-
-    function generate_initial_transcript(
-        TranscriptData memory self,
-        Types.VerificationKey memory vk
-    ) internal pure {
-        // append_field_element(self, vk.domain_size);
-        // append_field_element(self, vk.num_inputs);
-        //    compute transcript:
-        //    KECCAK256_STATE_SIZE=64 [0;64]
-        //    modulus_bit_size=254    [254, 0, 0, 0]
-        //    domain_size             [1, 0, 0, 0, 0, 0, 0, 0]
-        //                             8, 0, 0, 0, 0, 0, 0
-        //    num_inputs              [1, 0, 0, 0, 0, 0, 0, 0]
-        //                             1, 0, 0, 0, 0, 0, 0, 0  
-        //    vk.k.iter k1-k5
-        //    selector_comms selector_comms_1-selector_comms_13
-        //    sigma_comms    sigma_comms_1-sigma_comms_5
-        //    public inputs
-        bytes memory transcript_con;
-        assembly {
-            let ptr := mload(0x40)
-            mstore(ptr, 80) // length of our dynamic bytes array
-            mstore(add(ptr, 36), 0) // clear the first 32 bytes (after the length field)
-            mstore(add(ptr, 68), 0) // clear the second 32 bytes
-            // the first 32 bytes are used to store the length of the array.
-            // domain_size [8, 0, 0, 0, 0, 0, 0, 0]
-            let vk_ptr := vk
-            mstore8(add(ptr, 96), mload(vk_ptr))
-            mstore8(add(ptr, 97), shr(8, mload(vk_ptr)))
-            mstore8(add(ptr, 98), shr(16, mload(vk_ptr)))
-            mstore8(add(ptr, 99), shr(24, mload(vk_ptr)))
-            mstore8(add(ptr, 100), shr(32, mload(vk_ptr)))
-            mstore8(add(ptr, 101), shr(40, mload(vk_ptr)))
-            mstore8(add(ptr, 102), shr(48, mload(vk_ptr)))
-            mstore8(add(ptr, 103), shr(56, mload(vk_ptr)))
-           
-            mstore8(add(ptr, 104), mload(add(vk_ptr, 0x20)))
-            mstore8(add(ptr, 105), shr(8, mload(add(vk_ptr, 0x20))))
-            mstore8(add(ptr, 106), shr(16, mload(add(vk_ptr, 0x20))))
-            mstore8(add(ptr, 107), shr(24, mload(add(vk_ptr, 0x20))))
-            mstore8(add(ptr, 108), shr(32, mload(add(vk_ptr, 0x20))))
-            mstore8(add(ptr, 109), shr(40, mload(add(vk_ptr, 0x20))))
-            mstore8(add(ptr, 110), shr(48, mload(add(vk_ptr, 0x20))))
-            mstore(0x40, add(ptr, 112))
-            mstore8(add(ptr, 111), shr(56, mload(add(vk_ptr, 0x20))))
-            transcript_con := ptr
-        }
-        self.transcript = transcript_con;
-    }
-
-    function append_K1_K6(
-        TranscriptData memory self,
-        Types.VerificationKey memory vk
-    ) internal pure {
-        /*
-        append_field_element(self, vk.k1);56570
-        append_field_element(self, 0x1); 56561
-        consider to hardcode here instead of hardcoding in the vk struct
-         */
-        append_field_element(self, vk.k1);
-        append_field_element(self, vk.k2);
-        append_field_element(self, vk.k3);
-        append_field_element(self, vk.k4);
-        append_field_element(self, vk.k5);
-        append_field_element(self, vk.k6);
-    }
-
-    function append_selector_comms_1_18(
-        TranscriptData memory self,
-        Types.VerificationKey memory vk
-    ) internal pure {
-        append_G1_element(self, vk.selector_comms_1);
-        append_G1_element(self, vk.selector_comms_2);
-        append_G1_element(self, vk.selector_comms_3);
-        append_G1_element(self, vk.selector_comms_4);
-        append_G1_element(self, vk.selector_comms_5);
-        append_G1_element(self, vk.selector_comms_6);
-        append_G1_element(self, vk.selector_comms_7);
-        append_G1_element(self, vk.selector_comms_8);
-        append_G1_element(self, vk.selector_comms_9);
-        append_G1_element(self, vk.selector_comms_10);
-        append_G1_element(self, vk.selector_comms_11);
-        append_G1_element(self, vk.selector_comms_12);
-        append_G1_element(self, vk.selector_comms_13);
-        append_G1_element(self, vk.selector_comms_14);
-        append_G1_element(self, vk.selector_comms_15);
-        append_G1_element(self, vk.selector_comms_16);
-        append_G1_element(self, vk.selector_comms_17);
-        append_G1_element(self, vk.selector_comms_18);
-    }
-
-    function append_sigma_comms_1_6(
-        TranscriptData memory self,
-        Types.VerificationKey memory vk
-    ) internal pure {
-        append_G1_element(self, vk.sigma_comms_1);
-        append_G1_element(self, vk.sigma_comms_2);
-        append_G1_element(self, vk.sigma_comms_3);
-        append_G1_element(self, vk.sigma_comms_4);
-        append_G1_element(self, vk.sigma_comms_5);
-        append_G1_element(self, vk.sigma_comms_6);
-    }
-
-    function append_public_inputs(
-        TranscriptData memory self,
-        Types.VerificationKey memory vk
-    ) internal pure {
-        bytes memory transcript_con;
-        assembly {
-            let ptr := mload(0x40)
-            let vk_ptr := vk
-            let public_input_byte_length := mul(mload(add(vk_ptr, 0x20)), 0x20)
-            mstore(ptr, public_input_byte_length)
-            // Calculate the total size of the data including padding for the word size
-            let total_data_size := add(public_input_byte_length, 32)
-            mstore(0x40, add(ptr, total_data_size))
-            // Load the big-endian data into memory
-            calldatacopy(add(ptr, 32), 68, public_input_byte_length)
-            // Reverse byte order from big-endian to little-endian
-            for {
-                let i := 0
-            } lt(i, public_input_byte_length) {
-                i := add(i, 32)
-            } {
-                let chunk_start := add(ptr, add(32, i))
-                let chunk_end := add(chunk_start, 31)
-
-                for {
-                    let j := 0
-                } lt(j, 16) {
-                    j := add(j, 1)
-                } {
-                    let tmp := mload(chunk_start)
-                    mstore(chunk_start, mload(chunk_end))
-                    mstore(chunk_end, tmp)
-                    chunk_start := add(chunk_start, 1)
-                    chunk_end := sub(chunk_end, 1)
-                }
-            }
-
-            transcript_con := ptr
-        }
-        appendMessage(self, transcript_con);
-    }
-
-    function append_wires_poly_comms_1_6(
-        TranscriptData memory self,
-        Types.Proof memory proof
-    ) internal pure {
-        append_field_element(self, proof.wires_poly_comms_1.x);
-        append_field_element(self, proof.wires_poly_comms_1.y);
-        append_field_element(self, proof.wires_poly_comms_2.x);
-        append_field_element(self, proof.wires_poly_comms_2.y);
-        append_field_element(self, proof.wires_poly_comms_3.x);
-        append_field_element(self, proof.wires_poly_comms_3.y);
-        append_field_element(self, proof.wires_poly_comms_4.x);
-        append_field_element(self, proof.wires_poly_comms_4.y);
-        append_field_element(self, proof.wires_poly_comms_5.x);
-        append_field_element(self, proof.wires_poly_comms_5.y);
-        append_field_element(self, proof.wires_poly_comms_6.x);
-        append_field_element(self, proof.wires_poly_comms_6.y); 
-    }
-
-    function generate_tau_challenge(TranscriptData memory self) internal pure {
-    // Concatenate state and transcript
-    // bytes memory input = abi.encodePacked(self.state[0], self.state[1], self.transcript);
-    bytes memory input = abi.encodePacked(self.state[0], self.transcript);
-    // Hash with keccak256
-    bytes32 buf = keccak256(input);
-
-    // Update state with the hash (like Rust: self.state.copy_from_slice(&buf))
-    self.state[0] = buf;
-    // self.state[1] = bytes32(0); // Rust clears transcript, so set second state to zero
-
-    // Clear the transcript
-    self.transcript = "";
-    
-
-    self.challenges.tau = Bn254Crypto.fromBeBytesModOrder(
-        BytesLib.slice(abi.encodePacked(buf), 0, 32)
-    );
-}
-
-    function removeLeadingZeros(
-        bytes memory x
-    ) internal pure returns (bytes memory x1) {
-        uint256 i;
-        uint256 length = x.length;
-
-        // Count the number of leading zeros
-        assembly {
-            let leadingZeros := 0
-
-            for {
-
-            } lt(i, length) {
-                i := add(i, 32)
-            } {
-                leadingZeros := add(leadingZeros, iszero(mload(add(x, i))))
-            }
-
-            // Calculate the new length for x1
-            x1 := mload(0x40)
-            mstore(x1, sub(length, leadingZeros))
-
-            // Copy the data from x to x1
-            for {
-
-            } lt(i, length) {
-                i := add(i, 32)
-            } {
-                mstore(add(x1, add(32, i)), mload(add(x, add(32, i))))
-            }
-
-            // Set the new length for x1
-            mstore(x1, add(32, mload(x1)))
-        }
-    }
-
-    function slice_from_index(
-        bytes memory data,
-        uint256 index
-    ) internal pure returns (bytes memory) {
-        require(index < data.length, "Invalid index");
-        uint256 length = data.length - index;
-        bytes memory result = new bytes(length);
-
-        assembly {
-            // Get the pointer to the start of the source data
-            let srcPtr := add(data, 0x20) // Adding 0x20 skips the length of the data bytes array
-
-            // Get the pointer to the start of the destination data
-            let destPtr := add(result, 0x20) // Adding 0x20 skips the length of the result bytes array
-
-            for {
-                let i := 0
-            } lt(i, length) {
-                i := add(i, 1)
-            } {
-                // Load 32 bytes from srcPtr+i into a temporary variable
-                let temp := mload(add(srcPtr, add(i, index)))
-
-                // Store the loaded 32 bytes at destPtr+i
-                mstore(add(destPtr, i), temp)
-            }
-        }
-        return result;
-    }
-
-
-    function generate_beta_challenges(
-    Transcript.TranscriptData memory self,
-    Types.Proof memory proof
-) internal pure {
-    // 1. Append h_poly_comms to transcript (just like Rust)
-    // Transcript.TranscriptData memory transcripts1;
-    Transcript.append_G1_element(self, proof.h_poly_comm_1);
-    Transcript.append_G1_element(self, proof.h_poly_comm_2);
-    bytes memory input = abi.encodePacked(self.state[0], self.transcript);
-
-    bytes32 buf = keccak256(input);
-    self.state[0] = buf;
-    self.transcript = "";
-    self.challenges.beta = Bn254Crypto.fromBeBytesModOrder(
-        BytesLib.slice(abi.encodePacked(buf), 0, 32)
-    );
-}
-    function generate_gamma_challenges(
-        TranscriptData memory self
-    ) internal pure returns (uint256) {
-        bytes memory input = abi.encodePacked(self.state[0], self.transcript);
-       bytes32 buf = keccak256(input);
-    self.state[0] = buf;
-    self.transcript = "";
-        return
-            Bn254Crypto.fromBeBytesModOrder(
-        BytesLib.slice(abi.encodePacked(buf), 0, 32)
-    );
-    }
-
-
-    function generate_alpha_challenges(
-        TranscriptData memory self,
-        Types.Proof memory proof
-    ) internal pure returns (uint256) {
-        append_G1_element(self, proof.prod_perm_poly_comm);
-        append_G1_element(self, proof.prod_lookup_poly_comm);
-         bytes memory input = abi.encodePacked(self.state[0], self.transcript);
-        bytes32 buf = keccak256(input);
-    self.state[0] = buf;
-    self.transcript = "";
-        return
-            Bn254Crypto.fromBeBytesModOrder(
-        BytesLib.slice(abi.encodePacked(buf), 0, 32)
-    );
-    }
-
-    function generate_zeta_challenges(
-        TranscriptData memory self,
-        Types.Proof memory proof
-    ) internal pure returns (uint256)  {
-        append_G1_element(self, proof.split_quot_poly_comms_1);
-        append_G1_element(self, proof.split_quot_poly_comms_2);
-        append_G1_element(self, proof.split_quot_poly_comms_3);
-        append_G1_element(self, proof.split_quot_poly_comms_4);
-        append_G1_element(self, proof.split_quot_poly_comms_5);
-        append_G1_element(self, proof.split_quot_poly_comms_6);
-        bytes memory input = abi.encodePacked(self.state[0], self.transcript);
-        bytes32 buf = keccak256(input);
-        self.state[0] = buf;
-        self.transcript = "";
-        return
-            Bn254Crypto.fromBeBytesModOrder(
-        BytesLib.slice(abi.encodePacked(buf), 0, 32)
-    );
-    }
-
-    function generate_v_challenges(
-        TranscriptData memory self,
-        Types.Proof memory proof
-    ) internal pure returns (uint256) {
-        //ProofEvaluations
-        // wires_evals
-        append_field_element(self, proof.wires_evals_1);
-        append_field_element(self, proof.wires_evals_2);
-        append_field_element(self, proof.wires_evals_3);
-        append_field_element(self, proof.wires_evals_4);
-        append_field_element(self, proof.wires_evals_5);
-        append_field_element(self, proof.wires_evals_6);
-        append_field_element(self, proof.wire_sigma_evals_1);
-        append_field_element(self, proof.wire_sigma_evals_2);
-        append_field_element(self, proof.wire_sigma_evals_3);
-        append_field_element(self, proof.wire_sigma_evals_4);
-        append_field_element(self, proof.wire_sigma_evals_5);
-        append_field_element(self, proof.perm_next_eval);
-    // plookup_proof: poly_evals (PlookupEvaluations)    
-    
-    append_field_element(self, proof.key_table_eval);
-    append_field_element(self, proof.table_dom_sep_eval);
-    append_field_element(self, proof.range_table_eval);
-    append_field_element(self, proof.q_dom_sep_eval);
-    append_field_element(self, proof.h_1_eval);
-    append_field_element(self, proof.q_lookup_eval);
-    append_field_element(self, proof.prod_next_eval);
-    append_field_element(self, proof.range_table_next_eval);
-    append_field_element(self, proof.key_table_next_eval);
-    append_field_element(self, proof.table_dom_sep_next_eval);
-    append_field_element(self, proof.h_1_next_eval);
-    append_field_element(self, proof.h_2_next_eval);
-    append_field_element(self, proof.q_lookup_next_eval);
-    append_field_element(self, proof.w_3_next_eval);
-    append_field_element(self, proof.w_4_next_eval);
-    bytes memory input = abi.encodePacked(self.state[0], self.transcript);
-       bytes32 buf = keccak256(input);
-    self.state[0] = buf;
-    self.transcript = "";
-        return
-            Bn254Crypto.fromBeBytesModOrder(
-        BytesLib.slice(abi.encodePacked(buf), 0, 32)
-    );
-    }
-
-    function generate_u_challenges(
-        TranscriptData memory self,
-        Types.Proof memory proof
-    ) internal pure returns (uint256) {
-        append_G1_element(self, proof.opening_proof);
-        append_G1_element(self, proof.shifted_opening_proof);
-       bytes memory input = abi.encodePacked(self.state[0], self.transcript);
-       bytes32 buf = keccak256(input);
-    self.state[0] = buf;
-    self.transcript = "";
-        return
-            Bn254Crypto.fromBeBytesModOrder(
-        BytesLib.slice(abi.encodePacked(buf), 0, 32)
-    );
-    }
-}
-
-library Bn254Crypto {
-    uint256 constant p_mod =
-        21888242871839275222246405745257275088696311157297823662689037894645226208583;
-    uint256 constant r_mod =
-        21888242871839275222246405745257275088548364400416034343698204186575808495617;
-
-    function scalarMul(
-        Types.G1Point memory p,
-        uint256 s
-    ) internal view returns (Types.G1Point memory r) {
-        uint256[3] memory input;
-        input[0] = p.x;
-        input[1] = p.y;
-        input[2] = s;
-        bool success;
-        assembly {
-            success := staticcall(sub(gas(), 2000), 7, input, 0x80, r, 0x60)
-            // Use "invalid" to make gas estimation work
-            switch success
-            case 0 {
-                revert(0, 0)
-            }
-        }
-        require(success, "Bn254: scalar mul failed!");
-    }
-
-    function multiScalarMul(
-        Types.G1Point[] memory bases,
-        uint256[] memory scalars
-    ) internal view returns (Types.G1Point memory r) {
-        require(
-            scalars.length == bases.length,
-            "MSM error: length does not match"
-        );
-
-        r = scalarMul(bases[0], scalars[0]);
-        for (uint256 i = 1; i < scalars.length; i++) {
-            r = add(r, scalarMul(bases[i], scalars[i]));
-        }
-    }
-
-    function negate_fr(uint256 fr) internal pure returns (uint256 res) {
-        return r_mod - (fr % r_mod);
-    }
-
-    function negate_G1Point(
-        Types.G1Point memory p
-    ) internal pure returns (Types.G1Point memory) {
-        if (isInfinity(p)) {
-            return p;
-        }
-        return Types.G1Point(p.x, p_mod - (p.y % p_mod));
-    }
-
-    function isInfinity(
-        Types.G1Point memory point
-    ) internal pure returns (bool result) {
-        assembly {
-            let x := mload(point)
-            let y := mload(add(point, 0x20))
-            result := and(iszero(x), iszero(y))
-        }
-    }
-
-    function add(
-        Types.G1Point memory p1,
-        Types.G1Point memory p2
-    ) internal view returns (Types.G1Point memory r) {
-        uint256[4] memory input;
-        input[0] = p1.x;
-        input[1] = p1.y;
-        input[2] = p2.x;
-        input[3] = p2.y;
-        bool success;
-        assembly {
-            success := staticcall(sub(gas(), 2000), 6, input, 0xc0, r, 0x60)
-            // Use "invalid" to make gas estimation work
-            switch success
-            case 0 {
-                revert(0, 0)
-            }
-        }
-        require(success, "Bn254: group addition failed!");
-    }
-
-    function fromLeBytesModOrder(
-        bytes memory leBytes
-    ) internal pure returns (uint256 ret) {
-        assembly {
-            let len := mload(leBytes)
-            let byteData := add(leBytes, 0x20) // points to the start of byte data
-
-            for {
-                let i := 0
-            } lt(i, len) {
-                i := add(i, 1)
-            } {
-                // Multiply ret by 256 (shift left by one byte) with mod
-                ret := mulmod(ret, 256, r_mod)
-
-                // Fetch byte in little-endian order
-                let byteVal := byte(
-                    0,
-                    mload(sub(sub(add(byteData, len), i), 1))
-                )
-
-                // Add the byte to ret with mod
-                ret := addmod(ret, byteVal, r_mod)
-            }
-        }
-    }
-
-    function fromBeBytesModOrder(bytes memory beBytes) internal pure returns (uint256 ret) {
-    assembly {
-        let len := mload(beBytes)
-        let byteData := add(beBytes, 0x20)
-        for { let i := 0 } lt(i, len) { i := add(i, 1) } {
-            ret := mulmod(ret, 256, r_mod)
-            let byteVal := byte(0, mload(add(byteData, i)))
-            ret := addmod(ret, byteVal, r_mod)
-        }
-    }
-}
-
-
-    function invert(uint256 fr) internal view returns (uint256) {
-        uint256 output;
-        bool success;
-        uint256 p = r_mod;
-        assembly {
-            let mPtr := mload(0x40)
-            mstore(mPtr, 0x20)
-            mstore(add(mPtr, 0x20), 0x20)
-            mstore(add(mPtr, 0x40), 0x20)
-            mstore(add(mPtr, 0x60), fr)
-            mstore(add(mPtr, 0x80), sub(p, 2))
-            mstore(add(mPtr, 0xa0), p)
-            success := staticcall(gas(), 0x05, mPtr, 0xc0, 0x00, 0x20)
-            output := mload(0x00)
-        }
-        require(success, "pow precompile call failed!");
-        return output;
-    }
-
-    /// Evaluate the following pairing product:
-    /// e(a1, a2).e(-b1, b2) == 1
-    function pairingProd2(
-        Types.G1Point memory a1,
-        Types.G2Point memory a2,
-        Types.G1Point memory b1,
-        Types.G2Point memory b2
-    ) internal view returns (bool) {
-        validate_G1Point(a1);
-        validate_G1Point(b1);
-        bool success;
-        uint256 out;
-        assembly {
-            let mPtr := mload(0x40)
-            mstore(mPtr, mload(a1))
-            mstore(add(mPtr, 0x20), mload(add(a1, 0x20)))
-            mstore(add(mPtr, 0x40), mload(a2))
-            mstore(add(mPtr, 0x60), mload(add(a2, 0x20)))
-            mstore(add(mPtr, 0x80), mload(add(a2, 0x40)))
-            mstore(add(mPtr, 0xa0), mload(add(a2, 0x60)))
-
-            mstore(add(mPtr, 0xc0), mload(b1))
-            mstore(add(mPtr, 0xe0), mload(add(b1, 0x20)))
-            mstore(add(mPtr, 0x100), mload(b2))
-            mstore(add(mPtr, 0x120), mload(add(b2, 0x20)))
-            mstore(add(mPtr, 0x140), mload(add(b2, 0x40)))
-            mstore(add(mPtr, 0x160), mload(add(b2, 0x60)))
-            success := staticcall(gas(), 8, mPtr, 0x180, 0x00, 0x20)
-            out := mload(0x00)
-        }
-        require(success, "Pairing check failed!");
-        return (out != 0);
-    }
-
-    /**
-     * validate the following:
-     *   x != 0
-     *   y != 0
-     *   x < p
-     *   y < p
-     *   y^2 = x^3 + 3 mod p
-     */
-    function validate_G1Point(Types.G1Point memory point) internal pure {
-        bool is_well_formed;
-        uint256 p = p_mod;
-        assembly {
-            let x := mload(point)
-            let y := mload(add(point, 0x20))
-
-            is_well_formed := and(
-                and(and(lt(x, p), lt(y, p)), not(or(iszero(x), iszero(y)))),
-                eq(mulmod(y, y, p), addmod(mulmod(x, mulmod(x, x, p), p), 3, p))
-            )
-        }
-        require(
-            is_well_formed,
-            "Bn254: G1 point not on curve, or is malformed"
-        );
-    }
-
-    function validate_scalar_field(uint256 fr) internal pure {
-        bool isValid;
-        assembly {
-            isValid := lt(fr, r_mod)
-        }
-        require(isValid, "Bn254: invalid scalar field");
-    }
-}
-
-library PolynomialEval {
-    /// @dev a Radix 2 Evaluation Domain
-    struct EvalDomain {
-        uint256 size; // Size of the domain as a field element
-        // uint256 logSize; // log_2(self.size)
-        uint256 sizeInv; // Inverse of the size in the field
-        uint256 groupGen; // A generator of the subgroup
-        uint256 groupGenInv; // Inverse of the generator
-    }
-
-    /// @dev stores vanishing poly, lagrange at 1, and Public input poly
-    struct EvalData {
-        uint256 vanish_eval; //0x00
-        uint256 lagrange_1_eval; //0x20
-        uint256 piEval; //0x40
-         uint256 lagrange_n_eval; //0x60
-    }
-
-    /// @dev compute the EvalData for a given domain and a challenge zeta
-    function evalDataGen(
-        EvalDomain memory self,
-        uint256 zeta,
-        uint256[] memory publicInput
-    ) internal view returns (EvalData memory evalData) {
-        evalData.vanish_eval = evaluate_VanishingPoly(self, zeta);
-       (evalData.lagrange_1_eval, evalData.lagrange_n_eval) = evaluate_lagrange_1_n(
-            self,
-            zeta,
-            evalData.vanish_eval
-        );
-        evalData.piEval = evaluate_PiPoly(
-            self,
-            publicInput,
-            zeta,
-            evalData.vanish_eval
-        );
-    }
-
-    /// @dev Create a new Radix2EvalDomain with `domainSize` which should be power of 2.
-    function new_EvalDomain(
-        Types.VerificationKey memory vk
-    ) internal pure returns (EvalDomain memory evalDomain) {
-        // Note that this part is hardencoded based on the domainsize
-        // Check this for the last rollup proof
-        // get sizeInv, groupGen, groupGenInv from vk structure
-      
-           return   EvalDomain(
-                // size
-                vk.domain_size,
-                // log size
-                // 11,
-                // sizeInv size_inv
-                vk.size_inv,
-                // groupGen
-                vk.group_gen,
-                // groupGenInv
-                vk.group_gen_inv
-            );
-    }
-
-    // This evaluates the vanishing polynomial for this domain at zeta.
-    // For multiplicative subgroups, this polynomial is
-    // `z(X) = X^self.size - 1`.
-    function evaluate_VanishingPoly(
-        EvalDomain memory self,
-        uint256 zeta
-    ) internal pure returns (uint256 res) {
-        // zeta.pow([self.size() as u64]) - self.coset_offset_pow_size()
-
-        uint256 p = Bn254Crypto.r_mod;
-        uint256 size = self.size;
-        res = power(zeta, size, p);
-        res = res - 1;
-    }
-
-    function power(
-        uint256 base,
-        uint256 exponent,
-        uint256 modulus
-    ) internal pure returns (uint256) {
-        uint256 result = 1;
-        assembly {
-            // Continue looping until exponent is zero
-            for {
-
-            } gt(exponent, 0) {
-
-            } {
-                // If the least significant bit of exponent is 1, multiply
-                if and(exponent, 1) {
-                    result := mulmod(result, base, modulus)
-                }
-
-                // Square the base
-                base := mulmod(base, base, modulus)
-
-                // Right shift the exponent by 1
-                exponent := shr(1, exponent)
-            }
-        }
-        return result;
-    }
-
-    /// @dev Evaluate the lagrange polynomial at point `zeta` given the vanishing polynomial evaluation `vanish_eval`.
-    function evaluate_lagrange_1_n(
-        EvalDomain memory self,
-        uint256 zeta,
-        uint256 vanish_eval
-    ) internal view returns (uint256 lagrange_1_eval, uint256 lagrange_n_eval) {
-        uint256 p = Bn254Crypto.r_mod;
-        uint256 divisor1 = mulmod(self.size, (zeta - 1), p);
-        divisor1 = Bn254Crypto.invert(divisor1);
-        lagrange_1_eval = mulmod(vanish_eval, divisor1, p);
-
-        uint256 divisor_n = mulmod(self.size,addmod(zeta, Bn254Crypto.negate_fr(self.groupGenInv),p) ,p);
-        divisor_n = Bn254Crypto.invert(divisor_n);
-        lagrange_n_eval =mulmod(vanish_eval, mulmod(self.groupGenInv, divisor_n, p),p);
-    }
-
-    /// @dev Evaluate public input polynomial at point `zeta`.
-    function evaluate_PiPoly(
-        EvalDomain memory self,
-        uint256[] memory publicInput,
-        uint256 zeta,
-        uint256 vanish_eval
-    ) internal view returns (uint256 res) {
-        // If zeta is a root of the vanishing polynomial, directly return zero.
-        if (vanish_eval == 0) {
-            return 0;
-        }
-
-        uint256 p = Bn254Crypto.r_mod;
-        uint256 length = publicInput.length;
-        uint256 ithLagrange;
-        uint256 ithDivisor;
-        uint256 tmp;
-        uint256 vanish_eval_div_n = mulmod(self.sizeInv, vanish_eval, p);
-
-        uint256 divisorProd;
-        uint256[] memory localdomain_elements = domain_elements(self, length);
-        uint256[] memory divisors = new uint256[](length);
-
-        assembly {
-            divisorProd := 1
-
-            for {
-                let i := 0
-            } lt(i, length) {
-                i := add(i, 1)
-            } {
-                // tmp points to g^i
-                // first 32 bytes of reference is the length of an array
-                tmp := mload(add(add(localdomain_elements, 0x20), mul(i, 0x20)))
-                // compute (zeta - g^i)
-                ithDivisor := addmod(sub(p, tmp), zeta, p)
-                // accumulate (zeta - g^i) to the divisorProd
-                divisorProd := mulmod(divisorProd, ithDivisor, p)
-                // store ithDivisor in the array
-                mstore(add(add(divisors, 0x20), mul(i, 0x20)), ithDivisor)
-            }
-        }
-
-        // compute 1 / \prod_{i=0}^length (zeta - g^i)
-        divisorProd = Bn254Crypto.invert(divisorProd);
-
-        assembly {
-            for {
-                let i := 0
-            } lt(i, length) {
-                i := add(i, 1)
-            } {
-                // tmp points to g^i
-                // first 32 bytes of reference is the length of an array
-                tmp := mload(add(add(localdomain_elements, 0x20), mul(i, 0x20)))
-                // vanish_eval_div_n * g^i
-                ithLagrange := mulmod(vanish_eval_div_n, tmp, p)
-
-                // now we compute vanish_eval_div_n * g^i / (zeta - g^i) via
-                // vanish_eval_div_n * g^i * divisorProd * \prod_{j!=i} (zeta - g^j)
-                ithLagrange := mulmod(ithLagrange, divisorProd, p)
-                for {
-                    let j := 0
-                } lt(j, length) {
-                    j := add(j, 1)
-                } {
-                    if iszero(eq(i, j)) {
-                        ithDivisor := mload(
-                            add(add(divisors, 0x20), mul(j, 0x20))
-                        )
-                        ithLagrange := mulmod(ithLagrange, ithDivisor, p)
-                    }
-                }
-
-                // multiply by pub_input[i] and update res
-                // tmp points to public input
-                tmp := mload(add(add(publicInput, 0x20), mul(i, 0x20)))
-                ithLagrange := mulmod(ithLagrange, tmp, p)
-                res := addmod(res, ithLagrange, p)
-            }
-        }
-    }
-
-    /// @dev Generate the domain elements for indexes 0..length
-    /// which are essentially g^0, g^1, ..., g^{length-1}
-    function domain_elements(
-        EvalDomain memory self,
-        uint256 length
-    ) internal pure returns (uint256[] memory elements) {
-        uint256 groupGen = self.groupGen;
-        uint256 tmp = 1;
-        uint256 p = Bn254Crypto.r_mod;
-        elements = new uint256[](length);
-        assembly {
-            if not(iszero(length)) {
-                let ptr := add(elements, 0x20)
-                let end := add(ptr, mul(0x20, length))
-                mstore(ptr, 1)
-                ptr := add(ptr, 0x20)
-                // for (; ptr < end; ptr += 32) loop through the memory of `elements`
-                for {
-
-                } lt(ptr, end) {
-                    ptr := add(ptr, 0x20)
-                } {
-                    tmp := mulmod(tmp, groupGen, p)
-                    mstore(ptr, tmp)
-                }
-            }
-        }
-    }
+    // storage gap for future variables
+    uint256[50] private __gap;
 }

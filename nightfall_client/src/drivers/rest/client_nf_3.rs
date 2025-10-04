@@ -17,7 +17,7 @@ use crate::{
         db::mongo::CommitmentEntry,
         queue::{get_queue, QueuedRequest, TransactionRequest},
     },
-    drivers::derive_key::ZKPKeys,
+    drivers::{derive_key::ZKPKeys, DOMAIN_SHARED_SALT},
     get_fee_token_id, get_zkp_keys,
     initialisation::get_db_connection,
     ports::{
@@ -34,13 +34,12 @@ use crate::{
 use ark_bn254::Fr as Fr254;
 use ark_ec::twisted_edwards::Affine;
 use ark_ff::{BigInteger256, Zero};
-use ark_serialize::CanonicalDeserialize;
 use ark_std::{rand::thread_rng, UniformRand};
 use configuration::{addresses::get_addresses, settings::get_settings};
 use jf_primitives::poseidon::{FieldHasher, Poseidon};
-use lib::hex_conversion::HexConvertible;
+use lib::{hex_conversion::HexConvertible, serialization::ark_de_hex};
 use log::{debug, error, info};
-use nf_curves::ed_on_bn254::{BabyJubjub, Fr as BJJScalar};
+use nf_curves::ed_on_bn254::{BJJTEAffine as JubJub, BabyJubjub, Fr as BJJScalar};
 use nightfall_bindings::artifacts::{Nightfall, IERC1155, IERC20, IERC3525, IERC721};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -56,6 +55,8 @@ pub struct WithdrawResponse {
     message: String,
     pub withdraw_fund_salt: String, // Return the withdraw_fund_salt
 }
+#[derive(Deserialize)]
+struct JubJubPubKey(#[serde(deserialize_with = "ark_de_hex")] JubJub);
 // A simplified client interface, which provides Deposit, Transfer and Withdraw operations,
 // with automated commitment selection, but without the flexibility of the lower-level
 // client_operation API.
@@ -222,9 +223,6 @@ pub async fn handle_deposit<N: NightfallContract>(
         value,
         fee,
         deposit_fee,
-        secret_preimage_one,
-        secret_preimage_two,
-        secret_preimage_three,
         ..
     } = req;
 
@@ -260,39 +258,16 @@ pub async fn handle_deposit<N: NightfallContract>(
         error!("{id} Could not wrangle value {err}");
         TransactionHandlerError::CustomError(err.to_string())
     })?;
-    let (secret_preimage_one, secret_preimage_two, secret_preimage_three) =
-        if let (Some(p1), Some(p2), Some(p3)) = (
-            secret_preimage_one,
-            secret_preimage_two,
-            secret_preimage_three,
-        ) {
-            let secret_preimage_one: Fr254 =
-                Fr254::from_hex_string(p1.as_str()).map_err(|err| {
-                    error!("{id} Could not wrangle secret preimage one {err}");
-                    TransactionHandlerError::CustomError(err.to_string())
-                })?;
-            let secret_preimage_two: Fr254 = Fr254::from_hex_string(p2.as_str())
-                .map_err(|err| TransactionHandlerError::CustomError(err.to_string()))?;
-            let secret_preimage_three: Fr254 =
-                Fr254::from_hex_string(p3.as_str()).map_err(|err| {
-                    error!("{id} Could not wrangle secret preimage three {err}");
-                    TransactionHandlerError::CustomError(err.to_string())
-                })?;
-            (
-                secret_preimage_one,
-                secret_preimage_two,
-                secret_preimage_three,
-            )
-        } else {
-            info!("{id} No secret preimage found for deposit request, generating");
-            let mut rng = thread_rng();
 
-            (
-                Fr254::rand(&mut rng),
-                Fr254::rand(&mut rng),
-                Fr254::rand(&mut rng),
-            )
-        };
+    let (secret_preimage_one, secret_preimage_two, secret_preimage_three) = {
+        // RNG is Send and scoped to this block
+        let mut rng = thread_rng();
+        (
+            Fr254::rand(&mut rng),
+            Fr254::rand(&mut rng),
+            Fr254::rand(&mut rng),
+        )
+    };
 
     let secret_preimage = DepositSecret::new(
         secret_preimage_one,
@@ -366,11 +341,10 @@ pub async fn handle_deposit<N: NightfallContract>(
         .nullifier_hash(&nullifier_key)
         .expect("Could not hash commitment {}");
     let commitment_hash = preimage_value.hash().expect("Could not hash commitment");
-
     let commitment_entry =
         CommitmentEntry::new(preimage_value, nullifier, CommitmentStatus::PendingCreation);
 
-    db.store_commitment(commitment_entry.clone())
+    db.store_commitment(commitment_entry)
         .await
         .ok_or(TransactionHandlerError::DatabaseError)?;
 
@@ -455,12 +429,6 @@ where
         ..
     } = transfer_req;
 
-    // add the id to the request database
-    let db = get_db_connection().await;
-    db.store_request(id, RequestStatus::Queued)
-        .await
-        .ok_or(TransactionHandlerError::DatabaseError)?;
-
     // Convert the request into the relevant types.
     let nf_token_id =
         to_nf_token_id_from_str(erc_address.as_str(), token_id.as_str()).map_err(|e| {
@@ -482,24 +450,36 @@ where
         TransactionHandlerError::CustomError(e.to_string())
     })?;
 
-    let decoded_recipient_key = hex::decode(
-        recipient_data
-            .recipient_compressed_zkp_public_keys
-            .first()
-            .unwrap(),
-    )
-    .map_err(|e| {
-        error!("{id} Could not parse compressed recipient public key from String: {e}");
-        TransactionHandlerError::CustomError(e.to_string())
-    })?;
+    let first_key = recipient_data
+        .recipient_compressed_zkp_public_keys
+        .first()
+        .ok_or_else(|| {
+            error!("{id} No recipient public key provided");
+            TransactionHandlerError::CustomError("missing recipient public key".into())
+        })?;
 
-    let recipient_public_key = Affine::<BabyJubjub>::deserialize_compressed(
-        decoded_recipient_key.as_slice(),
-    )
-    .map_err(|e| {
-        error!("{id} Could not deserialize recipient public key: {e}");
-        TransactionHandlerError::CustomError(e.to_string())
-    })?;
+    // Create a JSON string that represents the tuple struct content
+    let json_wrapped = format!("\"{first_key}\"");
+
+    // Note: ark_de_hex deserialization additionally ensures the point is on-curve and in correct subgroup
+    // Unit tests verify this validation behavior remains consistent
+    let deserialized_public_key: JubJubPubKey =
+        serde_json::from_str(&json_wrapped).map_err(|e| {
+            error!("{id} Could not deserialize recipient public key: {e}");
+            TransactionHandlerError::CustomError(format!(
+                "Could not deserialize recipient public key: {e}"
+            ))
+        })?;
+
+    let recipient_public_key = deserialized_public_key.0;
+
+    // Check that the recipient public key is not the identity point
+    if recipient_public_key.is_zero() {
+        error!("{id} Recipient public key cannot be the identity point");
+        return Err(TransactionHandlerError::CustomError(
+            "Recipient public key cannot be the identity point".to_string(),
+        ));
+    }
 
     let ephemeral_private_key = {
         let mut rng = ark_std::rand::thread_rng(); // TODO initialise in main and pass around as a rwlock
@@ -507,6 +487,11 @@ where
     };
     let shared_secret: Affine<BabyJubjub> = (recipient_public_key * ephemeral_private_key).into();
 
+    // add the id to the request database
+    let db = get_db_connection().await;
+    db.store_request(id, RequestStatus::Queued)
+        .await
+        .ok_or(TransactionHandlerError::DatabaseError)?;
 
     // Select the commitments to be spent.
     let spend_commitments;
@@ -564,13 +549,23 @@ where
         .sum::<Fr254>();
     let fee_change = total_fee_value - fee;
 
-    // transferred value commitment, salt is the y-coordinate of the shared secret
+    let poseidon = Poseidon::<Fr254>::new();
+    // Derive a shared salt from the shared secret using domain-separated Poseidon hash.
+    let shared_salt_hash = poseidon
+        .hash(&[shared_secret.x, shared_secret.y, DOMAIN_SHARED_SALT])
+        .map_err(|e| {
+            error!("{id} Failed to derive shared salt with Poseidon: {e}");
+            TransactionHandlerError::CustomError(e.to_string())
+        })?;
+    let shared_salt = Salt::Transfer(shared_salt_hash);
+
+    // transferred value commitment, salt is derived from the shared secret
     let new_commitment_one = Preimage::new(
         value,
         nf_token_id,
         spend_commitments[0].get_nf_slot_id(),
         recipient_public_key,
-        Salt::Transfer(Fr254::new((shared_secret.y).into())),
+        shared_salt,
     );
 
     let new_commitment_two = if !token_change.is_zero() {
@@ -928,4 +923,140 @@ where
     Ok(NotificationPayload::TransactionEvent { response, uuid })
 }
 
+#[cfg(test)]
+mod tests {
+    use super::super::models::NF3RecipientData;
+    use super::*;
+    use crate::driven::plonk_prover::plonk_proof::{PlonkProof, PlonkProvingEngine};
+    use ark_ff::One;
+    use ark_serialize::{CanonicalSerialize, Compress};
+    use ark_std::Zero;
+    use nf_curves::ed_on_bn254::BabyJubjub;
+    use nf_curves::ed_on_bn254::Fq;
 
+    /// Tests that transfer API rejects invalid recipient public keys
+    #[tokio::test]
+    async fn test_transfer_api_rejects_invalid_recipient_keys() {
+        // Invalid compressed point (not on the curve) should fail early in handle_transfer
+        let invalid_transfer_req = NF3TransferRequest {
+            erc_address: "0x1234567890123456789012345678901234567890".to_string(),
+            token_id: "0x00".to_string(),
+            recipient_data: NF3RecipientData {
+                values: vec!["0x04".to_string()],
+                recipient_compressed_zkp_public_keys: vec![
+                    "0x000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffff000"
+                        .to_string(),
+                ],
+            },
+            fee: "0x00".to_string(),
+        };
+
+        let result = handle_transfer::<PlonkProof, PlonkProvingEngine, Nightfall::NightfallCalls>(
+            invalid_transfer_req,
+            "test-id-1",
+        )
+        .await;
+
+        // This should fail at the recipient key validation stage, demonstrating the API validates keys
+        assert!(
+            result.is_err(),
+            "Transfer API should reject invalid recipient public key"
+        );
+        if let Err(TransactionHandlerError::CustomError(msg)) = result {
+            assert!(
+                msg.contains("Could not deserialize recipient public key: the input buffer contained invalid data"),
+                "Error should indicate recipient public key deserialization failure, got: {msg}"
+            );
+        } else {
+            panic!("Expected TransactionHandlerError::CustomError with recipient public key deserialization failure");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_transfer_api_rejects_identity_recipient_keys() {
+        // Identity point should fail early in handle_transfer
+        let identity_point = Affine::<BabyJubjub>::zero();
+        let mut compressed_bytes = Vec::new();
+        identity_point
+            .serialize_with_mode(&mut compressed_bytes, Compress::Yes)
+            .unwrap();
+        compressed_bytes.reverse(); // Convert to big-endian to match ark_se_hex format
+        let identity_point_hex = format!("0x{}", hex::encode(compressed_bytes));
+
+        let identity_point_transfer_req = NF3TransferRequest {
+            erc_address: "0x1234567890123456789012345678901234567890".to_string(),
+            token_id: "0x00".to_string(),
+            recipient_data: NF3RecipientData {
+                values: vec!["0x04".to_string()],
+                recipient_compressed_zkp_public_keys: vec![identity_point_hex],
+            },
+            fee: "0x00".to_string(),
+        };
+
+        let result = handle_transfer::<PlonkProof, PlonkProvingEngine, Nightfall::NightfallCalls>(
+            identity_point_transfer_req,
+            "test-id-2",
+        )
+        .await;
+
+        assert!(
+            result.is_err(),
+            "Transfer API should reject recipient public key if it is the identity"
+        );
+        if let Err(TransactionHandlerError::CustomError(msg)) = result {
+            assert!(
+                msg.contains("Recipient public key cannot be the identity point"),
+                "Error should indicate recipient public key cannot be the identity point, got: {msg}"
+            );
+        } else {
+            panic!("Expected TransactionHandlerError::CustomError with recipient public key cannot be the identity point");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_transfer_api_rejects_low_order_recipient_keys() {
+        // A point that is low order but on the curve should fail early in handle_transfer
+        // We use point (0, -1) which is order 2 on BabyJubJub
+        let zero_x = Fq::zero();
+        let neg_one_y = -Fq::one();
+
+        let low_order_point = Affine::<BabyJubjub>::new_unchecked(zero_x, neg_one_y);
+
+        let mut compressed_bytes = Vec::new();
+        low_order_point
+            .serialize_with_mode(&mut compressed_bytes, Compress::Yes)
+            .unwrap();
+        compressed_bytes.reverse(); // Convert to big-endian to match ark_se_hex format
+        let low_order_hex = format!("0x{}", hex::encode(compressed_bytes));
+
+        let low_order_transfer_req = NF3TransferRequest {
+            erc_address: "0x1234567890123456789012345678901234567890".to_string(),
+            token_id: "0x00".to_string(),
+            recipient_data: NF3RecipientData {
+                values: vec!["0x04".to_string()],
+                recipient_compressed_zkp_public_keys: vec![low_order_hex],
+            },
+            fee: "0x00".to_string(),
+        };
+
+        let result = handle_transfer::<PlonkProof, PlonkProvingEngine, Nightfall::NightfallCalls>(
+            low_order_transfer_req,
+            "test-id-3",
+        )
+        .await;
+
+        // This should fail at the explicit .check() stage since zero point is low-order
+        assert!(
+            result.is_err(),
+            "Transfer API should reject low-order recipient public key"
+        );
+        if let Err(TransactionHandlerError::CustomError(msg)) = result {
+            assert!(
+                msg.contains("Could not deserialize recipient public key: the input buffer contained invalid data"),
+                "Error should indicate recipient public key deserialization failure, got: {msg}"
+            );
+        } else {
+            panic!("Expected TransactionHandlerError::CustomError with recipient public key deserialization failure");
+        }
+    }
+}

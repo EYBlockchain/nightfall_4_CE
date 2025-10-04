@@ -4,6 +4,7 @@ use crate::{
     ports::{contracts::NightfallContract, proving::RecursiveProvingEngine},
     services::assemble_block::assemble_block,
 };
+use alloy::primitives::Address;
 use alloy::{
     primitives::{TxHash, U64},
     providers::{Provider, RootProvider},
@@ -202,6 +203,35 @@ where
     let round_robin_instance =
         Arc::new(RoundRobin::new(get_addresses().round_robin, client.clone()));
 
+    let rr_addr = get_addresses().round_robin;
+    let code = blockchain_client
+        .get_code_at(rr_addr)
+        .await
+        .unwrap_or_default();
+    tracing::warn!(
+        "RoundRobin address: {rr_addr:?}, bytecode_len: {}",
+        code.0.len()
+    );
+
+    // EIP-1967 implementation slot = keccak256("eip1967.proxy.implementation") - 1
+    let impl_slot = "0x360894A13BA1A3210667C828492DB98DCA3E2076CC3735A920A3CA505D382BBC"
+        .parse()
+        .expect("valid slot");
+    let impl_raw = blockchain_client
+        .get_storage_at(rr_addr, impl_slot)
+        .await
+        .unwrap_or_default();
+    let impl_addr = Address::from_slice(&impl_raw.as_le_bytes()[12..]);
+    tracing::warn!("EIP-1967 impl at RR addr: {impl_addr:?}");
+
+    let a = get_addresses();
+    tracing::info!(
+        "Using addresses — nightfall: {:?}, round_robin: {:?}, x509: {:?}",
+        a.nightfall,
+        a.round_robin,
+        a.x509
+    );
+
     // Shared queue for blocks waiting for finality confirmation
     let pending_blocks = Arc::new(Mutex::new(Vec::new()));
     let confirmations_required = U64::from(12);
@@ -210,14 +240,14 @@ where
     debug!("Starting block assembly");
 
     // Spawn the finality checking task
-    // we should start this if we have atleast one pending block
+    // we should start this if we have at least one pending block
     let _finality_checker: tokio::task::JoinHandle<Result<(), BlockAssemblyError>> = {
         let pending_blocks = Arc::clone(&pending_blocks);
-        let round_robin_instance = Arc::clone(&round_robin_instance);
+        let rr = Arc::clone(&round_robin_instance);
         tokio::spawn(async move {
             loop {
                 // Check proposer rotation events
-                let start_block = match round_robin_instance.start_l1_block().call().await {
+                let start_block = match rr.start_l1_block().call().await {
                     Ok(block) => block,
                     Err(_) => {
                         return Err(BlockAssemblyError::FailedToAssembleBlock(
@@ -236,7 +266,7 @@ where
                     }
                 }
 
-                let round_robin_events = round_robin_instance
+                let round_robin_events = rr
                     .event_filter::<RoundRobin::ProposerRotated>()
                     .from_block(0u64);
                 let rotate_proposer_log = match round_robin_events.query().await {
@@ -247,6 +277,7 @@ where
                         ));
                     }
                 };
+                let client = blockchain_client.root().clone();
                 for (_, log_meta) in rotate_proposer_log {
                     let tx_hash = log_meta.transaction_hash.ok_or_else(|| {
                         BlockAssemblyError::Other("Transaction hash is None".to_string())

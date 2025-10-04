@@ -79,6 +79,18 @@ where
                         EventHandlerError::InvalidCalldata
                     })?;
             }
+            Nightfall::NightfallEvents::Initialized(_filter) => {
+                info!("Received Initialized event");
+            }
+            Nightfall::NightfallEvents::Upgraded(_filter) => {
+                info!("Received Upgraded event");
+            }
+            Nightfall::NightfallEvents::AuthoritiesUpdated(_filter) => {
+                info!("Received AuthoritiesUpdated event");
+            }
+            Nightfall::NightfallEvents::OwnershipTransferred(_filter) => {
+                info!("Received OwnershipTransferred event");
+            }
         }
         Ok(())
     }
@@ -111,8 +123,7 @@ pub async fn process_nightfall_calldata<N: NightfallContract>(
             match decoded {
                 Nightfall::NightfallCalls::propose_block(decode) => {
                     info!("Processing a block proposed event");
-                    process_propose_block_event::<N>(decode, tx_hash, filter)
-                        .await?
+                    process_propose_block_event::<N>(decode, tx_hash, filter).await?
                 }
                 _ => (),
             }

@@ -9,7 +9,7 @@ contract MockVerifier is INFVerifier {
 
     function verify(
         bytes calldata accBytes,
-        bytes calldata proofBytes, 
+        bytes calldata proofBytes,
         bytes calldata publicInputsHashBytes
     ) external view override returns (bool result) {
         accBytes;
