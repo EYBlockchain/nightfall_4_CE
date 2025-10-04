@@ -78,32 +78,6 @@ pub async fn find_usable_commitments(
     for (i, p) in preimages.into_iter().enumerate() {
         preimages_fixed[i] = p;
     }
-    // CRITICAL: Verify we have enough real commitments (not defaults) in critical positions.
-    let num_real = preimages_fixed
-    .iter()
-    .take(min_num_c)  
-    .filter(|p| !p.value.is_zero() && !p.nf_token_id.is_zero())
-    .count();
-
-    if num_real < min_num_c {
-            //  // Rollback the commitments we just reserved
-             let commitment_ids_to_rollback: Vec<Fr254> = reserved_commitments
-             .iter()
-             .filter_map(|c| c.hash().ok())
-             .collect();
-     
-             for commitment_id in &commitment_ids_to_rollback {
-                 if let Some(existing) = db.get_commitment(commitment_id).await {
-                     let _ = db.mark_commitments_unspent(
-                         &[*commitment_id],
-                         existing.layer_1_transaction_hash,
-                         existing.layer_2_block_number
-                     ).await;
-                 }
-             }
-        return Err("Not enough commitments available - please deposit more tokens");
-    }
-
     Ok(preimages_fixed)
 
 }
