@@ -1,8 +1,8 @@
 #!/bin/sh
 set -e
 
-# Start anvil in the background
-anvil --base-fee 58000000000 --block-time 5 &
+# Start anvil
+anvil --base-fee 58000000000 --block-time 5 --gas-limit 500000000 &
 ANVIL_PID=$!
 
 # Wait for anvil to be ready (JSON-RPC POST)

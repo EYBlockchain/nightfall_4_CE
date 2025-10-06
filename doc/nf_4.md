@@ -889,8 +889,3 @@ The menu application will load environment variables, connect to the running cli
 TBD once environment is confirmed
 
 ## Appendix
-
-### Note on `L1 submission`
-
-Some Ethereum-compatible chains do not support server-side signing with `eth_sendTransaction`, since the RPC node typically runs without unlocked accounts; in these cases the transaction must be signed client-side using your configured CLIENT_SIGNING_KEY, CLIENT_ADDRESS, and wallet_type = "local", and then submitted with eth_sendRawTransaction. In our code we have already prepared a hook for this: simply uncomment the section below `/* If your chain doesn't support signing transactions locally, and need to be signed at the client level and need to use send_raw_tansaction uncomment the code below */`
- to obtain a local signer and ensure that transactions are signed before being broadcast.

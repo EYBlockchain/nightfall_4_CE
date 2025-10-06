@@ -1,6 +1,6 @@
 # Nightfall Client Playbook — Plume Testnet
 
-For Plume documentation and testnet details refer this, https://docs.plume.org/plume/developers/network-information
+For Plume documentation and testnet details refer this, https://docs.plume.org/plume/developers/network-information.
 
 Clients are the application that normal users will employ to make transactions that are hidden by ZKP. the user can intitiate three types of transaction via the `client`:
 
@@ -8,7 +8,7 @@ Clients are the application that normal users will employ to make transactions t
 
 2. Transfer: This operation will select one or two existing commitments of suitable value (sum equal to or greater than the transfer value, with the tokenId matching the tokenId to be transferred). In addition to the transfer value, it will also account for the required fee. Two new output commitments will be created: one for the new owner receiving the transferred commitment, and the other for any change returned to the original owner of the input commitments. A separate fee commitment and fee change commitment will also be generated. All of these commitments will be validated by creating an UltraPlonk proof, ensuring that the operation is correct. The resulting commitments and proof are wrapped into a `ClientTransaction<P>` struct, which is then sent to one or more `proposer`s for inclusion in a Layer 2 block.
 
-3. Withdraw: This is a special case of a Transfer but, rather than output commitments being created, suffienct funds are de-escrowed for the recipient to withdraw the amount they are being paid from the Nightfall contract.
+3. Withdraw: This is a special case of a Transfer but, rather than output commitments being created, sufficient funds are de-escrowed for the recipient to withdraw the amount they are being paid from the Nightfall contract.
 
 *Note that all of these transactions expect a `X-Request-ID` header to be provided in UUID v4 format, and will fail with a bad request if this is not provided. The value of this header will be reported in log messages and returned with the response.*
 
