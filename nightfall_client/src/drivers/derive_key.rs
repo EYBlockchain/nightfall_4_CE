@@ -1,4 +1,4 @@
-use crate::{get_zkp_keys, ports::keys::KeySpending};
+use crate::{ports::keys::KeySpending};
 
 use ark_bn254::Fr as Fr254;
 use ark_ec::twisted_edwards::Affine as TEAffine;
@@ -137,9 +137,6 @@ impl ZKPKeys {
             zkp_public_key,
             nullifier_key,
         };
-        // we'll update the lazy static storage of the ZKPKeys here. Eventually, we'll add a URL to enable updates on the fly.
-        let mut zkpk = get_zkp_keys().lock().expect("Poisoned lock");
-        *zkpk = zkp_keys; // this is consumed by the event listener.
         Ok(zkp_keys)
     }
 
