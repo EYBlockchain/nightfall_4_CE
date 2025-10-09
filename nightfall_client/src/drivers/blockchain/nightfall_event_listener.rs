@@ -92,7 +92,6 @@ pub async fn listen_for_events<N: NightfallContract>(
         "Listening for events on the Nightfall contract at address: {}",
         get_addresses().nightfall()
     );
-
     let events_filter = Filter::new()
         .address(get_addresses().nightfall())
         .event_signature(vec![
@@ -104,6 +103,14 @@ pub async fn listen_for_events<N: NightfallContract>(
             Nightfall::OwnershipTransferred::SIGNATURE_HASH,
         ])
         .from_block(start_block as u64);
+    let events_subscription = blockchain_client
+    .subscribe_logs(&events_filter)
+    .await
+    .map_err(|_| EventHandlerError::NoEventStream)?;
+
+    let mut events_stream = events_subscription.into_stream();
+    info!("Subscribed to events.");
+
     {
         let latest_block = blockchain_client
             .get_block_number()
@@ -148,14 +155,7 @@ pub async fn listen_for_events<N: NightfallContract>(
     }
 
     // Subscribe to the combined events filter
-    let events_subscription = blockchain_client
-        .subscribe_logs(&events_filter)
-        .await
-        .map_err(|_| EventHandlerError::NoEventStream)?;
-
-    let mut events_stream = events_subscription.into_stream();
-    info!("Subscribed to events.");
-
+   
     while let Some(evt) = events_stream.next().await {
         // process each event in the stream and handle any errors
         let event = match Nightfall::NightfallEvents::decode_log(&evt.inner) {

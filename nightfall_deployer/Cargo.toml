@@ -18,8 +18,8 @@ anyhow = "1.0.99"
 regex = "1.11.2"
 itertools = "0.10.5"
 dotenv = "0.15.0"
-alloy = { version = "1.0.23", features = ["full"] }
-alloy-node-bindings =  "1.0.23"
+alloy = { version = "1.0.38", features = ["full"] }
+alloy-node-bindings =  "1.0.38"
 tokio = { version = "1.45.0", features = ["full"] }
 ethers-solc = "2.0.14"
 configuration = { path = "../configuration" }

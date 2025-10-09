@@ -15,7 +15,7 @@ dotenv = "0.15.0"
 x509-parser = "0.16.0"
 openssl = "0.10.72"
 k256 = "0.13.4"
-alloy = { version = "1.0.23", features = ["full", "json-rpc"] }
+alloy = { version = "1.0.38", features = ["full", "json-rpc"] }
 tokio = { version = "1.45.0", features = ["full"] }
 configuration = { path = "../configuration" }
 nightfall_bindings = {path = "../nightfall_bindings"}

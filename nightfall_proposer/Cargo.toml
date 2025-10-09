@@ -13,7 +13,7 @@ ark-ed-on-bn254 = "0.4.0"
 ark-ec = { version = "0.4.2", features = ["parallel"] }
 nightfall_client = { path = "../nightfall_client" }
 nightfall_bindings = {path = "../nightfall_bindings"}
-alloy = { version = "1.0.23", features = ["full"] }
+alloy = { version = "1.0.38", features = ["full"] }
 ark-serialize = "0.4.2"
 serde = { version = "1.0.219", features = ["derive"] }
 tokio-stream = "0.1.17"

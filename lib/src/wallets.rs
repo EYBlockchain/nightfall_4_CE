@@ -7,9 +7,10 @@ use alloy::signers::local::PrivateKeySigner;
 use alloy::transports::ws::WsConnect;
 use async_trait::async_trait;
 use azure_security_keyvault::SecretClient;
-use log::{debug, info};
+use log::{debug, info, warn, error};
 use std::{error::Error, sync::Arc};
 use url::Url;
+use tokio::time::{sleep, Duration};
 
 #[derive(Clone, Debug)]
 pub enum WalletType {
@@ -48,6 +49,82 @@ impl AzureWallet {
 pub struct LocalWsClient {
     provider: Arc<dyn Provider>,
     signer: PrivateKeySigner,
+}
+
+impl LocalWsClient {
+    /// Create a new WebSocket provider connection.
+    async fn connect_provider(
+        url: Url,
+        signer: PrivateKeySigner,
+    ) -> Result<Arc<dyn Provider>, BlockchainClientConnectionError> {
+        let ws = WsConnect::new(url);
+        let provider = ProviderBuilder::new()
+            .wallet(signer.clone())
+            .connect_ws(ws)
+            .await
+            .map_err(|e| BlockchainClientConnectionError::ProviderError(e.to_string()))?;
+        Ok(Arc::new(provider))
+    }
+
+    /// Attempt to reconnect to the WebSocket RPC, retrying up to `max_retries` times.
+    async fn reconnect(
+        &mut self,
+        url: Url,
+        max_retries: usize,
+    ) -> Result<(), BlockchainClientConnectionError> {
+        let mut retries = 0;
+        loop {
+            retries += 1;
+            match Self::connect_provider(url.clone(), self.signer.clone()).await {
+                Ok(p) => {
+                    self.provider = p;
+                    warn!("Reconnected to WebSocket after {} attempt(s)", retries);
+                    return Ok(());
+                }
+                Err(e) => {
+                    if retries >= max_retries {
+                        error!("Failed to reconnect after {} retries: {}", retries, e);
+                        return Err(e);
+                    }
+                    warn!(
+                        "WebSocket reconnect attempt {}/{} failed: {}. Retrying in 5s...",
+                        retries,
+                        max_retries,
+                        e
+                    );
+                    sleep(Duration::from_secs(5)).await;
+                }
+            }
+        }
+    }
+
+    /// Periodically check if the provider is still connected and reconnect if needed.
+    pub fn spawn_reconnect_task(self, url: Url) -> Arc<Self> {
+        let client = Arc::new(self);
+        let client_clone = client.clone();
+        let client_for_task = client.clone();
+        println!("Spawning reconnect task for WebSocket client...");
+
+        tokio::spawn(async move {
+            loop {
+                let is_connected = client_clone.is_connected().await;
+                println!("connection is alive: {}", is_connected);
+                if !client_clone.is_connected().await {
+                    warn!("WebSocket connection lost, attempting to reconnect...");
+                    if let Err(e) = Arc::get_mut(&mut client_for_task.clone())
+                        .unwrap()
+                        .reconnect(url.clone(), 5)
+                        .await
+                    {
+                        error!("Reconnection failed: {}", e);
+                    }
+                }
+                sleep(Duration::from_secs(3)).await;
+            }
+        });
+
+        client
+    }
 }
 
 #[async_trait]
@@ -117,17 +194,32 @@ impl BlockchainClientConnection for LocalWsClient {
         info!("Created signer with address: {:?}", local_signer.address());
         debug!("And chain id: {}", settings.network.chain_id);
         debug!("And Ethereum client url: {}", settings.ethereum_client_url);
-
-        // create provider
-        let ws = WsConnect::new(settings.ethereum_client_url.clone());
-        let provider = ProviderBuilder::new()
-            .wallet(local_signer.clone())
-            .connect_ws(ws)
-            .await
+        let url = Url::parse(&settings.ethereum_client_url)
             .map_err(|e| BlockchainClientConnectionError::ProviderError(e.to_string()))?;
 
+        // create provider
+        // Attempt to connect with retry logic at startup
+        let mut retries = 0;
+        let provider: Arc<dyn Provider> = loop {
+            match LocalWsClient::connect_provider(url.clone(), local_signer.clone()).await {
+                Ok(p) => break p,
+                Err(e) => {
+                    retries += 1;
+                    if retries > 5 {
+                        return Err(e);
+                    }
+                    warn!(
+                        "Initial WebSocket connection failed (attempt {}), retrying in 5s: {}",
+                        retries,
+                        e
+                    );
+                    sleep(Duration::from_secs(5)).await;
+                }
+            }
+        };
+
         Ok(Self {
-            provider: Arc::new(provider),
+            provider,
             signer: local_signer,
         })
     }

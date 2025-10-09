@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-alloy = { version = "1.0.23", features = ["full"] }
+alloy = { version = "1.0.38", features = ["full"] }
 configuration = { path = "../configuration" }
 log = "0.4.27"
 
