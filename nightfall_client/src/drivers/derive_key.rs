@@ -1,4 +1,4 @@
-use crate::{ports::keys::KeySpending};
+use crate::ports::keys::KeySpending;
 
 use ark_bn254::Fr as Fr254;
 use ark_ec::twisted_edwards::Affine as TEAffine;
