@@ -1,12 +1,11 @@
 use ark_bn254::Fr as Fr254;
 use configuration::{logging::init_logging, settings::get_settings};
-use lib::{merkle_trees::trees::TreeMetadata, utils};
+use lib::{merkle_trees::trees::TreeMetadata, utils, plonk_prover::plonk_proof::{PlonkProof, PlonkProvingEngine}};
 use log::{error, info};
 use nightfall_bindings::artifacts::Nightfall;
 use nightfall_client::{
     domain::entities::{Node, Request},
     driven::{
-        plonk_prover::plonk_proof::{PlonkProof, PlonkProvingEngine},
         queue::process_queue,
     },
     drivers::{blockchain::event_listener_manager::ensure_running, rest::routes},

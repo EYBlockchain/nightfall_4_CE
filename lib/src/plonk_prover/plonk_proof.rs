@@ -12,13 +12,12 @@ use jf_plonk::{
 };
 
 use crate::{
-    get_client_proving_key,
-    driven::plonk_prover::circuit_builder::CircuitBuilder,
+    plonk_prover::{circuit_builder::CircuitBuilder, get_client_proving_key},
+    nf_client_proof::{PrivateInputs, Proof, ProvingEngine, PublicInputs}, serialization::{ark_de_hex, ark_se_hex}
 };
 use alloy::primitives::Bytes;
 use jf_primitives::{pcs::prelude::UnivariateKzgPCS, rescue::sponge::RescueCRHF};
 use jf_relation::{Circuit, PlonkCircuit};
-use lib::{nf_client_proof::{PrivateInputs, Proof, ProvingEngine, PublicInputs}, serialization::{ark_de_hex, ark_se_hex}};
 use log::{debug, error};
 use serde::{Deserialize, Serialize};
 

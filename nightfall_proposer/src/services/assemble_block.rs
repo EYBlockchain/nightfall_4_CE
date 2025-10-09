@@ -387,8 +387,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use lib::tests_utils::{get_db_connection, get_mongo};
-    use nightfall_client::driven::plonk_prover::plonk_proof::PlonkProof;
+    use lib::{plonk_prover::plonk_proof::PlonkProof, tests_utils::{get_db_connection, get_mongo}};
 
     #[tokio::test]
     async fn test_prepare_block_data_simple_case() {

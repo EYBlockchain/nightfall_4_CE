@@ -16,7 +16,7 @@ use crate::{
         db::mongo::CommitmentEntry,
         queue::{get_queue, QueuedRequest, TransactionRequest},
     },
-    drivers::{derive_key::ZKPKeys, DOMAIN_SHARED_SALT},
+    drivers::derive_key::ZKPKeys,
     get_fee_token_id, get_zkp_keys,
     initialisation::get_db_connection,
     ports::{
@@ -36,7 +36,7 @@ use ark_std::{rand::thread_rng, UniformRand};
 use configuration::{addresses::get_addresses, settings::get_settings};
 use jf_primitives::poseidon::{FieldHasher, Poseidon};
 use lib::{hex_conversion::HexConvertible, serialization::ark_de_hex, nf_token_id::to_nf_token_id_from_str,
-    nf_client_proof::{Proof, ProvingEngine}
+    nf_client_proof::{Proof, ProvingEngine}, plonk_prover::circuits::DOMAIN_SHARED_SALT,
 };
 use log::{debug, error, info};
 use nf_curves::ed_on_bn254::{BJJTEAffine as JubJub, BabyJubjub, Fr as BJJScalar};
@@ -831,7 +831,7 @@ where
 mod tests {
     use super::super::models::NF3RecipientData;
     use super::*;
-    use crate::driven::plonk_prover::plonk_proof::{PlonkProof, PlonkProvingEngine};
+    use lib::plonk_prover::plonk_proof::{PlonkProof, PlonkProvingEngine};
     use ark_ff::One;
     use ark_serialize::{CanonicalSerialize, Compress};
     use ark_std::Zero;

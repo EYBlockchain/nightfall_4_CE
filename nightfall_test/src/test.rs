@@ -25,6 +25,7 @@ use lib::{
     blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
     initialisation::get_blockchain_client_connection, models::CertificateReq,
     nf_client_proof::{PrivateInputs, ProvingEngine, PublicInputs},
+    plonk_prover::plonk_proof::{PlonkProof, PlonkProvingEngine},
 };
 use log::{debug, info};
 use nf_curves::ed_on_bn254::{BabyJubjub as BabyJubJub, Fr as BJJScalar};
@@ -36,7 +37,6 @@ use nightfall_client::{
     },
     driven::{
         db::mongo::CommitmentEntry,
-        plonk_prover::plonk_proof::{PlonkProof, PlonkProvingEngine},
     },
     drivers::{
         derive_key::ZKPKeys,

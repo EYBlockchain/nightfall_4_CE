@@ -1,4 +1,4 @@
-use crate::drivers::DOMAIN_SHARED_SALT;
+use lib::plonk_prover::circuits::DOMAIN_SHARED_SALT;
 use ark_ec::twisted_edwards::Affine as TEAffine;
 use ark_ff::{BigInteger, One, PrimeField, Zero};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};

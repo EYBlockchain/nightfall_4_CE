@@ -19,12 +19,13 @@ use jf_primitives::{
     trees::{Directions, MembershipProof, PathElement, TreeHasher},
 };
 use jf_relation::{Arithmetization, Circuit};
-use lib::{nf_token_id::to_nf_token_id_from_str,hex_conversion::HexConvertible};
+use lib::{nf_token_id::to_nf_token_id_from_str,hex_conversion::HexConvertible,
+    plonk_prover::circuits::unified_circuit::unified_circuit_builder,
+};
 use nf_curves::ed_on_bn254::{BabyJubjub, Fq as Fr254, Fr as BJJScalar};
 use nightfall_client::{
     domain::entities::{DepositSecret, Preimage, Salt},
     driven::{
-        plonk_prover::circuits::unified_circuit::unified_circuit_builder,
         primitives::kemdem_functions::kemdem_encrypt,
     },
     drivers::derive_key::ZKPKeys,

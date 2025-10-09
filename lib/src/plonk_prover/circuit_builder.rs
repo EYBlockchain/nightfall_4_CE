@@ -4,7 +4,7 @@ use jf_plonk::errors::PlonkError;
 
 use jf_relation::PlonkCircuit;
 
-use lib::nf_client_proof::{PrivateInputs, PublicInputs};
+use crate::nf_client_proof::{PrivateInputs, PublicInputs};
 
 use super::circuits::unified_circuit::unified_circuit_builder;
 

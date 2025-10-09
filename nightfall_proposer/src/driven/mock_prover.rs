@@ -12,14 +12,13 @@ use jf_plonk::{
 };
 use jf_primitives::{pcs::prelude::UnivariateKzgPCS, rescue::sponge::RescueCRHF};
 use jf_utils::fr_to_fq;
-use lib::{merkle_trees::trees::{MerkleTreeError, MutableTree, TreeMetadata}, nf_client_proof::PublicInputs};
+use lib::{merkle_trees::trees::{MerkleTreeError, MutableTree, TreeMetadata}, nf_client_proof::PublicInputs,
+    plonk_prover::{plonk_proof::PlonkProof, get_client_proving_key},
+};
 use std::collections::HashMap;
 
 use log::debug;
 use mongodb::{bson::doc, Client};
-use nightfall_client::{
-    driven::plonk_prover::plonk_proof::PlonkProof, get_client_proving_key,
-};
 
 use super::{deposit_circuit::deposit_circuit_builder, rollup_prover::RollupProofError};
 use crate::{
