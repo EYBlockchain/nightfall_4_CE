@@ -1,6 +1,6 @@
-use crate::ports::{contracts::NightfallContract, proof::Proof};
+use crate::ports::contracts::NightfallContract;
 use balance::{get_balance, get_fee_balance, get_l1_balance};
-use lib::validate_certificate::certification_validation_request;
+use lib::{nf_client_proof::Proof, validate_certificate::certification_validation_request};
 use log::error;
 use proposers::get_proposers;
 use reqwest::StatusCode;

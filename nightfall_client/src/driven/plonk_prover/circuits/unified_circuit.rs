@@ -6,7 +6,6 @@ use crate::{
         verify_nullifiers_gadgets::VerifyNullifiersCircuit,
     },
     drivers::DOMAIN_SHARED_SALT,
-    ports::proof::{PrivateInputs, PrivateInputsVar, PublicInputs},
 };
 use alloy::{
     dyn_abi::abi::encode,
@@ -20,6 +19,7 @@ use jf_primitives::circuit::poseidon::PoseidonHashGadget;
 use jf_relation::{errors::CircuitError, gadgets::ecc::Point, Circuit, PlonkCircuit, Variable};
 use nf_curves::ed_on_bn254::{BabyJubjub, Fq as Fr254};
 use num_bigint::BigUint;
+use lib::nf_client_proof::{PrivateInputs, PrivateInputsVar, PublicInputs};
 
 /// This trait is used to construct a circuit verify the integrity of withdraw and transfer operations
 pub trait UnifiedCircuit {

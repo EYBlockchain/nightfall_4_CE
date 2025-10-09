@@ -6,7 +6,6 @@ use crate::{
     get_fee_token_id,
     ports::{
         commitments::Commitment,
-        proof::{PrivateInputs, Proof, ProvingEngine, PublicInputs},
     },
 };
 use alloy::primitives::Bytes;
@@ -15,7 +14,7 @@ use ark_ec::AffineRepr;
 use ark_ff::{BigInt, BigInteger, Field};
 use ark_serialize::SerializationError;
 use ark_std::Zero;
-use lib::hex_conversion::HexConvertible;
+use lib::{hex_conversion::HexConvertible, nf_client_proof::{PrivateInputs, Proof, ProvingEngine, PublicInputs}};
 use nf_curves::ed_on_bn254::{
     BJJTEAffine as JubJubAffine, BJJTEProjective as JubJub, Fr as FqJubJub,
 };

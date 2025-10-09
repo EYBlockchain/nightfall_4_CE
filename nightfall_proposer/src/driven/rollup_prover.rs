@@ -52,12 +52,13 @@ use jf_relation::BoolVar;
 use lib::{
     error::ConversionError,
     merkle_trees::trees::{MerkleTreeError, MutableTree, TreeMetadata},
+    nf_client_proof::PublicInputs,
     serialization::{ark_de_hex, ark_se_hex},
     utils::load_key_from_server,
 };
 use nightfall_client::{
     driven::plonk_prover::plonk_proof::PlonkProof,
-    get_client_proving_key, ports::proof::PublicInputs,
+    get_client_proving_key, 
 };
 use serde::{Deserialize, Serialize};
 use std::{

@@ -1,8 +1,8 @@
 use crate::driven::nightfall_client_transaction::process_nightfall_client_transaction;
 use nightfall_client::{
     domain::entities::ClientTransaction,
-    ports::proof::{Proof, ProvingEngine},
 };
+use lib::nf_client_proof::{Proof, ProvingEngine};
 use std::error::Error;
 
 pub async fn process_client_transaction<P, E>(

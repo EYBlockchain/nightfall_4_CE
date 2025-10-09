@@ -24,6 +24,7 @@ use jf_primitives::{
 use lib::{
     blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
     initialisation::get_blockchain_client_connection, models::CertificateReq,
+    nf_client_proof::{PrivateInputs, ProvingEngine, PublicInputs},
 };
 use log::{debug, info};
 use nf_curves::ed_on_bn254::{BabyJubjub as BabyJubJub, Fr as BJJScalar};
@@ -46,7 +47,6 @@ use nightfall_client::{
     },
     ports::{
         commitments::Commitment,
-        proof::{PrivateInputs, ProvingEngine, PublicInputs},
         secret_hash::SecretHash,
     },
 };

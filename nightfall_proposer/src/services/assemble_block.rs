@@ -13,11 +13,12 @@ use ark_std::{collections::HashSet, Zero};
 use bson::doc;
 use configuration::settings::get_settings;
 use jf_primitives::poseidon::{FieldHasher, Poseidon};
-use lib::{blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible};
+use lib::{blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
+           nf_client_proof::{Proof, PublicInputs}
+};
 use log::{info, warn};
 use nightfall_client::{
     driven::db::mongo::DB,
-    ports::proof::{Proof, PublicInputs},
 };
 use std::cmp::Reverse;
 use tokio::time::Instant;

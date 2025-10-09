@@ -5042,6 +5042,7 @@ dependencies = [
  "jf-plonk",
  "jf-primitives",
  "jf-relation",
+ "jf-utils",
  "k256 0.13.4",
  "log",
  "mongodb",

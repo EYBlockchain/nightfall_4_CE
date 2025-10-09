@@ -10,9 +10,9 @@ use ark_serialize::SerializationError;
 
 use nightfall_client::{
     domain::entities::CompressedSecrets,
-    ports::proof::{Proof, ProvingEngine, PublicInputs},
 };
 use lib::error::ConversionError;
+use lib::nf_client_proof::{Proof, ProvingEngine, PublicInputs};
 
 impl From<&PublicInputs> for OnChainTransaction {
     fn from(p: &PublicInputs) -> Self {

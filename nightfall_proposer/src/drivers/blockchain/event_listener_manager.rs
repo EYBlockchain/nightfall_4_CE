@@ -2,12 +2,12 @@ use crate::drivers::blockchain::nightfall_event_listener::start_event_listener;
 use crate::ports::contracts::NightfallContract;
 use configuration::settings::get_settings;
 use log::{info, warn};
-use nightfall_client::ports::proof::{Proof, ProvingEngine};
 use tokio::{
     sync::{OnceCell, RwLock},
     task::JoinHandle,
     time::{sleep, Duration},
 };
+use lib::nf_client_proof::{Proof, ProvingEngine};
 
 // The sole place that holds the listener handle.
 static LISTENER: OnceCell<RwLock<Option<JoinHandle<()>>>> = OnceCell::const_new();

@@ -1,8 +1,8 @@
 use alloy::primitives::TxHash;
 use nightfall_client::{
     domain::error::EventHandlerError,
-    ports::proof::{Proof, ProvingEngine},
 };
+use lib::nf_client_proof::{Proof, ProvingEngine};
 
 use super::contracts::NightfallContract;
 

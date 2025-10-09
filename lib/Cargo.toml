@@ -29,6 +29,9 @@ jf-plonk = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", featu
 ] }
 jf-relation = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git" }
 jf-primitives = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git" }
+jf-utils = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", features = [
+    "parallel",
+] }
 nf-curves = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git" }
 ark-ec = { version = "0.4.2", features = ["parallel"] }
 num-bigint = "0.4.6"

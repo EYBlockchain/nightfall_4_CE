@@ -25,7 +25,9 @@ use jf_primitives::{
         Directions, MembershipProof, PathElement, TreeHasher,
     },
 };
-use lib::{hex_conversion::HexConvertible, nf_token_id::to_nf_token_id_from_str};
+use lib::{hex_conversion::HexConvertible, nf_token_id::to_nf_token_id_from_str,
+    nf_client_proof::{PrivateInputs, PublicInputs},
+};
 use nf_curves::ed_on_bn254::{BabyJubjub as BabyJubJub, Fr as BJJScalar};
 use nightfall_client::{
     domain::entities::{DepositSecret, Preimage, Salt},
@@ -33,7 +35,6 @@ use nightfall_client::{
     drivers::derive_key::ZKPKeys,
     ports::{
         commitments::Commitment,
-        proof::{PrivateInputs, PublicInputs},
         secret_hash::SecretHash,
     },
 };

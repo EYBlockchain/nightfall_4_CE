@@ -4,9 +4,21 @@ use jf_plonk::errors::PlonkError;
 
 use jf_relation::PlonkCircuit;
 
-use crate::ports::proof::{CircuitBuilder, PrivateInputs, PublicInputs};
+use lib::nf_client_proof::{PrivateInputs, PublicInputs};
 
 use super::circuits::unified_circuit::unified_circuit_builder;
+
+pub trait CircuitBuilder
+where
+    Self: Sized,
+{
+    type Error: std::error::Error;
+
+    fn build_circuit(
+        public_inputs: &mut PublicInputs,
+        private_inputs: &mut PrivateInputs,
+    ) -> Result<Self, Self::Error>;
+}
 
 impl CircuitBuilder for PlonkCircuit<Fr254> {
     type Error = PlonkError;

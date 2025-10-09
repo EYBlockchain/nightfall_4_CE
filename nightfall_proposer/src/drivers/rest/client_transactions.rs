@@ -3,8 +3,8 @@ use crate::driven::nightfall_client_transaction::process_nightfall_client_transa
 use log::{error, info};
 use nightfall_client::{
     domain::entities::ClientTransaction,
-    ports::proof::{Proof, ProvingEngine},
 };
+use lib::nf_client_proof::{Proof, ProvingEngine};
 
 use warp::{hyper::StatusCode, path, Filter};
 

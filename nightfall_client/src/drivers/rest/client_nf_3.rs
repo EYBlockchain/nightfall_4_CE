@@ -24,7 +24,6 @@ use crate::{
         contracts::NightfallContract,
         db::{CommitmentDB, CommitmentEntryDB, RequestCommitmentMappingDB, RequestDB},
         keys::KeySpending,
-        proof::{Proof, ProvingEngine},
     },
     services::{
         client_operation::deposit_operation, commitment_selection::find_usable_commitments,
@@ -36,7 +35,9 @@ use ark_ff::{BigInteger256, Zero};
 use ark_std::{rand::thread_rng, UniformRand};
 use configuration::{addresses::get_addresses, settings::get_settings};
 use jf_primitives::poseidon::{FieldHasher, Poseidon};
-use lib::{hex_conversion::HexConvertible, serialization::ark_de_hex, nf_token_id::to_nf_token_id_from_str};
+use lib::{hex_conversion::HexConvertible, serialization::ark_de_hex, nf_token_id::to_nf_token_id_from_str,
+    nf_client_proof::{Proof, ProvingEngine}
+};
 use log::{debug, error, info};
 use nf_curves::ed_on_bn254::{BJJTEAffine as JubJub, BabyJubjub, Fr as BJJScalar};
 use nightfall_bindings::artifacts::{Nightfall, IERC1155, IERC20, IERC3525, IERC721};

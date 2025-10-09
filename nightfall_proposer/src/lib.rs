@@ -104,9 +104,8 @@ pub mod initialisation {
     use ark_bn254::Fr as Fr254;
     use ark_std::sync::Arc;
     use configuration::settings::get_settings;
-    use lib::{blockchain_client::BlockchainClientConnection, wallets::LocalWsClient};
+    use lib::{blockchain_client::BlockchainClientConnection, wallets::LocalWsClient, nf_client_proof::Proof};
     use mongodb::Client;
-    use nightfall_client::ports::proof::Proof;
     use tokio::sync::{OnceCell, RwLock};
 
     /// This function is used to provide a singleton database connection across the entire application.

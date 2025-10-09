@@ -3,7 +3,6 @@ use crate::{
     ports::{
         commitments::{Commitment, Nullifiable},
         key_provider::KeyProvider,
-        proof::{Proof, PublicInputs},
         secret_hash::SecretHash,
     },
 };
@@ -13,6 +12,7 @@ use ark_ff::BigInteger256;
 use ark_serialize::SerializationError;
 use ark_std::UniformRand;
 use lib::{
+    nf_client_proof::{Proof, PublicInputs},
     error::HexError,
     serialization::{ark_de_hex, ark_se_hex},
 };
