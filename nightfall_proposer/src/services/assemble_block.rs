@@ -1,6 +1,6 @@
 use crate::{
     domain::entities::{Block, ClientTransactionWithMetaData, DepositData, DepositDatawithFee},
-    driven::db::mongo_db::{StoredBlock, PROPOSED_BLOCKS_COLLECTION},
+    driven::db::mongo_db::{DB, StoredBlock, PROPOSED_BLOCKS_COLLECTION},
     drivers::blockchain::block_assembly::BlockAssemblyError,
     initialisation::{get_blockchain_client_connection, get_db_connection},
     ports::{
@@ -17,9 +17,6 @@ use lib::{blockchain_client::BlockchainClientConnection, hex_conversion::HexConv
            nf_client_proof::{Proof, PublicInputs}
 };
 use log::{info, warn};
-use nightfall_client::{
-    driven::db::mongo::DB,
-};
 use std::cmp::Reverse;
 use tokio::time::Instant;
 
