@@ -5,7 +5,6 @@ use crate::{
         entities::{DepositSecret, TokenData, TokenType, WithdrawData},
         error::NightfallContractError,
     },
-    drivers::rest::utils::to_nf_token_id_from_solidity,
     ports::{contracts::NightfallContract, secret_hash::SecretHash},
 };
 use alloy::primitives::{keccak256, Address, B256, I256};
@@ -22,6 +21,7 @@ use ark_std::Zero;
 use configuration::{addresses::get_addresses, settings::get_settings};
 use lib::{
     blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
+    nf_token_id::to_nf_token_id_from_solidity,
 };
 use log::{debug, info};
 use nightfall_bindings::artifacts::{Nightfall, IERC3525};

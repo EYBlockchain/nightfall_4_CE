@@ -69,8 +69,8 @@ mod tests {
     use super::*;
     use crate::{
         driven::primitives::kemdem_functions::kemdem_encrypt,
-        drivers::rest::utils::to_nf_token_id_from_fr254,
     };
+    use lib::nf_token_id::to_nf_token_id_from_fr254;
     use ark_ec::{twisted_edwards::Affine as TEAffine, AffineRepr, CurveGroup};
     use ark_std::UniformRand;
     use jf_relation::gadgets::ecc::Point;

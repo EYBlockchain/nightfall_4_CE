@@ -4,11 +4,11 @@ use std::{
 };
 
 use ark_bn254::Fr as Fr254;
-use ark_serialize::SerializationError;
 
 use jf_primitives::poseidon::PoseidonError;
 use lib::error::BlockchainClientConnectionError;
 use warp::reject::{self, Reject};
+use lib::error::ConversionError;
 
 #[derive(Debug)]
 pub struct FailedClientOperation;
@@ -231,48 +231,6 @@ impl From<ConversionError> for NightfallContractError {
 }
 
 impl From<PoseidonError> for NightfallContractError {
-    fn from(e: PoseidonError) -> Self {
-        Self::PoseidonError(e)
-    }
-}
-
-/// An error that we can throw during type conversion
-#[derive(Debug)]
-pub enum ConversionError {
-    Overflow,
-    ProofDecompression,
-    ProofCompression(SerializationError),
-    SerialisationError(SerializationError),
-    NotErc20DepositData,
-    FixedLengthArrayError,
-    ParseFailed,
-    PoseidonError(PoseidonError),
-}
-impl Error for ConversionError {}
-
-impl Display for ConversionError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ConversionError::Overflow => write!(f, "Overflow during conversion. Uints cannot be bigger than (q-1)/2 where q is the modulus of the scalar field"),
-            ConversionError::ProofDecompression => write!(f, "Error during proof decompression"),
-            ConversionError::SerialisationError(e) => write!(f, "Error during serialisation: {e}"),
-            ConversionError::NotErc20DepositData => write!(f, "Could not convert the public data bytes into ERC20 deposit data"),
-            ConversionError::ProofCompression(e) => write!(f, "Error during proof compression: {e}"),
-            ConversionError::FixedLengthArrayError => write!(f, "Failed to convert to a fixed length array"),
-            ConversionError::ParseFailed => write!(f, "Failed to parse data"),
-            ConversionError::PoseidonError(e) => write!(f, "Poseidon Error: {e}")
-        }
-    }
-}
-impl Reject for ConversionError {}
-
-impl From<SerializationError> for ConversionError {
-    fn from(e: SerializationError) -> Self {
-        ConversionError::SerialisationError(e)
-    }
-}
-
-impl From<PoseidonError> for ConversionError {
     fn from(e: PoseidonError) -> Self {
         Self::PoseidonError(e)
     }

@@ -223,7 +223,7 @@ mod tests {
     use ark_std::{One, UniformRand, Zero};
     use jf_primitives::poseidon::{FieldHasher, Poseidon};
     use jf_utils::test_rng;
-    use nightfall_client::drivers::rest::utils::to_nf_token_id_from_fr254;
+    use lib::nf_token_id::to_nf_token_id_from_fr254;
     use num_bigint::BigUint;
     use sha2::{Digest, Sha256};
 

@@ -1,7 +1,6 @@
 use crate::{
     domain::{
         entities::{CompressedSecrets, Proposer, WithdrawData},
-        error::ConversionError,
     },
     ports::db::ToHexString,
 };
@@ -17,6 +16,7 @@ use serde::{
     {Deserialize, Deserializer, Serialize},
 };
 use std::{fmt, ops::Add, str::FromStr};
+use lib::error::ConversionError;
 /// enables conversion between a Proposer as used in the ProposerManager contract, and a for suitable for serialisation
 impl From<RoundRobin::Proposer> for Proposer {
     fn from(proposer: RoundRobin::Proposer) -> Self {

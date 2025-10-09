@@ -317,7 +317,7 @@ mod tests {
     use crate::{
         domain::entities::{DepositSecret, Preimage, Salt},
         driven::primitives::kemdem_functions::kemdem_encrypt,
-        drivers::{derive_key::ZKPKeys, rest::utils::to_nf_token_id_from_str},
+        drivers::derive_key::ZKPKeys,
         ports::{commitments::Commitment, secret_hash::SecretHash},
     };
     use alloy::{
@@ -339,7 +339,7 @@ mod tests {
         trees::{Directions, MembershipProof, PathElement, TreeHasher},
     };
     use jf_relation::Arithmetization;
-    use lib::hex_conversion::HexConvertible;
+    use lib::{hex_conversion::HexConvertible, nf_token_id::to_nf_token_id_from_str};
     use nf_curves::ed_on_bn254::Fr as BJJScalar;
     use num_bigint::BigUint;
     use rand::Rng;

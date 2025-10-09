@@ -18,7 +18,7 @@ use ark_bn254::Fr as Fr254;
 use ark_ff::BigInteger;
 use lib::{
     blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
-    merkle_trees::trees::IndexedTree,
+    merkle_trees::trees::IndexedTree, nf_token_id::to_nf_token_id_from_solidity,
 };
 use log::{debug, error, info, warn};
 use mongodb::Client;
@@ -26,7 +26,6 @@ use nightfall_bindings::artifacts::Nightfall;
 use nightfall_client::{
     domain::error::EventHandlerError,
     driven::contract_functions::contract_type_conversions::FrBn254,
-    drivers::rest::utils::to_nf_token_id_from_solidity,
     get_fee_token_id,
     ports::proof::{Proof, ProvingEngine},
 };

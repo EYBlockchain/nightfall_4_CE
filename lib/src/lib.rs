@@ -3,6 +3,7 @@ pub mod error;
 pub mod hex_conversion;
 pub mod merkle_trees;
 pub mod models;
+pub mod nf_token_id;
 pub mod serialization;
 pub mod tests_utils;
 pub mod utils;

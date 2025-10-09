@@ -33,7 +33,6 @@ pub mod proposers;
 mod request_status;
 mod synchronisation;
 mod token_info;
-pub mod utils;
 mod withdraw;
 
 pub fn routes<P, N>() -> impl Filter<Extract = (impl warp::Reply,)> + Clone

@@ -25,12 +25,12 @@ use jf_primitives::{
         Directions, MembershipProof, PathElement, TreeHasher,
     },
 };
-use lib::hex_conversion::HexConvertible;
+use lib::{hex_conversion::HexConvertible, nf_token_id::to_nf_token_id_from_str};
 use nf_curves::ed_on_bn254::{BabyJubjub as BabyJubJub, Fr as BJJScalar};
 use nightfall_client::{
     domain::entities::{DepositSecret, Preimage, Salt},
     driven::plonk_prover::circuits::unified_circuit::unified_circuit_builder,
-    drivers::{derive_key::ZKPKeys, rest::utils::to_nf_token_id_from_str},
+    drivers::derive_key::ZKPKeys,
     ports::{
         commitments::Commitment,
         proof::{PrivateInputs, PublicInputs},
