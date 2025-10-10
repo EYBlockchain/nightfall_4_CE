@@ -7,7 +7,7 @@ use jf_plonk::{
         ipa_structs::{Proof as JFProof, ProvingKey, VerificationKeyId, VerifyingKey, VK},
         reproduce_transcript, FFTPlonk,
     },
-    proof_system::{RecursiveOutput, UniversalSNARK},
+    proof_system::{RecursiveOutput, UniversalRecursiveSNARK},
     transcript::RescueTranscript,
 };
 
