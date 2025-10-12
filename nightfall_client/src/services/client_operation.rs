@@ -1,7 +1,7 @@
 use crate::{
     domain::{
         entities::{
-            ClientTransaction, CompressedSecrets, DepositSecret, Preimage, Salt, TokenType,
+            DepositSecret, Preimage, Salt,
         },
         error::DepositError,
     },
@@ -22,7 +22,11 @@ use ark_ff::BigInteger256;
 use ark_std::Zero;
 use configuration::addresses::get_addresses;
 use jf_primitives::{poseidon::Poseidon, trees::MembershipProof};
-use lib::{hex_conversion::HexConvertible, nf_client_proof::{PrivateInputs, Proof, ProvingEngine, PublicInputs}};
+use lib::{
+    hex_conversion::HexConvertible, 
+    nf_client_proof::{PrivateInputs, Proof, ProvingEngine, PublicInputs},
+    shared_entities::{ClientTransaction, CompressedSecrets, TokenType},
+};
 use log::{debug, error, info, warn};
 use nf_curves::ed_on_bn254::{BabyJubjub as BabyJubJub, Fr as BJJScalar};
 

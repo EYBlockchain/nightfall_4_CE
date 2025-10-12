@@ -1,10 +1,7 @@
 use crate::domain::error::ProposerRejection;
 use crate::driven::nightfall_client_transaction::process_nightfall_client_transaction;
 use log::{error, info};
-use nightfall_client::{
-    domain::entities::ClientTransaction,
-};
-use lib::nf_client_proof::{Proof, ProvingEngine};
+use lib::{nf_client_proof::{Proof, ProvingEngine}, shared_entities::ClientTransaction};
 
 use warp::{hyper::StatusCode, path, Filter};
 

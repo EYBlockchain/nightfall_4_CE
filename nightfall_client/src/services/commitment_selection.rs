@@ -2,7 +2,7 @@
 #![allow(unused_imports)]
 use crate::{
     domain::entities::Preimage,
-    driven::{contract_functions::contract_type_conversions::FrBn254, db::mongo::CommitmentEntry},
+    driven::db::mongo::CommitmentEntry,
     get_fee_token_id,
     initialisation::get_db_connection,
     ports::{
@@ -12,7 +12,7 @@ use crate::{
 };
 use ark_bn254::Fr as Fr254;
 use ark_ff::{BigInteger256, PrimeField, Zero};
-use lib::hex_conversion::HexConvertible;
+use lib::{contract_conversions::FrBn254, hex_conversion::HexConvertible};
 use log::{debug, trace};
 use mongodb::{Client, Database};
 use nf_curves::ed_on_bn254::BJJTEAffine as JubJub;

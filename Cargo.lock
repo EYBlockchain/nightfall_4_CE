@@ -5057,6 +5057,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9",
+ "sha3",
  "testcontainers",
  "tokio",
  "toml 0.8.23",

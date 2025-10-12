@@ -6,13 +6,12 @@ use crate::{
     domain::{
         entities::{
             CommitmentStatus, DepositSecret, ERCAddress, Operation, OperationType, Preimage,
-            RequestStatus, Salt, TokenType, Transport,
+            RequestStatus, Salt, Transport,
         },
         error::TransactionHandlerError,
         notifications::NotificationPayload,
     },
     driven::{
-        contract_functions::contract_type_conversions::FrBn254,
         db::mongo::CommitmentEntry,
         queue::{get_queue, QueuedRequest, TransactionRequest},
     },
@@ -35,8 +34,11 @@ use ark_ff::{BigInteger256, Zero};
 use ark_std::{rand::thread_rng, UniformRand};
 use configuration::{addresses::get_addresses, settings::get_settings};
 use jf_primitives::poseidon::{FieldHasher, Poseidon};
-use lib::{hex_conversion::HexConvertible, serialization::ark_de_hex, nf_token_id::to_nf_token_id_from_str,
+use lib::{
+    contract_conversions::FrBn254,
+    hex_conversion::HexConvertible, serialization::ark_de_hex, nf_token_id::to_nf_token_id_from_str,
     nf_client_proof::{Proof, ProvingEngine}, plonk_prover::circuits::DOMAIN_SHARED_SALT,
+    shared_entities::TokenType,
 };
 use log::{debug, error, info};
 use nf_curves::ed_on_bn254::{BJJTEAffine as JubJub, BabyJubjub, Fr as BJJScalar};

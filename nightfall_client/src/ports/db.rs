@@ -1,4 +1,4 @@
-use crate::domain::entities::{CommitmentStatus, Node, Preimage, Request, RequestStatus};
+use crate::domain::entities::{CommitmentStatus, Preimage, Request, RequestStatus};
 
 use super::{
     commitments::Commitment,
@@ -9,6 +9,7 @@ use alloy::primitives::{TxHash, I256};
 use ark_bn254::Fr as Fr254;
 use async_trait::async_trait;
 use futures::Future;
+use lib::shared_entities::Node;
 
 #[async_trait]
 pub trait RequestDB {
@@ -62,10 +63,6 @@ where
 }
 
 pub trait KeyEntryDB: ProvingKey + VerifyingKey {}
-/// This is useful because Mongo serialises things to hex
-pub trait ToHexString {
-    fn to_hex(&self) -> String;
-}
 
 /// Trait for a DB storing a Merkle tree
 #[async_trait::async_trait]

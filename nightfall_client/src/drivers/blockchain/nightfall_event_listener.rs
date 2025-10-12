@@ -1,8 +1,5 @@
 use crate::{
-    domain::{
-        entities::{OnChainTransaction, SynchronisationPhase, SynchronisationStatus},
-        error::EventHandlerError,
-    },
+    domain::error::EventHandlerError,
     driven::{
         db::mongo::{BlockStorageDB, StoredBlock},
         event_handlers::nightfall_event::get_expected_layer2_blocknumber,
@@ -23,6 +20,7 @@ use futures::{future::BoxFuture, FutureExt};
 use lib::{
     blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
     initialisation::get_blockchain_client_connection,
+    shared_entities::{OnChainTransaction, SynchronisationPhase, SynchronisationStatus},
 };
 use log::{debug, info, warn};
 use nightfall_bindings::artifacts::Nightfall;

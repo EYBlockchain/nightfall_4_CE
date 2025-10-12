@@ -21,13 +21,12 @@ use crate::{
     domain::entities::{
         CommitmentStatus, Preimage, Request, RequestCommitmentMapping, RequestStatus, WithdrawData,
     },
-    driven::contract_functions::contract_type_conversions::FrBn254,
     ports::db::{CommitmentDB, RequestCommitmentMappingDB, RequestDB, WithdrawalDB},
     ports::{commitments::Commitment, db::CommitmentEntryDB},
 };
 use alloy::primitives::Address;
 use jf_primitives::{poseidon::PoseidonError, trees::MembershipProof};
-use lib::serialization::{ark_de_hex, ark_se_hex};
+use lib::{contract_conversions::FrBn254, serialization::{ark_de_hex, ark_se_hex}};
 use sha2::Sha256;
 use sha3::Digest;
 

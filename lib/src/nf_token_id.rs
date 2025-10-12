@@ -106,7 +106,7 @@ pub fn to_nf_token_id_from_solidity(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::driven::contract_functions::contract_type_conversions::FrBn254;
+    use crate::contract_conversions::FrBn254;
     use ark_std::UniformRand;
     use jf_primitives::circuit::sha256::Sha256HashGadget;
     use jf_relation::{Circuit, PlonkCircuit, Variable};

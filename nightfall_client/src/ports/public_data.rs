@@ -1,5 +1,4 @@
-use crate::domain::entities::CompressedSecrets;
-use lib::error::ConversionError;
+use lib::{error::ConversionError, shared_entities::CompressedSecrets};
 
 /// trait which public data (in the form of a struct, e.g. ERC20DepositData) must implement
 pub trait PublicData {

@@ -1,6 +1,6 @@
 use crate::{
     domain::{
-        entities::{ClientTransaction, CommitmentStatus, Operation, Preimage, RequestStatus},
+        entities::{CommitmentStatus, Operation, Preimage, RequestStatus},
         error::TransactionHandlerError,
         notifications::NotificationPayload,
     },
@@ -24,6 +24,7 @@ use lib::{
     blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
     initialisation::get_blockchain_client_connection,
     nf_client_proof::{Proof, ProvingEngine},
+    shared_entities::ClientTransaction,
 };
 use log::{debug, error, info, warn};
 use nf_curves::ed_on_bn254::Fr as BJJScalar;

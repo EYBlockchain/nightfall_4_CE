@@ -1,5 +1,5 @@
 use crate::{
-    domain::entities::{RequestStatus, SynchronisationPhase::Desynchronized},
+    domain::entities::RequestStatus,
     driven::notifier::webhook_notifier::WebhookNotifier,
     drivers::{
         blockchain::{
@@ -24,7 +24,7 @@ use tokio::{
     sync::{OnceCell, RwLock},
     time::sleep,
 };
-use lib::nf_client_proof::{Proof, ProvingEngine};
+use lib::{shared_entities::SynchronisationPhase::Desynchronized, nf_client_proof::{Proof, ProvingEngine}};
 /// This module implements a queue of received requests. Requests can be added to the queue
 /// asynchronously but are executed with a concurrency of 1.
 pub struct QueuedRequest {

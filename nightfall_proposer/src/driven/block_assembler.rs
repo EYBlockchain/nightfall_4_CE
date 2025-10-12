@@ -1,5 +1,5 @@
 use crate::{
-    domain::entities::{Block, OnChainTransaction},
+    domain::entities::Block,
     initialisation::get_blockchain_client_connection,
     ports::{block_assembly_trigger::BlockAssemblyTrigger, db::TransactionsDB},
     services::assemble_block::get_block_size,
@@ -9,12 +9,13 @@ use nightfall_bindings::artifacts::{Nightfall, ProposerManager};
 
 use alloy::primitives::Bytes;
 use configuration::addresses::get_addresses;
-use lib::{blockchain_client::BlockchainClientConnection, error::ConversionError, nf_client_proof::Proof};
-use log::{debug, error, warn};
-use nightfall_client::{
-    domain::entities::ClientTransaction,
-    driven::contract_functions::contract_type_conversions::{FrBn254, Uint256},
+use lib::{
+    blockchain_client::BlockchainClientConnection, 
+    contract_conversions::{FrBn254, Uint256},
+    error::ConversionError, nf_client_proof::Proof,
+    shared_entities::OnChainTransaction,
 };
+use log::{debug, error, warn};
 use std::marker::PhantomData;
 use tokio::{
     sync::RwLock,
@@ -282,58 +283,6 @@ impl From<Block> for Nightfall::Block {
                 .into_iter()
                 .map(Nightfall::OnChainTransaction::from)
                 .collect(),
-        }
-    }
-}
-
-/// Converts the Domain representation of an onchain transaction (i.e. one that is rolled up into a block)
-/// into one suitable for interacting with the smart contract
-impl From<OnChainTransaction> for Nightfall::OnChainTransaction {
-    fn from(otx: OnChainTransaction) -> Self {
-        Self {
-            fee: Uint256::from(otx.fee).into(),
-            commitments: otx.commitments.map(|c| Uint256::from(c).into()),
-            nullifiers: otx.nullifiers.map(|n| Uint256::from(n).into()),
-            public_data: otx.public_data.into(),
-        }
-    }
-}
-
-/// Converts the NF_4 smart contract representation of an on-chain transaction (i.e. a transaction that is
-/// rolled up into a block), into a form more sutiable for manipulation in Rust.
-impl From<Nightfall::OnChainTransaction> for OnChainTransaction {
-    fn from(ntx: Nightfall::OnChainTransaction) -> Self {
-        Self {
-            fee: FrBn254::try_from(ntx.fee)
-                .expect("Conversion of on-chain fee into field element should never fail")
-                .0,
-            commitments: ntx.commitments.map(|c| {
-                FrBn254::try_from(c)
-                    .expect(
-                        "Conversion of on-chain commitments into field elements should never fail",
-                    )
-                    .0
-            }),
-            nullifiers: ntx.nullifiers.map(|n| {
-                FrBn254::try_from(n)
-                    .expect(
-                        "Conversion of on-chain commitments into field elements should never fail",
-                    )
-                    .0
-            }),
-            public_data: ntx.public_data.into(),
-        }
-    }
-}
-
-/// Converts a ClientTransaction into a form suitable for rolling into a block.
-impl<P> From<&ClientTransaction<P>> for OnChainTransaction {
-    fn from(client_transaction: &ClientTransaction<P>) -> Self {
-        Self {
-            fee: client_transaction.fee,
-            commitments: client_transaction.commitments,
-            nullifiers: client_transaction.nullifiers,
-            public_data: client_transaction.compressed_secrets,
         }
     }
 }

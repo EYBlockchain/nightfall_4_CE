@@ -1,43 +1,11 @@
 use ark_bn254::Fr as Fr254;
 use ark_serialize::SerializationError;
-use lib::serialization::{ark_de_hex, ark_se_hex};
+use lib::{serialization::{ark_de_hex, ark_se_hex}, shared_entities::{ClientTransaction, OnChainTransaction}};
 use log::error;
-use nightfall_client::domain::entities::{ClientTransaction, CompressedSecrets};
 use serde::{Deserialize, Serialize};
 use sha3::{digest::generic_array::GenericArray, Digest, Keccak256};
 use std::fmt::Debug;
 
-/// A struct representing a node in a Merkle Tree
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Node<T> {
-    pub value: T,
-    pub index: usize,
-}
-
-/// A struct representing summary data about an append-only Merkle Tree
-pub struct AppendOnlyTreeMetadata<F> {
-    pub main_tree_height: u32,
-    pub sub_tree_height: u32,
-    pub sub_tree_count: usize,
-    pub frontier: Vec<F>,
-    pub root: F,
-}
-
-/// Transaction struct representing NF on chain transaction
-#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Copy)]
-pub struct OnChainTransaction {
-    // The fee paid to the proposer.
-    #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
-    pub fee: Fr254,
-    // List of new commitments created by this transaction.
-    #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
-    pub commitments: [Fr254; 4],
-    // List of nullifiers consumed by this transaction.
-    #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
-    pub nullifiers: [Fr254; 4],
-    // public data (public inputs) associated with this transaction.
-    pub public_data: CompressedSecrets,
-}
 /// A Block struct representing NF block
 /// NOTE: This is not finalised yet, we may need to change fields to this struct
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]

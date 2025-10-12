@@ -420,7 +420,7 @@ mod tests {
         {
             let transactions: Vec<ClientTransactionWithMetaData<PlonkProof>> = (241..=244)
                 .map(|i| ClientTransactionWithMetaData {
-                    client_transaction: nightfall_client::domain::entities::ClientTransaction {
+                    client_transaction: lib::shared_entities::ClientTransaction {
                         fee: Fr254::from(i),
                         proof: PlonkProof::default(),
                         ..Default::default()
@@ -564,7 +564,7 @@ mod tests {
         {
             let transactions: Vec<ClientTransactionWithMetaData<PlonkProof>> = (1..=74)
                 .map(|i| ClientTransactionWithMetaData {
-                    client_transaction: nightfall_client::domain::entities::ClientTransaction {
+                    client_transaction: lib::shared_entities::ClientTransaction {
                         fee: Fr254::from(i),
                         proof: PlonkProof::default(),
                         ..Default::default()
@@ -656,7 +656,7 @@ mod tests {
         {
             let transactions: Vec<ClientTransactionWithMetaData<PlonkProof>> = (1..=64)
                 .map(|i| ClientTransactionWithMetaData {
-                    client_transaction: nightfall_client::domain::entities::ClientTransaction {
+                    client_transaction: lib::shared_entities::ClientTransaction {
                         fee: Fr254::from(i),
                         proof: PlonkProof::default(),
                         ..Default::default()

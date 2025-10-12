@@ -5,7 +5,7 @@ use crate::{
     initialisation::get_db_connection,
 };
 
-use crate::domain::entities::SynchronisationPhase::Synchronized;
+use lib::shared_entities::SynchronisationPhase::Synchronized;
 use crate::drivers::blockchain::nightfall_event_listener::get_synchronisation_status;
 use ark_bn254::Fr as Fr254;
 use configuration::settings::get_settings;

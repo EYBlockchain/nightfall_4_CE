@@ -1,31 +1,14 @@
 use std::{error::Error, fmt::Display};
 
 use crate::{
-    domain::entities::{Block, ClientTransactionWithMetaData, DepositData, OnChainTransaction},
+    domain::entities::{Block, ClientTransactionWithMetaData, DepositData},
     drivers::blockchain::block_assembly::BlockAssemblyError,
 };
 use ark_bn254::{Fq as Fq254, Fr as Fr254};
 use ark_ff::{BigInteger, PrimeField};
 use ark_serialize::SerializationError;
-
-use nightfall_client::{
-    domain::entities::CompressedSecrets,
-};
 use lib::error::ConversionError;
-use lib::nf_client_proof::{Proof, ProvingEngine, PublicInputs};
-
-impl From<&PublicInputs> for OnChainTransaction {
-    fn from(p: &PublicInputs) -> Self {
-        OnChainTransaction {
-            fee: p.fee,
-            commitments: p.commitments,
-            nullifiers: p.nullifiers,
-            public_data: CompressedSecrets {
-                cipher_text: p.compressed_secrets,
-            },
-        }
-    }
-}
+use lib::{nf_client_proof::{Proof, ProvingEngine, PublicInputs}, shared_entities::OnChainTransaction};
 
 /// A trait for a proving engine that can recursively prove multiple transactions are valid.
 #[allow(async_fn_in_trait)]
