@@ -5589,7 +5589,6 @@ dependencies = [
  "mongodb",
  "nf-curves",
  "nightfall_bindings",
- "nightfall_client",
  "num-bigint",
  "rayon",
  "serde",
