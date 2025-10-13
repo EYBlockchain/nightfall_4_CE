@@ -3,7 +3,6 @@ use crate::{
         entities::{
             CommitmentStatus, Preimage, RequestStatus, Salt,
         },
-        error::EventHandlerError,
         notifications::NotificationPayload,
     },
     driven::{
@@ -33,6 +32,7 @@ use alloy::primitives::{TxHash, I256, U256};
 use lib::{
     blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
     contract_conversions::FrBn254,
+    error::EventHandlerError,
     initialisation::get_blockchain_client_connection,
     shared_entities::{CompressedSecrets, OnChainTransaction},
 };

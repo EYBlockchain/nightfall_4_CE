@@ -1,5 +1,4 @@
 use crate::{
-    domain::error::EventHandlerError,
     driven::{
         db::mongo::{BlockStorageDB, StoredBlock},
         event_handlers::nightfall_event::get_expected_layer2_blocknumber,
@@ -19,6 +18,7 @@ use futures::StreamExt;
 use futures::{future::BoxFuture, FutureExt};
 use lib::{
     blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
+    error::EventHandlerError,
     initialisation::get_blockchain_client_connection,
     shared_entities::{OnChainTransaction, SynchronisationPhase, SynchronisationStatus},
 };

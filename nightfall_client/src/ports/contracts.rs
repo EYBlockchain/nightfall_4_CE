@@ -3,14 +3,14 @@
 
 use crate::domain::{
     entities::{DepositSecret, TokenData, WithdrawData},
-    error::{NightfallContractError, TokenContractError},
+    error::TokenContractError,
 };
 use alloy::primitives::{Address, I256};
 use ark_bn254::Fr as Fr254;
 use ark_ff::BigInteger256;
 use futures::Future;
 use nightfall_bindings::artifacts::Nightfall;
-use lib::shared_entities::TokenType;
+use lib::{error::NightfallContractError, shared_entities::TokenType};
 
 /// Interface trait for a token contract.
 pub trait TokenContract {

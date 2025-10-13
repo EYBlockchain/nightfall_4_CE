@@ -13,12 +13,9 @@ use alloy::{
 use ark_serialize::SerializationError;
 use configuration::addresses::get_addresses;
 use jf_plonk::errors::PlonkError;
-use lib::{blockchain_client::BlockchainClientConnection, error::ConversionError, nf_client_proof::Proof};
+use lib::{blockchain_client::BlockchainClientConnection, error::{ConversionError, EventHandlerError, NightfallContractError}, nf_client_proof::Proof};
 use log::{debug, error, info, warn};
 use nightfall_bindings::artifacts::RoundRobin;
-use nightfall_client::{
-    domain::error::{EventHandlerError, NightfallContractError},
-};
 use std::{
     error::Error,
     fmt::{Debug, Display, Formatter},

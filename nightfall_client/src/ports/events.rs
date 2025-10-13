@@ -1,4 +1,4 @@
-use crate::domain::error::EventHandlerError;
+use lib::error::EventHandlerError;
 use alloy::primitives::TxHash;
 
 use super::contracts::NightfallContract;

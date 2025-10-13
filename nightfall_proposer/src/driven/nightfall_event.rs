@@ -19,6 +19,7 @@ use ark_ff::BigInteger;
 use lib::{
     blockchain_client::BlockchainClientConnection, 
     contract_conversions::FrBn254,
+    error::EventHandlerError,
     hex_conversion::HexConvertible,
     merkle_trees::trees::IndexedTree, nf_token_id::to_nf_token_id_from_solidity,
     nf_client_proof::{Proof, ProvingEngine},
@@ -28,7 +29,6 @@ use log::{debug, error, info, warn};
 use mongodb::Client;
 use nightfall_bindings::artifacts::Nightfall;
 use nightfall_client::{
-    domain::error::EventHandlerError,
     get_fee_token_id,
 };
 use serde::Serialize;

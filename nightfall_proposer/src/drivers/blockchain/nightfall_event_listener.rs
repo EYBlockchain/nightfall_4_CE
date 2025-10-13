@@ -15,17 +15,13 @@ use ark_bn254::Fr as Fr254;
 use configuration::{addresses::get_addresses, settings::get_settings};
 use futures::StreamExt;
 use futures::{future::BoxFuture, FutureExt};
-use lib::{blockchain_client::BlockchainClientConnection, nf_client_proof::{Proof, ProvingEngine},
+use lib::{blockchain_client::BlockchainClientConnection, 
+    error::EventHandlerError, nf_client_proof::{Proof, ProvingEngine},
     shared_entities::{SynchronisationPhase::Desynchronized, SynchronisationStatus},
 };
 use log::{debug, warn};
 use mongodb::Client as MongoClient;
 use nightfall_bindings::artifacts::Nightfall;
-use nightfall_client::{
-    domain::{
-        error::EventHandlerError,
-    },
-};
 use std::time::Duration;
 use tokio::{
     sync::{OnceCell, RwLock},

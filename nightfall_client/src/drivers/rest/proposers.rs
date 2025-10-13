@@ -6,30 +6,6 @@ use lib::{
 use nightfall_bindings::artifacts::ProposerManager;
 use warp::{path, reply, reply::Reply, Filter};
 
-/// Error type for proposer rotation
-#[derive(Debug)]
-pub enum ProposerError {
-    FailedToGetProposers,
-    ProviderError(String),
-}
-
-impl std::fmt::Display for ProposerError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ProposerError::FailedToGetProposers => {
-                write!(f, "Failed to get list of Proposers")
-            }
-            ProposerError::ProviderError(_) => {
-                write!(f, "Provider error")
-            }
-        }
-    }
-}
-
-impl std::error::Error for ProposerError {}
-
-impl warp::reject::Reject for ProposerError {}
-
 /// Get request for obtaining a list of proposers
 pub fn get_proposers() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     path!("v1" / "proposers")

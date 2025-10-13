@@ -6,10 +6,9 @@ use crate::{
 };
 use alloy::primitives::I256;
 use configuration::{addresses::get_addresses, settings::get_settings};
-use lib::blockchain_client::BlockchainClientConnection;
+use lib::{blockchain_client::BlockchainClientConnection, error::NightfallContractError};
 use log::info;
 use nightfall_bindings::artifacts::Nightfall;
-use nightfall_client::domain::error::NightfallContractError;
 
 #[async_trait::async_trait]
 impl NightfallContract for Nightfall::NightfallCalls {

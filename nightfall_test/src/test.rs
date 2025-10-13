@@ -23,6 +23,7 @@ use jf_primitives::{
 };
 use lib::{
     blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
+    error::NightfallContractError,
     initialisation::get_blockchain_client_connection, models::CertificateReq,
     nf_client_proof::{PrivateInputs, ProvingEngine, PublicInputs},
     plonk_prover::plonk_proof::{PlonkProof, PlonkProvingEngine},
@@ -32,7 +33,6 @@ use nf_curves::ed_on_bn254::{BabyJubjub as BabyJubJub, Fr as BJJScalar};
 use nightfall_client::{
     domain::{
         entities::{CommitmentStatus, DepositSecret, Preimage, Salt, TokenData},
-        error::NightfallContractError,
         notifications::NotificationPayload,
     },
     driven::{
