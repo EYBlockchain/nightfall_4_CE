@@ -3,7 +3,6 @@
 use crate::{
     domain::entities::{Preimage, Salt},
     drivers::{derive_key::ZKPKeys, rest::models::PreimageReq},
-    get_fee_token_id,
     ports::{
         commitments::Commitment,
     },
@@ -15,6 +14,7 @@ use ark_ff::{BigInt, BigInteger, Field};
 use ark_serialize::SerializationError;
 use ark_std::Zero;
 use lib::{
+    get_fee_token_id,
     hex_conversion::HexConvertible, nf_client_proof::{PrivateInputs, Proof, ProvingEngine, PublicInputs}, 
     shared_entities::ClientTransaction,
 };

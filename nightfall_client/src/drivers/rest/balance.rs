@@ -1,11 +1,12 @@
 use crate::{
-    domain::error::ClientRejection, get_fee_token_id, initialisation::get_db_connection,
+    domain::error::ClientRejection, initialisation::get_db_connection,
     ports::db::CommitmentDB,
 };
 use ark_ff::{BigInteger, PrimeField};
 use lib::{
     blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
     initialisation::get_blockchain_client_connection,
+    get_fee_token_id,
     nf_token_id::to_nf_token_id_from_str,
 };
 use warp::{http::StatusCode, path, reply::Reply, Filter};

@@ -5,7 +5,6 @@ use crate::{
         },
         error::DepositError,
     },
-    get_fee_token_id,
     initialisation::get_db_connection,
     ports::{
         commitments::{Commitment, Nullifiable},
@@ -23,6 +22,7 @@ use ark_std::Zero;
 use configuration::addresses::get_addresses;
 use jf_primitives::{poseidon::Poseidon, trees::MembershipProof};
 use lib::{
+    get_fee_token_id,
     hex_conversion::HexConvertible, 
     nf_client_proof::{PrivateInputs, Proof, ProvingEngine, PublicInputs},
     shared_entities::{ClientTransaction, CompressedSecrets, TokenType},

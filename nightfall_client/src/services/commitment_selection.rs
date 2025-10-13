@@ -3,7 +3,6 @@
 use crate::{
     domain::entities::Preimage,
     driven::db::mongo::CommitmentEntry,
-    get_fee_token_id,
     initialisation::get_db_connection,
     ports::{
         commitments::Commitment,
@@ -12,7 +11,7 @@ use crate::{
 };
 use ark_bn254::Fr as Fr254;
 use ark_ff::{BigInteger256, PrimeField, Zero};
-use lib::{contract_conversions::FrBn254, hex_conversion::HexConvertible};
+use lib::{contract_conversions::FrBn254, get_fee_token_id, hex_conversion::HexConvertible};
 use log::{debug, trace};
 use mongodb::{Client, Database};
 use nf_curves::ed_on_bn254::BJJTEAffine as JubJub;

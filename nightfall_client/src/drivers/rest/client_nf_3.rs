@@ -16,7 +16,7 @@ use crate::{
         queue::{get_queue, QueuedRequest, TransactionRequest},
     },
     drivers::derive_key::ZKPKeys,
-    get_fee_token_id, get_zkp_keys,
+    get_zkp_keys,
     initialisation::get_db_connection,
     ports::{
         commitments::{Commitment, Nullifiable},
@@ -36,6 +36,7 @@ use configuration::{addresses::get_addresses, settings::get_settings};
 use jf_primitives::poseidon::{FieldHasher, Poseidon};
 use lib::{
     contract_conversions::FrBn254,
+    get_fee_token_id,
     hex_conversion::HexConvertible, serialization::ark_de_hex, nf_token_id::to_nf_token_id_from_str,
     nf_client_proof::{Proof, ProvingEngine}, plonk_prover::circuits::DOMAIN_SHARED_SALT,
     shared_entities::TokenType,

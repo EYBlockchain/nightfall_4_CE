@@ -20,6 +20,7 @@ use lib::{
     blockchain_client::BlockchainClientConnection, 
     contract_conversions::FrBn254,
     error::EventHandlerError,
+    get_fee_token_id,
     hex_conversion::HexConvertible,
     merkle_trees::trees::IndexedTree, nf_token_id::to_nf_token_id_from_solidity,
     nf_client_proof::{Proof, ProvingEngine},
@@ -28,9 +29,6 @@ use lib::{
 use log::{debug, error, info, warn};
 use mongodb::Client;
 use nightfall_bindings::artifacts::Nightfall;
-use nightfall_client::{
-    get_fee_token_id,
-};
 use serde::Serialize;
 use std::{
     error::Error,

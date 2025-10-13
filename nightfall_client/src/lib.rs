@@ -5,13 +5,7 @@ pub mod ports;
 pub mod services;
 pub mod test_helpers;
 
-use alloy::dyn_abi::abi::encode;
-use alloy::primitives::{keccak256, U256};
-use alloy::sol_types::SolValue;
-use ark_bn254::Fr as Fr254;
-use configuration::addresses::get_addresses;
 use drivers::derive_key::ZKPKeys;
-use num::BigUint;
 use std::sync::{Mutex, OnceLock};
 use bip32::{Mnemonic};
 use bip32::DerivationPath;
@@ -28,18 +22,6 @@ pub fn get_zkp_keys() -> &'static Mutex<ZKPKeys> {
         Mutex::new(zkp_keys)
 }
     )
-}
-
-/// This function gets the fee token ID based on the current deployment.
-/// Fee token ID is the keccak256 hash of the zero address and zero, right shifted by 4 bits.
-pub fn get_fee_token_id() -> Fr254 {
-    let nf_address = get_addresses().nightfall();
-
-    let nf_address_token = nf_address.tokenize();
-    let u256_zero = U256::ZERO.tokenize();
-    let fee_token_id_biguint =
-        BigUint::from_bytes_be(keccak256(encode(&(nf_address_token, u256_zero))).as_slice()) >> 4;
-    Fr254::from(fee_token_id_biguint)
 }
 
 pub mod initialisation {
