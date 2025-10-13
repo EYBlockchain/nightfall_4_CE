@@ -826,4 +826,50 @@ mod test {
             }
         }
     }
+
+   // Test concurrent access to ensure atomic reservation
+    #[tokio::test]
+    async fn test_find_usable_commitments() {
+    // This test verifies the atomic reservation of commitments.
+    // It simulates two concurrent processes trying to reserve the same commitments.
+    // Only one process should succeed; the other must fail, preventing race conditions.
+
+        let container = get_mongo().await;
+        let db = get_db_connection(&container).await;
+        let commitments_collection = db
+            .database("nightfall")
+            .collection::<CommitmentEntry>("commitments");
+
+        commitments_collection.delete_many(doc! {}).await.unwrap();
+
+        let commitments = vec![
+            CommitmentEntry::new(Preimage { value: Fr254::from(10u64), nf_token_id: Fr254::from(1u64), ..Default::default() }, Fr254::default(), CommitmentStatus::Unspent),
+            CommitmentEntry::new(Preimage { value: Fr254::from(20u64), nf_token_id: Fr254::from(1u64), ..Default::default() }, Fr254::default(), CommitmentStatus::Unspent),
+        ];
+        commitments_collection.insert_many(&commitments).await.unwrap();
+
+        // Spawn two concurrent tasks
+        let db1 = db.clone();
+        let db2 = db.clone();
+
+        let handle1 = tokio::spawn(async move {
+            find_usable_commitments(Fr254::from(1u64), Fr254::from(30u64), &db1).await
+        });
+
+        let handle2 = tokio::spawn(async move {
+            find_usable_commitments(Fr254::from(1u64), Fr254::from(30u64), &db2).await
+        });
+
+        let res1 = handle1.await.unwrap();
+        let res2 = handle2.await.unwrap();
+
+        // Ensure atomicity: only one concurrent task can reserve the commitments, the other must fail
+        let success_count = [res1, res2].iter().filter(|r| r.is_ok()).count();
+        let failure_count = [res1, res2].iter().filter(|r| r.is_err()).count();
+
+        assert_eq!(success_count, 1, "Only one process should successfully reserve all commitments");
+        assert_eq!(failure_count, 1, "The other process should fail due to commitments being already reserved");
+
+    }
+
 }
