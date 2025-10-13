@@ -26,7 +26,7 @@ use jf_plonk::{
     },
     proof_system::{
         structs::{ProvingKey as PlonkProvingKey, VerifyingKey as PlonkVerifyingKey},
-        RecursiveOutput, UniversalSNARK,
+        RecursiveOutput, UniversalRecursiveSNARK,
     },
     recursion::{
         circuits::{Kzg, Zmorph},
@@ -41,7 +41,6 @@ use jf_primitives::{
     },
     pcs::prelude::UnivariateKzgPCS,
     rescue::sponge::RescueCRHF,
-    trees::{imt::IMTCircuitInsertionInfo, CircuitInsertionInfo, MembershipProof},
 };
 use jf_relation::{errors::CircuitError, Circuit, PlonkCircuit, Variable};
 use log::{debug, warn};
@@ -245,24 +244,17 @@ impl RecursiveProver for RollupProver {
         let mut start_roots_null = Vec::new();
         let mut end_roots_comm = Vec::new();
         let mut end_roots_null = Vec::new();
+
+        let total_m_proofs_length = 8 * (root_m_proof_length + 2);
+
         for pi in [first_pis, second_pis] {
             pi[8..]
                 .chunks(root_m_proof_length + 1)
                 .take(8)
                 .zip(pi[..8].iter())
                 .try_for_each(|(chunk, leaf_root)| {
-                    let field_elems = chunk[..root_m_proof_length]
-                        .iter()
-                        .map(|var| circuit.witness(*var))
-                        .collect::<Result<Vec<Fr254>, _>>()?;
-                    let membership_proof = MembershipProof::<Fr254>::try_from(field_elems)
-                        .map_err(|_| {
-                            CircuitError::ParameterError(
-                                "Could not convert to MembershipProof".to_string(),
-                            )
-                        })?;
                     let m_proof_var =
-                        MembershipProofVar::from_membership_proof(circuit, &membership_proof)?;
+                        MembershipProofVar::from_vars(circuit, &chunk[..root_m_proof_length])?;
 
                     let check_var = m_proof_var.verify_membership_proof(
                         circuit,
@@ -272,39 +264,23 @@ impl RecursiveProver for RollupProver {
                     circuit.enforce_true(check_var.into())
                 })?;
 
-            let comm_insert_vec = pi[8 * (root_m_proof_length + 2)..]
-                .iter()
-                .take(commitment_info_length)
-                .map(|var| circuit.witness(*var))
-                .collect::<Result<Vec<Fr254>, _>>()?;
-            let comm_insert_info = CircuitInsertionInfo::<Fr254>::from_slice(&comm_insert_vec, 29)
-                .map_err(|_| {
-                    CircuitError::ParameterError(
-                        "Could not convert to CircuitInsertionInfo".to_string(),
-                    )
-                })?;
-            let circuit_info =
-                CircuitInsertionInfoVar::from_circuit_insertion_info(circuit, &comm_insert_info)?;
+            let circuit_info = CircuitInsertionInfoVar::from_vars(
+                circuit,
+                &pi[total_m_proofs_length..total_m_proofs_length + commitment_info_length],
+                29,
+            )?;
+
             circuit_info.verify_subtree_insertion_gadget(circuit)?;
 
             start_roots_comm.push(circuit_info.old_root);
             end_roots_comm.push(circuit_info.new_root);
 
-            let nullifier_insert_vec = pi[8 * (root_m_proof_length + 2) + commitment_info_length..]
-                .iter()
-                .take(nullifier_info_length)
-                .map(|var| circuit.witness(*var))
-                .collect::<Result<Vec<Fr254>, _>>()?;
-            let nullifier_insert_info =
-                IMTCircuitInsertionInfo::<Fr254>::from_slice(&nullifier_insert_vec, 32, 8)
-                    .map_err(|_| {
-                        CircuitError::ParameterError(
-                            "Could not convert to IMTCircuitInsertionInfo".to_string(),
-                        )
-                    })?;
-            let nullifier_info = IMTCircuitInsertionInfoVar::from_imt_circuit_insertion_info(
+            let nullifier_info = IMTCircuitInsertionInfoVar::from_vars(
                 circuit,
-                &nullifier_insert_info,
+                &pi[total_m_proofs_length + commitment_info_length
+                    ..total_m_proofs_length + commitment_info_length + nullifier_info_length],
+                32,
+                8,
             )?;
             nullifier_info.verify_subtree_insertion_gadget(circuit)?;
 
@@ -503,14 +479,8 @@ impl RecursiveProver for RollupProver {
 
         circuit.finalize_for_sha256_hash(lookup_vars)?;
 
-        let field_elems = specific_pis[2][..root_m_proof_length]
-            .iter()
-            .map(|var| circuit.witness(*var))
-            .collect::<Result<Vec<Fr254>, _>>()?;
-        let membership_proof = MembershipProof::<Fr254>::try_from(field_elems).map_err(|_| {
-            CircuitError::ParameterError("Could not convert to MembershipProof".to_string())
-        })?;
-        let m_proof_var = MembershipProofVar::from_membership_proof(circuit, &membership_proof)?;
+        let m_proof_var =
+            MembershipProofVar::from_vars(circuit, &specific_pis[2][..root_m_proof_length])?;
 
         let new_historic_root = m_proof_var.calculate_new_root(circuit, &end_root_comm_two)?;
 
@@ -1086,12 +1056,13 @@ impl RecursiveProvingEngine<PlonkProof> for RollupProver {
 mod tests {
     use super::*;
     use ark_std::Zero;
-    use jf_plonk::nightfall::mle::MLEPlonk;
+    use jf_plonk::{nightfall::mle::MLEPlonk, proof_system::UniversalSNARK};
     use jf_primitives::{
         poseidon::Poseidon,
         trees::{
             imt::{IndexedMerkleTree, LeafDBEntry},
             timber::Timber,
+            MembershipProof,
         },
     };
     use std::collections::HashMap;

@@ -358,4 +358,3 @@ impl TokenContract for IERC3525::IERC3525Calls {
         Ok(())
     }
 }
-
