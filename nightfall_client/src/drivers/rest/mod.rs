@@ -1,6 +1,6 @@
 use crate::ports::contracts::NightfallContract;
 use balance::{get_balance, get_fee_balance, get_l1_balance};
-use lib::{nf_client_proof::Proof, validate_certificate::certification_validation_request};
+use lib::{health_check::health_route, nf_client_proof::Proof, validate_certificate::certification_validation_request};
 use log::error;
 use proposers::get_proposers;
 use reqwest::StatusCode;
@@ -14,7 +14,6 @@ use warp::{
 use self::{
     client_nf_3::{deposit_request, transfer_request, withdraw_request},
     commitment::{get_all_commitments, get_commitment},
-    health_check::health_route,
     keys::derive_key_mnemonic,
     request_status::{get_queue_length, get_request_status},
     synchronisation::synchronisation,
@@ -26,7 +25,6 @@ pub mod balance;
 pub mod client_nf_3;
 pub mod client_operation;
 mod commitment;
-pub mod health_check;
 mod keys;
 pub mod models;
 pub mod proposers;
