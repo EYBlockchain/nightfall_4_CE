@@ -314,7 +314,7 @@ impl RecursiveProver for RollupProver {
 
         circuit.enforce_equal(start_roots_comm[1], end_roots_comm[0])?;
         circuit.enforce_equal(start_roots_null[1], end_roots_null[0])?;
-        circuit.check_circuit_satisfiability(&[])?;
+
         Ok(vec![
             start_roots_comm[0],
             end_roots_comm[1],
