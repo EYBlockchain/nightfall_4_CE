@@ -114,6 +114,12 @@ where
             Nightfall::OwnershipTransferred::SIGNATURE_HASH,
         ])
         .from_block(start_block as u64);
+        // Subscribe to the combined events filter
+        let events_subscription = blockchain_client
+        .subscribe_logs(&events_filter)
+        .await
+        .map_err(|_| EventHandlerError::NoEventStream)?;
+
     {
         let latest_block = blockchain_client
             .get_block_number()
@@ -163,12 +169,6 @@ where
             println!( "Start block {start_block} is greater than latest block {latest_block}. No past events to process.");
         }
     }
-
-    // Subscribe to the combined events filter
-    let events_subscription = blockchain_client
-        .subscribe_logs(&events_filter)
-        .await
-        .map_err(|_| EventHandlerError::NoEventStream)?;
 
     let mut events_stream = events_subscription.into_stream();
 
