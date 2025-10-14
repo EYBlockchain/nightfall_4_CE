@@ -1,31 +1,28 @@
 use super::{
     client_operation::handle_client_operation,
     models::{NF3DepositRequest, NF3TransferRequest, NF3WithdrawRequest, NullifierKey},
-    utils::to_nf_token_id_from_str,
 };
 use crate::{
     domain::{
         entities::{
             CommitmentStatus, DepositSecret, ERCAddress, Operation, OperationType, Preimage,
-            RequestStatus, Salt, TokenType, Transport,
+            RequestStatus, Salt, Transport,
         },
         error::TransactionHandlerError,
         notifications::NotificationPayload,
     },
     driven::{
-        contract_functions::contract_type_conversions::FrBn254,
         db::mongo::CommitmentEntry,
         queue::{get_queue, QueuedRequest, TransactionRequest},
     },
-    drivers::{derive_key::ZKPKeys, DOMAIN_SHARED_SALT},
-    get_fee_token_id, get_zkp_keys,
+    drivers::derive_key::ZKPKeys,
+    get_zkp_keys,
     initialisation::get_db_connection,
     ports::{
         commitments::{Commitment, Nullifiable},
         contracts::NightfallContract,
         db::{CommitmentDB, CommitmentEntryDB, RequestCommitmentMappingDB, RequestDB},
         keys::KeySpending,
-        proof::{Proof, ProvingEngine},
     },
     services::{
         client_operation::deposit_operation, commitment_selection::find_usable_commitments,
@@ -37,7 +34,16 @@ use ark_ff::{BigInteger256, Zero};
 use ark_std::{rand::thread_rng, UniformRand};
 use configuration::{addresses::get_addresses, settings::get_settings};
 use jf_primitives::poseidon::{FieldHasher, Poseidon};
-use lib::{hex_conversion::HexConvertible, serialization::ark_de_hex};
+use lib::{
+    contract_conversions::FrBn254,
+    get_fee_token_id,
+    hex_conversion::HexConvertible,
+    nf_client_proof::{Proof, ProvingEngine},
+    nf_token_id::to_nf_token_id_from_str,
+    plonk_prover::circuits::DOMAIN_SHARED_SALT,
+    serialization::ark_de_hex,
+    shared_entities::TokenType,
+};
 use log::{debug, error, info};
 use nf_curves::ed_on_bn254::{BJJTEAffine as JubJub, BabyJubjub, Fr as BJJScalar};
 use nightfall_bindings::artifacts::{Nightfall, IERC1155, IERC20, IERC3525, IERC721};
@@ -505,28 +511,30 @@ where
         let spend_fee_commitments = if fee.is_zero() {
             [Preimage::default(), Preimage::default()]
         } else {
-                match find_usable_commitments(fee_token_id, fee, db).await {
-                    Ok(commitments) => commitments,
-                    Err(e) => {
-                        debug!("{id} Could not find enough usable fee commitments, suggest depositing more fee: {e}");
-                        // rollback the value commitments to unspent if fails to find fee commitments
-                        let value_commitment_ids = spend_value_commitments
-                            .iter()
-                            .filter_map(|c| c.hash().ok())
-                            .collect::<Vec<_>>();
+            match find_usable_commitments(fee_token_id, fee, db).await {
+                Ok(commitments) => commitments,
+                Err(e) => {
+                    debug!("{id} Could not find enough usable fee commitments, suggest depositing more fee: {e}");
+                    // rollback the value commitments to unspent if fails to find fee commitments
+                    let value_commitment_ids = spend_value_commitments
+                        .iter()
+                        .filter_map(|c| c.hash().ok())
+                        .collect::<Vec<_>>();
 
-                       for commitment_id in &value_commitment_ids {
-                            if let Some(existing) = db.get_commitment(commitment_id).await {
-                                let _ = db.mark_commitments_unspent(
-                                    &[*commitment_id], 
-                                    existing.layer_1_transaction_hash, 
-                                    existing.layer_2_block_number
-                                ).await;
-                            }
+                    for commitment_id in &value_commitment_ids {
+                        if let Some(existing) = db.get_commitment(commitment_id).await {
+                            let _ = db
+                                .mark_commitments_unspent(
+                                    &[*commitment_id],
+                                    existing.layer_1_transaction_hash,
+                                    existing.layer_2_block_number,
+                                )
+                                .await;
                         }
-                        return Err(TransactionHandlerError::CustomError(e.to_string()));
                     }
+                    return Err(TransactionHandlerError::CustomError(e.to_string()));
                 }
+            }
         };
         spend_commitments = [
             spend_value_commitments[0],
@@ -639,42 +647,48 @@ where
         Fr254::zero(),
         secret_preimages,
         id,
-    ).await {
-        Ok(res) =>  Ok(res),
+    )
+    .await
+    {
+        Ok(res) => Ok(res),
         Err(e) => {
             //  rollback to UNSPENT status if handle_client_operation fails
             let db = get_db_connection().await;
-            
+
             // Rollback the spend commitments to unspent
             let commitment_ids = spend_commitments
                 .iter()
                 .map(|c| c.hash().unwrap())
                 .collect::<Vec<_>>();
 
-            info!("{id} Rolling back {} spend commitments", commitment_ids.len());
+            info!(
+                "{id} Rolling back {} spend commitments",
+                commitment_ids.len()
+            );
 
             for commitment_id in &commitment_ids {
                 if let Some(existing) = db.get_commitment(commitment_id).await {
-                let _ = db.mark_commitments_unspent(
-                        &[*commitment_id],
-                        existing.layer_1_transaction_hash,
-                        existing.layer_2_block_number,
-                    )
-                    .await;
-                  }        
+                    let _ = db
+                        .mark_commitments_unspent(
+                            &[*commitment_id],
+                            existing.layer_1_transaction_hash,
+                            existing.layer_2_block_number,
+                        )
+                        .await;
                 }
-        // Delete new commitments       
-        let new_commitment_ids = new_commitments
-        .iter() 
-        .map(|c| c.hash().unwrap())
-        .collect::<Vec<_>>();
-    
-        info!("{id} Deleting {} new commitments", new_commitment_ids.len());
-        let _ = db.delete_commitments(new_commitment_ids).await;
-        
-        Err(TransactionHandlerError::CustomError(e.to_string()))
+            }
+            // Delete new commitments
+            let new_commitment_ids = new_commitments
+                .iter()
+                .map(|c| c.hash().unwrap())
+                .collect::<Vec<_>>();
+
+            info!("{id} Deleting {} new commitments", new_commitment_ids.len());
+            let _ = db.delete_commitments(new_commitment_ids).await;
+
+            Err(TransactionHandlerError::CustomError(e.to_string()))
         }
-     }
+    }
 }
 
 async fn handle_withdraw<P, E, N>(
@@ -751,11 +765,13 @@ where
                         .collect::<Vec<_>>();
                     for commitment_id in &value_commitment_ids {
                         if let Some(existing) = db.get_commitment(commitment_id).await {
-                            let _ = db.mark_commitments_unspent(
-                                &[*commitment_id], 
-                                existing.layer_1_transaction_hash, 
-                                existing.layer_2_block_number
-                            ).await;
+                            let _ = db
+                                .mark_commitments_unspent(
+                                    &[*commitment_id],
+                                    existing.layer_1_transaction_hash,
+                                    existing.layer_2_block_number,
+                                )
+                                .await;
                         }
                     }
                     return Err(TransactionHandlerError::CustomError(e.to_string()));
@@ -859,7 +875,7 @@ where
                 .expect("Failed to hash spend_commitments[0]"),
         ])
         .unwrap();
-    match  handle_client_operation::<P, E, N>(
+    match handle_client_operation::<P, E, N>(
         op,
         spend_commitments,
         new_commitments,
@@ -867,22 +883,28 @@ where
         recipient_address,
         secret_preimages,
         id,
-    ).await {
+    )
+    .await
+    {
         Ok(res) => res,
         Err(e) => {
             // Rollback to UNSPENT status if handle_client_operation fails
             let db = get_db_connection().await;
-            
+
             // Rollback spend commitments
             let commitment_ids = spend_commitments
                 .iter()
                 .map(|c| c.hash().unwrap())
                 .collect::<Vec<_>>();
-    
-            info!("{id} Rolling back {} spend commitments to Unspent", commitment_ids.len());
+
+            info!(
+                "{id} Rolling back {} spend commitments to Unspent",
+                commitment_ids.len()
+            );
             for commitment_id in &commitment_ids {
                 if let Some(existing) = db.get_commitment(commitment_id).await {
-                    let _ = db.mark_commitments_unspent(
+                    let _ = db
+                        .mark_commitments_unspent(
                             &[*commitment_id],
                             existing.layer_1_transaction_hash,
                             existing.layer_2_block_number,
@@ -890,13 +912,13 @@ where
                         .await;
                 }
             }
-            
+
             // Delete new commitments
             let new_commitment_ids = new_commitments
-                .iter() 
+                .iter()
                 .map(|c| c.hash().unwrap())
                 .collect::<Vec<_>>();
-            
+
             info!("{id} Deleting {} new commitments", new_commitment_ids.len());
             let _ = db.delete_commitments(new_commitment_ids).await;
             return Err(e);
@@ -927,10 +949,10 @@ where
 mod tests {
     use super::super::models::NF3RecipientData;
     use super::*;
-    use crate::driven::plonk_prover::plonk_proof::{PlonkProof, PlonkProvingEngine};
     use ark_ff::One;
     use ark_serialize::{CanonicalSerialize, Compress};
     use ark_std::Zero;
+    use lib::plonk_prover::plonk_proof::{PlonkProof, PlonkProvingEngine};
     use nf_curves::ed_on_bn254::BabyJubjub;
     use nf_curves::ed_on_bn254::Fq;
 

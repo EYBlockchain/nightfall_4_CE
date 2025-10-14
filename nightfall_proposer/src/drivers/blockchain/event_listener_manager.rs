@@ -1,8 +1,8 @@
 use crate::drivers::blockchain::nightfall_event_listener::start_event_listener;
 use crate::ports::contracts::NightfallContract;
 use configuration::settings::get_settings;
+use lib::nf_client_proof::{Proof, ProvingEngine};
 use log::{info, warn};
-use nightfall_client::ports::proof::{Proof, ProvingEngine};
 use tokio::{
     sync::{OnceCell, RwLock},
     task::JoinHandle,

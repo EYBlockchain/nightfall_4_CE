@@ -49,13 +49,12 @@ use mongodb::{bson::doc, Client};
 use super::deposit_circuit::deposit_circuit_builder;
 use jf_relation::BoolVar;
 use lib::{
+    error::ConversionError,
     merkle_trees::trees::{MerkleTreeError, MutableTree, TreeMetadata},
+    nf_client_proof::PublicInputs,
+    plonk_prover::{get_client_proving_key, plonk_proof::PlonkProof},
     serialization::{ark_de_hex, ark_se_hex},
     utils::load_key_from_server,
-};
-use nightfall_client::{
-    domain::error::ConversionError, driven::plonk_prover::plonk_proof::PlonkProof,
-    get_client_proving_key, ports::proof::PublicInputs,
 };
 use serde::{Deserialize, Serialize};
 use std::{

@@ -6,12 +6,11 @@ use alloy::primitives::Address;
 use ark_bn254::Fr as Fr254;
 use ark_ff::{PrimeField, Zero};
 use futures::TryStreamExt;
-use lib::hex_conversion::HexConvertible;
-use mongodb::bson::doc;
-use nightfall_client::{
-    domain::{entities::ClientTransaction, error::ConversionError},
-    ports::proof::Proof,
+use lib::{
+    error::ConversionError, hex_conversion::HexConvertible, nf_client_proof::Proof,
+    shared_entities::ClientTransaction,
 };
+use mongodb::bson::doc;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 

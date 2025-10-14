@@ -1,5 +1,5 @@
 use crate::{
-    domain::entities::{ClientTransactionWithMetaData, DepositDatawithFee, OnChainTransaction},
+    domain::entities::{ClientTransactionWithMetaData, DepositDatawithFee},
     initialisation::get_db_connection,
     ports::{
         db::TransactionsDB,
@@ -7,11 +7,11 @@ use crate::{
     },
 };
 use ark_std::Zero;
-use log::{error, info};
-use nightfall_client::{
-    domain::entities::ClientTransaction,
-    ports::proof::{Proof, ProvingEngine, PublicInputs},
+use lib::{
+    nf_client_proof::{Proof, ProvingEngine, PublicInputs},
+    shared_entities::{ClientTransaction, OnChainTransaction},
 };
+use log::{error, info};
 use std::{
     error::Error,
     fmt::{Debug, Display, Formatter},

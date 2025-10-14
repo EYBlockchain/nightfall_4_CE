@@ -1,6 +1,6 @@
 use crate::{
     domain::entities::{Block, ClientTransactionWithMetaData, DepositData, DepositDatawithFee},
-    driven::db::mongo_db::{StoredBlock, PROPOSED_BLOCKS_COLLECTION},
+    driven::db::mongo_db::{StoredBlock, DB, PROPOSED_BLOCKS_COLLECTION},
     drivers::blockchain::block_assembly::BlockAssemblyError,
     initialisation::{get_blockchain_client_connection, get_db_connection},
     ports::{
@@ -13,12 +13,12 @@ use ark_std::{collections::HashSet, Zero};
 use bson::doc;
 use configuration::settings::get_settings;
 use jf_primitives::poseidon::{FieldHasher, Poseidon};
-use lib::{blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible};
-use log::{info, warn};
-use nightfall_client::{
-    driven::db::mongo::DB,
-    ports::proof::{Proof, PublicInputs},
+use lib::{
+    blockchain_client::BlockchainClientConnection,
+    hex_conversion::HexConvertible,
+    nf_client_proof::{Proof, PublicInputs},
 };
+use log::{info, warn};
 use std::cmp::Reverse;
 use tokio::time::Instant;
 
@@ -389,8 +389,10 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use lib::tests_utils::{get_db_connection, get_mongo};
-    use nightfall_client::driven::plonk_prover::plonk_proof::PlonkProof;
+    use lib::{
+        plonk_prover::plonk_proof::PlonkProof,
+        tests_utils::{get_db_connection, get_mongo},
+    };
 
     #[tokio::test]
     async fn test_prepare_block_data_simple_case() {
@@ -423,7 +425,7 @@ mod tests {
         {
             let transactions: Vec<ClientTransactionWithMetaData<PlonkProof>> = (241..=244)
                 .map(|i| ClientTransactionWithMetaData {
-                    client_transaction: nightfall_client::domain::entities::ClientTransaction {
+                    client_transaction: lib::shared_entities::ClientTransaction {
                         fee: Fr254::from(i),
                         proof: PlonkProof::default(),
                         ..Default::default()
@@ -567,7 +569,7 @@ mod tests {
         {
             let transactions: Vec<ClientTransactionWithMetaData<PlonkProof>> = (1..=74)
                 .map(|i| ClientTransactionWithMetaData {
-                    client_transaction: nightfall_client::domain::entities::ClientTransaction {
+                    client_transaction: lib::shared_entities::ClientTransaction {
                         fee: Fr254::from(i),
                         proof: PlonkProof::default(),
                         ..Default::default()
@@ -659,7 +661,7 @@ mod tests {
         {
             let transactions: Vec<ClientTransactionWithMetaData<PlonkProof>> = (1..=64)
                 .map(|i| ClientTransactionWithMetaData {
-                    client_transaction: nightfall_client::domain::entities::ClientTransaction {
+                    client_transaction: lib::shared_entities::ClientTransaction {
                         fee: Fr254::from(i),
                         proof: PlonkProof::default(),
                         ..Default::default()

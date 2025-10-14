@@ -469,14 +469,3 @@ impl PrivateInputsVar {
         })
     }
 }
-pub trait CircuitBuilder
-where
-    Self: Sized,
-{
-    type Error: std::error::Error;
-
-    fn build_circuit(
-        public_inputs: &mut PublicInputs,
-        private_inputs: &mut PrivateInputs,
-    ) -> Result<Self, Self::Error>;
-}

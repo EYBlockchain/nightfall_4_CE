@@ -11,15 +11,15 @@ use alloy::{
     rpc::types::{BlockId, BlockNumberOrTag},
 };
 use ark_serialize::SerializationError;
-use configuration::addresses::get_addresses;
+use configuration::{addresses::get_addresses, settings::get_settings};
 use jf_plonk::errors::PlonkError;
-use lib::blockchain_client::BlockchainClientConnection;
+use lib::{
+    blockchain_client::BlockchainClientConnection,
+    error::{ConversionError, EventHandlerError, NightfallContractError},
+    nf_client_proof::Proof,
+};
 use log::{debug, error, info, warn};
 use nightfall_bindings::artifacts::RoundRobin;
-use nightfall_client::{
-    domain::error::{ConversionError, EventHandlerError, NightfallContractError},
-    ports::proof::Proof,
-};
 use std::{
     error::Error,
     fmt::{Debug, Display, Formatter},
@@ -140,6 +140,10 @@ async fn check_l1_finality(
                 if let (Some(receipt_block_number), finalized_block_number) =
                     (tx_receipt.block_number, finalized_block.header.number)
                 {
+                    // If we are using anvil, assume finality immediately
+                    if get_settings().network.chain_id == 31337 {
+                        return Ok(true);
+                    }
                     // Already finalized
                     if receipt_block_number <= finalized_block_number {
                         let confirmations =

@@ -1,4 +1,4 @@
-use crate::domain::entities::{CommitmentStatus, Node, Preimage, Request, RequestStatus};
+use crate::domain::entities::{CommitmentStatus, Preimage, Request, RequestStatus};
 
 use super::{
     commitments::Commitment,
@@ -9,6 +9,7 @@ use alloy::primitives::{TxHash, I256};
 use ark_bn254::Fr as Fr254;
 use async_trait::async_trait;
 use futures::Future;
+use lib::shared_entities::Node;
 
 #[async_trait]
 pub trait RequestDB {
@@ -28,7 +29,10 @@ where
     async fn get_all_commitments(&self) -> Result<Vec<(K, V)>, mongodb::error::Error>;
     async fn get_commitment(&self, k: &K) -> Option<V>;
     async fn get_balance(&self, k: &K) -> Option<Fr254>;
-    async fn reserve_commitments_atomic(&self, commitment_ids: Vec<K>) -> Result<Vec<V>, &'static str>;
+    async fn reserve_commitments_atomic(
+        &self,
+        commitment_ids: Vec<K>,
+    ) -> Result<Vec<V>, &'static str>;
     async fn get_available_commitments(&self, nf_token_id: Fr254) -> Option<Vec<V>>;
     async fn mark_commitments_pending_creation(&self, commitments: Vec<K>) -> Option<()>;
     async fn mark_commitments_unspent(
@@ -63,10 +67,6 @@ where
 }
 
 pub trait KeyEntryDB: ProvingKey + VerifyingKey {}
-/// This is useful because Mongo serialises things to hex
-pub trait ToHexString {
-    fn to_hex(&self) -> String;
-}
 
 /// Trait for a DB storing a Merkle tree
 #[async_trait::async_trait]

@@ -4,10 +4,10 @@ use crate::drivers::rest::{
     proposers::rotate_proposer, synchronisation::synchronisation,
 };
 use block_assembly::{pause_block_assembly, resume_block_assembly};
-use lib::validate_certificate::certification_validation_request;
-use nightfall_client::{
-    drivers::rest::health_check::health_route,
-    ports::proof::{Proof, ProvingEngine},
+use lib::{
+    health_check::health_route,
+    nf_client_proof::{Proof, ProvingEngine},
+    validate_certificate::certification_validation_request,
 };
 use proposers::{add_proposer, remove_proposer, withdraw};
 use warp::{
