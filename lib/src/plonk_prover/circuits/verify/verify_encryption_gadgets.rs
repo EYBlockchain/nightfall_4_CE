@@ -45,7 +45,7 @@ impl VerifyEncryptionCircuit for PlonkCircuit<Fr254> {
 
         if cipher_text_kem_dem.len() != 5 {
             return Err(CircuitError::ParameterError(
-                "Calculated cipher text has length not equal to 4".to_string(),
+                "Calculated cipher text has length not equal to 5".to_string(),
             ));
         }
 
