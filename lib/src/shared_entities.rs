@@ -1,12 +1,12 @@
-use ark_bn254::Fr as Fr254;
-use ark_serialize::SerializationError;
 use crate::{
     contract_conversions::{FrBn254, Uint256},
     nf_client_proof::{Proof, PublicInputs},
     serialization::{ark_de_hex, ark_se_hex},
 };
-use nightfall_bindings::artifacts::Nightfall;
+use ark_bn254::Fr as Fr254;
+use ark_serialize::SerializationError;
 use log::{error, warn};
+use nightfall_bindings::artifacts::Nightfall;
 use serde::{Deserialize, Serialize};
 use sha3::{digest::generic_array::GenericArray, Digest, Keccak256};
 use std::fmt::Debug;

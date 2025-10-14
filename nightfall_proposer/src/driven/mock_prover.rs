@@ -12,8 +12,10 @@ use jf_plonk::{
 };
 use jf_primitives::{pcs::prelude::UnivariateKzgPCS, rescue::sponge::RescueCRHF};
 use jf_utils::fr_to_fq;
-use lib::{merkle_trees::trees::{MerkleTreeError, MutableTree, TreeMetadata}, nf_client_proof::PublicInputs,
-    plonk_prover::{plonk_proof::PlonkProof, get_client_proving_key},
+use lib::{
+    merkle_trees::trees::{MerkleTreeError, MutableTree, TreeMetadata},
+    nf_client_proof::PublicInputs,
+    plonk_prover::{get_client_proving_key, plonk_proof::PlonkProof},
 };
 use std::collections::HashMap;
 

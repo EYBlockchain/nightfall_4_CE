@@ -1,26 +1,26 @@
 pub mod blockchain_client;
-pub mod shared_entities;
-pub mod error;
 pub mod contract_conversions;
+pub mod error;
 pub mod health_check;
 pub mod hex_conversion;
 pub mod merkle_trees;
 pub mod models;
-pub mod nf_token_id;
 pub mod nf_client_proof;
+pub mod nf_token_id;
 pub mod plonk_prover;
 pub mod serialization;
+pub mod shared_entities;
 pub mod tests_utils;
 pub mod utils;
 pub mod validate_certificate;
 pub mod wallets;
 
+use alloy::dyn_abi::abi::encode;
+use alloy::primitives::{keccak256, U256};
+use alloy::sol_types::SolValue;
 use ark_bn254::Fr as Fr254;
 use configuration::addresses::get_addresses;
-use alloy::primitives::{keccak256, U256};
 use num::BigUint;
-use alloy::dyn_abi::abi::encode;
-use alloy::sol_types::SolValue;
 
 /// This function gets the fee token ID based on the current deployment.
 /// Fee token ID is the keccak256 hash of the zero address and zero, right shifted by 4 bits.
@@ -33,7 +33,6 @@ pub fn get_fee_token_id() -> Fr254 {
         BigUint::from_bytes_be(keccak256(encode(&(nf_address_token, u256_zero))).as_slice()) >> 4;
     Fr254::from(fee_token_id_biguint)
 }
-
 
 pub mod initialisation {
     use crate::{blockchain_client::BlockchainClientConnection, wallets::LocalWsClient};

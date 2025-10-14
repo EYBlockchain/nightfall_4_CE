@@ -1,14 +1,15 @@
 #[cfg(test)]
 mod tests {
-    use crate::{
-        driven::primitives::kemdem_functions::kemdem_encrypt,
-    };
-    use lib::{nf_token_id::to_nf_token_id_from_fr254, plonk_prover::circuits::verify::verify_encryption_gadgets::VerifyEncryptionCircuit};
+    use crate::driven::primitives::kemdem_functions::kemdem_encrypt;
     use ark_ec::{twisted_edwards::Affine as TEAffine, AffineRepr, CurveGroup};
     use ark_std::UniformRand;
-    use jf_relation::{Circuit, gadgets::ecc::Point, PlonkCircuit};
+    use jf_relation::{gadgets::ecc::Point, Circuit, PlonkCircuit};
     use jf_utils::{fr_to_fq, test_rng};
-    use nf_curves::ed_on_bn254::{BabyJubjub as EdwardsConfig, Fr as BJJScalar, Fq as Fr254};
+    use lib::{
+        nf_token_id::to_nf_token_id_from_fr254,
+        plonk_prover::circuits::verify::verify_encryption_gadgets::VerifyEncryptionCircuit,
+    };
+    use nf_curves::ed_on_bn254::{BabyJubjub as EdwardsConfig, Fq as Fr254, Fr as BJJScalar};
     #[test]
     fn test_encryption_circuit() {
         let rng = &mut test_rng();

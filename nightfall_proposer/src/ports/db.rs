@@ -4,7 +4,10 @@ use crate::{
 };
 use ark_bn254::Fr as Fr254;
 use ark_ff::PrimeField;
-use lib::{serialization::{ark_de_bytes, ark_se_bytes}, shared_entities::{ClientTransaction, Node}};
+use lib::{
+    serialization::{ark_de_bytes, ark_se_bytes},
+    shared_entities::{ClientTransaction, Node},
+};
 use serde::{Deserialize, Serialize};
 #[async_trait::async_trait]
 pub trait BlockStorageDB {

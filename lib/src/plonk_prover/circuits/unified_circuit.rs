@@ -1,13 +1,13 @@
 use super::verify::verify_duplicates_gadgets::VerifyDuplicatesCircuit;
+use super::DOMAIN_SHARED_SALT;
 use crate::{
+    nf_client_proof::{PrivateInputs, PrivateInputsVar, PublicInputs},
     plonk_prover::circuits::verify::{
         verify_commitments_gadgets::VerifyCommitmentsCircuit,
         verify_encryption_gadgets::VerifyEncryptionCircuit,
         verify_nullifiers_gadgets::VerifyNullifiersCircuit,
     },
-    nf_client_proof::{PrivateInputs, PrivateInputsVar, PublicInputs},
 };
-use super::{DOMAIN_SHARED_SALT};
 use alloy::{
     dyn_abi::abi::encode,
     primitives::{keccak256, U256},

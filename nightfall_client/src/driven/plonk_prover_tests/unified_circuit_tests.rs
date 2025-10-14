@@ -7,13 +7,13 @@ mod tests {
         ports::{commitments::Commitment, secret_hash::SecretHash},
     };
     use alloy::{
-        sol_types::SolValue,
         dyn_abi::abi::encode,
         primitives::{keccak256, Address, U256},
+        sol_types::SolValue,
     };
     use ark_bn254::Bn254;
-    use ark_ec::{CurveGroup, twisted_edwards::Affine, AffineRepr};
-    use ark_ff::{PrimeField, One, Zero};
+    use ark_ec::{twisted_edwards::Affine, AffineRepr, CurveGroup};
+    use ark_ff::{One, PrimeField, Zero};
     use ark_std::{rand::rngs::StdRng, UniformRand};
     use jf_plonk::{
         nightfall::{ipa_structs::VerificationKeyId, FFTPlonk},
@@ -27,9 +27,10 @@ mod tests {
     };
     use jf_relation::{Arithmetization, Circuit};
     use lib::{
-        hex_conversion::HexConvertible, nf_token_id::to_nf_token_id_from_str,
-        nf_client_proof::{PublicInputs, PrivateInputs},
-        plonk_prover::circuits::{{DOMAIN_SHARED_SALT},unified_circuit::unified_circuit_builder},
+        hex_conversion::HexConvertible,
+        nf_client_proof::{PrivateInputs, PublicInputs},
+        nf_token_id::to_nf_token_id_from_str,
+        plonk_prover::circuits::{unified_circuit::unified_circuit_builder, DOMAIN_SHARED_SALT},
     };
     use nf_curves::ed_on_bn254::{BabyJubjub, Fq as Fr254, Fr as BJJScalar};
     use num_bigint::BigUint;

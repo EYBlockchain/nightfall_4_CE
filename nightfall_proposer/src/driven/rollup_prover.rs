@@ -52,9 +52,9 @@ use lib::{
     error::ConversionError,
     merkle_trees::trees::{MerkleTreeError, MutableTree, TreeMetadata},
     nf_client_proof::PublicInputs,
+    plonk_prover::{get_client_proving_key, plonk_proof::PlonkProof},
     serialization::{ark_de_hex, ark_se_hex},
     utils::load_key_from_server,
-    plonk_prover::{plonk_proof::PlonkProof, get_client_proving_key},
 };
 use serde::{Deserialize, Serialize};
 use std::{

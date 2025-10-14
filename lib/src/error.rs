@@ -1,14 +1,14 @@
 use alloy::rpc::json_rpc::RpcError;
 use alloy::signers::local::LocalSignerError as WalletError;
 use alloy::transports::TransportError;
+use ark_bn254::Fr as Fr254;
+use ark_serialize::SerializationError;
+use jf_primitives::poseidon::PoseidonError;
 use std::{
     error::Error,
     fmt::{self, Debug, Display},
 };
 use warp::reject::Reject;
-use ark_serialize::SerializationError;
-use jf_primitives::poseidon::PoseidonError;
-use ark_bn254::Fr as Fr254;
 
 #[derive(Debug, PartialEq)]
 pub enum HexError {

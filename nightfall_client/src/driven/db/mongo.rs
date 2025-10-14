@@ -1,22 +1,3 @@
-use alloy::primitives::{TxHash, I256};
-use ark_bn254::Fr as Fr254;
-use ark_ff::PrimeField;
-use async_trait::async_trait;
-use futures::TryStreamExt;
-use jf_primitives::{
-    poseidon::{FieldHasher, Poseidon},
-    trees::{Directions, PathElement},
-};
-use lib::hex_conversion::HexConvertible;
-use log::{debug, error, info};
-use mongodb::{
-    bson::doc,
-    error::{ErrorKind, WriteFailure::WriteError},
-    Client,
-    options::{FindOneAndUpdateOptions,ReturnDocument},
-};
-use serde::{Deserialize, Serialize};
-use std::{fmt::Debug, str};
 use crate::{
     domain::entities::{
         CommitmentStatus, Preimage, Request, RequestCommitmentMapping, RequestStatus, WithdrawData,
@@ -25,10 +6,32 @@ use crate::{
     ports::{commitments::Commitment, db::CommitmentEntryDB},
 };
 use alloy::primitives::Address;
+use alloy::primitives::{TxHash, I256};
+use ark_bn254::Fr as Fr254;
+use ark_ff::PrimeField;
+use async_trait::async_trait;
+use futures::TryStreamExt;
 use jf_primitives::{poseidon::PoseidonError, trees::MembershipProof};
-use lib::{contract_conversions::FrBn254, serialization::{ark_de_hex, ark_se_hex}};
+use jf_primitives::{
+    poseidon::{FieldHasher, Poseidon},
+    trees::{Directions, PathElement},
+};
+use lib::hex_conversion::HexConvertible;
+use lib::{
+    contract_conversions::FrBn254,
+    serialization::{ark_de_hex, ark_se_hex},
+};
+use log::{debug, error, info};
+use mongodb::{
+    bson::doc,
+    error::{ErrorKind, WriteFailure::WriteError},
+    options::{FindOneAndUpdateOptions, ReturnDocument},
+    Client,
+};
+use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use sha3::Digest;
+use std::{fmt::Debug, str};
 
 pub const DB: &str = "nightfall";
 pub const PROPOSED_BLOCKS_COLLECTION: &str = "ProposedBlocks";
@@ -401,30 +404,31 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
         Ok(result)
     }
     /// Atomically reserves commitments by changing their status from `Unspent` to `PendingSpend`.
-    /// 
+    ///
     /// This prevents race conditions where multiple processes try to spend the same commitments
     /// at the same time. Only commitments that are still `Unspent` will be updated and returned.
     async fn reserve_commitments_atomic(
-        &self, 
-        commitment_ids: Vec<Fr254>
+        &self,
+        commitment_ids: Vec<Fr254>,
     ) -> Result<Vec<CommitmentEntry>, &'static str> {
         let mut reserved_commitments = Vec::new();
-        
+
         for commitment_id in commitment_ids {
             let filter = doc! {
                 "_id": commitment_id.to_hex_string(),
-                "status": "Unspent" 
+                "status": "Unspent"
             };
-            
+
             let update = doc! {
                 "$set": { "status": "PendingSpend" }
             };
-            
+
             let options = FindOneAndUpdateOptions::builder()
                 .return_document(ReturnDocument::After)
                 .build();
             // Atomically find and update the commitment
-            if let Some(updated_commitment) = self.database(DB)
+            if let Some(updated_commitment) = self
+                .database(DB)
                 .collection::<CommitmentEntry>("commitments")
                 .find_one_and_update(filter, update)
                 .with_options(options)
@@ -432,7 +436,9 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
                 .map_err(|_| "Database update failed")?
             {
                 reserved_commitments.push(updated_commitment);
-            } else {debug!("Failed to reserve commitment: {commitment_id:?}");} 
+            } else {
+                debug!("Failed to reserve commitment: {commitment_id:?}");
+            }
         }
         Ok(reserved_commitments)
     }
@@ -635,22 +641,22 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
         if commitment_ids.is_empty() {
             return Some(());
         }
-    
+
         let commitment_strs: Vec<String> = commitment_ids
             .into_iter()
             .map(|c| c.to_hex_string())
             .collect();
-    
+
         debug!("Deleting commitments with hashes {commitment_strs:?}");
-    
+
         let filter = doc! { "_id": { "$in": &commitment_strs }};
-    
+
         let res = self
             .database(DB)
             .collection::<CommitmentEntry>("commitments")
             .delete_many(filter)
             .await;
-    
+
         match res {
             Ok(del_res) => {
                 debug!("Deleted {} commitments", del_res.deleted_count);
@@ -661,7 +667,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
                 None
             }
         }
-    }    
+    }
 }
 
 /// Struct stored in the pending withdrawal database

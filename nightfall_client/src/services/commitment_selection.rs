@@ -13,22 +13,22 @@ use ark_bn254::Fr as Fr254;
 use ark_ff::{BigInteger256, PrimeField, Zero};
 use lib::{contract_conversions::FrBn254, get_fee_token_id, hex_conversion::HexConvertible};
 use log::{debug, trace};
+use mongodb::options::FindOneAndUpdateOptions;
 use mongodb::{Client, Database};
 use nf_curves::ed_on_bn254::BJJTEAffine as JubJub;
 use serde::{Deserialize, Serialize};
 use std::{cmp, cmp::Ordering, collections::VecDeque, fmt::Debug, sync::Arc};
 use tokio::sync::Mutex;
-use mongodb::options::FindOneAndUpdateOptions;
 
 const MAX_POSSIBLE_COMMITMENTS: usize = 2;
 
 // Calculate the minimum commitments required to fulfill this selection.
 // The max number of commitments that can be used is MAX_POSSIBLE_COMMITMENTS.
 // If min_num_c is 0, it means the user doesn't have enough commitments to pay the value.
-// If min_num_c > MAX_POSSIBLE_COMMITMENTS, it means the user has too many dust commitments 
+// If min_num_c > MAX_POSSIBLE_COMMITMENTS, it means the user has too many dust commitments
 // and we require the client to deposit larger commitments to fulfill this transaction.
-// 
-// The function returns exactly MAX_POSSIBLE_COMMITMENTS preimages, with unused slots 
+//
+// The function returns exactly MAX_POSSIBLE_COMMITMENTS preimages, with unused slots
 // filled with Preimage::default().
 pub async fn find_usable_commitments(
     target_token_id: Fr254,
@@ -40,11 +40,13 @@ pub async fn find_usable_commitments(
         verify_enough_commitments(target_token_id, target_value, db).await?;
 
     // Determine max number of commitments to use
-    let max_num_c = avaliable_sorted_commitments.len().min(MAX_POSSIBLE_COMMITMENTS);
+    let max_num_c = avaliable_sorted_commitments
+        .len()
+        .min(MAX_POSSIBLE_COMMITMENTS);
     if max_num_c < min_num_c {
         return Err("Not enough commitments available to cover target value");
     }
-  
+
     // Given the available commitments, select the ones to use for this transfer.
     // We want to use dusts first to minimize change.
     // Example: target_value = 3, commitments = [1, 2, 3]
@@ -67,19 +69,19 @@ pub async fn find_usable_commitments(
     let reserved_commitments = db.reserve_commitments_atomic(commitment_ids).await?;
 
     // Debug: show exactly what was successfully reserved
-        debug!(
-            "Reserved {} commitments atomically: {:?}",
-            reserved_commitments.len(),
-            reserved_commitments
-                .iter()
-                .filter_map(|c| c.hash().ok().map(|h| h.to_hex_string()))
-                .collect::<Vec<_>>()
-        );
-    
+    debug!(
+        "Reserved {} commitments atomically: {:?}",
+        reserved_commitments.len(),
+        reserved_commitments
+            .iter()
+            .filter_map(|c| c.hash().ok().map(|h| h.to_hex_string()))
+            .collect::<Vec<_>>()
+    );
+
     if reserved_commitments.len() < min_num_c {
         return Err("Could not reserve enough commitments - taken by another process");
     }
-       
+
     // Convert reserved commitments to Preimage and return
     let preimages: Vec<Preimage> = reserved_commitments
         .iter()
@@ -91,7 +93,6 @@ pub async fn find_usable_commitments(
         preimages_fixed[i] = p;
     }
     Ok(preimages_fixed)
-
 }
 
 fn select_commitment(
@@ -277,8 +278,8 @@ mod test {
     use crate::domain::entities::CommitmentStatus;
     use ark_bn254::Fr as Fr254;
     use lib::tests_utils::{get_db_connection, get_db_connection_uri, get_mongo};
-    use url::Host;
     use mongodb::bson::doc;
+    use url::Host;
 
     #[tokio::test]
     async fn test_find_usable_commitments_success() {
@@ -298,17 +299,29 @@ mod test {
         // Insert commitments for token_id = 1 (value commitments)
         let value_commitments = vec![
             CommitmentEntry::new(
-                Preimage { value: Fr254::from(5u64), nf_token_id: Fr254::from(1u64), ..Default::default() },
+                Preimage {
+                    value: Fr254::from(5u64),
+                    nf_token_id: Fr254::from(1u64),
+                    ..Default::default()
+                },
                 Fr254::default(),
                 CommitmentStatus::Unspent,
             ),
             CommitmentEntry::new(
-                Preimage { value: Fr254::from(6u64), nf_token_id: Fr254::from(1u64), ..Default::default() },
+                Preimage {
+                    value: Fr254::from(6u64),
+                    nf_token_id: Fr254::from(1u64),
+                    ..Default::default()
+                },
                 Fr254::default(),
                 CommitmentStatus::Unspent,
             ),
             CommitmentEntry::new(
-                Preimage { value: Fr254::from(7u64), nf_token_id: Fr254::from(1u64), ..Default::default() },
+                Preimage {
+                    value: Fr254::from(7u64),
+                    nf_token_id: Fr254::from(1u64),
+                    ..Default::default()
+                },
                 Fr254::default(),
                 CommitmentStatus::Unspent,
             ),
@@ -352,17 +365,29 @@ mod test {
         // Insert commitments for token_id = 2 (fee commitments)
         let fee_commitments = vec![
             CommitmentEntry::new(
-                Preimage { value: Fr254::from(2u64), nf_token_id: Fr254::from(2u64), ..Default::default() },
+                Preimage {
+                    value: Fr254::from(2u64),
+                    nf_token_id: Fr254::from(2u64),
+                    ..Default::default()
+                },
                 Fr254::default(),
                 CommitmentStatus::Unspent,
             ),
             CommitmentEntry::new(
-                Preimage { value: Fr254::from(12u64), nf_token_id: Fr254::from(2u64), ..Default::default() },
+                Preimage {
+                    value: Fr254::from(12u64),
+                    nf_token_id: Fr254::from(2u64),
+                    ..Default::default()
+                },
                 Fr254::default(),
                 CommitmentStatus::Unspent,
             ),
             CommitmentEntry::new(
-                Preimage { value: Fr254::from(13u64), nf_token_id: Fr254::from(2u64), ..Default::default() },
+                Preimage {
+                    value: Fr254::from(13u64),
+                    nf_token_id: Fr254::from(2u64),
+                    ..Default::default()
+                },
                 Fr254::default(),
                 CommitmentStatus::Unspent,
             ),
@@ -566,7 +591,7 @@ mod test {
         {
             let database = db.database("nightfall");
             let commitments_collection = database.collection::<CommitmentEntry>("commitments");
-           
+
             let commitments = vec![
                 CommitmentEntry::new(
                     Preimage {
@@ -638,26 +663,74 @@ mod test {
         // Set up MongoDB test container
         let container = get_mongo().await;
         let db = get_db_connection(&container).await;
-        
-        let commitments_collection = db.database("nightfall").collection::<CommitmentEntry>("commitments");
-        
+
+        let commitments_collection = db
+            .database("nightfall")
+            .collection::<CommitmentEntry>("commitments");
+
         // Clear and insert only the value commitments
-        commitments_collection.delete_many(doc!{}).await.expect("Failed to clear commitments");
+        commitments_collection
+            .delete_many(doc! {})
+            .await
+            .expect("Failed to clear commitments");
         let value_commitments = vec![
             // Only insert commitments for nf_token_id: 1
-            CommitmentEntry::new(Preimage { value: Fr254::from(5u64), nf_token_id: Fr254::from(1u64), ..Default::default() }, Fr254::default(), CommitmentStatus::Unspent),
-            CommitmentEntry::new(Preimage { value: Fr254::from(6u64), nf_token_id: Fr254::from(1u64), ..Default::default() }, Fr254::default(), CommitmentStatus::Unspent),
-            CommitmentEntry::new(Preimage { value: Fr254::from(7u64), nf_token_id: Fr254::from(1u64), ..Default::default() }, Fr254::default(), CommitmentStatus::Unspent),
+            CommitmentEntry::new(
+                Preimage {
+                    value: Fr254::from(5u64),
+                    nf_token_id: Fr254::from(1u64),
+                    ..Default::default()
+                },
+                Fr254::default(),
+                CommitmentStatus::Unspent,
+            ),
+            CommitmentEntry::new(
+                Preimage {
+                    value: Fr254::from(6u64),
+                    nf_token_id: Fr254::from(1u64),
+                    ..Default::default()
+                },
+                Fr254::default(),
+                CommitmentStatus::Unspent,
+            ),
+            CommitmentEntry::new(
+                Preimage {
+                    value: Fr254::from(7u64),
+                    nf_token_id: Fr254::from(1u64),
+                    ..Default::default()
+                },
+                Fr254::default(),
+                CommitmentStatus::Unspent,
+            ),
         ];
-        commitments_collection.insert_many(value_commitments).await.expect("Failed to insert value commitments");
-    
+        commitments_collection
+            .insert_many(value_commitments)
+            .await
+            .expect("Failed to insert value commitments");
+
         // Test and validate the value selection
-        let value_result = find_usable_commitments(Fr254::from(1u64), Fr254::from(10u64), &db).await;
-        assert!(value_result.is_ok(), "Commitment selection for value failed");
+        let value_result =
+            find_usable_commitments(Fr254::from(1u64), Fr254::from(10u64), &db).await;
+        assert!(
+            value_result.is_ok(),
+            "Commitment selection for value failed"
+        );
         let selected_value_commitments = value_result.unwrap();
-    
-        assert_eq!((selected_value_commitments[0].value, selected_value_commitments[0].nf_token_id), (Fr254::from(5u64), Fr254::from(1u64)));
-        assert_eq!((selected_value_commitments[1].value, selected_value_commitments[1].nf_token_id), (Fr254::from(6u64), Fr254::from(1u64)));
+
+        assert_eq!(
+            (
+                selected_value_commitments[0].value,
+                selected_value_commitments[0].nf_token_id
+            ),
+            (Fr254::from(5u64), Fr254::from(1u64))
+        );
+        assert_eq!(
+            (
+                selected_value_commitments[1].value,
+                selected_value_commitments[1].nf_token_id
+            ),
+            (Fr254::from(6u64), Fr254::from(1u64))
+        );
     }
     #[tokio::test]
     async fn test_commitment_selection_case_5_fee() {
@@ -666,28 +739,88 @@ mod test {
         // Set up MongoDB test container
         let container = get_mongo().await;
         let db = get_db_connection(&container).await;
-        
-        let commitments_collection = db.database("nightfall").collection::<CommitmentEntry>("commitments");
-        
+
+        let commitments_collection = db
+            .database("nightfall")
+            .collection::<CommitmentEntry>("commitments");
+
         // Clear and insert only the fee commitments
-        commitments_collection.delete_many(doc!{}).await.expect("Failed to clear commitments");
+        commitments_collection
+            .delete_many(doc! {})
+            .await
+            .expect("Failed to clear commitments");
         let fee_commitments = vec![
             // Only insert commitments for nf_token_id: 2
-            CommitmentEntry::new(Preimage { value: Fr254::from(5u64), nf_token_id: Fr254::from(2u64), ..Default::default() }, Fr254::default(), CommitmentStatus::Unspent),
-            CommitmentEntry::new(Preimage { value: Fr254::from(6u64), nf_token_id: Fr254::from(2u64), ..Default::default() }, Fr254::default(), CommitmentStatus::Unspent),
-            CommitmentEntry::new(Preimage { value: Fr254::from(12u64), nf_token_id: Fr254::from(2u64), ..Default::default() }, Fr254::default(), CommitmentStatus::Unspent),
-            CommitmentEntry::new(Preimage { value: Fr254::from(2u64), nf_token_id: Fr254::from(2u64), ..Default::default() }, Fr254::default(), CommitmentStatus::Unspent),
-            CommitmentEntry::new(Preimage { value: Fr254::from(13u64), nf_token_id: Fr254::from(2u64), ..Default::default() }, Fr254::default(), CommitmentStatus::Unspent),
+            CommitmentEntry::new(
+                Preimage {
+                    value: Fr254::from(5u64),
+                    nf_token_id: Fr254::from(2u64),
+                    ..Default::default()
+                },
+                Fr254::default(),
+                CommitmentStatus::Unspent,
+            ),
+            CommitmentEntry::new(
+                Preimage {
+                    value: Fr254::from(6u64),
+                    nf_token_id: Fr254::from(2u64),
+                    ..Default::default()
+                },
+                Fr254::default(),
+                CommitmentStatus::Unspent,
+            ),
+            CommitmentEntry::new(
+                Preimage {
+                    value: Fr254::from(12u64),
+                    nf_token_id: Fr254::from(2u64),
+                    ..Default::default()
+                },
+                Fr254::default(),
+                CommitmentStatus::Unspent,
+            ),
+            CommitmentEntry::new(
+                Preimage {
+                    value: Fr254::from(2u64),
+                    nf_token_id: Fr254::from(2u64),
+                    ..Default::default()
+                },
+                Fr254::default(),
+                CommitmentStatus::Unspent,
+            ),
+            CommitmentEntry::new(
+                Preimage {
+                    value: Fr254::from(13u64),
+                    nf_token_id: Fr254::from(2u64),
+                    ..Default::default()
+                },
+                Fr254::default(),
+                CommitmentStatus::Unspent,
+            ),
         ];
-        commitments_collection.insert_many(fee_commitments).await.expect("Failed to insert fee commitments");
-    
+        commitments_collection
+            .insert_many(fee_commitments)
+            .await
+            .expect("Failed to insert fee commitments");
+
         // Test and validate the fee selection
         let fee_result = find_usable_commitments(Fr254::from(2u64), Fr254::from(12u64), &db).await;
         assert!(fee_result.is_ok(), "Commitment selection for fee failed");
         let selected_fee_commitments = fee_result.unwrap();
-    
-        assert_eq!((selected_fee_commitments[0].value, selected_fee_commitments[0].nf_token_id), (Fr254::from(12u64), Fr254::from(2u64)));
-        assert_eq!((selected_fee_commitments[1].value, selected_fee_commitments[1].nf_token_id), (Fr254::from(0u64), Fr254::from(0u64)));
+
+        assert_eq!(
+            (
+                selected_fee_commitments[0].value,
+                selected_fee_commitments[0].nf_token_id
+            ),
+            (Fr254::from(12u64), Fr254::from(2u64))
+        );
+        assert_eq!(
+            (
+                selected_fee_commitments[1].value,
+                selected_fee_commitments[1].nf_token_id
+            ),
+            (Fr254::from(0u64), Fr254::from(0u64))
+        );
     }
 
     #[tokio::test]
@@ -826,12 +959,12 @@ mod test {
         }
     }
 
-   // Test concurrent access to ensure atomic reservation
+    // Test concurrent access to ensure atomic reservation
     #[tokio::test]
     async fn test_find_usable_commitments() {
-    // This test verifies the atomic reservation of commitments.
-    // It simulates two concurrent processes trying to reserve the same commitments.
-    // Only one process should succeed; the other must fail, preventing race conditions.
+        // This test verifies the atomic reservation of commitments.
+        // It simulates two concurrent processes trying to reserve the same commitments.
+        // Only one process should succeed; the other must fail, preventing race conditions.
 
         let container = get_mongo().await;
         let db = get_db_connection(&container).await;
@@ -842,10 +975,29 @@ mod test {
         commitments_collection.delete_many(doc! {}).await.unwrap();
 
         let commitments = vec![
-            CommitmentEntry::new(Preimage { value: Fr254::from(10u64), nf_token_id: Fr254::from(1u64), ..Default::default() }, Fr254::default(), CommitmentStatus::Unspent),
-            CommitmentEntry::new(Preimage { value: Fr254::from(20u64), nf_token_id: Fr254::from(1u64), ..Default::default() }, Fr254::default(), CommitmentStatus::Unspent),
+            CommitmentEntry::new(
+                Preimage {
+                    value: Fr254::from(10u64),
+                    nf_token_id: Fr254::from(1u64),
+                    ..Default::default()
+                },
+                Fr254::default(),
+                CommitmentStatus::Unspent,
+            ),
+            CommitmentEntry::new(
+                Preimage {
+                    value: Fr254::from(20u64),
+                    nf_token_id: Fr254::from(1u64),
+                    ..Default::default()
+                },
+                Fr254::default(),
+                CommitmentStatus::Unspent,
+            ),
         ];
-        commitments_collection.insert_many(&commitments).await.unwrap();
+        commitments_collection
+            .insert_many(&commitments)
+            .await
+            .unwrap();
 
         // Spawn two concurrent tasks
         let db1 = db.clone();
@@ -866,9 +1018,13 @@ mod test {
         let success_count = [res1, res2].iter().filter(|r| r.is_ok()).count();
         let failure_count = [res1, res2].iter().filter(|r| r.is_err()).count();
 
-        assert_eq!(success_count, 1, "Only one process should successfully reserve all commitments");
-        assert_eq!(failure_count, 1, "The other process should fail due to commitments being already reserved");
-
+        assert_eq!(
+            success_count, 1,
+            "Only one process should successfully reserve all commitments"
+        );
+        assert_eq!(
+            failure_count, 1,
+            "The other process should fail due to commitments being already reserved"
+        );
     }
-
 }

@@ -1,11 +1,7 @@
-use crate::{
-    domain::{
-        entities::{Proposer, WithdrawData},
-    },
-};
+use crate::domain::entities::{Proposer, WithdrawData};
 use alloy::primitives::Address;
-use nightfall_bindings::artifacts::{Nightfall, RoundRobin};
 use lib::contract_conversions::{Addr, Uint256};
+use nightfall_bindings::artifacts::{Nightfall, RoundRobin};
 /// enables conversion between a Proposer as used in the ProposerManager contract, and a for suitable for serialisation
 impl From<RoundRobin::Proposer> for Proposer {
     fn from(proposer: RoundRobin::Proposer) -> Self {

@@ -12,8 +12,9 @@ use jf_plonk::{
 };
 
 use crate::{
+    nf_client_proof::{PrivateInputs, Proof, ProvingEngine, PublicInputs},
     plonk_prover::{circuit_builder::CircuitBuilder, get_client_proving_key},
-    nf_client_proof::{PrivateInputs, Proof, ProvingEngine, PublicInputs}, serialization::{ark_de_hex, ark_se_hex}
+    serialization::{ark_de_hex, ark_se_hex},
 };
 use alloy::primitives::Bytes;
 use jf_primitives::{pcs::prelude::UnivariateKzgPCS, rescue::sponge::RescueCRHF};

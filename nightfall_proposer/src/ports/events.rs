@@ -1,5 +1,8 @@
 use alloy::primitives::TxHash;
-use lib::{error::EventHandlerError, nf_client_proof::{Proof, ProvingEngine}};
+use lib::{
+    error::EventHandlerError,
+    nf_client_proof::{Proof, ProvingEngine},
+};
 
 use super::contracts::NightfallContract;
 

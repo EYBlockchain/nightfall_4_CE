@@ -17,8 +17,9 @@ use configuration::addresses::get_addresses;
 use futures::StreamExt;
 use futures::{future::BoxFuture, FutureExt};
 use lib::{
-    blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
+    blockchain_client::BlockchainClientConnection,
     error::EventHandlerError,
+    hex_conversion::HexConvertible,
     initialisation::get_blockchain_client_connection,
     shared_entities::{OnChainTransaction, SynchronisationPhase, SynchronisationStatus},
 };

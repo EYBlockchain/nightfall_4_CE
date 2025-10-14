@@ -1,6 +1,4 @@
-use crate::{
-    ports::{contracts::NightfallContract, events::EventHandler},
-};
+use crate::ports::{contracts::NightfallContract, events::EventHandler};
 use alloy::rpc::types::Log;
 use lib::error::EventHandlerError;
 

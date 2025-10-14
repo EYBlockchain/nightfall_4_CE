@@ -17,13 +17,14 @@ use alloy::{consensus::Transaction, sol_types::SolInterface};
 use ark_bn254::Fr as Fr254;
 use ark_ff::BigInteger;
 use lib::{
-    blockchain_client::BlockchainClientConnection, 
+    blockchain_client::BlockchainClientConnection,
     contract_conversions::FrBn254,
     error::EventHandlerError,
     get_fee_token_id,
     hex_conversion::HexConvertible,
-    merkle_trees::trees::IndexedTree, nf_token_id::to_nf_token_id_from_solidity,
+    merkle_trees::trees::IndexedTree,
     nf_client_proof::{Proof, ProvingEngine},
+    nf_token_id::to_nf_token_id_from_solidity,
     shared_entities::OnChainTransaction,
 };
 use log::{debug, error, info, warn};

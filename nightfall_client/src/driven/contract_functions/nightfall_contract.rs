@@ -16,9 +16,10 @@ use ark_ff::BigInteger256;
 use ark_std::Zero;
 use configuration::{addresses::get_addresses, settings::get_settings};
 use lib::{
-    blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
+    blockchain_client::BlockchainClientConnection,
     contract_conversions::{Addr, FrBn254, Uint256},
     error::NightfallContractError,
+    initialisation::get_blockchain_client_connection,
     nf_token_id::to_nf_token_id_from_solidity,
     shared_entities::TokenType,
 };

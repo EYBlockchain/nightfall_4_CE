@@ -1,6 +1,9 @@
 use crate::ports::{contracts::NightfallContract, events::EventHandler};
 use alloy::rpc::types::Log;
-use lib::{error::EventHandlerError, nf_client_proof::{Proof, ProvingEngine}};
+use lib::{
+    error::EventHandlerError,
+    nf_client_proof::{Proof, ProvingEngine},
+};
 
 // A simple function that passes the Event through to be handled by an implementation in the respository
 // This will probably do more as the service develops, otherwise consider calling directly from driver to repository.

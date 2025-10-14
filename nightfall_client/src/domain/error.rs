@@ -4,9 +4,9 @@ use std::{
 };
 
 use jf_primitives::poseidon::PoseidonError;
+use lib::error::ConversionError;
 use lib::error::{BlockchainClientConnectionError, EventHandlerError, NightfallContractError};
 use warp::reject::{self};
-use lib::error::ConversionError;
 
 #[derive(Debug)]
 pub struct FailedClientOperation;

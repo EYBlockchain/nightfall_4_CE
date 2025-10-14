@@ -1,6 +1,9 @@
 use ark_bn254::Fr as Fr254;
 use ark_serialize::SerializationError;
-use lib::{serialization::{ark_de_hex, ark_se_hex}, shared_entities::{ClientTransaction, OnChainTransaction}};
+use lib::{
+    serialization::{ark_de_hex, ark_se_hex},
+    shared_entities::{ClientTransaction, OnChainTransaction},
+};
 use log::error;
 use serde::{Deserialize, Serialize};
 use sha3::{digest::generic_array::GenericArray, Digest, Keccak256};

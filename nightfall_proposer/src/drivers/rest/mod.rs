@@ -4,7 +4,11 @@ use crate::drivers::rest::{
     proposers::rotate_proposer, synchronisation::synchronisation,
 };
 use block_assembly::{pause_block_assembly, resume_block_assembly};
-use lib::{health_check::health_route, nf_client_proof::{Proof, ProvingEngine}, validate_certificate::certification_validation_request};
+use lib::{
+    health_check::health_route,
+    nf_client_proof::{Proof, ProvingEngine},
+    validate_certificate::certification_validation_request,
+};
 use proposers::{add_proposer, remove_proposer, withdraw};
 use warp::{
     reject::Rejection,

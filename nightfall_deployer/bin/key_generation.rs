@@ -25,17 +25,17 @@ use jf_primitives::{
         Directions, MembershipProof, PathElement, TreeHasher,
     },
 };
-use lib::{hex_conversion::HexConvertible, nf_token_id::to_nf_token_id_from_str,
-    nf_client_proof::{PrivateInputs, PublicInputs}, plonk_prover::circuits::unified_circuit::unified_circuit_builder,
+use lib::{
+    hex_conversion::HexConvertible,
+    nf_client_proof::{PrivateInputs, PublicInputs},
+    nf_token_id::to_nf_token_id_from_str,
+    plonk_prover::circuits::unified_circuit::unified_circuit_builder,
 };
 use nf_curves::ed_on_bn254::{BabyJubjub as BabyJubJub, Fr as BJJScalar};
 use nightfall_client::{
     domain::entities::{DepositSecret, Preimage, Salt},
     drivers::derive_key::ZKPKeys,
-    ports::{
-        commitments::Commitment,
-        secret_hash::SecretHash,
-    },
+    ports::{commitments::Commitment, secret_hash::SecretHash},
 };
 use nightfall_proposer::{
     domain::entities::DepositData,

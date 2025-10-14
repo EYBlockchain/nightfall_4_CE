@@ -1,8 +1,6 @@
 use crate::{
     domain::{
-        entities::{
-            CommitmentStatus, Preimage, RequestStatus, Salt,
-        },
+        entities::{CommitmentStatus, Preimage, RequestStatus, Salt},
         notifications::NotificationPayload,
     },
     driven::{
@@ -30,9 +28,10 @@ use configuration::settings::get_settings;
 
 use alloy::primitives::{TxHash, I256, U256};
 use lib::{
-    blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
+    blockchain_client::BlockchainClientConnection,
     contract_conversions::FrBn254,
     error::EventHandlerError,
+    hex_conversion::HexConvertible,
     initialisation::get_blockchain_client_connection,
     shared_entities::{CompressedSecrets, OnChainTransaction},
 };

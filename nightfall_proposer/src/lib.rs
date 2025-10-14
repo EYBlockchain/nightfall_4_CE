@@ -104,7 +104,10 @@ pub mod initialisation {
     use ark_bn254::Fr as Fr254;
     use ark_std::sync::Arc;
     use configuration::settings::get_settings;
-    use lib::{blockchain_client::BlockchainClientConnection, wallets::LocalWsClient, nf_client_proof::Proof};
+    use lib::{
+        blockchain_client::BlockchainClientConnection, nf_client_proof::Proof,
+        wallets::LocalWsClient,
+    };
     use mongodb::Client;
     use tokio::sync::{OnceCell, RwLock};
 

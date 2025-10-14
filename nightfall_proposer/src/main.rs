@@ -1,7 +1,7 @@
 use configuration::{logging::init_logging, settings::get_settings};
+use lib::plonk_prover::plonk_proof::{PlonkProof, PlonkProvingEngine};
 use log::{error, info};
 use nightfall_bindings::artifacts::Nightfall;
-use lib::plonk_prover::plonk_proof::{PlonkProof, PlonkProvingEngine};
 use nightfall_proposer::drivers::blockchain::event_listener_manager::ensure_running;
 use nightfall_proposer::{
     driven::{db::mongo_db::DB, mock_prover::MockProver, rollup_prover::RollupProver},

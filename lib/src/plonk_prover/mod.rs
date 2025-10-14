@@ -2,13 +2,16 @@ pub mod circuit_builder;
 pub mod circuits;
 pub mod plonk_proof;
 
+use crate::utils::load_key_from_server;
 use ark_bn254::Bn254;
+use ark_serialize::CanonicalDeserialize;
 use jf_plonk::nightfall::ipa_structs::ProvingKey;
 use jf_primitives::pcs::prelude::UnivariateKzgPCS;
-use crate::utils::load_key_from_server;
 use log::warn;
-use std::{path::Path, sync::{Arc, OnceLock}};
-use ark_serialize::CanonicalDeserialize;
+use std::{
+    path::Path,
+    sync::{Arc, OnceLock},
+};
 
 /// This function is used to retrieve the client proving key.
 pub fn get_client_proving_key() -> &'static Arc<ProvingKey<UnivariateKzgPCS<Bn254>>> {

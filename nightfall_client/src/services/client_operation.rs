@@ -1,8 +1,6 @@
 use crate::{
     domain::{
-        entities::{
-            DepositSecret, Preimage, Salt,
-        },
+        entities::{DepositSecret, Preimage, Salt},
         error::DepositError,
     },
     initialisation::get_db_connection,
@@ -23,7 +21,7 @@ use configuration::addresses::get_addresses;
 use jf_primitives::{poseidon::Poseidon, trees::MembershipProof};
 use lib::{
     get_fee_token_id,
-    hex_conversion::HexConvertible, 
+    hex_conversion::HexConvertible,
     nf_client_proof::{PrivateInputs, Proof, ProvingEngine, PublicInputs},
     shared_entities::{ClientTransaction, CompressedSecrets, TokenType},
 };

@@ -8,7 +8,10 @@ use ark_bn254::{Fq as Fq254, Fr as Fr254};
 use ark_ff::{BigInteger, PrimeField};
 use ark_serialize::SerializationError;
 use lib::error::ConversionError;
-use lib::{nf_client_proof::{Proof, ProvingEngine, PublicInputs}, shared_entities::OnChainTransaction};
+use lib::{
+    nf_client_proof::{Proof, ProvingEngine, PublicInputs},
+    shared_entities::OnChainTransaction,
+};
 
 /// A trait for a proving engine that can recursively prove multiple transactions are valid.
 #[allow(async_fn_in_trait)]

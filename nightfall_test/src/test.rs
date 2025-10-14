@@ -22,9 +22,11 @@ use jf_primitives::{
     trees::{Directions, MembershipProof, PathElement, TreeHasher},
 };
 use lib::{
-    blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
+    blockchain_client::BlockchainClientConnection,
     error::NightfallContractError,
-    initialisation::get_blockchain_client_connection, models::CertificateReq,
+    hex_conversion::HexConvertible,
+    initialisation::get_blockchain_client_connection,
+    models::CertificateReq,
     nf_client_proof::{PrivateInputs, ProvingEngine, PublicInputs},
     plonk_prover::plonk_proof::{PlonkProof, PlonkProvingEngine},
 };
@@ -35,9 +37,7 @@ use nightfall_client::{
         entities::{CommitmentStatus, DepositSecret, Preimage, Salt, TokenData},
         notifications::NotificationPayload,
     },
-    driven::{
-        db::mongo::CommitmentEntry,
-    },
+    driven::db::mongo::CommitmentEntry,
     drivers::{
         derive_key::ZKPKeys,
         rest::models::{
@@ -45,10 +45,7 @@ use nightfall_client::{
             NF3WithdrawRequest, WithdrawDataReq,
         },
     },
-    ports::{
-        commitments::Commitment,
-        secret_hash::SecretHash,
-    },
+    ports::{commitments::Commitment, secret_hash::SecretHash},
 };
 use num_bigint::BigUint;
 use reqwest::{

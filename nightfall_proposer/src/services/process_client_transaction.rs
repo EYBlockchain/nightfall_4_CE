@@ -1,5 +1,8 @@
 use crate::driven::nightfall_client_transaction::process_nightfall_client_transaction;
-use lib::{nf_client_proof::{Proof, ProvingEngine}, shared_entities::ClientTransaction};
+use lib::{
+    nf_client_proof::{Proof, ProvingEngine},
+    shared_entities::ClientTransaction,
+};
 use std::error::Error;
 
 pub async fn process_client_transaction<P, E>(

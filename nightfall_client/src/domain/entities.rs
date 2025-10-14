@@ -1,17 +1,15 @@
-use crate::{
-    ports::{
-        commitments::{Commitment, Nullifiable},
-        key_provider::KeyProvider,
-        secret_hash::SecretHash,
-    },
+use crate::ports::{
+    commitments::{Commitment, Nullifiable},
+    key_provider::KeyProvider,
+    secret_hash::SecretHash,
 };
 use ark_bn254::Fr as Fr254;
 use ark_ec::twisted_edwards::Affine as TEAffine;
 use ark_ff::BigInteger256;
 use ark_std::UniformRand;
 use lib::{
-    nf_client_proof::Proof,
     error::HexError,
+    nf_client_proof::Proof,
     serialization::{ark_de_hex, ark_se_hex},
 };
 
@@ -438,7 +436,7 @@ mod tests {
             let o = ProofType::from_str("clearly_wrong");
             assert!(o.is_err());
         }
-    }  
+    }
     mod preimage_tests {
         use super::*;
         use ark_ff::BigInt;

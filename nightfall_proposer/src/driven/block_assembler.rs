@@ -10,9 +10,10 @@ use nightfall_bindings::artifacts::{Nightfall, ProposerManager};
 use alloy::primitives::Bytes;
 use configuration::addresses::get_addresses;
 use lib::{
-    blockchain_client::BlockchainClientConnection, 
+    blockchain_client::BlockchainClientConnection,
     contract_conversions::{FrBn254, Uint256},
-    error::ConversionError, nf_client_proof::Proof,
+    error::ConversionError,
+    nf_client_proof::Proof,
     shared_entities::OnChainTransaction,
 };
 use log::{debug, error, warn};

@@ -1,9 +1,9 @@
 //! File contains utility functions used by the REST API, such as ones for converting from erc address and token id to
 //! Nightfall token id.
+use crate::{error::ConversionError, hex_conversion::HexConvertible};
 use alloy::primitives::{Address, U256};
 use ark_bn254::Fr as Fr254;
 use ark_ff::{BigInteger, PrimeField};
-use crate::{error::ConversionError, hex_conversion::HexConvertible};
 use log::debug;
 use num::BigUint;
 use sha2::{Digest, Sha256};

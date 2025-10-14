@@ -1,5 +1,5 @@
-use lib::error::EventHandlerError;
 use alloy::primitives::TxHash;
+use lib::error::EventHandlerError;
 
 use super::contracts::NightfallContract;
 

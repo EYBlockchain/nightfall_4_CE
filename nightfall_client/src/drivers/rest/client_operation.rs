@@ -21,7 +21,8 @@ use ark_bn254::Fr as Fr254;
 use configuration::addresses::get_addresses;
 use futures::future::join_all;
 use lib::{
-    blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
+    blockchain_client::BlockchainClientConnection,
+    hex_conversion::HexConvertible,
     initialisation::get_blockchain_client_connection,
     nf_client_proof::{Proof, ProvingEngine},
     shared_entities::ClientTransaction,

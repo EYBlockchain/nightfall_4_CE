@@ -11,20 +11,20 @@ use crate::{
         },
     },
     initialisation::get_db_connection,
-    ports::{
-        contracts::NightfallContract,
-        db::RequestDB,
-    },
+    ports::{contracts::NightfallContract, db::RequestDB},
     services::data_publisher::DataPublisher,
 };
 use configuration::settings::get_settings;
+use lib::{
+    nf_client_proof::{Proof, ProvingEngine},
+    shared_entities::SynchronisationPhase::Desynchronized,
+};
 use log::{debug, error, info, warn};
 use std::{collections::VecDeque, time::Duration};
 use tokio::{
     sync::{OnceCell, RwLock},
     time::sleep,
 };
-use lib::{shared_entities::SynchronisationPhase::Desynchronized, nf_client_proof::{Proof, ProvingEngine}};
 /// This module implements a queue of received requests. Requests can be added to the queue
 /// asynchronously but are executed with a concurrency of 1.
 pub struct QueuedRequest {

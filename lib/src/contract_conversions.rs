@@ -1,3 +1,4 @@
+use crate::{error::ConversionError, shared_entities::CompressedSecrets};
 use alloy::primitives::{Address, U256};
 use ark_bn254::Fr as Fr254;
 use ark_ff::{BigInt, BigInteger, BigInteger256, PrimeField};
@@ -9,7 +10,6 @@ use serde::{
     {Deserialize, Deserializer, Serialize},
 };
 use std::{fmt, ops::Add, str::FromStr};
-use crate::{shared_entities::CompressedSecrets, error::ConversionError};
 /// A wrapper around the ark bn254 scalar field, which implements serde and other conversions using the newtype pattern
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub struct FrBn254(pub ark_bn254::Fr);

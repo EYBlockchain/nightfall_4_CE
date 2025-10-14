@@ -7,8 +7,9 @@ use ark_ff::{BigInteger, BigInteger256};
 use ark_std::Zero;
 use configuration::{addresses::get_addresses, settings::get_settings};
 use lib::{
-    blockchain_client::BlockchainClientConnection, error::BlockchainClientConnectionError,
+    blockchain_client::BlockchainClientConnection,
     contract_conversions::{Addr, Uint256},
+    error::BlockchainClientConnectionError,
     initialisation::get_blockchain_client_connection,
 };
 use log::debug;
