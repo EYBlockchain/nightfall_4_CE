@@ -14,13 +14,19 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     cargo build --package nightfall_client --release && \
     mv /app/target/release/nightfall_client /app/bin/client
-FROM debian:bookworm-slim
-WORKDIR /app
-COPY --from=builder /app/bin/client bin/
-COPY configuration/bin/proving_key configuration/bin/deposit_proving_key configuration/bin/
-# COPY configuration/toml/addresses.toml configuration/toml/
-COPY .env *.env nightfall.toml .
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libssl3 wget
-EXPOSE 3000
-CMD ["/app/bin/client"]
+    FROM debian:bookworm-slim
+    WORKDIR /app
+    COPY --from=builder /app/bin/client bin/
+    # COPY configuration/bin/proving_key configuration/bin/
+    # COPY configuration/toml/addresses.toml configuration/toml/
+    COPY .env *.env nightfall.toml .
+    RUN apt-get update && apt-get install -y --no-install-recommends \
+        libssl3 \
+        ca-certificates \
+        wget && \
+        update-ca-certificates
+    # carry over any additional trusted certificates from the builder stage
+    COPY --from=builder /usr/local/share/ca-certificates /usr/local/share/ca-certificates
+    COPY --from=builder /etc/ssl/certs /etc/ssl/certs
+    EXPOSE 3000
+    CMD ["/app/bin/client"]
