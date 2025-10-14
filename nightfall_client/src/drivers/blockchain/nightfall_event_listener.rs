@@ -3,11 +3,13 @@ use crate::{
         entities::{OnChainTransaction, SynchronisationPhase, SynchronisationStatus},
         error::EventHandlerError,
     },
-    driven::db::mongo::{BlockStorageDB, StoredBlock},
-    driven::event_handlers::nightfall_event::get_expected_layer2_blocknumber,
-    drivers::blockchain::nightfall_event_listener::SynchronisationPhase::Synchronized,
+    driven::{
+        db::mongo::{BlockStorageDB, StoredBlock},
+        event_handlers::nightfall_event::get_expected_layer2_blocknumber,
+    },
+    drivers::blockchain::event_listener_manager::restart,
     initialisation::get_db_connection,
-    ports::{contracts::NightfallContract, trees::CommitmentTree},
+    ports::contracts::NightfallContract,
     services::process_events::process_events,
 };
 use alloy::{
@@ -15,16 +17,14 @@ use alloy::{
     rpc::types::Filter,
     sol_types::{SolEvent, SolEventInterface},
 };
-use ark_bn254::Fr as Fr254;
-use configuration::{addresses::get_addresses, settings::get_settings};
+use configuration::addresses::get_addresses;
 use futures::StreamExt;
 use futures::{future::BoxFuture, FutureExt};
 use lib::{
     blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
     initialisation::get_blockchain_client_connection,
 };
-use log::{debug, warn};
-use mongodb::Client as MongoClient;
+use log::{debug, info, warn};
 use nightfall_bindings::artifacts::Nightfall;
 use std::{panic, time::Duration};
 use tokio::time::sleep;
@@ -43,6 +43,7 @@ pub fn start_event_listener<N: NightfallContract>(
         loop {
             attempts += 1;
             log::info!("Client event listener (attempt {attempts})...");
+            println!("inside loop to call listen for events on thread");
             let result = listen_for_events::<N>(start_block).await;
             match result {
                 Ok(_) => {
@@ -87,14 +88,11 @@ pub async fn listen_for_events<N: NightfallContract>(
         .read()
         .await
         .get_client();
-    log::info!(
+    info!(
         "Listening for events on the Nightfall contract at address: {}",
         get_addresses().nightfall()
     );
 
-    // get the events from the Nightfall contract from the specified start block
-
-    // Subscribe to the combined events filter
     let events_filter = Filter::new()
         .address(get_addresses().nightfall())
         .event_signature(vec![
@@ -106,6 +104,48 @@ pub async fn listen_for_events<N: NightfallContract>(
             Nightfall::OwnershipTransferred::SIGNATURE_HASH,
         ])
         .from_block(start_block as u64);
+    {
+        let latest_block = blockchain_client
+            .get_block_number()
+            .await
+            .expect("could not get latest block number");
+
+        if latest_block >= start_block as u64 {
+            let past_events = blockchain_client
+                .get_logs(&events_filter.clone().to_block(latest_block))
+                .await
+                .expect("could not get past events");
+            log::info!("Found {} past events to process", past_events.len());
+            for evt in past_events {
+                let event = match Nightfall::NightfallEvents::decode_log(&evt.inner) {
+                    Ok(e) => e,
+                    Err(e) => {
+                        warn!("Failed to decode log: {e:?}");
+                        continue; // Skip malformed events
+                    }
+                };
+                let result = process_events::<N>(event.data, evt).await;
+                match result {
+                    Ok(_) => continue,
+                    Err(e) => {
+                        match e {
+                            // we're missing blocks, so we need to re-synchronise
+                            EventHandlerError::MissingBlocks(n) => {
+                                warn!("Missing blocks. Last contiguous block was {n}. Restarting event listener");
+                                restart::<N>().await;
+                                return Err(EventHandlerError::StreamTerminated);
+                            }
+                            _ => panic!("Error processing event: {e:?}"),
+                        }
+                    }
+                }
+            }
+        } else {
+            info!(
+                "Start block {start_block} is greater than latest block {latest_block}. No past events to process.",
+            );
+        }
+    }
 
     // Subscribe to the combined events filter
     let events_subscription = blockchain_client
@@ -114,6 +154,7 @@ pub async fn listen_for_events<N: NightfallContract>(
         .map_err(|_| EventHandlerError::NoEventStream)?;
 
     let mut events_stream = events_subscription.into_stream();
+    info!("Subscribed to events.");
 
     while let Some(evt) = events_stream.next().await {
         // process each event in the stream and handle any errors
@@ -132,7 +173,7 @@ pub async fn listen_for_events<N: NightfallContract>(
                     // we're missing blocks, so we need to re-synchronise
                     EventHandlerError::MissingBlocks(n) => {
                         warn!("Missing blocks. Last contiguous block was {n}. Restarting event listener");
-                        restart_event_listener::<N>(start_block).await;
+                        restart::<N>().await;
                         return Err(EventHandlerError::StreamTerminated);
                     }
                     _ => panic!("Error processing event: {e:?}"),
@@ -144,40 +185,9 @@ pub async fn listen_for_events<N: NightfallContract>(
     Err(EventHandlerError::StreamTerminated)
 }
 
-// We might need to restart the event listener if we fall out of sync and lose blocks
-// This does not erase aleady synchronised data
-pub async fn restart_event_listener<N>(start_block: usize)
-where
-    N: NightfallContract,
-{
-    // if we're restarting the event lister, we definitely shouldn't be in sync, so check that's the case
-    let sync_state = get_synchronisation_status::<N>()
-        .await
-        .expect("Could not check synchronisation state")
-        .phase();
-    if sync_state == Synchronized {
-        panic!("Restarting event listener while synchronised. This should not happen");
-    }
-    let settings = get_settings();
-    let max_attempts = settings
-        .nightfall_client
-        .max_event_listener_attempts
-        .unwrap_or(10);
-
-    // clean the database and reset the trees
-    // this is a bit of a hack, but we need to reset the trees to get them back in sync
-    // with the blockchain. We should probably do this in a more elegant way, but this works for now
-    // and we can improve it later
-    {
-        let db = get_db_connection().await;
-        let _ = <MongoClient as CommitmentTree<Fr254>>::reset_tree(db).await;
-    }
-
-    start_event_listener::<N>(start_block, max_attempts).await;
-}
-
 pub async fn get_synchronisation_status<N: NightfallContract>(
 ) -> Result<SynchronisationStatus, EventHandlerError> {
+    println!("Checking synchronisation status on thread {:?}", std::thread::current().id());
     let expected_block_number = get_expected_layer2_blocknumber().lock().await;
     let current_block_number = N::get_current_layer2_blocknumber()
         .await
@@ -185,8 +195,8 @@ pub async fn get_synchronisation_status<N: NightfallContract>(
 
     if *expected_block_number < current_block_number {
         warn!(
-            "Client is behind chain: expected block {} < current block {}",
-            *expected_block_number, current_block_number
+            "Client is behind chain: expected block {} < current block {} with threadid {:?}",
+            *expected_block_number, current_block_number, std::thread::current().id()
         );
         return Ok(SynchronisationStatus::new(
             SynchronisationPhase::Desynchronized,

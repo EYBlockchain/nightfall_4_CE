@@ -2,8 +2,8 @@ use crate::{
     domain::entities::{RequestStatus, SynchronisationPhase::Desynchronized},
     driven::notifier::webhook_notifier::WebhookNotifier,
     drivers::{
-        blockchain::nightfall_event_listener::{
-            get_synchronisation_status, restart_event_listener,
+        blockchain::{
+            event_listener_manager::restart, nightfall_event_listener::get_synchronisation_status,
         },
         rest::{
             client_nf_3::handle_request,
@@ -27,7 +27,6 @@ use tokio::{
 };
 /// This module implements a queue of received requests. Requests can be added to the queue
 /// asynchronously but are executed with a concurrency of 1.
-///
 pub struct QueuedRequest {
     pub transaction_request: TransactionRequest,
     pub uuid: String,
@@ -63,21 +62,10 @@ where
     publisher.register_notifier(Box::new(notifier));
 
     loop {
-        let sync_state = match get_synchronisation_status::<N>().await {
-            Ok(status) => status.phase(),
-            Err(e) => {
-                error!("Failed to get synchronisation status: {e:?}");
-                return;
-            }
-        };
-        if sync_state == Desynchronized {
-            warn!("Client is not synchronised with the blockchain, restarting event listener");
-            tokio::spawn(async {
-                restart_event_listener::<N>(0).await;
-            });
-        }
         while let Some(request) = {
+           
             let mut queue = get_queue().await.write().await;
+            println!("checking queue length {}", queue.len());
             let request = queue.pop_front();
             drop(queue); // drop the lock here so we don't hold up the queue while processing the request
             request
@@ -85,6 +73,17 @@ where
             // Process the request here with a concurrency of 1
             // mark request as 'Processing'
             info!("Processing request: {}", request.uuid);
+            let sync_state = match get_synchronisation_status::<N>().await {
+                Ok(status) => status.phase(),
+                Err(e) => {
+                    error!("Failed to get synchronisation status: {e:?}");
+                    return;
+                }
+            };
+            if sync_state == Desynchronized {
+                warn!("Client is not synchronised with the blockchain, restarting event listener on thread {:?}", std::thread::current().id());
+                restart::<N>().await;
+            }
             let db = get_db_connection().await;
             let _ = db
                 .update_request(&request.uuid, RequestStatus::Processing)
