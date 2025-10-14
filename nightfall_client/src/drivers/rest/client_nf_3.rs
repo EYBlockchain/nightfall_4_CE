@@ -508,13 +508,28 @@ where
         let spend_fee_commitments = if fee.is_zero() {
             [Preimage::default(), Preimage::default()]
         } else {
-            find_usable_commitments(fee_token_id, fee, db)
-            .await
-            .map_err(|e| {
-                error!(
-                    "{id} Could not find enough usable fee commitments to complete this transfer, suggest depositing more fee: {e}");
-                TransactionHandlerError::CustomError(e.to_string())
-            })?
+                match find_usable_commitments(fee_token_id, fee, db).await {
+                    Ok(commitments) => commitments,
+                    Err(e) => {
+                        debug!("{id} Could not find enough usable fee commitments, suggest depositing more fee: {e}");
+                        // rollback the value commitments to unspent if fails to find fee commitments
+                        let value_commitment_ids = spend_value_commitments
+                            .iter()
+                            .filter_map(|c| c.hash().ok())
+                            .collect::<Vec<_>>();
+
+                       for commitment_id in &value_commitment_ids {
+                            if let Some(existing) = db.get_commitment(commitment_id).await {
+                                let _ = db.mark_commitments_unspent(
+                                    &[*commitment_id], 
+                                    existing.layer_1_transaction_hash, 
+                                    existing.layer_2_block_number
+                                ).await;
+                            }
+                        }
+                        return Err(TransactionHandlerError::CustomError(e.to_string()));
+                    }
+                }
         };
         spend_commitments = [
             spend_value_commitments[0],
@@ -619,7 +634,7 @@ where
         transport: Transport::OffChain,
         operation_type: OperationType::Transfer,
     };
-    handle_client_operation::<P, E, N>(
+    match handle_client_operation::<P, E, N>(
         op,
         spend_commitments,
         new_commitments,
@@ -627,8 +642,42 @@ where
         Fr254::zero(),
         secret_preimages,
         id,
-    )
-    .await
+    ).await {
+        Ok(res) =>  Ok(res),
+        Err(e) => {
+            //  rollback to UNSPENT status if handle_client_operation fails
+            let db = get_db_connection().await;
+            
+            // Rollback the spend commitments to unspent
+            let commitment_ids = spend_commitments
+                .iter()
+                .map(|c| c.hash().unwrap())
+                .collect::<Vec<_>>();
+
+            info!("{id} Rolling back {} spend commitments", commitment_ids.len());
+
+            for commitment_id in &commitment_ids {
+                if let Some(existing) = db.get_commitment(commitment_id).await {
+                let _ = db.mark_commitments_unspent(
+                        &[*commitment_id],
+                        existing.layer_1_transaction_hash,
+                        existing.layer_2_block_number,
+                    )
+                    .await;
+                  }        
+                }
+        // Delete new commitments       
+        let new_commitment_ids = new_commitments
+        .iter() 
+        .map(|c| c.hash().unwrap())
+        .collect::<Vec<_>>();
+    
+        info!("{id} Deleting {} new commitments", new_commitment_ids.len());
+        let _ = db.delete_commitments(new_commitment_ids).await;
+        
+        Err(TransactionHandlerError::CustomError(e.to_string()))
+        }
+     }
 }
 
 async fn handle_withdraw<P, E, N>(
@@ -694,14 +743,27 @@ where
         let spend_fee_commitments = if fee.is_zero() {
             [Preimage::default(), Preimage::default()]
         } else {
-            find_usable_commitments(fee_token_id, fee, db)
-            .await
-            .map_err(|e| {
-                error!(
-                    "{id} Could not find enough usable fee commitments to complete this withdraw, suggest depositing more fee: {e}"
-                );
-                TransactionHandlerError::CustomError(e.to_string())
-            })?
+            match find_usable_commitments(fee_token_id, fee, db).await {
+                Ok(commitments) => commitments,
+                Err(e) => {
+                    error!("{id} Could not find enough usable fee commitments to complete this withdraw, suggest depositing more fee: {e}");
+                    // rollback the value commitments to unspent if fails to find fee commitments
+                    let value_commitment_ids = spend_value_commitments
+                        .iter()
+                        .filter_map(|c| c.hash().ok())
+                        .collect::<Vec<_>>();
+                    for commitment_id in &value_commitment_ids {
+                        if let Some(existing) = db.get_commitment(commitment_id).await {
+                            let _ = db.mark_commitments_unspent(
+                                &[*commitment_id], 
+                                existing.layer_1_transaction_hash, 
+                                existing.layer_2_block_number
+                            ).await;
+                        }
+                    }
+                    return Err(TransactionHandlerError::CustomError(e.to_string()));
+                }
+            }
         };
         spend_commitments = [
             spend_value_commitments[0],
@@ -800,7 +862,7 @@ where
                 .expect("Failed to hash spend_commitments[0]"),
         ])
         .unwrap();
-    handle_client_operation::<P, E, N>(
+    match  handle_client_operation::<P, E, N>(
         op,
         spend_commitments,
         new_commitments,
@@ -808,8 +870,42 @@ where
         recipient_address,
         secret_preimages,
         id,
-    )
-    .await?;
+    ).await {
+        Ok(res) => res,
+        Err(e) => {
+            // Rollback to UNSPENT status if handle_client_operation fails
+            let db = get_db_connection().await;
+            
+            // Rollback spend commitments
+            let commitment_ids = spend_commitments
+                .iter()
+                .map(|c| c.hash().unwrap())
+                .collect::<Vec<_>>();
+    
+            info!("{id} Rolling back {} spend commitments to Unspent", commitment_ids.len());
+            for commitment_id in &commitment_ids {
+                if let Some(existing) = db.get_commitment(commitment_id).await {
+                    let _ = db.mark_commitments_unspent(
+                            &[*commitment_id],
+                            existing.layer_1_transaction_hash,
+                            existing.layer_2_block_number,
+                        )
+                        .await;
+                }
+            }
+            
+            // Delete new commitments
+            let new_commitment_ids = new_commitments
+                .iter() 
+                .map(|c| c.hash().unwrap())
+                .collect::<Vec<_>>();
+            
+            info!("{id} Deleting {} new commitments", new_commitment_ids.len());
+            let _ = db.delete_commitments(new_commitment_ids).await;
+            return Err(e);
+        }
+    };
+
     // Build the response
     let withdraw_response = WithdrawResponse {
         success: true,

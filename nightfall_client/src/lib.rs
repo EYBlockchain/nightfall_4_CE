@@ -13,15 +13,14 @@ use bip32::DerivationPath;
 /// This function is used to retrieve the zkp keys
 pub fn get_zkp_keys() -> &'static Mutex<ZKPKeys> {
     static ZKP_KEYS: OnceLock<Mutex<ZKPKeys>> = OnceLock::new();
-    ZKP_KEYS.get_or_init(|| 
-        {
+    ZKP_KEYS.get_or_init(|| {
         let rng = ark_std::rand::thread_rng();
-        let mnemonic = Mnemonic::random(rng,  Default::default());
+        let mnemonic = Mnemonic::random(rng, Default::default());
         let path: DerivationPath = "m/44'/60'/0'/0/0".parse().expect("failed to parse path");
-        let zkp_keys = ZKPKeys::derive_from_mnemonic(&mnemonic, &path).expect("Could not derive ZKP keys from mnemonic");
+        let zkp_keys = ZKPKeys::derive_from_mnemonic(&mnemonic, &path)
+            .expect("Could not derive ZKP keys from mnemonic");
         Mutex::new(zkp_keys)
-}
-    )
+    })
 }
 
 pub mod initialisation {

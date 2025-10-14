@@ -1,12 +1,8 @@
 use bip32::DerivationPath;
-use warp::{hyper::StatusCode, path, reject, reply, Filter, Reply, Rejection};
+use warp::{hyper::StatusCode, path, reject, reply, Filter, Rejection, Reply};
 
-use crate::{
-    drivers::derive_key::ZKPKeys,
-    get_zkp_keys,
-};
+use crate::{drivers::derive_key::ZKPKeys, get_zkp_keys};
 use bip32::Mnemonic;
-
 
 use super::models::KeyRequest;
 
@@ -21,11 +17,17 @@ pub fn derive_key_mnemonic(
     path!("v1" / "deriveKey")
         .and(warp::post())
         // make body optional
-        .and(warp::body::json().map(Some).or_else(|_| async { Ok::<(Option<KeyRequest>,), Rejection>((None,)) }))
+        .and(
+            warp::body::json()
+                .map(Some)
+                .or_else(|_| async { Ok::<(Option<KeyRequest>,), Rejection>((None,)) }),
+        )
         .and_then(handle_derive_key)
 }
 
-pub async fn handle_derive_key(key_request: Option<KeyRequest>) -> Result<impl Reply, warp::Rejection> {
+pub async fn handle_derive_key(
+    key_request: Option<KeyRequest>,
+) -> Result<impl Reply, warp::Rejection> {
     if let Some(req) = key_request {
         // validate mnemonic and path
         let valid_mnemonic = Mnemonic::new(req.mnemonic, Default::default())

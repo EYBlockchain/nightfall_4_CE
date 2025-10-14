@@ -11,7 +11,7 @@ use itertools::izip;
 use jf_plonk::{
     errors::PlonkError,
     nightfall::{ipa_structs::VerificationKeyId, FFTPlonk, UnivariateUniversalIpaParams},
-    proof_system::UniversalSNARK,
+    proof_system::{UniversalRecursiveSNARK, UniversalSNARK},
     recursion::RecursiveProver,
     transcript::RescueTranscript,
 };

@@ -6,7 +6,7 @@ use jf_plonk::{
     errors::PlonkError,
     nightfall::ipa_structs::VerifyingKey,
     nightfall::FFTPlonk,
-    proof_system::{RecursiveOutput, UniversalSNARK},
+    proof_system::{RecursiveOutput, UniversalRecursiveSNARK},
     recursion::circuits::Kzg,
     transcript::RescueTranscript,
 };

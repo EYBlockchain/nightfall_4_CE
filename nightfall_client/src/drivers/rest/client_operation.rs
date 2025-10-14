@@ -171,6 +171,7 @@ where
 fn is_retriable_error(err: &ReqwestError) -> bool {
     err.is_timeout() || err.is_connect() || err.is_request()
 }
+
 async fn send_to_proposer_with_retry<P: Serialize + Sync>(
     client: &Client,
     proposer: ProposerManager::Proposer,
