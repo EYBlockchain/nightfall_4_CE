@@ -62,17 +62,7 @@ where
     publisher.register_notifier(Box::new(notifier));
 
     loop {
-        let sync_state = match get_synchronisation_status::<N>().await {
-            Ok(status) => status.phase(),
-            Err(e) => {
-                error!("Failed to get synchronisation status: {e:?}");
-                return;
-            }
-        };
-        if sync_state == Desynchronized {
-            warn!("Client is not synchronised with the blockchain, restarting event listener on thread {:?}", std::thread::current().id());
-            restart::<N>().await;
-        }
+        
         while let Some(request) = {
             let mut queue = get_queue().await.write().await;
             let request = queue.pop_front();
@@ -82,6 +72,18 @@ where
             // Process the request here with a concurrency of 1
             // mark request as 'Processing'
             info!("Processing request: {}", request.uuid);
+            //first check the sync status 
+            let sync_state = match get_synchronisation_status::<N>().await {
+                Ok(status) => status.phase(),
+                Err(e) => {
+                    error!("Failed to get synchronisation status: {e:?}");
+                    return;
+                }
+            };
+            if sync_state == Desynchronized {
+                warn!("Client is not synchronised with the blockchain, restarting event listener on thread {:?}", std::thread::current().id());
+                restart::<N>().await;
+            }
             let db = get_db_connection().await;
             let _ = db
                 .update_request(&request.uuid, RequestStatus::Processing)
