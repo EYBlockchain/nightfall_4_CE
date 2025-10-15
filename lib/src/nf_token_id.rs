@@ -1,10 +1,9 @@
 //! File contains utility functions used by the REST API, such as ones for converting from erc address and token id to
 //! Nightfall token id.
-use crate::domain::error::ConversionError;
+use crate::{error::ConversionError, hex_conversion::HexConvertible};
 use alloy::primitives::{Address, U256};
 use ark_bn254::Fr as Fr254;
 use ark_ff::{BigInteger, PrimeField};
-use lib::hex_conversion::HexConvertible;
 use log::debug;
 use num::BigUint;
 use sha2::{Digest, Sha256};
@@ -107,7 +106,7 @@ pub fn to_nf_token_id_from_solidity(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::driven::contract_functions::contract_type_conversions::FrBn254;
+    use crate::contract_conversions::FrBn254;
     use ark_std::UniformRand;
     use jf_primitives::circuit::sha256::Sha256HashGadget;
     use jf_relation::{Circuit, PlonkCircuit, Variable};

@@ -6,7 +6,7 @@ use ark_bn254::Fr as Fr254;
 use ark_ff::{PrimeField, Zero};
 use jf_primitives::circuit::{poseidon::PoseidonHashGadget, sha256::Sha256HashGadget};
 use jf_relation::{errors::CircuitError, BoolVar, Circuit, PlonkCircuit, Variable};
-use nightfall_client::ports::proof::PublicInputs;
+use lib::nf_client_proof::PublicInputs;
 
 /// Storing the 'Variable's needed to crete a deposit commitment.
 /// Note that if it's a deposit_fee, nf_token_id and nf_slot_id will be fee_token_id,
@@ -223,7 +223,7 @@ mod tests {
     use ark_std::{One, UniformRand, Zero};
     use jf_primitives::poseidon::{FieldHasher, Poseidon};
     use jf_utils::test_rng;
-    use nightfall_client::drivers::rest::utils::to_nf_token_id_from_fr254;
+    use lib::nf_token_id::to_nf_token_id_from_fr254;
     use num_bigint::BigUint;
     use sha2::{Digest, Sha256};
 

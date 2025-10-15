@@ -11,7 +11,7 @@ use itertools::izip;
 use jf_plonk::{
     errors::PlonkError,
     nightfall::{ipa_structs::VerificationKeyId, FFTPlonk, UnivariateUniversalIpaParams},
-    proof_system::UniversalSNARK,
+    proof_system::{UniversalRecursiveSNARK, UniversalSNARK},
     recursion::RecursiveProver,
     transcript::RescueTranscript,
 };
@@ -25,17 +25,17 @@ use jf_primitives::{
         Directions, MembershipProof, PathElement, TreeHasher,
     },
 };
-use lib::hex_conversion::HexConvertible;
+use lib::{
+    hex_conversion::HexConvertible,
+    nf_client_proof::{PrivateInputs, PublicInputs},
+    nf_token_id::to_nf_token_id_from_str,
+    plonk_prover::circuits::unified_circuit::unified_circuit_builder,
+};
 use nf_curves::ed_on_bn254::{BabyJubjub as BabyJubJub, Fr as BJJScalar};
 use nightfall_client::{
     domain::entities::{DepositSecret, Preimage, Salt},
-    driven::plonk_prover::circuits::unified_circuit::unified_circuit_builder,
-    drivers::{derive_key::ZKPKeys, rest::utils::to_nf_token_id_from_str},
-    ports::{
-        commitments::Commitment,
-        proof::{PrivateInputs, PublicInputs},
-        secret_hash::SecretHash,
-    },
+    drivers::derive_key::ZKPKeys,
+    ports::{commitments::Commitment, secret_hash::SecretHash},
 };
 use nightfall_proposer::{
     domain::entities::DepositData,

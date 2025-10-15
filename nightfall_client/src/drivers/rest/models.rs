@@ -1,10 +1,9 @@
-use super::utils::to_nf_token_id_from_str;
 use crate::{
     domain::entities::{DepositSecret, WithdrawData},
     ports::keys::KeySpending,
 };
 use ark_bn254::Fr as Fr254;
-use lib::hex_conversion::HexConvertible;
+use lib::{hex_conversion::HexConvertible, nf_token_id::to_nf_token_id_from_str};
 use serde::{Deserialize, Serialize};
 use std::{
     error::Error,

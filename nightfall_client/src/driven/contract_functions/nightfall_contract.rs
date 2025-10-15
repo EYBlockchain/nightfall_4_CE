@@ -1,11 +1,6 @@
 //! Implementation of the [`NightfallContract`] trait from `ports/contracts.rs`.
-use super::contract_type_conversions::{Addr, FrBn254, Uint256};
 use crate::{
-    domain::{
-        entities::{DepositSecret, TokenData, TokenType, WithdrawData},
-        error::NightfallContractError,
-    },
-    drivers::rest::utils::to_nf_token_id_from_solidity,
+    domain::entities::{DepositSecret, TokenData, WithdrawData},
     ports::{contracts::NightfallContract, secret_hash::SecretHash},
 };
 use alloy::primitives::{keccak256, Address, B256, I256};
@@ -21,7 +16,12 @@ use ark_ff::BigInteger256;
 use ark_std::Zero;
 use configuration::{addresses::get_addresses, settings::get_settings};
 use lib::{
-    blockchain_client::BlockchainClientConnection, initialisation::get_blockchain_client_connection,
+    blockchain_client::BlockchainClientConnection,
+    contract_conversions::{Addr, FrBn254, Uint256},
+    error::NightfallContractError,
+    initialisation::get_blockchain_client_connection,
+    nf_token_id::to_nf_token_id_from_solidity,
+    shared_entities::TokenType,
 };
 use log::{debug, info};
 use nightfall_bindings::artifacts::{Nightfall, IERC3525};

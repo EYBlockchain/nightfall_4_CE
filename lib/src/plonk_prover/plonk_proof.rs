@@ -7,18 +7,18 @@ use jf_plonk::{
         ipa_structs::{Proof as JFProof, ProvingKey, VerificationKeyId, VerifyingKey, VK},
         reproduce_transcript, FFTPlonk,
     },
-    proof_system::{RecursiveOutput, UniversalSNARK},
+    proof_system::{RecursiveOutput, UniversalRecursiveSNARK},
     transcript::RescueTranscript,
 };
 
 use crate::{
-    get_client_proving_key,
-    ports::proof::{CircuitBuilder, PrivateInputs, Proof, ProvingEngine, PublicInputs},
+    nf_client_proof::{PrivateInputs, Proof, ProvingEngine, PublicInputs},
+    plonk_prover::{circuit_builder::CircuitBuilder, get_client_proving_key},
+    serialization::{ark_de_hex, ark_se_hex},
 };
 use alloy::primitives::Bytes;
 use jf_primitives::{pcs::prelude::UnivariateKzgPCS, rescue::sponge::RescueCRHF};
 use jf_relation::{Circuit, PlonkCircuit};
-use lib::serialization::{ark_de_hex, ark_se_hex};
 use log::{debug, error};
 use serde::{Deserialize, Serialize};
 

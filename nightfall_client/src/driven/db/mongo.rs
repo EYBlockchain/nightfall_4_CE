@@ -1,35 +1,37 @@
+use crate::{
+    domain::entities::{
+        CommitmentStatus, Preimage, Request, RequestCommitmentMapping, RequestStatus, WithdrawData,
+    },
+    ports::db::{CommitmentDB, RequestCommitmentMappingDB, RequestDB, WithdrawalDB},
+    ports::{commitments::Commitment, db::CommitmentEntryDB},
+};
+use alloy::primitives::Address;
 use alloy::primitives::{TxHash, I256};
 use ark_bn254::Fr as Fr254;
 use ark_ff::PrimeField;
 use async_trait::async_trait;
 use futures::TryStreamExt;
+use jf_primitives::{poseidon::PoseidonError, trees::MembershipProof};
 use jf_primitives::{
     poseidon::{FieldHasher, Poseidon},
     trees::{Directions, PathElement},
 };
 use lib::hex_conversion::HexConvertible;
+use lib::{
+    contract_conversions::FrBn254,
+    serialization::{ark_de_hex, ark_se_hex},
+};
 use log::{debug, error, info};
 use mongodb::{
     bson::doc,
     error::{ErrorKind, WriteFailure::WriteError},
+    options::{FindOneAndUpdateOptions, ReturnDocument},
     Client,
 };
 use serde::{Deserialize, Serialize};
-use std::{fmt::Debug, str};
-
-use crate::{
-    domain::entities::{
-        CommitmentStatus, Preimage, Request, RequestCommitmentMapping, RequestStatus, WithdrawData,
-    },
-    driven::contract_functions::contract_type_conversions::FrBn254,
-    ports::db::{CommitmentDB, RequestCommitmentMappingDB, RequestDB, WithdrawalDB},
-    ports::{commitments::Commitment, db::CommitmentEntryDB},
-};
-use alloy::primitives::Address;
-use jf_primitives::{poseidon::PoseidonError, trees::MembershipProof};
-use lib::serialization::{ark_de_hex, ark_se_hex};
 use sha2::Sha256;
 use sha3::Digest;
+use std::{fmt::Debug, str};
 
 pub const DB: &str = "nightfall";
 pub const PROPOSED_BLOCKS_COLLECTION: &str = "ProposedBlocks";
@@ -401,6 +403,45 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
         }
         Ok(result)
     }
+    /// Atomically reserves commitments by changing their status from `Unspent` to `PendingSpend`.
+    ///
+    /// This prevents race conditions where multiple processes try to spend the same commitments
+    /// at the same time. Only commitments that are still `Unspent` will be updated and returned.
+    async fn reserve_commitments_atomic(
+        &self,
+        commitment_ids: Vec<Fr254>,
+    ) -> Result<Vec<CommitmentEntry>, &'static str> {
+        let mut reserved_commitments = Vec::new();
+
+        for commitment_id in commitment_ids {
+            let filter = doc! {
+                "_id": commitment_id.to_hex_string(),
+                "status": "Unspent"
+            };
+
+            let update = doc! {
+                "$set": { "status": "PendingSpend" }
+            };
+
+            let options = FindOneAndUpdateOptions::builder()
+                .return_document(ReturnDocument::After)
+                .build();
+            // Atomically find and update the commitment
+            if let Some(updated_commitment) = self
+                .database(DB)
+                .collection::<CommitmentEntry>("commitments")
+                .find_one_and_update(filter, update)
+                .with_options(options)
+                .await
+                .map_err(|_| "Database update failed")?
+            {
+                reserved_commitments.push(updated_commitment);
+            } else {
+                debug!("Failed to reserve commitment: {commitment_id:?}");
+            }
+        }
+        Ok(reserved_commitments)
+    }
 
     async fn get_available_commitments(&self, nf_token_id: Fr254) -> Option<Vec<CommitmentEntry>> {
         let filter = doc! {
@@ -461,21 +502,6 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
         // we need to sum the values
         let balance: Fr254 = result.iter().map(|entry| entry.preimage.value).sum();
         Some(balance)
-    }
-
-    async fn mark_commitments_pending_spend(&self, commitments: Vec<Fr254>) -> Option<()> {
-        let commitment_str = commitments
-            .into_iter()
-            .map(|c| c.to_hex_string())
-            .collect::<Vec<_>>();
-        let filter = doc! { "_id": { "$in": commitment_str }};
-        let update = doc! {"$set": { "status": "PendingSpend" }};
-        self.database(DB)
-            .collection::<CommitmentEntry>("commitments")
-            .update_many(filter, update)
-            .await
-            .ok()?;
-        Some(())
     }
 
     async fn mark_commitments_pending_creation(&self, commitments: Vec<Fr254>) -> Option<()> {
@@ -606,6 +632,39 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
                         None
                     }
                 }
+            }
+        }
+    }
+
+    /// Delete commitments by their IDs (hashes)
+    async fn delete_commitments(&self, commitment_ids: Vec<Fr254>) -> Option<()> {
+        if commitment_ids.is_empty() {
+            return Some(());
+        }
+
+        let commitment_strs: Vec<String> = commitment_ids
+            .into_iter()
+            .map(|c| c.to_hex_string())
+            .collect();
+
+        debug!("Deleting commitments with hashes {commitment_strs:?}");
+
+        let filter = doc! { "_id": { "$in": &commitment_strs }};
+
+        let res = self
+            .database(DB)
+            .collection::<CommitmentEntry>("commitments")
+            .delete_many(filter)
+            .await;
+
+        match res {
+            Ok(del_res) => {
+                debug!("Deleted {} commitments", del_res.deleted_count);
+                Some(())
+            }
+            Err(e) => {
+                error!("Error deleting commitments {commitment_strs:?}: {e}");
+                None
             }
         }
     }

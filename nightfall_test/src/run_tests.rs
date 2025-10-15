@@ -737,7 +737,7 @@ pub async fn run_tests(
         .unwrap();
     info!("Transfer commitments are now on-chain");
 
-    // check that the new balances are as expected
+    //check that the new balances are as expected
     let balance = get_erc20_balance(
         &http_client,
         Url::parse(&settings.nightfall_client.url).unwrap(),

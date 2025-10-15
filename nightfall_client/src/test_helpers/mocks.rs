@@ -1,13 +1,9 @@
 #![cfg(test)]
 
 use crate::{
-    domain::entities::{ClientTransaction, Preimage, Salt},
+    domain::entities::{Preimage, Salt},
     drivers::{derive_key::ZKPKeys, rest::models::PreimageReq},
-    get_fee_token_id,
-    ports::{
-        commitments::Commitment,
-        proof::{PrivateInputs, Proof, ProvingEngine, PublicInputs},
-    },
+    ports::commitments::Commitment,
 };
 use alloy::primitives::Bytes;
 use ark_bn254::Fr as Fr254;
@@ -15,7 +11,12 @@ use ark_ec::AffineRepr;
 use ark_ff::{BigInt, BigInteger, Field};
 use ark_serialize::SerializationError;
 use ark_std::Zero;
-use lib::hex_conversion::HexConvertible;
+use lib::{
+    get_fee_token_id,
+    hex_conversion::HexConvertible,
+    nf_client_proof::{PrivateInputs, Proof, ProvingEngine, PublicInputs},
+    shared_entities::ClientTransaction,
+};
 use nf_curves::ed_on_bn254::{
     BJJTEAffine as JubJubAffine, BJJTEProjective as JubJub, Fr as FqJubJub,
 };

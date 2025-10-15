@@ -1,11 +1,13 @@
 use crate::{
-    domain::entities::{ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot, Node},
+    domain::entities::{ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot},
     driven::db::mongo_db::StoredBlock,
 };
 use ark_bn254::Fr as Fr254;
 use ark_ff::PrimeField;
-use lib::serialization::{ark_de_bytes, ark_se_bytes};
-use nightfall_client::domain::entities::ClientTransaction;
+use lib::{
+    serialization::{ark_de_bytes, ark_se_bytes},
+    shared_entities::{ClientTransaction, Node},
+};
 use serde::{Deserialize, Serialize};
 #[async_trait::async_trait]
 pub trait BlockStorageDB {

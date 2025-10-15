@@ -1,5 +1,5 @@
 use crate::{
-    domain::entities::{RequestStatus, SynchronisationPhase::Desynchronized},
+    domain::entities::RequestStatus,
     driven::notifier::webhook_notifier::WebhookNotifier,
     drivers::{
         blockchain::{
@@ -11,14 +11,14 @@ use crate::{
         },
     },
     initialisation::get_db_connection,
-    ports::{
-        contracts::NightfallContract,
-        db::RequestDB,
-        proof::{Proof, ProvingEngine},
-    },
+    ports::{contracts::NightfallContract, db::RequestDB},
     services::data_publisher::DataPublisher,
 };
 use configuration::settings::get_settings;
+use lib::{
+    nf_client_proof::{Proof, ProvingEngine},
+    shared_entities::SynchronisationPhase::Desynchronized,
+};
 use log::{debug, error, info, warn};
 use std::{collections::VecDeque, time::Duration};
 use tokio::{
@@ -62,17 +62,7 @@ where
     publisher.register_notifier(Box::new(notifier));
 
     loop {
-        let sync_state = match get_synchronisation_status::<N>().await {
-            Ok(status) => status.phase(),
-            Err(e) => {
-                error!("Failed to get synchronisation status: {e:?}");
-                return;
-            }
-        };
-        if sync_state == Desynchronized {
-            warn!("Client is not synchronised with the blockchain, restarting event listener on thread {:?}", std::thread::current().id());
-            restart::<N>().await;
-        }
+        
         while let Some(request) = {
             let mut queue = get_queue().await.write().await;
             let request = queue.pop_front();
@@ -82,6 +72,18 @@ where
             // Process the request here with a concurrency of 1
             // mark request as 'Processing'
             info!("Processing request: {}", request.uuid);
+            //first check the sync status 
+            let sync_state = match get_synchronisation_status::<N>().await {
+                Ok(status) => status.phase(),
+                Err(e) => {
+                    error!("Failed to get synchronisation status: {e:?}");
+                    return;
+                }
+            };
+            if sync_state == Desynchronized {
+                warn!("Client is not synchronised with the blockchain, restarting event listener on thread {:?}", std::thread::current().id());
+                restart::<N>().await;
+            }
             let db = get_db_connection().await;
             let _ = db
                 .update_request(&request.uuid, RequestStatus::Processing)

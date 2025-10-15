@@ -10,8 +10,8 @@ use jf_plonk::{
 use jf_primitives::pcs::prelude::UnivariateKzgPCS;
 use jf_relation::{Arithmetization, Circuit, PlonkCircuit};
 use jf_utils::test_rng;
+use lib::nf_token_id::to_nf_token_id_from_fr254;
 use nf_curves::ed_on_bn254::Fq as Fr254;
-use nightfall_client::drivers::rest::utils::to_nf_token_id_from_fr254;
 use nightfall_proposer::{
     domain::entities::DepositData, driven::deposit_circuit::DepositCircuitGadget,
 };

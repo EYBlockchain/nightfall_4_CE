@@ -1,13 +1,9 @@
 use crate::{
     domain::{
-        entities::{
-            CommitmentStatus, CompressedSecrets, OnChainTransaction, Preimage, RequestStatus, Salt,
-        },
-        error::EventHandlerError,
+        entities::{CommitmentStatus, Preimage, RequestStatus, Salt},
         notifications::NotificationPayload,
     },
     driven::{
-        contract_functions::contract_type_conversions::FrBn254,
         db::mongo::{BlockStorageDB, CommitmentEntry, StoredBlock},
         notifier::webhook_notifier::WebhookNotifier,
         primitives::kemdem_functions::kemdem_decrypt,
@@ -32,8 +28,12 @@ use configuration::settings::get_settings;
 
 use alloy::primitives::{TxHash, I256, U256};
 use lib::{
-    blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
+    blockchain_client::BlockchainClientConnection,
+    contract_conversions::FrBn254,
+    error::EventHandlerError,
+    hex_conversion::HexConvertible,
     initialisation::get_blockchain_client_connection,
+    shared_entities::{CompressedSecrets, OnChainTransaction},
 };
 use log::{debug, error, info, warn};
 use nightfall_bindings::artifacts::Nightfall;

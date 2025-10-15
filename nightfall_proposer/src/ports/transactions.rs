@@ -2,9 +2,9 @@ use ark_bn254::Fr as Fr254;
 use ark_ec::twisted_edwards::Affine as TEAffine;
 use ark_ed_on_bn254::EdwardsConfig;
 use ark_ff::BigInteger256;
-use nightfall_client::{
-    domain::entities::TokenType,
-    ports::proof::{Proof, PublicInputs},
+use lib::{
+    nf_client_proof::{Proof, PublicInputs},
+    shared_entities::TokenType,
 };
 use serde::Serialize;
 use std::fmt::Debug;

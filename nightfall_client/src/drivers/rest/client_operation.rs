@@ -1,6 +1,6 @@
 use crate::{
     domain::{
-        entities::{ClientTransaction, CommitmentStatus, Operation, Preimage, RequestStatus},
+        entities::{CommitmentStatus, Operation, Preimage, RequestStatus},
         error::TransactionHandlerError,
         notifications::NotificationPayload,
     },
@@ -12,7 +12,6 @@ use crate::{
         commitments::Nullifiable,
         contracts::NightfallContract,
         db::{CommitmentDB, CommitmentEntryDB, RequestCommitmentMappingDB, RequestDB},
-        proof::{Proof, ProvingEngine},
         secret_hash::SecretHash,
     },
     services::client_operation::client_operation,
@@ -22,8 +21,11 @@ use ark_bn254::Fr as Fr254;
 use configuration::addresses::get_addresses;
 use futures::future::join_all;
 use lib::{
-    blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
+    blockchain_client::BlockchainClientConnection,
+    hex_conversion::HexConvertible,
     initialisation::get_blockchain_client_connection,
+    nf_client_proof::{Proof, ProvingEngine},
+    shared_entities::ClientTransaction,
 };
 use log::{debug, error, info, warn};
 use nf_curves::ed_on_bn254::Fr as BJJScalar;
@@ -170,6 +172,7 @@ where
 fn is_retriable_error(err: &ReqwestError) -> bool {
     err.is_timeout() || err.is_connect() || err.is_request()
 }
+
 async fn send_to_proposer_with_retry<P: Serialize + Sync>(
     client: &Client,
     proposer: ProposerManager::Proposer,

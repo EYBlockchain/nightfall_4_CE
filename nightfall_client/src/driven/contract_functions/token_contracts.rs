@@ -1,6 +1,5 @@
 //! Implementations of the [`TokenContract`] interface defined in `ports/contracts.rs`.
 
-use super::contract_type_conversions::{Addr, Uint256};
 use crate::{domain::error::TokenContractError, ports::contracts::TokenContract};
 use alloy::providers::Provider;
 use ark_bn254::Fr as Fr254;
@@ -8,7 +7,9 @@ use ark_ff::{BigInteger, BigInteger256};
 use ark_std::Zero;
 use configuration::{addresses::get_addresses, settings::get_settings};
 use lib::{
-    blockchain_client::BlockchainClientConnection, error::BlockchainClientConnectionError,
+    blockchain_client::BlockchainClientConnection,
+    contract_conversions::{Addr, Uint256},
+    error::BlockchainClientConnectionError,
     initialisation::get_blockchain_client_connection,
 };
 use log::debug;
@@ -358,4 +359,3 @@ impl TokenContract for IERC3525::IERC3525Calls {
         Ok(())
     }
 }
-

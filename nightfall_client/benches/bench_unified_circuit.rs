@@ -19,21 +19,18 @@ use jf_primitives::{
     trees::{Directions, MembershipProof, PathElement, TreeHasher},
 };
 use jf_relation::{Arithmetization, Circuit};
-use lib::hex_conversion::HexConvertible;
+use lib::{
+    hex_conversion::HexConvertible,
+    nf_client_proof::{PrivateInputs, PublicInputs},
+    nf_token_id::to_nf_token_id_from_str,
+    plonk_prover::circuits::unified_circuit::unified_circuit_builder,
+};
 use nf_curves::ed_on_bn254::{BabyJubjub, Fq as Fr254, Fr as BJJScalar};
-use nightfall_client::drivers::rest::utils::to_nf_token_id_from_str;
 use nightfall_client::{
     domain::entities::{DepositSecret, Preimage, Salt},
-    driven::{
-        plonk_prover::circuits::unified_circuit::unified_circuit_builder,
-        primitives::kemdem_functions::kemdem_encrypt,
-    },
+    driven::primitives::kemdem_functions::kemdem_encrypt,
     drivers::derive_key::ZKPKeys,
-    ports::{
-        commitments::Commitment,
-        proof::{PrivateInputs, PublicInputs},
-        secret_hash::SecretHash,
-    },
+    ports::{commitments::Commitment, secret_hash::SecretHash},
 };
 use num_bigint::BigUint;
 use rand::Rng;

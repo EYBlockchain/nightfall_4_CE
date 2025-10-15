@@ -6,21 +6,21 @@ use jf_plonk::{
     errors::PlonkError,
     nightfall::ipa_structs::VerifyingKey,
     nightfall::FFTPlonk,
-    proof_system::{RecursiveOutput, UniversalSNARK},
+    proof_system::{RecursiveOutput, UniversalRecursiveSNARK},
     recursion::circuits::Kzg,
     transcript::RescueTranscript,
 };
 use jf_primitives::{pcs::prelude::UnivariateKzgPCS, rescue::sponge::RescueCRHF};
 use jf_utils::fr_to_fq;
-use lib::merkle_trees::trees::{MerkleTreeError, MutableTree, TreeMetadata};
+use lib::{
+    merkle_trees::trees::{MerkleTreeError, MutableTree, TreeMetadata},
+    nf_client_proof::PublicInputs,
+    plonk_prover::{get_client_proving_key, plonk_proof::PlonkProof},
+};
 use std::collections::HashMap;
 
 use log::debug;
 use mongodb::{bson::doc, Client};
-use nightfall_client::{
-    driven::plonk_prover::plonk_proof::PlonkProof, get_client_proving_key,
-    ports::proof::PublicInputs,
-};
 
 use super::{deposit_circuit::deposit_circuit_builder, rollup_prover::RollupProofError};
 use crate::{

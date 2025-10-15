@@ -22,21 +22,22 @@ use jf_primitives::{
     trees::{Directions, MembershipProof, PathElement, TreeHasher},
 };
 use lib::{
-    blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
-    initialisation::get_blockchain_client_connection, models::CertificateReq,
+    blockchain_client::BlockchainClientConnection,
+    error::NightfallContractError,
+    hex_conversion::HexConvertible,
+    initialisation::get_blockchain_client_connection,
+    models::CertificateReq,
+    nf_client_proof::{PrivateInputs, ProvingEngine, PublicInputs},
+    plonk_prover::plonk_proof::{PlonkProof, PlonkProvingEngine},
 };
 use log::{debug, info};
 use nf_curves::ed_on_bn254::{BabyJubjub as BabyJubJub, Fr as BJJScalar};
 use nightfall_client::{
     domain::{
         entities::{CommitmentStatus, DepositSecret, Preimage, Salt, TokenData},
-        error::NightfallContractError,
         notifications::NotificationPayload,
     },
-    driven::{
-        db::mongo::CommitmentEntry,
-        plonk_prover::plonk_proof::{PlonkProof, PlonkProvingEngine},
-    },
+    driven::db::mongo::CommitmentEntry,
     drivers::{
         derive_key::ZKPKeys,
         rest::models::{
@@ -44,11 +45,7 @@ use nightfall_client::{
             NF3WithdrawRequest, WithdrawDataReq,
         },
     },
-    ports::{
-        commitments::Commitment,
-        proof::{PrivateInputs, ProvingEngine, PublicInputs},
-        secret_hash::SecretHash,
-    },
+    ports::{commitments::Commitment, secret_hash::SecretHash},
 };
 use num_bigint::BigUint;
 use reqwest::{
