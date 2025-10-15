@@ -8,7 +8,7 @@ use ark_serialize::SerializationError;
 use log::{error, warn};
 use nightfall_bindings::artifacts::Nightfall;
 use serde::{Deserialize, Serialize};
-use sha3::{digest::generic_array::GenericArray, Digest, Keccak256};
+use sha3::{Digest, Keccak256};
 use std::fmt::Debug;
 
 /// A struct representing the synchronisation status of a container
@@ -213,16 +213,9 @@ impl<P: Proof + Debug + Serialize + Clone> ClientTransaction<P> {
             error!("Proof hash computation error {e}");
             SerializationError::InvalidData
         })?;
-        // let encoded: Vec<Token> = self.to_solidity_struct()?;
-        // let encoding = encode(&encoded);
-        let hash: GenericArray<u8, _> = Keccak256::digest(encoding);
+        let hash = Keccak256::digest(encoding);
         // convert to u32 because the Mongo Rust driver doesn't support u8
-        Ok(hash
-            .as_slice()
-            .iter()
-            .map(|h| u32::from(*h))
-            .collect::<Vec<u32>>()
-            .to_owned()) // Let's just own it for now
+        Ok(hash.iter().map(|&b| b as u32).collect())
     }
 }
 
