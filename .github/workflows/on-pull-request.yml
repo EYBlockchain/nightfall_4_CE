@@ -93,12 +93,81 @@ jobs:
             echo "Cached ppot_26.ptau created"
           fi
           ln -sf /home/testrunner/ptau-cache/ppot_26.ptau /home/testrunner/actions-runner/_work/nightfall_4_PV/nightfall_4_PV/configuration/bin/ppot_26.ptau
+      - name: link bn254 setup cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Version the cache so you can invalidate by bumping NF4_SRS_VERSION
+          VERSION_SUFFIX="${NF4_SRS_VERSION:-v1}"
+          CACHE_DIR="/home/testrunner/srs-cache"
+          CACHE_FILE="$CACHE_DIR/bn254_setup_26.${VERSION_SUFFIX}.cache"
+          TARGET_DIR="$GITHUB_WORKSPACE/configuration/bin"
+          TARGET="$TARGET_DIR/bn254_setup_26.cache"
+          mkdir -p "$CACHE_DIR" "$TARGET_DIR"
+          # Prevent two concurrent workflows from trampling the cache
+          LOCKFILE="$CACHE_DIR/.bn254_setup.lock"
+          exec 9>"$LOCKFILE"
+          flock -w 600 9 || (echo "Failed to acquire cache lock" >&2; exit 1)
+          if [ -e "$CACHE_FILE" ]; then
+            echo "Using cached bn254_setup_26.cache at $CACHE_FILE"
+            ln -sf "$CACHE_FILE" "$TARGET"
+            ls -l "$TARGET"
+          else
+            echo "No cached bn254_setup_26.cache found. Generating once, then caching…"
+          # Ensure keygen is available
+          cargo build
+          # Prefer a narrow generation if supported; fall back to full keygen
+          if ! NF4_MOCK_PROVER=false cargo run --release --bin key_generation -- --only-bn254-setup; then
+            NF4_MOCK_PROVER=false cargo run --release --bin key_generation
+          fi
+          # Find the generated file (expecting TARGET); fallback to a search
+          if [ ! -e "$TARGET" ]; then
+            FOUND="$(find "$GITHUB_WORKSPACE" -maxdepth 5 -type f -name 'bn254_setup_26.cache' | head -n1 || true)"
+            if [ -z "$FOUND" ]; then
+              echo "ERROR: Could not locate bn254_setup_26.cache after key generation." >&2
+              exit 1
+            fi
+            ln -sf "$FOUND" "$TARGET"
+          fi
+            # Populate persistent cache and relink from there (immutable)
+            cp -f "$TARGET" "$CACHE_FILE"
+            chmod 444 "$CACHE_FILE"
+            ln -sf "$CACHE_FILE" "$TARGET"
+            echo "Cached and linked:"
+            ls -l "$CACHE_FILE" "$TARGET"
+          fi      
       - name: Clear previous run
         run: docker compose --profile sync_test down -v
       - name: Build
         run: cargo build
       - name: Generate keys
         run: NF4_MOCK_PROVER=false cargo run --release --bin key_generation
+      - name: Hydrate setup files for Docker build (dereference symlinks)
+        shell: bash
+        run: |
+          set -euo pipefail
+          BIN_DIR="$GITHUB_WORKSPACE/configuration/bin"
+          mkdir -p "$BIN_DIR"
+          hydrate() {
+            local f="$1"
+            local p="$BIN_DIR/$f"
+            if [ ! -e "$p" ]; then
+            echo "ERROR: Expected artifact missing: $p" >&2
+            exit 1
+            fi
+            if [ -L "$p" ]; then
+              echo "Dereferencing symlink: $p"
+              # Copy the symlink's target contents into the workspace file
+              cp -fL "$p" "$p.tmp"
+              chmod 444 "$p.tmp"
+              mv -f "$p.tmp" "$p"
+            else
+              echo "Already a regular file: $p"
+            fi
+            ls -l "$p"
+          }
+          hydrate "ppot_26.ptau"
+          hydrate "bn254_setup_26.cache"
       - name: Build Docker Image
         run: docker compose --profile sync_test build
       - name: Run Integration Test
