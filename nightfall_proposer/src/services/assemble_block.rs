@@ -68,7 +68,8 @@ where
         info!("Getting DB connection");
         let db = get_db_connection().await;
         info!("Preparing block data");
-        let result = prepare_block_data::<P>(db).await;
+        let block_size = get_block_size()?;
+        let result = prepare_block_data::<P>(db, block_size).await;
         match &result {
             Ok(_) => info!("Block data prepared successfully"),
             Err(e) => warn!("Failed to prepare block data: {e:?}"),
@@ -227,6 +228,7 @@ where
 
 pub(crate) async fn prepare_block_data<P>(
     db: &mongodb::Client,
+    block_size: usize,
 ) -> Result<
     (
         Vec<Vec<DepositDatawithFee>>,
@@ -237,8 +239,6 @@ pub(crate) async fn prepare_block_data<P>(
 where
     P: Proof,
 {
-    let block_size = get_block_size()?;
-
     // 1. Fetch unused deposits from mempool
     let stored_deposits_in_mempool: Option<Vec<DepositDatawithFee>> =
         <mongodb::Client as TransactionsDB<P>>::get_mempool_deposits(db).await;
@@ -393,7 +393,6 @@ mod tests {
         plonk_prover::plonk_proof::PlonkProof,
         tests_utils::{get_db_connection, get_mongo},
     };
-
     #[tokio::test]
     async fn test_prepare_block_data_simple_case() {
         // Prepare data: 44 deposit data in mempool, fee (1...240), 4 tx data, fee (241...244)
@@ -403,6 +402,7 @@ mod tests {
         // left client transactions: None
         let container = get_mongo().await;
         let db = get_db_connection(&container).await;
+        let block_size = 64;
 
         // **1. Insert 240 deposits into mempool**
         {
@@ -442,7 +442,7 @@ mod tests {
             }
         }
 
-        let result = { prepare_block_data::<PlonkProof>(&db).await };
+        let result = { prepare_block_data::<PlonkProof>(&db, block_size).await };
 
         assert!(result.is_ok(), "prepare_block_data failed");
         let (included_deposits, selected_client_transactions) = result.unwrap();
@@ -499,6 +499,7 @@ mod tests {
         // left deposit = (1)
         let container = get_mongo().await;
         let db = get_db_connection(&container).await;
+        let block_size = 64;
 
         // Insert 257 deposit transactions into mempool**
         {
@@ -518,7 +519,7 @@ mod tests {
                 .await;
         }
 
-        let result = { prepare_block_data::<PlonkProof>(&db).await };
+        let result = { prepare_block_data::<PlonkProof>(&db, block_size).await };
 
         assert!(result.is_ok(), "Should succeed with only on-chain deposits");
         let (included_deposits, selected_client_transactions) = result.unwrap();
@@ -564,6 +565,7 @@ mod tests {
         // Left deposits: 0
         let container = get_mongo().await;
         let db = get_db_connection(&container).await;
+        let block_size = 64;
 
         // Insert 74 deposit transactions into mempool**
         {
@@ -586,7 +588,7 @@ mod tests {
             }
         }
 
-        let result = { prepare_block_data::<PlonkProof>(&db).await };
+        let result = { prepare_block_data::<PlonkProof>(&db, block_size).await };
 
         assert!(result.is_ok(), "Should succeed with only on-chain deposits");
         let (included_deposits, selected_client_transactions) = result.unwrap();
@@ -638,6 +640,7 @@ mod tests {
 
         let container = get_mongo().await;
         let db = get_db_connection(&container).await;
+        let block_size = 64;
 
         // **1. Insert 3 deposits into mempool**
         {
@@ -678,7 +681,7 @@ mod tests {
             }
         }
 
-        let result = { prepare_block_data::<PlonkProof>(&db).await };
+        let result = { prepare_block_data::<PlonkProof>(&db, block_size).await };
 
         assert!(
             result.is_ok(),
