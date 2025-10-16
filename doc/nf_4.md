@@ -607,6 +607,7 @@ curl -i 'http://localhost:3000/v1/commitments'
 ```
 
 Returns: on success `200 OK` with a json array of CommitmentEntry objects.
+Note: `layer_2_block_number` in CommitmentEntry object means the Layer 2 block number when this commitment was created.
 
 Returns all the commitment entries in the database. Use with care!
 
