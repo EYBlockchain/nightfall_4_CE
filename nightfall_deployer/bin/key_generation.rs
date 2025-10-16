@@ -86,7 +86,9 @@ pub fn generate_proving_keys(settings: &Settings) -> Result<(), PlonkError> {
         // Unless we already have a local copy, read a remote perpetual powers of Tau file and save, then extract a KZG structured reference string
         let ptau_file = path.join(format!("bin/ppot_{MAX_KZG_DEGREE}.ptau"));
         UnivariateKzgPCS::download_ptau_file_if_needed(MAX_KZG_DEGREE, &ptau_file).unwrap();
-        UnivariateKzgPCS::universal_setup_bn254(&ptau_file, 1 << MAX_KZG_DEGREE).unwrap()
+        let cache_file = path.join(format!("bin/bn254_setup_{MAX_KZG_DEGREE}.cache"));
+        UnivariateKzgPCS::universal_setup_bn254_cached(&ptau_file, 1 << MAX_KZG_DEGREE, &cache_file)
+            .unwrap()
     };
     // transfer/withdraw pk vk
     let (pk, _) = FFTPlonk::<UnivariateKzgPCS<Bn254>>::preprocess(

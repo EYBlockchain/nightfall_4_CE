@@ -6,7 +6,7 @@ use lib::{
 };
 use log::error;
 use serde::{Deserialize, Serialize};
-use sha3::{digest::generic_array::GenericArray, Digest, Keccak256};
+use sha3::{Digest, Keccak256};
 use std::fmt::Debug;
 
 /// A Block struct representing NF block
@@ -65,14 +65,10 @@ impl DepositDatawithFee {
         })?;
 
         // Step 2: Hash the bytes with Keccak256
-        let hash: GenericArray<u8, _> = Keccak256::digest(encoding);
+        let hash = Keccak256::digest(encoding);
 
         // Step 3: Convert hash bytes to Vec<u32>
-        Ok(hash
-            .as_slice()
-            .iter()
-            .map(|h| u32::from(*h))
-            .collect::<Vec<u32>>())
+        Ok(hash.iter().map(|&b| b as u32).collect())
     }
 }
 
