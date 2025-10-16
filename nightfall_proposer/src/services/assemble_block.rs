@@ -44,12 +44,12 @@ pub fn get_block_size() -> Result<usize, BlockAssemblyError> {
     let settings = get_settings();
     // get the block size from the environment, if it's not set, default to 64
     let block_size = settings.nightfall_proposer.block_size;
-    // Allowed block sizes: 64, 256, 1024
+    // Allowed block sizes: 64, 256
     match block_size {
         // safe to unwrap as we know it's a usize
-        64 | 256 | 1024 => Ok(block_size.try_into().unwrap()),
+        64 | 256 => Ok(block_size.try_into().unwrap()),
         _ => Err(BlockAssemblyError::ProvingError(
-            "Block size must be one of 64, 256, or 1024".to_string(),
+            "Block size must be one of 64 or 256".to_string(),
         )),
     }
 }
