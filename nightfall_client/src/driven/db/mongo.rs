@@ -547,9 +547,9 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
             .map(|c| c.to_hex_string())
             .collect::<Vec<_>>();
         let l1_hash = l1_hash.map(|h| h.to_string());
-        let _l2_blocknumber = l2_blocknumber.map(|b| b.to_string());
+        let l2_blocknumber = l2_blocknumber.map(|b| b.to_string());
         let filter = doc! { "_id": { "$in": commitment_str }};
-        let update = doc! {"$set": { "status": "Unspent", "layer_1_transaction_hash": l1_hash }};
+        let update = doc! {"$set": { "status": "Unspent", "layer_1_transaction_hash": l1_hash, "layer_2_block_number": l2_blocknumber }};
         self.database(DB)
             .collection::<CommitmentEntry>("commitments")
             .update_many(filter, update)
