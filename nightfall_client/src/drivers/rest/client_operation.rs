@@ -88,6 +88,8 @@ where
                     commitment.get_preimage(),
                     nullifier,
                     CommitmentStatus::PendingCreation,
+                    None,
+                    None,
                 );
                 commitment_entries.push(commitment_entry);
             }
