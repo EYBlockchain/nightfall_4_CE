@@ -114,8 +114,8 @@ where
             Nightfall::OwnershipTransferred::SIGNATURE_HASH,
         ])
         .from_block(start_block as u64);
-        // Subscribe to the combined events filter
-        let events_subscription = blockchain_client
+    // Subscribe to the combined events filter
+    let events_subscription = blockchain_client
         .subscribe_logs(&events_filter)
         .await
         .map_err(|_| EventHandlerError::NoEventStream)?;
