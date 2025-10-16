@@ -4,12 +4,15 @@ use crate::{
 use alloy::primitives::Address;
 use alloy::providers::{Provider, ProviderBuilder};
 use alloy::signers::local::PrivateKeySigner;
-use alloy::transports::ws::WsConnect;
 use async_trait::async_trait;
-use azure_security_keyvault::SecretClient;
+use alloy::providers::WsConnect;
 use log::{debug, info};
 use std::{error::Error, sync::Arc};
+
+use azure_security_keyvault::KeyClient;
+use azure_identity;
 use url::Url;
+
 
 #[derive(Clone, Debug)]
 pub enum WalletType {
@@ -18,10 +21,11 @@ pub enum WalletType {
 }
 
 /// Struct to represent an Azure-based wallet
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct AzureWallet {
-    key_client: SecretClient,
+    key_client: Arc<KeyClient>,  
     key_name: String,
+    address: Address,  
 }
 
 impl AzureWallet {
@@ -29,25 +33,38 @@ impl AzureWallet {
         vault_url: &str,
         key_name: &str,
     ) -> Result<Self, Box<dyn Error + Send + Sync>> {
-        let credential = azure_identity::create_default_credential()?;
-        let key_client = SecretClient::new(vault_url, credential)?;
+       // let credential = azure_identity::create_default_credential()?;
+       let credential = azure_identity::create_credential()?;
+       let key_client = KeyClient::new(vault_url, credential)?;
+       
+       let address = Address::ZERO;
+        
         Ok(Self {
-            key_client,
+            key_client: Arc::new(key_client),
             key_name: key_name.to_string(),
+            address,
         })
     }
+    pub fn address(&self) -> Address {
+        self.address
+    }
 
-    /// Fetch the signing key from Azure Key Vault
-    pub async fn get_signing_key(&self) -> Result<String, Box<dyn Error + Send + Sync>> {
-        let key = self.key_client.get(self.key_name.clone()).await?;
-        Ok(key.value)
+}
+
+impl std::fmt::Debug for AzureWallet {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AzureWallet")
+            .field("key_name", &self.key_name)
+            .field("address", &self.address)
+            .finish()
     }
 }
+
 
 #[derive(Clone)]
 pub struct LocalWsClient {
     provider: Arc<dyn Provider>,
-    signer: PrivateKeySigner,
+    wallet: WalletType,
 }
 
 #[async_trait]
@@ -57,16 +74,18 @@ impl BlockchainClientConnection for LocalWsClient {
     type S = configuration::settings::Settings;
 
     async fn new(url: Url, local_signer: Self::W) -> Result<Self, BlockchainClientConnectionError> {
-        let ws = WsConnect::new(url);
+        // let ws = WsConnect::new(url);
+        // let wallet = WalletType::Local(local_signer.clone());
+
         let provider = ProviderBuilder::new()
-            .wallet(local_signer.clone())
-            .connect_ws(ws)
+            .wallet(local_signer.clone()) 
+            .connect_ws(WsConnect::new(url))
             .await
             .map_err(|e| BlockchainClientConnectionError::ProviderError(e.to_string()))?;
 
         Ok(Self {
             provider: Arc::new(provider),
-            signer: local_signer,
+            wallet: WalletType::Local(local_signer),
         })
     }
 
@@ -80,7 +99,10 @@ impl BlockchainClientConnection for LocalWsClient {
     }
 
     fn get_address(&self) -> Address {
-        self.signer.address()
+        match &self.wallet {
+            WalletType::Local(signer) => signer.address(),
+            WalletType::Azure(wallet) => wallet.address(),
+        }
     }
 
     fn get_client(&self) -> Arc<dyn Provider> {
@@ -88,47 +110,67 @@ impl BlockchainClientConnection for LocalWsClient {
     }
 
     fn get_signer(&self) -> PrivateKeySigner {
-        self.signer.clone()
+        match &self.wallet {
+            WalletType::Local(signer) => signer.clone(),
+            WalletType::Azure(_) => {
+                panic!("Cannot get PrivateKeySigner for Azure wallet - key never leaves HSM")
+            }
+        }
     }
 
     async fn try_from_settings(
         settings: &Self::S,
     ) -> Result<Self, BlockchainClientConnectionError> {
-        // get the signer
-        let local_signer = match settings.nightfall_client.wallet_type.as_str() {
-            "local" => settings
-                .signing_key
-                .parse::<PrivateKeySigner>()
-                .map_err(BlockchainClientConnectionError::WalletError)?,
-            "azure" => {
-                let azure_wallet =
-                    AzureWallet::new(&settings.azure_vault_url, &settings.azure_key_name).await?;
-                let signing_key = azure_wallet.get_signing_key().await?;
-                signing_key
+        match settings.nightfall_client.wallet_type.as_str() {
+    
+            "local" => {
+                info!("Creating local wallet");
+                
+                let local_signer = settings
+                    .signing_key
                     .parse::<PrivateKeySigner>()
-                    .map_err(BlockchainClientConnectionError::WalletError)?
+                    .map_err(BlockchainClientConnectionError::WalletError)?;
+                
+                let ws = WsConnect::new(settings.ethereum_client_url.clone());
+                let provider = ProviderBuilder::new()
+                    .wallet(local_signer.clone())
+                    .connect_ws(ws)
+                    .await
+                    .map_err(|e| BlockchainClientConnectionError::ProviderError(e.to_string()))?;
+                
+                Ok(Self {
+                    provider: Arc::new(provider),
+                    wallet: WalletType::Local(local_signer),
+                })
+            }
+            "azure" => {
+                info!("Creating Azure Key Vault wallet");
+
+                let azure_wallet = AzureWallet::new(
+                    &settings.azure_vault_url,
+                    &settings.azure_key_name
+                ).await?;
+
+                let ws = WsConnect::new(settings.ethereum_client_url.clone());
+                let provider = ProviderBuilder::new()
+                    .connect_ws(ws)
+                    .await
+                    .map_err(|e| BlockchainClientConnectionError::ProviderError(e.to_string()))?;
+                
+                Ok(Self {
+                    provider: Arc::new(provider),
+                    wallet: WalletType::Azure(azure_wallet),
+                })
             }
             "YubiWallet" => todo!(),
             "AwsSigner" => todo!(),
             "EYTransactionManager" => todo!(),
-            _ => panic!("Invalid wallet type"),
-        };
-
-        info!("Created signer with address: {:?}", local_signer.address());
-        debug!("And chain id: {}", settings.network.chain_id);
-        debug!("And Ethereum client url: {}", settings.ethereum_client_url);
-
-        // create provider
-        let ws = WsConnect::new(settings.ethereum_client_url.clone());
-        let provider = ProviderBuilder::new()
-            .wallet(local_signer.clone())
-            .connect_ws(ws)
-            .await
-            .map_err(|e| BlockchainClientConnectionError::ProviderError(e.to_string()))?;
-
-        Ok(Self {
-            provider: Arc::new(provider),
-            signer: local_signer,
-        })
+            _ => {
+                return Err(BlockchainClientConnectionError::InvalidWalletType(
+                    settings.nightfall_client.wallet_type.clone()
+                )) 
+            }
+      }
     }
 }
+
