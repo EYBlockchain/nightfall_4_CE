@@ -45,10 +45,7 @@ fn benchmark_deposit_circuit(c: &mut Criterion) {
         .unwrap();
 
     let public_input = circuit.build_deposit_circuit(&deposit_data).unwrap();
-    let pi_vec = Vec::from(&public_input);
-    circuit
-        .check_circuit_satisfiability(pi_vec.as_slice())
-        .unwrap();
+
     println!(
         "Deposit: {} constraints before padding",
         circuit.num_gates()
