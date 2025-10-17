@@ -76,7 +76,6 @@ where
 {
     path!("v1" / "deposit")
         .and(warp::body::json())
-        .and(warp::header::optional::<String>("X-Request-ID"))
         .and_then(queue_deposit_request)
 }
 
@@ -87,7 +86,6 @@ where
 {
     path!("v1" / "transfer")
         .and(warp::body::json())
-        .and(warp::header::optional::<String>("X-Request-ID"))
         .and_then(queue_transfer_request)
 }
 
@@ -98,16 +96,14 @@ where
 {
     path!("v1" / "withdraw")
         .and(warp::body::json())
-        .and(warp::header::optional::<String>("X-Request-ID"))
         .and_then(queue_withdraw_request)
 }
 
 /// function to queue the deposit requests
 async fn queue_deposit_request(
     deposit_req: NF3DepositRequest,
-    request_id: Option<String>,
 ) -> Result<impl Reply, warp::Rejection> {
-    let transaction_request = TransactionRequest::Deposit(deposit_req.clone());
+    let transaction_request = TransactionRequest::Deposit(deposit_req);
     let uuid_string = Uuid::new_v4().to_string();
 
     debug!("Queueing deposit request");
@@ -117,7 +113,6 @@ async fn queue_deposit_request(
 /// function to queue the transfer requests
 async fn queue_transfer_request(
     transfer_req: NF3TransferRequest,
-    request_id: Option<String>,
 ) -> Result<impl Reply, warp::Rejection> {
     let transaction_request = TransactionRequest::Transfer(transfer_req);
     let uuid_string = Uuid::new_v4().to_string();
@@ -128,7 +123,6 @@ async fn queue_transfer_request(
 /// function to queue the withdraw requests
 async fn queue_withdraw_request(
     withdraw_req: NF3WithdrawRequest,
-    request_id: Option<String>,
 ) -> Result<impl Reply, warp::Rejection> {
     let transaction_request = TransactionRequest::Withdraw(withdraw_req);
     let uuid_string = Uuid::new_v4().to_string();
