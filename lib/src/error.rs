@@ -73,7 +73,9 @@ impl Display for BlockchainClientConnectionError {
             BlockchainClientConnectionError::ProviderError(e) => write!(f, "Provider error: {e}"),
             BlockchainClientConnectionError::WalletError(e) => write!(f, "Wallet error: {e}"),
             BlockchainClientConnectionError::AzureError(e) => write!(f, "Azure error: {e}"),
-            BlockchainClientConnectionError::InvalidWalletType(e) => write!(f, "InvalidWalletType: {e}"),
+            BlockchainClientConnectionError::InvalidWalletType(e) => {
+                write!(f, "InvalidWalletType: {e}")
+            }
         }
     }
 }

@@ -177,6 +177,8 @@ AZURE_CLIENT_ID=
 AZURE_CLIENT_SECRET=
 AZURE_TENANT_ID= .
 
+All signing operations are performed via the Azure Key Vault Keys/Cryptography APIs, meaning private keys never leave the HSM. This preserves the security guarantees of the vault while enabling Ethereum transactions.
+
 Not all of the configuration items can be static (i.e. known at compile-time). In particular the addresses of the deployed contracts and proving keys are not known in advance. In this case, the `deployer` writes out a toml file (`addresses.toml`), which is shared with the Nightfall applications via a shared volume that the receiving containers mount. Additionally, it uploads (PUTs) this data to a webserver configured for web-dav. The Nightfall applications will attempt to connect to this webserver and download the addresses and keys via a GET. If they cannot connect, they will revert to reading them from their local file system (which should have the files as a mounted volume). This gives two alternative approaches for recovering the dynamic configuration items. Note that static items are always file-based.
 
 ## Deployment on a testnet for integration testing
