@@ -496,7 +496,7 @@ curl -i \
     "tokenId": "0x00",
     "recipientData": {
       "values": ["0x01"],
-      "recipientCompressedZkpPublicKeys": ["2a2fec73694898850dccccaf188853d3d69b251c8aa2538fcb2be6f470aa7205"]
+      "recipientCompressedZkpPublicKeys": ["0572aa70f4e62bcb8f53a28a1c259bd6d3538818afcccc0d8598486973ec2f2a"]
     },
     "fee": "0x01"
   }'
