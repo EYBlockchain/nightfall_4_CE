@@ -41,12 +41,12 @@ pub struct RequestCommitmentMapping {
 /// An enum representing the possible statuses of an HTTP request
 #[derive(Serialize, Deserialize, Debug)]
 pub enum RequestStatus {
-    Queued,
-    Submitted,
-    Failed,
-    Processing,
-    ProposerUnreachable,
-    Confirmed,
+    Queued, // This is for tx_request status associated with the X-Request-ID for a request with status: The transaction is waiting to be processed by the client.
+    Submitted, // This is for tx_request status associated with the X-Request-ID for a request with status: The Client has successfully processed the transaction and handed off the result, either to the blockchain, in the case of a deposit escrow, or to a Proposer, in the case of a transfer or withdraw transaction.
+    Failed, // This is for tx_request status associated with the X-Request-ID for a request with status: The hand off to the next stage did not succeed.
+    Processing, // This is for tx_request status associated with the X-Request-ID for a request with status: The Client has taken the transaction out of the queue and is actively working on it, but has not yet completed the hand-off to the next stage.
+    ProposerUnreachable, // This is for transfer and withdraw tx_request status when the Client was unable to reach the Proposer at the URL provided in the request.
+    Confirmed, // This is for tx_request status associated with the X-Request-ID for a request with status: The life cycle of this tx is finished, aka, commitments are all onchain.
 }
 
 impl Display for RequestStatus {
