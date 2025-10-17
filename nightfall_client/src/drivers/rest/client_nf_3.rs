@@ -107,9 +107,11 @@ async fn queue_deposit_request(
     deposit_req: NF3DepositRequest,
     request_id: Option<String>,
 ) -> Result<impl Reply, warp::Rejection> {
-    let transaction_request = TransactionRequest::Deposit(deposit_req);
+    let transaction_request = TransactionRequest::Deposit(deposit_req.clone());
+    let uuid_string = Uuid::new_v4().to_string();
+
     debug!("Queueing deposit request");
-    queue_request(transaction_request, request_id).await
+    queue_request(transaction_request, uuid_string).await
 }
 
 /// function to queue the transfer requests
@@ -118,7 +120,9 @@ async fn queue_transfer_request(
     request_id: Option<String>,
 ) -> Result<impl Reply, warp::Rejection> {
     let transaction_request = TransactionRequest::Transfer(transfer_req);
-    queue_request(transaction_request, request_id).await
+    let uuid_string = Uuid::new_v4().to_string();
+
+    queue_request(transaction_request, uuid_string).await
 }
 
 /// function to queue the withdraw requests
@@ -127,13 +131,15 @@ async fn queue_withdraw_request(
     request_id: Option<String>,
 ) -> Result<impl Reply, warp::Rejection> {
     let transaction_request = TransactionRequest::Withdraw(withdraw_req);
-    queue_request(transaction_request, request_id).await
+    let uuid_string = Uuid::new_v4().to_string();
+
+    queue_request(transaction_request, uuid_string).await
 }
 
 /// This function queues all types of transaction request
 async fn queue_request(
     transaction_request: TransactionRequest,
-    request_id: Option<String>,
+    request_id: String,
 ) -> Result<impl Reply, warp::Rejection> {
     let settings = get_settings();
     let max_queue_size = settings
@@ -142,10 +148,9 @@ async fn queue_request(
         .unwrap_or(1000)
         .try_into()
         .unwrap();
-    // extract the request ID
-    let id = request_id.unwrap_or_default();
+
     // check if the id is a valid uuid
-    if Uuid::parse_str(&id).is_err() {
+    if Uuid::parse_str(&request_id).is_err() {
         return Err(warp::reject::custom(
             crate::domain::error::ClientRejection::InvalidRequestId,
         ));
@@ -162,19 +167,23 @@ async fn queue_request(
                 StatusCode::SERVICE_UNAVAILABLE,
             ),
             "X-Request-ID",
-            id,
+            request_id,
         ));
     }
     debug!("got lock on queue");
     q.push_back(QueuedRequest {
         transaction_request,
-        uuid: id.clone(),
+        uuid: request_id.clone(),
     });
     drop(q); // drop the lock so other processes can access the queue
     debug!("Added request to queue");
     // record the request as queued
     let db = get_db_connection().await;
-    if db.store_request(&id, RequestStatus::Queued).await.is_none() {
+    if db
+        .store_request(&request_id, RequestStatus::Queued)
+        .await
+        .is_none()
+    {
         return Err(warp::reject::custom(
             crate::domain::error::ClientRejection::DatabaseError,
         ));
@@ -185,7 +194,7 @@ async fn queue_request(
     Ok(reply::with_header(
         reply::with_status(json(&"Request queued".to_string()), StatusCode::ACCEPTED),
         "X-Request-ID",
-        id,
+        request_id,
     ))
 }
 
