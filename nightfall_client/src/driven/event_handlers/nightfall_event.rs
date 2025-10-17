@@ -341,6 +341,8 @@ async fn process_propose_block_event<N: NightfallContract>(
             &commitment_hashes,
             Some(transaction_hash),
             Some(filter.layer2_block_number)
+                .filter(|&b| b >= I256::ZERO)
+                .and_then(|b| i64::try_from(b).ok())
         ),
         db.mark_commitments_spent(nullifiers)
     );
@@ -412,8 +414,15 @@ async fn process_propose_block_event<N: NightfallContract>(
             let nullifier = test_preimage
                 .nullifier_hash(&nullifier_key)
                 .map_err(|_| EventHandlerError::HashError)?;
-            let commitment_entry =
-                CommitmentEntry::new(test_preimage, nullifier, CommitmentStatus::Unspent);
+            let commitment_entry = CommitmentEntry::new(
+                test_preimage,
+                nullifier,
+                CommitmentStatus::Unspent,
+                Some(transaction_hash),
+                Some(filter.layer2_block_number)
+                    .filter(|&b| b >= I256::ZERO)
+                    .and_then(|b| i64::try_from(b).ok()),
+            );
             commitment_entries.push(commitment_entry);
         }
     }

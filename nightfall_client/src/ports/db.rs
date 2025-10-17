@@ -5,7 +5,7 @@ use super::{
     keys::{ProvingKey, VerifyingKey},
 };
 
-use alloy::primitives::{TxHash, I256};
+use alloy::primitives::TxHash;
 use ark_bn254::Fr as Fr254;
 use async_trait::async_trait;
 use futures::Future;
@@ -39,14 +39,20 @@ where
         &self,
         commitments: &[K],
         layer_1_transaction_hash: Option<TxHash>,
-        layer_2_block_number: Option<I256>,
+        layer_2_block_number: Option<i64>,
     ) -> Option<()>;
     async fn mark_commitments_spent(&self, nullifiers: Vec<K>) -> Option<()>;
     async fn add_nullifier(&self, key: &K, nullifier: K) -> Option<()>;
 }
 
 pub trait CommitmentEntryDB: Commitment {
-    fn new(preimage: Preimage, nullifier: Fr254, status: CommitmentStatus) -> Self;
+    fn new(
+        preimage: Preimage,
+        nullifier: Fr254,
+        status: CommitmentStatus,
+        layer_1_transaction_hash: Option<TxHash>,
+        layer_2_block_number: Option<i64>,
+    ) -> Self;
     fn get_status(&self) -> CommitmentStatus;
 }
 
