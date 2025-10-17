@@ -347,8 +347,13 @@ pub async fn handle_deposit<N: NightfallContract>(
         .nullifier_hash(&nullifier_key)
         .expect("Could not hash commitment {}");
     let commitment_hash = preimage_value.hash().expect("Could not hash commitment");
-    let commitment_entry =
-        CommitmentEntry::new(preimage_value, nullifier, CommitmentStatus::PendingCreation);
+    let commitment_entry = CommitmentEntry::new(
+        preimage_value,
+        nullifier,
+        CommitmentStatus::PendingCreation,
+        None,
+        None,
+    );
 
     db.store_commitment(commitment_entry)
         .await
@@ -377,8 +382,13 @@ pub async fn handle_deposit<N: NightfallContract>(
             Err(e) => error!("{id} Failed to  map deposit fee commitment to request: {e}"),
         }
 
-        let commitment_entry =
-            CommitmentEntry::new(preimage_fee, nullifier, CommitmentStatus::PendingCreation);
+        let commitment_entry = CommitmentEntry::new(
+            preimage_fee,
+            nullifier,
+            CommitmentStatus::PendingCreation,
+            None,
+            None,
+        );
         // Store the fee commitment in the database, error if storage fails
         db.store_commitment(commitment_entry)
             .await

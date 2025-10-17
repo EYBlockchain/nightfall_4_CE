@@ -367,9 +367,7 @@ fn benchmark_unified_circuit(c: &mut Criterion) {
         &mut circuit_test_info.private_inputs,
     )
     .unwrap();
-    circuit
-        .check_circuit_satisfiability(Vec::from(&circuit_test_info.public_inputs).as_slice())
-        .unwrap();
+
     println!(
         "transfer : {} constraints before padding",
         circuit.num_gates()

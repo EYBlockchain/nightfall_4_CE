@@ -6,7 +6,7 @@ use crate::{
     ports::{commitments::Commitment, db::CommitmentEntryDB},
 };
 use alloy::primitives::Address;
-use alloy::primitives::{TxHash, I256};
+use alloy::primitives::TxHash;
 use ark_bn254::Fr as Fr254;
 use ark_ff::PrimeField;
 use async_trait::async_trait;
@@ -275,8 +275,8 @@ pub struct CommitmentEntry {
         default
     )]
     pub nullifier: Fr254,
-    pub layer_1_transaction_hash: Option<TxHash>,
-    pub layer_2_block_number: Option<I256>,
+    pub layer_1_transaction_hash: Option<TxHash>, // hash of the L1 transaction that created this commitment
+    pub layer_2_block_number: Option<i64>, // block number of the L2 block that created this commitment
 }
 
 impl Commitment for CommitmentEntry {
@@ -306,15 +306,21 @@ impl Commitment for CommitmentEntry {
     }
 }
 impl CommitmentEntryDB for CommitmentEntry {
-    fn new(preimage: Preimage, nullifier: Fr254, status: CommitmentStatus) -> Self {
+    fn new(
+        preimage: Preimage,
+        nullifier: Fr254,
+        status: CommitmentStatus,
+        layer_1_transaction_hash: Option<TxHash>,
+        layer_2_block_number: Option<i64>,
+    ) -> Self {
         let key = preimage.hash().expect("failed to hash preimage");
         Self {
             preimage,
             status,
             nullifier,
             key,
-            layer_1_transaction_hash: None,
-            layer_2_block_number: None,
+            layer_1_transaction_hash,
+            layer_2_block_number,
         }
     }
     fn get_status(&self) -> CommitmentStatus {
@@ -540,16 +546,15 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
         &self,
         commitments: &[Fr254],
         l1_hash: Option<TxHash>,
-        l2_blocknumber: Option<I256>,
+        l2_blocknumber: Option<i64>,
     ) -> Option<()> {
         let commitment_str = commitments
             .iter()
             .map(|c| c.to_hex_string())
             .collect::<Vec<_>>();
         let l1_hash = l1_hash.map(|h| h.to_string());
-        let _l2_blocknumber = l2_blocknumber.map(|b| b.to_string());
         let filter = doc! { "_id": { "$in": commitment_str }};
-        let update = doc! {"$set": { "status": "Unspent", "layer_1_transaction_hash": l1_hash }};
+        let update = doc! {"$set": { "status": "Unspent", "layer_1_transaction_hash": l1_hash, "layer_2_block_number": l2_blocknumber }};
         self.database(DB)
             .collection::<CommitmentEntry>("commitments")
             .update_many(filter, update)

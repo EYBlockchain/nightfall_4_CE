@@ -306,6 +306,8 @@ mod test {
                 },
                 Fr254::default(),
                 CommitmentStatus::Unspent,
+                None,
+                None,
             ),
             CommitmentEntry::new(
                 Preimage {
@@ -315,6 +317,8 @@ mod test {
                 },
                 Fr254::default(),
                 CommitmentStatus::Unspent,
+                None,
+                None,
             ),
             CommitmentEntry::new(
                 Preimage {
@@ -324,6 +328,8 @@ mod test {
                 },
                 Fr254::default(),
                 CommitmentStatus::Unspent,
+                None,
+                None,
             ),
         ];
         commitments_collection
@@ -372,6 +378,8 @@ mod test {
                 },
                 Fr254::default(),
                 CommitmentStatus::Unspent,
+                None,
+                None,
             ),
             CommitmentEntry::new(
                 Preimage {
@@ -381,6 +389,8 @@ mod test {
                 },
                 Fr254::default(),
                 CommitmentStatus::Unspent,
+                None,
+                None,
             ),
             CommitmentEntry::new(
                 Preimage {
@@ -390,6 +400,8 @@ mod test {
                 },
                 Fr254::default(),
                 CommitmentStatus::Unspent,
+                None,
+                None,
             ),
         ];
         commitments_collection
@@ -440,6 +452,8 @@ mod test {
                     },
                     Fr254::default(),
                     CommitmentStatus::Unspent,
+                    None,
+                    None,
                 ),
                 CommitmentEntry::new(
                     Preimage {
@@ -449,6 +463,8 @@ mod test {
                     },
                     Fr254::default(),
                     CommitmentStatus::Unspent,
+                    None,
+                    None,
                 ),
                 CommitmentEntry::new(
                     Preimage {
@@ -458,6 +474,8 @@ mod test {
                     },
                     Fr254::default(),
                     CommitmentStatus::Unspent,
+                    None,
+                    None,
                 ),
                 CommitmentEntry::new(
                     Preimage {
@@ -467,6 +485,8 @@ mod test {
                     },
                     Fr254::default(),
                     CommitmentStatus::Unspent,
+                    None,
+                    None,
                 ),
                 // Fee commitments for nf_token_id: 2
                 CommitmentEntry::new(
@@ -477,6 +497,8 @@ mod test {
                     },
                     Fr254::default(),
                     CommitmentStatus::Unspent,
+                    None,
+                    None,
                 ),
                 CommitmentEntry::new(
                     Preimage {
@@ -486,6 +508,8 @@ mod test {
                     },
                     Fr254::default(),
                     CommitmentStatus::Unspent,
+                    None,
+                    None,
                 ),
                 CommitmentEntry::new(
                     Preimage {
@@ -495,6 +519,8 @@ mod test {
                     },
                     Fr254::default(),
                     CommitmentStatus::Unspent,
+                    None,
+                    None,
                 ),
                 CommitmentEntry::new(
                     Preimage {
@@ -504,6 +530,8 @@ mod test {
                     },
                     Fr254::default(),
                     CommitmentStatus::Unspent,
+                    None,
+                    None,
                 ),
                 CommitmentEntry::new(
                     Preimage {
@@ -513,6 +541,8 @@ mod test {
                     },
                     Fr254::default(),
                     CommitmentStatus::Unspent,
+                    None,
+                    None,
                 ),
             ];
             // Insert the commitments into the database
@@ -601,6 +631,8 @@ mod test {
                     },
                     Fr254::default(),
                     CommitmentStatus::Unspent,
+                    None,
+                    None,
                 ),
                 CommitmentEntry::new(
                     Preimage {
@@ -610,6 +642,8 @@ mod test {
                     },
                     Fr254::default(),
                     CommitmentStatus::Unspent,
+                    None,
+                    None,
                 ),
                 CommitmentEntry::new(
                     Preimage {
@@ -619,6 +653,8 @@ mod test {
                     },
                     Fr254::default(),
                     CommitmentStatus::Unspent,
+                    None,
+                    None,
                 ),
             ];
 
@@ -683,6 +719,8 @@ mod test {
                 },
                 Fr254::default(),
                 CommitmentStatus::Unspent,
+                None,
+                None,
             ),
             CommitmentEntry::new(
                 Preimage {
@@ -692,6 +730,8 @@ mod test {
                 },
                 Fr254::default(),
                 CommitmentStatus::Unspent,
+                None,
+                None,
             ),
             CommitmentEntry::new(
                 Preimage {
@@ -701,6 +741,8 @@ mod test {
                 },
                 Fr254::default(),
                 CommitmentStatus::Unspent,
+                None,
+                None,
             ),
         ];
         commitments_collection
@@ -759,6 +801,8 @@ mod test {
                 },
                 Fr254::default(),
                 CommitmentStatus::Unspent,
+                None,
+                None,
             ),
             CommitmentEntry::new(
                 Preimage {
@@ -768,6 +812,8 @@ mod test {
                 },
                 Fr254::default(),
                 CommitmentStatus::Unspent,
+                None,
+                None,
             ),
             CommitmentEntry::new(
                 Preimage {
@@ -777,6 +823,8 @@ mod test {
                 },
                 Fr254::default(),
                 CommitmentStatus::Unspent,
+                None,
+                None,
             ),
             CommitmentEntry::new(
                 Preimage {
@@ -786,6 +834,8 @@ mod test {
                 },
                 Fr254::default(),
                 CommitmentStatus::Unspent,
+                None,
+                None,
             ),
             CommitmentEntry::new(
                 Preimage {
@@ -795,6 +845,8 @@ mod test {
                 },
                 Fr254::default(),
                 CommitmentStatus::Unspent,
+                None,
+                None,
             ),
         ];
         commitments_collection
@@ -845,6 +897,8 @@ mod test {
                     },
                     Fr254::default(),
                     CommitmentStatus::Unspent,
+                    None,
+                    None,
                 ),
                 CommitmentEntry::new(
                     Preimage {
@@ -854,6 +908,8 @@ mod test {
                     },
                     Fr254::default(),
                     CommitmentStatus::Unspent,
+                    None,
+                    None,
                 ),
                 CommitmentEntry::new(
                     Preimage {
@@ -863,6 +919,8 @@ mod test {
                     },
                     Fr254::default(),
                     CommitmentStatus::Unspent,
+                    None,
+                    None,
                 ),
             ];
 
@@ -913,6 +971,8 @@ mod test {
                     },
                     Fr254::default(),
                     CommitmentStatus::Unspent,
+                    None,
+                    None,
                 ),
                 CommitmentEntry::new(
                     Preimage {
@@ -922,6 +982,8 @@ mod test {
                     },
                     Fr254::default(),
                     CommitmentStatus::Unspent,
+                    None,
+                    None,
                 ),
                 CommitmentEntry::new(
                     Preimage {
@@ -931,6 +993,8 @@ mod test {
                     },
                     Fr254::default(),
                     CommitmentStatus::Unspent,
+                    None,
+                    None,
                 ),
             ];
 
@@ -983,6 +1047,8 @@ mod test {
                 },
                 Fr254::default(),
                 CommitmentStatus::Unspent,
+                None,
+                None,
             ),
             CommitmentEntry::new(
                 Preimage {
@@ -992,6 +1058,8 @@ mod test {
                 },
                 Fr254::default(),
                 CommitmentStatus::Unspent,
+                None,
+                None,
             ),
         ];
         commitments_collection
