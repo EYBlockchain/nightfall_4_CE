@@ -13,6 +13,7 @@ use jf_plonk::{
 use jf_primitives::{pcs::prelude::UnivariateKzgPCS, rescue::sponge::RescueCRHF};
 use jf_utils::fr_to_fq;
 use lib::{
+    deposit_circuit::deposit_circuit_builder,
     entities::DepositData,
     merkle_trees::trees::{MerkleTreeError, MutableTree, TreeMetadata},
     nf_client_proof::PublicInputs,
@@ -23,7 +24,7 @@ use std::collections::HashMap;
 use log::debug;
 use mongodb::{bson::doc, Client};
 
-use super::{deposit_circuit::deposit_circuit_builder, rollup_prover::RollupProofError};
+use super::rollup_prover::RollupProofError;
 use crate::{
     domain::entities::ClientTransactionWithMetaData,
     driven::rollup_prover::Bn254Output,

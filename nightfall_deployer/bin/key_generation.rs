@@ -26,6 +26,7 @@ use jf_primitives::{
     },
 };
 use lib::{
+    deposit_circuit::deposit_circuit_builder,
     entities::DepositData,
     hex_conversion::HexConvertible,
     nf_client_proof::{PrivateInputs, PublicInputs},
@@ -39,8 +40,7 @@ use nightfall_client::{
     ports::{commitments::Commitment, secret_hash::SecretHash},
 };
 use nightfall_proposer::{
-    driven::{deposit_circuit::deposit_circuit_builder, rollup_prover::RollupProver},
-    services::assemble_block::get_block_size,
+    driven::rollup_prover::RollupProver, services::assemble_block::get_block_size,
 };
 use num_bigint::BigUint;
 use std::{collections::HashMap, fs::File};

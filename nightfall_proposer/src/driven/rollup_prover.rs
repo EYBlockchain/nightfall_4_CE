@@ -42,13 +42,10 @@ use jf_primitives::{
     pcs::prelude::UnivariateKzgPCS,
     rescue::sponge::RescueCRHF,
 };
-use jf_relation::{errors::CircuitError, Circuit, PlonkCircuit, Variable};
-use log::{debug, warn};
-use mongodb::{bson::doc, Client};
-
-use super::deposit_circuit::deposit_circuit_builder;
 use jf_relation::BoolVar;
+use jf_relation::{errors::CircuitError, Circuit, PlonkCircuit, Variable};
 use lib::{
+    deposit_circuit::deposit_circuit_builder,
     entities::DepositData,
     error::ConversionError,
     merkle_trees::trees::{MerkleTreeError, MutableTree, TreeMetadata},
@@ -57,6 +54,8 @@ use lib::{
     serialization::{ark_de_hex, ark_se_hex},
     utils::load_key_from_server,
 };
+use log::{debug, warn};
+use mongodb::{bson::doc, Client};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
