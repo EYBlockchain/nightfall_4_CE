@@ -283,3 +283,22 @@ impl std::fmt::Display for ProposerError {
 impl std::error::Error for ProposerError {}
 
 impl warp::reject::Reject for ProposerError {}
+
+// ...existing code...
+
+#[derive(Debug)]
+pub enum ConfigError {
+    InvalidBlockSize(String),
+    Other(String),
+}
+
+impl fmt::Display for ConfigError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ConfigError::InvalidBlockSize(msg) => write!(f, "Invalid block size: {msg}"),
+            ConfigError::Other(msg) => write!(f, "Configuration error: {msg}"),
+        }
+    }
+}
+
+impl std::error::Error for ConfigError {}

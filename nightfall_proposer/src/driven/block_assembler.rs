@@ -2,7 +2,6 @@ use crate::{
     domain::entities::Block,
     initialisation::get_blockchain_client_connection,
     ports::{block_assembly_trigger::BlockAssemblyTrigger, db::TransactionsDB},
-    services::assemble_block::get_block_size,
 };
 use async_trait::async_trait;
 use nightfall_bindings::artifacts::{Nightfall, ProposerManager};
@@ -15,6 +14,7 @@ use lib::{
     error::ConversionError,
     nf_client_proof::Proof,
     shared_entities::OnChainTransaction,
+    utils::get_block_size,
 };
 use log::{debug, error, warn};
 use std::marker::PhantomData;

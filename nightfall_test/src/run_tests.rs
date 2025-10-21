@@ -20,12 +20,12 @@ use ark_std::{collections::HashMap, Zero};
 use configuration::settings::{get_settings, Settings};
 use futures::future::try_join_all;
 use lib::{
+    utils::get_block_size,
     blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
     initialisation::get_blockchain_client_connection,
 };
 use log::{debug, info, warn};
 use nightfall_client::drivers::rest::{client_nf_3::WithdrawResponse, models::DeEscrowDataReq};
-use nightfall_proposer::services::assemble_block::get_block_size;
 use serde_json::Value;
 use test::{
     anvil_reorg, count_spent_commitments, get_erc20_balance, get_erc721_balance, get_fee_balance,
