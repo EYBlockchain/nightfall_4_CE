@@ -1,7 +1,7 @@
 //! This module contains the code for block proving. It builds a struct and implements the `RecursiveProver` trait from nightfish_CE and from the `ports` module.
 
 use crate::{
-    domain::entities::{ClientTransactionWithMetaData, DepositData},
+    domain::entities::ClientTransactionWithMetaData,
     drivers::blockchain::block_assembly::BlockAssemblyError,
     get_deposit_proving_key,
     initialisation::get_db_connection,
@@ -49,6 +49,7 @@ use mongodb::{bson::doc, Client};
 use super::deposit_circuit::deposit_circuit_builder;
 use jf_relation::BoolVar;
 use lib::{
+    entities::DepositData,
     error::ConversionError,
     merkle_trees::trees::{MerkleTreeError, MutableTree, TreeMetadata},
     nf_client_proof::PublicInputs,

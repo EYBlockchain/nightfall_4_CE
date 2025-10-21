@@ -1,12 +1,10 @@
 //! This module contains the code for generating the deposit proofs, these are made by the proposer because they deal with
 //! sha256 hashes within a circuit.
-
-use crate::domain::entities::DepositData;
 use ark_bn254::Fr as Fr254;
 use ark_ff::{PrimeField, Zero};
 use jf_primitives::circuit::{poseidon::PoseidonHashGadget, sha256::Sha256HashGadget};
 use jf_relation::{errors::CircuitError, BoolVar, Circuit, PlonkCircuit, Variable};
-use lib::nf_client_proof::PublicInputs;
+use lib::{entities::DepositData, nf_client_proof::PublicInputs};
 
 /// Storing the 'Variable's needed to crete a deposit commitment.
 /// Note that if it's a deposit_fee, nf_token_id and nf_slot_id will be fee_token_id,

@@ -1,5 +1,5 @@
 use crate::{
-    domain::entities::{Block, ClientTransactionWithMetaData, DepositData, DepositDatawithFee},
+    domain::entities::{Block, ClientTransactionWithMetaData, DepositDatawithFee},
     driven::db::mongo_db::{StoredBlock, DB, PROPOSED_BLOCKS_COLLECTION},
     drivers::blockchain::block_assembly::BlockAssemblyError,
     initialisation::{get_blockchain_client_connection, get_db_connection},
@@ -15,6 +15,7 @@ use configuration::settings::get_settings;
 use jf_primitives::poseidon::{FieldHasher, Poseidon};
 use lib::{
     blockchain_client::BlockchainClientConnection,
+    entities::DepositData,
     hex_conversion::HexConvertible,
     nf_client_proof::{Proof, PublicInputs},
 };

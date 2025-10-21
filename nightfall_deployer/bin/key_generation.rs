@@ -26,6 +26,7 @@ use jf_primitives::{
     },
 };
 use lib::{
+    entities::DepositData,
     hex_conversion::HexConvertible,
     nf_client_proof::{PrivateInputs, PublicInputs},
     nf_token_id::to_nf_token_id_from_str,
@@ -38,7 +39,6 @@ use nightfall_client::{
     ports::{commitments::Commitment, secret_hash::SecretHash},
 };
 use nightfall_proposer::{
-    domain::entities::DepositData,
     driven::{deposit_circuit::deposit_circuit_builder, rollup_prover::RollupProver},
     services::assemble_block::get_block_size,
 };

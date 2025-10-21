@@ -10,11 +10,12 @@ use jf_plonk::{
 use jf_primitives::pcs::prelude::UnivariateKzgPCS;
 use jf_relation::{Arithmetization, Circuit, PlonkCircuit};
 use jf_utils::test_rng;
-use lib::nf_token_id::to_nf_token_id_from_fr254;
-use nf_curves::ed_on_bn254::Fq as Fr254;
-use nightfall_proposer::{
-    domain::entities::DepositData, driven::deposit_circuit::DepositCircuitGadget,
+use lib::{
+    entities::DepositData,
+    nf_token_id::to_nf_token_id_from_fr254
 };
+use nf_curves::ed_on_bn254::Fq as Fr254;
+use nightfall_proposer::driven::deposit_circuit::DepositCircuitGadget;
 use std::time::{Duration, Instant};
 
 fn benchmark_deposit_circuit(c: &mut Criterion) {

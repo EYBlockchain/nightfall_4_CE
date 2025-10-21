@@ -1,5 +1,6 @@
 pub mod blockchain_client;
 pub mod contract_conversions;
+pub mod entities;
 pub mod error;
 pub mod health_check;
 pub mod hex_conversion;
