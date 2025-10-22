@@ -26,13 +26,13 @@ use jf_primitives::{
     },
 };
 use lib::{
-    utils::get_block_size,
     deposit_circuit::deposit_circuit_builder,
     entities::DepositData,
     hex_conversion::HexConvertible,
     nf_client_proof::{PrivateInputs, PublicInputs},
     nf_token_id::to_nf_token_id_from_str,
     plonk_prover::circuits::unified_circuit::unified_circuit_builder,
+    utils::get_block_size,
 };
 use nf_curves::ed_on_bn254::{BabyJubjub as BabyJubJub, Fr as BJJScalar};
 use nightfall_client::{

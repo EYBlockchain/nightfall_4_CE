@@ -20,9 +20,8 @@ use ark_std::{collections::HashMap, Zero};
 use configuration::settings::{get_settings, Settings};
 use futures::future::try_join_all;
 use lib::{
-    utils::get_block_size,
     blockchain_client::BlockchainClientConnection, hex_conversion::HexConvertible,
-    initialisation::get_blockchain_client_connection,
+    initialisation::get_blockchain_client_connection, utils::get_block_size,
 };
 use log::{debug, info, warn};
 use nightfall_client::drivers::rest::{client_nf_3::WithdrawResponse, models::DeEscrowDataReq};
