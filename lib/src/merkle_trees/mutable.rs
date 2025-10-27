@@ -309,7 +309,11 @@ where
         if leaves.is_empty() {
             return Ok((metadata.root, sub_tree_count * sub_tree_capacity as u64));
         }
-        if sub_tree_count > 2_usize.pow(metadata.tree_height) as u64 {
+        let new_sub_trees = leaves.len() / sub_tree_capacity;
+        // Prevent the tree from exceeding its maximum capacity (2^tree_height leaves).
+        // It's valid to exactly fill the tree (== capacity), but any insertion that would
+        // push total subtrees beyond capacity must be rejected.
+        if sub_tree_count + new_sub_trees as u64 > (1u64 << metadata.tree_height) {
             return Err(Self::Error::TreeIsFull);
         }
         // we'll 'add' each sub tree in turn but only write everything to the db at the end. This will be much
@@ -751,7 +755,7 @@ mod test {
         updated_leaves.append(&mut leaves_2.clone());
         let mut more_leaves = leaves.clone();
         more_leaves.append(&mut leaves_4.clone());
-
+        
         // insert the leaves
         let (root, sub_tree_count) = client
             .append_sub_trees(&leaves_1, true, tree_name)
@@ -809,7 +813,7 @@ mod test {
 
         // test that we can append two sub trees at once and get the correct root
         let test_tree = make_complete_tree(SUB_TREE_HEIGHT + TREE_HEIGHT, &hasher, &more_leaves);
-        let (root, _sub_tree_count) = client
+        let (root, sub_tree_count) = client
             .append_sub_trees(&leaves_4, true, tree_name)
             .await
             .unwrap();
@@ -823,5 +827,18 @@ mod test {
         let root = client.get_root(tree_name).await.unwrap();
         let hasher = Poseidon::<Fr254>::new();
         assert!(proof.verify(&root, &hasher).is_ok());
+        
+        // test that we get an error if we try add too many sub trees
+        // check how much tree capacity we have left
+
+        let remaining_capacity = 2_u64.pow(TREE_HEIGHT) - sub_tree_count/SUB_TREE_LEAF_CAPACITY as u64;
+        let leaves_5 = make_rnd_leaves(((remaining_capacity as usize) + 1) * SUB_TREE_LEAF_CAPACITY, &mut rng);
+        let mut too_many_leaves = leaves.clone();  
+        too_many_leaves.append(&mut leaves_5.clone());
+
+        let result = client
+            .append_sub_trees(&leaves_5, true, tree_name)
+            .await;
+        assert!(result.is_err());
     }
 }
