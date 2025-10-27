@@ -212,6 +212,14 @@ where
         }
     }
 
+    // This function:
+    // - Determines the correct position for the leaf based on the current
+    //   `sub_tree_count`.
+    // - Computes the subtree root containing the new leaf (other leaves
+    //   are default values).
+    // - Hashes upwards to update all ancestor nodes and the global root.
+
+
     async fn insert_leaf(
         &self,
         leaf: F,
