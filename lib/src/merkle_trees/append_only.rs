@@ -165,8 +165,9 @@ where
                 .collect::<Vec<_>>(),
             _id: 0,
         };
-        // just time to update the sub-tree count
+        // just time to update the sub-tree count and the root in the metadata
         metadata.sub_tree_count = sub_tree_count;
+        metadata.root = root;
         // then store it all in the database
         if update_tree {
             metadata_collection
