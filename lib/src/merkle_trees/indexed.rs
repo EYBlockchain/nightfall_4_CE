@@ -529,7 +529,7 @@ impl<F: PrimeField + PoseidonParams> IndexedLeaves<F> for mongodb::Client {
         // then this will throw a duplicate key error. So we upsert the entry rather than insert it.
         let padded_leaf = serialize_to_padded_hex(&leaf)?;
         let padded_next_value = serialize_to_padded_hex(&entry.next_value)?;
-        collection
+        let updates_result = collection
             .update_one(
                 doc! { "_id": index as i64 },
                 doc! {
@@ -542,6 +542,11 @@ impl<F: PrimeField + PoseidonParams> IndexedLeaves<F> for mongodb::Client {
             ).upsert(true)
             .await
             .map_err(MerkleTreeError::DatabaseError)?;
+        if updates_result.matched_count == 0 && updates_result.upserted_id.is_none() {
+            return Err(MerkleTreeError::Error(
+                "Failed to update or upsert the node in the database".to_string(),
+            ));
+        }
         let low_leaf_value: F = low_leaf.value;
         self.update_leaf(low_leaf_value, index, leaf, tree_id)
             .await?;
@@ -631,10 +636,15 @@ impl<F: PrimeField + PoseidonParams> IndexedLeaves<F> for mongodb::Client {
         let query = doc! {"value": padded_leaf};
         let update =
             doc! {"$set": {"next_index": new_next_index as i64, "next_value": padded_next_value}};
-        collection
+        let result = collection
             .update_one(query, update)
             .await
             .map_err(MerkleTreeError::DatabaseError)?;
+        if result.matched_count == 0 && result.upserted_id.is_none() {
+            return Err(MerkleTreeError::Error(
+                "Failed to update or upsert the node in the database".to_string(),
+            ));
+        }
         Ok(())
     }
 }

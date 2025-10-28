@@ -186,7 +186,7 @@ where
             let cache_collection = self
                 .database(<Self as MutableTree<F>>::MUT_DB_NAME)
                 .collection::<Node<F>>(&cache_collection_name);
-            cache_collection
+            let update = cache_collection
                 .update_one(
                     doc! {"_id": bson_index},
                     doc! {"$set": {"value": update_value}},
@@ -194,13 +194,19 @@ where
                 .upsert(true)
                 .await
                 .map_err(MerkleTreeError::DatabaseError)?;
+            // Check if the update succeeded
+        if update.matched_count == 0 && update.upserted_id.is_none() {
+            return Err(MerkleTreeError::Error(
+                "Failed to update or upsert the node in the database".to_string(),
+            ));
+        }
             Ok(())
         } else {
             let node_collection_name = format!("{}_{}", tree_id, "nodes");
             let node_collection = self
                 .database(<Self as MutableTree<F>>::MUT_DB_NAME)
                 .collection::<Node<F>>(&node_collection_name);
-            node_collection
+            let update = node_collection
                 .update_one(
                     doc! {"_id": bson_index},
                     doc! {"$set": {"value": update_value}},
@@ -208,6 +214,12 @@ where
                 .upsert(true)
                 .await
                 .map_err(MerkleTreeError::DatabaseError)?;
+            // Check if the update succeeded
+            if update.matched_count == 0 && update.upserted_id.is_none() {
+                return Err(MerkleTreeError::Error(
+                    "Failed to update or upsert the node in the database".to_string(),
+                ));
+            }
             Ok(())
         }
     }
@@ -269,7 +281,17 @@ where
             // save the updated nodes
         }
 
-        join_all(updates).await;
+        let results = join_all(updates).await;
+
+        // Check if all tasks succeeded
+        for result in results {
+            if let Err(e) = result {
+                return Err(MerkleTreeError::Error(format!(
+                    "Failed to execute update: {:?}",
+                    e
+                )));
+            }
+        }
 
         // store the updated sub tree count
         if update_tree {
@@ -280,10 +302,15 @@ where
                 _id: 0,
                 root: hash,
             };
-            metadata_collection
+            let result = metadata_collection
                 .replace_one(doc! {"_id": 0}, new_metadata)
                 .await
                 .map_err(MerkleTreeError::DatabaseError)?;
+            if result.matched_count == 0 && result.upserted_id.is_none() {
+                return Err(MerkleTreeError::Error(
+                    "Failed to update the tree metadata in the database".to_string(),
+                ));
+            }
             // save the cached nodes
             <Self as MutableTree<F>>::flush_cache(self, tree_id).await?;
         }
