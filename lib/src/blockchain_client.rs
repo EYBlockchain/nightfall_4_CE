@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use serde::Deserialize;
 use std::{marker::Sync, sync::Arc};
 use url::Url;
-
+use crate::wallets::WalletType;
 use crate::error::BlockchainClientConnectionError;
 
 /// A blockchain client is able to connect to a blockchain node and sign transactions.

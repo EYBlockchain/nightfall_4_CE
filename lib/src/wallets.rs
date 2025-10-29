@@ -4,9 +4,9 @@ use crate::{
 use alloy::{
     consensus::SignableTransaction,
     network::{Ethereum, NetworkWallet, TxSigner},
-    primitives::{Address, Signature, B256},
+    primitives::{Address, Signature},
     providers::{Provider, ProviderBuilder, WsConnect},
-    signers::{local::PrivateKeySigner, Signer},
+    signers::{local::PrivateKeySigner},
 };
 use alloy::signers::utils::public_key_to_address;
 use async_trait::async_trait;
@@ -338,19 +338,12 @@ impl BlockchainClientConnection for LocalWsClient {
         }
 
     /// Get the PrivateKeySigner if using a local wallet
-    /// /// 
-    /// # Returns
-    /// - `Ok(PrivateKeySigner)` for Local wallet
-    /// - `Err(BlockchainClientConnectionError)` for Azure wallet (key never leaves HSM) use `get_address()` instead)
-    fn get_signer(&self) ->  Result<PrivateKeySigner, BlockchainClientConnectionError>{
+    fn get_signer(&self) -> PrivateKeySigner {
         match &self.wallet {
-            WalletType::Local(signer) => Ok(signer.clone()),
+            WalletType::Local(signer) => signer.clone(),
             WalletType::Azure(_) => {
-                Err(BlockchainClientConnectionError::InvalidWalletType(
-                    "Cannot get PrivateKeySigner for Azure wallet - use provider methods instead".to_string()
-                ))
+                panic!("Cannot get PrivateKeySigner for Azure wallet - use provider methods instead")
             }
-    
         }
     }
  
