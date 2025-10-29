@@ -27,6 +27,8 @@ pub trait BlockchainClientConnection: Clone + Send + Sync {
     fn get_address(&self) -> Address;
 
     fn get_client(&self) -> Arc<dyn Provider>;
+    
+    fn get_wallet_type(&self) -> &WalletType;
 
     fn get_signer(&self) -> PrivateKeySigner
     where

@@ -126,11 +126,28 @@ impl Settings {
             .merge(Toml::file("nightfall.toml").nested())
             .merge(Env::prefixed("NF4_").profile(run_mode.as_str()).split("__"))
             .select(run_mode);
+
         let mut settings: Settings = figment.extract().map_err(|e| format!("{e}"))?;
+        
+        println!(" Before Azure config:");
+        println!("  client.wallet_type = {}", settings.nightfall_client.wallet_type);
+        println!("  proposer.wallet_type = {}", settings.nightfall_proposer.wallet_type);
+        println!("  azure_vault_url = {}", settings.azure_vault_url);
+        println!("  azure_key_name = {}", settings.azure_key_name);
         // Check the wallet type and read additional Azure-specific settings
-        if settings.nightfall_client.wallet_type == "azure" {
+        if settings.nightfall_client.wallet_type == "azure" 
+            || settings.nightfall_proposer.wallet_type == "azure"
+        {
             settings.azure_vault_url = env::var("AZURE_VAULT_URL").unwrap_or_default();
-            settings.azure_key_name = env::var("AZURE_KEY_NAME").unwrap_or_default();
+            settings.azure_key_name = env::var("PROPOSER_SIGNING_KEY_NAME")
+            .or_else(|_| env::var("CLIENT_SIGNING_KEY_NAME"))
+            .or_else(|_| env::var("AZURE_KEY_NAME"))
+            .unwrap_or_default();
+           
+            println!(" After Azure config:"); 
+            println!("  azure_vault_url = {}", settings.azure_vault_url);
+            println!("  azure_key_name = {}", settings.azure_key_name);
+
         }
         trace!("The settings values read were {settings:#?}");
         Ok(settings)
