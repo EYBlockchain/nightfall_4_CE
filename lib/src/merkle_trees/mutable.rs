@@ -286,10 +286,7 @@ where
         // Check if all tasks succeeded
         for result in results {
             if let Err(e) = result {
-                return Err(MerkleTreeError::Error(format!(
-                    "Failed to execute update: {:?}",
-                    e
-                )));
+                return Err(MerkleTreeError::Error(format!("Failed to execute update: {e:?}")));
             }
         }
 
