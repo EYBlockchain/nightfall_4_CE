@@ -1,13 +1,12 @@
 use crate::{
     blockchain_client::BlockchainClientConnection, error::BlockchainClientConnectionError,
 };
-use alloy::signers::utils::public_key_to_address;
 use alloy::{
     consensus::SignableTransaction,
     network::{Ethereum, NetworkWallet, TxSigner},
     primitives::{Address, Signature},
     providers::{Provider, ProviderBuilder, WsConnect},
-    signers::local::PrivateKeySigner,
+    signers::{local::PrivateKeySigner, utils::public_key_to_address},
 };
 use async_trait::async_trait;
 use azure_identity;
