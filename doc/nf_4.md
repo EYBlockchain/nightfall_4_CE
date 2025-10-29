@@ -454,7 +454,6 @@ POST /v1/deposit
 
 ```sh
 curl -i \
-  -H 'X-Request-ID: 16cf74ad-e28c-421e-a125-78bed5e1c435' \
   -H 'Content-Type: application/json' \
   -X POST 'http://localhost:3000/v1/deposit' \
   --data-raw '{
@@ -490,7 +489,6 @@ POST /v1/transfer
 
 ```sh
 curl -i \
-  -H 'X-Request-ID: 16cf74ad-e28c-421e-a125-78bed5e1c435' \
   -H 'Content-Type: application/json' \
   -X POST 'http://localhost:3000/v1/transfer' \
   --data-raw '{
@@ -498,7 +496,7 @@ curl -i \
     "tokenId": "0x00",
     "recipientData": {
       "values": ["0x01"],
-      "recipientCompressedZkpPublicKeys": ["2a2fec73694898850dccccaf188853d3d69b251c8aa2538fcb2be6f470aa7205"]
+      "recipientCompressedZkpPublicKeys": ["0572aa70f4e62bcb8f53a28a1c259bd6d3538818afcccc0d8598486973ec2f2a"]
     },
     "fee": "0x01"
   }'
@@ -525,7 +523,7 @@ The components of the JSON object have the following meaning:
 POST /v1/withdraw
 
 ```sh
-curl -i  -H "X-Request-ID: 16cf74ad-e28c-421e-a125-78bed5e1c435" --request POST 'http://localhost:3000/v1/withdraw' \
+curl -i --request POST 'http://localhost:3000/v1/withdraw' \
     --json '{"ercAddress": "98eddadcfde04dc22a0e62119617e74a6bc77313", "tokenId": "0x01", "tokenType": "1", "value": "0x00", "recipientAddress": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266", "fee": "0x09"}'
 ```
 
@@ -671,7 +669,7 @@ In the case of an ERC721, the balance returned will be `0x00` (because a balance
 GET /v1/fee_balance
 
 ```sh
-curl -i 'http://localhost:3000/v1/fee_balance
+curl -i 'http://localhost:3000/v1/fee_balance'
 ```
 
 Returns: on success, the balance of the fee tokens in the user's layer 2 wallet. Note that, for consistency with other endpoints, the fee balance will be encoded as a big-endian hex string.
