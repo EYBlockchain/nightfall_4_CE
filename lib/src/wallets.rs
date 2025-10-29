@@ -18,6 +18,7 @@ use k256::EncodedPoint;
 use log::{debug, info};
 use std::sync::Arc;
 use url::Url;
+use configuration::settings::WalletTypeConfig;
 
 #[derive(Clone, Debug)]
 pub enum WalletType {
@@ -319,9 +320,9 @@ impl BlockchainClientConnection for LocalWsClient {
     async fn try_from_settings(
         settings: &Self::S,
     ) -> Result<Self, BlockchainClientConnectionError> {
-        match settings.nightfall_client.wallet_type.as_str() {
+        match settings.nightfall_client.wallet_type {
             // Handle different wallet types
-            "local" => {
+            WalletTypeConfig::Local => {
                 info!("Creating local wallet");
                 // Parse the private key from settings
                 let local_signer = settings
@@ -341,7 +342,7 @@ impl BlockchainClientConnection for LocalWsClient {
                     wallet: WalletType::Local(local_signer),
                 })
             }
-            "azure" => {
+            WalletTypeConfig::Azure => {
                 // Initialize AzureWallet
                 let azure_wallet =
                     AzureWallet::new(&settings.azure_vault_url, &settings.azure_key_name).await?;
@@ -358,14 +359,9 @@ impl BlockchainClientConnection for LocalWsClient {
                     wallet: WalletType::Azure(azure_wallet),
                 })
             }
-            "YubiWallet" => todo!(),
-            "AwsSigner" => todo!(),
-            "EYTransactionManager" => todo!(),
-            _ => {
-                return Err(BlockchainClientConnectionError::InvalidWalletType(
-                    settings.nightfall_client.wallet_type.clone(),
-                ))
-            }
+            WalletTypeConfig::YubiWallet => todo!(),
+            WalletTypeConfig::AwsSigner => todo!(),
+            WalletTypeConfig::EyTransactionManager => todo!(),
         }
     }
 }
