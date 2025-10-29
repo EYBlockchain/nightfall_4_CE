@@ -90,7 +90,6 @@ impl AzureWallet {
             .sign(&self.key_name, SignatureAlgorithm::ES256K, digest_base64)
             .await?;
 
-        // let signature_bytes = match BASE64_STANDARD.decode(&sign_result.signature)
         let signature_bytes = &sign_result.signature;
         let (r, s) = Self::parse_signature(signature_bytes)?;
         // Recover v value (recovery id) for Ethereum signature
