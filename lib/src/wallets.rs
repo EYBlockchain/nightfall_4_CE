@@ -116,12 +116,6 @@ impl AzureWallet {
         self.address
     }
 
-    // Helper functions
-    //================================
-    // These private functions encapsulate complex operations such as parsing DER
-    // signatures, converting bytes to fixed-size arrays, and recovering Ethereum
-    // addresses, providing modularity and clarity to the signing logic.
-
     /// Extract the uncompressed public key from the JWK (JSON Web Key) in the key bundle
     fn extract_public_key_from_jwk(
         key_bundle: &KeyVaultKey,
@@ -156,7 +150,7 @@ impl AzureWallet {
         Ok(verifying_key)
     }
 
-    /// Parse a DER-encoded ECDSA signature to extract r and s components
+    /// Parse an ECDSA signature returned by Azure into (r, s) components
     fn parse_signature(
         der: &[u8],
     ) -> Result<([u8; 32], [u8; 32]), Box<dyn std::error::Error + Send + Sync>> {
