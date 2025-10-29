@@ -1,23 +1,23 @@
 use crate::{
     blockchain_client::BlockchainClientConnection, error::BlockchainClientConnectionError,
 };
+use alloy::signers::utils::public_key_to_address;
 use alloy::{
     consensus::SignableTransaction,
     network::{Ethereum, NetworkWallet, TxSigner},
     primitives::{Address, Signature},
     providers::{Provider, ProviderBuilder, WsConnect},
-    signers::{local::PrivateKeySigner},
+    signers::local::PrivateKeySigner,
 };
-use alloy::signers::utils::public_key_to_address;
 use async_trait::async_trait;
-use k256::ecdsa::{RecoveryId, Signature as K256Signature, VerifyingKey};
 use azure_identity;
 use azure_security_keyvault::{prelude::*, KeyClient};
 use base64::prelude::*;
+use k256::ecdsa::{RecoveryId, Signature as K256Signature, VerifyingKey};
+use k256::EncodedPoint;
 use log::{debug, info};
 use std::sync::Arc;
 use url::Url;
-use k256::EncodedPoint;
 
 #[derive(Clone, Debug)]
 pub enum WalletType {
@@ -60,10 +60,9 @@ impl AzureWallet {
 
         // Extract public key and derive Ethereum address
         let verifying_key = Self::extract_public_key_from_jwk(&key_bundle)?;
-       
+
         // Derive address
         let address = public_key_to_address(&verifying_key);
-        info!(" Azure Wallet initialized, address: {address:?}");
 
         Ok(Self {
             key_client: Arc::new(key_client),
@@ -85,38 +84,24 @@ impl AzureWallet {
         let digest_base64 = BASE64_STANDARD.encode(message_hash);
 
         // Request signature from Azure Key Vault
-        info!(" Step 2: Calling Azure");
         let sign_result = self
             .key_client
             .sign(&self.key_name, SignatureAlgorithm::ES256K, digest_base64)
             .await?;
-        info!(" Step 3: Decoding base64");
 
-       // let signature_bytes = match BASE64_STANDARD.decode(&sign_result.signature) 
+        // let signature_bytes = match BASE64_STANDARD.decode(&sign_result.signature)
         let signature_bytes = &sign_result.signature;
-        // Parse DER signature to obtain r and s
-        info!(" Step 4: Parsing DER signature");
-      
-       let (r, s) = Self::parse_signature(signature_bytes)?;
-
-        info!(" r (32 bytes): 0x{}", hex::encode(&r));
-        info!(" s (32 bytes): 0x{}", hex::encode(&s));
-        // Calculate recovery ID v
-
-        info!("🔑 Step 5: Calculating recovery ID");
+        let (r, s) = Self::parse_signature(signature_bytes)?;
+        // Recover v value (recovery id) for Ethereum signature
         let mut sig_bytes_64 = [0u8; 64];
         sig_bytes_64[0..32].copy_from_slice(&r);
         sig_bytes_64[32..64].copy_from_slice(&s);
         let sig = K256Signature::from_bytes(&sig_bytes_64.into())?;
-        
-        let recid = RecoveryId::trial_recovery_from_prehash(
-            &self.verifying_key,
-            message_hash,
-            &sig
-        )?;
-        
+
+        let recid =
+            RecoveryId::trial_recovery_from_prehash(&self.verifying_key, message_hash, &sig)?;
+
         let v = recid.to_byte();
-        info!(" Recovery ID: v={}", v);
 
         // Construire signature finale
         let mut sig_bytes = [0u8; 65];
@@ -124,7 +109,6 @@ impl AzureWallet {
         sig_bytes[32..64].copy_from_slice(&s);
         sig_bytes[64] = v;
 
-        info!("Signature created");
         Ok(Signature::from_raw_array(&sig_bytes)?)
     }
 
@@ -146,9 +130,9 @@ impl AzureWallet {
         let jwk = &key_bundle.key;
 
         let curve = jwk.curve_name.as_deref();
-            if curve != Some("SECP256K1") && curve != Some("P-256K") {
-                return Err(format!("Expected secp256k1 curve, got {:?}", curve).into());
-            }
+        if curve != Some("SECP256K1") && curve != Some("P-256K") {
+            return Err(format!("Expected secp256k1 curve, got {curve:?}").into());
+        }
 
         let x = jwk.x.as_ref().ok_or("Missing x coordinate")?;
         let y = jwk.y.as_ref().ok_or("Missing y coordinate")?;
@@ -165,48 +149,34 @@ impl AzureWallet {
         public_key.extend_from_slice(y);
 
         let encoded_point = EncodedPoint::from_bytes(&public_key)
-        .map_err(|e| format!("Invalid encoded point: {}", e))?;
-    
+            .map_err(|e| format!("Invalid encoded point: {e}"))?;
+
         let verifying_key = VerifyingKey::from_encoded_point(&encoded_point)
-            .map_err(|e| format!("Invalid verifying key: {}", e))?;
+            .map_err(|e| format!("Invalid verifying key: {e}"))?;
 
-    Ok(verifying_key)
+        Ok(verifying_key)
     }
-
 
     /// Parse a DER-encoded ECDSA signature to extract r and s components
     fn parse_signature(
         der: &[u8],
     ) -> Result<([u8; 32], [u8; 32]), Box<dyn std::error::Error + Send + Sync>> {
-    // Use k256 crate to parse DER signature
+        if der.len() == 64 {
+            let sig = K256Signature::from_slice(der)?;
+            let normalized_sig = sig.normalize_s().unwrap_or(sig);
 
-    info!(" Parsing signature: {} bytes", der.len());
-    info!(" First byte: 0x{:02x}", der[0]);
-
-   if der.len() == 64 {
-        info!(" Using RAW format (64 bytes = r || s)");
-        
-        let sig = K256Signature::from_slice(der)?;
+            let r: [u8; 32] = normalized_sig.r().to_bytes().into();
+            let s: [u8; 32] = normalized_sig.s().to_bytes().into();
+            return Ok((r, s));
+        }
+        let sig = K256Signature::from_der(der)?;
         let normalized_sig = sig.normalize_s().unwrap_or(sig);
-        
+
         let r: [u8; 32] = normalized_sig.r().to_bytes().into();
         let s: [u8; 32] = normalized_sig.s().to_bytes().into();
-        
-        info!(" r: 0x{}", hex::encode(&r));
-        info!(" s: 0x{}", hex::encode(&s));
-        
-        return Ok((r, s));
+
+        Ok((r, s))
     }
-    info!(" Using DER format");
-    let sig = K256Signature::from_der(der)?;
-    let normalized_sig = sig.normalize_s().unwrap_or(sig);
-    
-    let r: [u8; 32] = normalized_sig.r().to_bytes().into();
-    let s: [u8; 32] = normalized_sig.s().to_bytes().into();
-
-    Ok((r, s))
-  } 
-
 }
 
 // Implement Debug trait for AzureWallet for better logging
@@ -222,7 +192,6 @@ impl std::fmt::Debug for AzureWallet {
 /// Implement TxSigner for AzureWallet to sign transactions
 #[async_trait]
 impl TxSigner<Signature> for AzureWallet {
-  
     fn address(&self) -> Address {
         self.address
     }
@@ -230,13 +199,12 @@ impl TxSigner<Signature> for AzureWallet {
         &self,
         tx: &mut dyn alloy::consensus::SignableTransaction<Signature>,
     ) -> Result<Signature, alloy::signers::Error> {
-
         let signature_hash = tx.signature_hash();
         let hash_bytes: [u8; 32] = signature_hash.0;
         let signature = self
             .sign(&hash_bytes)
             .await
-            .map_err(|e| alloy::signers::Error::other(e))?;
+            .map_err(alloy::signers::Error::other)?;
 
         Ok(signature)
     }
@@ -255,36 +223,34 @@ impl NetworkWallet<Ethereum> for AzureWallet {
     fn signer_addresses(&self) -> impl Iterator<Item = Address> {
         std::iter::once(self.address)
     }
-
+    #[allow(clippy::manual_async_fn)]
     fn sign_transaction_from(
         &self,
         sender: Address,
         tx: <Ethereum as alloy::network::Network>::UnsignedTx,
-    ) -> impl std::future::Future<Output = Result<<Ethereum as alloy::network::Network>::TxEnvelope, alloy::signers::Error>> + Send{
+    ) -> impl std::future::Future<
+        Output = Result<<Ethereum as alloy::network::Network>::TxEnvelope, alloy::signers::Error>,
+    > + Send {
         async move {
-
-            eprintln!(" Sender: {:?}", sender);
-            eprintln!(" Azure address: {:?}", self.address);
             if sender != self.address {
                 return Err(alloy::signers::Error::other(format!(
                     "Signer address mismatch: expected {}, got {}",
                     self.address, sender
                 )));
             }
-
             let tx_hash = tx.signature_hash();
             let hash_bytes: [u8; 32] = tx_hash.0;
-            
-            let signature = self.sign(&hash_bytes)
-                .await
-                .map_err(|e| alloy::signers::Error::other(e))?;
 
-                eprintln!(" Azure signed successfully!");
-                
-        let signed = tx.into_signed(signature);
-        Ok(<Ethereum as alloy::network::Network>::TxEnvelope::from(signed))
+            let signature = self
+                .sign(&hash_bytes)
+                .await
+                .map_err(alloy::signers::Error::other)?;
+            let signed = tx.into_signed(signature);
+            Ok(<Ethereum as alloy::network::Network>::TxEnvelope::from(
+                signed,
+            ))
+        }
     }
-}
 }
 
 #[derive(Clone)]
@@ -334,19 +300,21 @@ impl BlockchainClientConnection for LocalWsClient {
     }
 
     fn get_wallet_type(&self) -> &WalletType {
-            &self.wallet
-        }
+        &self.wallet
+    }
 
     /// Get the PrivateKeySigner if using a local wallet
     fn get_signer(&self) -> PrivateKeySigner {
         match &self.wallet {
             WalletType::Local(signer) => signer.clone(),
             WalletType::Azure(_) => {
-                panic!("Cannot get PrivateKeySigner for Azure wallet - use provider methods instead")
+                panic!(
+                    "Cannot get PrivateKeySigner for Azure wallet - use provider methods instead"
+                )
             }
         }
     }
- 
+
     /// Create a new instance from configuration settings
     async fn try_from_settings(
         settings: &Self::S,
@@ -380,12 +348,10 @@ impl BlockchainClientConnection for LocalWsClient {
 
                 let ws = WsConnect::new(settings.ethereum_client_url.clone());
                 let provider = ProviderBuilder::new()
-                    .wallet(azure_wallet.clone()) 
+                    .wallet(azure_wallet.clone())
                     .connect_ws(ws)
                     .await
                     .map_err(|e| BlockchainClientConnectionError::ProviderError(e.to_string()))?;
-
-                    info!("Provider created with wallet: {:?}", azure_wallet.address());
 
                 Ok(Self {
                     provider: Arc::new(provider),
@@ -403,5 +369,3 @@ impl BlockchainClientConnection for LocalWsClient {
         }
     }
 }
-
-
