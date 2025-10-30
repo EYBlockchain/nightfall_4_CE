@@ -187,7 +187,7 @@ impl NightfallContract for Nightfall::NightfallCalls {
         })?;
         let max_fee_per_gas = gas_price * 2;
         let max_priority_fee_per_gas = gas_price;
-        let gas_limit = 500000000u64;
+        let gas_limit = 5000000u64;
         let call = contract
             .descrow_funds(decode_data, token_type.into())
             .nonce(nonce)
