@@ -18,7 +18,6 @@ FROM debian:bookworm-slim
 WORKDIR /app
 COPY --from=builder /app/bin/client bin/
 COPY configuration/bin/proving_key configuration/bin/deposit_proving_key configuration/bin/
-# COPY configuration/toml/addresses.toml configuration/toml/
 COPY .env *.env nightfall.toml .
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl3 wget
