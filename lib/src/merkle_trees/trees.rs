@@ -368,6 +368,15 @@ pub(crate) mod helper_functions {
         let n_nodes = 2_usize.pow(height + 1) - 1;
         let n_leaves = 2_usize.pow(height);
         let first_leaf_index = n_nodes - n_leaves;
+        // Ensure the number of provided leaves fits within the allocated leaf nodes
+    if leaves.len() > n_leaves {
+        panic!(
+            "Too many leaves provided: {} leaves for a tree of height {} (max {} leaves allowed)",
+            leaves.len(),
+            height,
+            n_leaves
+        );
+    }
         let mut nodes = vec![N::zero(); n_nodes];
         let last_leaf_index = first_leaf_index + leaves.len();
         // copy the leaves into the leaf nodes

@@ -112,7 +112,9 @@ pub struct CertificateConfig {
 #[allow(unused)]
 pub struct Settings {
     pub signing_key: String,
+    #[serde(default)]
     pub azure_vault_url: String,
+    #[serde(default)]
     pub azure_key_name: String,
     pub log_app_only: bool,
     pub test_x509_certificates: bool,
