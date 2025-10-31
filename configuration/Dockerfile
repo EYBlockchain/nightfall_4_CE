@@ -19,12 +19,6 @@ COPY ./configuration/bin/* /var/www/html/
 RUN chown -R nginx:nginx /var/www/html \     
     && chmod -R 755 /var/www/html  
 
-# Copy and set entrypoint script
-# COPY ./configuration/entrypoint.sh /entrypoint.sh
-# RUN chmod +x /entrypoint.sh
-
-# ENTRYPOINT ["/entrypoint.sh"]
-
 CMD ["nginx", "-g", "daemon off;"]
 
 
