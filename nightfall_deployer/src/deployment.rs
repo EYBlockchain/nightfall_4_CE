@@ -127,10 +127,6 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn std::er
     let url = url::Url::parse(&settings.configuration_url)?.join("addresses")?;
     info!("Saving addresses for chain_id: {}", addresses.chain_id);
 
-    // addresses
-    //     .save(Sources::Http(url))
-    //     .await
-    //     .expect("Failed to save addresses to configuration server");
     match addresses.save(Sources::Http(url.clone())).await {
         Ok(status) => {
             info!("Successfully saved addresses! HTTP Status: {status}");
