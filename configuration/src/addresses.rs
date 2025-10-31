@@ -1,12 +1,12 @@
 use crate::settings::Settings;
 use alloy::primitives::Address;
 use log::{info, warn};
+use rand::Rng;
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use std::net::{IpAddr, ToSocketAddrs};
 use std::{error::Error, fmt, sync::OnceLock};
 use url::Url;
-use rand::Rng;
 
 // Note: Chain validation could be added here if accepting external addresses.
 // Currently not needed as addresses come from controlled deployment/config.

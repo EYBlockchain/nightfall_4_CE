@@ -119,10 +119,9 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn std::er
         }
         Err(e) => {
             error!("Failed to parse deployment broadcast file: {e}");
-            return Err(format!(
-                "Deployment failed: could not extract proxy addresses: {e}"
-            )
-            .into());
+            return Err(
+                format!("Deployment failed: could not extract proxy addresses: {e}").into(),
+            );
         }
     }
     let url = url::Url::parse(&settings.configuration_url)?.join("addresses")?;
