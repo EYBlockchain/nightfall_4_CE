@@ -443,7 +443,6 @@ services:
     #   - "8080:80"     replace with a port that is exposed for configuration service if required
     platform: linux/amd64 # Required for building on M1 Macs
     volumes:
-      - html-data:/var/www/html
       - type: bind
         source: ./configuration/toml
         target: /var/www/html/configuration/toml
@@ -558,7 +557,6 @@ volumes:
   # mongodb_client2_data:
   # mongodb_proposer_data:
   address_data:
-  html-data: {}
 
 networks:
    nightfall_network:

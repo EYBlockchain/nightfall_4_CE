@@ -63,6 +63,8 @@ pub async fn run_tests(
     let zkp_key2 = get_key(url, &key_request2).await.unwrap();
     info!("* zkp keys created");
 
+    let _ = configuration::addresses::get_addresses();
+    info!("* contract addresses obtained");
     // Validate all certificates (clients and proposer)
     // (name, cert_path, key_path, url)
     let certs: [(&'static str, &'static str, &'static str, Url); 3] = [

@@ -271,31 +271,42 @@ impl Addresses {
             return Err(AddressesError::ZeroAddress("x509".into()));
         }
         Ok(())
-    }
+    }  
     pub fn load(s: Sources) -> Result<Self, AddressesError> {
         match s {
             Sources::Http(u) => {
                 let host = u.host_str()
-                .ok_or_else(|| AddressesError::Toml("Missing host".into()))?;
+                    .ok_or_else(|| AddressesError::Toml("Missing host".into()))?;
+                
                 // Resolve and validate IPs once
                 let port = u.port_or_known_default().unwrap_or(443);
+                
+                // Get run mode to determine if private IPs are allowed
+                let run_mode = std::env::var("NF4_RUN_MODE").unwrap_or_default();
+                let is_dev = matches!(run_mode.as_str(), "development" | "sync_test");
+                
                 let addrs: Vec<_> = (host, port)
                     .to_socket_addrs()
                     .map_err(|_| AddressesError::CouldNotGetUrl)?
                     .map(|sa| sa.ip())
-                    .filter(|ip| !is_private_ip(*ip))
+                    .filter(|ip| {
+                        // Allow private IPs in development, block in production
+                        is_dev || !is_private_ip(*ip)
+                    })
                     .collect();
+                    
                 if addrs.is_empty() {
                     return Err(AddressesError::Toml(format!(
                         "Host {host} resolved only to private/loopback addresses"
                     )));
                 }
+                
                 // Build client with pinned DNS
                 let mut builder = reqwest::blocking::Client::builder()
                     .redirect(reqwest::redirect::Policy::none())
                     .timeout(std::time::Duration::from_secs(10))
                     .no_proxy();
-
+    
                 // Pin DNS: force connections to validated IPs only
                 for ip in &addrs {
                     builder = builder.resolve(host, SocketAddr::new(*ip, port));
@@ -303,12 +314,12 @@ impl Addresses {
                 let client = builder
                     .build()
                     .map_err(|_| AddressesError::CouldNotGetUrl)?;
-
+    
                 let resp = client
                     .get(u)
                     .send()
                     .map_err(|_| AddressesError::CouldNotGetUrl)?;
-
+    
                 let data = resp.text().map_err(|_| AddressesError::BadResponse)?;
                 let addresses: Self =
                     toml::from_str(&data).map_err(|e| AddressesError::Toml(format!("{e}")))?;
