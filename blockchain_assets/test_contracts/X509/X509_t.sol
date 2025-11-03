@@ -137,6 +137,9 @@ contract X509Test is Test {
                 oidGroup: 1, 
                 addr: msg.sender
             });
+        vm.expectRevert("X509: OID group does not match allowed EKUs and Certificate Policies");
+        x509.validateCertificate(invalid_oid_certificate_args);
+
 
 
         X509.CertificateArgs memory endUser_certificate_args = X509
