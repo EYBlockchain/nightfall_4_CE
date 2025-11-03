@@ -4,7 +4,7 @@ use log::{info, warn};
 use rand::Rng;
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
-use std::net::{IpAddr, ToSocketAddrs, SocketAddr};
+use std::net::{IpAddr, ToSocketAddrs};
 use std::{error::Error, fmt, sync::OnceLock};
 use url::Url;
 
