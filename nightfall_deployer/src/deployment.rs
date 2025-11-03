@@ -9,7 +9,12 @@ use jf_plonk::recursion::RecursiveProver;
 use log::{error, info};
 use nightfall_proposer::driven::rollup_prover::RollupProver;
 use serde_json::Value;
-use std::{collections::HashMap, fs::File, os::unix::process::ExitStatusExt, path::{Path, PathBuf}};
+use std::{
+    collections::HashMap,
+    fs::File,
+    os::unix::process::ExitStatusExt,
+    path::{Path, PathBuf},
+};
 
 fn proxies_from_broadcast(path: &Path) -> anyhow::Result<HashMap<&'static str, Address>> {
     let v: Value = serde_json::from_reader(File::open(path)?)?;
@@ -124,16 +129,11 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn std::er
             );
         }
     }
-    // -------- Save addresses via HTTP PUT and direct file write --------
-    let url = url::Url::parse(&settings.configuration_url)?.join("addresses")?;
-    info!("Saving addresses for chain_id: {}", addresses.chain_id);
-    
-    let _ = addresses.save(Sources::Http(url)).await;
-
+    // -------- Save addresses to file --------
     let file_path = PathBuf::from("/app/configuration/toml/addresses.toml");
-    std::fs::create_dir_all(file_path.parent().unwrap())?;
-    let toml_data = toml::to_string(&addresses)?;
-    std::fs::write(&file_path, toml_data)?;
+    info!("Saving addresses for chain_id: {}", addresses.chain_id);
+    addresses.save(Sources::File(file_path)).await?;
+    info!("Addresses saved successfully");
     Ok(())
 }
 

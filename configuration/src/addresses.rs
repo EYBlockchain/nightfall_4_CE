@@ -4,8 +4,13 @@ use log::{info, warn};
 use rand::Rng;
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
-use std::net::{IpAddr, ToSocketAddrs};
-use std::{error::Error, fmt, sync::OnceLock};
+use std::{
+    error::Error,
+    fmt,
+    net::{IpAddr, SocketAddr, ToSocketAddrs},
+    path::PathBuf,
+    sync::OnceLock,
+};
 use url::Url;
 
 // Note: Chain validation could be added here if accepting external addresses.
@@ -125,6 +130,16 @@ pub fn get_addresses() -> &'static Addresses {
     static ADDRESSES: OnceLock<Addresses> = OnceLock::new();
     ADDRESSES.get_or_init(|| {
         let settings = Settings::new().expect("Could not load settings");
+        let file_path = PathBuf::from("/app/configuration/toml/addresses.toml");
+        if let Ok(addresses) = Addresses::load(Sources::File(file_path)) {
+            if addresses.chain_id == settings.network.chain_id {
+                info!("Loaded contract addresses from local file");
+                return addresses;
+            } else {
+                warn!("File exists but chain_id mismatch: {} != {}", 
+                      addresses.chain_id, settings.network.chain_id);
+            }
+        }
         let base = validate_config_url(&settings.configuration_url).expect("Invalid or untrusted configuration URL");
         let url = base.join("addresses").expect("Could not parse addresses server endpoint");
         // Retry logic: wait for deployer to finish and save addresses
@@ -172,6 +187,7 @@ pub enum AddressesError {
     ZeroAddress(String),
     InvalidAddress { field: String, value: String },
     CouldNotPostUrl,
+    CouldNotReadFile,
     InvalidFormat(String),
     InvalidLength(String),
     InvalidChecksum(String),
@@ -191,6 +207,7 @@ impl fmt::Display for AddressesError {
                 write!(f, "InvalidAddress in {field}: {value}")
             }
             Self::CouldNotPostUrl => write!(f, "CouldNotPostUrl"),
+            Self::CouldNotReadFile => write!(f, "CouldNotReadFile"),
             Self::InvalidFormat(s) => write!(f, "InvalidFormat:{s}"),
             Self::InvalidLength(s) => write!(f, "InvalidLength:{s}"),
             Self::InvalidChecksum(s) => write!(f, "InvalidChecksum:{s}"),
@@ -243,6 +260,7 @@ impl Addresses {
 }
 pub enum Sources {
     Http(Url),
+    File(PathBuf),
 }
 
 #[derive(Debug)]
@@ -271,78 +289,65 @@ impl Addresses {
             return Err(AddressesError::ZeroAddress("x509".into()));
         }
         Ok(())
-    }  
-    // pub fn load(s: Sources) -> Result<Self, AddressesError> {
-    //     match s {
-    //         Sources::Http(u) => {
-    //             let host = u.host_str()
-    //                 .ok_or_else(|| AddressesError::Toml("Missing host".into()))?;
-                
-    //             // Resolve and validate IPs once
-    //             let port = u.port_or_known_default().unwrap_or(443);
-                
-    //             // Get run mode to determine if private IPs are allowed
-    //             let run_mode = std::env::var("NF4_RUN_MODE").unwrap_or_default();
-    //             let is_dev = matches!(run_mode.as_str(), "development" | "sync_test");
-                
-    //             let addrs: Vec<_> = (host, port)
-    //                 .to_socket_addrs()
-    //                 .map_err(|_| AddressesError::CouldNotGetUrl)?
-    //                 .map(|sa| sa.ip())
-    //                 .filter(|ip| {
-    //                     // Allow private IPs in development, block in production
-    //                     is_dev || !is_private_ip(*ip)
-    //                 })
-    //                 .collect();
-                    
-    //             if addrs.is_empty() {
-    //                 return Err(AddressesError::Toml(format!(
-    //                     "Host {host} resolved only to private/loopback addresses"
-    //                 )));
-    //             }
-                
-    //             // Build client with pinned DNS
-    //             let mut builder = reqwest::blocking::Client::builder()
-    //                 .redirect(reqwest::redirect::Policy::none())
-    //                 .timeout(std::time::Duration::from_secs(10))
-    //                 .no_proxy();
-    
-    //             // Pin DNS: force connections to validated IPs only
-    //             for ip in &addrs {
-    //                 builder = builder.resolve(host, SocketAddr::new(*ip, port));
-    //             }
-    //             let client = builder
-    //                 .build()
-    //                 .map_err(|_| AddressesError::CouldNotGetUrl)?;
-    
-    //             let resp = client
-    //                 .get(u)
-    //                 .send()
-    //                 .map_err(|_| AddressesError::CouldNotGetUrl)?;
-    
-    //             let data = resp.text().map_err(|_| AddressesError::BadResponse)?;
-    //             let addresses: Self =
-    //                 toml::from_str(&data).map_err(|e| AddressesError::Toml(format!("{e}")))?;
-    //             addresses.ensure_nonzero()?;
-    //             Ok(addresses)
-    //         }
-    //     }
-    // }
-     pub fn load(s: Sources) -> Result<Self, AddressesError> {
+    }
+    pub fn load(s: Sources) -> Result<Self, AddressesError> {
         match s {
             Sources::Http(u) => {
-                let client = reqwest::blocking::Client::builder()
+                let host = u
+                    .host_str()
+                    .ok_or_else(|| AddressesError::Toml("Missing host".into()))?;
+
+                // Resolve and validate IPs once
+                let port = u.port_or_known_default().unwrap_or(443);
+
+                // Get run mode to determine if private IPs are allowed
+                let run_mode = std::env::var("NF4_RUN_MODE").unwrap_or_default();
+                let is_dev = matches!(run_mode.as_str(), "development" | "sync_test");
+
+                let addrs: Vec<_> = (host, port)
+                    .to_socket_addrs()
+                    .map_err(|_| AddressesError::CouldNotGetUrl)?
+                    .map(|sa| sa.ip())
+                    .filter(|ip| {
+                        // Allow private IPs in development, block in production
+                        is_dev || !is_private_ip(*ip)
+                    })
+                    .collect();
+
+                if addrs.is_empty() {
+                    return Err(AddressesError::Toml(format!(
+                        "Host {host} resolved only to private/loopback addresses"
+                    )));
+                }
+
+                // Build client with pinned DNS
+                let mut builder = reqwest::blocking::Client::builder()
                     .redirect(reqwest::redirect::Policy::none())
                     .timeout(std::time::Duration::from_secs(10))
+                    .no_proxy();
+
+                // Pin DNS: force connections to validated IPs only
+                for ip in &addrs {
+                    builder = builder.resolve(host, SocketAddr::new(*ip, port));
+                }
+                let client = builder
                     .build()
                     .map_err(|_| AddressesError::CouldNotGetUrl)?;
-    
+
                 let resp = client
                     .get(u)
                     .send()
                     .map_err(|_| AddressesError::CouldNotGetUrl)?;
-    
+
                 let data = resp.text().map_err(|_| AddressesError::BadResponse)?;
+                let addresses: Self =
+                    toml::from_str(&data).map_err(|e| AddressesError::Toml(format!("{e}")))?;
+                addresses.ensure_nonzero()?;
+                Ok(addresses)
+            }
+            Sources::File(path) => {
+                let data = std::fs::read_to_string(&path)
+                    .map_err(|e| AddressesError::Toml(format!("Could not read file: {e}")))?;
                 let addresses: Self =
                     toml::from_str(&data).map_err(|e| AddressesError::Toml(format!("{e}")))?;
                 addresses.ensure_nonzero()?;
@@ -363,6 +368,16 @@ impl Addresses {
                     .await
                     .map_err(|_| AddressesError::CouldNotPostUrl)?;
                 Ok(resp.status())
+            }
+            Sources::File(path) => {
+                let data =
+                    toml::to_string(&self).map_err(|e| AddressesError::Toml(format!("{e}")))?;
+                std::fs::create_dir_all(path.parent().unwrap()).map_err(|e| {
+                    AddressesError::Toml(format!("Could not create directory: {e}"))
+                })?;
+                std::fs::write(&path, data)
+                    .map_err(|e| AddressesError::Toml(format!("Could not write file: {e}")))?;
+                Ok(StatusCode::OK)
             }
         }
     }
