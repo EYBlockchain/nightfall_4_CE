@@ -127,6 +127,7 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn std::er
     // -------- Save addresses via HTTP PUT and direct file write --------
     let url = url::Url::parse(&settings.configuration_url)?.join("addresses")?;
     info!("Saving addresses for chain_id: {}", addresses.chain_id);
+    
     let _ = addresses.save(Sources::Http(url)).await;
 
     let file_path = PathBuf::from("/app/configuration/toml/addresses.toml");
@@ -134,7 +135,6 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn std::er
     let toml_data = toml::to_string(&addresses)?;
     std::fs::write(&file_path, toml_data)?;
     Ok(())
-
 }
 
 /// Function should only be called after we have checked forge is installed by running 'which forge'
