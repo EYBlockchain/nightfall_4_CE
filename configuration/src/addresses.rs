@@ -362,7 +362,7 @@ impl Addresses {
                     warn!("File too large: {} bytes", metadata.len());
                     return Err(AddressesError::Toml("File too large".into()));
                 }
-                
+
                 let data = std::fs::read_to_string(&canonical)
                     .map_err(|e| AddressesError::Toml(format!("Could not read file: {e}")))?;
                 let addresses: Self =
@@ -389,7 +389,7 @@ impl Addresses {
             Sources::File(path) => {
                 let expected_base = PathBuf::from("/app/configuration/toml");
                 if !path.starts_with(&expected_base) {
-                    warn!("Attempted write outside allowed directory: {:?}", path);
+                    warn!("Attempted write outside allowed directory: {path:?}");
                     return Err(AddressesError::Toml("Path outside allowed directory".into()));
                 }
                 let data = toml::to_string(&self)
