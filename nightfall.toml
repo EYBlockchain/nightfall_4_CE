@@ -131,6 +131,7 @@ extended_key_usages = [
 certificate_policies = [
     "0x06032d0607000000000000000000000000000000000000000000000000000000",
 ]
+oid_group = 0
 
 [base_sepolia]
 # This is the base_sepolia environment - add an appropriate configuration here, using development as a template

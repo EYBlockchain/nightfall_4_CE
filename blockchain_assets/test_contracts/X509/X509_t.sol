@@ -126,6 +126,18 @@ contract X509Test is Test {
         vm.expectRevert("X509: Signature is invalid");
         x509.validateCertificate(notendUser_certificate_args);
 
+        // Check invalid oid group rejection
+        X509.CertificateArgs memory invalid_oid_certificate_args = X509
+            .CertificateArgs({
+                certificate: endUserCert_derBuffer,
+                tlvLength: endUserCert_tlvLength,
+                addressSignature: signature,
+                isEndUser: true,
+                checkOnly: false,
+                oidGroup: 1, 
+                addr: msg.sender
+            });
+
 
         X509.CertificateArgs memory endUser_certificate_args = X509
             .CertificateArgs({

@@ -56,6 +56,7 @@ contract X509 is
     mapping(address => bytes32) private keysByUser;
     // Reverse mapping to ensure one certificate is tied to one address
     mapping(bytes32 => address) private addressByKey;
+    mapping(bytes32 => uint256) public oidGroupByAuthorityKeyIdentifier;
 
     // OID groups (per-CA)
     bytes32[][] private extendedKeyUsageOIDs; // this is an array of arrays because each CA has their own set of OIDs that they use
@@ -95,6 +96,11 @@ contract X509 is
     ) external onlyOwner {
         certificatePoliciesOIDs.push(oids);
     }
+
+    function setTrustedCA(uint256 _authorityKeyIdentifier, uint256 oidGroup) external onlyOwner {
+        bytes32 authorityKeyIdentifier = bytes32(_authorityKeyIdentifier);
+    oidGroupByAuthorityKeyIdentifier[authorityKeyIdentifier] = oidGroup;
+}
 
     // NB this function removes everything.  You need to re-add all oids if you call this but removing
     // everything has the advantage of not creating a sparse array, which would happend if we deleted
@@ -526,6 +532,9 @@ contract X509 is
         // extract the data from the certificate necessary for checking the signature and (hopefully) find the Authority public key in
         // the smart contract's list of trusted keys
         bytes32 authorityKeyIdentifier = extractAuthorityKeyIdentifier(tlvs);
+        uint256 expectedOidGroup = oidGroupByAuthorityKeyIdentifier[authorityKeyIdentifier];
+        require(expectedOidGroup == oidGroup, "X509: OID group does not match allowed EKUs and Certificate Policies");
+
         bytes memory signature = getSignature(tlvs, tlvLength);
         bytes memory message = getMessage(tlvs);
         RSAPublicKey memory publicKey = trustedPublicKeys[
