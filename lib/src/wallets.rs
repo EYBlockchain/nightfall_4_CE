@@ -12,12 +12,12 @@ use async_trait::async_trait;
 use azure_identity;
 use azure_security_keyvault::{prelude::*, KeyClient};
 use base64::prelude::*;
+use configuration::settings::WalletTypeConfig;
 use k256::ecdsa::{RecoveryId, Signature as K256Signature, VerifyingKey};
 use k256::EncodedPoint;
 use log::{debug, info};
 use std::sync::Arc;
 use url::Url;
-use configuration::settings::WalletTypeConfig;
 
 #[derive(Clone, Debug)]
 pub enum WalletType {

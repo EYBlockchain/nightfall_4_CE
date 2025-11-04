@@ -271,7 +271,7 @@ impl RecursiveProvingEngine<PlonkProof> for MockProver {
             _,
             _,
             RescueTranscript<Fr254>,
-        >(&mut ark_std::rand::thread_rng(), &circuit, pk, None)?;
+        >(&mut ark_std::rand::thread_rng(), &circuit, pk, None, true)?;
         Ok(PlonkProof::from_recursive_output(output, &pk.vk))
     }
 }
