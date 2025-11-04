@@ -33,6 +33,8 @@ contract X509 is
 
     uint256 constant SECONDS_PER_DAY = 24 * 60 * 60;
     int256 constant OFFSET19700101 = 2440588;
+    bytes constant DI_PREFIX_SHA256 = hex"3031300d060960864801650304020105000420";
+    bytes constant DI_PREFIX_SHA512 = hex"3051300d060960864801650304020305000440";
 
     struct RSAPublicKey {
         bytes modulus;
@@ -116,7 +118,7 @@ contract X509 is
     }
 
     // ========= Internal helpers =========
-    function getSignature(
+   function getSignature(
         DecodedTlv[] memory tlvs,
         uint256 maxId
     ) private pure returns (bytes memory) {
@@ -129,7 +131,21 @@ contract X509 is
             signatureTlv.tag.tagType == 0x03,
             "X509: Signature tlv should have a tag type of BIT STRING"
         );
-        bytes memory signature = signatureTlv.value;
+        bytes memory bitString = signatureTlv.value;
+        require(bitString.length > 1, "X509: Signature BIT STRING too short");
+
+        // First content octet is "unused bits" and must be 0x00 for X.509
+        require(
+            bitString[0] == 0x00,
+            "X509: Signature unused-bits count must be zero"
+        );
+
+        // Drop the unused-bits octet
+        bytes memory signature = new bytes(bitString.length - 1);
+        for (uint256 i = 0; i < signature.length; i++) {
+            signature[i] = bitString[i + 1];
+        }
+
         return signature;
     }
 
@@ -163,35 +179,109 @@ contract X509 is
         return result;
     }
 
+    function _stripLeadingZero(bytes memory x) internal pure returns (bytes memory) {
+        if (x.length > 0 && x[0] == 0x00) {
+            bytes memory out = new bytes(x.length - 1);
+            for (uint256 i = 0; i < out.length; i++) {
+                out[i] = x[i + 1];
+            }
+            return out;
+        }
+        return x;
+    }
+
+    // a and b are big-endian, same length
+    function _lessThan(bytes memory a, bytes memory b) internal pure returns (bool) {
+        require(a.length == b.length, "X509: Length mismatch in comparison");
+        for (uint256 i = 0; i < a.length; i++) {
+            if (a[i] < b[i]) return true;
+            if (a[i] > b[i]) return false;
+        }
+        return false; // equal
+    }
+    function _hasPrefix(bytes memory data, bytes memory prefix)
+        internal
+        pure
+        returns (bool)
+    {
+        if (data.length < prefix.length) return false;
+        for (uint256 i = 0; i < prefix.length; i++) {
+            if (data[i] != prefix[i]) return false;
+        }
+        return true;
+    }
+
+    function _slice(
+        bytes memory data,
+        uint256 offset,
+        uint256 len
+    ) internal pure returns (bytes memory) {
+        require(data.length >= offset + len, "X509: Slice out of range");
+        bytes memory out = new bytes(len);
+        for (uint256 i = 0; i < len; i++) {
+            out[i] = data[offset + i];
+        }
+        return out;
+    }
+
     /*
     Validate the decrypted signature and returns the message hash
     */
     function validateSignatureAndExtractMessageHash(
-        bytes memory decrypt,
-        uint256 tlvLength
+    bytes memory decrypt
     ) private view returns (bytes memory) {
-        DecodedTlv[] memory tlvs = new DecodedTlv[](tlvLength);
+        uint256 k = decrypt.length;
+
+        // Minimal: 0x00 0x01 + 8*0xFF + 0x00 + DigestInfo(...)
+        require(k >= 11, "X509: Encoded message too short");
+
+        // EM = 0x00 || 0x01 || PS || 0x00 || T
+        require(decrypt[0] == 0x00, "X509: EM must start with 0x00");
         require(
-            decrypt[0] == 0x00 && decrypt[1] == 0x00,
-            "X509: Decrypt does not have a leading zero octets"
+            decrypt[1] == 0x01,
+            "X509: Block type must be 0x01 for signatures"
         );
-        require(
-            decrypt[2] == 0x00 || decrypt[2] == 0x01,
-            "X509: Block Type is not a private key operation"
-        );
-        // loop through the padding
-        uint256 i;
-        for (i = 3; i < decrypt.length; i++) {
-            if (decrypt[i] != 0xff) break;
+
+        //padding string of 0xFF bytes, at least 8 of them, starting at decrypt[2]
+        uint256 i = 2;
+        while (i < k && decrypt[i] == 0xff) {
+            i++;
         }
-        i++;
-        tlvs = this.parseDER(decrypt, i, tlvLength);
-        require(
-            tlvs[4].depth == 1 && tlvs[4].tag.tagType == 0x04,
-            "X509: Incorrect tag or position for decrypted hash data"
-        );
-        bytes memory messageHashFromSignature = tlvs[4].value;
-        return messageHashFromSignature;
+
+        uint256 psLen = i - 2;
+        require(psLen >= 8, "X509: Padding string too short");
+
+        // Single 0x00 separator
+        require(i < k, "X509: Missing 0x00 separator");
+        require(decrypt[i] == 0x00, "X509: Invalid separator after padding");
+
+        // T (DigestInfo) starts after the separator
+        uint256 tOffset = i + 1;
+        require(tOffset < k, "X509: Missing DigestInfo");
+        uint256 tLen = k - tOffset;
+
+        bytes memory t = _slice(decrypt, tOffset, tLen);
+
+        // DigestInfo = SEQUENCE { AlgorithmIdentifier, OCTET STRING <hash> }
+        // Match against SHA-256 or SHA-512 constants and extract hash
+        bytes memory hash;
+        if (
+            tLen == DI_PREFIX_SHA256.length + 32 &&
+            _hasPrefix(t, DI_PREFIX_SHA256)
+        ) {
+            // SHA-256: last 32 bytes are the hash
+            hash = _slice(t, DI_PREFIX_SHA256.length, 32);
+        } else if (
+            tLen == DI_PREFIX_SHA512.length + 64 &&
+            _hasPrefix(t, DI_PREFIX_SHA512)
+        ) {
+            // SHA-512: last 64 bytes are the hash
+            hash = _slice(t, DI_PREFIX_SHA512.length, 64);
+        } else {
+            revert("X509: Unsupported or invalid DigestInfo");
+        }
+
+        return hash;
     }
 
     // note: this function is from an MIT licensed library, with appreciation to
@@ -483,17 +573,43 @@ contract X509 is
         bytes memory message,
         RSAPublicKey memory publicKey
     ) private view {
+        // 1. Normalize modulus (drop optional sign pad 0x00)
+        bytes memory modulus = _stripLeadingZero(publicKey.modulus);
+
+        // 2. Length equality: |S| = k
+        uint256 k = modulus.length;
+        require(signature.length == k, "X509: Signature length != modulus length");
+
+        // 3. Range check: 0 <= s < n
+        // (signature is big-endian and has same length as modulus)
+        require(
+            _lessThan(signature, modulus),
+            "X509: Signature representative out of range"
+        );
+
+        // NOTE: if you changed RSAPublicKey to store normalized modulus already,
+        // you can pass `modulus` instead of `publicKey.modulus` to modExp.
         bytes memory signatureDecrypt = modExp(
             signature,
             publicKey.exponent,
-            publicKey.modulus
+            modulus
         );
-        bytes
-            memory messageHashFromSignature = validateSignatureAndExtractMessageHash(
-                signatureDecrypt,
-                5
-            );
-        // we use the keccak hash here as a low cost way to check equality of bytes data
+
+        // 4. The EM block must have exactly one leading 0x00 octet and length k
+        require(
+            signatureDecrypt.length == k,
+            "X509: Decrypt length != modulus length"
+        );
+        require(
+            signatureDecrypt[0] == 0x00,
+            "X509: Decrypt does not have leading 0x00"
+        );
+
+        // 5. Parse PKCS#1 v1.5 structure and extract hash from DigestInfo
+        bytes memory messageHashFromSignature =
+            validateSignatureAndExtractMessageHash(signatureDecrypt);
+
+        // 6. Compare against sha256 and sha512 of the message
         require(
             keccak256(messageHashFromSignature) ==
                 keccak256(abi.encode(sha256(message))) ||
