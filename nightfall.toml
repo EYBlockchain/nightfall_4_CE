@@ -14,6 +14,7 @@ genesis_block = 0
 ethereum_client_url = "ws://anvil:8545"
 configuration_url = "http://configuration:80" # The name of the proposer config to use can be overridden by env var NF4_PROPOSER_CONFIG
 
+
 [development.network]
 chain_id = 31337 # Anvil chain id = 31337
 
@@ -111,7 +112,6 @@ log_level = "info"
 
 [development.contracts]
 assets = "./blockchain_assets/artifacts"
-addresses_file = "configuration/toml/addresses.toml"
 deployment_file = "./blockchain_assets/logs/deployer.s.sol"
 deploy_contracts = true
 
@@ -183,7 +183,6 @@ log_level = "info"
 
 [base_sepolia.contracts]
 assets = "./blockchain_assets/artifacts"
-addresses_file = "configuration/toml/addresses.toml"
 deployment_file = "./blockchain_assets/logs/deployer.s.sol"
 deploy_contracts = false
 
@@ -206,4 +205,5 @@ certificate_policies = [
 
 [production]
 # This is the production environment - add an appropriate configuration here, using development as a template
+
 
