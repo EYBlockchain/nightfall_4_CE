@@ -5038,6 +5038,7 @@ dependencies = [
  "async-trait",
  "azure_identity",
  "azure_security_keyvault",
+ "base64 0.22.1",
  "bincode",
  "configuration",
  "dotenv",
