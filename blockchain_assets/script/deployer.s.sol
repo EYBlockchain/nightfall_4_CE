@@ -527,6 +527,7 @@ contract Deployer is Script {
 
         _configureExtendedKeyUsages(x509Contract, toml);
         _configureCertificatePolicies(x509Contract, toml);
+        _configureOidGroups(x509Contract, toml);
 
         string memory pr = vm.projectRoot();
         string memory certPath = string.concat(
