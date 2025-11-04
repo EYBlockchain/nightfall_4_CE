@@ -20,6 +20,7 @@ use jf_primitives::{
 };
 use lib::{
     circuit_key_generation::{generate_rollup_keys_for_production, universal_setup_for_production},
+    constants::MAX_KZG_DEGREE,
     deposit_circuit::deposit_circuit_builder,
     entities::DepositData,
     hex_conversion::HexConvertible,
@@ -65,7 +66,6 @@ pub fn generate_proving_keys(settings: &Settings) -> Result<(), PlonkError> {
 
     // if we're using a mock prover, we won't waste time downloading a real Perpetual Powers of Tau file
     // and generating a structured reference string
-    const MAX_KZG_DEGREE: usize = 26;
     let kzg_srs = if settings.mock_prover {
         FFTPlonk::<UnivariateKzgPCS<Bn254>>::universal_setup_for_testing(
             1 << MAX_KZG_DEGREE,

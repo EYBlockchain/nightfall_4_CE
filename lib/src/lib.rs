@@ -1,5 +1,6 @@
 pub mod blockchain_client;
 pub mod circuit_key_generation;
+pub mod constants;
 pub mod contract_conversions;
 pub mod deposit_circuit;
 pub mod entities;
@@ -17,6 +18,7 @@ pub mod shared_entities;
 pub mod tests_utils;
 pub mod utils;
 pub mod validate_certificate;
+pub mod validate_keys;
 pub mod wallets;
 
 use alloy::dyn_abi::abi::encode;

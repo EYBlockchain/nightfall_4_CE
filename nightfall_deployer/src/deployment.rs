@@ -51,6 +51,8 @@ fn proxies_from_broadcast(path: &Path) -> anyhow::Result<HashMap<&'static str, A
                     map.insert("round_robin", addr);
                 } else if prev.contains("X509") {
                     map.insert("x509", addr);
+                } else if prev.contains("RollupProofVerifier") {
+                    map.insert("verifier", addr);
                 }
             }
         }
@@ -108,6 +110,9 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn std::er
         }
         if let Some(a) = proxy_map.get("x509") {
             addresses.x509 = *a;
+        }
+        if let Some(a) = proxy_map.get("verifier") {
+            addresses.verifier = *a;
         }
     }
 

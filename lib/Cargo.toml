@@ -6,6 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+tokio-util = "0.7.16"
+anyhow = "1.0.100"
 itertools = "0.14.0"
 serde_json = "1.0.143"
 reqwest = { version = "0.11.27", features = ["json", "blocking"] }
@@ -21,6 +23,7 @@ tokio = { version = "1.45.0", features = ["full"] }
 configuration = { path = "../configuration" }
 nightfall_bindings = {path = "../nightfall_bindings"}
 toml = "0.8.22"
+ark-poly = { version = "0.4.2", features = ["parallel"] }
 ark-serialize = "0.4.2"
 ark-std = { version = "0.4.0", default-features = false }
 ark-bn254 = "0.4.0"

@@ -65,13 +65,14 @@ pub fn get_addresses() -> &'static Addresses {
         // 2) If not deploying, and TOML has all three, use those
         let ca = &settings.contracts.contract_addresses;
         let have_all_toml_addrs =
-            !ca.nightfall.is_empty() && !ca.round_robin.is_empty() && !ca.x509.is_empty();
+            !ca.nightfall.is_empty() && !ca.round_robin.is_empty() && !ca.x509.is_empty() &&  !ca.verifier.is_empty();
         if !settings.contracts.deploy_contracts && have_all_toml_addrs {
             warn!("Using contract addresses from nightfall.toml file");
             return Addresses {
                 nightfall: parse_addr(&ca.nightfall, "nightfall"),
                 round_robin: parse_addr(&ca.round_robin, "round_robin"),
                 x509: parse_addr(&ca.x509, "x509"),
+                verifier: parse_addr(&ca.verifier, "verifier"),
             };
         }
 
@@ -120,6 +121,7 @@ pub struct Addresses {
     pub nightfall: Address,
     pub round_robin: Address,
     pub x509: Address,
+    pub verifier: Address,
 }
 
 impl Addresses {
@@ -169,6 +171,7 @@ impl Addresses {
                     let mut nightfall = Address::ZERO;
                     let mut round_robin = Address::ZERO;
                     let mut x509 = Address::ZERO;
+                    let mut verifier = Address::ZERO;
 
                     let transaction_array = v["transactions"].as_array().unwrap();
 
@@ -219,6 +222,20 @@ impl Addresses {
                                 .map_err(|_| AddressesError::BadResponse)?;
                                 x509 = Address::from(bytes);
                             }
+                            "RollupProofVerifier" => {
+                                let bytes: [u8; 20] = hex::decode(
+                                    transaction["contractAddress"]
+                                        .as_str()
+                                        .ok_or(AddressesError::CouldNotReadFile)?
+                                        .trim_start_matches("0x"),
+                                )
+                                .map_err(|e| {
+                                    AddressesError::CouldNotWriteFile(format!("hex: {e}"))
+                                })?
+                                .try_into()
+                                .map_err(|_| AddressesError::BadResponse)?;
+                                verifier = Address::from(bytes);
+                            }
 
                             _ => continue,
                         }
@@ -227,6 +244,7 @@ impl Addresses {
                         nightfall,
                         round_robin,
                         x509,
+                        verifier,
                     })
                 }
             }
@@ -303,6 +321,7 @@ mod tests {
             nightfall: Address::from(rand::thread_rng().gen::<[u8; 20]>()),
             round_robin: Address::from(rand::thread_rng().gen::<[u8; 20]>()),
             x509: Address::from(rand::thread_rng().gen::<[u8; 20]>()),
+            verifier: Address::from(rand::thread_rng().gen::<[u8; 20]>()),
         };
         let address = addresses.nightfall;
         let res = addresses.save(Sources::parse(FILE).unwrap()).await.unwrap();

@@ -3,7 +3,9 @@ use alloy::signers::local::LocalSignerError as WalletError;
 use alloy::transports::TransportError;
 use ark_bn254::Fr as Fr254;
 use ark_serialize::SerializationError;
+use jf_plonk::errors::PlonkError;
 use jf_primitives::poseidon::PoseidonError;
+use jf_relation::errors::CircuitError;
 use std::{
     error::Error,
     fmt::{self, Debug, Display},
@@ -53,6 +55,47 @@ impl fmt::Display for CertificateVerificationError {
 impl Error for CertificateVerificationError {}
 
 impl Reject for CertificateVerificationError {}
+
+#[derive(Debug)]
+pub struct KeyVerificationError {
+    message: String,
+}
+
+impl KeyVerificationError {
+    pub fn new(msg: &str) -> KeyVerificationError {
+        KeyVerificationError {
+            message: msg.to_string(),
+        }
+    }
+}
+
+impl fmt::Display for KeyVerificationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "KeyVerificationError: {}", self.message)
+    }
+}
+
+impl From<CircuitError> for KeyVerificationError {
+    fn from(e: CircuitError) -> Self {
+        KeyVerificationError::new(&format!("Circuit error: {e}"))
+    }
+}
+
+impl From<std::io::Error> for KeyVerificationError {
+    fn from(e: std::io::Error) -> Self {
+        KeyVerificationError::new(&format!("IO error: {e}"))
+    }
+}
+
+impl From<PlonkError> for KeyVerificationError {
+    fn from(e: PlonkError) -> Self {
+        KeyVerificationError::new(&format!("Plonk error: {e}"))
+    }
+}
+
+impl Error for KeyVerificationError {}
+
+impl Reject for KeyVerificationError {}
 
 /// Errors that can be throw when working with a blockchain client connector
 #[derive(Debug)]
@@ -283,8 +326,6 @@ impl std::fmt::Display for ProposerError {
 impl std::error::Error for ProposerError {}
 
 impl warp::reject::Reject for ProposerError {}
-
-// ...existing code...
 
 #[derive(Debug)]
 pub enum ConfigError {
