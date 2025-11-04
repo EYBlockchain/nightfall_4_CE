@@ -19,13 +19,26 @@ pub fn get_settings() -> &'static Settings {
 pub struct Network {
     pub chain_id: u64,
 }
+#[derive(Debug, Deserialize, Serialize, Default, PartialEq, Clone, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum WalletTypeConfig {
+    #[default]
+    Local,
+    Azure,
+    #[serde(rename = "YubiWallet")]
+    YubiWallet,
+    #[serde(rename = "AwsSigner")]
+    AwsSigner,
+    #[serde(rename = "EYTransactionManager")]
+    EyTransactionManager,
+}
 
 #[derive(Debug, Deserialize, Default, Serialize)]
 #[allow(unused)]
 pub struct ClientConfig {
     pub url: String,
     pub log_level: String,
-    pub wallet_type: String,
+    pub wallet_type: WalletTypeConfig,
     pub db_url: String,
     pub max_event_listener_attempts: Option<u32>,
     pub webhook_url: String,
@@ -37,7 +50,7 @@ pub struct ClientConfig {
 pub struct ProposerConfig {
     pub url: String,
     pub log_level: String,
-    pub wallet_type: String,
+    pub wallet_type: WalletTypeConfig,
     pub db_url: String,
     pub block_assembly_max_wait_secs: u64,
     pub block_assembly_target_fill_ratio: f64,
@@ -82,7 +95,6 @@ pub struct ContractAddresses {
 #[allow(unused)]
 pub struct Contracts {
     pub assets: String,
-    pub addresses_file: String,
     pub deployment_file: String,
     pub deploy_contracts: bool,
     pub contract_addresses: ContractAddresses,
@@ -99,7 +111,9 @@ pub struct CertificateConfig {
 #[allow(unused)]
 pub struct Settings {
     pub signing_key: String,
+    #[serde(default)]
     pub azure_vault_url: String,
+    #[serde(default)]
     pub azure_key_name: String,
     pub log_app_only: bool,
     pub test_x509_certificates: bool,
@@ -126,11 +140,17 @@ impl Settings {
             .merge(Toml::file("nightfall.toml").nested())
             .merge(Env::prefixed("NF4_").profile(run_mode.as_str()).split("__"))
             .select(run_mode);
+
         let mut settings: Settings = figment.extract().map_err(|e| format!("{e}"))?;
         // Check the wallet type and read additional Azure-specific settings
-        if settings.nightfall_client.wallet_type == "azure" {
+        if settings.nightfall_client.wallet_type == WalletTypeConfig::Azure 
+            || settings.nightfall_proposer.wallet_type == WalletTypeConfig::Azure 
+        {
             settings.azure_vault_url = env::var("AZURE_VAULT_URL").unwrap_or_default();
-            settings.azure_key_name = env::var("AZURE_KEY_NAME").unwrap_or_default();
+            settings.azure_key_name = env::var("PROPOSER_SIGNING_KEY_NAME")
+                .or_else(|_| env::var("CLIENT_SIGNING_KEY_NAME"))
+                .or_else(|_| env::var("AZURE_KEY_NAME"))
+                .unwrap_or_default();
         }
         trace!("The settings values read were {settings:#?}");
         Ok(settings)

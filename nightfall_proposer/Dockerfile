@@ -1,7 +1,4 @@
 FROM rust:1.88.0 AS builder
-# install additional ca-certificates e.g. zscaler certificate (can be removed if not needed)
-COPY configuration/trust/* /usr/local/share/ca-certificates/
-RUN chmod 644 /usr/local/share/ca-certificates/* && update-ca-certificates
 WORKDIR /app
 RUN mkdir bin
 COPY . .
@@ -12,11 +9,21 @@ RUN --mount=type=cache,id=cargo-registry-v4,target=/usr/local/cargo/registry,sha
     mv /app/target/release/nightfall_proposer /app/bin/proposer
 FROM debian:bookworm-slim
 WORKDIR /app
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libssl3 \
+    wget \
+    ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
+# install additional ca-certificates e.g. zscaler certificate (can be removed if not needed)
+COPY configuration/trust/* /usr/local/share/ca-certificates/
+RUN chmod 644 /usr/local/share/ca-certificates/* && update-ca-certificates
+# Copy application binaries and configuration
 COPY --from=builder /app/bin/proposer bin/
 COPY configuration/bin/* configuration/bin/
-# COPY configuration/toml/addresses.toml configuration/toml/
 COPY .env *.env nightfall.toml .
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libssl3 wget
+
 EXPOSE 3000
 CMD ["/app/bin/proposer"]
