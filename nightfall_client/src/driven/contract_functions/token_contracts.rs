@@ -145,7 +145,7 @@ impl TokenContract for IERC721::IERC721Calls {
         })?;
         let max_fee_per_gas = gas_price * 2;
         let max_priority_fee_per_gas = gas_price;
-        let gas_limit = 500000000u64;
+        let gas_limit = 5000000u64;
         let raw_tx = IERC721::new(solidity_erc_address.0, client.clone())
             .approve(spender, token_id_u256.0)
             .nonce(nonce)
@@ -230,7 +230,7 @@ impl TokenContract for IERC1155::IERC1155Calls {
         })?;
         let max_fee_per_gas = gas_price * 2;
         let max_priority_fee_per_gas = gas_price;
-        let gas_limit = 500000000u64;
+        let gas_limit = 5000000u64;
         let raw_tx = erc1155
             .setApprovalForAll(operator, true)
             .nonce(nonce)
