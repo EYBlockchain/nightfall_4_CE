@@ -12,6 +12,7 @@ import "./DerParser.sol";
 import "./Allowlist.sol";
 import "./X509Interface.sol";
 import "./Sha.sol";
+import "forge-std/console.sol";
 
 /**
  * @title X509 (upgradeable)
@@ -623,36 +624,6 @@ contract X509 is
             keysByUser[msg.sender] == subjectKeyIdentifier ||
                 msg.sender == owner,
             "X509: You are not the owner of this key"
-        );
-        revokedKeys[subjectKeyIdentifier] = true;
-        delete trustedPublicKeys[subjectKeyIdentifier];
-
-        // CLEANUP: remove bidirectional binding when revoked
-        address addr = addressByKey[subjectKeyIdentifier];
-        delete keysByUser[addr];
-        delete addressByKey[subjectKeyIdentifier];
-    }
-
-    /** 
-    This function allows a certifcate to be revoked from any address (or by the contract owner). this cannot be undone!
-    It is useful if the private key is compromised.  The owner of the compromised private key can revoke the corresponding
-    certificate by making a request from any Ethereum address by signing the address with the key which they wish to revoke
-    Once this is done, they will lose their allowlisted status.
-    @param _subjectKeyIdentifier - the subject key identifier for the certificate that is to be revoked.
-    @param addressSignature - the signature over the address msg.sender, made using PKCS#1 padding.
-    */
-    function revokeKeyByAddressSignature(
-        uint256 _subjectKeyIdentifier,
-        bytes calldata addressSignature
-    ) external {
-        bytes32 subjectKeyIdentifier = bytes32(_subjectKeyIdentifier);
-        RSAPublicKey memory certificatePublicKey = trustedPublicKeys[
-            subjectKeyIdentifier
-        ];
-        checkSignature(
-            addressSignature,
-            abi.encodePacked(uint160(msg.sender)),
-            certificatePublicKey
         );
         revokedKeys[subjectKeyIdentifier] = true;
         delete trustedPublicKeys[subjectKeyIdentifier];
