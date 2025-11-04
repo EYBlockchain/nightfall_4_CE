@@ -111,7 +111,7 @@ contract X509Test is Test {
             endUserCert_derBuffer,
             0
         );
-        // test that one can't Binding an Arbitrary Ethereum Address to a Certificate Without Proving Control of the Ethereum Account, as the signature will not match
+        // test that one can't bind an Arbitrary Ethereum Address to a Certificate Without Proving Control of the Ethereum Account, as the signature will not match
         
         X509.CertificateArgs memory notendUser_certificate_args = X509
             .CertificateArgs({
@@ -123,9 +123,10 @@ contract X509Test is Test {
                 oidGroup: 0,
                 addr: address(0x1234567890123456789012345678901234567890)
             });
-        vm.expectRevert("X509: Signature is invalid");
+        vm.expectRevert("X509: You can only allowlist your own address");
         x509.validateCertificate(notendUser_certificate_args);
-
+        
+        vm.startPrank(TEST_EOA);
         // Check invalid oid group rejection
         X509.CertificateArgs memory invalid_oid_certificate_args = X509
             .CertificateArgs({
@@ -153,41 +154,6 @@ contract X509Test is Test {
                 addr: msg.sender
             });
         x509.validateCertificate(endUser_certificate_args);
-
-        // test that one certificate is used for multiple addresses
-        X509.CertificateArgs memory endUser_certificate_args_2 = X509
-            .CertificateArgs({
-                certificate: endUserCert_derBuffer,
-                tlvLength: endUserCert_tlvLength,
-                addressSignature: signature,
-                isEndUser: true,
-                checkOnly: false,
-                oidGroup: 0,
-                addr: address(0x1234567890123456789012345678901234567890)
-            });
-        vm.expectRevert(
-            "X509: This certificate is already linked to a different address"
-        );
-        x509.validateCertificate(endUser_certificate_args_2);
-
-        //generate a new signature for the new address and validate again
-        bytes
-            memory newSignature = hex"902d8ef80339224944ee64e55e02aa56ef81e883a720be744cf2f26a1bb4d2b693c0eb0f55ea3e945871bd395229742e72e61a103c4c56683022e031e63cfeece0a27391d8aa06859a292656e496ee3b61009f64a195ade104a7bcb53b2929b19392b4c9ed69fe222fc756210e1a594822c7ed798f37580ee15df17b0100b5559bd3245166b72e48c0d6d60e1b4436d49c8a0ab1bd237ee8c62ad9a9da3784629934348a148784a947da66b0733593ff01152e97f804e68167a504a6dbf8e0a8459c82453028fa89abaf7efc287db32f9f26d51c2d28cd1302b6609b955e8ede9691eb78b27074f15b9ed989bac96bf7ba5a049f3039b0f9e6e3a04a1ba7d16ca89fb365ebd1754828131cc93d3695b84a0470dd1748e402cb3fa8c3bec515339b62e43b580656b50f3253ee21b8f343483741cd5950bd2e7e62ead75dd768847c6e496b84df5fe73c86d07ee0aefac8d5f7d7f2f169191540a61f4b7a7a0bc9d5412f985df149437ad99109cf708bd47b921ad1ac52bd71ec80a32d037c1b8fde0d939bbcf427260184f39d065999b9d54910de675f7d89938adc097a0aaf5f5b6d51304ca72f6c25aac909bb8605db82eacb4249553dae1251a6108d80aa7e9a3553efd17bdc1c2d65005877db10c76c1227ed5db43901bb84f3bce9098602f9a85cf82570dd5b3b386ad8c63518f825a42aa3391600d3c473fec7a151b013";
-
-        X509.CertificateArgs memory endUser_certificate_args_3 = X509
-            .CertificateArgs({
-                certificate: endUserCert_derBuffer,
-                tlvLength: endUserCert_tlvLength,
-                addressSignature: newSignature,
-                isEndUser: true,
-                checkOnly: false,
-                oidGroup: 0,
-                addr: address(0x1234567890123456789012345678901234567890)
-            });
-        vm.expectRevert(
-            "X509: This certificate is already linked to a different address"
-        );
-        x509.validateCertificate(endUser_certificate_args_3);
 
         // test that one address uses multiple certificates
         bytes memory endUserCert_derBuffer_2 = vm.readFileBinary(
@@ -224,6 +190,7 @@ contract X509Test is Test {
             "X509: The subject key of this certificate has been revoked"
         );
         x509.validateCertificate(endUser_certificate_args);
+        vm.stopPrank();
     }
 
     function bytesToUint256(bytes memory b) internal pure returns (uint256) {

@@ -526,7 +526,16 @@ contract X509 is
         uint256 oidGroup = args.oidGroup;
         address addr = args.addr;
         // we can optionally pass in a address to allowlist. If we set address(0) then the function will allowlist msg.sender
-        if (addr == address(0)) addr = msg.sender;
+        // add msg.sender to the allowlist
+
+        if (addr == address(0)) {
+            addr = msg.sender; 
+        } else {
+            require(
+                addr == msg.sender,
+                "X509: You can only allowlist your own address"
+            );
+        }
         DecodedTlv[] memory tlvs = new DecodedTlv[](tlvLength);
         // decode the DER encoded binary certificate data into an array of Tag-Length-Value structs
         tlvs = walkDerTree(certificate, 0, tlvLength);
