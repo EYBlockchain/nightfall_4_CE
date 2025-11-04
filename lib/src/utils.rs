@@ -1,6 +1,5 @@
 /// A module containing uncategorised functions used by more than one component
 use configuration::settings::Settings;
-use reqwest::blocking;
 use url::Url;
 use warp::hyper::body::Bytes;
 
@@ -11,7 +10,12 @@ pub fn load_key_from_server(key_file: &str) -> Option<Bytes> {
         .expect("Could not parse URL")
         .join(key_file)
         .unwrap();
-    let response = blocking::get(url).ok()?;
+    let client = reqwest::blocking::Client::builder()
+    .timeout(std::time::Duration::from_secs(10))
+    .build()
+    .ok()?;
+
+    let response = client.get(url).send().ok()?;
     let bytes = response.bytes().ok()?;
     Some(bytes)
 }
