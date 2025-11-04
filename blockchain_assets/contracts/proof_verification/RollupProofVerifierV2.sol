@@ -1553,7 +1553,6 @@ contract RollupProofVerifierV2 is
     ) internal pure {
         uint256 index = y.index;
         uint256 evalData_vanish_eval = y.evalData_vanish_eval;
-        uint256 challenge_zeta = y.challenge_zeta;
         Types.G1Point[] memory bases = y.bases;
         uint256[] memory scalars = y.scalars;
         Types.Proof memory proof = y.proof;
@@ -1562,17 +1561,7 @@ contract RollupProofVerifierV2 is
         uint256 coeff = Bn254Crypto.negate_fr(evalData_vanish_eval);
 
         assembly {
-            let zeta_to_n_plus_2 := addmod(1, evalData_vanish_eval, p_local)
-            zeta_to_n_plus_2 := mulmod(
-                zeta_to_n_plus_2,
-                challenge_zeta,
-                p_local
-            )
-            zeta_to_n_plus_2 := mulmod(
-                zeta_to_n_plus_2,
-                challenge_zeta,
-                p_local
-            )
+            let zeta_to_n := addmod(1, evalData_vanish_eval, p_local)
             let scalarsPtr := add(scalars, mul(add(index, 1), 0x20))
             // let basesPtr := add(bases, mul(add(index, 1), 0x20))
 
@@ -1584,22 +1573,22 @@ contract RollupProofVerifierV2 is
 
             mstore(scalarsPtr, coeff)
             // mstore(basesPtr, split_quot_poly_comms_1)
-            coeff := mulmod(coeff, zeta_to_n_plus_2, p_local)
+            coeff := mulmod(coeff, zeta_to_n, p_local)
 
             mstore(add(scalarsPtr, 0x20), coeff)
             // mstore(add(basesPtr, 0x20), split_quot_poly_comms_2)
-            coeff := mulmod(coeff, zeta_to_n_plus_2, p_local)
+            coeff := mulmod(coeff, zeta_to_n, p_local)
 
             mstore(add(scalarsPtr, 0x40), coeff)
             // mstore(add(basesPtr, 0x40), split_quot_poly_comms_3)
-            coeff := mulmod(coeff, zeta_to_n_plus_2, p_local)
+            coeff := mulmod(coeff, zeta_to_n, p_local)
 
             mstore(add(scalarsPtr, 0x60), coeff)
             // mstore(add(basesPtr, 0x60), split_quot_poly_comms_4)
-            coeff := mulmod(coeff, zeta_to_n_plus_2, p_local)
+            coeff := mulmod(coeff, zeta_to_n, p_local)
 
             mstore(add(scalarsPtr, 0x80), coeff)
-            coeff := mulmod(coeff, zeta_to_n_plus_2, p_local)
+            coeff := mulmod(coeff, zeta_to_n, p_local)
             // mstore(add(basesPtr, 0x80), split_quot_poly_comms_5)
 
             mstore(add(scalarsPtr, 0xa0), coeff)
