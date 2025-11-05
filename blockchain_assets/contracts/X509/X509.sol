@@ -12,6 +12,7 @@ import "./DerParser.sol";
 import "./Allowlist.sol";
 import "./X509Interface.sol";
 import "./Sha.sol";
+import "forge-std/console.sol";
 
 /**
  * @title X509 (upgradeable)
@@ -58,6 +59,7 @@ contract X509 is
     mapping(address => bytes32) private keysByUser;
     // Reverse mapping to ensure one certificate is tied to one address
     mapping(bytes32 => address) private addressByKey;
+    mapping(bytes32 => uint256) public oidGroupByAuthorityKeyIdentifier;
 
     // OID groups (per-CA)
     bytes32[][] private extendedKeyUsageOIDs; // this is an array of arrays because each CA has their own set of OIDs that they use
@@ -97,6 +99,11 @@ contract X509 is
     ) external onlyOwner {
         certificatePoliciesOIDs.push(oids);
     }
+
+    function setTrustedCA(uint256 _authorityKeyIdentifier, uint256 oidGroup) external onlyOwner {
+        bytes32 authorityKeyIdentifier = bytes32(_authorityKeyIdentifier);
+    oidGroupByAuthorityKeyIdentifier[authorityKeyIdentifier] = oidGroup;
+}
 
     // NB this function removes everything.  You need to re-add all oids if you call this but removing
     // everything has the advantage of not creating a sparse array, which would happend if we deleted
@@ -635,13 +642,25 @@ contract X509 is
         uint256 oidGroup = args.oidGroup;
         address addr = args.addr;
         // we can optionally pass in a address to allowlist. If we set address(0) then the function will allowlist msg.sender
-        if (addr == address(0)) addr = msg.sender;
+        // add msg.sender to the allowlist
+
+        if (addr == address(0)) {
+            addr = msg.sender; 
+        } else {
+            require(
+                addr == msg.sender,
+                "X509: You can only allowlist your own address"
+            );
+        }
         DecodedTlv[] memory tlvs = new DecodedTlv[](tlvLength);
         // decode the DER encoded binary certificate data into an array of Tag-Length-Value structs
         tlvs = walkDerTree(certificate, 0, tlvLength);
         // extract the data from the certificate necessary for checking the signature and (hopefully) find the Authority public key in
         // the smart contract's list of trusted keys
         bytes32 authorityKeyIdentifier = extractAuthorityKeyIdentifier(tlvs);
+        uint256 expectedOidGroup = oidGroupByAuthorityKeyIdentifier[authorityKeyIdentifier];
+        require(expectedOidGroup == oidGroup, "X509: OID group does not match allowed EKUs and Certificate Policies");
+
         bytes memory signature = getSignature(tlvs, tlvLength);
         bytes memory message = getMessage(tlvs);
         RSAPublicKey memory publicKey = trustedPublicKeys[
@@ -730,36 +749,6 @@ contract X509 is
             keysByUser[msg.sender] == subjectKeyIdentifier ||
                 msg.sender == owner,
             "X509: You are not the owner of this key"
-        );
-        revokedKeys[subjectKeyIdentifier] = true;
-        delete trustedPublicKeys[subjectKeyIdentifier];
-
-        // CLEANUP: remove bidirectional binding when revoked
-        address addr = addressByKey[subjectKeyIdentifier];
-        delete keysByUser[addr];
-        delete addressByKey[subjectKeyIdentifier];
-    }
-
-    /** 
-    This function allows a certifcate to be revoked from any address (or by the contract owner). this cannot be undone!
-    It is useful if the private key is compromised.  The owner of the compromised private key can revoke the corresponding
-    certificate by making a request from any Ethereum address by signing the address with the key which they wish to revoke
-    Once this is done, they will lose their allowlisted status.
-    @param _subjectKeyIdentifier - the subject key identifier for the certificate that is to be revoked.
-    @param addressSignature - the signature over the address msg.sender, made using PKCS#1 padding.
-    */
-    function revokeKeyByAddressSignature(
-        uint256 _subjectKeyIdentifier,
-        bytes calldata addressSignature
-    ) external {
-        bytes32 subjectKeyIdentifier = bytes32(_subjectKeyIdentifier);
-        RSAPublicKey memory certificatePublicKey = trustedPublicKeys[
-            subjectKeyIdentifier
-        ];
-        checkSignature(
-            addressSignature,
-            abi.encodePacked(uint160(msg.sender)),
-            certificatePublicKey
         );
         revokedKeys[subjectKeyIdentifier] = true;
         delete trustedPublicKeys[subjectKeyIdentifier];
