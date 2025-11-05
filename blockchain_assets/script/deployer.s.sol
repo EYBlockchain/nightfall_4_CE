@@ -527,6 +527,7 @@ contract Deployer is Script {
 
         _configureExtendedKeyUsages(x509Contract, toml);
         _configureCertificatePolicies(x509Contract, toml);
+        _configureOidGroups(x509Contract, toml);
 
         string memory pr = vm.projectRoot();
         string memory certPath = string.concat(
@@ -584,6 +585,19 @@ contract Deployer is Script {
             );
         }
         x509Contract.addCertificatePolicies(certificatePoliciesOIDs);
+    }
+
+    function _configureOidGroups(
+        X509 x509Contract,
+        string memory toml
+    ) internal {
+        uint256 authorityKeyIdentifier = toml.readUint(
+            string.concat(runMode, ".certificates.authority_key_identifier")
+        );
+        uint256 oidGroup = toml.readUint(
+            string.concat(runMode, ".certificates.oid_group")
+        );
+        x509Contract.setTrustedCA(authorityKeyIdentifier,oidGroup);
     }
 
     function parseHexStringToBytes32(

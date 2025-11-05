@@ -218,6 +218,7 @@ contract X509UpgradeTest is Test {
             address who
         ) = _endUserInputs();
 
+        vm.startPrank(who);
         X509V1.CertificateArgs memory args = X509V1.CertificateArgs({
             certificate: cert,
             tlvLength: tlv,
@@ -229,6 +230,7 @@ contract X509UpgradeTest is Test {
         });
 
         x.validateCertificate(args); // passes on V1
+        vm.stopPrank();
     }
 
     function _bytesToUint256(
