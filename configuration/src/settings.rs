@@ -95,7 +95,6 @@ pub struct ContractAddresses {
 #[allow(unused)]
 pub struct Contracts {
     pub assets: String,
-    pub addresses_file: String,
     pub deployment_file: String,
     pub deploy_contracts: bool,
     pub contract_addresses: ContractAddresses,
