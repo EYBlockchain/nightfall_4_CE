@@ -143,8 +143,8 @@ impl Settings {
 
         let mut settings: Settings = figment.extract().map_err(|e| format!("{e}"))?;
         // Check the wallet type and read additional Azure-specific settings
-        if settings.nightfall_client.wallet_type == WalletTypeConfig::Azure 
-            || settings.nightfall_proposer.wallet_type == WalletTypeConfig::Azure 
+        if settings.nightfall_client.wallet_type == WalletTypeConfig::Azure
+            || settings.nightfall_proposer.wallet_type == WalletTypeConfig::Azure
         {
             settings.azure_vault_url = env::var("AZURE_VAULT_URL").unwrap_or_default();
             settings.azure_key_name = env::var("PROPOSER_SIGNING_KEY_NAME")

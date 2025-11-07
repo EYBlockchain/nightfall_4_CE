@@ -539,7 +539,8 @@ impl<F: PrimeField + PoseidonParams> IndexedLeaves<F> for mongodb::Client {
                         "next_value": padded_next_value,
                     }
                 },
-            ).upsert(true)
+            )
+            .upsert(true)
             .await
             .map_err(MerkleTreeError::DatabaseError)?;
         if updates_result.matched_count == 0 && updates_result.upserted_id.is_none() {

@@ -1046,7 +1046,7 @@ impl RecursiveProvingEngine<PlonkProof> for RollupProver {
             _,
             _,
             RescueTranscript<Fr254>,
-        >(&mut ark_std::rand::thread_rng(), &circuit, pk, None)?;
+        >(&mut ark_std::rand::thread_rng(), &circuit, pk, None, true)?;
         Ok(PlonkProof::from_recursive_output(output, &pk.vk))
     }
 }
@@ -1086,12 +1086,15 @@ mod tests {
             .unwrap();
         let deposit_pk = get_deposit_proving_key();
 
-        let output = FFTPlonk::<UnivariateKzgPCS<Bn254>>::recursive_prove::<
-            _,
-            _,
-            RescueTranscript<Fr254>,
-        >(&mut ark_std::rand::thread_rng(), &circuit, deposit_pk, None)
-        .unwrap();
+        let output =
+            FFTPlonk::<UnivariateKzgPCS<Bn254>>::recursive_prove::<_, _, RescueTranscript<Fr254>>(
+                &mut ark_std::rand::thread_rng(),
+                &circuit,
+                deposit_pk,
+                None,
+                true,
+            )
+            .unwrap();
 
         (0..64).for_each(|_| {
             d_proofs.push((output.clone(), deposit_pk.vk.clone()));
