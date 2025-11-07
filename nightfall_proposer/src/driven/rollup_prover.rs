@@ -15,6 +15,7 @@ use ark_bn254::{Bn254, Fq as Fq254, Fr as Fr254};
 use ark_ff::{BigInteger, PrimeField};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_std::cfg_iter;
+use hex::FromHex;
 use itertools::{izip, Itertools};
 use jf_plonk::{
     errors::PlonkError,
@@ -34,8 +35,14 @@ use jf_plonk::{
     },
     transcript::RescueTranscript,
 };
-use jf_primitives::{pcs::prelude::UnivariateKzgPCS, rescue::sponge::RescueCRHF};
+use jf_primitives::{
+    pcs::prelude::{expected_sha256_for_label, UnivariateKzgPCS},
+    rescue::sponge::RescueCRHF,
+};
 use jf_relation::{errors::CircuitError, PlonkCircuit, Variable};
+use log::{debug, warn};
+use mongodb::{bson::doc, Client};
+
 use lib::{
     deposit_circuit::deposit_circuit_builder,
     entities::DepositData,
@@ -47,8 +54,6 @@ use lib::{
     serialization::{ark_de_hex, ark_se_hex},
     utils::load_key_from_server,
 };
-use log::{debug, warn};
-use mongodb::{bson::doc, Client};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
@@ -400,6 +405,8 @@ pub struct RollupPreppedInfo {
     pub specific_pi: Vec<Vec<Fr254>>,
     pub extra_info: Vec<Vec<Fr254>>,
     pub extra_decider_info: Vec<Fr254>,
+    pub srs_digest: [u8; 32],
+    pub rollup_size: u32,
 }
 
 /// The output of the rollup prover, it contains the UltraPlonk proof and the KZG accumulators.
@@ -503,6 +510,15 @@ impl RecursiveProvingEngine<PlonkProof> for RollupProver {
             .into_iter()
             .map(|(output, vk, pi)| ((output, vk), pi))
             .unzip();
+
+        let n_total_transactions = 64u32;
+        const MAX_KZG_DEGREE: usize = 26;
+        let srs_digest_hex = expected_sha256_for_label(format!("{MAX_KZG_DEGREE}").as_str())
+            .ok_or(PlonkError::InvalidParameters(
+                "Failed to generate SHA256 label".to_string(),
+            ))?;
+        let srs_digest = <[u8; 32]>::from_hex(srs_digest_hex)
+            .map_err(|e| PlonkError::InvalidParameters(format!("Hex conversion error: {e}")))?;
 
         // Get all the commitments and nullifiers from the public inputs
         // Flattens all commitments and nullifiers from the public inputs into vectors.
@@ -718,6 +734,8 @@ impl RecursiveProvingEngine<PlonkProof> for RollupProver {
                 specific_pi,
                 extra_info,
                 extra_decider_info: extra_info_vec,
+                srs_digest,
+                rollup_size: n_total_transactions,
             },
             [new_commitment_root, nullifier_root, updated_historic_root],
         ))
@@ -730,6 +748,8 @@ impl RecursiveProvingEngine<PlonkProof> for RollupProver {
                 &info.specific_pi,
                 &info.extra_decider_info,
                 &info.extra_info,
+                &info.srs_digest,
+                info.rollup_size,
             )
             .map_err(RollupProofError::from)?,
         ))
@@ -920,6 +940,8 @@ mod tests {
         let mut extra_info_vec: Vec<Fr254> = historic_root_proof.into();
         extra_info_vec.insert(0, root_proof_len_field);
         extra_info_vec.push(old_historic_root);
+        let rollup_size = 64;
+        let srs_digest = [0u8; 32];
 
         RollupProver::preprocess(
             &d_proofs,
@@ -928,6 +950,8 @@ mod tests {
             &extra_info_vec,
             &ipa_srs,
             &kzg_srs,
+            &srs_digest,
+            rollup_size,
         )
         .unwrap();
     }
