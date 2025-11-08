@@ -195,11 +195,11 @@ where
                 .await
                 .map_err(MerkleTreeError::DatabaseError)?;
             // Check if the update succeeded
-        if update.matched_count == 0 && update.upserted_id.is_none() {
-            return Err(MerkleTreeError::Error(
-                "Failed to update or upsert the node in the database".to_string(),
-            ));
-        }
+            if update.matched_count == 0 && update.upserted_id.is_none() {
+                return Err(MerkleTreeError::Error(
+                    "Failed to update or upsert the node in the database".to_string(),
+                ));
+            }
             Ok(())
         } else {
             let node_collection_name = format!("{}_{}", tree_id, "nodes");
@@ -230,7 +230,6 @@ where
     // - Computes the subtree root containing the new leaf (other leaves
     //   are default values).
     // - Hashes upwards to update all ancestor nodes and the global root.
-
 
     async fn insert_leaf(
         &self,
@@ -286,7 +285,9 @@ where
         // Check if all tasks succeeded
         for result in results {
             if let Err(e) = result {
-                return Err(MerkleTreeError::Error(format!("Failed to execute update: {e:?}")));
+                return Err(MerkleTreeError::Error(format!(
+                    "Failed to execute update: {e:?}"
+                )));
             }
         }
 
@@ -787,7 +788,7 @@ mod test {
         updated_leaves.append(&mut leaves_2.clone());
         let mut more_leaves = leaves.clone();
         more_leaves.append(&mut leaves_4.clone());
-        
+
         // insert the leaves
         let (root, sub_tree_count) = client
             .append_sub_trees(&leaves_1, true, tree_name)
@@ -859,18 +860,20 @@ mod test {
         let root = client.get_root(tree_name).await.unwrap();
         let hasher = Poseidon::<Fr254>::new();
         assert!(proof.verify(&root, &hasher).is_ok());
-        
+
         // test that we get an error if we try add too many sub trees
         // check how much tree capacity we have left
 
-        let remaining_capacity = 2_u64.pow(TREE_HEIGHT) - sub_tree_count/SUB_TREE_LEAF_CAPACITY as u64;
-        let leaves_5 = make_rnd_leaves(((remaining_capacity as usize) + 1) * SUB_TREE_LEAF_CAPACITY, &mut rng);
-        let mut too_many_leaves = leaves.clone();  
+        let remaining_capacity =
+            2_u64.pow(TREE_HEIGHT) - sub_tree_count / SUB_TREE_LEAF_CAPACITY as u64;
+        let leaves_5 = make_rnd_leaves(
+            ((remaining_capacity as usize) + 1) * SUB_TREE_LEAF_CAPACITY,
+            &mut rng,
+        );
+        let mut too_many_leaves = leaves.clone();
         too_many_leaves.append(&mut leaves_5.clone());
 
-        let result = client
-            .append_sub_trees(&leaves_5, true, tree_name)
-            .await;
+        let result = client.append_sub_trees(&leaves_5, true, tree_name).await;
         assert!(result.is_err());
     }
 }

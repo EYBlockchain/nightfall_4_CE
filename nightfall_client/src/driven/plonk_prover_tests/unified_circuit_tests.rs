@@ -967,7 +967,7 @@ mod tests {
             .unwrap();
         circuit.finalize_for_arithmetization().unwrap();
         let mut rng = ark_std::rand::thread_rng();
-        let srs_size = circuit.srs_size().unwrap();
+        let srs_size = circuit.srs_size(true).unwrap();
         let srs =
             FFTPlonk::<UnivariateKzgPCS<Bn254>>::universal_setup_for_testing(srs_size, &mut rng)
                 .unwrap();
@@ -975,10 +975,11 @@ mod tests {
             &srs,
             Some(VerificationKeyId::Client),
             &circuit,
+            true,
         )
         .unwrap();
         let proof = FFTPlonk::<UnivariateKzgPCS<Bn254>>::prove::<_, _, StandardTranscript>(
-            &mut rng, &circuit, &pk, None,
+            &mut rng, &circuit, &pk, None, true,
         )
         .unwrap();
 
@@ -990,7 +991,7 @@ mod tests {
         inputs.extend_from_slice(&circuit_test_info.public_inputs.compressed_secrets);
 
         let _ = FFTPlonk::<UnivariateKzgPCS<Bn254>>::verify::<StandardTranscript>(
-            &vk, &inputs, &proof, None,
+            &vk, &inputs, &proof, None, true,
         );
     }
 }

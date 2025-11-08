@@ -269,12 +269,10 @@ mod test {
 
         // test that we get an error if we try add too many sub trees, we have already 4 subtrees
         let leaves_5 = make_rnd_leaves(5_usize * SUB_TREE_LEAF_CAPACITY, &mut rng);
-        let mut too_many_leaves = leaves.clone();  
+        let mut too_many_leaves = leaves.clone();
         too_many_leaves.append(&mut leaves_5.clone());
 
-        let result = client
-            .append_sub_trees(&leaves_5, true, tree_name)
-            .await;
+        let result = client.append_sub_trees(&leaves_5, true, tree_name).await;
         assert!(result.is_err());
     }
 }

@@ -74,9 +74,10 @@ impl ProvingEngine<PlonkProof> for PlonkProvingEngine {
         }
         debug!("Retrieving proving and verifying keys");
         let pk: &'static Arc<ProvingKey<UnivariateKzgPCS<Bn254>>> = get_client_proving_key();
+        // Our clients proofs must have blinding enabled.
         let output =
             FFTPlonk::<UnivariateKzgPCS<Bn254>>::recursive_prove::<_, _, RescueTranscript<Fr254>>(
-                &mut rng, &circuit, pk, None,
+                &mut rng, &circuit, pk, None, true,
             )
             .map_err(|e| {
                 error!("Error generating proof: {e:?}");
@@ -108,7 +109,7 @@ impl ProvingEngine<PlonkProof> for PlonkProvingEngine {
 
         Ok(
             FFTPlonk::<UnivariateKzgPCS<Bn254>>::verify_recursive_proof::<RescueTranscript<Fr254>>(
-                vk, &output, None,
+                vk, &output, None, true,
             )
             .is_ok(),
         )

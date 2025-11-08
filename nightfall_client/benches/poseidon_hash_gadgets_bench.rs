@@ -46,29 +46,30 @@ fn bench_poseidon_hash_gadget_criterion(
     // Srs generation time
     c.bench_function("Poseidon Srs generation time:", |b| {
         b.iter(|| {
-            let srs_size = circuit.srs_size().unwrap();
+            let srs_size = circuit.srs_size(true).unwrap();
             FFTPlonk::<UnivariateKzgPCS<Bn254>>::universal_setup_for_testing(srs_size, &mut rng)
                 .unwrap();
         })
     });
 
-    let srs_size = circuit.srs_size().unwrap();
+    let srs_size = circuit.srs_size(true).unwrap();
     let srs = FFTPlonk::<UnivariateKzgPCS<Bn254>>::universal_setup_for_testing(srs_size, &mut rng)
         .unwrap();
 
-    let (pk, vk) = FFTPlonk::<UnivariateKzgPCS<Bn254>>::preprocess(&srs, None, circuit).unwrap();
+    let (pk, vk) =
+        FFTPlonk::<UnivariateKzgPCS<Bn254>>::preprocess(&srs, None, circuit, true).unwrap();
 
     //Proving time
     c.bench_function("Poseidon Proving time:", |b| {
         b.iter(|| {
             FFTPlonk::<UnivariateKzgPCS<Bn254>>::prove::<_, _, StandardTranscript>(
-                &mut rng, circuit, &pk, None,
+                &mut rng, circuit, &pk, None, true,
             )
             .unwrap();
         })
     });
     let proof = FFTPlonk::<UnivariateKzgPCS<Bn254>>::prove::<_, _, StandardTranscript>(
-        &mut rng, circuit, &pk, None,
+        &mut rng, circuit, &pk, None, true,
     )
     .unwrap();
     // Verification time
@@ -79,6 +80,7 @@ fn bench_poseidon_hash_gadget_criterion(
                 &[],
                 &proof,
                 None,
+                true,
             )
             .unwrap();
         })
