@@ -245,8 +245,9 @@ pub fn sign_ethereum_address(
     // Create an RSA object from the DER-encoded private key
     let private_key = Rsa::private_key_from_der(der_private_key)?;
 
-    // Create a Signer object for SHA-256
     let pkey = PKey::from_rsa(private_key)?;
+
+    // PKCS#1 v1.5 with SHA-256
     let mut signer = opensslSigner::new(MessageDigest::sha256(), &pkey)?;
 
     // Convert the Ethereum address to bytes
@@ -270,10 +271,9 @@ fn verify_ethereum_address_signature(
 
     // Convert the Ethereum address to bytes
     let address_bytes = address.as_bytes();
-
     // Verify the signature
     verifier.update(address_bytes)?;
-    let result = verifier.verify(signature)?;
+    let result = verifier.verify(signature)?; // expects same PKCS#1 v1.5 structure
 
     Ok(result)
 }
