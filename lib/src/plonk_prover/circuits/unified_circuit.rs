@@ -96,6 +96,8 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
         } = PrivateInputsVar::from_private_inputs(private_inputs, self)?;
         // Check that th withdraw address is in range
         self.enforce_in_range(withdraw_address, 160)?;
+        // Check that th withdraw address is in range
+        self.enforce_in_range(nf_address, 160)?;
 
         // commitments_values[0]: transfer/withdraw change value
         // commitments_values[1]: fee change value
