@@ -47,9 +47,9 @@ serde_bytes = "0.11"
 serde_with = "2.3.3"
 config = "0.13.4"
 configuration = { path = "../configuration" }
-nightfall_bindings = {path = "../nightfall_bindings"}
+nightfall_bindings = { path = "../nightfall_bindings" }
 log = "0.4.27"
-nf-curves = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git"}
+nf-curves = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git" }
 reqwest = "0.11.27"
 url = "2.5.4"
 rustc-hex = "2.1.0"
@@ -83,4 +83,3 @@ parallel = [
     "jf-relation/parallel",
     "jf-primitives/parallel",
 ]
-
