@@ -346,18 +346,21 @@ impl Addresses {
                 Ok(addresses)
             }
             Sources::File(path) => {
+                let canonical = path
+                    .canonicalize()
+                    .map_err(|e| AddressesError::Toml(format!("Invalid path: {e}")))?;
 
-                let canonical = path.canonicalize()
-                .map_err(|e| AddressesError::Toml(format!("Invalid path: {e}")))?;
-            
                 let expected_base = PathBuf::from("/app/configuration/toml");
                 if !canonical.starts_with(&expected_base) {
-                    return Err(AddressesError::Toml("Path outside allowed directory".into()));
+                    return Err(AddressesError::Toml(
+                        "Path outside allowed directory".into(),
+                    ));
                 }
 
-                let metadata = std::fs::metadata(&canonical)
-                .map_err(|e| AddressesError::Toml(format!("Could not read file metadata: {e}")))?;
-            
+                let metadata = std::fs::metadata(&canonical).map_err(|e| {
+                    AddressesError::Toml(format!("Could not read file metadata: {e}"))
+                })?;
+
                 if metadata.len() > 10_000 {
                     warn!("File too large: {} bytes", metadata.len());
                     return Err(AddressesError::Toml("File too large".into()));
@@ -390,23 +393,27 @@ impl Addresses {
                 let expected_base = PathBuf::from("/app/configuration/toml");
                 if !path.starts_with(&expected_base) {
                     warn!("Attempted write outside allowed directory: {path:?}");
-                    return Err(AddressesError::Toml("Path outside allowed directory".into()));
+                    return Err(AddressesError::Toml(
+                        "Path outside allowed directory".into(),
+                    ));
                 }
-                let data = toml::to_string(&self)
-                    .map_err(|e| AddressesError::Toml(format!("{e}")))?;
-                
-                std::fs::create_dir_all(path.parent().unwrap())
-                    .map_err(|e| AddressesError::Toml(format!("Could not create directory: {e}")))?;
-                
+                let data =
+                    toml::to_string(&self).map_err(|e| AddressesError::Toml(format!("{e}")))?;
+
+                std::fs::create_dir_all(path.parent().unwrap()).map_err(|e| {
+                    AddressesError::Toml(format!("Could not create directory: {e}"))
+                })?;
+
                 std::fs::write(&path, data)
                     .map_err(|e| AddressesError::Toml(format!("Could not write file: {e}")))?;
-                
+
                 #[cfg(unix)]
                 {
                     use std::os::unix::fs::PermissionsExt;
                     let perms = std::fs::Permissions::from_mode(0o600);
-                    std::fs::set_permissions(&path, perms)
-                        .map_err(|e| AddressesError::Toml(format!("Could not set permissions: {e}")))?;
+                    std::fs::set_permissions(&path, perms).map_err(|e| {
+                        AddressesError::Toml(format!("Could not set permissions: {e}"))
+                    })?;
                 }
                 Ok(StatusCode::OK)
             }
