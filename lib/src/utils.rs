@@ -28,9 +28,9 @@ pub fn load_key_from_server(key_file: &str) -> Option<Bytes> {
         .join(key_file)
         .unwrap();
     let client = reqwest::blocking::Client::builder()
-    .timeout(std::time::Duration::from_secs(10))
-    .build()
-    .ok()?;
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .ok()?;
 
     let response = client.get(url).send().ok()?;
     let bytes = response.bytes().ok()?;
