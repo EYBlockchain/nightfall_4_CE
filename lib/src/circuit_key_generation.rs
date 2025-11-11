@@ -69,6 +69,7 @@ pub fn generate_rollup_keys_for_production(
             &deposit_circuit,
             &deposit_pk,
             None,
+            true,
         )
         .unwrap();
 

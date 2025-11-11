@@ -177,7 +177,7 @@ AZURE_CLIENT_ID=
 AZURE_CLIENT_SECRET=
 AZURE_TENANT_ID= .
 
-Not all of the configuration items can be static (i.e. known at compile-time). In particular the addresses of the deployed contracts and proving keys are not known in advance. In this case, the `deployer` writes out a toml file (`addresses.toml`), which is shared with the Nightfall applications via a shared volume that the receiving containers mount. Additionally, it uploads (PUTs) this data to a webserver configured for web-dav. The Nightfall applications will attempt to connect to this webserver and download the addresses and keys via a GET. If they cannot connect, they will revert to reading them from their local file system (which should have the files as a mounted volume). This gives two alternative approaches for recovering the dynamic configuration items. Note that static items are always file-based.
+Not all of the configuration items can be static (i.e. known at compile-time). In particular, the addresses of the deployed contracts are not known in advance. The `deployer` saves addresses by writing directly to a shared file (`/app/configuration/toml/addresses.toml`) in the Docker volume (`address_data`). The Nightfall applications read addresses at startup, first attempting to load from the local file, then falling back to HTTP GET from the `configuration` service (nginx) with retry logic if the file is unavailable. The file must include a `chain_id` field for validation. Note that the `NF4_RUN_MODE` environment variable must be set for address validation to work correctly, with private IPs allowed in development mode to support Docker networking.
 
 ## Deployment on a testnet for integration testing
 

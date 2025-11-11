@@ -54,7 +54,7 @@ fn benchmark_deposit_circuit(c: &mut Criterion) {
 
     circuit.finalize_for_arithmetization().unwrap();
 
-    let srs_size = circuit.srs_size().unwrap();
+    let srs_size = circuit.srs_size(true).unwrap();
 
     let srs = FFTPlonk::<UnivariateKzgPCS<Bn254>>::universal_setup_for_testing(srs_size, &mut rng)
         .unwrap();
@@ -62,11 +62,12 @@ fn benchmark_deposit_circuit(c: &mut Criterion) {
         &srs,
         Some(VerificationKeyId::Deposit),
         &circuit,
+        true,
     )
     .unwrap();
     let start = Instant::now();
     let proof = FFTPlonk::<UnivariateKzgPCS<Bn254>>::prove::<_, _, StandardTranscript>(
-        &mut rng, &circuit, &pk, None,
+        &mut rng, &circuit, &pk, None, true,
     )
     .unwrap();
     println!(
@@ -76,7 +77,7 @@ fn benchmark_deposit_circuit(c: &mut Criterion) {
     c.bench_function("Deposit Circuit Proving time:", |b| {
         b.iter(|| {
             FFTPlonk::<UnivariateKzgPCS<Bn254>>::prove::<_, _, StandardTranscript>(
-                &mut rng, &circuit, &pk, None,
+                &mut rng, &circuit, &pk, None, true,
             )
             .unwrap();
         })
@@ -88,8 +89,10 @@ fn benchmark_deposit_circuit(c: &mut Criterion) {
     inputs.extend_from_slice(&public_input.nullifiers);
     inputs.extend_from_slice(&public_input.compressed_secrets);
     let start = Instant::now();
-    FFTPlonk::<UnivariateKzgPCS<Bn254>>::verify::<StandardTranscript>(&vk, &inputs, &proof, None)
-        .unwrap();
+    FFTPlonk::<UnivariateKzgPCS<Bn254>>::verify::<StandardTranscript>(
+        &vk, &inputs, &proof, None, true,
+    )
+    .unwrap();
     println!(
         "Deposit Circuit Verifying time:{} ms",
         start.elapsed().as_millis()
@@ -97,7 +100,7 @@ fn benchmark_deposit_circuit(c: &mut Criterion) {
     c.bench_function("Deposit Circuit Verifying time:", |b| {
         b.iter(|| {
             FFTPlonk::<UnivariateKzgPCS<Bn254>>::verify::<StandardTranscript>(
-                &vk, &inputs, &proof, None,
+                &vk, &inputs, &proof, None, true,
             )
             .unwrap();
         })

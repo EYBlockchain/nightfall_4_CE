@@ -2,8 +2,8 @@ use crate::{
     test::{
         self, create_nf3_deposit_transaction, create_nf3_transfer_transaction,
         create_nf3_withdraw_transaction, de_escrow_request, get_key, get_recipient_address,
-        load_addresses, set_anvil_mining_interval, verify_deposit_commitments_nf_token_id,
-        wait_for_all_responses, wait_on_chain, TokenType,
+        set_anvil_mining_interval, verify_deposit_commitments_nf_token_id, wait_for_all_responses,
+        wait_on_chain, TokenType,
     },
     test_settings::TestSettings,
     validate_certs::validate_all_certificates,
@@ -62,7 +62,7 @@ pub async fn run_tests(
     let zkp_key2 = get_key(url, &key_request2).await.unwrap();
     info!("* zkp keys created");
 
-    let _ = load_addresses(&settings).unwrap();
+    let _ = configuration::addresses::get_addresses();
     info!("* contract addresses obtained");
     // Validate all certificates (clients and proposer)
     // (name, cert_path, key_path, url)

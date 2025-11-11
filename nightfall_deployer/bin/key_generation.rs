@@ -82,12 +82,14 @@ pub fn generate_proving_keys(settings: &Settings) -> Result<(), PlonkError> {
         &kzg_srs,
         Some(VerificationKeyId::Client),
         &circuit,
+        true,
     )?;
     // deposit pk vk
     let (deposit_pk, _) = FFTPlonk::<UnivariateKzgPCS<Bn254>>::preprocess(
         &kzg_srs,
         Some(VerificationKeyId::Deposit),
         &deposit_circuit,
+        true,
     )?;
 
     let pk_path = path.join("bin/proving_key");

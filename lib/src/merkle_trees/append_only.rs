@@ -113,7 +113,11 @@ where
         if leaves.is_empty() {
             return Ok(metadata.root);
         }
-        if sub_tree_count > 1u64 << metadata.tree_height {
+        let new_sub_trees = leaves.len() / sub_tree_capacity;
+        // Prevent the tree from exceeding its maximum capacity (2^tree_height leaves).
+        // It's valid to exactly fill the tree (== capacity), but any insertion that would
+        // push total subtrees beyond capacity must be rejected.
+        if sub_tree_count + new_sub_trees as u64 > (1u64 << metadata.tree_height) {
             return Err(Self::Error::TreeIsFull);
         }
         if frontier.len() != metadata.tree_height as usize {
@@ -165,8 +169,9 @@ where
                 .collect::<Vec<_>>(),
             _id: 0,
         };
-        // just time to update the sub-tree count
+        // just time to update the sub-tree count and the root in the metadata
         metadata.sub_tree_count = sub_tree_count;
+        metadata.root = root;
         // then store it all in the database
         if update_tree {
             metadata_collection
@@ -261,5 +266,13 @@ mod test {
             .await
             .unwrap();
         assert_eq!(root, test_tree[0]);
+
+        // test that we get an error if we try add too many sub trees, we have already 4 subtrees
+        let leaves_5 = make_rnd_leaves(5_usize * SUB_TREE_LEAF_CAPACITY, &mut rng);
+        let mut too_many_leaves = leaves.clone();
+        too_many_leaves.append(&mut leaves_5.clone());
+
+        let result = client.append_sub_trees(&leaves_5, true, tree_name).await;
+        assert!(result.is_err());
     }
 }

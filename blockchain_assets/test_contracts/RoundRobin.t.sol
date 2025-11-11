@@ -141,8 +141,15 @@ contract RoundRobinTest is Test {
         roundRobin.rotate_proposer();
         assertEq(roundRobin.get_current_proposer_address(), proposer2_address);
 
-        // current proposer (address(this)) deregisters → pays exit penalty
+       // Check proposer url exists in mapping
+        bool exists_proposer = roundRobin.proposer_urls(proposer2_url);
+        assertEq(exists_proposer, true, "Proposer 2 URL doesn't  exists");
+         // current proposer (address(this)) deregisters → pays exit penalty
         roundRobin.remove_proposer();
+        // check if proposer url is removed from mapping
+        bool exists_proposer2 = roundRobin.proposer_urls(proposer2_url);
+        assertEq(exists_proposer2, false, "Proposer 2 URL still exists");
+
         uint256 newEscrow = roundRobin.escrow();
         uint256 newStake1 = roundRobin.pending_withdraws(
             default_proposer_address

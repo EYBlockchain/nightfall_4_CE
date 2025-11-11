@@ -263,8 +263,6 @@ contract RoundRobin is ProposerManager, Certified, UUPSUpgradeable {
         // we may now just have a single proposer. If this is the case, we need to link it to itself.
         // it must also be the current proposer so we need to update the current proposer too.
         if (proposer_count == 1) {
-            proposers[current.addr].next_addr = current.addr;
-            proposers[current.addr].previous_addr = current.addr;
             current = proposers[current.addr];
         }
     }

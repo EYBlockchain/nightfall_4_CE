@@ -186,7 +186,7 @@ where
             let cache_collection = self
                 .database(<Self as MutableTree<F>>::MUT_DB_NAME)
                 .collection::<Node<F>>(&cache_collection_name);
-            cache_collection
+            let update = cache_collection
                 .update_one(
                     doc! {"_id": bson_index},
                     doc! {"$set": {"value": update_value}},
@@ -194,13 +194,19 @@ where
                 .upsert(true)
                 .await
                 .map_err(MerkleTreeError::DatabaseError)?;
+            // Check if the update succeeded
+            if update.matched_count == 0 && update.upserted_id.is_none() {
+                return Err(MerkleTreeError::Error(
+                    "Failed to update or upsert the node in the database".to_string(),
+                ));
+            }
             Ok(())
         } else {
             let node_collection_name = format!("{}_{}", tree_id, "nodes");
             let node_collection = self
                 .database(<Self as MutableTree<F>>::MUT_DB_NAME)
                 .collection::<Node<F>>(&node_collection_name);
-            node_collection
+            let update = node_collection
                 .update_one(
                     doc! {"_id": bson_index},
                     doc! {"$set": {"value": update_value}},
@@ -208,9 +214,22 @@ where
                 .upsert(true)
                 .await
                 .map_err(MerkleTreeError::DatabaseError)?;
+            // Check if the update succeeded
+            if update.matched_count == 0 && update.upserted_id.is_none() {
+                return Err(MerkleTreeError::Error(
+                    "Failed to update or upsert the node in the database".to_string(),
+                ));
+            }
             Ok(())
         }
     }
+
+    // This function:
+    // - Determines the correct position for the leaf based on the current
+    //   `sub_tree_count`.
+    // - Computes the subtree root containing the new leaf (other leaves
+    //   are default values).
+    // - Hashes upwards to update all ancestor nodes and the global root.
 
     async fn insert_leaf(
         &self,
@@ -261,7 +280,16 @@ where
             // save the updated nodes
         }
 
-        join_all(updates).await;
+        let results = join_all(updates).await;
+
+        // Check if all tasks succeeded
+        for result in results {
+            if let Err(e) = result {
+                return Err(MerkleTreeError::Error(format!(
+                    "Failed to execute update: {e:?}"
+                )));
+            }
+        }
 
         // store the updated sub tree count
         if update_tree {
@@ -272,10 +300,15 @@ where
                 _id: 0,
                 root: hash,
             };
-            metadata_collection
+            let result = metadata_collection
                 .replace_one(doc! {"_id": 0}, new_metadata)
                 .await
                 .map_err(MerkleTreeError::DatabaseError)?;
+            if result.matched_count == 0 && result.upserted_id.is_none() {
+                return Err(MerkleTreeError::Error(
+                    "Failed to update the tree metadata in the database".to_string(),
+                ));
+            }
             // save the cached nodes
             <Self as MutableTree<F>>::flush_cache(self, tree_id).await?;
         }
@@ -309,7 +342,11 @@ where
         if leaves.is_empty() {
             return Ok((metadata.root, sub_tree_count * sub_tree_capacity as u64));
         }
-        if sub_tree_count > 2_usize.pow(metadata.tree_height) as u64 {
+        let new_sub_trees = leaves.len() / sub_tree_capacity;
+        // Prevent the tree from exceeding its maximum capacity (2^tree_height leaves).
+        // It's valid to exactly fill the tree (== capacity), but any insertion that would
+        // push total subtrees beyond capacity must be rejected.
+        if sub_tree_count + new_sub_trees as u64 > (1u64 << metadata.tree_height) {
             return Err(Self::Error::TreeIsFull);
         }
         // we'll 'add' each sub tree in turn but only write everything to the db at the end. This will be much
@@ -809,7 +846,7 @@ mod test {
 
         // test that we can append two sub trees at once and get the correct root
         let test_tree = make_complete_tree(SUB_TREE_HEIGHT + TREE_HEIGHT, &hasher, &more_leaves);
-        let (root, _sub_tree_count) = client
+        let (root, sub_tree_count) = client
             .append_sub_trees(&leaves_4, true, tree_name)
             .await
             .unwrap();
@@ -823,5 +860,20 @@ mod test {
         let root = client.get_root(tree_name).await.unwrap();
         let hasher = Poseidon::<Fr254>::new();
         assert!(proof.verify(&root, &hasher).is_ok());
+
+        // test that we get an error if we try add too many sub trees
+        // check how much tree capacity we have left
+
+        let remaining_capacity =
+            2_u64.pow(TREE_HEIGHT) - sub_tree_count / SUB_TREE_LEAF_CAPACITY as u64;
+        let leaves_5 = make_rnd_leaves(
+            ((remaining_capacity as usize) + 1) * SUB_TREE_LEAF_CAPACITY,
+            &mut rng,
+        );
+        let mut too_many_leaves = leaves.clone();
+        too_many_leaves.append(&mut leaves_5.clone());
+
+        let result = client.append_sub_trees(&leaves_5, true, tree_name).await;
+        assert!(result.is_err());
     }
 }

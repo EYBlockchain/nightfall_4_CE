@@ -1,3 +1,5 @@
+use crate::error::BlockchainClientConnectionError;
+use crate::wallets::WalletType;
 use alloy::primitives::{Address, U256};
 use alloy::providers::Provider;
 use alloy::pubsub::PubSubConnect;
@@ -7,8 +9,6 @@ use async_trait::async_trait;
 use serde::Deserialize;
 use std::{marker::Sync, sync::Arc};
 use url::Url;
-
-use crate::error::BlockchainClientConnectionError;
 
 /// A blockchain client is able to connect to a blockchain node and sign transactions.
 /// It is also able to listen for events on the blockchain (although it does not need
@@ -27,6 +27,8 @@ pub trait BlockchainClientConnection: Clone + Send + Sync {
     fn get_address(&self) -> Address;
 
     fn get_client(&self) -> Arc<dyn Provider>;
+
+    fn get_wallet_type(&self) -> &WalletType;
 
     fn get_signer(&self) -> PrivateKeySigner
     where

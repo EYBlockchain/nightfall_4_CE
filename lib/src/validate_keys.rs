@@ -759,6 +759,7 @@ fn regenerate_keys_for_production() -> Result<(), warp::Rejection> {
         &kzg_srs,
         Some(VerificationKeyId::Deposit),
         &deposit_circuit,
+        true,
     )
     .map_err(|e| {
         error!("Failed to preprocess deposit circuit: {}", e);

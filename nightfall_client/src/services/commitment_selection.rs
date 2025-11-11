@@ -232,6 +232,13 @@ fn calculate_minimum_commitments(
             return Ok(count);
         }
     }
+    // check if there are enough balance to cover the value, but too many dust commitments
+    for commitment in commitments.iter() {
+        sum_commitments += commitment.get_value();
+        if sum_commitments >= target_value {
+            return Err("Sufficient balance to cover the value, but too many dust commitments — only up to two commitments are allowed.");
+        }
+    }
     Err("Not enough commitments to cover the value")
 }
 
@@ -942,7 +949,7 @@ mod test {
                 Err(err) => {
                     assert!(
                         err.to_string()
-                            .contains("Not enough commitments to cover the value"),
+                            .contains("Sufficient balance to cover the value, but too many dust commitments — only up to two commitments are allowed."),
                         "Error does not match expected string: {err}"
                     );
                 }
