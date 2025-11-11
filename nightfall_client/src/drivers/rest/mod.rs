@@ -2,8 +2,7 @@ use crate::ports::contracts::NightfallContract;
 use balance::{get_balance, get_fee_balance, get_l1_balance};
 use lib::{
     health_check::health_route, nf_client_proof::Proof,
-    validate_certificate::certification_validation_request,
-    validate_keys::keys_validation_request,
+    validate_certificate::certification_validation_request, validate_keys::keys_validation_request,
 };
 use log::error;
 use proposers::get_proposers;
