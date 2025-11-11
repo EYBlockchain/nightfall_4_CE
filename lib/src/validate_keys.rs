@@ -788,9 +788,7 @@ fn abi_encode_verification_key(vk_fields: &[U256]) -> Vec<u8> {
 fn regenerate_keys_for_production() -> Result<(), warp::Rejection> {
     // We need to perform trusted setup first.
     let kzg_srs = universal_setup_for_production(MAX_KZG_DEGREE).map_err(|e| {
-        error!(
-            "Failed to perform universal trusted setup for production: {e}"
-        );
+        error!("Failed to perform universal trusted setup for production: {e}");
         warp::reject::custom(KeyVerificationError::new(
             "Error performing universal trusted setup for production",
         ))
@@ -1126,10 +1124,7 @@ mod tests {
             .iter()
             .find(|s| s.name == "base_grumpkin_pk")
             .expect("Should have base_grumpkin_pk");
-        assert_eq!(
-            base_grumpkin.url,
-            format!("{config_url}/base_grumpkin_pk")
-        );
+        assert_eq!(base_grumpkin.url, format!("{config_url}/base_grumpkin_pk"));
         assert_eq!(base_grumpkin.out_path, out_dir.join("base_grumpkin_pk"));
 
         let merge_counts =
