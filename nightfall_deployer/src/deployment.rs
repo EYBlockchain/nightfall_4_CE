@@ -116,18 +116,33 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn std::er
             if let Some(a) = proxy_map.get("verifier") {
                 addresses.verifier = *a;
             }
-            if addresses.nightfall == Address::ZERO
-                || addresses.round_robin == Address::ZERO
-                || addresses.x509 == Address::ZERO
-                || addresses.verifier == Address::ZERO
-            {
-                error!("Missing proxy addresses after extraction");
-                return Err("Failed to extract all proxy addresses from deployment".into());
+            if settings.mock_prover {
+                if addresses.nightfall == Address::ZERO
+                    || addresses.round_robin == Address::ZERO
+                    || addresses.x509 == Address::ZERO
+                {
+                    error!("Missing proxy addresses after extraction");
+                    return Err("Failed to extract all proxy addresses from deployment".into());
+                }
+                info!(
+                    "Extracted proxy addresses: nightfall={:?}, round_robin={:?}, x509={:?}",
+                    addresses.nightfall, addresses.round_robin, addresses.x509
+                );
+            } else {
+                if addresses.nightfall == Address::ZERO
+                    || addresses.round_robin == Address::ZERO
+                    || addresses.x509 == Address::ZERO
+                    || addresses.verifier == Address::ZERO
+                {
+                    error!("Missing proxy addresses after extraction");
+                    return Err("Failed to extract all proxy addresses from deployment".into());
+                }
+                info!(
+                    "Extracted proxy addresses: nightfall={:?}, round_robin={:?}, x509={:?}, verifier={:?}",
+                    addresses.nightfall, addresses.round_robin, addresses.x509, addresses.verifier
+                );
             }
-            info!(
-                "Extracted proxy addresses: nightfall={:?}, round_robin={:?}, x509={:?}, verifier={:?}",
-                addresses.nightfall, addresses.round_robin, addresses.x509, addresses.verifier
-            );
+            
         }
         Err(e) => {
             error!("Failed to parse deployment broadcast file: {e}");
