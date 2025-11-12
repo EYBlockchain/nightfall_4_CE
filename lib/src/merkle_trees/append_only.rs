@@ -99,7 +99,8 @@ where
             .iter()
             .map(|s| {
                 if s.is_empty() {
-                    Ok(F::zero())
+                    log::error!("Empty string found in frontier entry for tree '{tree_id}' - potential database corruption");
+                    Err(Self::Error::DatabaseCorruption)
                 } else {
                     F::from_str(s).map_err(|_| Self::Error::SerializationError)
                 }
