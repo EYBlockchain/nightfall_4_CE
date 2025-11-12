@@ -22,7 +22,7 @@ use jf_primitives::{
     },
     pcs::prelude::UnivariateKzgPCS,
 };
-use jf_relation::{errors::CircuitError, BoolVar, Circuit, PlonkCircuit, Variable};
+use jf_relation::{errors::CircuitError, Circuit, PlonkCircuit, Variable};
 use std::{env, fs::File, io::Write, path::PathBuf, vec};
 /// Function that starts at the current working directory and returns the path to the configuration file.
 pub fn get_configuration_path() -> Option<PathBuf> {
