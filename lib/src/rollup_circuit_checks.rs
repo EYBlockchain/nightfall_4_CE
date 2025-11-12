@@ -176,8 +176,7 @@ impl RecursiveProver for RollupKeyGenerator {
                 pi_slice[16],
             ];
 
-            let pi_slice_17 = circuit.witness(pi_slice[17])?;
-            let bit_var: BoolVar = circuit.create_boolean_variable(pi_slice_17 == Fr254::one())?;
+            let bit_var = circuit.is_equal(pi_slice[17], circuit.one())?;
             let (_, sha256_var) = circuit.full_shifted_sha256_hash_with_bit(
                 &field_vars,
                 &bit_var,
