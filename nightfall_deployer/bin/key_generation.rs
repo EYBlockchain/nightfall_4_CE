@@ -66,17 +66,17 @@ pub fn generate_proving_keys(settings: &Settings) -> Result<(), PlonkError> {
 
     // if we're using a mock prover, we won't waste time downloading a real Perpetual Powers of Tau file
     // and generating a structured reference string
-    let kzg_srs = if settings.mock_prover {
+    let kzg_srs = //if settings.mock_prover {
         FFTPlonk::<UnivariateKzgPCS<Bn254>>::universal_setup_for_testing(
             1 << MAX_KZG_DEGREE,
             &mut rng,
         )
-        .unwrap()
-    } else {
+        .unwrap();
+    /* } else {
         // Unless we already have a local copy, read a remote perpetual powers of Tau file and save, then extract a KZG structured reference string
         universal_setup_for_production(MAX_KZG_DEGREE)
             .expect("Failed to perform universal trusted setup for production.")
-    };
+    };*/
     // transfer/withdraw pk vk
     let (pk, _) = FFTPlonk::<UnivariateKzgPCS<Bn254>>::preprocess(
         &kzg_srs,
