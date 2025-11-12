@@ -172,12 +172,12 @@ async fn handle_keys_validation(params: FormParams) -> Result<impl Reply, warp::
         error!("Failed to get current directory: {e}");
         warp::reject::custom(KeyVerificationError::new("Error getting current directory"))
     })?;
-    /*if !settings.skip_key_regeneration.unwrap_or(false) {
+    if !settings.skip_key_regeneration.unwrap_or(false) {
         delete_existing_key_files(&current_dir, spec.clone())?;
         regenerate_keys_for_production()?;
     } else {
         info!("Skipping key regeneration due to configuration setting");
-    }*/
+    }
 
     // 5) Verify that those freshly generated locally stored keys match those on the key server
     let mut resp = verify_server_vs_stored_keys(keys.clone(), configuration_url).await?;

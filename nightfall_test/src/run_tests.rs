@@ -96,7 +96,7 @@ pub async fn run_tests(
         ),
     ];
     validate_all_certificates(certs, &http_client).await;
-/* 
+ 
     //see if the NF4_LARGE_BLOCK_TEST environment variable is set to 'true' and run the large block test only if it is
     let (
         client1_starting_balance,
@@ -987,5 +987,5 @@ pub async fn run_tests(
     info!(
         "Total spent was {:#?}",
         format_units(total, "ether").unwrap()
-    );*/
+    );
 }
