@@ -920,10 +920,11 @@ mod tests {
     fn test_delete_existing_key_files() {
         // Create a temporary directory structure
         let temp_dir = std::env::temp_dir().join("test_key_deletion");
-        std::fs::create_dir_all(temp_dir.join("configuration/bin")).unwrap();
+        std::fs::create_dir_all(temp_dir.join("configuration/bin"))
+            .unwrap_or_else(|e| panic!("Failed to create test directory structure: {e:?}"));
 
-        let merge_counts =
-            merge_counts(get_block_size().expect("Failed to get block size")).unwrap();
+        let merge_counts = merge_counts(get_block_size().unwrap_or_else(|e| panic!("Failed to get block size: {e:?}")))
+            .unwrap_or_else(|e| panic!("Failed to get merge counts: {e:?}"));
         let (bn254_count, grumpkin_count) = merge_counts;
 
         // Create all the static test key files that should be deleted
@@ -946,7 +947,8 @@ mod tests {
         // Create the static test files
         for file in &static_test_files {
             let file_path = temp_dir.join("configuration/bin").join(file);
-            std::fs::write(&file_path, b"test_key_data").unwrap();
+            std::fs::write(&file_path, b"test_key_data")
+                .unwrap_or_else(|e| panic!("Failed to write test key file '{file}': {e:?}"));
             assert!(file_path.exists(), "Test file should be created: {file}");
         }
 
@@ -954,16 +956,18 @@ mod tests {
         let preserve_files = vec!["other_file.txt", "config.toml"];
         for file in &preserve_files {
             let file_path = temp_dir.join("configuration/bin").join(file);
-            std::fs::write(&file_path, b"preserve_me").unwrap();
+            std::fs::write(&file_path, b"preserve_me")
+                .unwrap_or_else(|e| panic!("Failed to write preserve file '{file}': {e:?}"));
         }
 
         // Get the KeySpecs
         let out_dir = PathBuf::from("configuration").join("bin");
-        let specs = build_key_specs("http://example.com/configuration", &out_dir).unwrap();
+        let specs = build_key_specs("http://example.com/configuration", &out_dir)
+            .unwrap_or_else(|e| panic!("Failed to build key specs: {e:?}"));
 
         // Call the deletion function
         let result = delete_existing_key_files(&temp_dir, specs);
-        assert!(result.is_ok(), "Key file deletion should succeed");
+        assert!(result.is_ok(), "Key file deletion should succeed, but got error: {:?}", result.err());
 
         // Verify that all static key files are deleted
         for file in &static_test_files {
@@ -983,14 +987,15 @@ mod tests {
             );
         }
         // Cleanup
-        std::fs::remove_dir_all(&temp_dir).unwrap();
+        std::fs::remove_dir_all(&temp_dir).unwrap_or_else(|e| panic!("Failed to cleanup test directory: {e:?}"));
     }
 
     #[test]
     fn test_delete_existing_key_files_nonexistent_directory() {
         // Get the KeySpecs
         let out_dir = PathBuf::from("configuration").join("bin");
-        let specs = build_key_specs("http://example.com/configuration", &out_dir).unwrap();
+        let specs = build_key_specs("http://example.com/configuration", &out_dir)
+            .unwrap_or_else(|e| panic!("Failed to build key specs: {e:?}"));
 
         // Test with a directory that doesn't exist
         let nonexistent_dir = std::path::Path::new("/tmp/nonexistent_key_dir_12345");
@@ -1008,11 +1013,12 @@ mod tests {
     fn test_delete_existing_key_files_missing_bin_directory() {
         // Get the KeySpecs
         let out_dir = PathBuf::from("configuration").join("bin");
-        let specs = build_key_specs("http://example.com/configuration", &out_dir).unwrap();
+        let specs = build_key_specs("http://example.com/configuration", &out_dir)
+            .unwrap_or_else(|e| panic!("Failed to build key specs: {e:?}"));
 
         // Create base directory but not the bin subdirectory
         let temp_dir = std::env::temp_dir().join("test_missing_bin_dir");
-        std::fs::create_dir_all(&temp_dir).unwrap();
+        std::fs::create_dir_all(&temp_dir).unwrap_or_else(|e| panic!("Failed to create temp directory: {e:?}"));
 
         // The function should fail if the bin directory doesn't exist
         let result = delete_existing_key_files(&temp_dir, specs);
@@ -1022,29 +1028,32 @@ mod tests {
         );
 
         // Cleanup
-        std::fs::remove_dir_all(&temp_dir).unwrap();
+        std::fs::remove_dir_all(&temp_dir).unwrap_or_else(|e| panic!("Failed to cleanup test directory: {e:?}"));
     }
 
     #[test]
     fn test_delete_existing_key_files_partial_files() {
         // Get the KeySpecs
         let out_dir = PathBuf::from("configuration").join("bin");
-        let specs = build_key_specs("http://example.com/configuration", &out_dir).unwrap();
+        let specs = build_key_specs("http://example.com/configuration", &out_dir)
+            .unwrap_or_else(|e| panic!("Failed to build key specs: {e:?}"));
 
         // Test with only some files existing
         let temp_dir = std::env::temp_dir().join("test_partial_key_deletion");
-        std::fs::create_dir_all(temp_dir.join("configuration/bin")).unwrap();
+        std::fs::create_dir_all(temp_dir.join("configuration/bin"))
+            .unwrap_or_else(|e| panic!("Failed to create test directory: {e:?}"));
 
         // Create only some of the expected files
         let partial_files = vec!["base_grumpkin_pk", "merge_bn254_pk_0"];
         for file in &partial_files {
             let file_path = temp_dir.join("configuration/bin").join(file);
-            std::fs::write(&file_path, b"test_key_data").unwrap();
+            std::fs::write(&file_path, b"test_key_data")
+                .unwrap_or_else(|e| panic!("Failed to write partial test file '{file}': {e:?}"));
         }
 
         // Call the deletion function
         let result = delete_existing_key_files(&temp_dir, specs);
-        assert!(result.is_ok(), "Partial key file deletion should succeed");
+        assert!(result.is_ok(), "Partial key file deletion should succeed, but got error: {:?}", result.err());
 
         // Verify that existing files are deleted
         for file in &partial_files {
@@ -1056,13 +1065,13 @@ mod tests {
         }
 
         // Cleanup
-        std::fs::remove_dir_all(&temp_dir).unwrap();
+        std::fs::remove_dir_all(&temp_dir).unwrap_or_else(|e| panic!("Failed to cleanup test directory: {e:?}"));
     }
 
     #[test]
     fn test_merge_counts() {
         // Test valid block size 64
-        let result_64 = merge_counts(64).unwrap();
+        let result_64 = merge_counts(64).unwrap_or_else(|e| panic!("merge_counts(64) should succeed: {e:?}"));
         assert_eq!(
             result_64,
             (1, 2),
@@ -1070,7 +1079,7 @@ mod tests {
         );
 
         // Test valid block size 256
-        let result_256 = merge_counts(256).unwrap();
+        let result_256 = merge_counts(256).unwrap_or_else(|e| panic!("merge_counts(256) should succeed: {e:?}"));
         assert_eq!(
             result_256,
             (2, 3),
@@ -1096,39 +1105,40 @@ mod tests {
     fn test_build_key_specs() {
         let out_dir = PathBuf::from("test/bin");
         let config_url = "http://example.com";
-        let specs = build_key_specs(config_url, &out_dir).unwrap();
+        let specs = build_key_specs(config_url, &out_dir)
+            .unwrap_or_else(|e| panic!("Failed to build key specs: {e:?}"));
 
         // Should contain base keys with correct URLs and paths
         let decider_pk = specs
             .iter()
             .find(|s| s.name == "decider_pk")
-            .expect("Should have decider_pk");
+            .unwrap_or_else(|| panic!("Should have decider_pk in specs: {:?}", specs));
         assert_eq!(decider_pk.url, format!("{config_url}/decider_pk"));
         assert_eq!(decider_pk.out_path, out_dir.join("decider_pk"));
 
         let decider_vk = specs
             .iter()
             .find(|s| s.name == "decider_vk")
-            .expect("Should have decider_vk");
+            .unwrap_or_else(|| panic!("Should have decider_vk in specs: {:?}", specs));
         assert_eq!(decider_vk.url, format!("{config_url}/decider_vk"));
         assert_eq!(decider_vk.out_path, out_dir.join("decider_vk"));
 
         let base_bn254 = specs
             .iter()
             .find(|s| s.name == "base_bn254_pk")
-            .expect("Should have base_bn254_pk");
+            .unwrap_or_else(|| panic!("Should have base_bn254_pk in specs: {:?}", specs));
         assert_eq!(base_bn254.url, format!("{config_url}/base_bn254_pk"));
         assert_eq!(base_bn254.out_path, out_dir.join("base_bn254_pk"));
 
         let base_grumpkin = specs
             .iter()
             .find(|s| s.name == "base_grumpkin_pk")
-            .expect("Should have base_grumpkin_pk");
+            .unwrap_or_else(|| panic!("Should have base_grumpkin_pk in specs: {:?}", specs));
         assert_eq!(base_grumpkin.url, format!("{config_url}/base_grumpkin_pk"));
         assert_eq!(base_grumpkin.out_path, out_dir.join("base_grumpkin_pk"));
 
-        let merge_counts =
-            merge_counts(get_block_size().expect("Failed to get block size")).unwrap();
+        let merge_counts = merge_counts(get_block_size().unwrap_or_else(|e| panic!("Failed to get block size: {e:?}")))
+            .unwrap_or_else(|e| panic!("Failed to get merge counts: {e:?}"));
         let (bn254_count, grumpkin_count) = merge_counts;
 
         // Check merge_bn254_pk_0 .. merge_bn254_pk_{bn254_count-1}
@@ -1158,28 +1168,30 @@ mod tests {
     async fn test_keccak256_file_async() {
         // Create a temporary file with known content
         let temp_file = std::env::temp_dir().join("test_hash_file");
-        std::fs::write(&temp_file, b"test content").unwrap();
+        std::fs::write(&temp_file, b"test content")
+            .unwrap_or_else(|e| panic!("Failed to write test hash file: {e:?}"));
 
         let result = keccak256_file_async(&temp_file).await;
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "keccak256_file_async should succeed, but got error: {:?}", result.err());
 
-        let (hash, size) = result.unwrap();
-        assert_eq!(size, 12); // "test content" is 12 bytes
-        assert!(!hash.is_empty());
+        let (hash, size) = result.unwrap_or_else(|e| panic!("Failed to compute hash: {e:?}"));
+        assert_eq!(size, 12, "Expected 12 bytes for 'test content', got {size}");
+        assert!(!hash.is_empty(), "Hash should not be empty, got: {hash}");
 
         // Cleanup
-        std::fs::remove_file(&temp_file).unwrap();
+        std::fs::remove_file(&temp_file).unwrap_or_else(|e| panic!("Failed to cleanup test hash file: {e:?}"));
     }
 
     #[tokio::test]
     async fn test_compare_overwritten_files_matching_hashes() {
         // Create temporary files with matching content
         let temp_dir = std::env::temp_dir().join("test_compare_matching");
-        std::fs::create_dir_all(&temp_dir).unwrap();
+        std::fs::create_dir_all(&temp_dir).unwrap_or_else(|e| panic!("Failed to create test directory: {e:?}"));
 
         let test_content = b"matching test content";
         let test_file = temp_dir.join("test_key");
-        std::fs::write(&test_file, test_content).unwrap();
+        std::fs::write(&test_file, test_content)
+            .unwrap_or_else(|e| panic!("Failed to write matching test file: {e:?}"));
 
         // Compute the expected hash
         let mut hasher = Keccak256::new();
@@ -1195,25 +1207,28 @@ mod tests {
         }];
 
         let result = compare_overwritten_files(&keys).await;
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "compare_overwritten_files should succeed, but got error: {:?}", result.err());
 
-        let comparisons = result.unwrap();
-        assert_eq!(comparisons.len(), 1);
-        assert!(comparisons[0].equal, "Hashes should match");
-        assert!(comparisons[0].generated.is_some());
+        let comparisons = result.unwrap_or_else(|e| panic!("Failed to compare files: {e:?}"));
+        assert_eq!(comparisons.len(), 1, "Expected 1 comparison, got {}", comparisons.len());
+        assert!(comparisons[0].equal, "Hashes should match - downloaded: {:?}, generated: {:?}", 
+            comparisons[0].downloaded.as_ref().map(|d| &d.keccak256),
+            comparisons[0].generated.as_ref().map(|g| &g.keccak256));
+        assert!(comparisons[0].generated.is_some(), "Generated side should exist");
 
         // Cleanup
-        std::fs::remove_dir_all(&temp_dir).unwrap();
+        std::fs::remove_dir_all(&temp_dir).unwrap_or_else(|e| panic!("Failed to cleanup test directory: {e:?}"));
     }
 
     #[tokio::test]
     async fn test_compare_overwritten_files_mismatching_hashes() {
         // Create temporary files with different content
         let temp_dir = std::env::temp_dir().join("test_compare_mismatch");
-        std::fs::create_dir_all(&temp_dir).unwrap();
+        std::fs::create_dir_all(&temp_dir).unwrap_or_else(|e| panic!("Failed to create test directory: {e:?}"));
 
         let test_file = temp_dir.join("test_key");
-        std::fs::write(&test_file, b"actual content").unwrap();
+        std::fs::write(&test_file, b"actual content")
+            .unwrap_or_else(|e| panic!("Failed to write mismatch test file: {e:?}"));
 
         // Provide a different hash in the KeyReport
         let keys = vec![KeyReport {
@@ -1226,14 +1241,16 @@ mod tests {
         }];
 
         let result = compare_overwritten_files(&keys).await;
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "compare_overwritten_files should succeed, but got error: {:?}", result.err());
 
-        let comparisons = result.unwrap();
-        assert_eq!(comparisons.len(), 1);
-        assert!(!comparisons[0].equal, "Hashes should not match");
+        let comparisons = result.unwrap_or_else(|e| panic!("Failed to compare files: {e:?}"));
+        assert_eq!(comparisons.len(), 1, "Expected 1 comparison, got {}", comparisons.len());
+        assert!(!comparisons[0].equal, "Hashes should not match - expected mismatch between downloaded: {:?} and generated: {:?}",
+            comparisons[0].downloaded.as_ref().map(|d| &d.keccak256),
+            comparisons[0].generated.as_ref().map(|g| &g.keccak256));
 
         // Cleanup
-        std::fs::remove_dir_all(&temp_dir).unwrap();
+        std::fs::remove_dir_all(&temp_dir).unwrap_or_else(|e| panic!("Failed to cleanup test directory: {e:?}"));
     }
 
     #[tokio::test]
@@ -1250,17 +1267,18 @@ mod tests {
         }];
 
         let result = compare_overwritten_files(&keys).await;
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "compare_overwritten_files should succeed, but got error: {:?}", result.err());
 
-        let comparisons = result.unwrap();
-        assert_eq!(comparisons.len(), 1);
+        let comparisons = result.unwrap_or_else(|e| panic!("Failed to compare files: {e:?}"));
+        assert_eq!(comparisons.len(), 1, "Expected 1 comparison, got {}", comparisons.len());
         assert!(
             !comparisons[0].equal,
             "Should not be equal when file is missing"
         );
         assert!(
             comparisons[0].generated.is_none(),
-            "Generated side should be None for missing file"
+            "Generated side should be None for missing file, got: {:?}",
+            comparisons[0].generated
         );
         assert!(
             comparisons[0].downloaded.is_some(),
@@ -1272,19 +1290,19 @@ mod tests {
     async fn test_compare_overwritten_files_multiple_keys() {
         // Test with multiple keys - mix of matching, mismatching, and missing
         let temp_dir = std::env::temp_dir().join("test_compare_multiple");
-        std::fs::create_dir_all(&temp_dir).unwrap();
+        std::fs::create_dir_all(&temp_dir).unwrap_or_else(|e| panic!("Failed to create test directory: {e:?}"));
 
         // Key 1: Matching
         let file1 = temp_dir.join("key1");
         let content1 = b"content1";
-        std::fs::write(&file1, content1).unwrap();
+        std::fs::write(&file1, content1).unwrap_or_else(|e| panic!("Failed to write key1 test file: {e:?}"));
         let mut hasher1 = Keccak256::new();
         hasher1.update(content1);
         let hash1 = hex::encode(hasher1.finalize());
 
         // Key 2: Mismatching
         let file2 = temp_dir.join("key2");
-        std::fs::write(&file2, b"content2").unwrap();
+        std::fs::write(&file2, b"content2").unwrap_or_else(|e| panic!("Failed to write key2 test file: {e:?}"));
 
         // Key 3: Missing
         let file3 = temp_dir.join("key3_missing");
@@ -1314,38 +1332,29 @@ mod tests {
         ];
 
         let result = compare_overwritten_files(&keys).await;
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "compare_overwritten_files should succeed, but got error: {:?}", result.err());
 
-        let comparisons = result.unwrap();
-        assert_eq!(comparisons.len(), 3);
+        let comparisons = result.unwrap_or_else(|e| panic!("Failed to compare files: {e:?}"));
+        assert_eq!(comparisons.len(), 3, "Expected 3 comparisons, got {}", comparisons.len());
 
         // Verify key1 matches
-        assert!(comparisons[0].equal, "Key1 should match");
-        assert!(comparisons[0].generated.is_some());
+        assert!(comparisons[0].equal, "Key1 should match - downloaded: {:?}, generated: {:?}",
+            comparisons[0].downloaded.as_ref().map(|d| &d.keccak256),
+            comparisons[0].generated.as_ref().map(|g| &g.keccak256));
+        assert!(comparisons[0].generated.is_some(), "Key1 generated side should exist");
 
         // Verify key2 doesn't match
-        assert!(!comparisons[1].equal, "Key2 should not match");
-        assert!(comparisons[1].generated.is_some());
+        assert!(!comparisons[1].equal, "Key2 should not match - downloaded: {:?}, generated: {:?}",
+            comparisons[1].downloaded.as_ref().map(|d| &d.keccak256),
+            comparisons[1].generated.as_ref().map(|g| &g.keccak256));
+        assert!(comparisons[1].generated.is_some(), "Key2 generated side should exist");
 
         // Verify key3 is missing
-        assert!(!comparisons[2].equal, "Key3 should not match");
-        assert!(comparisons[2].generated.is_none());
+        assert!(!comparisons[2].equal, "Key3 should not match (missing file)");
+        assert!(comparisons[2].generated.is_none(), "Key3 generated side should be None, got: {:?}", comparisons[2].generated);
 
         // Cleanup
-        std::fs::remove_dir_all(&temp_dir).unwrap();
+        std::fs::remove_dir_all(&temp_dir).unwrap_or_else(|e| panic!("Failed to cleanup test directory: {e:?}"));
     }
 
-    #[tokio::test]
-    async fn test_compare_overwritten_files_empty_input() {
-        let keys: Vec<KeyReport> = vec![];
-        let result = compare_overwritten_files(&keys).await;
-        assert!(result.is_ok());
-
-        let comparisons = result.unwrap();
-        assert_eq!(
-            comparisons.len(),
-            0,
-            "Should return empty vector for empty input"
-        );
-    }
 }
