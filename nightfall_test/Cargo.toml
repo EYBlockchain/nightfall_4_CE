@@ -33,12 +33,12 @@ hex = "0.4.3"
 log = "0.4.27"
 sha2 = "0.10.9"
 ark-ec = { version = "0.4.2", features = ["parallel"] }
-nf-curves = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git" }
-jf-plonk = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", features = [
+nf-curves = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "b4b11d8301695f330d81a84898d78b333801ed70" }
+jf-plonk = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "b4b11d8301695f330d81a84898d78b333801ed70", features = [
     "test-srs",
 ] }
-jf-primitives = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git" }
-jf-relation = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git" }
+jf-primitives = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "b4b11d8301695f330d81a84898d78b333801ed70" }
+jf-relation = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", rev = "b4b11d8301695f330d81a84898d78b333801ed70" }
 serial_test = "3.2.0"
 num-bigint = "0.4.6"
 figment = { version = "0.10.19", features = ["toml", "env"] }

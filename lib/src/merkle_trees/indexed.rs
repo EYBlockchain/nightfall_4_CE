@@ -180,7 +180,7 @@ where
                 let res = <Self as IndexedLeaves<F>>::store_leaf(
                     self,
                     *inner_leaf,
-                    Some(insert_index),
+                    Some(insert_index.into()),
                     tree_id,
                 )
                 .await?;
@@ -217,7 +217,7 @@ where
             .map(|indexed_leaf| {
                 if !indexed_leaf.value.is_zero() {
                     let leaf_value: F = indexed_leaf.value;
-                    let leaf_next_index = F::from(indexed_leaf.next_index as u64);
+                    let leaf_next_index = F::from(indexed_leaf.next_index);
                     let leaf_next_value: F = indexed_leaf.next_value;
                     hasher
                         .hash(&[leaf_value, leaf_next_index, leaf_next_value])
@@ -242,7 +242,7 @@ where
             .into_iter()
             .map(|leaf| {
                 let leaf_value: F = leaf.value;
-                let leaf_next_index = F::from(leaf.next_index as u64);
+                let leaf_next_index = F::from(leaf.next_index);
                 let leaf_next_value: F = leaf.next_value;
                 Ok((
                     hasher.hash(&[leaf_value, leaf_next_index, leaf_next_value])?,
@@ -288,7 +288,7 @@ where
         let old_root = metadata.root;
 
         // This is the index of the first leaf of the subtree in the main tree, counted from the left, starting at zero
-        let mut initial_index = metadata.sub_tree_count as u32 * (1u32 << metadata.sub_tree_height);
+        let mut initial_index = metadata.sub_tree_count as u64 * (1u64 << metadata.sub_tree_height);
 
         let first_index = initial_index;
 
@@ -487,7 +487,7 @@ impl<F: PrimeField + PoseidonParams> IndexedLeaves<F> for mongodb::Client {
     async fn store_leaf(
         &self,
         leaf: F,
-        index: Option<u32>,
+        index: Option<u64>,
         tree_id: &str,
     ) -> Result<Option<()>, Self::Error> {
         // If the new leaf is already in the db then we shouldn't store it.
@@ -515,7 +515,7 @@ impl<F: PrimeField + PoseidonParams> IndexedLeaves<F> for mongodb::Client {
             collection
                 .count_documents(doc! {})
                 .await
-                .map_err(MerkleTreeError::DatabaseError)? as u32
+                .map_err(MerkleTreeError::DatabaseError)? as u64
         };
         // Create a new leaf entry
         let entry = IndexedLeaf::<F> {
@@ -535,7 +535,7 @@ impl<F: PrimeField + PoseidonParams> IndexedLeaves<F> for mongodb::Client {
                 doc! {
                     "$set": {
                         "value": padded_leaf,
-                        "next_index": low_leaf.next_index,
+                        "next_index": low_leaf.next_index  as i64,
                         "next_value": padded_next_value,
                     }
                 },
@@ -625,7 +625,7 @@ impl<F: PrimeField + PoseidonParams> IndexedLeaves<F> for mongodb::Client {
     async fn update_leaf(
         &self,
         leaf: F,
-        new_next_index: u32,
+        new_next_index: u64,
         new_next_value: F,
         tree_id: &str,
     ) -> Result<(), Self::Error> {
