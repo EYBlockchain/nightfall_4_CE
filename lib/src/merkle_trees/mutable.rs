@@ -6,7 +6,7 @@ use crate::{
     serialization::{deserialize_fr_padded, serialize_fr_padded, serialize_to_padded_hex},
 };
 use ark_ff::PrimeField;
-use futures::{future::join_all, TryStreamExt};
+use futures::{future::try_join_all, TryStreamExt};
 use jf_primitives::{
     poseidon::{Poseidon, PoseidonParams},
     trees::{CircuitInsertionInfo, Directions, MembershipProof, PathElement, TreeHasher},
@@ -280,16 +280,7 @@ where
             // save the updated nodes
         }
 
-        let results = join_all(updates).await;
-
-        // Check if all tasks succeeded
-        for result in results {
-            if let Err(e) = result {
-                return Err(MerkleTreeError::Error(format!(
-                    "Failed to execute update: {e:?}"
-                )));
-            }
-        }
+        try_join_all(updates).await?;
 
         // store the updated sub tree count
         if update_tree {
@@ -402,7 +393,7 @@ where
             }
 
             // run the set functions concurrently to update the nodes we changed
-            join_all(updates).await;
+            try_join_all(updates).await?;
             sub_tree_count += 1;
         }
         // store the updated sub tree count
@@ -605,7 +596,7 @@ where
             }
         };
         // run the set functions concurrently to update the nodes we changed
-        join_all(updates).await;
+        try_join_all(updates).await?;
         if update_tree {
             // save the cached nodes
             <Self as MutableTree<F>>::flush_cache(self, tree_id).await?
