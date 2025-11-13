@@ -80,7 +80,8 @@ contract RoundRobinUpgradeTest is Test {
                 3, // DING
                 2, // EXIT_PENALTY
                 1, // COOLDOWN_BLOCKS
-                0 // ROTATION_BLOCKS
+                2, // rotation_blocks
+                1 // grace_blocks
             )
         );
         rr = RoundRobin(
@@ -100,8 +101,8 @@ contract RoundRobinUpgradeTest is Test {
         assertEq(rr.escrow(), 5, "escrow before");
         assertEq(rr.get_current_proposer_address(), default_proposer_address);
 
-        // move beyond finalization window and do one rotation (works on V1)
-        vm.roll(block.number + 64);
+        // move beyond finalization window and rotation window and do one rotation (works on V1)
+        vm.roll(block.number + 64 + 5);
         rr.rotate_proposer();
 
         // snapshot implementation

@@ -73,7 +73,8 @@ contract RoundRobinTest is Test {
                 3, // ding
                 2, // exit_penalty
                 1, // cooling_blocks
-                0 // rotation_blocks
+                2, // rotation_blocks
+                1 // grace_blocks
             )
         );
         roundRobin = RoundRobin(
@@ -136,8 +137,8 @@ contract RoundRobinTest is Test {
             proposer2_address
         );
 
-        // rotate after finalization window
-        vm.roll(block.number + 64);
+        // rotate after finalization window and rotation window
+        vm.roll(block.number + 64 + 5);
         roundRobin.rotate_proposer();
         assertEq(roundRobin.get_current_proposer_address(), proposer2_address);
 
@@ -184,4 +185,85 @@ contract RoundRobinTest is Test {
         vm.expectRevert("Cannot deregister the only active proposer");
         roundRobin.remove_proposer();
     }
+
+    /// @dev With only one proposer, skip_inactive_proposer must revert.
+    function test_skipInactiveProposer_revertsWithSingleProposer() public {
+        assertEq(roundRobin.get_proposers().length, 1);
+
+        // Even rolling forward in time, we still cannot skip because proposer_count == 1
+        vm.roll(block.number + 1000);
+
+        vm.expectRevert("Cannot skip single proposer");
+        roundRobin.skip_inactive_proposer();
+    }
+
+     /// @dev With two proposers but before GRACE_BLOCKS has elapsed, skip must revert.
+    function test_skipInactiveProposer_revertsBeforeGrace() public {
+        x509Contract.enableAllowlisting(false);
+
+        // Add second proposer so proposer_count > 1
+        roundRobin.add_proposer{value: 5}(proposer2_url);
+        assertEq(roundRobin.get_proposers().length, 2);
+
+        uint256 grace = roundRobin.GRACE_BLOCKS(); // = 1 in this setup
+
+        // Move fewer than GRACE_BLOCKS ahead:
+        // if grace == 1, this means "no roll"
+        if (grace > 0) {
+            vm.roll(block.number + grace - 1);
+        }
+
+        vm.expectRevert("Proposer not yet inactive");
+        roundRobin.skip_inactive_proposer();
+    }
+
+    /// @dev After GRACE_BLOCKS of inactivity with >1 proposer, skip should slash and rotate.
+    function test_skipInactiveProposer_slashesAndRotatesAfterGrace() public {
+        x509Contract.enableAllowlisting(false);
+
+        // Add second proposer
+        roundRobin.add_proposer{value: 5}(proposer2_url);
+        proposer2_address = roundRobin.get_proposers()[1].addr;
+
+        // Current proposer should be the default
+        assertEq(
+            roundRobin.get_current_proposer_address(),
+            default_proposer_address
+        );
+
+        uint256 grace = roundRobin.GRACE_BLOCKS();
+        uint256 escrowBefore = roundRobin.escrow();
+        uint256 lazyPenalty = roundRobin.LAZY_PENALTY();
+
+        // Advance at least GRACE_BLOCKS since lastProposedAt
+        vm.roll(block.number + grace);
+
+        // Anyone (address(this)) calls skip
+        roundRobin.skip_inactive_proposer();
+
+        // We should have rotated to proposer2
+        assertEq(
+            roundRobin.get_current_proposer_address(),
+            proposer2_address
+        );
+
+        // Escrow should drop by LAZY_PENALTY
+        uint256 escrowAfter = roundRobin.escrow();
+        assertEq(
+            escrowAfter,
+            escrowBefore - lazyPenalty,
+            "Escrow not dinged correctly"
+        );
+
+        // Default proposer's stake should be reduced by LAZY_PENALTY
+        (uint256 stakeDefault, , , , ) = roundRobin.proposers(
+            default_proposer_address
+        );
+        assertEq(
+            stakeDefault,
+            5 - lazyPenalty,
+            "Default proposer stake not reduced by lazy penalty"
+        );
+    }
+
 }
