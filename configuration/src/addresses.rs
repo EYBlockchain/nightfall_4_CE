@@ -38,6 +38,30 @@ pub fn validate_address(addr: &str) -> Result<Address, AddressesError> {
     Ok(address)
 }
 
+/// Validates an Ethereum address with strict EIP-55 checksum enforcement,
+/// whilst skipping zero check if the `mock_prover` setting is enabled.
+/// Use for user configuration addresses.
+pub fn validate_address_allow_zero(addr: &str) -> Result<Address, AddressesError> {
+    let settings = Settings::new().map_err(|_| AddressesError::Settings)?;
+    let original_addr = addr;
+    let addr = addr.trim_start_matches("0x");
+    let addr_bytes =
+        hex::decode(addr).map_err(|_| AddressesError::InvalidFormat(original_addr.into()))?;
+    if addr_bytes.len() != 20 {
+        return Err(AddressesError::InvalidLength(original_addr.into()));
+    }
+    let address = Address::from_slice(&addr_bytes);
+    if address == Address::ZERO && !settings.mock_prover {
+        return Err(AddressesError::ZeroAddress(original_addr.into()));
+    }
+    // Verify EIP-55 checksum
+    let checksummed = address.to_checksum(None);
+    if &checksummed[2..] != addr {
+        return Err(AddressesError::InvalidChecksum(original_addr.into()));
+    }
+    Ok(address)
+}
+
 fn is_private_ip(ip: IpAddr) -> bool {
     match ip {
         IpAddr::V4(v4) => v4.is_private() || v4.is_loopback() || v4.is_link_local(),
@@ -246,6 +270,31 @@ mod address_serde {
     }
 }
 
+mod address_serde_allow_zero {
+    use super::*;
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    /// Serializes an `Address` as an EIP-55 checksummed hexadecimal string.
+    /// This ensures that when the address is saved (e.g., to TOML or JSON),
+    /// it preserves the checksum formatting.
+    pub fn serialize<S>(addr: &Address, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let checksummed = addr.to_checksum(None);
+        serializer.serialize_str(&checksummed)
+    }
+    /// Deserializes a string into an `Address`, validating its EIP-55 checksum.
+    /// Returns an error if the string is not a valid checksummed address
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Address, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s: String = Deserialize::deserialize(deserializer)?;
+        validate_address_allow_zero(&s).map_err(serde::de::Error::custom)
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]
 pub struct Addresses {
     pub chain_id: u64,
@@ -255,7 +304,7 @@ pub struct Addresses {
     pub round_robin: Address,
     #[serde(with = "address_serde")]
     pub x509: Address,
-    #[serde(with = "address_serde")]
+    #[serde(with = "address_serde_allow_zero")]
     pub verifier: Address,
 }
 
