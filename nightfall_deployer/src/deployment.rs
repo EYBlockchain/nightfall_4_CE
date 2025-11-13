@@ -142,7 +142,6 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn std::er
                     addresses.nightfall, addresses.round_robin, addresses.x509, addresses.verifier
                 );
             }
-            
         }
         Err(e) => {
             error!("Failed to parse deployment broadcast file: {e}");

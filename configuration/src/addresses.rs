@@ -399,8 +399,9 @@ impl Addresses {
                     .map_err(|_| AddressesError::CouldNotGetUrl)?;
 
                 let data = resp.text().map_err(|_| AddressesError::BadResponse)?;
-                let addresses: Self =
-                    toml::from_str(&data).map_err(|e| AddressesError::Toml(format!("Error in sources:http toml::from_str: {e}")))?;
+                let addresses: Self = toml::from_str(&data).map_err(|e| {
+                    AddressesError::Toml(format!("Error in sources:http toml::from_str: {e}"))
+                })?;
                 addresses.ensure_nonzero(mock_prover)?;
                 Ok(addresses)
             }
@@ -427,8 +428,9 @@ impl Addresses {
 
                 let data = std::fs::read_to_string(&canonical)
                     .map_err(|e| AddressesError::Toml(format!("Could not read file: {e}")))?;
-                let addresses: Self =
-                    toml::from_str(&data).map_err(|e| AddressesError::Toml(format!("Error in sources:file toml::from_str: {e}")))?;
+                let addresses: Self = toml::from_str(&data).map_err(|e| {
+                    AddressesError::Toml(format!("Error in sources:file toml::from_str: {e}"))
+                })?;
                 addresses.ensure_nonzero(mock_prover)?;
                 Ok(addresses)
             }
