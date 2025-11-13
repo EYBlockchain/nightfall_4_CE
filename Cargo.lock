@@ -5496,6 +5496,8 @@ dependencies = [
  "alloy",
  "configuration",
  "log",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
