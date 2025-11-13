@@ -130,14 +130,19 @@ pub fn get_addresses() -> &'static Addresses {
     static ADDRESSES: OnceLock<Addresses> = OnceLock::new();
     ADDRESSES.get_or_init(|| {
         let settings = Settings::new().expect("Could not load settings");
-        let file_path = PathBuf::from("/app/configuration/toml/addresses.toml");
-        if let Ok(addresses) = Addresses::load(Sources::File(file_path)) {
-            if addresses.chain_id == settings.network.chain_id {
-                info!("Loaded contract addresses from local file");
-                return addresses;
-            } else {
-                warn!("File exists but chain_id mismatch: {} != {}", 
-                      addresses.chain_id, settings.network.chain_id);
+        let file_path =PathBuf::from("/app/configuration/toml/addresses.toml");
+        match Addresses::load(Sources::File(file_path.clone()), settings.mock_prover) {
+            Ok(addresses) => {
+                if addresses.chain_id == settings.network.chain_id {
+                    info!("Loaded contract addresses from local file");
+                    return addresses;
+                } else {
+                    warn!("File exists but chain_id mismatch: {} != {}", 
+                            addresses.chain_id, settings.network.chain_id);
+                }
+            }
+            Err(e) => {
+                warn!("Could not load addresses from file {}: {}", file_path.display(), e);
             }
         }
         let base = validate_config_url(&settings.configuration_url).expect("Invalid or untrusted configuration URL");
@@ -147,7 +152,7 @@ pub fn get_addresses() -> &'static Addresses {
         let mut wait_time = 2;
 
         for attempt in 1..=max_attempts {
-            match Addresses::load(Sources::Http(url.clone())) {
+            match Addresses::load(Sources::Http(url.clone()), settings.mock_prover) {
                 Ok(addresses) => {
                     if addresses.chain_id != settings.network.chain_id {
                         panic!(
@@ -280,7 +285,7 @@ impl fmt::Display for SourcesError {
 }
 
 impl Addresses {
-    pub fn ensure_nonzero(&self) -> Result<(), AddressesError> {
+    pub fn ensure_nonzero(&self, mock_prover: bool) -> Result<(), AddressesError> {
         if self.nightfall == Address::ZERO {
             return Err(AddressesError::ZeroAddress("nightfall".into()));
         }
@@ -290,12 +295,12 @@ impl Addresses {
         if self.x509 == Address::ZERO {
             return Err(AddressesError::ZeroAddress("x509".into()));
         }
-        if self.verifier == Address::ZERO {
+        if !mock_prover && self.verifier == Address::ZERO {
             return Err(AddressesError::ZeroAddress("verifier".into()));
         }
         Ok(())
     }
-    pub fn load(s: Sources) -> Result<Self, AddressesError> {
+    pub fn load(s: Sources, mock_prover: bool) -> Result<Self, AddressesError> {
         match s {
             Sources::Http(u) => {
                 let host = u
@@ -347,7 +352,7 @@ impl Addresses {
                 let data = resp.text().map_err(|_| AddressesError::BadResponse)?;
                 let addresses: Self =
                     toml::from_str(&data).map_err(|e| AddressesError::Toml(format!("Error in sources:http toml::from_str: {e}")))?;
-                addresses.ensure_nonzero()?;
+                addresses.ensure_nonzero(mock_prover)?;
                 Ok(addresses)
             }
             Sources::File(path) => {
@@ -375,7 +380,7 @@ impl Addresses {
                     .map_err(|e| AddressesError::Toml(format!("Could not read file: {e}")))?;
                 let addresses: Self =
                     toml::from_str(&data).map_err(|e| AddressesError::Toml(format!("Error in sources:file toml::from_str: {e}")))?;
-                addresses.ensure_nonzero()?;
+                addresses.ensure_nonzero(mock_prover)?;
                 Ok(addresses)
             }
         }
@@ -449,6 +454,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_checksum_validation() {
+        let settings = Settings::new().expect("Could not load settings");
         // checksummed address (valid)
         let valid_address = "0x52908400098527886E0F7030069857D2E4169EE7";
         assert!(validate_address(valid_address).is_ok());
@@ -466,7 +472,7 @@ mod tests {
             verifier: validate_address(valid_address).unwrap(),
         };
 
-        addresses.ensure_nonzero().unwrap();
+        addresses.ensure_nonzero(settings.mock_prover).unwrap();
     }
     #[tokio::test]
     #[serial]
