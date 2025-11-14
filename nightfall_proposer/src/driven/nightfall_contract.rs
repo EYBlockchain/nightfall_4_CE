@@ -32,7 +32,7 @@ impl NightfallContract for Nightfall::NightfallCalls {
                 .await
                 .map_err(|e| {
                     NightfallContractError::ContractVerificationError(format!(
-                        "Nightfall Contract verification failed during get_token_info: {e}"
+                        "Contract verification failed during get_token_info: {e}"
                     ))
                 })?;
         let nightfall = verified.nightfall;
@@ -88,8 +88,8 @@ impl NightfallContract for Nightfall::NightfallCalls {
                 .await
                 .map_err(|e| {
                     NightfallContractError::ContractVerificationError(format!(
-                "Nightfall Contract verification failed during get_current_layer2_blocknumber: {e}"
-            ))
+                        "Contract verification failed during get_current_layer2_blocknumber: {e}"
+                    ))
                 })?;
         let nightfall = verified.nightfall;
         Ok(nightfall
