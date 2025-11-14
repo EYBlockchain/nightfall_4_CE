@@ -199,6 +199,13 @@ contract Nightfall is
             )
         }
 
+        // block_transactions_length can only be 64 or 256
+        require(
+            block_transactions_length == 64 ||
+                block_transactions_length == 256,
+            "Nightfall: block_transactions_length must be 64 or 256"
+        );
+
         uint256[] memory transaction_hashes = new uint256[](
             block_transactions_length
         );
