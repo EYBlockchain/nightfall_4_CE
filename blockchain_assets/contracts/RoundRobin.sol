@@ -129,6 +129,10 @@ contract RoundRobin is ProposerManager, Certified, UUPSUpgradeable {
         start_l1_block = block.number;
         start_l2_block = nightfall.layer2_block_number();
 
+        // inactivity tracking initialisation
+        lastSeenL2Block = start_l2_block;
+        lastProposedAt = block.number;
+
         emit ProposerRotated(current);
     }
 
@@ -328,13 +332,19 @@ contract RoundRobin is ProposerManager, Certified, UUPSUpgradeable {
     }
 
     // Permissionless skip for an inactive current proposer.
-    // Anyone can call this when block.number - lastProposedAt >= GRACE_BLOCKS.
+    // Anyone can call this when no L2 block has been proposed for at least GRACE_BLOCKS L1 blocks.
     // This will apply the lazy penalty and rotate to the next proposer.
     function skip_inactive_proposer() external {
         require(proposer_count > 1, "Cannot skip single proposer");
-        require(GRACE_BLOCKS > 0 && GRACE_BLOCKS < ROTATION_BLOCKS, "Grace blocks not configured properly");
+        require(
+            GRACE_BLOCKS > 0 && GRACE_BLOCKS < ROTATION_BLOCKS,
+            "Grace blocks not configured properly"
+        );
 
-        // if block.number - lastProposedAt >= GRACE_BLOCKS, skip is allowed.
+        // First, refresh inactivity state based on Nightfall's L2 block number.
+        _refresh_inactivity_state();
+
+        // Now this really means "no L2 block for GRACE_BLOCKS L1 blocks".
         require(
             block.number >= lastProposedAt + GRACE_BLOCKS,
             "Proposer not yet inactive"
@@ -342,8 +352,6 @@ contract RoundRobin is ProposerManager, Certified, UUPSUpgradeable {
 
         address offender = current.addr;
 
-        // Apply lazy penalty; this may remove the proposer entirely
-        // if their stake < LAZY_PENALTY.
         lazy_penalize_proposer(offender);
 
         if (proposers[offender].addr != address(0)) {
@@ -352,13 +360,31 @@ contract RoundRobin is ProposerManager, Certified, UUPSUpgradeable {
             start_l1_block = block.number;
             start_l2_block = nightfall.layer2_block_number();
         }
+
+        // Whoever is current now (whether offender survived or not),
+        // we start a fresh grace window.
+        lastProposedAt = block.number;
+        lastSeenL2Block = nightfall.layer2_block_number();
+
         emit ProposerRotated(current);
+    }
+
+
+    function _refresh_inactivity_state() internal {
+        int currentL2 = nightfall.layer2_block_number();
+        if (currentL2 > lastSeenL2Block) {
+            // At least one new L2 block has been proposed since we last checked
+            lastSeenL2Block = currentL2;
+            lastProposedAt = block.number;
+        }
     }
 
 
     // --- inactivity tracking ----
     // L1 block number of the last successfully proposed L2 block.
     uint256 public lastProposedAt;
+    // Last L2 block number that RoundRobin has observed in Nightfall
+    int public lastSeenL2Block;
 
 
     // --- UUPS guard (use Certified’s onlyOwner) ---
