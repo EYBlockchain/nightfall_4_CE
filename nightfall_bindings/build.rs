@@ -1,7 +1,10 @@
-use log::info;
-use std::{os::unix::process::ExitStatusExt, path::Path, process::Command, fmt::Write, path::PathBuf, fs, env};
-use serde::Deserialize;
 use alloy::primitives::keccak256;
+use log::info;
+use serde::Deserialize;
+use std::{
+    env, fmt::Write, fs, os::unix::process::ExitStatusExt, path::Path, path::PathBuf,
+    process::Command,
+};
 #[derive(Deserialize)]
 struct BytecodeObj {
     object: String,
@@ -36,17 +39,12 @@ fn hex_to_bytes(hex: &str) -> Vec<u8> {
 }
 
 fn write_const(out: &mut String, const_name: &str, bytes: &[u8; 32]) {
-    write!(
-        out,
-        "pub const {name}: [u8; 32] = [",
-        name = const_name
-    )
-    .unwrap();
+    write!(out, "pub const {const_name}: [u8; 32] = [").unwrap();
     for (i, b) in bytes.iter().enumerate() {
         if i != 0 {
             out.push_str(", ");
         }
-        write!(out, "0x{:02x}", b).unwrap();
+        write!(out, "0x{b:02x}").unwrap();
     }
     out.push_str("];\n");
 }
