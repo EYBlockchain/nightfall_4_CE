@@ -119,7 +119,7 @@ deploy_contracts = true
 nightfall = "0x68B1D87F95878fE05B998F19b66F4baba5De1aed"
 round_robin = "0xc6e7DF5E7b4f2A278906862b61205850344D4e7d"
 x509 = "0x610178dA211FEF7D417bC0e6FeD39F05609AD788"
-verifier = ""
+verifier = "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6"
 
 [development.certificates]
 authority_key_identifier = "0xA469FF28BFAB9C4DB09220B24038D6F18EA57F75"

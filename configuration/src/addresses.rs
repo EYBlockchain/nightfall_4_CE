@@ -154,7 +154,7 @@ pub fn get_addresses() -> &'static Addresses {
     static ADDRESSES: OnceLock<Addresses> = OnceLock::new();
     ADDRESSES.get_or_init(|| {
         let settings = Settings::new().expect("Could not load settings");
-        let file_path =PathBuf::from("/app/configuration/toml/addresses.toml");
+        let file_path = PathBuf::from("/app/configuration/toml/addresses.toml");
         match Addresses::load(Sources::File(file_path.clone()), settings.mock_prover) {
             Ok(addresses) => {
                 if addresses.chain_id == settings.network.chain_id {
