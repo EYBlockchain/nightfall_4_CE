@@ -156,10 +156,24 @@ contract RoundRobin is ProposerManager, Certified, UUPSUpgradeable {
         if (nightfall.layer2_block_number() == start_l2_block) {
             lazy_penalize_proposer(current.addr);
         }
-        current = proposers[current.next_addr];
-        start_l1_block = block.number;
-        start_l2_block = nightfall.layer2_block_number();
-        emit ProposerRotated(current);
+        // Define the minimum eligibility floor
+        uint256 eligibilityFloor = EXIT_PENALTY + LAZY_PENALTY;
+
+        // Iterate through the proposer list to find an eligible proposer
+        address nextProposer = current.next_addr;
+        for (uint256 i = 0; i < proposer_count; i++) {
+            if (proposers[nextProposer].stake >= eligibilityFloor) {
+                current = proposers[nextProposer];
+                start_l1_block = block.number;
+                start_l2_block = nightfall.layer2_block_number();
+                emit ProposerRotated(current);
+                return;
+            }
+            nextProposer = proposers[nextProposer].next_addr;
+    }
+
+    // If no eligible proposer is found, revert with a clear error
+    revert("RoundRobin: No eligible proposers with sufficient stake");
     }
 
     function add_proposer(
@@ -235,14 +249,16 @@ contract RoundRobin is ProposerManager, Certified, UUPSUpgradeable {
                 proposer_count > 1,
                 "Cannot deregister the only active proposer"
             );
-            require(
-                proposers[proposer_address].stake >= EXIT_PENALTY,
-                "Insufficient stake for exit"
-            );
 
-            proposers[proposer_address].stake -= EXIT_PENALTY;
-            escrow -= EXIT_PENALTY;
-
+            // If the proposer has insufficient stake, slash the remaining stake and proceed
+            uint256 remainingStake = proposers[proposer_address].stake;
+            if (remainingStake < EXIT_PENALTY) {
+                escrow -= remainingStake;
+                proposers[proposer_address].stake = 0;
+            } else {
+                proposers[proposer_address].stake -= EXIT_PENALTY;
+                escrow -= EXIT_PENALTY;
+            }
             current = proposers[current.next_addr];
             start_l1_block = block.number;
             start_l2_block = nightfall.layer2_block_number();
