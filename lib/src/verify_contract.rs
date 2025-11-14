@@ -21,7 +21,6 @@ use nightfall_bindings::{
 ///  - https://eips.ethereum.org/EIPS/eip-1967
 ///
 /// The proxy contract stores its logic/implementation address at this slot.
-
 const EIP1967_IMPLEMENTATION_SLOT_BYTES: [u8; 32] =
     hex_literal::hex!("360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc");
 

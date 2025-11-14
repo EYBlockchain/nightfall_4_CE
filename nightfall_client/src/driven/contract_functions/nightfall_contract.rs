@@ -22,6 +22,7 @@ use lib::{
     initialisation::get_blockchain_client_connection,
     nf_token_id::to_nf_token_id_from_solidity,
     shared_entities::TokenType,
+    verify_contract::VerifiedContracts,
 };
 use log::{debug, info};
 use nightfall_bindings::artifacts::{Nightfall, IERC3525};
@@ -39,7 +40,6 @@ impl NightfallContract for Nightfall::NightfallCalls {
     ) -> Result<[Fr254; 2], NightfallContractError> {
         // Make DepositData
         let solidity_fee = Uint256::from(fee);
-        let solidity_erc_address = get_addresses().nightfall();
         let solidity_token_address = Addr::try_from(token_erc_address)?;
         let solidity_value = Uint256::from(value);
         let solidity_token_id = Uint256::from(token_id);
@@ -56,7 +56,15 @@ impl NightfallContract for Nightfall::NightfallCalls {
             .await
             .get_signer();
         let client = blockchain_client.root();
-        let contract = Nightfall::new(solidity_erc_address, client.clone());
+        let verified =
+            VerifiedContracts::resolve_and_verify_contract(client.clone(), get_addresses())
+                .await
+                .map_err(|e| {
+                    NightfallContractError::ContractVerificationError(format!(
+                        "Nightfall Contract verification failed during escrow_funds: {e}"
+                    ))
+                })?;
+        let contract = verified.nightfall;
 
         // A deposit transaction (value_1, fee_1, deposit_fee_1), means we want to deposit value_1, with fee_1 paid to proposer, and additional deposit_fee_1 for future transactions. Two deposit data are created for a single deposit transaction:
         // 1: (value: value_1, fee: fee_1),
@@ -174,7 +182,15 @@ impl NightfallContract for Nightfall::NightfallCalls {
             .get_signer();
         let client = blockchain_client.root();
 
-        let contract = Nightfall::new(get_addresses().nightfall(), client.clone());
+        let verified =
+            VerifiedContracts::resolve_and_verify_contract(client.clone(), get_addresses())
+                .await
+                .map_err(|e| {
+                    NightfallContractError::ContractVerificationError(format!(
+                        "Nightfall Contract verification failed during de_escrow_funds: {e}"
+                    ))
+                })?;
+        let contract = verified.nightfall;
 
         let nonce = client
             .get_transaction_count(signer.address())
@@ -233,7 +249,15 @@ impl NightfallContract for Nightfall::NightfallCalls {
             .await
             .get_signer();
         let client = blockchain_client.root();
-        let nightfall_instance = Nightfall::new(get_addresses().nightfall(), client.clone());
+        let verified =
+            VerifiedContracts::resolve_and_verify_contract(client.clone(), get_addresses())
+                .await
+                .map_err(|e| {
+                    NightfallContractError::ContractVerificationError(format!(
+                        "Nightfall Contract verification failed during withdraw_available: {e}"
+                    ))
+                })?;
+        let nightfall_instance = verified.nightfall;
 
         let data = Nightfall::WithdrawData::from(withdraw_data);
         let decode_data = Nightfall::WithdrawData {
@@ -264,8 +288,15 @@ impl NightfallContract for Nightfall::NightfallCalls {
             .read()
             .await
             .get_signer();
-        let nightfall_address = get_addresses().nightfall();
-        let nightfall = Nightfall::new(nightfall_address, client);
+        let verified =
+            VerifiedContracts::resolve_and_verify_contract(client.clone(), get_addresses())
+                .await
+                .map_err(|e| {
+                    NightfallContractError::ContractVerificationError(format!(
+                "Nightfall Contract verification failed during get_current_layer2_blocknumber: {e}"
+            ))
+                })?;
+        let nightfall = verified.nightfall;
 
         let l2_block = nightfall
             .layer2_block_number()
@@ -288,8 +319,15 @@ impl NightfallContract for Nightfall::NightfallCalls {
             .await
             .get_signer();
         let client = blockchain_client.root();
-        let nightfall_address = get_addresses().nightfall();
-        let nightfall = Nightfall::new(nightfall_address, client);
+        let verified =
+            VerifiedContracts::resolve_and_verify_contract(client.clone(), get_addresses())
+                .await
+                .map_err(|e| {
+                    NightfallContractError::ContractVerificationError(format!(
+                        "Nightfall Contract verification failed during get_token_info: {e}"
+                    ))
+                })?;
+        let nightfall = verified.nightfall;
 
         let token_info = nightfall
             .getTokenInfo(Uint256::from(nf_token_id).0)

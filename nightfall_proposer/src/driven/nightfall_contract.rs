@@ -6,7 +6,10 @@ use crate::{
 };
 use alloy::primitives::I256;
 use configuration::{addresses::get_addresses, settings::get_settings};
-use lib::{blockchain_client::BlockchainClientConnection, error::NightfallContractError};
+use lib::{
+    blockchain_client::BlockchainClientConnection, error::NightfallContractError,
+    verify_contract::VerifiedContracts,
+};
 use log::info;
 use nightfall_bindings::artifacts::Nightfall;
 
@@ -24,8 +27,16 @@ impl NightfallContract for Nightfall::NightfallCalls {
             .read()
             .await
             .get_signer();
-        let nightfall_address = get_addresses().nightfall();
-        let nightfall = Nightfall::new(nightfall_address, client);
+        let verified =
+            VerifiedContracts::resolve_and_verify_contract(client.clone(), get_addresses())
+                .await
+                .map_err(|e| {
+                    NightfallContractError::ContractVerificationError(format!(
+                        "Nightfall Contract verification failed during get_token_info: {e}"
+                    ))
+                })?;
+        let nightfall = verified.nightfall;
+
         // Convert the block transactions to the Nightfall format
         let blk: Nightfall::Block = block.into();
         let nonce = blockchain_client
@@ -72,9 +83,15 @@ impl NightfallContract for Nightfall::NightfallCalls {
             .await
             .get_client();
         let client = blockchain_client.root();
-        let nightfall_address = get_addresses().nightfall();
-        let nightfall = Nightfall::new(nightfall_address, client);
-
+        let verified =
+            VerifiedContracts::resolve_and_verify_contract(client.clone(), get_addresses())
+                .await
+                .map_err(|e| {
+                    NightfallContractError::ContractVerificationError(format!(
+                "Nightfall Contract verification failed during get_current_layer2_blocknumber: {e}"
+            ))
+                })?;
+        let nightfall = verified.nightfall;
         Ok(nightfall
             .layer2_block_number()
             .call()
