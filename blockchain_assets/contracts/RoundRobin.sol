@@ -30,6 +30,8 @@ contract RoundRobin is ProposerManager, Certified, UUPSUpgradeable {
     uint public EXIT_PENALTY;
     uint public COOLDOWN_BLOCKS;
     uint public ROTATION_BLOCKS;
+    uint public GRACE_BLOCKS;    // Number of L1 blocks of inactivity allowed before anyone can skip the current proposer.
+
 
     // -------- existing state --------
     mapping(address => Proposer) public proposers;
@@ -62,7 +64,8 @@ contract RoundRobin is ProposerManager, Certified, UUPSUpgradeable {
         uint lazy_penalty, // If a proposer fails to propose when it is their turn, this amount is deducted from their stake
         uint exit_penalty, // When the current proposer voluntarily deregisters, a small but nontrivial penalty is deducted.
         uint cooling_blocks, // This is the number of blocks that must pass before a proposer can reregister after exiting
-        uint rotation_blocks // This is the number of blocks a proposer must wait before they can rotate the proposer role to the next proposer
+        uint rotation_blocks, // This is the number of blocks a proposer must wait before they can rotate the proposer role to the next proposer
+        uint grace_blocks // Number of L1 blocks of inactivity allowed before anyone can skip the current proposer
     ) public initializer {
         __UUPSUpgradeable_init();
         __Certified_init(msg.sender, x509_address, sanctionsListAddress);
@@ -70,12 +73,14 @@ contract RoundRobin is ProposerManager, Certified, UUPSUpgradeable {
         require(cooling_blocks > 0, "Cooling blocks must be > 0");
         require(stake >= exit_penalty, "Stake < exit penalty");
         require(lazy_penalty > exit_penalty, "LazyPenalty <= exit penalty");
+        require(grace_blocks > 0 && grace_blocks < rotation_blocks, "Grace blocks must be > 0 and less than rotation blocks");
 
         STAKE = stake;
         LAZY_PENALTY = lazy_penalty;
         EXIT_PENALTY = exit_penalty;
         COOLDOWN_BLOCKS = cooling_blocks;
         ROTATION_BLOCKS = rotation_blocks;
+        GRACE_BLOCKS = grace_blocks;
 
         // Wire external dependencies (don’t rely on Certified’s constructor)
         set_x509_address(x509_address);
@@ -83,6 +88,8 @@ contract RoundRobin is ProposerManager, Certified, UUPSUpgradeable {
 
         // Ring will be seeded later (payable)
         escrow = 0;
+        // until first block is proposed, treat "now" as lastProposedAt
+        lastProposedAt = block.number;
     }
 
     // ------------------------------------------------------------------------
@@ -121,6 +128,10 @@ contract RoundRobin is ProposerManager, Certified, UUPSUpgradeable {
 
         start_l1_block = block.number;
         start_l2_block = nightfall.layer2_block_number();
+
+        // inactivity tracking initialisation
+        lastSeenL2Block = start_l2_block;
+        lastProposedAt = block.number;
 
         emit ProposerRotated(current);
     }
@@ -335,6 +346,62 @@ contract RoundRobin is ProposerManager, Certified, UUPSUpgradeable {
         require(escrow >= LAZY_PENALTY, "escrow underflow");
         escrow -= LAZY_PENALTY;
     }
+
+    // Permissionless skip for an inactive current proposer.
+    // Anyone can call this when no L2 block has been proposed for at least GRACE_BLOCKS L1 blocks.
+    // This will apply the lazy penalty and rotate to the next proposer.
+    function skip_inactive_proposer() external {
+        require(proposer_count > 1, "Cannot skip single proposer");
+        require(
+            GRACE_BLOCKS > 0 && GRACE_BLOCKS < ROTATION_BLOCKS,
+            "Grace blocks not configured properly"
+        );
+
+        // First, refresh inactivity state based on Nightfall's L2 block number.
+        _refresh_inactivity_state();
+
+        // Now this really means "no L2 block for GRACE_BLOCKS L1 blocks".
+        require(
+            block.number >= lastProposedAt + GRACE_BLOCKS,
+            "Proposer not yet inactive"
+        );
+
+        address offender = current.addr;
+
+        lazy_penalize_proposer(offender);
+
+        if (proposers[offender].addr != address(0)) {
+            // Offender is still in the ring; rotate to the next proposer.
+            current = proposers[current.next_addr];
+            start_l1_block = block.number;
+            start_l2_block = nightfall.layer2_block_number();
+        }
+
+        // Whoever is current now (whether offender survived or not),
+        // we start a fresh grace window.
+        lastProposedAt = block.number;
+        lastSeenL2Block = nightfall.layer2_block_number();
+
+        emit ProposerRotated(current);
+    }
+
+
+    function _refresh_inactivity_state() internal {
+        int currentL2 = nightfall.layer2_block_number();
+        if (currentL2 > lastSeenL2Block) {
+            // At least one new L2 block has been proposed since we last checked
+            lastSeenL2Block = currentL2;
+            lastProposedAt = block.number;
+        }
+    }
+
+
+    // --- inactivity tracking ----
+    // L1 block number of the last successfully proposed L2 block.
+    uint256 public lastProposedAt;
+    // Last L2 block number that RoundRobin has observed in Nightfall
+    int public lastSeenL2Block;
+
 
     // --- UUPS guard (use Certified’s onlyOwner) ---
     function _authorizeUpgrade(address) internal override onlyOwner {}
