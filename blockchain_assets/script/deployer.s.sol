@@ -280,7 +280,8 @@ contract Deployer is Script {
                     cfg.ding,
                     cfg.exitPenalty,
                     cfg.coolingBlocks,
-                    cfg.rotationBlocks
+                    cfg.rotationBlocks,
+                    cfg.graceBlocks
                 )
             )
         );
@@ -451,6 +452,7 @@ contract Deployer is Script {
         uint exitPenalty;
         uint coolingBlocks;
         uint rotationBlocks;
+        uint graceBlocks;
     }
 
     function _readRoundRobinConfig(
@@ -485,6 +487,9 @@ contract Deployer is Script {
                 runMode,
                 ".nightfall_deployer.proposer_rotation_blocks"
             )
+        );
+        cfg.graceBlocks = toml.readUint(
+            string.concat(runMode, ".nightfall_deployer.proposer_grace_blocks")
         );
     }
 

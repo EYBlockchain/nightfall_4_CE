@@ -39,7 +39,7 @@ impl HexConvertible for BJJScalar {
 
     fn from_hex_string(hex_str: &str) -> Result<BJJScalar, HexError> {
         let hex_str = hex_str.strip_prefix("0x").unwrap_or(hex_str);
-        let mut decoded_bytes = hex::decode(hex_str).map_err(|_| HexError::InvalidHexFormat)?;
+        let decoded_bytes = hex::decode(hex_str).map_err(|_| HexError::InvalidHexFormat)?;
         Ok(BJJScalar::from_be_bytes_mod_order(&decoded_bytes))
     }
 }
