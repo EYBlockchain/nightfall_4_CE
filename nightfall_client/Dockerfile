@@ -8,6 +8,8 @@ COPY configuration/bin/proving_key configuration/bin/deposit_proving_key configu
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/app/target \
     --mount=type=cache,target=/usr/local/cargo/git \
+    # cargo clean -p nightfall_bindings && \
+    # cargo build --package nightfall_client --release && \
     cargo build --package nightfall_client --release && \
     mv /app/target/release/nightfall_client /app/bin/client
 

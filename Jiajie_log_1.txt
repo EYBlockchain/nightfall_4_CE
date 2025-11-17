@@ -1,0 +1,650 @@
+Attaching to anvil, nf4_client, nf4_client2, nf4_configuration, nf4_db_client, nf4_db_client2, nf4_db_proposer, nf4_deployer, nf4_proposer, nf4_test
+anvil  | Waiting for anvil to be ready... (1)
+anvil  | 
+anvil  | 
+anvil  |                              _   _
+anvil  |                             (_) | |
+anvil  |       __ _   _ __   __   __  _  | |
+anvil  |      / _` | | '_ \  \ \ / / | | | |
+anvil  |     | (_| | | | | |  \ V /  | | | |
+anvil  |      \__,_| |_| |_|   \_/   |_| |_|
+anvil  | 
+anvil  |     1.1.0-v1.1.0 (d484a00089 2025-04-28T08:23:11.904011989Z)
+anvil  |     https://github.com/foundry-rs/foundry
+anvil  | 
+anvil  | Available Accounts
+anvil  | ==================
+anvil  | 
+anvil  | (0) 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 (10000.000000000000000000 ETH)
+anvil  | (1) 0x70997970C51812dc3A010C7d01b50e0d17dc79C8 (10000.000000000000000000 ETH)
+anvil  | (2) 0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC (10000.000000000000000000 ETH)
+anvil  | (3) 0x90F79bf6EB2c4f870365E785982E1f101E93b906 (10000.000000000000000000 ETH)
+anvil  | (4) 0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65 (10000.000000000000000000 ETH)
+anvil  | (5) 0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc (10000.000000000000000000 ETH)
+anvil  | (6) 0x976EA74026E726554dB657fA54763abd0C3a0aa9 (10000.000000000000000000 ETH)
+anvil  | (7) 0x14dC79964da2C08b23698B3D3cc7Ca32193d9955 (10000.000000000000000000 ETH)
+anvil  | (8) 0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f (10000.000000000000000000 ETH)
+anvil  | (9) 0xa0Ee7A142d267C1f36714E4a8F75612F20a79720 (10000.000000000000000000 ETH)
+anvil  | 
+anvil  | Private Keys
+anvil  | ==================
+anvil  | 
+anvil  | (0) 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+anvil  | (1) 0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d
+anvil  | (2) 0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a
+anvil  | (3) 0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6
+anvil  | (4) 0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a
+anvil  | (5) 0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba
+anvil  | (6) 0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e
+anvil  | (7) 0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356
+anvil  | (8) 0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97
+anvil  | (9) 0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6
+anvil  | 
+anvil  | Wallet
+anvil  | ==================
+anvil  | Mnemonic:          test test test test test test test test test test test junk
+anvil  | Derivation path:   m/44'/60'/0'/0/
+anvil  | 
+anvil  | 
+anvil  | Chain ID
+anvil  | ==================
+anvil  | 
+anvil  | 31337
+anvil  | 
+anvil  | Base Fee
+anvil  | ==================
+anvil  | 
+anvil  | 58000000000
+anvil  | 
+anvil  | Gas Limit
+anvil  | ==================
+anvil  | 
+anvil  | 500000000
+anvil  | 
+anvil  | Genesis Timestamp
+anvil  | ==================
+anvil  | 
+anvil  | 1763373489
+anvil  | 
+anvil  | Genesis Number
+anvil  | ==================
+anvil  | 
+anvil  | 0
+anvil  | 
+anvil  | Listening on 0.0.0.0:8545
+nf4_configuration  | 2025/11/17 09:58:09 [notice] 1#1: using the "epoll" event method
+nf4_configuration  | 2025/11/17 09:58:09 [notice] 1#1: nginx/1.29.3
+nf4_configuration  | 2025/11/17 09:58:09 [notice] 1#1: built by gcc 14.2.0 (Debian 14.2.0-19) 
+nf4_configuration  | 2025/11/17 09:58:09 [notice] 1#1: OS: Linux 6.12.54-linuxkit
+nf4_configuration  | 2025/11/17 09:58:09 [notice] 1#1: getrlimit(RLIMIT_NOFILE): 1048576:1048576
+nf4_configuration  | 2025/11/17 09:58:09 [notice] 1#1: start worker processes
+nf4_configuration  | 2025/11/17 09:58:09 [notice] 1#1: start worker process 28
+nf4_configuration  | 2025/11/17 09:58:09 [notice] 1#1: start worker process 29
+nf4_configuration  | 2025/11/17 09:58:09 [notice] 1#1: start worker process 30
+nf4_configuration  | 2025/11/17 09:58:09 [notice] 1#1: start worker process 31
+nf4_configuration  | 2025/11/17 09:58:09 [notice] 1#1: start worker process 32
+nf4_configuration  | 2025/11/17 09:58:09 [notice] 1#1: start worker process 33
+nf4_configuration  | 2025/11/17 09:58:09 [notice] 1#1: start worker process 34
+anvil              | eth_chainId
+anvil              | eth_getTransactionCount
+anvil              | Compiling 95 files with Solc 0.8.29
+anvil              | installing solc version "0.8.29"
+anvil              | Successfully installed solc 0.8.29
+anvil              | 
+anvil              |     Block Number: 1
+anvil              |     Block Hash: 0x03b820c3ad2ecdb37ac110199430af7706abd5b9850016d5bb6b0ddba691f10c
+anvil              |     Block Time: "Mon, 17 Nov 2025 09:58:14 +0000"
+anvil              | 
+anvil              | 
+anvil              |     Block Number: 2
+anvil              |     Block Hash: 0xce48443a0457152727a36c1d301642abcac9993f658ec307cf7602b4c945431e
+anvil              |     Block Time: "Mon, 17 Nov 2025 09:58:19 +0000"
+anvil              | 
+nf4_deployer       | 
+nf4_deployer       | ███╗   ██╗██╗ ██████╗ ██╗  ██╗████████╗███████╗ █████╗ ██╗     ██╗        ██╗  ██╗
+nf4_deployer       | ████╗  ██║██║██╔════╝ ██║  ██║╚══██╔══╝██╔════╝██╔══██╗██║     ██║        ██║  ██║
+nf4_deployer       | ██╔██╗ ██║██║██║  ███╗███████║   ██║   █████╗  ███████║██║     ██║        ███████║
+nf4_deployer       | ██║╚██╗██║██║██║   ██║██╔══██║   ██║   ██╔══╝  ██╔══██║██║     ██║        ╚════██║
+nf4_deployer       | ██║ ╚████║██║╚██████╔╝██║  ██║   ██║   ██║     ██║  ██║███████╗███████╗███████╗██║
+nf4_deployer       | ╚═╝  ╚═══╝╚═╝╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚═╝     ╚═╝  ╚═╝╚══════╝╚══════╝╚══════╝╚═╝
+nf4_deployer       | 
+nf4_deployer       | A Zero-Knowledge Proof (ZKP) based application that enables private transfers of ERC20, ERC721, ERC1155, and ERC3525 tokens on public blockchains, 
+nf4_deployer       | leveraging a Layer 2 ZK-ZK rollup architecture to combine scalability with enterprise-grade privacy.
+nf4_deployer       | https://github.com/EYBlockchain/nightfall_4_CE
+nf4_deployer       | 
+nf4_deployer       | [0m[38;5;8m[[0m2025-11-17T09:58:19Z [0m[32mINFO [0m nightfall_deployer[0m[38;5;8m][0m Deployer has started
+nf4_deployer       | [0m[38;5;8m[[0m2025-11-17T09:58:19Z [0m[32mINFO [0m nightfall_deployer[0m[38;5;8m][0m Deploying contracts
+nf4_deployer       | [0m[38;5;8m[[0m2025-11-17T09:58:19Z [0m[32mINFO [0m nightfall_deployer::deployment[0m[38;5;8m][0m DEBUG: Running forge command: ["clean"]
+nf4_deployer       | [0m[38;5;8m[[0m2025-11-17T09:58:20Z [0m[32mINFO [0m nightfall_deployer::deployment[0m[38;5;8m][0m Command 'forge ["clean"]' executed successfully: 
+nf4_deployer       | [0m[38;5;8m[[0m2025-11-17T09:58:20Z [0m[32mINFO [0m nightfall_deployer::deployment[0m[38;5;8m][0m DEBUG: Running forge command: ["build"]
+anvil              | 
+anvil              |     Block Number: 3
+anvil              |     Block Hash: 0x7792727123fbe350686aa17fb1e217116255182fbf92cd37f0633a9072682db0
+anvil              |     Block Time: "Mon, 17 Nov 2025 09:58:24 +0000"
+anvil              | 
+anvil              | Solc 0.8.29 finished in 15.36s
+anvil              | Compiler run successful!
+anvil              | eth_getCode
+anvil              | eth_blockNumber
+anvil              | eth_gasPrice
+anvil              | eth_chainId
+anvil              | eth_getBlockByNumber
+anvil              | eth_blockNumber
+anvil              | eth_gasPrice
+anvil              | eth_getBlockByNumber
+anvil              | eth_chainId
+anvil              | eth_getBalance
+anvil              | eth_getTransactionCount
+anvil              | eth_getCode
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_chainId
+anvil              | eth_chainId
+anvil              | Script ran successfully.
+anvil              | 
+anvil              | == Logs ==
+anvil              |   Deployed ERC20Mock to: 0x5FbDB2315678afecb367f032d93F642f64180aa3
+anvil              |   Deployed ERC721Mock to: 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+anvil              |   Deployed ERC1155Mock to: 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0
+anvil              |   Deployed ERC3525Mock to: 0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9
+anvil              | 
+anvil              | ## Setting up 1 EVM.
+anvil              | eth_blockNumber
+anvil              | eth_gasPrice
+anvil              | eth_getBlockByNumber
+anvil              | eth_chainId
+anvil              | eth_chainId
+anvil              | eth_feeHistory
+anvil              | 
+anvil              | ==========================
+anvil              | 
+anvil              | Chain 31337
+anvil              | 
+anvil              | Estimated gas price: 88.812500001 gwei
+anvil              | 
+anvil              | Estimated total gas used for script: 7851400
+anvil              | 
+anvil              | Estimated amount required: 0.6973024625078514 ETH
+anvil              | 
+anvil              | ==========================
+anvil              | eth_feeHistory
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_blockNumber
+anvil              | eth_getBlockByNumber
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_blockNumber
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_blockNumber
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_blockNumber
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_blockNumber
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_blockNumber
+anvil              | 
+anvil              |     Transaction: 0xbe184f92242423e580fa23e2d368fb09d1076492587cd155610a9a6ddc1dec23
+anvil              |     Contract created: 0x5FbDB2315678afecb367f032d93F642f64180aa3
+anvil              |     Gas used: 645110
+anvil              | 
+anvil              |     Transaction: 0xcdad482fd66f4bcbdf014a34559b29b4ad2a3e881f1373a986f420410a93f26e
+anvil              |     Contract created: 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+anvil              |     Gas used: 1678724
+anvil              | 
+anvil              |     Transaction: 0xb1771bb1f6791c22699b065d08031c6baa322a163641477c0ecb39b479ca474d
+anvil              |     Contract created: 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0
+anvil              |     Gas used: 2804558
+anvil              | 
+anvil              |     Transaction: 0x9a7637db81f318ad4f1c8c668615f3b14544cab7679801cbf773937e3cb38258
+anvil              |     Contract created: 0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9
+anvil              |     Gas used: 6039539
+anvil              | 
+anvil              |     Block Number: 4
+anvil              |     Block Hash: 0x47fc0762e71c644fe4d8894169db356d64ae3beef74aca16371164b8cedc58c9
+anvil              |     Block Time: "Mon, 17 Nov 2025 09:58:29 +0000"
+anvil              | 
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_blockNumber
+anvil              | eth_getBlockByNumber
+anvil              | 
+anvil              | 
+anvil              | ==========================
+anvil              | 
+anvil              | ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+anvil              | 
+anvil              | Transactions saved to: /blockchain_assets/logs/mock_deployment.s.sol/31337/run-latest.json
+anvil              | 
+anvil              | Sensitive values saved to: /blockchain_assets/cache/mock_deployment.s.sol/31337/run-latest.json
+anvil              | 
+anvil              | 
+anvil              |     Block Number: 5
+anvil              |     Block Hash: 0xeaa7067dc1ac4c7d60c2679f704bf71012a2362f0f65a9edbf603a15f12e134b
+anvil              |     Block Time: "Mon, 17 Nov 2025 09:58:34 +0000"
+anvil              | 
+anvil              | 
+anvil              |     Block Number: 6
+anvil              |     Block Hash: 0xea6f124c26a94c3e53740478244e9a3b3a437edfc0a965c4cbb5d7fb99fc94c1
+anvil              |     Block Time: "Mon, 17 Nov 2025 09:58:39 +0000"
+anvil              | 
+nf4_deployer       | [0m[38;5;8m[[0m2025-11-17T09:58:42Z [0m[32mINFO [0m nightfall_deployer::deployment[0m[38;5;8m][0m Command 'forge ["build"]' executed successfully: Compiling 133 files with Solc 0.8.29
+nf4_deployer       |     installing solc version "0.8.29"
+nf4_deployer       |     Successfully installed solc 0.8.29
+nf4_deployer       |     Solc 0.8.29 finished in 20.47s
+nf4_deployer       |     Compiler run successful with warnings:
+nf4_deployer       |     Warning (2018): Function state mutability can be restricted to pure
+nf4_deployer       |       --> blockchain_assets/solidity_lib/openzeppelin-foundry-upgrades/src/internal/StringFinder.sol:15:5:
+nf4_deployer       |        |
+nf4_deployer       |     15 |     function contains(string memory subject, string memory search) internal returns (bool) {
+nf4_deployer       |        |     ^ (Relevant source part starts here and spans across multiple lines).
+nf4_deployer       |     
+nf4_deployer       |     Warning (2018): Function state mutability can be restricted to pure
+nf4_deployer       |        --> blockchain_assets/solidity_lib/openzeppelin-foundry-upgrades/src/internal/DefenderDeploy.sol:226:5:
+nf4_deployer       |         |
+nf4_deployer       |     226 |     function _parseLine(
+nf4_deployer       |         |     ^ (Relevant source part starts here and spans across multiple lines).
+nf4_deployer       |     
+nf4_deployer       |     
+nf4_deployer       | [0m[38;5;8m[[0m2025-11-17T09:58:42Z [0m[32mINFO [0m nightfall_deployer::deployment[0m[38;5;8m][0m DEBUG: Running forge command: ["script", "Deployer", "--fork-url", "ws://anvil:8545", "--broadcast", "--force"]
+anvil              | eth_getTransactionCount
+anvil              | 
+anvil              |     Block Number: 7
+anvil              |     Block Hash: 0xf6347fde90e513418d602a8190349aa828c3bfdd4af6351d7f65abaee669576c
+anvil              |     Block Time: "Mon, 17 Nov 2025 09:58:44 +0000"
+anvil              | 
+anvil              | 
+anvil              |     Block Number: 8
+anvil              |     Block Hash: 0x9a49b27e05b463c5d4b3fa9a64d40947eebc1c5ca5b9855303784188e3c00b3b
+anvil              |     Block Time: "Mon, 17 Nov 2025 09:58:49 +0000"
+anvil              | 
+anvil              | 
+anvil              |     Block Number: 9
+anvil              |     Block Hash: 0x75c756cadc596ac43b33d898a0cbb97a22f8e68936c331216cbe47266fe81c34
+anvil              |     Block Time: "Mon, 17 Nov 2025 09:58:54 +0000"
+anvil              | 
+anvil              | eth_getCode
+anvil              | eth_blockNumber
+anvil              | eth_gasPrice
+anvil              | eth_chainId
+anvil              | eth_getBlockByNumber
+anvil              | eth_blockNumber
+anvil              | eth_gasPrice
+anvil              | eth_getBlockByNumber
+anvil              | eth_chainId
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | 
+anvil              |     Block Number: 10
+anvil              |     Block Hash: 0x647d5476b9b2a793d5120819df03d5ce133d7438c07a7e4b98bd3795074ef893
+anvil              |     Block Time: "Mon, 17 Nov 2025 09:58:59 +0000"
+anvil              | 
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | 
+anvil              |     Block Number: 11
+anvil              |     Block Hash: 0xcfa0bd5e4d487fed88705c74c9b546e81117bfcf862b6ca0bd43b3eb6c065e70
+anvil              |     Block Time: "Mon, 17 Nov 2025 09:59:04 +0000"
+anvil              | 
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_chainId
+anvil              | eth_chainId
+anvil              | eth_blockNumber
+anvil              | eth_gasPrice
+anvil              | eth_getBlockByNumber
+anvil              | eth_chainId
+anvil              | eth_chainId
+anvil              | eth_feeHistory
+anvil              | eth_feeHistory
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_blockNumber
+anvil              | eth_getBlockByNumber
+anvil              | Bootstrapping default proposer...
+anvil              | defaultProposerAddress:  0xa0Ee7A142d267C1f36714E4a8F75612F20a79720
+anvil              | defaultProposerUrl:  http://proposer:3000
+anvil              | nightfallAddress:  0x3Aa5ebB10DC797CAC828524e59A333d0A371443c
+anvil              | 
+anvil              |     Transaction: 0x398347dfd3a51a537c7b66a8ad824d09565be1be4eefe4ebd4cd9bef68ef6dcf
+anvil              |     Contract created: 0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9
+anvil              |     Gas used: 1928152
+anvil              | 
+anvil              |     Transaction: 0xc35f3b1ccc803d0743669f3c10ab70c3e093a14916e083ba8965431ab9640d9b
+anvil              |     Contract created: 0x5FC8d32690cc91D4c39d9d3abcBD16989F875707
+anvil              |     Gas used: 3905391
+anvil              | 
+anvil              |     Transaction: 0x8c8968450b0a3d498cb87e7092f74703625ba6e9ff8fb12326855e49ccfaf7be
+anvil              |     Gas used: 3938979
+anvil              | 
+anvil              |     Transaction: 0x1d808e1328aa3a7889ea1dbd3338434500b117305de717b668cacedf7e1207a1
+anvil              |     Contract created: 0xa513E6E4b8f2a923D98304ec87F64353C4D5C853
+anvil              |     Gas used: 4062177
+anvil              | 
+anvil              |     Transaction: 0x453037c333c93250bb3b0c1ad5af1a692a624b4ffa8cb9b3fcdb8160ad4122f8
+anvil              |     Contract created: 0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6
+anvil              |     Gas used: 4219075
+anvil              | 
+anvil              |     Transaction: 0x2c1d24753850531643b351701631bf6713df172a02b748eb640a791297f155b6
+anvil              |     Contract created: 0x8A791620dd6260079BF849Dc5567aDC3F2FdC318
+anvil              |     Gas used: 9559454
+anvil              | 
+anvil              |     Transaction: 0xcee975bf45c3ba405515695d5be83a2ab81824dd3e45da5263c2c93d1d76a62c
+anvil              |     Contract created: 0x610178dA211FEF7D417bC0e6FeD39F05609AD788
+anvil              |     Gas used: 9758442
+anvil              | 
+anvil              |     Transaction: 0x1fbc31c2d70be3c7eeef2438fdde547919c44f2b9ee278e344c6fc8ad9a4a76d
+anvil              |     Gas used: 10218351
+anvil              | 
+anvil              |     Transaction: 0xbabc8dd2d9be862f9d6c6a3a020dd2b68475dadcb10a2521d7f7ce71c0d518e8
+anvil              |     Gas used: 10247233
+anvil              | 
+anvil              |     Transaction: 0x78039635abe341a04c742f39f15c04925c530bf6447c840261ddd0deeee59bd3
+anvil              |     Gas used: 10365432
+anvil              | 
+anvil              |     Transaction: 0x77383a08db9010274bfc893a108747be585649cb470c655a5c8c103d7ce8c3b8
+anvil              |     Gas used: 10461168
+anvil              | 
+anvil              |     Transaction: 0x80d0448e96130a778077a5e4623606c64de485c892ca8f8e6e1e543ee46613dd
+anvil              |     Gas used: 10492331
+anvil              | 
+anvil              |     Transaction: 0x5291dbe91b59e4b449e4538bf8edab8db13febf478837bb590cef1306e6922bb
+anvil              |     Gas used: 12053544
+anvil              | 
+anvil              |     Transaction: 0x2c500ea2723110b72292bc95b4a9037a6a7f933fffa07fac3cc92d3fe2383829
+anvil              |     Gas used: 12085509
+anvil              | 
+anvil              |     Transaction: 0x2274924da56677a907c701f58cab41cb42e79d0752d39ee3b28ed449a530cc5b
+anvil              |     Contract created: 0x68B1D87F95878fE05B998F19b66F4baba5De1aed
+anvil              |     Gas used: 15184915
+anvil              | 
+anvil              |     Transaction: 0x00d82c238134d01b1fb5590a15bdaa1d17934f77ad30dda09d8536c5b61be0ec
+anvil              |     Contract created: 0x3Aa5ebB10DC797CAC828524e59A333d0A371443c
+anvil              |     Gas used: 15508867
+anvil              | 
+anvil              |     Transaction: 0x3ffba1dee7306467d33866578235e3b449d01da6f4a17304fbeb5c5c038a941a
+anvil              |     Contract created: 0xc6e7DF5E7b4f2A278906862b61205850344D4e7d
+anvil              |     Gas used: 18297473
+anvil              | 
+anvil              |     Transaction: 0xe5feb20ac21303aafd79d812d47530e205d2fcd3e2f02a83dca113e92cd4079a
+anvil              |     Contract created: 0x59b670e9fA9D0A427751Af201D676719a970857b
+anvil              |     Gas used: 18636472
+anvil              | 
+anvil              |     Transaction: 0xc1a164a47bfd6432a6941343fc222d7bbaced47e838fe8665ab43732733ed13e
+anvil              |     Gas used: 18687440
+anvil              | 
+anvil              |     Transaction: 0x0c8157f4da84aa624fd89bf81ad05574778f99151eea04684af0b34f0806c442
+anvil              |     Gas used: 19056303
+anvil              | 
+anvil              |     Transaction: 0xb471022ef325c8a546d0f43d3baa1b46d427224415def345148f39f8a9671426
+anvil              |     Gas used: 19107241
+anvil              | 
+anvil              |     Transaction: 0x04638c6b963480ad94fb58c7f9d5215de94b7f714f4d4cb010cc29f88cd05dd9
+anvil              |     Gas used: 19140855
+anvil              | 
+anvil              |     Transaction: 0x167b63123eff5473c21bddfe4dc0692f40a72e64e76a0a642309c39c974e5c25
+anvil              |     Gas used: 19174475
+anvil              | 
+anvil              |     Block Number: 12
+anvil              |     Block Hash: 0x01f37437f87323050147d86b382b98bd802c71a673884fb915c7fbdbc04f8297
+anvil              |     Block Time: "Mon, 17 Nov 2025 09:59:09 +0000"
+anvil              | 
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_blockNumber
+anvil              | eth_getBlockByNumber
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+nf4_deployer       | [0m[38;5;8m[[0m2025-11-17T09:59:11Z [0m[32mINFO [0m nightfall_deployer::deployment[0m[38;5;8m][0m Command 'forge ["script", "Deployer", "--fork-url", "ws://anvil:8545", "--broadcast", "--force"]' executed successfully: Compiling 113 files with Solc 0.8.29
+nf4_deployer       |     Solc 0.8.29 finished in 11.63s
+nf4_deployer       |     Compiler run successful with warnings:
+nf4_deployer       |     Warning (2018): Function state mutability can be restricted to pure
+nf4_deployer       |       --> blockchain_assets/solidity_lib/openzeppelin-foundry-upgrades/src/internal/StringFinder.sol:15:5:
+nf4_deployer       |        |
+nf4_deployer       |     15 |     function contains(string memory subject, string memory search) internal returns (bool) {
+nf4_deployer       |        |     ^ (Relevant source part starts here and spans across multiple lines).
+nf4_deployer       |     
+nf4_deployer       |     Warning (2018): Function state mutability can be restricted to pure
+nf4_deployer       |        --> blockchain_assets/solidity_lib/openzeppelin-foundry-upgrades/src/internal/DefenderDeploy.sol:226:5:
+nf4_deployer       |         |
+nf4_deployer       |     226 |     function _parseLine(
+nf4_deployer       |         |     ^ (Relevant source part starts here and spans across multiple lines).
+nf4_deployer       |     
+nf4_deployer       |     Script ran successfully.
+nf4_deployer       |     
+nf4_deployer       |     == Logs ==
+nf4_deployer       |       inside _configureX509locally
+nf4_deployer       |       Bootstrapping default proposer...
+nf4_deployer       |       defaultProposerAddress:  0xa0Ee7A142d267C1f36714E4a8F75612F20a79720
+nf4_deployer       |       defaultProposerUrl:  http://proposer:3000
+nf4_deployer       |       nightfallAddress:  0x3Aa5ebB10DC797CAC828524e59A333d0A371443c
+nf4_deployer       |       Nightfall proxy:        0x3Aa5ebB10DC797CAC828524e59A333d0A371443c
+nf4_deployer       |       Nightfall owner:        0xa0Ee7A142d267C1f36714E4a8F75612F20a79720
+nf4_deployer       |       RoundRobin proxy:       0x59b670e9fA9D0A427751Af201D676719a970857b
+nf4_deployer       |       RoundRobin owner:       0xa0Ee7A142d267C1f36714E4a8F75612F20a79720
+nf4_deployer       |       X509 proxy:             0x610178dA211FEF7D417bC0e6FeD39F05609AD788
+nf4_deployer       |       X509 owner:             0xa0Ee7A142d267C1f36714E4a8F75612F20a79720
+nf4_deployer       |       VK provider proxy:      0x5FC8d32690cc91D4c39d9d3abcBD16989F875707
+nf4_deployer       |       Verifier proxy:         0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6
+nf4_deployer       |       Verifier owner:         0xa0Ee7A142d267C1f36714E4a8F75612F20a79720
+nf4_deployer       |     
+nf4_deployer       |     ## Setting up 1 EVM.
+nf4_deployer       |     
+nf4_deployer       |     ==========================
+nf4_deployer       |     
+nf4_deployer       |     Chain 31337
+nf4_deployer       |     
+nf4_deployer       |     Estimated gas price: 30.622085241 gwei
+nf4_deployer       |     
+nf4_deployer       |     Estimated total gas used for script: 25171329
+nf4_deployer       |     
+nf4_deployer       |     Estimated amount required: 0.770798582267255289 ETH
+nf4_deployer       |     
+nf4_deployer       |     ==========================
+nf4_deployer       |     
+nf4_deployer       |     
+nf4_deployer       |     ==========================
+nf4_deployer       |     
+nf4_deployer       |     ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+nf4_deployer       |     
+nf4_deployer       |     Transactions saved to: /app/blockchain_assets/logs/deployer.s.sol/31337/run-latest.json
+nf4_deployer       |     
+nf4_deployer       |     Sensitive values saved to: /app/blockchain_assets/cache/deployer.s.sol/31337/run-latest.json
+nf4_deployer       |     
+nf4_deployer       |     
+nf4_deployer       | [0m[38;5;8m[[0m2025-11-17T09:59:11Z [0m[32mINFO [0m nightfall_deployer::deployment[0m[38;5;8m][0m Extracted proxy addresses: nightfall=0x3aa5ebb10dc797cac828524e59a333d0a371443c, round_robin=0x59b670e9fa9d0a427751af201d676719a970857b, x509=0x610178da211fef7d417bc0e6fed39f05609ad788
+nf4_deployer       | [0m[38;5;8m[[0m2025-11-17T09:59:11Z [0m[32mINFO [0m nightfall_deployer::deployment[0m[38;5;8m][0m Saving addresses for chain_id: 31337
+nf4_deployer       | [0m[38;5;8m[[0m2025-11-17T09:59:11Z [0m[32mINFO [0m nightfall_deployer::deployment[0m[38;5;8m][0m Addresses saved successfully
+[Knf4_deployer exited with code 0
+nf4_proposer       | [0m[38;5;8m[[0m2025-11-17T09:59:13Z [0m[32mINFO [0m nightfall_proposer[0m[38;5;8m][0m Dropping database: nightfall
+nf4_proposer       | [0m[38;5;8m[[0m2025-11-17T09:59:13Z [0m[32mINFO [0m nightfall_proposer[0m[38;5;8m][0m Using MockProver
+nf4_proposer       | [0m[38;5;8m[[0m2025-11-17T09:59:13Z [0m[32mINFO [0m nightfall_proposer::drivers::blockchain::event_listener_manager[0m[38;5;8m][0m Event listener started.
+nf4_proposer       | [0m[38;5;8m[[0m2025-11-17T09:59:13Z [0m[32mINFO [0m lib::wallets[0m[38;5;8m][0m Creating local wallet
+nf4_proposer       | [0m[38;5;8m[[0m2025-11-17T09:59:13Z [0m[32mINFO [0m nightfall_proposer::drivers::blockchain::nightfall_event_listener[0m[38;5;8m][0m Proposer event listener (attempt 1)...
+nf4_proposer       | [0m[38;5;8m[[0m2025-11-17T09:59:13Z [0m[32mINFO [0m nightfall_proposer[0m[38;5;8m][0m Starting warp server, block assembler and event_handler threads
+nf4_proposer       | [0m[38;5;8m[[0m2025-11-17T09:59:13Z [0m[32mINFO [0m configuration::addresses[0m[38;5;8m][0m Loaded contract addresses from local file
+nf4_proposer       | Verifying deployed contract implementations at these addresses: Addresses { chain_id: 31337, nightfall: 0x3aa5ebb10dc797cac828524e59a333d0a371443c, round_robin: 0x59b670e9fa9d0a427751af201d676719a970857b, x509: 0x610178da211fef7d417bc0e6fed39f05609ad788 }
+nf4_proposer       | Fetching implementation address from proxy at 0x3aa5ebb10dc797cac828524e59a333d0a371443c...
+anvil              | eth_getStorageAt
+nf4_proposer       | get the address  0x68b1d87f95878fe05b998f19b66f4baba5de1aed...
+anvil              | eth_getCode
+anvil              | eth_blockNumber
+nf4_proposer       | inside get_onchain_code_hash, On-chain code at 0x3aa5ebb10dc797cac828524e59a333d0a371443c: 0x6080604052600a600c565b005b60186014601a565b6050565b565b5f604b7f360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc546001600160a01b031690565b905090565b365f5f375f5f365f845af43d5f5f3e8080156069573d5ff35b3d5ffdfea2646970667358221220db90f81b9404a17484f107429671d3755ec549ed02017e732fee63d74393ab1964736f6c634300081d0033
+nf4_proposer       | code onchain vec u8: [96, 128, 96, 64, 82, 96, 10, 96, 12, 86, 91, 0, 91, 96, 24, 96, 20, 96, 26, 86, 91, 96, 80, 86, 91, 86, 91, 95, 96, 75, 127, 54, 8, 148, 161, 59, 161, 163, 33, 6, 103, 200, 40, 73, 45, 185, 141, 202, 62, 32, 118, 204, 55, 53, 169, 32, 163, 202, 80, 93, 56, 43, 188, 84, 96, 1, 96, 1, 96, 160, 27, 3, 22, 144, 86, 91, 144, 80, 144, 86, 91, 54, 95, 95, 55, 95, 95, 54, 95, 132, 90, 244, 61, 95, 95, 62, 128, 128, 21, 96, 105, 87, 61, 95, 243, 91, 61, 95, 253, 254, 162, 100, 105, 112, 102, 115, 88, 34, 18, 32, 219, 144, 248, 27, 148, 4, 161, 116, 132, 241, 7, 66, 150, 113, 211, 117, 94, 197, 73, 237, 2, 1, 126, 115, 47, 238, 99, 215, 67, 147, 171, 25, 100, 115, 111, 108, 99, 67, 0, 8, 29, 0, 51]
+nf4_proposer       | hash onchain: [140, 77, 254, 90, 218, 88, 208, 8, 191, 233, 252, 4, 230, 93, 245, 196, 125, 149, 91, 229, 21, 83, 174, 93, 158, 249, 5, 22, 178, 31, 33, 152]
+nf4_proposer       | Error: FailedToGetDepositData(ContractVerificationError("Contract verification failed: Nightfall implementation hash mismatch\n  on-chain:   0x8c4dfe5ada58d008bfe9fc04e65df5c47d955be51553ae5d9ef90516b21f2198\n  expected:   0x8bfa399dbd65fb500362f8ffe8206a5440e68b5ead1f4222b69ee3237fca23e4\n"))

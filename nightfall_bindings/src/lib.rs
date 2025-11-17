@@ -1,7 +1,8 @@
 pub mod artifacts;
 
-// This will include the auto-generated code_hashes.rs from OUT_DIR
-include!(concat!(env!("OUT_DIR"), "/code_hashes.rs"));
+// This will include the auto-generated code_hashes.rs 
+// Generated at build time by build.rs into src/code_hashes.rs
+include!("code_hashes.rs");
 
 use alloy::primitives::B256;
 

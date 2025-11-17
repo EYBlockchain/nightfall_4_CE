@@ -38,14 +38,54 @@ pub async fn get_proxy_implementation<P: Provider>(
     provider: &P,
     proxy: Address,
 ) -> eyre::Result<Address> {
+    print!("Fetching implementation address from proxy at {:?}...\n", proxy);
     let slot = B256::from_slice(&EIP1967_IMPLEMENTATION_SLOT_BYTES);
 
     let raw: B256 = provider.get_storage_at(proxy, slot.into()).await?.into();
 
     let mut addr = [0u8; 20];
     addr.copy_from_slice(&raw[12..]); // last 20 bytes
-
+    print!("get the address  {:?}...\n", Address::from(addr));
     Ok(Address::from(addr))
+}
+
+// use alloy::{
+//     primitives::{keccak256, Address, B256},
+//     providers::Provider,
+// };
+
+// Add the metadata stripping function
+fn strip_metadata_and_hash(bytecode: &[u8]) -> [u8; 32] {
+    // Solidity metadata is at the end: 0xa2 0x64 'i' 'p' 'f' 's' 0x58 0x22 <32-byte-hash> 0x64 's' 'o' 'l' 'c' 0x43 <version> 0x00 0x33
+    // Look for the metadata marker: 0xa264697066735822 (a2 64 "ipfs" 58 22)
+    const METADATA_MARKER: [u8; 8] = [0xa2, 0x64, 0x69, 0x70, 0x66, 0x73, 0x58, 0x22];
+    
+    // Find the last occurrence of the metadata marker
+    if let Some(pos) = bytecode.windows(METADATA_MARKER.len())
+        .rposition(|window| window == METADATA_MARKER) {
+        // Strip everything from the metadata marker onwards
+        let stripped = &bytecode[..pos];
+        println!("Stripped {} bytes of metadata (original: {}, stripped: {})", 
+                 bytecode.len() - stripped.len(), bytecode.len(), stripped.len());
+        keccak256(stripped).0
+    } else {
+        println!("No metadata marker found, using full bytecode");
+        keccak256(bytecode).0
+    }
+}
+
+pub async fn get_onchain_code_hash<P: Provider>(
+    provider: &P,
+    implementation: Address,
+) -> eyre::Result<[u8; 32]> {
+    let code = provider.get_code_at(implementation).await?;
+    println!("On-chain code length: {} bytes", code.0.len());
+
+    // Use the same metadata stripping logic as build-time
+    let hash = strip_metadata_and_hash(&code.0);
+    println!("On-chain hash (metadata stripped): {:?}", hash);
+
+    Ok(hash)
 }
 
 /// Compute the keccak256 hash of the runtime bytecode currently deployed
@@ -57,16 +97,20 @@ pub async fn get_proxy_implementation<P: Provider>(
 ///
 /// # Returns
 /// * `[u8; 32]` — keccak256(code)
-pub async fn get_onchain_code_hash<P: Provider>(
-    provider: &P,
-    implementation: Address,
-) -> eyre::Result<[u8; 32]> {
-    let code = provider.get_code_at(implementation).await?;
+// pub async fn get_onchain_code_hash<P: Provider>(
+//     provider: &P,
+//     implementation: Address,
+// ) -> eyre::Result<[u8; 32]> {
+//     let code = provider.get_code_at(implementation).await?;
+//     println!("inside get_onchain_code_hash, On-chain code at {:?}: {:?}", implementation, code);
+//     println!("on chain Code length: {} bytes", code.0.len());
 
-    let hash = keccak256(code.0);
+//     let hash = keccak256(code.0);
 
-    Ok(hash.0)
-}
+//     println!("hash onchain: {:?}", hash.0);
+
+//     Ok(hash.0)
+// }
 
 /// Verify that the proxy → implementation mapping is correct,
 /// and that the on-chain implementation bytecode matches the expected build-time hash.
@@ -132,6 +176,7 @@ impl<P: Provider + Clone> VerifiedContracts<P> {
         provider: P,
         addresses: &Addresses,
     ) -> eyre::Result<Self> {
+        ark_std::println!("Verifying deployed contract implementations at these addresses: {:?}", addresses);
         // Verify each contract's deployed implementation
         verify_impl_hash(
             &provider,
