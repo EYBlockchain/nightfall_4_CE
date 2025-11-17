@@ -243,9 +243,8 @@ contract X509SigLib {
             DB[i] = DB[i] ^ dbMask[i];
         }
 
-        // 5. Optionally, mask top unused bits of DB[0].
-        // To avoid mismatches for non-8k-1-bit moduli you can skip this, or keep:
-        // DB[0] = bytes1(uint8(DB[0]) & 0x7f);
+        // 5. Mask top unused bits of DB[0].
+        DB[0] = bytes1(uint8(DB[0]) & 0x7f);
 
         // 6. Parse DB' = PS || 0x01 || salt
         uint256 idx = 0;

@@ -13,7 +13,6 @@ import "./Allowlist.sol";
 import "./X509Interface.sol";
 import "./X509SigLib.sol";
 import "./Sha.sol";
-import "forge-std/console.sol";
 /**
  * @title X509 (upgradeable)
  * @notice Upgrade-safe version of X509 validator. Constructor removed; use initialize().
@@ -457,9 +456,6 @@ contract X509 is
         bytes memory message,
         RSAPublicKey memory publicKey
     ) private view {
-        console.log("Checking address signature PSS modulus: ");
-        console.logBytes(publicKey.modulus);
-        console.log("Checking address signature PSS exponent: ", publicKey.exponent);
         bool ok = rsaPssVerifySha256(
             signature,
             message,
@@ -515,7 +511,7 @@ contract X509 is
             authorityKeyIdentifier
         ];
         // validate the cert's signature and check that the cert is in date, and not revoked nor signed by a revoked cert,
-        // checkCertificateSignature(signature, message, publicKey);
+        checkCertificateSignature(signature, message, publicKey);
 
         uint256 expiry = checkDates(tlvs);
         RSAPublicKey memory certificatePublicKey = extractPublicKey(tlvs);
