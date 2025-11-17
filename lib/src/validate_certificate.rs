@@ -8,7 +8,16 @@ use configuration::addresses::get_addresses;
 use futures::stream::TryStreamExt;
 use log::{debug, error, trace, warn};
 use nightfall_bindings::artifacts::X509;
+use openssl::{
+    asn1::Asn1Time,
+    hash::MessageDigest,
+    pkey::{Id as PKeyId, PKey},
+    rsa::{Padding, Rsa},
+    sign::{RsaPssSaltlen, Signer as opensslSigner, Verifier},
+    x509::X509 as OpensslX509,
+};
 use reqwest::StatusCode;
+use std::error::Error;
 use std::io::Read;
 use warp::{filters::multipart::FormData, path, reply::Reply, Buf, Filter};
 use x509_parser::nom::AsBytes;
@@ -86,6 +95,26 @@ pub async fn handle_certificate_validation(
     }
     if certificate_req.certificate_private_key.is_empty() {
         return Ok(bad_request("Missing 'priv_key' field or empty file"));
+    }
+
+    // 1.5) Client-side prevalidation of certificate + private key
+    // We deliberately fail fast here and do NOT call the smart contract
+    // for obviously invalid / weak material.
+    let prevalidation_address = {
+        // We do not yet have the blockchain client, but the requestor address is
+        // exactly what will be bound, so we need it here anyway.
+        let conn_guard = get_blockchain_client_connection().await;
+        let read_conn = conn_guard.read().await;
+        read_conn.get_address()
+    };
+
+    if let Err(e) = prevalidate_certificate_and_key(
+        &certificate_req.certificate,
+        &certificate_req.certificate_private_key,
+        &prevalidation_address,
+    ) {
+        warn!("Client-side certificate prevalidation failed: {e}");
+        return Ok(bad_request("Certificate / private key prevalidation failed"));
     }
 
     // 2) Resolve client + address
@@ -229,13 +258,7 @@ async fn validate_certificate(
     }
     Ok(())
 }
-use openssl::{
-    hash::MessageDigest,
-    pkey::PKey,
-    rsa::{Padding, Rsa},
-    sign::{RsaPssSaltlen, Signer as opensslSigner, Verifier},
-};
-use std::error::Error;
+
 #[allow(dead_code)]
 /// Sign an Ethereum address using an RSA private key
 pub fn sign_ethereum_address(
@@ -260,6 +283,96 @@ pub fn sign_ethereum_address(
     let signature = signer.sign_to_vec()?;
 
     Ok(signature)
+}
+
+// Convenience alias so we do not keep constructing Box<dyn Error> in the handler
+fn prevalidation_error(msg: &str) -> CertificateVerificationError {
+    CertificateVerificationError::new(msg)
+}
+
+/// Cheap, client-side sanity checks before going on-chain.
+///
+/// * parses the certificate
+/// * checks not_before / not_after against current time
+/// * enforces a minimal key size for RSA keys
+/// * checks that the private key corresponds to the certificate public key
+fn prevalidate_certificate_and_key(
+    cert_der: &[u8],
+    priv_der: &[u8],
+    address: &Address,
+) -> Result<(), CertificateVerificationError> {
+    // 1) Parse certificate
+    let cert = OpensslX509::from_der(cert_der).map_err(|e| {
+        error!("X.509 parse error: {e}");
+        prevalidation_error("Invalid X.509 certificate (DER parsing failed)")
+    })?;
+
+    // 2) Validity window: not_before <= now <= not_after
+    let now = Asn1Time::days_from_now(0).map_err(|e| {
+        error!("Asn1Time::days_from_now error: {e}");
+        prevalidation_error("Internal time error while checking certificate validity")
+    })?;
+
+    if cert.not_before() > now {
+        return Err(prevalidation_error(
+            "Certificate is not yet valid (not_before is in the future)",
+        ));
+    }
+    if cert.not_after() < now {
+        return Err(prevalidation_error(
+            "Certificate has expired (not_after is in the past)",
+        ));
+    }
+
+    // 3) Key strength (only RSA for now; extend if needed)
+    let pubkey = cert.public_key().map_err(|e| {
+        error!("Failed to extract public key from certificate: {e}");
+        prevalidation_error("Cannot extract public key from certificate")
+    })?;
+
+    if pubkey.id() == PKeyId::RSA {
+        let rsa_pub = pubkey.rsa().map_err(|e| {
+            error!("Failed to convert public key to RSA: {e}");
+            prevalidation_error("Invalid RSA public key inside certificate")
+        })?;
+        // rsa_pub.size() returns modulus length in bytes
+        if rsa_pub.size() < 2048 / 8 {
+            return Err(prevalidation_error(
+                "RSA key too short (must be at least 2048 bits)",
+            ));
+        }
+    }
+
+    // 4) Check that the private key is usable and matches the certificate
+
+    // 4a) Parse private key *syntax*
+    let _rsa_priv = Rsa::private_key_from_der(priv_der).map_err(|e| {
+        error!("Private key parse (DER) failed: {e}");
+        prevalidation_error("Invalid RSA private key (DER parsing failed)")
+    })?;
+    // If you support EC keys as well, add analogous parsing here.
+
+    // 4b) Check that private key actually corresponds to the certificate public key.
+    //
+    // We already have `sign_ethereum_address` and `verify_ethereum_address_signature`,
+    // so reuse them on the *same* address as the one we are about to bind on-chain.
+    let sig = sign_ethereum_address(priv_der, address).map_err(|e| {
+        error!("Prevalidation signing failed: {e}");
+        prevalidation_error("Failed to sign Ethereum address with supplied private key")
+    })?;
+
+    let is_valid = verify_ethereum_address_signature(&pubkey, address, &sig).map_err(|e| {
+        error!("Prevalidation verification failed: {e}");
+        prevalidation_error("Failed to verify signature with certificate public key")
+    })?;
+
+    if !is_valid {
+        return Err(prevalidation_error(
+            "Certificate public key does not match supplied private key",
+        ));
+    }
+
+    Ok(())
 }
 
 #[allow(dead_code)]
