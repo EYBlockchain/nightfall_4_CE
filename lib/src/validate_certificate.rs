@@ -232,8 +232,8 @@ async fn validate_certificate(
 use openssl::{
     hash::MessageDigest,
     pkey::PKey,
-    rsa::Rsa,
-    sign::{Signer as opensslSigner, Verifier},
+    rsa::{Padding, Rsa},
+    sign::{RsaPssSaltlen, Signer as opensslSigner, Verifier},
 };
 use std::error::Error;
 #[allow(dead_code)]
@@ -247,8 +247,10 @@ pub fn sign_ethereum_address(
 
     let pkey = PKey::from_rsa(private_key)?;
 
-    // PKCS#1 v1.5 with SHA-256
     let mut signer = opensslSigner::new(MessageDigest::sha256(), &pkey)?;
+    signer.set_rsa_padding(Padding::PKCS1_PSS)?;
+    signer.set_rsa_mgf1_md(MessageDigest::sha256())?;
+    signer.set_rsa_pss_saltlen(RsaPssSaltlen::DIGEST_LENGTH)?;
 
     // Convert the Ethereum address to bytes
     let address_bytes = address.as_bytes();
@@ -268,6 +270,10 @@ fn verify_ethereum_address_signature(
 ) -> Result<bool, Box<dyn Error>> {
     // Create a Verifier object for SHA-256
     let mut verifier = Verifier::new(MessageDigest::sha256(), pkey)?;
+
+    verifier.set_rsa_padding(Padding::PKCS1_PSS)?;
+    verifier.set_rsa_mgf1_md(MessageDigest::sha256())?;
+    verifier.set_rsa_pss_saltlen(RsaPssSaltlen::DIGEST_LENGTH)?;
 
     // Convert the Ethereum address to bytes
     let address_bytes = address.as_bytes();
