@@ -177,3 +177,13 @@ jobs:
       - name: Shut Down Containers
         run: |
           docker compose --profile sync_test down -v
+
+  forge:
+    name: Smart Contract Unit Tests
+    needs: [build]
+    runs-on: self-hosted
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Run Forge Tests
+        run: forge test
