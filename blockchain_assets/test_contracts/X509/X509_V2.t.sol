@@ -10,6 +10,7 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 // Old/new impls
 import {X509 as X509V1} from "../../contracts/X509/X509.sol";
 import {X509V2} from "../../contracts/X509/X509V2.sol";
+import "../../contracts/X509/Sha.sol";
 
 // Minimal UUPS interface to call upgrade fn through the proxy
 interface IUUPS {
@@ -34,7 +35,11 @@ contract X509UpgradeTest is Test {
     address private proxyAddr; // proxy
     X509V1 private x; // V1 ABI pointed at the proxy
 
+    Sha sha512Impl;
+
     function setUp() public {
+        // Deploy the SHA-512 helper contract
+        sha512Impl = new Sha();
         // Deploy V1 impl
         X509V1 implV1 = new X509V1();
 
@@ -44,6 +49,7 @@ contract X509UpgradeTest is Test {
 
         // ABI -> proxy
         x = X509V1(proxyAddr);
+        x.setSha512Impl(address(sha512Impl));
     }
 
     function test_UUPS_upgrade_preserves_state_and_changes_behavior() public {

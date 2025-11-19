@@ -4,22 +4,26 @@ pragma solidity >=0.8.19;
 import "forge-std/Test.sol";
 import "../../contracts/X509/X509.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import "../../contracts/X509/Sha.sol";
 
 contract X509Test is Test {
     X509 x509;
     DERParser derParser;
+    Sha sha512Impl;
 
     // Foundry's default sender EOA
     address constant TEST_EOA = 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38;
 
     function setUp() public {
+        // Deploy the SHA-512 helper contract
+        sha512Impl = new Sha();
         // Upgradeable contract: deploy then initialize owner
         // IMPORTANT: since the implementation has `constructor(){ _disableInitializers(); }`
         // we must initialize THROUGH THE PROXY, not by calling initialize on the impl.
         X509 x509Impl = new X509();
         bytes memory x509Init = abi.encodeCall(X509.initialize, (address(this)));
         x509 = X509(address(new ERC1967Proxy(address(x509Impl), x509Init)));
-        
+        x509.setSha512Impl(address(sha512Impl));
         derParser = new DERParser();
     }
 
