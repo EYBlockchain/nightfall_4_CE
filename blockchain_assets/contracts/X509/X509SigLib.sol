@@ -149,7 +149,7 @@ contract X509SigLib {
         require(signature.length == k, "X509: sig/mod length mismatch");
 
         // 3. Range check: 0 <= s < n
-        // require(_lessThan(signature, modulus), "X509: signature out of range");
+        require(_lessThan(signature, modulus), "X509: signature out of range");
 
         // 4. Compute S^e mod n
         bytes memory signatureDecrypt = modExp(signature, exponent, modulus);
