@@ -13,6 +13,14 @@ import "./Allowlist.sol";
 import "./X509Interface.sol";
 import "./X509SigLib.sol";
 import "./Sha.sol";
+// Minimal interface for the external SHA-512 helper contract.
+// The full SHA-512 implementation is kept in a separate contract to
+// avoid inlining heavy hashing code into X509, which would otherwise
+// exceed the EIP-170 bytecode size limit.
+interface ISha512 {
+    function sha512(bytes calldata message) external view returns (bytes memory);
+}
+
 /**
  * @title X509 (upgradeable)
  * @notice Upgrade-safe version of X509 validator. Constructor removed; use initialize().
@@ -23,7 +31,6 @@ contract X509 is
     UUPSUpgradeable,
     DERParser,
     Allowlist,
-    Sha,
     X509SigLib,
     X509Interface
 {
@@ -442,10 +449,11 @@ contract X509 is
         );
 
         // Compare digest against sha256/sha512(message)
+        bytes memory sha512Digest = sha512Impl.sha512(message);
         require(
             keccak256(sigHash) == keccak256(abi.encode(sha256(message))) ||
                 keccak256(sigHash) ==
-                keccak256(this.sha512(message)),
+                keccak256(sha512Digest),
             "X509: Certificate signature is invalid"
         );
     }
@@ -604,9 +612,15 @@ contract X509 is
         delete addressByKey[subjectKeyIdentifier];
     }
 
+    function setSha512Impl(address impl) external onlyOwner {
+        require(impl != address(0), "X509: sha512 impl zero");
+        sha512Impl = ISha512(impl);
+    }
+
     // ========= UUPS authorization =========
     function _authorizeUpgrade(address) internal override onlyOwner {}
 
     // ========= Storage gap =========
+    ISha512 private sha512Impl;
     uint256[50] private __gap;
 }
