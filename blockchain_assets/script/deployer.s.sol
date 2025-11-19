@@ -167,7 +167,17 @@ contract Deployer is Script {
         }
 
         // verifier
-        if (toml.readBool(string.concat(runMode, ".mock_prover"))) {
+        // Check environment variable first, then fall back to TOML
+        bool mockProver;
+        try vm.envString("NF4_MOCK_PROVER") returns (string memory envValue) {
+            mockProver = keccak256(abi.encodePacked(envValue)) == keccak256(abi.encodePacked("true"));
+            console.log("Using NF4_MOCK_PROVER from environment:", envValue);
+        } catch {
+            mockProver = toml.readBool(string.concat(runMode, ".mock_prover"));
+            console.log("Using mock_prover from TOML:", mockProver);
+        }
+        
+        if (mockProver) {
             verifier = new MockVerifier();
         } else {
             address verifierProxy = Upgrades.deployUUPSProxy(
