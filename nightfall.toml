@@ -106,7 +106,7 @@ proposer_ding = 3                                                       # how mu
 proposer_exit_penalty = 2                                               # how much to fine a proposer for deregister during its turn
 proposer_cooling_blocks = 4                                             # how many blocks before a de-registered proposer can register again
 proposer_rotation_blocks = 4                                            # how many blocks before we rotate proposers
-
+proposer_grace_blocks = 1                                               # how many blocks of inactivity allowed before anyone can skip the current proposer
 [development.nightfall_test]
 log_level = "info"
 
@@ -178,6 +178,7 @@ proposer_ding = 3                                                       # how mu
 proposer_exit_penalty = 2                                               # how much to fine a proposer for deregister during its turn
 proposer_cooling_blocks = 4                                             # how many blocks before a de-registered proposer can register again
 proposer_rotation_blocks = 4                                            # how many blocks before we rotate proposers
+proposer_grace_blocks = 1                                               # how many blocks of inactivity allowed before anyone can skip the current proposer
 
 [base_sepolia.nightfall_test]
 log_level = "info"

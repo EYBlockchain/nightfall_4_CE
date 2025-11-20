@@ -50,6 +50,8 @@ impl AzureWallet {
         key_name: &str,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         info!(" Creating Azure Wallet");
+
+        Self::validate_vault_url(vault_url)?;
         // Create credential and KeyClient to communicate with Azure
         let credential = azure_identity::create_credential()?;
         let key_client = KeyClient::new(vault_url, credential)?;
@@ -70,6 +72,27 @@ impl AzureWallet {
             address,
             verifying_key,
         })
+    }
+
+    /// Validates Azure Key Vault URL to prevent security vulnerabilities
+    ///
+    /// Added strict vault_url validation (HTTPS + *.vault.azure.net allow-list)
+    /// to prevent token exfiltration or key substitution attacks.
+    fn validate_vault_url(vault_url: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let url = Url::parse(vault_url)?;
+
+        // Refuse non-HTTPS endpoints
+        if url.scheme() != "https" {
+            return Err("Vault URL must use HTTPS".into());
+        }
+
+        // Enforce vault_url allow-list (*.vault.azure.net)
+        let host = url.host_str().ok_or("Invalid host")?;
+        if !host.ends_with(".vault.azure.net") {
+            return Err("Vault URL must be *.vault.azure.net".into());
+        }
+
+        Ok(())
     }
 
     /// Sign a message hash using the Azure Key Vault key
