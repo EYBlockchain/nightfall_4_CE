@@ -15,7 +15,7 @@ use jf_primitives::{
         timber::Timber,
     },
 };
-use lib::utils::load_key_from_server;
+use lib::{rollup_circuit_checks::find_file_with_path, utils::load_key_from_server};
 use log::warn;
 use std::{
     collections::HashMap,
@@ -51,26 +51,6 @@ pub fn get_historic_root_tree() -> &'static RwLock<AppendOnlyTree> {
 pub fn get_deposit_proving_key() -> &'static Arc<ProvingKey<UnivariateKzgPCS<Bn254>>> {
     static PK: OnceLock<Arc<ProvingKey<UnivariateKzgPCS<Bn254>>>> = OnceLock::new();
     PK.get_or_init(|| {
-        fn find(path: &Path) -> Option<std::path::PathBuf> {
-            if path.is_absolute() {
-                match path.is_file() {
-                    true => return Some(path.to_path_buf()),
-                    false => return None,
-                }
-            }
-
-            let cwd = std::env::current_dir().ok()?;
-            let mut cwd = cwd.as_path();
-            loop {
-                let file_path = cwd.join(path);
-                if file_path.is_file() {
-                    return Some(file_path);
-                }
-
-                cwd = cwd.parent()?;
-            }
-        }
-
         // We'll try to load from the configuration directory first.
         if let Some(key_bytes) = load_key_from_server("deposit_proving_key") {
             let pk = ProvingKey::<UnivariateKzgPCS<Bn254>>::deserialize_compressed_unchecked(
@@ -82,7 +62,7 @@ pub fn get_deposit_proving_key() -> &'static Arc<ProvingKey<UnivariateKzgPCS<Bn2
         // If that fails, we'll try to load from a local file
         warn!("Could not load deposit proving key from server. Loading from local file");
         let path = Path::new("./configuration/bin/deposit_proving_key");
-        let source_file = find(path).unwrap();
+        let source_file = find_file_with_path(path).unwrap();
         let pk = ProvingKey::<UnivariateKzgPCS<Bn254>>::deserialize_compressed_unchecked(
             &*std::fs::read(source_file).expect("Could not read proving key"),
         )

@@ -89,6 +89,7 @@ pub struct ContractAddresses {
     pub nightfall: String,
     pub round_robin: String,
     pub x509: String,
+    pub verifier: String,
 }
 
 #[derive(Debug, Deserialize, Default, Serialize)]
@@ -118,6 +119,7 @@ pub struct Settings {
     pub log_app_only: bool,
     pub test_x509_certificates: bool,
     pub mock_prover: bool,
+    pub skip_key_regeneration: Option<bool>,
     pub nightfall_client: ClientConfig,
     pub contracts: Contracts,
     pub nightfall_deployer: DeployerConfig,

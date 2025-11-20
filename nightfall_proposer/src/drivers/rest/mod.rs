@@ -8,6 +8,7 @@ use lib::{
     health_check::health_route,
     nf_client_proof::{Proof, ProvingEngine},
     validate_certificate::certification_validation_request,
+    validate_keys::keys_validation_request,
 };
 use proposers::{add_proposer, remove_proposer, withdraw};
 use warp::{
@@ -35,6 +36,7 @@ where
         .or(remove_proposer())
         .or(withdraw())
         .or(certification_validation_request())
+        .or(keys_validation_request())
         .or(synchronisation())
         .or(pause_block_assembly())
         .or(resume_block_assembly())
