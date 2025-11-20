@@ -270,7 +270,7 @@ services:
       - development
       - sync_test
       - no_test
-    image: mongo:4.4.1-bionic # Replace with mongo:6.0 when image is available
+    image: mongo:8.0
     healthcheck:
       test: echo 'db.runCommand("ping").ok' | mongo localhost:27017 --quiet || exit 1
       interval: 10s
