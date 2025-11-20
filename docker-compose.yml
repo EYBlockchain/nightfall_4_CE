@@ -272,7 +272,7 @@ services:
       - no_test
     image: mongo:8.0
     healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongo localhost:27017 --quiet || exit 1
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017 --quiet || exit 1
       interval: 10s
       timeout: 90s
       retries: 10
@@ -297,7 +297,7 @@ services:
       - no_test
     image: mongo:8.0
     healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongo localhost:27017 --quiet || exit 1
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017 --quiet || exit 1
       interval: 10s
       timeout: 90s
       retries: 10
@@ -326,7 +326,7 @@ services:
     ports:
       - "27018:27017"    
     healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongo localhost:27017 --quiet || exit 1
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017 --quiet || exit 1
       interval: 10s
       timeout: 90s
       retries: 10
@@ -348,7 +348,7 @@ services:
     ports:
       - "27019:27017"    
     healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongo localhost:27017 --quiet || exit 1
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017 --quiet || exit 1
       interval: 10s
       timeout: 90s
       retries: 10
