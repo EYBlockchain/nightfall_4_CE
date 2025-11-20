@@ -295,7 +295,7 @@ services:
       - sync_test
       - development
       - no_test
-    image: mongo:4.4.1-bionic # Replace with mongo:6.0 when image is available
+    image: mongo:8.0
     healthcheck:
       test: echo 'db.runCommand("ping").ok' | mongo localhost:27017 --quiet || exit 1
       interval: 10s
@@ -321,7 +321,7 @@ services:
       - development
       - sync_test
       - no_test
-    image: mongo:4.4.1-bionic # Replace with mongo:6.0 when image is available
+    image: mongo:8.0
     restart: unless-stopped
     ports:
       - "27018:27017"    
@@ -344,7 +344,7 @@ services:
     stop_grace_period: 3s
     profiles:
       - sync_test
-    image: mongo:4.4.1-bionic # Replace with mongo:6.0 when image is available
+    image: mongo:8.0
     ports:
       - "27019:27017"    
     healthcheck:
