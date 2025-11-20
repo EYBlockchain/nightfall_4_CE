@@ -10,6 +10,7 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 // Old/new impls
 import {X509 as X509V1} from "../../contracts/X509/X509.sol";
 import {X509V2} from "../../contracts/X509/X509V2.sol";
+import "../../contracts/X509/Sha.sol";
 
 // Minimal UUPS interface to call upgrade fn through the proxy
 interface IUUPS {
@@ -34,7 +35,11 @@ contract X509UpgradeTest is Test {
     address private proxyAddr; // proxy
     X509V1 private x; // V1 ABI pointed at the proxy
 
+    Sha sha512Impl;
+
     function setUp() public {
+        // Deploy the SHA-512 helper contract
+        sha512Impl = new Sha();
         // Deploy V1 impl
         X509V1 implV1 = new X509V1();
 
@@ -44,6 +49,7 @@ contract X509UpgradeTest is Test {
 
         // ABI -> proxy
         x = X509V1(proxyAddr);
+        x.setSha512Impl(address(sha512Impl));
     }
 
     function test_UUPS_upgrade_preserves_state_and_changes_behavior() public {
@@ -199,7 +205,7 @@ contract X509UpgradeTest is Test {
         returns (bytes memory cert, uint256 tlv, bytes memory sig, address who)
     {
         bytes
-            memory signature = hex"4dfeab8f396d2e444e48c9fdd4417737236a25643f869e4538f42fb9cc8f28ededaa26ff07e2f3c66e151ba56fbe8cf480f944f706ca760d9f5c0a1c216679dee03282f3195a42c24aa810926b881c0994fc6acd8b1c8b9aeb7f798e65d0f836e47efb41b5094aa59e8fdb0b0cd830f5fd79db3218068f0a89a1117afe7f1ef8abb1315c212c851a9bc9e05208d7ab176a3ce927a0b0f1baa13a6a8aa7361b8d9a1f137ac43169fbf3c2f025d349200634f6273a771c46b5479f6208dfbfafa28a6c5773145a7f6a2658e4a7f06b82ac55bf4e93a25ec505a48b12854c2e34c0cd5106d8e07082c2ebfb3708965604d4204b468a9eef24d544038113fdecdcef6e60197d88fd6dd7aeb8b0f282d3aab1aa5f2b9b603cde8250159873577d270a48c748392f14e41d9aed32a92e7435d835276a2ac550d8a05c9cce271c76077a6114afed76ed62a75bc8fbd4d5cc3471051955b0258458b71fdf539c6eb48e7f517ec86dc690036cb15de8aa6459b9894b1f0db4055bf0f13aae23897397d8aa0c6530c91926d5bd04d74eeb920f19c0bef187e87c4640474c3b3dfd2d3e6b601c4982cc6fb64d2cb6a834d4500156aa11c7ba0864bcb03affa460ec9f240092b5bb5095966b85fd1ee0b06e52f6f12033a772d01d6269c01a0d72af833180774a8e1ab0a5c984b3f79bccb195f38ccefbac7fc833741daa69a8c72f2dffcc1e";
+            memory signature = hex"24e7a91caccd63be870b86f8adfb25e420e296b9bf147886c316599925492cf3ed246ce9f32d58b5b09f9b2f892ef669e42d0bfc9e3f3737e65ac31bbc6f102f5ffe08611a1aea16aa4e24b3c4aea0690c96ac99ffdf5104a5a6fad767020852fea7ddfe8f11b5197bc44549338500166855e448f47a515bcbfbcaa892cfe7d759fd324408b41338ce21cf24d2aea5cac510085c466def2a4417804b34e455b3356fdbbd3ace52bf64e2022d4eb2c165ff1868a7b926911326ddec74e0c4f12fab260d2b4547247b877e79385a9a66b6fefc29f730cf9d59dddb183afb4b3e36fdb173b01ee0dc5166fc8ccbb8d5022570751b6710515bb1d6a3c46973ae60f3c45bac43d2644aee21def90f05b12c04bda71afa19ee5db04ce6dfb5cc3dbe5db7842520926e3784cfdaa8c72ac14ce5e38d66ae1086ed6bd98a63f0f21c93cae3f69e9e88abb96b08f901d172009b6bd18f8ce0bce68335ad5edd487703a11a2c48c8932eee698149740a8fba84bd4c9ed8f1861e52a07331c58f2bc95fe8c8a270b7bc64ed89a08cda6ba358513973b68f655d7b5676047b834dbd39b1c4eb8572c57a02c7c2ddad3c4089a32416f02f812e9cc91b1e5b3381b0985e83d56de8abd1bbecbddf0c36cd1663615046fa12fd0f5f1912c84dfccbf2654e3abe5c691a992a1f389129575d79f7ab115f514d436113f88cb08f58d9e0d982edea60";
 
         bytes memory endUserCert = vm.readFileBinary(
             "./blockchain_assets/test_contracts/X509/_certificates/user/user-2.der"
