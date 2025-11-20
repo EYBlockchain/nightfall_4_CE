@@ -1,5 +1,5 @@
 use crate::{
-    domain::entities::{Block, ClientTransactionWithMetaData, DepositData, DepositDatawithFee},
+    domain::entities::{Block, ClientTransactionWithMetaData, DepositDatawithFee},
     driven::db::mongo_db::{StoredBlock, DB, PROPOSED_BLOCKS_COLLECTION},
     drivers::blockchain::block_assembly::BlockAssemblyError,
     initialisation::{get_blockchain_client_connection, get_db_connection},
@@ -11,12 +11,13 @@ use crate::{
 use ark_bn254::Fr as Fr254;
 use ark_std::{collections::HashSet, Zero};
 use bson::doc;
-use configuration::settings::get_settings;
 use jf_primitives::poseidon::{FieldHasher, Poseidon};
 use lib::{
     blockchain_client::BlockchainClientConnection,
+    entities::DepositData,
     hex_conversion::HexConvertible,
     nf_client_proof::{Proof, PublicInputs},
+    utils::get_block_size,
 };
 use log::{info, warn};
 use std::cmp::Reverse;
@@ -37,21 +38,6 @@ pub(crate) fn transactions_to_include_in_block<K, V>(
     // In a block, we will have at most block_size transactions, this includes at most 32 DepositDatas + client transactions
     // If we have more than block_size transactions, we'll only include the block_size - DepositDatas most valuable transactions
     mempool_transactions.unwrap_or_default()
-}
-
-/// Fetch the block size from the nightfall toml and ensure it's an allowed number
-pub fn get_block_size() -> Result<usize, BlockAssemblyError> {
-    let settings = get_settings();
-    // get the block size from the environment, if it's not set, default to 64
-    let block_size = settings.nightfall_proposer.block_size;
-    // Allowed block sizes: 64, 256
-    match block_size {
-        // safe to unwrap as we know it's a usize
-        64 | 256 => Ok(block_size.try_into().unwrap()),
-        _ => Err(BlockAssemblyError::ProvingError(
-            "Block size must be one of 64 or 256".to_string(),
-        )),
-    }
 }
 /// assemble_block is the main function that is called by the proposer to create a new block,
 /// it fetches the necessary data from the database and the contract, then assembles the block

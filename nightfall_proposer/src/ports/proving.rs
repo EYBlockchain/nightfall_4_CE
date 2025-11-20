@@ -1,7 +1,7 @@
 use std::{error::Error, fmt::Display};
 
 use crate::{
-    domain::entities::{Block, ClientTransactionWithMetaData, DepositData},
+    domain::entities::{Block, ClientTransactionWithMetaData},
     drivers::blockchain::block_assembly::BlockAssemblyError,
 };
 use ark_bn254::{Fq as Fq254, Fr as Fr254};
@@ -9,6 +9,7 @@ use ark_ff::{BigInteger, PrimeField};
 use ark_serialize::SerializationError;
 use lib::error::ConversionError;
 use lib::{
+    entities::DepositData,
     nf_client_proof::{Proof, ProvingEngine, PublicInputs},
     shared_entities::OnChainTransaction,
 };

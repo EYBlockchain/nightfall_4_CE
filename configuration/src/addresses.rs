@@ -38,6 +38,30 @@ pub fn validate_address(addr: &str) -> Result<Address, AddressesError> {
     Ok(address)
 }
 
+/// Validates an Ethereum address with strict EIP-55 checksum enforcement,
+/// whilst skipping zero check if the `mock_prover` setting is enabled.
+/// Use for user configuration addresses.
+pub fn validate_address_allow_zero(addr: &str) -> Result<Address, AddressesError> {
+    let settings = Settings::new().map_err(|_| AddressesError::Settings)?;
+    let original_addr = addr;
+    let addr = addr.trim_start_matches("0x");
+    let addr_bytes =
+        hex::decode(addr).map_err(|_| AddressesError::InvalidFormat(original_addr.into()))?;
+    if addr_bytes.len() != 20 {
+        return Err(AddressesError::InvalidLength(original_addr.into()));
+    }
+    let address = Address::from_slice(&addr_bytes);
+    if address == Address::ZERO && !settings.mock_prover {
+        return Err(AddressesError::ZeroAddress(original_addr.into()));
+    }
+    // Verify EIP-55 checksum
+    let checksummed = address.to_checksum(None);
+    if &checksummed[2..] != addr {
+        return Err(AddressesError::InvalidChecksum(original_addr.into()));
+    }
+    Ok(address)
+}
+
 fn is_private_ip(ip: IpAddr) -> bool {
     match ip {
         IpAddr::V4(v4) => v4.is_private() || v4.is_loopback() || v4.is_link_local(),
@@ -131,13 +155,18 @@ pub fn get_addresses() -> &'static Addresses {
     ADDRESSES.get_or_init(|| {
         let settings = Settings::new().expect("Could not load settings");
         let file_path = PathBuf::from("/app/configuration/toml/addresses.toml");
-        if let Ok(addresses) = Addresses::load(Sources::File(file_path)) {
-            if addresses.chain_id == settings.network.chain_id {
-                info!("Loaded contract addresses from local file");
-                return addresses;
-            } else {
-                warn!("File exists but chain_id mismatch: {} != {}", 
-                      addresses.chain_id, settings.network.chain_id);
+        match Addresses::load(Sources::File(file_path.clone()), settings.mock_prover) {
+            Ok(addresses) => {
+                if addresses.chain_id == settings.network.chain_id {
+                    info!("Loaded contract addresses from local file");
+                    return addresses;
+                } else {
+                    warn!("File exists but chain_id mismatch: {} != {}", 
+                            addresses.chain_id, settings.network.chain_id);
+                }
+            }
+            Err(e) => {
+                warn!("Could not load addresses from file {}: {}", file_path.display(), e);
             }
         }
         let base = validate_config_url(&settings.configuration_url).expect("Invalid or untrusted configuration URL");
@@ -147,7 +176,7 @@ pub fn get_addresses() -> &'static Addresses {
         let mut wait_time = 2;
 
         for attempt in 1..=max_attempts {
-            match Addresses::load(Sources::Http(url.clone())) {
+            match Addresses::load(Sources::Http(url.clone()), settings.mock_prover) {
                 Ok(addresses) => {
                     if addresses.chain_id != settings.network.chain_id {
                         panic!(
@@ -241,6 +270,31 @@ mod address_serde {
     }
 }
 
+mod address_serde_allow_zero {
+    use super::*;
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    /// Serializes an `Address` as an EIP-55 checksummed hexadecimal string.
+    /// This ensures that when the address is saved (e.g., to TOML or JSON),
+    /// it preserves the checksum formatting.
+    pub fn serialize<S>(addr: &Address, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let checksummed = addr.to_checksum(None);
+        serializer.serialize_str(&checksummed)
+    }
+    /// Deserializes a string into an `Address`, validating its EIP-55 checksum.
+    /// Returns an error if the string is not a valid checksummed address
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Address, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s: String = Deserialize::deserialize(deserializer)?;
+        validate_address_allow_zero(&s).map_err(serde::de::Error::custom)
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]
 pub struct Addresses {
     pub chain_id: u64,
@@ -250,6 +304,8 @@ pub struct Addresses {
     pub round_robin: Address,
     #[serde(with = "address_serde")]
     pub x509: Address,
+    #[serde(with = "address_serde_allow_zero")]
+    pub verifier: Address,
 }
 
 impl Addresses {
@@ -278,7 +334,7 @@ impl fmt::Display for SourcesError {
 }
 
 impl Addresses {
-    pub fn ensure_nonzero(&self) -> Result<(), AddressesError> {
+    pub fn ensure_nonzero(&self, mock_prover: bool) -> Result<(), AddressesError> {
         if self.nightfall == Address::ZERO {
             return Err(AddressesError::ZeroAddress("nightfall".into()));
         }
@@ -288,9 +344,12 @@ impl Addresses {
         if self.x509 == Address::ZERO {
             return Err(AddressesError::ZeroAddress("x509".into()));
         }
+        if !mock_prover && self.verifier == Address::ZERO {
+            return Err(AddressesError::ZeroAddress("verifier".into()));
+        }
         Ok(())
     }
-    pub fn load(s: Sources) -> Result<Self, AddressesError> {
+    pub fn load(s: Sources, mock_prover: bool) -> Result<Self, AddressesError> {
         match s {
             Sources::Http(u) => {
                 let host = u
@@ -340,9 +399,10 @@ impl Addresses {
                     .map_err(|_| AddressesError::CouldNotGetUrl)?;
 
                 let data = resp.text().map_err(|_| AddressesError::BadResponse)?;
-                let addresses: Self =
-                    toml::from_str(&data).map_err(|e| AddressesError::Toml(format!("{e}")))?;
-                addresses.ensure_nonzero()?;
+                let addresses: Self = toml::from_str(&data).map_err(|e| {
+                    AddressesError::Toml(format!("Error in sources:http toml::from_str: {e}"))
+                })?;
+                addresses.ensure_nonzero(mock_prover)?;
                 Ok(addresses)
             }
             Sources::File(path) => {
@@ -368,9 +428,10 @@ impl Addresses {
 
                 let data = std::fs::read_to_string(&canonical)
                     .map_err(|e| AddressesError::Toml(format!("Could not read file: {e}")))?;
-                let addresses: Self =
-                    toml::from_str(&data).map_err(|e| AddressesError::Toml(format!("{e}")))?;
-                addresses.ensure_nonzero()?;
+                let addresses: Self = toml::from_str(&data).map_err(|e| {
+                    AddressesError::Toml(format!("Error in sources:file toml::from_str: {e}"))
+                })?;
+                addresses.ensure_nonzero(mock_prover)?;
                 Ok(addresses)
             }
         }
@@ -444,6 +505,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_checksum_validation() {
+        let settings = Settings::new().expect("Could not load settings");
         // checksummed address (valid)
         let valid_address = "0x52908400098527886E0F7030069857D2E4169EE7";
         assert!(validate_address(valid_address).is_ok());
@@ -458,9 +520,10 @@ mod tests {
             nightfall: validate_address(valid_address).unwrap(),
             round_robin: validate_address(valid_address).unwrap(),
             x509: validate_address(valid_address).unwrap(),
+            verifier: validate_address(valid_address).unwrap(),
         };
 
-        addresses.ensure_nonzero().unwrap();
+        addresses.ensure_nonzero(settings.mock_prover).unwrap();
     }
     #[tokio::test]
     #[serial]

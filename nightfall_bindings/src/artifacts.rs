@@ -20,6 +20,21 @@ sol!(
     RoundRobin,
     "../blockchain_assets/artifacts/RoundRobin.sol/RoundRobin.json"
 );
+sol!(
+    #[sol(rpc)]
+    #[derive(Debug)]
+    #[allow(clippy::too_many_arguments)]
+    RollupProofVerifier,
+    "../blockchain_assets/artifacts/RollupProofVerifier.sol/RollupProofVerifier.json"
+);
+
+sol!(
+    #[sol(rpc)]
+    #[derive(Debug)]
+    contract VKHashProvider {
+        function vkHash() external view returns (bytes32);
+    }
+);
 
 sol!(
     #[sol(rpc)]
