@@ -2,7 +2,6 @@ use figment::{
     providers::{Env, Format, Toml},
     Figment,
 };
-use log::trace;
 use serde::{Deserialize, Serialize};
 use std::{env, sync::OnceLock};
 
@@ -152,7 +151,6 @@ impl Settings {
                 .or_else(|_| env::var("AZURE_KEY_NAME"))
                 .unwrap_or_default();
         }
-        trace!("The settings values read were {settings:#?}");
         Ok(settings)
     }
 }
