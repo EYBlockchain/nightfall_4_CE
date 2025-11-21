@@ -4,14 +4,10 @@ use figment::{
     providers::{Format, Toml},
     Figment,
 };
+use lib::rollup_circuit_checks::find_file_with_path;
 use nightfall_client::drivers::rest::models::KeyRequest;
 use serde::Deserialize;
-use std::{
-    fs::File,
-    io::Read,
-    path::{Path, PathBuf},
-    sync::OnceLock,
-};
+use std::{fs::File, io::Read, path::Path, sync::OnceLock};
 
 use crate::test::TransactionDetails;
 
@@ -100,27 +96,7 @@ impl TestSettings {
     }
 
     pub fn retrieve_mock_addresses() -> MockAddresses {
-        fn find(path: &Path) -> Option<PathBuf> {
-            if path.is_absolute() {
-                match path.is_file() {
-                    true => return Some(path.to_path_buf()),
-                    false => return None,
-                }
-            }
-
-            let cwd = std::env::current_dir().ok()?;
-            let mut cwd = cwd.as_path();
-            loop {
-                let file_path = cwd.join(path);
-                if file_path.is_file() {
-                    return Some(file_path);
-                }
-
-                cwd = cwd.parent()?;
-            }
-        }
-
-        let json_path = find(
+        let json_path = find_file_with_path(
             &Path::new("blockchain_assets/logs/mock_deployment.s.sol")
                 .join(Settings::new().unwrap().network.chain_id.to_string())
                 .join("run-latest.json"),

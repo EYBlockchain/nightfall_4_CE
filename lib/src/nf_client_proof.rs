@@ -3,7 +3,7 @@ use ark_bn254::Fr as Fr254;
 use ark_ec::{twisted_edwards::Affine as TEAffine, AffineRepr};
 use ark_ff::{BigInteger, PrimeField};
 use ark_serialize::SerializationError;
-use ark_std::Zero;
+use ark_std::{One, Zero};
 use jf_primitives::{
     circuit::tree::structs::MembershipProofVar,
     trees::{MembershipProof, PathElement},
@@ -11,7 +11,7 @@ use jf_primitives::{
 use jf_relation::{
     errors::CircuitError,
     gadgets::ecc::{Point, PointVariable},
-    Circuit, PlonkCircuit, Variable,
+    BoolVar, Circuit, PlonkCircuit, Variable,
 };
 use jf_utils::fr_to_fq;
 use nf_curves::ed_on_bn254::{BabyJubjub, Fr as BJJScalar};
@@ -350,6 +350,8 @@ pub struct PrivateInputsVar {
     pub ephemeral_key: Variable,
     /// The address to withdraw to in a withdraw
     pub withdraw_address: Variable,
+    /// A flag to indicate whether this is a withdraw or not
+    pub withdraw_flag: BoolVar,
     /// The preimages to the secret hashes used for deposits
     pub secret_preimages: [[Variable; 3]; 4],
 }
@@ -412,7 +414,7 @@ impl PrivateInputsVar {
             .map_err(|_| {
                 CircuitError::ParameterError("Couldn't convert to fixed length array".to_string())
             })?;
-        let public_keys = private_inputs
+        let public_keys: [PointVariable; 4] = private_inputs
             .public_keys
             .iter()
             .map(|point| circuit.create_point_variable(&Point::<Fr254>::from(*point)))
@@ -423,11 +425,15 @@ impl PrivateInputsVar {
             })?;
         let recipient_public_key = circuit
             .create_point_variable(&Point::<Fr254>::from(private_inputs.recipient_public_key))?;
+        // The recipient_public_key should also not be in the small subgroup in the case of a transfer
+        // and constrained to be the neutral point in the case of a withdraw.
         let nullifier_key = circuit.create_variable(private_inputs.nullifier_key)?;
         let zkp_private = fr_to_fq::<Fr254, BabyJubjub>(&private_inputs.zkp_private_key);
         let zkp_private_key = circuit.create_variable(zkp_private)?;
         let ephemeral_key = circuit.create_variable(private_inputs.ephemeral_key)?;
         let withdraw_address = circuit.create_variable(private_inputs.withdraw_address)?;
+        let withdraw_flag = circuit.is_zero(withdraw_address)?;
+        let withdraw_flag = circuit.logic_neg(withdraw_flag)?;
         let secret_preimages = private_inputs
             .secret_preimages
             .iter()
@@ -448,6 +454,50 @@ impl PrivateInputsVar {
             .map_err(|_| {
                 CircuitError::ParameterError("Couldn't convert to fixed length array".to_string())
             })?;
+
+        // We enforce all the public keys to be either neutral or not in the small subgroup.
+        // To ensure they're not in the small subgroup we check that [8]P != O.
+        for point_var in public_keys.iter() {
+            let neutral_check_var = circuit.is_neutral_point::<BabyJubjub>(point_var)?;
+            // Compute [8]P by doubling 3 times.
+            let check_point_var = std::iter::repeat_n((), 3).try_fold(*point_var, |acc, _| {
+                circuit.ecc_add::<BabyJubjub>(&acc, &acc)
+            })?;
+            let subgroup_check_var = circuit.is_neutral_point::<BabyJubjub>(&check_point_var)?;
+            // Finally, we enforce either the point is neutral or not in the small subgroup.
+            circuit.mul_add_gate(
+                &[
+                    neutral_check_var.into(),
+                    subgroup_check_var.into(),
+                    circuit.one(),
+                    subgroup_check_var.into(),
+                    circuit.zero(),
+                ],
+                &[-Fr254::one(), Fr254::one()],
+            )?;
+        }
+        // In the case of a transfer we enforce the recipient_public_key to not be in the small subgroup.
+        // In the case of a withwraw we enforce the recipient_public_key to be neutral.
+        let neutral_check_var = circuit.is_neutral_point::<BabyJubjub>(&recipient_public_key)?;
+        // Compute [8]P by doubling 3 times.
+        let check_point_var = std::iter::repeat_n((), 3)
+            .try_fold(recipient_public_key, |acc, _| {
+                circuit.ecc_add::<BabyJubjub>(&acc, &acc)
+            })?;
+        let subgroup_check_var = circuit.is_neutral_point::<BabyJubjub>(&check_point_var)?;
+        // Finally, we enforce either the point is neutral or not in the small subgroup, depending on whether we have a transfer or withdraw.
+        // We do this by enforcing that 2 * withdraw_flag == neutral_check_var + subgroup_check_var
+        circuit.lin_comb_gate(
+            &[Fr254::from(2u8), -Fr254::one(), -Fr254::one()],
+            &Fr254::zero(),
+            &[
+                withdraw_flag.into(),
+                neutral_check_var.into(),
+                subgroup_check_var.into(),
+            ],
+            &circuit.zero(),
+        )?;
+
         Ok(PrivateInputsVar {
             fee_token_id,
             nf_address,
@@ -465,6 +515,7 @@ impl PrivateInputsVar {
             zkp_private_key,
             ephemeral_key,
             withdraw_address,
+            withdraw_flag,
             secret_preimages,
         })
     }

@@ -70,7 +70,7 @@ jobs:
   rollup-prover:
     name: Rollup prover integration Test
     timeout-minutes: 480
-    needs: [build, forge, resync] # This test is long so start it after we're sure the others have passed
+    needs: [build, resync] # This test is long so start it after we're sure the others have passed
     runs-on: self-hosted
     env:
       NF4_MOCK_PROVER: "false"

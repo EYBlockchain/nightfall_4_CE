@@ -11,10 +11,7 @@ use ark_std::{
     rand::{self, Rng},
     test_rng, UniformRand,
 };
-use configuration::{
-    addresses::{get_addresses, Addresses, AddressesError, Sources},
-    settings::Settings,
-};
+use configuration::{addresses::get_addresses, settings::Settings};
 
 use hex::ToHex;
 use jf_primitives::{
@@ -59,7 +56,6 @@ use std::{
     error::Error,
     fmt::{self, Display},
     os::unix::process::ExitStatusExt,
-    path::PathBuf,
     process::Command,
     sync::Arc,
 };
@@ -542,11 +538,6 @@ pub async fn get_key(url: Url, key_request: &KeyRequest) -> Result<String, TestE
         .as_str()
         .ok_or_else(|| TestError::new("zkp_public_key not found in response".to_string()))?;
     Ok(zkp_public_key.to_string())
-}
-
-pub fn load_addresses(settings: &Settings) -> Result<Addresses, AddressesError> {
-    let s = Sources::File(PathBuf::from(&settings.contracts.addresses_file));
-    Addresses::load(s)
 }
 
 pub fn get_recipient_address(settings: &Settings) -> Result<String, TestError> {

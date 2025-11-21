@@ -105,6 +105,7 @@ pub enum MerkleTreeError<E> {
     TreeAlreadyExists,
     LeafExists,
     SerializationError,
+    DatabaseCorruption,
     InvalidProof,
     ItemNotFound,
     InvalidIndex,
@@ -125,6 +126,7 @@ impl<E: Display> Display for MerkleTreeError<E> {
             Self::TreeAlreadyExists => write!(f, "Tree already exists"),
             Self::LeafExists => write!(f, "Leaf already exists"),
             Self::SerializationError => write!(f, "Serialization error "),
+            Self::DatabaseCorruption => write!(f, "DatabaseCorruption error "),
             Self::InvalidProof => write!(f, "Invalid proof"),
             Self::ItemNotFound => write!(f, "Item not found"),
             Self::InvalidIndex => write!(f, "Invalid index"),
@@ -369,14 +371,14 @@ pub(crate) mod helper_functions {
         let n_leaves = 2_usize.pow(height);
         let first_leaf_index = n_nodes - n_leaves;
         // Ensure the number of provided leaves fits within the allocated leaf nodes
-    if leaves.len() > n_leaves {
-        panic!(
+        if leaves.len() > n_leaves {
+            panic!(
             "Too many leaves provided: {} leaves for a tree of height {} (max {} leaves allowed)",
             leaves.len(),
             height,
             n_leaves
         );
-    }
+        }
         let mut nodes = vec![N::zero(); n_nodes];
         let last_leaf_index = first_leaf_index + leaves.len();
         // copy the leaves into the leaf nodes

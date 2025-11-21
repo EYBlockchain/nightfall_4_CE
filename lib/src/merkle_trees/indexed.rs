@@ -455,8 +455,18 @@ where
         if nullifiers.is_empty() {
             return Ok(vec![]);
         }
+        // Get the tree metadata
+        let collection_name = format!("{}_{}", tree_id, "metadata");
+        let db = self.database(<Self as MutableTree<F>>::MUT_DB_NAME);
+        let collection = db.collection::<TreeMetadata<F>>(&collection_name);
+        let metadata = collection
+            .find_one(doc! {})
+            .await
+            .map_err(MerkleTreeError::DatabaseError)?
+            .ok_or(MerkleTreeError::ItemNotFound)?;
+
         let mut circuit_infos = vec![];
-        for leaf_chunk in nullifiers.chunks(8) {
+        for leaf_chunk in nullifiers.chunks(1 << metadata.sub_tree_height) {
             let circuit_info = self
                 .insert_nullifiers_for_circuit(leaf_chunk, tree_id)
                 .await?;
@@ -539,7 +549,8 @@ impl<F: PrimeField + PoseidonParams> IndexedLeaves<F> for mongodb::Client {
                         "next_value": padded_next_value,
                     }
                 },
-            ).upsert(true)
+            )
+            .upsert(true)
             .await
             .map_err(MerkleTreeError::DatabaseError)?;
         if updates_result.matched_count == 0 && updates_result.upserted_id.is_none() {

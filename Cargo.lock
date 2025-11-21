@@ -4759,7 +4759,7 @@ checksum = "4a5f13b858c8d314ee3e8f639011f7ccefe71f97f96e50151fb991f267928e2c"
 [[package]]
 name = "jf-plonk"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#f693c2076f9651080bce3ec15a7e8d5f32e75029"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#3e162556ab4f5d926032a673f2c53847c017d06f"
 dependencies = [
  "ark-bn254",
  "ark-crypto-primitives",
@@ -4798,7 +4798,7 @@ dependencies = [
 [[package]]
 name = "jf-primitives"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#f693c2076f9651080bce3ec15a7e8d5f32e75029"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#3e162556ab4f5d926032a673f2c53847c017d06f"
 dependencies = [
  "anyhow",
  "arithmetic",
@@ -4851,7 +4851,7 @@ dependencies = [
 [[package]]
 name = "jf-relation"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#f693c2076f9651080bce3ec15a7e8d5f32e75029"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#3e162556ab4f5d926032a673f2c53847c017d06f"
 dependencies = [
  "ark-bls12-377",
  "ark-bls12-381",
@@ -4883,7 +4883,7 @@ dependencies = [
 [[package]]
 name = "jf-utils"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#f693c2076f9651080bce3ec15a7e8d5f32e75029"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#3e162556ab4f5d926032a673f2c53847c017d06f"
 dependencies = [
  "ark-ec",
  "ark-ff 0.4.2",
@@ -5030,19 +5030,23 @@ version = "0.1.0"
 dependencies = [
  "alloy",
  "alloy-rlp",
+ "anyhow",
  "ark-bn254",
  "ark-ec",
  "ark-ff 0.4.2",
+ "ark-poly",
  "ark-serialize 0.4.2",
  "ark-std 0.4.0",
  "async-trait",
  "azure_identity",
  "azure_security_keyvault",
+ "base64 0.22.1",
  "bincode",
  "configuration",
  "dotenv",
  "futures",
  "hex",
+ "itertools 0.14.0",
  "jf-plonk",
  "jf-primitives",
  "jf-relation",
@@ -5063,6 +5067,7 @@ dependencies = [
  "sha3",
  "testcontainers",
  "tokio",
+ "tokio-util",
  "toml 0.8.23",
  "url",
  "warp",
@@ -5442,7 +5447,7 @@ dependencies = [
 [[package]]
 name = "nf-curves"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#f693c2076f9651080bce3ec15a7e8d5f32e75029"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#3e162556ab4f5d926032a673f2c53847c017d06f"
 dependencies = [
  "ark-bn254",
  "ark-ec",

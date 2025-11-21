@@ -6,13 +6,16 @@ use crate::{
     serialization::{deserialize_fr_padded, serialize_fr_padded, serialize_to_padded_hex},
 };
 use ark_ff::PrimeField;
-use futures::{future::join_all, TryStreamExt};
+use futures::{future::try_join_all, TryStreamExt};
 use jf_primitives::{
     poseidon::{Poseidon, PoseidonParams},
     trees::{CircuitInsertionInfo, Directions, MembershipProof, PathElement, TreeHasher},
 };
 use log::debug;
-use mongodb::bson::{doc, to_bson};
+use mongodb::{
+    bson::{doc, to_bson},
+    options::{UpdateOneModel, WriteModel},
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug)]
@@ -109,39 +112,77 @@ where
         let cache_collection = self
             .database(<Self as MutableTree<F>>::MUT_DB_NAME)
             .collection::<Node<F>>(&cache_collection_name);
-        let mut cache = cache_collection
+
+        // Stream all cached nodes
+        let mut cache_cursor = cache_collection
             .find(doc! {})
             .await
             .map_err(MerkleTreeError::DatabaseError)?;
 
+        // Target collection for persisted nodes
         let node_collection_name = format!("{}_{}", tree_id, "nodes");
         let node_collection = self
             .database(<Self as MutableTree<F>>::MUT_DB_NAME)
             .collection::<Node<F>>(&node_collection_name);
-        while let Some(node) = cache
+
+        // Build ordered bulk write models
+        let mut models: Vec<WriteModel> = Vec::new();
+        let mut cached_entries: u64 = 0;
+
+        while let Some(node) = cache_cursor
             .try_next()
             .await
             .map_err(MerkleTreeError::DatabaseError)?
         {
+            cached_entries += 1;
+
             let bson_id =
                 to_bson(&node._id).map_err(|e| MerkleTreeError::DatabaseError(e.into()))?;
-            // a bulk write would be more efficient, check if now supported in Rust driver
-
             let value_padded_hex = serialize_to_padded_hex(&node.value)?;
-            node_collection
-                .update_one(
-                    doc! {"_id": bson_id},
-                    doc! {"$set": {"value": value_padded_hex}},
-                )
+
+            // Build an UpdateOneModel for this node
+            let update_model = UpdateOneModel::builder()
+                .namespace(node_collection.namespace())
+                .filter(doc! { "_id": bson_id })
+                .update(doc! { "$set": { "value": value_padded_hex } })
                 .upsert(true)
+                .build();
+
+            models.push(WriteModel::UpdateOne(update_model));
+        }
+
+        // If there is nothing to flush, we can safely drop the cache and return.
+        if models.is_empty() {
+            cache_collection
+                .drop()
                 .await
                 .map_err(MerkleTreeError::DatabaseError)?;
+            return Ok(());
         }
-        // drop the cache once it's been written to the main database
+
+        // Execute ordered bulk write so that on the first error, remaining operations are not applied.
+        let result = self
+            .bulk_write(models)
+            .ordered(true) // stop on first failure
+            .await
+            .map_err(MerkleTreeError::DatabaseError)?;
+
+        // For updates, "success" is counted as matched + upserted.
+        let applied = result.matched_count + result.upserted_count;
+
+        if applied != i64::try_from(cached_entries).unwrap_or(i64::MAX) {
+            // Do NOT drop the cache; something went wrong.
+            return Err(MerkleTreeError::Error(format!(
+                "Bulk write only applied to {applied} of {cached_entries} cached nodes"
+            )));
+        }
+
+        // Only now that we know all writes were acknowledged do we drop the cache.
         cache_collection
             .drop()
             .await
             .map_err(MerkleTreeError::DatabaseError)?;
+
         Ok(())
     }
 
@@ -195,11 +236,11 @@ where
                 .await
                 .map_err(MerkleTreeError::DatabaseError)?;
             // Check if the update succeeded
-        if update.matched_count == 0 && update.upserted_id.is_none() {
-            return Err(MerkleTreeError::Error(
-                "Failed to update or upsert the node in the database".to_string(),
-            ));
-        }
+            if update.matched_count == 0 && update.upserted_id.is_none() {
+                return Err(MerkleTreeError::Error(
+                    "Failed to update or upsert the node in the database".to_string(),
+                ));
+            }
             Ok(())
         } else {
             let node_collection_name = format!("{}_{}", tree_id, "nodes");
@@ -230,7 +271,6 @@ where
     // - Computes the subtree root containing the new leaf (other leaves
     //   are default values).
     // - Hashes upwards to update all ancestor nodes and the global root.
-
 
     async fn insert_leaf(
         &self,
@@ -281,14 +321,7 @@ where
             // save the updated nodes
         }
 
-        let results = join_all(updates).await;
-
-        // Check if all tasks succeeded
-        for result in results {
-            if let Err(e) = result {
-                return Err(MerkleTreeError::Error(format!("Failed to execute update: {e:?}")));
-            }
-        }
+        try_join_all(updates).await?;
 
         // store the updated sub tree count
         if update_tree {
@@ -401,7 +434,7 @@ where
             }
 
             // run the set functions concurrently to update the nodes we changed
-            join_all(updates).await;
+            try_join_all(updates).await?;
             sub_tree_count += 1;
         }
         // store the updated sub tree count
@@ -604,7 +637,7 @@ where
             }
         };
         // run the set functions concurrently to update the nodes we changed
-        join_all(updates).await;
+        try_join_all(updates).await?;
         if update_tree {
             // save the cached nodes
             <Self as MutableTree<F>>::flush_cache(self, tree_id).await?
@@ -787,7 +820,7 @@ mod test {
         updated_leaves.append(&mut leaves_2.clone());
         let mut more_leaves = leaves.clone();
         more_leaves.append(&mut leaves_4.clone());
-        
+
         // insert the leaves
         let (root, sub_tree_count) = client
             .append_sub_trees(&leaves_1, true, tree_name)
@@ -859,18 +892,20 @@ mod test {
         let root = client.get_root(tree_name).await.unwrap();
         let hasher = Poseidon::<Fr254>::new();
         assert!(proof.verify(&root, &hasher).is_ok());
-        
+
         // test that we get an error if we try add too many sub trees
         // check how much tree capacity we have left
 
-        let remaining_capacity = 2_u64.pow(TREE_HEIGHT) - sub_tree_count/SUB_TREE_LEAF_CAPACITY as u64;
-        let leaves_5 = make_rnd_leaves(((remaining_capacity as usize) + 1) * SUB_TREE_LEAF_CAPACITY, &mut rng);
-        let mut too_many_leaves = leaves.clone();  
+        let remaining_capacity =
+            2_u64.pow(TREE_HEIGHT) - sub_tree_count / SUB_TREE_LEAF_CAPACITY as u64;
+        let leaves_5 = make_rnd_leaves(
+            ((remaining_capacity as usize) + 1) * SUB_TREE_LEAF_CAPACITY,
+            &mut rng,
+        );
+        let mut too_many_leaves = leaves.clone();
         too_many_leaves.append(&mut leaves_5.clone());
 
-        let result = client
-            .append_sub_trees(&leaves_5, true, tree_name)
-            .await;
+        let result = client.append_sub_trees(&leaves_5, true, tree_name).await;
         assert!(result.is_err());
     }
 }

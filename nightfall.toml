@@ -14,6 +14,7 @@ genesis_block = 0
 ethereum_client_url = "ws://anvil:8545"
 configuration_url = "http://configuration:80" # The name of the proposer config to use can be overridden by env var NF4_PROPOSER_CONFIG
 
+
 [development.network]
 chain_id = 31337 # Anvil chain id = 31337
 
@@ -105,13 +106,12 @@ proposer_ding = 3                                                       # how mu
 proposer_exit_penalty = 2                                               # how much to fine a proposer for deregister during its turn
 proposer_cooling_blocks = 4                                             # how many blocks before a de-registered proposer can register again
 proposer_rotation_blocks = 4                                            # how many blocks before we rotate proposers
-
+proposer_grace_blocks = 1                                               # how many blocks of inactivity allowed before anyone can skip the current proposer
 [development.nightfall_test]
 log_level = "info"
 
 [development.contracts]
 assets = "./blockchain_assets/artifacts"
-addresses_file = "configuration/toml/addresses.toml"
 deployment_file = "./blockchain_assets/logs/deployer.s.sol"
 deploy_contracts = true
 
@@ -119,6 +119,7 @@ deploy_contracts = true
 nightfall = "0x68B1D87F95878fE05B998F19b66F4baba5De1aed"
 round_robin = "0xc6e7DF5E7b4f2A278906862b61205850344D4e7d"
 x509 = "0x610178dA211FEF7D417bC0e6FeD39F05609AD788"
+verifier = "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6"
 
 [development.certificates]
 authority_key_identifier = "0xA469FF28BFAB9C4DB09220B24038D6F18EA57F75"
@@ -131,6 +132,7 @@ extended_key_usages = [
 certificate_policies = [
     "0x06032d0607000000000000000000000000000000000000000000000000000000",
 ]
+oid_group = 0
 
 [base_sepolia]
 # This is the base_sepolia environment - add an appropriate configuration here, using development as a template
@@ -176,13 +178,13 @@ proposer_ding = 3                                                       # how mu
 proposer_exit_penalty = 2                                               # how much to fine a proposer for deregister during its turn
 proposer_cooling_blocks = 4                                             # how many blocks before a de-registered proposer can register again
 proposer_rotation_blocks = 4                                            # how many blocks before we rotate proposers
+proposer_grace_blocks = 1                                               # how many blocks of inactivity allowed before anyone can skip the current proposer
 
 [base_sepolia.nightfall_test]
 log_level = "info"
 
 [base_sepolia.contracts]
 assets = "./blockchain_assets/artifacts"
-addresses_file = "configuration/toml/addresses.toml"
 deployment_file = "./blockchain_assets/logs/deployer.s.sol"
 deploy_contracts = false
 
@@ -190,6 +192,7 @@ deploy_contracts = false
 nightfall = "0xd84418eb9894daaa04843118d4f481edf6f6e74f"
 round_robin = "0x402148defe11b59741bdaee822e783f28ffa7d19"
 x509 = "0x6c816f8b0d297b6f105ab74bf3af7fb467e50966"
+verifier = ""
 
 [base_sepolia.certificates]
 authority_key_identifier = "0xA469FF28BFAB9C4DB09220B24038D6F18EA57F75"
@@ -205,4 +208,5 @@ certificate_policies = [
 
 [production]
 # This is the production environment - add an appropriate configuration here, using development as a template
+
 

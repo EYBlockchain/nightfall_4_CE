@@ -456,7 +456,7 @@ where
             );
             TransactionHandlerError::CustomError(e.to_string())
         })?;
-    let keys = *get_zkp_keys().lock().expect("Poisoned Mutex lock");
+    let keys = get_zkp_keys().lock().expect("Poisoned Mutex lock").clone();
 
     let value =
         Fr254::from_hex_string(recipient_data.values.first().unwrap().as_str()).map_err(|e| {
@@ -736,7 +736,7 @@ where
             TransactionHandlerError::CustomError(e.to_string())
         })?;
 
-    let keys = *get_zkp_keys().lock().expect("Poisoned Mutex lock");
+    let keys = get_zkp_keys().lock().expect("Poisoned Mutex lock").clone();
 
     let value = Fr254::from_hex_string(value.as_str()).map_err(|e| {
         error!("{id} Error when reading value: {e}");

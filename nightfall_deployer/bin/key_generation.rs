@@ -4,28 +4,25 @@ use ark_ec::twisted_edwards::Affine as TEAffine;
 use ark_serialize::{CanonicalSerialize, Write};
 use ark_std::{
     rand::{self, Rng},
-    UniformRand, Zero,
+    UniformRand,
 };
 use configuration::settings::{self, Settings};
-use itertools::izip;
 use jf_plonk::{
     errors::PlonkError,
-    nightfall::{ipa_structs::VerificationKeyId, FFTPlonk, UnivariateUniversalIpaParams},
-    proof_system::{UniversalRecursiveSNARK, UniversalSNARK},
-    recursion::RecursiveProver,
-    transcript::RescueTranscript,
+    nightfall::{ipa_structs::VerificationKeyId, FFTPlonk},
+    proof_system::UniversalSNARK,
 };
 use jf_primitives::{
     pcs::prelude::*,
     poseidon::Poseidon,
     rescue::sponge::RescueCRHF,
-    trees::{
-        imt::{IndexedMerkleTree, LeafDBEntry},
-        timber::Timber,
-        Directions, MembershipProof, PathElement, TreeHasher,
-    },
+    trees::{Directions, MembershipProof, PathElement, TreeHasher},
 };
 use lib::{
+    circuit_key_generation::{generate_rollup_keys_for_production, universal_setup_for_production},
+    constants::MAX_KZG_DEGREE,
+    deposit_circuit::deposit_circuit_builder,
+    entities::DepositData,
     hex_conversion::HexConvertible,
     nf_client_proof::{PrivateInputs, PublicInputs},
     nf_token_id::to_nf_token_id_from_str,
@@ -37,14 +34,8 @@ use nightfall_client::{
     drivers::derive_key::ZKPKeys,
     ports::{commitments::Commitment, secret_hash::SecretHash},
 };
-use nightfall_proposer::{
-    domain::entities::DepositData,
-    driven::{deposit_circuit::deposit_circuit_builder, rollup_prover::RollupProver},
-    services::assemble_block::get_block_size,
-};
 use num_bigint::BigUint;
-use std::{collections::HashMap, fs::File};
-
+use std::fs::File;
 fn main() {
     let settings: Settings = settings::Settings::new().unwrap();
     if settings.mock_prover {
@@ -75,7 +66,6 @@ pub fn generate_proving_keys(settings: &Settings) -> Result<(), PlonkError> {
 
     // if we're using a mock prover, we won't waste time downloading a real Perpetual Powers of Tau file
     // and generating a structured reference string
-    const MAX_KZG_DEGREE: usize = 26;
     let kzg_srs = if settings.mock_prover {
         FFTPlonk::<UnivariateKzgPCS<Bn254>>::universal_setup_for_testing(
             1 << MAX_KZG_DEGREE,
@@ -84,23 +74,22 @@ pub fn generate_proving_keys(settings: &Settings) -> Result<(), PlonkError> {
         .unwrap()
     } else {
         // Unless we already have a local copy, read a remote perpetual powers of Tau file and save, then extract a KZG structured reference string
-        let ptau_file = path.join(format!("bin/ppot_{MAX_KZG_DEGREE}.ptau"));
-        UnivariateKzgPCS::download_ptau_file_if_needed(MAX_KZG_DEGREE, &ptau_file).unwrap();
-        let cache_file = path.join(format!("bin/bn254_setup_{MAX_KZG_DEGREE}.cache"));
-        UnivariateKzgPCS::universal_setup_bn254_cached(&ptau_file, 1 << MAX_KZG_DEGREE, &cache_file)
-            .unwrap()
+        universal_setup_for_production(MAX_KZG_DEGREE)
+            .expect("Failed to perform universal trusted setup for production.")
     };
     // transfer/withdraw pk vk
     let (pk, _) = FFTPlonk::<UnivariateKzgPCS<Bn254>>::preprocess(
         &kzg_srs,
         Some(VerificationKeyId::Client),
         &circuit,
+        true,
     )?;
     // deposit pk vk
     let (deposit_pk, _) = FFTPlonk::<UnivariateKzgPCS<Bn254>>::preprocess(
         &kzg_srs,
         Some(VerificationKeyId::Deposit),
         &deposit_circuit,
+        true,
     )?;
 
     let pk_path = path.join("bin/proving_key");
@@ -112,7 +101,7 @@ pub fn generate_proving_keys(settings: &Settings) -> Result<(), PlonkError> {
 
     let deposit_pk_path = path.join("bin/deposit_proving_key");
 
-    let mut file = File::create(deposit_pk_path).map_err(PlonkError::IoError)?;
+    let mut file = File::create(deposit_pk_path.clone()).map_err(PlonkError::IoError)?;
     let mut deposit_compressed_bytes = Vec::new();
     deposit_pk.serialize_compressed(&mut deposit_compressed_bytes)?;
     file.write_all(&deposit_compressed_bytes)
@@ -121,161 +110,7 @@ pub fn generate_proving_keys(settings: &Settings) -> Result<(), PlonkError> {
     // if we're using a mock prover, we don't need an IPA proof at all, if we are using a real prover then we'll generate a real IPA SRS
     if !settings.mock_prover {
         // this part will generate base_grumpkin_pk, base_bn254_pk, merge_grumpkin_pk, merge_bn254_pk, decider_vk, decider_pk in fn preprocess() located in nightfall_proposer/src/driven/rollup_prover.rs
-        let ipa_srs = UnivariateUniversalIpaParams::gen_srs("Nightfall_4", 1 << 18).unwrap();
-
-        let mut d_proofs = Vec::new();
-        let mut public_input_vec = Vec::new();
-
-        let output =
-            FFTPlonk::<UnivariateKzgPCS<Bn254>>::recursive_prove::<_, _, RescueTranscript<Fr254>>(
-                &mut ark_std::rand::thread_rng(),
-                &deposit_circuit,
-                &deposit_pk,
-                None,
-            )
-            .unwrap();
-
-        let block_size = match get_block_size() {
-            Ok(size) => size,
-            Err(e) => {
-                log::warn!("Falling back to default block size 64 due to error: {e:?}");
-                64
-            }
-        };
-
-        (0..block_size).for_each(|_| {
-            d_proofs.push((output.clone(), deposit_pk.vk.clone()));
-            public_input_vec.push(deposit_public_inputs);
-        });
-
-        // We need to make dummy trees for to build circuit insertion info.
-        let poseidon = Poseidon::<Fr254>::new();
-        let mut timber: Timber<Fr254, Poseidon<Fr254>> =
-            Timber::<Fr254, Poseidon<Fr254>>::new(poseidon, 32);
-        let mut imt: IndexedMerkleTree<Fr254, Poseidon<Fr254>, _> =
-            IndexedMerkleTree::<Fr254, Poseidon<Fr254>, HashMap<Fr254, LeafDBEntry<Fr254>>>::new(
-                poseidon, 32,
-            )
-            .unwrap();
-        let mut historic_root_tree: Timber<Fr254, Poseidon<Fr254>> =
-            Timber::<Fr254, Poseidon<Fr254>>::new(poseidon, 32);
-
-        // Get all the commitments and nullifiers from the public inputs
-        let new_commitments = public_input_vec
-            .iter()
-            .flat_map(|pi| pi.commitments)
-            .collect::<Vec<Fr254>>();
-
-        let insert_nullifiers = public_input_vec
-            .iter()
-            .flat_map(|pi| pi.nullifiers)
-            .collect::<Vec<Fr254>>();
-
-        historic_root_tree.insert_leaf(Fr254::zero()).unwrap();
-
-        let commitment_circuit_info = timber.batch_insert_for_circuit(&new_commitments).unwrap();
-
-        let nullifier_circuit_info = imt.batch_insert_for_circuit(&insert_nullifiers).unwrap();
-
-        let path = historic_root_tree
-            .get_sibling_path(Fr254::zero(), 0)
-            .unwrap();
-
-        let m_proof = MembershipProof::<Fr254> {
-            node_value: Fr254::zero(),
-            sibling_path: path,
-            leaf_index: 0,
-        };
-
-        let mut m_proof_vec = Vec::<Fr254>::from(m_proof);
-        let root_proof_len_field = Fr254::from(m_proof_vec.len() as u64);
-        m_proof_vec.push(deposit_public_inputs.roots[0]);
-        let root_m_proofs_inner = vec![m_proof_vec.clone(); 4].concat();
-        let root_membership_proofs = vec![root_m_proofs_inner.clone(); block_size];
-
-        let extra_base_info = izip!(
-            public_input_vec.chunks(4),
-            root_membership_proofs.chunks(4),
-            commitment_circuit_info.chunks(2),
-            nullifier_circuit_info.chunks(2)
-        )
-        .map(
-            |(pis, root_m_proof_chunk, commitment_info, nullifier_info)| {
-                let commitment_info_vec_0 = Vec::<Fr254>::from(commitment_info[0].clone());
-                let commitment_info_vec_1 = Vec::<Fr254>::from(commitment_info[1].clone());
-                let nullifier_info_vec_0: Vec<Fr254> = nullifier_info[0].clone().into();
-                let nullifier_info_vec_1: Vec<Fr254> = nullifier_info[1].clone().into();
-                let commitment_info_len = Fr254::from(commitment_info_vec_0.len() as u64);
-                let nullifier_info_len = Fr254::from(nullifier_info_vec_0.len() as u64);
-                [
-                    vec![
-                        root_proof_len_field,
-                        commitment_info_len,
-                        nullifier_info_len,
-                    ],
-                    [pis[0].roots, pis[1].roots].concat(),
-                    root_m_proof_chunk[0]
-                        .iter()
-                        .chain(root_m_proof_chunk[1].iter())
-                        .copied()
-                        .collect(),
-                    commitment_info_vec_0,
-                    nullifier_info_vec_0,
-                    vec![
-                        root_proof_len_field,
-                        commitment_info_len,
-                        nullifier_info_len,
-                    ],
-                    [pis[2].roots, pis[3].roots].concat(),
-                    root_m_proof_chunk[2]
-                        .iter()
-                        .chain(root_m_proof_chunk[3].iter())
-                        .copied()
-                        .collect(),
-                    commitment_info_vec_1,
-                    nullifier_info_vec_1,
-                ]
-                .concat()
-            },
-        )
-        .collect::<Vec<Vec<Fr254>>>();
-
-        let specific_pi = public_input_vec
-            .iter()
-            .map(Vec::from)
-            .collect::<Vec<Vec<Fr254>>>();
-
-        let new_commitment_root = timber.root;
-
-        let old_historic_root = historic_root_tree.root;
-
-        historic_root_tree.insert_leaf(new_commitment_root).unwrap();
-
-        let historic_root_path = historic_root_tree
-            .get_sibling_path(new_commitment_root, 1)
-            .ok_or(PlonkError::InvalidParameters(
-                "Error with historic root path".to_string(),
-            ))?;
-
-        let historic_root_proof = MembershipProof::<Fr254> {
-            node_value: new_commitment_root,
-            sibling_path: historic_root_path,
-            leaf_index: 1,
-        };
-
-        let mut extra_info_vec: Vec<Fr254> = historic_root_proof.into();
-        let historic_root_proof_length = Fr254::from(extra_info_vec.len() as u64);
-        extra_info_vec.insert(0, historic_root_proof_length);
-        extra_info_vec.push(old_historic_root);
-
-        RollupProver::preprocess(
-            &d_proofs,
-            &specific_pi,
-            &extra_base_info,
-            &extra_info_vec,
-            &ipa_srs,
-            &kzg_srs,
-        )?;
+        generate_rollup_keys_for_production(deposit_circuit, deposit_pk_path, &kzg_srs)?;
     }
     Ok(())
 }

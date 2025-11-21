@@ -45,6 +45,7 @@ services:
       - NF4_NIGHTFALL_CLIENT__DB_URL=mongodb://nf4_db_client:27017
       - AZURE_VAULT_URL=${AZURE_VAULT_URL}
       - AZURE_KEY_NAME=${CLIENT_SIGNING_KEY_NAME}
+      - CLIENT_SIGNING_KEY_NAME=${CLIENT_SIGNING_KEY_NAME}          
       - AZURE_CLIENT_ID=${AZURE_CLIENT_ID}
       - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
       - AZURE_TENANT_ID=${AZURE_TENANT_ID}
@@ -80,7 +81,7 @@ services:
       - NF4_NIGHTFALL_CLIENT__DB_URL=mongodb://nf4_db_client:27017
       - NF4_ETHEREUM_CLIENT_URL
       - NF4_MOCK_PROVER=${NF4_MOCK_PROVER:-false}
-      - NF4_NIGHTFALL_PROPOSER__URL= ${NF4_NIGHTFALL_PROPOSER__URL:-localhost:3001}
+      - NF4_NIGHTFALL_PROPOSER__URL=${NF4_NIGHTFALL_PROPOSER__URL:-localhost:3001}
 
   client2:
     container_name: nf4_client2
@@ -127,8 +128,9 @@ services:
       - NF4_SIGNING_KEY=${CLIENT2_SIGNING_KEY}      
       - NF4_NIGHTFALL_CLIENT__DB_URL=mongodb://nf4_db_client2:27017      
       - NF4_NIGHTFALL_CLIENT__LOG_LEVEL=info # Mostly the client2 logs are a repeat of client1 logs, so we can reduce the log level to error
-      - AZURE_VAULT_URL=${AZURE_VAULT_URL}
-      - AZURE_KEY_NAME=${CLIENT2_SIGNING_KEY_NAME}
+      - AZURE_VAULT_URL=${AZURE_VAULT_URL}    
+      - AZURE_KEY_NAME=${CLIENT_SIGNING_KEY_NAME}    
+      - CLIENT_SIGNING_KEY_NAME=${CLIENT2_SIGNING_KEY_NAME}
       - AZURE_CLIENT_ID=${AZURE_CLIENT_ID}
       - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
       - AZURE_TENANT_ID=${AZURE_TENANT_ID}
@@ -175,7 +177,7 @@ services:
       - NF4_SIGNING_KEY=${PROPOSER_SIGNING_KEY}
       - NF4_MOCK_PROVER=${NF4_MOCK_PROVER:-true}
       - AZURE_VAULT_URL=${AZURE_VAULT_URL}
-      - AZURE_KEY_NAME=${PROPOSER_SIGNING_KEY_NAME}
+      - PROPOSER_SIGNING_KEY_NAME=${PROPOSER_SIGNING_KEY_NAME}
       - AZURE_CLIENT_ID=${AZURE_CLIENT_ID}
       - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
       - AZURE_TENANT_ID=${AZURE_TENANT_ID}
@@ -252,7 +254,7 @@ services:
       - NF4_PROPOSER_CONFIG=nightfall_proposer2
       - NF4_MOCK_PROVER=${NF4_MOCK_PROVER:-true}
       - AZURE_VAULT_URL=${AZURE_VAULT_URL}
-      - AZURE_KEY_NAME=${PROPOSER_2_SIGNING_KEY_NAME}
+      - PROPOSER_SIGNING_KEY_NAME=${PROPOSER_2_SIGNING_KEY_NAME}
       - AZURE_CLIENT_ID=${AZURE_CLIENT_ID}
       - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
       - AZURE_TENANT_ID=${AZURE_TENANT_ID}
@@ -268,9 +270,9 @@ services:
       - development
       - sync_test
       - no_test
-    image: mongo:4.4.1-bionic # Replace with mongo:6.0 when image is available
+    image: mongo:8.0
     healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongo localhost:27017 --quiet || exit 1
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017 --quiet || exit 1
       interval: 10s
       timeout: 90s
       retries: 10
@@ -293,9 +295,9 @@ services:
       - sync_test
       - development
       - no_test
-    image: mongo:4.4.1-bionic # Replace with mongo:6.0 when image is available
+    image: mongo:8.0
     healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongo localhost:27017 --quiet || exit 1
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017 --quiet || exit 1
       interval: 10s
       timeout: 90s
       retries: 10
@@ -319,12 +321,12 @@ services:
       - development
       - sync_test
       - no_test
-    image: mongo:4.4.1-bionic # Replace with mongo:6.0 when image is available
+    image: mongo:8.0
     restart: unless-stopped
     ports:
       - "27018:27017"    
     healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongo localhost:27017 --quiet || exit 1
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017 --quiet || exit 1
       interval: 10s
       timeout: 90s
       retries: 10
@@ -342,11 +344,11 @@ services:
     stop_grace_period: 3s
     profiles:
       - sync_test
-    image: mongo:4.4.1-bionic # Replace with mongo:6.0 when image is available
+    image: mongo:8.0
     ports:
       - "27019:27017"    
     healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongo localhost:27017 --quiet || exit 1
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017 --quiet || exit 1
       interval: 10s
       timeout: 90s
       retries: 10
@@ -396,7 +398,7 @@ services:
       - CLIENT_ADDRESS=${CLIENT_ADDRESS}
       - NF4_MOCK_PROVER=${NF4_MOCK_PROVER:-true}
       - AZURE_VAULT_URL=${AZURE_VAULT_URL}
-      - AZURE_KEY_NAME=${DEPLOYER_SIGNING_KEY_NAME}
+      - DEPLOYER_SIGNING_KEY_NAME=${DEPLOYER_SIGNING_KEY_NAME}
       - AZURE_CLIENT_ID=${AZURE_CLIENT_ID}
       - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
       - AZURE_TENANT_ID=${AZURE_TENANT_ID}
@@ -514,6 +516,12 @@ services:
       - NF4_CONTRACTS__DEPLOY_CONTRACTS=${NF4_CONTRACTS__DEPLOY_CONTRACTS:-true}
       - CLIENT_ADDRESS=${CLIENT_ADDRESS}
       - NF4_LARGE_BLOCK_TEST=${NF4_LARGE_BLOCK_TEST:-false} # Set to true to run large block tests
+      - AZURE_VAULT_URL=${AZURE_VAULT_URL}
+      - AZURE_KEY_NAME=${CLIENT_SIGNING_KEY_NAME}
+      - AZURE_CLIENT_ID=${AZURE_CLIENT_ID}
+      - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
+      - AZURE_TENANT_ID=${AZURE_TENANT_ID}
+
   
     depends_on:
       client:

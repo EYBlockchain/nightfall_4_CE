@@ -199,6 +199,13 @@ contract Nightfall is
             )
         }
 
+        // block_transactions_length can only be 64 or 256
+        require(
+            block_transactions_length == 64 ||
+                block_transactions_length == 256,
+            "Nightfall: block_transactions_length must be 64 or 256"
+        );
+
         uint256[] memory transaction_hashes = new uint256[](
             block_transactions_length
         );
@@ -477,6 +484,8 @@ contract Nightfall is
 
         feeBinding[key] = DepositFeeState(fee, 1, 0);
         emit DepositEscrowed(nfSlotId, value);
+
+        require( msg.value == fee || msg.value >= 2 * fee, "Invalid msg.value for fee or top-up" );
 
         if (msg.value > 2 * fee) {
             uint256 depositFee = msg.value - 2 * fee;

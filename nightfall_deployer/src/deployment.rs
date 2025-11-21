@@ -6,7 +6,7 @@ use configuration::{
 };
 use jf_plonk::recursion::RecursiveProver;
 
-use log::{info, warn};
+use log::{error, info};
 use nightfall_proposer::driven::rollup_prover::RollupProver;
 use serde_json::Value;
 use std::{
@@ -51,6 +51,8 @@ fn proxies_from_broadcast(path: &Path) -> anyhow::Result<HashMap<&'static str, A
                     map.insert("round_robin", addr);
                 } else if prev.contains("X509") {
                     map.insert("x509", addr);
+                } else if prev.contains("RollupProofVerifier") {
+                    map.insert("verifier", addr);
                 }
             }
         }
@@ -92,52 +94,67 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn std::er
     if !path_out.is_file() {
         return Err(format!("Deployment log file not found: {path_out:?}").into());
     }
-
-    // This loads whatever current parser extracts (likely impl addresses)
-    let mut addresses = Addresses::load(Sources::parse(
-        path_out.to_str().ok_or("Couldn't convert path to str")?,
-    )?)?;
-
-    // -------- replace with *proxy* addresses from broadcast --------
-    if let Ok(proxy_map) = proxies_from_broadcast(&path_out) {
-        if let Some(a) = proxy_map.get("nightfall") {
-            addresses.nightfall = *a;
-        }
-        if let Some(a) = proxy_map.get("round_robin") {
-            addresses.round_robin = *a;
-        }
-        if let Some(a) = proxy_map.get("x509") {
-            addresses.x509 = *a;
-        }
-    }
-
-    // -------- save to config server + local fallback --------
-    let search = |path: &Path| -> Option<PathBuf> {
-        if path.is_absolute() && path.is_file() {
-            return Some(path.to_path_buf());
-        }
-        let mut cwd = std::env::current_dir().ok()?;
-        loop {
-            let candidate = cwd.join(path);
-            if candidate.is_file() {
-                return Some(candidate);
-            }
-            cwd = cwd.parent()?.to_path_buf();
-        }
+    let mut addresses = Addresses {
+        chain_id: settings.network.chain_id,
+        nightfall: Address::ZERO,
+        round_robin: Address::ZERO,
+        x509: Address::ZERO,
+        verifier: Address::ZERO,
     };
-
-    let url =
-        url::Url::parse(&settings.configuration_url)?.join(&settings.contracts.addresses_file)?;
-    if addresses.save(Sources::Http(url)).await.is_err() {
-        warn!("Failed to save to configuration server. Saving locally instead.");
+    // -------- replace with *proxy* addresses from broadcast --------
+    match proxies_from_broadcast(&path_out) {
+        Ok(proxy_map) => {
+            if let Some(a) = proxy_map.get("nightfall") {
+                addresses.nightfall = *a;
+            }
+            if let Some(a) = proxy_map.get("round_robin") {
+                addresses.round_robin = *a;
+            }
+            if let Some(a) = proxy_map.get("x509") {
+                addresses.x509 = *a;
+            }
+            if let Some(a) = proxy_map.get("verifier") {
+                addresses.verifier = *a;
+            }
+            if settings.mock_prover {
+                if addresses.nightfall == Address::ZERO
+                    || addresses.round_robin == Address::ZERO
+                    || addresses.x509 == Address::ZERO
+                {
+                    error!("Missing proxy addresses after extraction");
+                    return Err("Failed to extract all proxy addresses from deployment".into());
+                }
+                info!(
+                    "Extracted proxy addresses: nightfall={:?}, round_robin={:?}, x509={:?}",
+                    addresses.nightfall, addresses.round_robin, addresses.x509
+                );
+            } else {
+                if addresses.nightfall == Address::ZERO
+                    || addresses.round_robin == Address::ZERO
+                    || addresses.x509 == Address::ZERO
+                    || addresses.verifier == Address::ZERO
+                {
+                    error!("Missing proxy addresses after extraction");
+                    return Err("Failed to extract all proxy addresses from deployment".into());
+                }
+                info!(
+                    "Extracted proxy addresses: nightfall={:?}, round_robin={:?}, x509={:?}, verifier={:?}",
+                    addresses.nightfall, addresses.round_robin, addresses.x509, addresses.verifier
+                );
+            }
+        }
+        Err(e) => {
+            error!("Failed to parse deployment broadcast file: {e}");
+            return Err(
+                format!("Deployment failed: could not extract proxy addresses: {e}").into(),
+            );
+        }
     }
-    let file_path = search(Path::new(&settings.contracts.addresses_file))
-        .unwrap_or_else(|| PathBuf::from(&settings.contracts.addresses_file));
-    addresses
-        .save(Sources::File(file_path))
-        .await
-        .expect("Failed to save addresses locally");
-
+    // -------- Save addresses to file --------
+    let file_path = PathBuf::from("/app/configuration/toml/addresses.toml");
+    info!("Saving addresses for chain_id: {}", addresses.chain_id);
+    addresses.save(Sources::File(file_path)).await?;
+    info!("Addresses saved successfully");
     Ok(())
 }
 

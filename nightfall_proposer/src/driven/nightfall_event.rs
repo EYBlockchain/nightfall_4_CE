@@ -1,5 +1,5 @@
 use crate::{
-    domain::entities::{DepositData, DepositDatawithFee},
+    domain::entities::DepositDatawithFee,
     driven::{
         db::mongo_db::StoredBlock, nightfall_client_transaction::process_deposit_transaction,
     },
@@ -19,6 +19,7 @@ use ark_ff::BigInteger;
 use lib::{
     blockchain_client::BlockchainClientConnection,
     contract_conversions::FrBn254,
+    entities::DepositData,
     error::EventHandlerError,
     get_fee_token_id,
     hex_conversion::HexConvertible,

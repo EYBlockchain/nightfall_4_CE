@@ -99,7 +99,8 @@ where
             .iter()
             .map(|s| {
                 if s.is_empty() {
-                    Ok(F::zero())
+                    log::error!("Empty string found in frontier entry for tree '{tree_id}' - potential database corruption");
+                    Err(Self::Error::DatabaseCorruption)
                 } else {
                     F::from_str(s).map_err(|_| Self::Error::SerializationError)
                 }
@@ -269,12 +270,10 @@ mod test {
 
         // test that we get an error if we try add too many sub trees, we have already 4 subtrees
         let leaves_5 = make_rnd_leaves(5_usize * SUB_TREE_LEAF_CAPACITY, &mut rng);
-        let mut too_many_leaves = leaves.clone();  
+        let mut too_many_leaves = leaves.clone();
         too_many_leaves.append(&mut leaves_5.clone());
 
-        let result = client
-            .append_sub_trees(&leaves_5, true, tree_name)
-            .await;
+        let result = client.append_sub_trees(&leaves_5, true, tree_name).await;
         assert!(result.is_err());
     }
 }
