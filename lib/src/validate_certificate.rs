@@ -114,7 +114,9 @@ pub async fn handle_certificate_validation(
         &prevalidation_address,
     ) {
         warn!("Client-side certificate prevalidation failed: {e}");
-        return Ok(bad_request("Certificate / private key prevalidation failed"));
+        return Ok(bad_request(
+            "Certificate / private key prevalidation failed",
+        ));
     }
 
     // 2) Resolve client + address

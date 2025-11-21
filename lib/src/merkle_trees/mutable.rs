@@ -12,7 +12,10 @@ use jf_primitives::{
     trees::{CircuitInsertionInfo, Directions, MembershipProof, PathElement, TreeHasher},
 };
 use log::debug;
-use mongodb::bson::{doc, to_bson};
+use mongodb::{
+    bson::{doc, to_bson},
+    options::{UpdateOneModel, WriteModel},
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug)]
@@ -109,39 +112,77 @@ where
         let cache_collection = self
             .database(<Self as MutableTree<F>>::MUT_DB_NAME)
             .collection::<Node<F>>(&cache_collection_name);
-        let mut cache = cache_collection
+
+        // Stream all cached nodes
+        let mut cache_cursor = cache_collection
             .find(doc! {})
             .await
             .map_err(MerkleTreeError::DatabaseError)?;
 
+        // Target collection for persisted nodes
         let node_collection_name = format!("{}_{}", tree_id, "nodes");
         let node_collection = self
             .database(<Self as MutableTree<F>>::MUT_DB_NAME)
             .collection::<Node<F>>(&node_collection_name);
-        while let Some(node) = cache
+
+        // Build ordered bulk write models
+        let mut models: Vec<WriteModel> = Vec::new();
+        let mut cached_entries: u64 = 0;
+
+        while let Some(node) = cache_cursor
             .try_next()
             .await
             .map_err(MerkleTreeError::DatabaseError)?
         {
+            cached_entries += 1;
+
             let bson_id =
                 to_bson(&node._id).map_err(|e| MerkleTreeError::DatabaseError(e.into()))?;
-            // a bulk write would be more efficient, check if now supported in Rust driver
-
             let value_padded_hex = serialize_to_padded_hex(&node.value)?;
-            node_collection
-                .update_one(
-                    doc! {"_id": bson_id},
-                    doc! {"$set": {"value": value_padded_hex}},
-                )
+
+            // Build an UpdateOneModel for this node
+            let update_model = UpdateOneModel::builder()
+                .namespace(node_collection.namespace())
+                .filter(doc! { "_id": bson_id })
+                .update(doc! { "$set": { "value": value_padded_hex } })
                 .upsert(true)
+                .build();
+
+            models.push(WriteModel::UpdateOne(update_model));
+        }
+
+        // If there is nothing to flush, we can safely drop the cache and return.
+        if models.is_empty() {
+            cache_collection
+                .drop()
                 .await
                 .map_err(MerkleTreeError::DatabaseError)?;
+            return Ok(());
         }
-        // drop the cache once it's been written to the main database
+
+        // Execute ordered bulk write so that on the first error, remaining operations are not applied.
+        let result = self
+            .bulk_write(models)
+            .ordered(true) // stop on first failure
+            .await
+            .map_err(MerkleTreeError::DatabaseError)?;
+
+        // For updates, "success" is counted as matched + upserted.
+        let applied = result.matched_count + result.upserted_count;
+
+        if applied != i64::try_from(cached_entries).unwrap_or(i64::MAX) {
+            // Do NOT drop the cache; something went wrong.
+            return Err(MerkleTreeError::Error(format!(
+                "Bulk write only applied to {applied} of {cached_entries} cached nodes"
+            )));
+        }
+
+        // Only now that we know all writes were acknowledged do we drop the cache.
         cache_collection
             .drop()
             .await
             .map_err(MerkleTreeError::DatabaseError)?;
+
         Ok(())
     }
 

@@ -40,7 +40,7 @@ pub async fn handle_derive_key(
         if let Ok(key) = ZKPKeys::derive_from_mnemonic(&valid_mnemonic, &valid_derivation_path) {
             // update the static
             let mut zkpk = get_zkp_keys().lock().expect("Poisoned lock");
-            *zkpk = key; // store derived key
+            *zkpk = key.clone(); // store derived key
             Ok(reply::with_status(reply::json(&key), StatusCode::OK))
         } else {
             Err(reject::not_found())
