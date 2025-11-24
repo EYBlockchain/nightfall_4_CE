@@ -175,10 +175,7 @@ library Transcript {
 
             // Reduce mod BN254 scalar field prime
             // p = 21888242871839275222246405745257275088548364400416034343698204186575808495617
-            vk_hash := mod(
-                h,
-                21888242871839275222246405745257275088548364400416034343698204186575808495617
-            )
+            vk_hash := h
         }
     }
 
@@ -267,7 +264,6 @@ library Transcript {
 
         appendMessage(self, hdr);
 
-        append_field_element(self, vk_hash);
         append_field_element(self, challenges.public_inputs_hash);
 
         append_G1_element(self, challenges.proof.wires_poly_comms_1);
