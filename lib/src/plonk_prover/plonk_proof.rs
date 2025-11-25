@@ -30,7 +30,7 @@ pub struct PlonkProof {
     #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
     proof: JFProof<UnivariateKzgPCS<Bn254>>,
     #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
-    pi_hash: Fr254,
+    pi_hash: [Fr254; 2],
     #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
     vk_id: Option<VerificationKeyId>,
 }
@@ -95,7 +95,12 @@ impl ProvingEngine<PlonkProof> for PlonkProvingEngine {
 
         let output = RescueCRHF::<Fq254>::sponge_with_bit_padding(&input, 1)[0];
 
-        let hash = Fr254::from_le_bytes_mod_order(&output.into_bigint().to_bytes_le()[..31]);
+        let hash_bytes = output.into_bigint().to_bytes_le();
+        let (low_hash_bytes, high_hash_bytes) = hash_bytes.split_at(31);
+        let hash = [
+            Fr254::from_le_bytes_mod_order(low_hash_bytes),
+            Fr254::from_le_bytes_mod_order(high_hash_bytes),
+        ];
 
         if hash != proof.pi_hash {
             return Err(PlonkError::PublicInputsDoNotMatch);
@@ -120,7 +125,7 @@ impl PlonkProof {
     /// Creates a new [`PlonkProof`]
     pub fn new(
         proof: JFProof<UnivariateKzgPCS<Bn254>>,
-        pi_hash: Fr254,
+        pi_hash: [Fr254; 2],
         vk_id: Option<VerificationKeyId>,
     ) -> Self {
         Self {
