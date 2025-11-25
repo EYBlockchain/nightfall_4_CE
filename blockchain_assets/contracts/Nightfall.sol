@@ -726,13 +726,17 @@ contract Nightfall is
         bytes memory publicInputsBytes = abi.encodePacked(
             publicInputsBytes_computed
         );
-
+        uint256 n = blk.transactions.length;
+        bytes calldata accBytes = blk.rollup_proof[32:288];
+        bytes calldata proofBytes = blk.rollup_proof[288:];
+        bool is_proof_valid = verifier.verify(
+            accBytes,
+            proofBytes,
+            publicInputsBytes,
+            n
+        );
         return (
-            verifier.verify(
-                blk.rollup_proof[32:288],
-                blk.rollup_proof[288:],
-                publicInputsBytes
-            ),
+            is_proof_valid,
             feeSumAsNumber
         );
     }

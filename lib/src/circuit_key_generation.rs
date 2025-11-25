@@ -1,4 +1,5 @@
 use crate::{
+    constants::MAX_KZG_DEGREE,
     deposit_circuit::deposit_circuit_builder,
     entities::DepositData,
     nf_client_proof::PublicInputs,
@@ -10,6 +11,7 @@ use ark_ec::bn::Bn;
 use ark_ff::{Fp, MontBackend};
 use ark_serialize::CanonicalDeserialize;
 use ark_std::{path::PathBuf, Zero};
+use hex::FromHex;
 use itertools::izip;
 use jf_plonk::{
     errors::PlonkError,
@@ -211,6 +213,12 @@ pub fn generate_rollup_keys_for_production(
     extra_info_vec.insert(0, historic_root_proof_length);
     extra_info_vec.push(old_historic_root);
 
+    let srs_digest_hex = expected_sha256_for_label(format!("{MAX_KZG_DEGREE}").as_str()).ok_or(
+        PlonkError::InvalidParameters("Failed to generate SHA256 label".to_string()),
+    )?;
+    let srs_digest = <[u8; 32]>::from_hex(srs_digest_hex)
+        .map_err(|e| PlonkError::InvalidParameters(format!("Hex conversion error: {e}")))?;
+
     RollupKeyGenerator::preprocess(
         &d_proofs,
         &specific_pi,
@@ -218,6 +226,8 @@ pub fn generate_rollup_keys_for_production(
         &extra_info_vec,
         &ipa_srs,
         kzg_srs,
+        &srs_digest,
+        block_size as u32,
     )?;
     Ok(())
 }

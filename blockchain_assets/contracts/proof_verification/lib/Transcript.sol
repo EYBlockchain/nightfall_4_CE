@@ -175,37 +175,114 @@ library Transcript {
 
             // Reduce mod BN254 scalar field prime
             // p = 21888242871839275222246405745257275088548364400416034343698204186575808495617
-            vk_hash := mod(
-                h,
-                21888242871839275222246405745257275088548364400416034343698204186575808495617
-            )
+            vk_hash := h
         }
+    }
+
+    function _beU32(uint256 x) internal pure returns (bytes memory out) {
+        out = new bytes(4);
+        assembly {
+            mstore(add(out, 32), shl(224, x))
+        } // write 4 BE bytes
+    }
+
+    // TLV encoding for the metadata hased in the transcript initialisation message.
+    // We prepend the label and values by their length for parsing.
+    function _tlv(
+        string memory label,
+        bytes memory value
+    ) internal pure returns (bytes memory) {
+        bytes memory lab = bytes(label);
+        return
+            abi.encodePacked(
+                _beU32(lab.length),
+                lab,
+                _beU32(value.length),
+                value
+            );
+    }
+
+    function ilog2(uint256 x) internal pure returns (uint32 r) {
+        require(x > 0, "ilog2(0)");
+        while (x > 1) {
+            x >>= 1;
+            r++;
+        }
+    }
+
+    function decider_depth(
+        uint256 prove_inputs
+    ) internal pure returns (uint32) {
+        // Require power-of-two batch sizes (64, 256, ...)
+        require(
+            prove_inputs > 1 && (prove_inputs & (prove_inputs - 1)) == 0,
+            "non pow2"
+        );
+        uint32 d = ilog2(prove_inputs);
+        require(d > 0, "depth underflow");
+        return d - 1;
+    }
+
+    struct ChallengeInputs {
+        Types.VerificationKey vk;
+        Types.Proof proof;
+        uint256 public_inputs_hash;
+        bytes32 srs_digest;
+        uint256 rollup_tx_batch_size;
+        string version;
     }
 
     function compute_challengs(
         TranscriptData memory self,
-        Types.VerificationKey memory vk,
-        Types.Proof memory proof,
-        uint256 public_inputs_hash
+        ChallengeInputs memory challenges
     ) internal pure {
-        uint256 vk_hash = compute_vk_hash(vk);
-        append_field_element(self, vk_hash);
-        append_field_element(self, public_inputs_hash);
+        uint256 vk_hash = compute_vk_hash(challenges.vk);
 
-        append_G1_element(self, proof.wires_poly_comms_1);
-        append_G1_element(self, proof.wires_poly_comms_2);
-        append_G1_element(self, proof.wires_poly_comms_3);
-        append_G1_element(self, proof.wires_poly_comms_4);
-        append_G1_element(self, proof.wires_poly_comms_5);
-        append_G1_element(self, proof.wires_poly_comms_6);
+        bytes memory hdr = _tlv("app_id", bytes("nightfish.pcd"));
+        hdr = abi.encodePacked(hdr, _tlv("proto", bytes("plonk-recursion")));
+        hdr = abi.encodePacked(hdr, _tlv("role", bytes("rollup_prover")));
+        hdr = abi.encodePacked(hdr, _tlv("layer", bytes("decider")));
+        hdr = abi.encodePacked(
+            hdr,
+            _tlv("vk_digest", abi.encodePacked(vk_hash))
+        );
+        hdr = abi.encodePacked(
+            hdr,
+            _tlv("srs_digest", abi.encodePacked(challenges.srs_digest))
+        );
+        hdr = abi.encodePacked(
+            hdr,
+            _tlv(
+                "recursion_depth",
+                _beU32(uint256(decider_depth(challenges.rollup_tx_batch_size)))
+            )
+        );
+        hdr = abi.encodePacked(
+            hdr,
+            _tlv("rollup_size", _beU32(challenges.rollup_tx_batch_size))
+        );
+
+        appendMessage(self, hdr);
+
+        append_field_element(self, challenges.public_inputs_hash);
+
+        append_G1_element(self, challenges.proof.wires_poly_comms_1);
+        append_G1_element(self, challenges.proof.wires_poly_comms_2);
+        append_G1_element(self, challenges.proof.wires_poly_comms_3);
+        append_G1_element(self, challenges.proof.wires_poly_comms_4);
+        append_G1_element(self, challenges.proof.wires_poly_comms_5);
+        append_G1_element(self, challenges.proof.wires_poly_comms_6);
 
         generate_tau_challenge(self);
-        generate_beta_challenges(self, proof);
+        generate_beta_challenges(self, challenges.proof);
         self.challenges.gamma = generate_gamma_challenges(self);
-        self.challenges.alpha = generate_alpha_challenges(self, proof);
-        self.challenges.zeta = generate_zeta_challenges(self, proof);
-        self.challenges.v = generate_v_challenges(self, proof);
-        self.challenges.u = generate_u_challenges(self, proof);
+        self.challenges.alpha = generate_alpha_challenges(
+            self,
+            challenges.proof
+        );
+        self.challenges.zeta = generate_zeta_challenges(self, challenges.proof);
+        self.challenges.v = generate_v_challenges(self, challenges.proof);
+        self.challenges.u = generate_u_challenges(self, challenges.proof);
     }
 
     function generate_initial_transcript(
