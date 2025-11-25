@@ -238,9 +238,9 @@ impl RecursiveProver for RollupProver {
 
     fn base_grumpkin_checks(
         specific_pis: &[Vec<Variable>],
-        _circuit: &mut PlonkCircuit<Fq254>,
+        circuit: &mut PlonkCircuit<Fq254>,
     ) -> Result<Vec<Variable>, CircuitError> {
-        RollupKeyGenerator::base_grumpkin_checks(specific_pis, _circuit)
+        RollupKeyGenerator::base_grumpkin_checks(specific_pis, circuit)
     }
 
     fn bn254_merge_circuit_checks(
