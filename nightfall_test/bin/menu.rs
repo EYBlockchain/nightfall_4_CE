@@ -5,7 +5,7 @@ use dotenv::dotenv;
 use inquire::Select;
 use inquire::Text;
 use lib::hex_conversion::HexConvertible;
-use nightfall_client::drivers::derive_key::ZKPKeys;
+use nightfall_client::drivers::derive_key::ZKPPubKey;
 use nightfall_client::drivers::rest::models::{
     NF3DepositRequest, NF3RecipientData, NF3TransferRequest, NF3WithdrawRequest,
 };
@@ -459,7 +459,7 @@ async fn get_keys(url: &Url, mnemonic: &Mnemonic) -> Result<String, Box<dyn std:
     if !resp.status().is_success() {
         return Err(format!("deriveKey endpoint failed: {}", resp.text().await?).into());
     }
-    let zkp_keys: ZKPKeys = resp.json().await?;
-    let compressed = zkp_keys.compressed_public_key()?;
+    let public_key: ZKPPubKey = resp.json().await?;
+    let compressed = public_key.compressed_public_key()?;
     Ok(compressed.to_hex_string())
 }

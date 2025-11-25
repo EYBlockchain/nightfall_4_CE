@@ -1,7 +1,10 @@
 use bip32::DerivationPath;
 use warp::{hyper::StatusCode, path, reject, reply, Filter, Rejection, Reply};
 
-use crate::{drivers::derive_key::ZKPKeys, get_zkp_keys};
+use crate::{
+    drivers::derive_key::{ZKPKeys, ZKPPubKey},
+    get_zkp_keys,
+};
 use bip32::Mnemonic;
 
 use super::models::KeyRequest;
@@ -41,14 +44,17 @@ pub async fn handle_derive_key(
             // update the static
             let mut zkpk = get_zkp_keys().lock().expect("Poisoned lock");
             *zkpk = key.clone(); // store derived key
-            Ok(reply::with_status(reply::json(&key), StatusCode::OK))
+            let pubkey = ZKPPubKey::from(&key);
+            Ok(reply::with_status(reply::json(&pubkey), StatusCode::OK))
         } else {
             Err(reject::not_found())
         }
     } else {
         // no body -> return existing static keys
         let zkpk = get_zkp_keys().lock().expect("Poisoned lock");
-        Ok(reply::with_status(reply::json(&*zkpk), StatusCode::OK))
+        // only serialize a safe view
+        let pubkey = ZKPPubKey::from(&*zkpk);
+        Ok(reply::with_status(reply::json(&pubkey), StatusCode::OK))
     }
 }
 
@@ -76,8 +82,8 @@ mod tests {
             .json(&key_request)
             .reply(&filter)
             .await;
-        let key = serde_json::from_slice::<ZKPKeys>(res.body()).unwrap();
+        let key = serde_json::from_slice::<ZKPPubKey>(res.body()).unwrap();
         assert_eq!(res.status(), StatusCode::OK);
-        assert_eq!(key, test_key);
+        assert_eq!(key.zkp_public_key, test_key.zkp_public_key);
     }
 }
