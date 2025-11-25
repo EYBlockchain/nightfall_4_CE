@@ -53,7 +53,6 @@ where
     N: NightfallContract,
 {
     debug!("{id} Handling client operation: {operation:?}");
-    debug!("{id} Handling client operation: {operation:?}");
 
     // get the zkp keys from the global state. They will have been created when the keys were requested using a mnemonic
     let ZKPKeys {

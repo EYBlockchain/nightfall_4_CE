@@ -160,7 +160,7 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn std::er
 
 /// Function should only be called after we have checked forge is installed by running 'which forge'
 pub fn forge_command(command: &[&str]) {
-    info!("DEBUG: Running forge command: {command:?}"); // Use info! as forge_command already uses info!
+    debug!("DEBUG: Running forge command: {command:?}"); // Use info! as forge_command already uses info!
     let output = std::process::Command::new("forge").args(command).output();
 
     match output {
