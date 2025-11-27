@@ -4759,7 +4759,7 @@ checksum = "4a5f13b858c8d314ee3e8f639011f7ccefe71f97f96e50151fb991f267928e2c"
 [[package]]
 name = "jf-plonk"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git?rev=bac00f99dc3a58027a66130e8dde8230d33aaf8d#bac00f99dc3a58027a66130e8dde8230d33aaf8d"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#bac00f99dc3a58027a66130e8dde8230d33aaf8d"
 dependencies = [
  "ark-bn254",
  "ark-crypto-primitives",
@@ -4798,7 +4798,7 @@ dependencies = [
 [[package]]
 name = "jf-primitives"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git?rev=bac00f99dc3a58027a66130e8dde8230d33aaf8d#bac00f99dc3a58027a66130e8dde8230d33aaf8d"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#bac00f99dc3a58027a66130e8dde8230d33aaf8d"
 dependencies = [
  "anyhow",
  "arithmetic",
@@ -4851,7 +4851,7 @@ dependencies = [
 [[package]]
 name = "jf-relation"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git?rev=bac00f99dc3a58027a66130e8dde8230d33aaf8d#bac00f99dc3a58027a66130e8dde8230d33aaf8d"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#bac00f99dc3a58027a66130e8dde8230d33aaf8d"
 dependencies = [
  "ark-bls12-377",
  "ark-bls12-381",
@@ -4883,7 +4883,7 @@ dependencies = [
 [[package]]
 name = "jf-utils"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git?rev=bac00f99dc3a58027a66130e8dde8230d33aaf8d#bac00f99dc3a58027a66130e8dde8230d33aaf8d"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#bac00f99dc3a58027a66130e8dde8230d33aaf8d"
 dependencies = [
  "ark-ec",
  "ark-ff 0.4.2",
@@ -5447,7 +5447,7 @@ dependencies = [
 [[package]]
 name = "nf-curves"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git?rev=bac00f99dc3a58027a66130e8dde8230d33aaf8d#bac00f99dc3a58027a66130e8dde8230d33aaf8d"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git#bac00f99dc3a58027a66130e8dde8230d33aaf8d"
 dependencies = [
  "ark-bn254",
  "ark-ec",

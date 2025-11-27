@@ -12,6 +12,9 @@ use serde::ser::StdError;
 
 use crate::error::ConfigError;
 
+// log progress every 100 MB during key downloads
+const DOWNLOAD_PROGRESS_LOG_INTERVAL_BYTES: u64 = 100 * 1024 * 1024;
+
 /// Fetch the block size from the nightfall toml and ensure it's an allowed number
 pub fn get_block_size() -> Result<usize, ConfigError> {
     let settings = get_settings();
@@ -96,7 +99,7 @@ impl KeyDownloader {
                 return Err(KeyDownloadError::SizeLimit { actual: total, limit: self.max_bytes });
             }
 
-            if total - last_log > 100 * 1024 * 1024 {
+            if total - last_log > DOWNLOAD_PROGRESS_LOG_INTERVAL_BYTES {
                 debug!("Downloaded {} MB of key data so far", total / (1024 * 1024));
                 last_log = total;
             }
