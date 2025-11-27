@@ -6,6 +6,8 @@ import "@forge-std/StdToml.sol";
 
 import "../contracts/Nightfall.sol";
 import "../contracts/RoundRobin.sol";
+import "../contracts/X509/Sha.sol";
+
 
 // Verifier stack
 import "../contracts/proof_verification/MockVerifier.sol";
@@ -165,7 +167,17 @@ contract Deployer is Script {
         }
 
         // verifier
-        if (toml.readBool(string.concat(runMode, ".mock_prover"))) {
+        // Check environment variable first, then fall back to TOML
+        bool mockProver;
+        try vm.envString("NF4_MOCK_PROVER") returns (string memory envValue) {
+            mockProver = keccak256(abi.encodePacked(envValue)) == keccak256(abi.encodePacked("true"));
+            console.log("Using NF4_MOCK_PROVER from environment:", envValue);
+        } catch {
+            mockProver = toml.readBool(string.concat(runMode, ".mock_prover"));
+            console.log("Using mock_prover from TOML:", mockProver);
+        }
+        
+        if (mockProver) {
             verifier = new MockVerifier();
         } else {
             address verifierProxy = Upgrades.deployUUPSProxy(
@@ -187,6 +199,10 @@ contract Deployer is Script {
     ) internal returns (address x509Proxy, X509Interface x509) {
         vm.startBroadcast(owners.deployerPk);
 
+        // Deploy SHA-512 helper
+        Sha sha512Impl = new Sha();
+
+        // Deploy X509
         x509Proxy = Upgrades.deployUUPSProxy(
             "X509.sol:X509",
             abi.encodeCall(X509.initialize, (owners.deployer))
@@ -194,6 +210,9 @@ contract Deployer is Script {
 
         X509 x509Impl = X509(x509Proxy);
         x509 = X509Interface(x509Proxy);
+
+        // Configure SHA-512 implementation
+        x509Impl.setSha512Impl(address(sha512Impl));
 
         if (toml.readBool(string.concat(runMode, ".test_x509_certificates"))) {
             _configureX509locally(x509Impl, toml);

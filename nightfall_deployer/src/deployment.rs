@@ -51,6 +51,8 @@ fn proxies_from_broadcast(path: &Path) -> anyhow::Result<HashMap<&'static str, A
                     map.insert("round_robin", addr);
                 } else if prev.contains("X509") {
                     map.insert("x509", addr);
+                } else if prev.contains("RollupProofVerifier") {
+                    map.insert("verifier", addr);
                 }
             }
         }
@@ -97,6 +99,7 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn std::er
         nightfall: Address::ZERO,
         round_robin: Address::ZERO,
         x509: Address::ZERO,
+        verifier: Address::ZERO,
     };
     // -------- replace with *proxy* addresses from broadcast --------
     match proxies_from_broadcast(&path_out) {
@@ -110,17 +113,35 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn std::er
             if let Some(a) = proxy_map.get("x509") {
                 addresses.x509 = *a;
             }
-            if addresses.nightfall == Address::ZERO
-                || addresses.round_robin == Address::ZERO
-                || addresses.x509 == Address::ZERO
-            {
-                error!("Missing proxy addresses after extraction");
-                return Err("Failed to extract all proxy addresses from deployment".into());
+            if let Some(a) = proxy_map.get("verifier") {
+                addresses.verifier = *a;
             }
-            info!(
-                "Extracted proxy addresses: nightfall={:?}, round_robin={:?}, x509={:?}",
-                addresses.nightfall, addresses.round_robin, addresses.x509
-            );
+            if settings.mock_prover {
+                if addresses.nightfall == Address::ZERO
+                    || addresses.round_robin == Address::ZERO
+                    || addresses.x509 == Address::ZERO
+                {
+                    error!("Missing proxy addresses after extraction");
+                    return Err("Failed to extract all proxy addresses from deployment".into());
+                }
+                info!(
+                    "Extracted proxy addresses: nightfall={:?}, round_robin={:?}, x509={:?}",
+                    addresses.nightfall, addresses.round_robin, addresses.x509
+                );
+            } else {
+                if addresses.nightfall == Address::ZERO
+                    || addresses.round_robin == Address::ZERO
+                    || addresses.x509 == Address::ZERO
+                    || addresses.verifier == Address::ZERO
+                {
+                    error!("Missing proxy addresses after extraction");
+                    return Err("Failed to extract all proxy addresses from deployment".into());
+                }
+                info!(
+                    "Extracted proxy addresses: nightfall={:?}, round_robin={:?}, x509={:?}, verifier={:?}",
+                    addresses.nightfall, addresses.round_robin, addresses.x509, addresses.verifier
+                );
+            }
         }
         Err(e) => {
             error!("Failed to parse deployment broadcast file: {e}");

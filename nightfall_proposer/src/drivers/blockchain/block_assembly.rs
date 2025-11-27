@@ -51,6 +51,13 @@ impl From<EventHandlerError> for BlockAssemblyError {
         BlockAssemblyError::EventHandlerError(e)
     }
 }
+use lib::error::ConfigError;
+
+impl From<ConfigError> for BlockAssemblyError {
+    fn from(e: ConfigError) -> Self {
+        BlockAssemblyError::Other(format!("Configuration error: {e}"))
+    }
+}
 
 impl Error for BlockAssemblyError {}
 impl Display for BlockAssemblyError {

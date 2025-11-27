@@ -13,6 +13,13 @@ import "./Allowlist.sol";
 import "./X509Interface.sol";
 import "./X509SigLib.sol";
 import "./Sha.sol";
+// Minimal interface for the external SHA-512 helper contract.
+// The full SHA-512 implementation is kept in a separate contract to
+// avoid inlining heavy hashing code into X509, which would otherwise
+// exceed the EIP-170 bytecode size limit.
+interface ISha512 {
+    function sha512(bytes calldata message) external view returns (bytes memory);
+}
 
 /**
  * @title X509 (upgradeable)
@@ -24,7 +31,6 @@ contract X509 is
     UUPSUpgradeable,
     DERParser,
     Allowlist,
-    Sha,
     X509SigLib,
     X509Interface
 {
@@ -140,10 +146,10 @@ contract X509 is
             "X509: Signature tlv should have a tag type of BIT STRING"
         );
         bytes memory bitString = signatureTlv.value;
-        require(bitString.length > 1);
+        require(bitString.length > 1, "X509: Signature BIT STRING too short");
 
         // First content octet is "unused bits" and must be 0x00 for X.509
-        require(bitString[0] == 0x00);
+        require(bitString[0] == 0x00, "X509: Signature unused bits must be 0");
 
         // Drop the unused-bits octet
         bytes memory signature = new bytes(bitString.length - 1);
@@ -161,7 +167,7 @@ contract X509 is
         require(messageTlv.depth == 1, "X509: Message tlv depth is incorrect");
         require(
             messageTlv.tag.tagType == 0x10,
-            "X509: Message tlv should have a tag type of BIT STRING"
+            "X509: Message tlv should have a tag type of SEQUENCE"
         );
         bytes memory message = messageTlv.octets;
         return message;
@@ -179,7 +185,7 @@ contract X509 is
             uint256(uint8(utcTime[3]) - 48);
         uint256 day = uint256(uint8(utcTime[4]) - 48) * 10 +
             uint256(uint8(utcTime[5]) - 48);
-        require(year >= 1970);
+        require(year >= 1970, "X509: year < 1970");
         int256 _year = int256(year);
         int256 _month = int256(month);
         int256 _day = int256(day);
@@ -264,12 +270,9 @@ contract X509 is
                 )
             ) break; // OID for the SKID
         }
-        require(
-            i < tlvs.length
-        );
+        require(i < tlvs.length, "X509: SKID OID not found");
         bytes memory skidBytes = tlvs[i + 1].value;
-        require(
-            skidBytes.length < 33);
+        require(skidBytes.length < 33, "X509: SKID too long");
         DecodedTlv[] memory skidTlvs = new DecodedTlv[](1);
         skidTlvs = this.parseDER(skidBytes, 0, 2);
         bytes32 skid = bytes32(skidTlvs[0].value) >>
@@ -291,9 +294,9 @@ contract X509 is
                 )
             ) break; // OID for the AKID
         }
-        require(i < tlvs.length);
+        require(i < tlvs.length, "X509: AKID OID not found");
         bytes memory akidBytes = tlvs[i + 1].value;
-        require(akidBytes.length < 33 );
+        require(akidBytes.length < 33, "X509: AKID too long");
         DecodedTlv[] memory akidTlvs = new DecodedTlv[](3);
         akidTlvs = this.parseDER(akidBytes, 0, 2);
         bytes32 akid = bytes32(akidTlvs[1].value) >>
@@ -407,7 +410,7 @@ contract X509 is
         // Thus extendedUsageTlvs is an array of sequences. We have to loop through it, collecting the first OID inside each.  We can ignore
         // the rest of the sequence which will be yet another sequence of policy qualifiers.  We don't care about those for this purpose.
         // We just need to ensure the policy exists.
-        bytes32[] memory policyOIDs = new bytes32[](extendedUsageTlvs.length);// we don't know how many there are but there are definitely less than this 
+        bytes32[] memory policyOIDs = new bytes32[](extendedUsageTlvs.length); // upper bound
         uint256 count = 0;
         for (uint256 j = 0; j < extendedUsageTlvs.length; j++) {
             if (extendedUsageTlvs[j].depth == 2)
@@ -429,12 +432,16 @@ contract X509 is
             );
         }
     }
-        function checkSignature(
+
+    // ========= RSA signature verification wrappers =========
+
+    // PKCS#1 v1.5 for certificate signatures (unchanged behaviour)
+    function checkCertificateSignature(
         bytes memory signature,
         bytes memory message,
         RSAPublicKey memory publicKey
     ) private view {
-        // Use library to extract digest from RSA signature
+        // Use library to extract digest from RSA signature (PKCS#1 v1.5)
         bytes memory sigHash = extractDigestFromSignature(
             signature,
             publicKey.modulus,
@@ -442,12 +449,29 @@ contract X509 is
         );
 
         // Compare digest against sha256/sha512(message)
+        bytes memory sha512Digest = sha512Impl.sha512(message);
         require(
             keccak256(sigHash) == keccak256(abi.encode(sha256(message))) ||
                 keccak256(sigHash) ==
-                keccak256(this.sha512(message)),
-            "X509: Signature is invalid"
+                keccak256(sha512Digest),
+            "X509: Certificate signature is invalid"
         );
+    }
+
+    // RSASSA-PSS (SHA-256, MGF1-SHA256, saltLen=32) for address binding
+    function checkAddressSignaturePSS(
+        bytes memory signature,
+        bytes memory message,
+        RSAPublicKey memory publicKey
+    ) private view {
+        bool ok = rsaPssVerifySha256(
+            signature,
+            message,
+            publicKey.modulus,
+            publicKey.exponent,
+            32 // saltLen = SHA-256 digest length
+        );
+        require(ok, "X509: Address signature is invalid");
     }
 
     // ========= External API =========
@@ -495,7 +519,7 @@ contract X509 is
             authorityKeyIdentifier
         ];
         // validate the cert's signature and check that the cert is in date, and not revoked nor signed by a revoked cert,
-        checkSignature(signature, message, publicKey);
+        checkCertificateSignature(signature, message, publicKey);
 
         uint256 expiry = checkDates(tlvs);
         RSAPublicKey memory certificatePublicKey = extractPublicKey(tlvs);
@@ -539,8 +563,8 @@ contract X509 is
                 "X509: This certificate is already linked to a different address"
             );
             // Before we finally add the address to the allowlist, just check that the sender of the allowlist request actually owns the
-            // end user cert.  We do this by getting them to sign the Ethereum address they want allowlisted.
-            checkSignature(
+            // end user cert.  We do this by getting them to sign the Ethereum address they want allowlisted (RSASSA-PSS).
+            checkAddressSignaturePSS(
                 addressSignature,
                 abi.encodePacked(uint160(addr)),
                 certificatePublicKey
@@ -588,9 +612,15 @@ contract X509 is
         delete addressByKey[subjectKeyIdentifier];
     }
 
+    function setSha512Impl(address impl) external onlyOwner {
+        require(impl != address(0), "X509: sha512 impl zero");
+        sha512Impl = ISha512(impl);
+    }
+
     // ========= UUPS authorization =========
     function _authorizeUpgrade(address) internal override onlyOwner {}
 
     // ========= Storage gap =========
+    ISha512 private sha512Impl;
     uint256[50] private __gap;
 }

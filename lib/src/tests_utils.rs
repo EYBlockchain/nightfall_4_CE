@@ -14,7 +14,7 @@ pub fn get_db_connection_uri(host: Host, port: u16) -> String {
 }
 
 pub async fn get_mongo() -> ContainerAsync<GenericImage> {
-    let mongo_image = GenericImage::new("mongo", "4.4.1-bionic")
+    let mongo_image = GenericImage::new("mongo", "8.0")
         .with_exposed_port(27017.tcp())
         .with_wait_for(WaitFor::message_on_stdout("Waiting for connections"))
         .with_startup_timeout(Duration::from_secs(120));

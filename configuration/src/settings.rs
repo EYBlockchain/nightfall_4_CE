@@ -2,7 +2,6 @@ use figment::{
     providers::{Env, Format, Toml},
     Figment,
 };
-use log::trace;
 use serde::{Deserialize, Serialize};
 use std::{env, sync::OnceLock};
 
@@ -89,6 +88,7 @@ pub struct ContractAddresses {
     pub nightfall: String,
     pub round_robin: String,
     pub x509: String,
+    pub verifier: String,
 }
 
 #[derive(Debug, Deserialize, Default, Serialize)]
@@ -118,6 +118,7 @@ pub struct Settings {
     pub log_app_only: bool,
     pub test_x509_certificates: bool,
     pub mock_prover: bool,
+    pub skip_key_regeneration: Option<bool>,
     pub nightfall_client: ClientConfig,
     pub contracts: Contracts,
     pub nightfall_deployer: DeployerConfig,
@@ -152,7 +153,6 @@ impl Settings {
                 .or_else(|_| env::var("AZURE_KEY_NAME"))
                 .unwrap_or_default();
         }
-        trace!("The settings values read were {settings:#?}");
         Ok(settings)
     }
 }

@@ -83,7 +83,7 @@ impl From<ff_ce::PrimeFieldDecodingError> for KeyError {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Default, Copy)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Default)]
 pub struct ZKPKeys {
     #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
     pub root_key: Fr254,

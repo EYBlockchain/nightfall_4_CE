@@ -4780,7 +4780,7 @@ checksum = "4a5f13b858c8d314ee3e8f639011f7ccefe71f97f96e50151fb991f267928e2c"
 [[package]]
 name = "jf-plonk"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git?rev=b4b11d8301695f330d81a84898d78b333801ed70#b4b11d8301695f330d81a84898d78b333801ed70"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git?rev=bac00f99dc3a58027a66130e8dde8230d33aaf8d#bac00f99dc3a58027a66130e8dde8230d33aaf8d"
 dependencies = [
  "ark-bn254",
  "ark-crypto-primitives",
@@ -4819,7 +4819,7 @@ dependencies = [
 [[package]]
 name = "jf-primitives"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git?rev=b4b11d8301695f330d81a84898d78b333801ed70#b4b11d8301695f330d81a84898d78b333801ed70"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git?rev=bac00f99dc3a58027a66130e8dde8230d33aaf8d#bac00f99dc3a58027a66130e8dde8230d33aaf8d"
 dependencies = [
  "anyhow",
  "arithmetic",
@@ -4872,7 +4872,7 @@ dependencies = [
 [[package]]
 name = "jf-relation"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git?rev=b4b11d8301695f330d81a84898d78b333801ed70#b4b11d8301695f330d81a84898d78b333801ed70"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git?rev=bac00f99dc3a58027a66130e8dde8230d33aaf8d#bac00f99dc3a58027a66130e8dde8230d33aaf8d"
 dependencies = [
  "ark-bls12-377",
  "ark-bls12-381",
@@ -4904,7 +4904,7 @@ dependencies = [
 [[package]]
 name = "jf-utils"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git?rev=b4b11d8301695f330d81a84898d78b333801ed70#b4b11d8301695f330d81a84898d78b333801ed70"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git?rev=bac00f99dc3a58027a66130e8dde8230d33aaf8d#bac00f99dc3a58027a66130e8dde8230d33aaf8d"
 dependencies = [
  "ark-ec",
  "ark-ff 0.4.2",
@@ -5051,9 +5051,11 @@ version = "0.1.0"
 dependencies = [
  "alloy",
  "alloy-rlp",
+ "anyhow",
  "ark-bn254",
  "ark-ec",
  "ark-ff 0.4.2",
+ "ark-poly",
  "ark-serialize 0.4.2",
  "ark-std 0.4.0",
  "async-trait",
@@ -5065,6 +5067,7 @@ dependencies = [
  "dotenv",
  "futures",
  "hex",
+ "itertools 0.14.0",
  "jf-plonk",
  "jf-primitives",
  "jf-relation",
@@ -5085,6 +5088,7 @@ dependencies = [
  "sha3",
  "testcontainers",
  "tokio",
+ "tokio-util",
  "toml 0.8.23",
  "url",
  "warp",
@@ -5464,7 +5468,7 @@ dependencies = [
 [[package]]
 name = "nf-curves"
 version = "0.4.0-pre.0"
-source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git?rev=b4b11d8301695f330d81a84898d78b333801ed70#b4b11d8301695f330d81a84898d78b333801ed70"
+source = "git+https://git@github.com/EYBlockchain/nightfish_CE.git?rev=bac00f99dc3a58027a66130e8dde8230d33aaf8d#bac00f99dc3a58027a66130e8dde8230d33aaf8d"
 dependencies = [
  "ark-bn254",
  "ark-ec",

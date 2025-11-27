@@ -1,12 +1,10 @@
 //! This module contains the code for generating the deposit proofs, these are made by the proposer because they deal with
 //! sha256 hashes within a circuit.
-
-use crate::domain::entities::DepositData;
+use crate::{entities::DepositData, nf_client_proof::PublicInputs};
 use ark_bn254::Fr as Fr254;
 use ark_ff::{PrimeField, Zero};
 use jf_primitives::circuit::{poseidon::PoseidonHashGadget, sha256::Sha256HashGadget};
 use jf_relation::{errors::CircuitError, BoolVar, Circuit, PlonkCircuit, Variable};
-use lib::nf_client_proof::PublicInputs;
 
 /// Storing the 'Variable's needed to crete a deposit commitment.
 /// Note that if it's a deposit_fee, nf_token_id and nf_slot_id will be fee_token_id,
@@ -132,16 +130,36 @@ impl DepositCircuitGadget<Fr254> for PlonkCircuit<Fr254> {
         // Finalize the sha hash
         self.finalize_for_sha256_hash(&mut lookup_vars)?;
 
-        // Make the relevant variables public
+        // We set the relevant variables to be public here in the order:
+        // hash initialisation (domain tag, version)
+        // fee
+        // roots
+        // commitments
+        // nullifiers
+        // compressed_secrets
+
+        let mut init_bytes = "public_inputs".as_bytes().to_vec();
+        init_bytes.extend_from_slice("version1".as_bytes());
+        let init_pi_var =
+            self.create_constant_variable(Fr254::from_le_bytes_mod_order(init_bytes.as_slice()))?;
+        self.set_variable_public(init_pi_var)?;
+
+        //We insert length separators for each section of the public inputs
+
         // fee is special in a deposit proof, it's set to zero on purpose.
         // because fee for deposit transactions are handled on chain,
         // unlike trasnfer/withdraw transactions, where we need create fee commitment.
         // in a deposit proof, we only create commitments from DepositData.
         // if there are deposit_fee, then there will be deposit_fee commitments,
         // otherwise there will only be value commitments.
-        let _ = self.create_public_variable(Fr254::zero())?;
 
+        let fee_len_sep = self.create_constant_variable(Fr254::from(1u8))?;
+        self.set_variable_public(fee_len_sep)?;
+        let _ = self.create_public_variable(Fr254::zero())?;
         let fee = Fr254::zero();
+
+        let roots_len_sep = self.create_constant_variable(Fr254::from(4u8))?;
+        self.set_variable_public(roots_len_sep)?;
         let roots: [Fr254; 4] = (0..4)
             .map(|_| {
                 let root = self.create_public_variable(Fr254::zero())?;
@@ -154,6 +172,9 @@ impl DepositCircuitGadget<Fr254> for PlonkCircuit<Fr254> {
                     "Could not convert roots to fixed length array".to_string(),
                 )
             })?;
+
+        let comms_len_sep = self.create_constant_variable(Fr254::from(4u8))?;
+        self.set_variable_public(comms_len_sep)?;
         let commitments: [Fr254; 4] = new_commitments
             .iter()
             .map(|&commitment| {
@@ -168,6 +189,8 @@ impl DepositCircuitGadget<Fr254> for PlonkCircuit<Fr254> {
                 )
             })?;
 
+        let nulls_len_sep = self.create_constant_variable(Fr254::from(4u8))?;
+        self.set_variable_public(nulls_len_sep)?;
         let nullifiers: [Fr254; 4] = (0..4)
             .map(|_| {
                 let nullifier = self.create_public_variable(Fr254::zero())?;
@@ -180,6 +203,9 @@ impl DepositCircuitGadget<Fr254> for PlonkCircuit<Fr254> {
                     "Could not convert roots to fixed length array".to_string(),
                 )
             })?;
+
+        let comp_secs_len_sep = self.create_constant_variable(Fr254::from(5u8))?;
+        self.set_variable_public(comp_secs_len_sep)?;
         let compressed_secrets: [Fr254; 5] = sha_outputs
             .iter()
             .map(|&pd| {
@@ -218,12 +244,12 @@ pub fn deposit_circuit_builder(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::nf_token_id::to_nf_token_id_from_fr254;
     use ark_bn254::Fr as Fr254;
     use ark_ff::BigInteger;
     use ark_std::{One, UniformRand, Zero};
     use jf_primitives::poseidon::{FieldHasher, Poseidon};
     use jf_utils::test_rng;
-    use lib::nf_token_id::to_nf_token_id_from_fr254;
     use num_bigint::BigUint;
     use sha2::{Digest, Sha256};
 

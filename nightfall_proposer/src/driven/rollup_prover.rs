@@ -1,7 +1,7 @@
 //! This module contains the code for block proving. It builds a struct and implements the `RecursiveProver` trait from nightfish_CE and from the `ports` module.
 
 use crate::{
-    domain::entities::{ClientTransactionWithMetaData, DepositData},
+    domain::entities::ClientTransactionWithMetaData,
     drivers::blockchain::block_assembly::BlockAssemblyError,
     get_deposit_proving_key,
     initialisation::get_db_connection,
@@ -14,7 +14,8 @@ use ark_bn254::{Bn254, Fq as Fq254, Fr as Fr254};
 
 use ark_ff::{BigInteger, PrimeField};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
-use ark_std::{cfg_iter, One, Zero};
+use ark_std::cfg_iter;
+use hex::FromHex;
 use itertools::{izip, Itertools};
 use jf_plonk::{
     errors::PlonkError,
@@ -35,34 +36,30 @@ use jf_plonk::{
     transcript::RescueTranscript,
 };
 use jf_primitives::{
-    circuit::{
-        sha256::Sha256HashGadget,
-        tree::structs::{CircuitInsertionInfoVar, IMTCircuitInsertionInfoVar, MembershipProofVar},
-    },
-    pcs::prelude::UnivariateKzgPCS,
+    pcs::prelude::{expected_sha256_for_label, UnivariateKzgPCS},
     rescue::sponge::RescueCRHF,
 };
-use jf_relation::{errors::CircuitError, Circuit, PlonkCircuit, Variable};
+use jf_relation::{errors::CircuitError, PlonkCircuit, Variable};
 use log::{debug, warn};
 use mongodb::{bson::doc, Client};
 
-use super::deposit_circuit::deposit_circuit_builder;
 use lib::{
+    deposit_circuit::deposit_circuit_builder,
+    entities::DepositData,
     error::ConversionError,
     merkle_trees::trees::{MerkleTreeError, MutableTree, TreeMetadata},
     nf_client_proof::PublicInputs,
     plonk_prover::{get_client_proving_key, plonk_proof::PlonkProof},
+    rollup_circuit_checks::{get_configuration_path, RollupKeyGenerator},
     serialization::{ark_de_hex, ark_se_hex},
     utils::load_key_from_server,
 };
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
-    env,
     error::Error,
     fmt::{Display, Formatter, Result as FmtResult},
-    fs::File,
-    io::{Read, Write},
+    io::Read,
     ops::Deref,
     path::{Path, PathBuf},
     sync::{Arc, OnceLock},
@@ -120,19 +117,6 @@ impl From<MerkleTreeError<mongodb::error::Error>> for RollupProofError {
 impl From<RollupProofError> for BlockAssemblyError {
     fn from(e: RollupProofError) -> Self {
         BlockAssemblyError::ProvingError(e.to_string())
-    }
-}
-
-/// Function that starts at the current working directory and returns the path to the configuration file.
-fn get_configuration_path() -> Option<PathBuf> {
-    let mut cwd = env::current_dir().ok()?;
-    loop {
-        let file_path = cwd.join("configuration");
-        if file_path.is_dir() {
-            return Some(file_path);
-        }
-
-        cwd = cwd.parent()?.to_path_buf();
     }
 }
 
@@ -204,7 +188,7 @@ pub fn get_base_bn254_proving_key() -> &'static Arc<ProvingKey<Kzg>> {
 pub fn get_decider_proving_key() -> &'static Arc<PlonkProvingKey<Bn254>> {
     static PK: OnceLock<Arc<PlonkProvingKey<Bn254>>> = OnceLock::new();
     PK.get_or_init(|| {
-        /* Downloading from servers takes too longs, generate it yourself and save it, the  read ir from local */
+        /* Downloading from servers takes too longs, generate it yourself and save it, the read it from local */
         // if let Some(key_bytes) = load_key_from_server("decider_pk") {
         //     let pk = PlonkProvingKey::<Bn254>::deserialize_compressed_unchecked(&*key_bytes)
         //         .expect("Could not deserialise proving key");
@@ -236,208 +220,41 @@ impl RecursiveProver for RollupProver {
         nullifier_info_length: usize,
         circuit: &mut PlonkCircuit<Fr254>,
     ) -> Result<Vec<Variable>, CircuitError> {
-        let (first_pis, second_pis) = specific_pis.split_at(specific_pis.len() / 2);
-
-        let mut start_roots_comm = Vec::new();
-        let mut start_roots_null = Vec::new();
-        let mut end_roots_comm = Vec::new();
-        let mut end_roots_null = Vec::new();
-
-        let total_m_proofs_length = 8 * (root_m_proof_length + 2);
-
-        for pi in [first_pis, second_pis] {
-            pi[8..]
-                .chunks(root_m_proof_length + 1)
-                .take(8)
-                .zip(pi[..8].iter())
-                .try_for_each(|(chunk, leaf_root)| {
-                    let m_proof_var =
-                        MembershipProofVar::from_vars(circuit, &chunk[..root_m_proof_length])?;
-
-                    let check_var = m_proof_var.verify_membership_proof(
-                        circuit,
-                        leaf_root,
-                        &chunk[root_m_proof_length],
-                    )?;
-                    circuit.enforce_true(check_var.into())
-                })?;
-
-            let circuit_info = CircuitInsertionInfoVar::from_vars(
-                circuit,
-                &pi[total_m_proofs_length..total_m_proofs_length + commitment_info_length],
-                29,
-            )?;
-
-            circuit_info.verify_subtree_insertion_gadget(circuit)?;
-
-            start_roots_comm.push(circuit_info.old_root);
-            end_roots_comm.push(circuit_info.new_root);
-
-            let nullifier_info = IMTCircuitInsertionInfoVar::from_vars(
-                circuit,
-                &pi[total_m_proofs_length + commitment_info_length
-                    ..total_m_proofs_length + commitment_info_length + nullifier_info_length],
-                32,
-                8,
-            )?;
-            nullifier_info.verify_subtree_insertion_gadget(circuit)?;
-
-            start_roots_null.push(nullifier_info.old_root);
-            end_roots_null.push(nullifier_info.circuit_info.new_root);
-        }
-
-        circuit.enforce_equal(start_roots_comm[1], end_roots_comm[0])?;
-        circuit.enforce_equal(start_roots_null[1], end_roots_null[0])?;
-
-        Ok(vec![
-            start_roots_comm[0],
-            end_roots_comm[1],
-            start_roots_null[0],
-            end_roots_null[1],
-        ])
+        RollupKeyGenerator::base_bn254_extra_checks(
+            specific_pis,
+            root_m_proof_length,
+            commitment_info_length,
+            nullifier_info_length,
+            circuit,
+        )
     }
 
     fn base_bn254_checks(
         specific_pis: &[Vec<Variable>],
         circuit: &mut PlonkCircuit<Fr254>,
     ) -> Result<Vec<Variable>, CircuitError> {
-        let first_pis = &specific_pis[0];
-        let second_pis = &specific_pis[1];
-
-        let pi_slices = [
-            &first_pis[..18],
-            &first_pis[18..],
-            &second_pis[..18],
-            &second_pis[18..],
-        ];
-        let fee_sum = pi_slices
-            .iter()
-            .try_fold(circuit.zero(), |acc, slice| circuit.add(acc, slice[0]))?;
-
-        let mut lookup_vars = Vec::<(Variable, Variable, Variable)>::new();
-        let mut sha_vars = Vec::<Variable>::new();
-        for pi_slice in pi_slices {
-            let field_vars = [
-                pi_slice[5],
-                pi_slice[6],
-                pi_slice[7],
-                pi_slice[8],
-                pi_slice[9],
-                pi_slice[10],
-                pi_slice[11],
-                pi_slice[12],
-                pi_slice[13],
-                pi_slice[14],
-                pi_slice[15],
-                pi_slice[16],
-            ];
-
-            let bit_var = circuit.is_equal(pi_slice[17], circuit.one())?;
-            let (_, sha256_var) = circuit.full_shifted_sha256_hash_with_bit(
-                &field_vars,
-                &bit_var,
-                &mut lookup_vars,
-            )?;
-            sha_vars.push(sha256_var);
-        }
-
-        let mut second_sha_vars = Vec::<Variable>::new();
-        for chunk in sha_vars.chunks(2) {
-            let (_, sha_var) =
-                circuit.full_shifted_sha256_hash(&[chunk[0], chunk[1]], &mut lookup_vars)?;
-            second_sha_vars.push(sha_var);
-        }
-
-        let (_, final_sha_var) =
-            circuit.full_shifted_sha256_hash(&second_sha_vars, &mut lookup_vars)?;
-
-        circuit.finalize_for_sha256_hash(&mut lookup_vars)?;
-
-        Ok(vec![fee_sum, final_sha_var])
+        RollupKeyGenerator::base_bn254_checks(specific_pis, circuit)
     }
 
     fn base_grumpkin_checks(
         specific_pis: &[Vec<Variable>],
-        _circuit: &mut PlonkCircuit<Fq254>,
+        circuit: &mut PlonkCircuit<Fq254>,
     ) -> Result<Vec<Variable>, CircuitError> {
-        Ok(specific_pis.concat())
+        RollupKeyGenerator::base_grumpkin_checks(specific_pis, circuit)
     }
 
     fn bn254_merge_circuit_checks(
         specific_pis: &[Vec<Variable>],
         circuit: &mut PlonkCircuit<Fr254>,
     ) -> Result<Vec<Variable>, CircuitError> {
-        let start_root_comm_one = specific_pis[0][0];
-        let start_root_comm_two = specific_pis[1][0];
-        let end_root_comm_one = specific_pis[0][1];
-        let end_root_comm_two = specific_pis[1][1];
-        let start_root_null_one = specific_pis[0][2];
-        let start_root_null_two = specific_pis[1][2];
-        let end_root_null_one = specific_pis[0][3];
-        let end_root_null_two = specific_pis[1][3];
-        let fee_sum_one = specific_pis[0][4];
-        let fee_sum_two = specific_pis[1][4];
-        let sha_one = specific_pis[0][5];
-        let sha_two = specific_pis[0][6];
-        let sha_three = specific_pis[1][5];
-        let sha_four = specific_pis[1][6];
-
-        circuit.enforce_equal(end_root_comm_one, start_root_comm_two)?;
-        circuit.enforce_equal(end_root_null_one, start_root_null_two)?;
-
-        let fee_sum = circuit.add(fee_sum_one, fee_sum_two)?;
-        let mut lookup_vars = Vec::<(Variable, Variable, Variable)>::new();
-
-        let (_, sha_left) =
-            circuit.full_shifted_sha256_hash(&[sha_one, sha_two], &mut lookup_vars)?;
-
-        let (_, sha_right) =
-            circuit.full_shifted_sha256_hash(&[sha_three, sha_four], &mut lookup_vars)?;
-
-        let (_, final_sha) =
-            circuit.full_shifted_sha256_hash(&[sha_left, sha_right], &mut lookup_vars)?;
-
-        circuit.finalize_for_sha256_hash(&mut lookup_vars)?;
-        Ok(vec![
-            start_root_comm_one,
-            end_root_comm_two,
-            start_root_null_one,
-            end_root_null_two,
-            fee_sum,
-            final_sha,
-        ])
+        RollupKeyGenerator::bn254_merge_circuit_checks(specific_pis, circuit)
     }
 
     fn grumpkin_merge_circuit_checks(
         specific_pis: &[Vec<Variable>],
         circuit: &mut PlonkCircuit<Fq254>,
     ) -> Result<Vec<Variable>, CircuitError> {
-        let start_root_comm_one = specific_pis[0][0];
-        let start_root_comm_two = specific_pis[1][0];
-        let end_root_comm_one = specific_pis[0][1];
-        let end_root_comm_two = specific_pis[1][1];
-        let start_root_null_one = specific_pis[0][2];
-        let start_root_null_two = specific_pis[1][2];
-        let end_root_null_one = specific_pis[0][3];
-        let end_root_null_two = specific_pis[1][3];
-        let fee_sum_one = specific_pis[0][4];
-        let fee_sum_two = specific_pis[1][4];
-        let sha_one = specific_pis[0][5];
-        let sha_two = specific_pis[1][5];
-
-        circuit.enforce_equal(end_root_comm_one, start_root_comm_two)?;
-        circuit.enforce_equal(end_root_null_one, start_root_null_two)?;
-
-        let fee_sum = circuit.add(fee_sum_one, fee_sum_two)?;
-        Ok(vec![
-            start_root_comm_one,
-            end_root_comm_two,
-            start_root_null_one,
-            end_root_null_two,
-            fee_sum,
-            sha_one,
-            sha_two,
-        ])
+        RollupKeyGenerator::grumpkin_merge_circuit_checks(specific_pis, circuit)
     }
 
     fn decider_circuit_checks(
@@ -446,60 +263,16 @@ impl RecursiveProver for RollupProver {
         circuit: &mut PlonkCircuit<Fr254>,
         lookup_vars: &mut Vec<(Variable, Variable, Variable)>,
     ) -> Result<Vec<Variable>, CircuitError> {
-        let fee_sum_one = specific_pis[0][4];
-        let fee_sum_two = specific_pis[1][4];
-        let sha_one = specific_pis[0][5];
-        let sha_two = specific_pis[0][6];
-        let sha_three = specific_pis[1][5];
-        let sha_four = specific_pis[1][6];
-        let start_root_comm_one = specific_pis[0][0];
-        let start_root_comm_two = specific_pis[1][0];
-        let end_root_comm_one = specific_pis[0][1];
-        let end_root_comm_two = specific_pis[1][1];
-        let start_root_null_one = specific_pis[0][2];
-        let start_root_null_two = specific_pis[1][2];
-        let end_root_null_one = specific_pis[0][3];
-        let end_root_null_two = specific_pis[1][3];
-
-        circuit.enforce_equal(end_root_comm_one, start_root_comm_two)?;
-        circuit.enforce_equal(end_root_null_one, start_root_null_two)?;
-
-        let fee_sum = circuit.add(fee_sum_one, fee_sum_two)?;
-
-        let (_, sha_left) = circuit.full_shifted_sha256_hash(&[sha_one, sha_two], lookup_vars)?;
-
-        let (_, sha_right) =
-            circuit.full_shifted_sha256_hash(&[sha_three, sha_four], lookup_vars)?;
-
-        let (_, final_sha) =
-            circuit.full_shifted_sha256_hash(&[sha_left, sha_right], lookup_vars)?;
-
-        circuit.finalize_for_sha256_hash(lookup_vars)?;
-
-        let m_proof_var =
-            MembershipProofVar::from_vars(circuit, &specific_pis[2][..root_m_proof_length])?;
-
-        let new_historic_root = m_proof_var.calculate_new_root(circuit, &end_root_comm_two)?;
-
-        let old_root_calc = m_proof_var.calculate_new_root(circuit, &circuit.zero())?;
-
-        circuit.enforce_equal(old_root_calc, specific_pis[2][root_m_proof_length])?;
-        Ok(vec![
-            fee_sum,
-            final_sha,
-            start_root_comm_one,
-            end_root_comm_two,
-            start_root_null_one,
-            end_root_null_two,
-            specific_pis[2][root_m_proof_length],
-            new_historic_root,
-        ])
+        RollupKeyGenerator::decider_circuit_checks(
+            specific_pis,
+            root_m_proof_length,
+            circuit,
+            lookup_vars,
+        )
     }
 
     fn get_vk_list() -> Vec<VerifyingKey<Kzg>> {
-        let client_vk = get_client_proving_key().vk.clone();
-        let deposit_vk = get_deposit_proving_key().vk.clone();
-        vec![client_vk, deposit_vk]
+        RollupKeyGenerator::get_vk_list()
     }
 
     fn get_base_grumpkin_pk() -> MLEProvingKey<Zmorph> {
@@ -590,74 +363,27 @@ impl RecursiveProver for RollupProver {
     }
 
     fn store_base_grumpkin_pk(pk: MLEProvingKey<Zmorph>) -> Option<()> {
-        let config_path = get_configuration_path()?;
-        let file_path = config_path.join("bin/base_grumpkin_pk");
-
-        let mut buf = Vec::<u8>::new();
-        pk.serialize_compressed(&mut buf).ok()?;
-        let mut file = File::create(file_path).ok()?;
-
-        file.write_all(&buf).ok()
+        RollupKeyGenerator::store_base_grumpkin_pk(pk)
     }
 
     fn store_base_bn254_pk(pk: ProvingKey<Kzg>) -> Option<()> {
-        let config_path = get_configuration_path()?;
-        let file_path = config_path.join("bin/base_bn254_pk");
-
-        let mut buf = Vec::<u8>::new();
-        pk.serialize_compressed(&mut buf).ok()?;
-        let mut file = File::create(file_path).ok()?;
-
-        file.write_all(&buf).ok()
+        RollupKeyGenerator::store_base_bn254_pk(pk)
     }
 
     fn store_merge_grumpkin_pks(pks: Vec<MLEProvingKey<Zmorph>>) -> Option<()> {
-        let config_path = get_configuration_path()?;
-        for (i, pk) in pks.into_iter().enumerate() {
-            let file_path = config_path.join(format!("bin/merge_grumpkin_pk_{i}"));
-
-            let mut buf = Vec::<u8>::new();
-            pk.serialize_compressed(&mut buf).ok()?;
-
-            let mut file = File::create(file_path).ok()?;
-            file.write_all(&buf).ok()?;
-        }
-
-        Some(())
+        RollupKeyGenerator::store_merge_grumpkin_pks(pks)
     }
 
     fn store_merge_bn254_pks(pks: Vec<ProvingKey<Kzg>>) -> Option<()> {
-        let config_path = get_configuration_path()?;
-        for (i, pk) in pks.into_iter().enumerate() {
-            let file_path: PathBuf = config_path.join(format!("bin/merge_bn254_pk_{i}"));
-
-            let mut buf = Vec::<u8>::new();
-            pk.serialize_compressed(&mut buf).ok()?; // serialize the proving key
-
-            let mut file = File::create(file_path).ok()?; // create the file
-            file.write_all(&buf).ok()?; // write to the file
-        }
-
-        Some(())
+        RollupKeyGenerator::store_merge_bn254_pks(pks)
     }
 
     fn store_decider_pk(pk: PlonkProvingKey<Bn254>) -> Option<()> {
-        let config_path = get_configuration_path()?;
-        let file_path = config_path.join("bin/decider_pk");
-
-        let mut buf = Vec::<u8>::new();
-        pk.serialize_compressed(&mut buf).ok()?;
-        let mut file = File::create(file_path).ok()?;
-
-        file.write_all(&buf).ok()
+        RollupKeyGenerator::store_decider_pk(pk)
     }
 
     fn store_decider_vk(vk: &PlonkVerifyingKey<Bn254>) {
-        let path = get_configuration_path().unwrap().join("bin/decider_vk");
-        let mut file = File::create(path).unwrap();
-        let mut compressed_bytes = Vec::new();
-        vk.serialize_compressed(&mut compressed_bytes).unwrap();
-        file.write_all(&compressed_bytes).unwrap();
+        RollupKeyGenerator::store_decider_vk(vk)
     }
 
     fn generate_vk_check_constraint(
@@ -665,22 +391,7 @@ impl RecursiveProver for RollupProver {
         vk_hashes: &[Fr254],
         circuit: &mut PlonkCircuit<Fr254>,
     ) -> Result<(), CircuitError> {
-        let constant_vars = vk_hashes
-            .iter()
-            .map(|hash| circuit.create_constant_variable(*hash))
-            .collect::<Result<Vec<Variable>, CircuitError>>()?;
-        let check_var = circuit.create_variable(check_hash)?;
-        let prod = constant_vars
-            .iter()
-            .try_fold(circuit.one(), |acc, &const_var| {
-                circuit.gen_quad_poly(
-                    &[acc, check_var, acc, const_var],
-                    &[Fr254::zero(); 4],
-                    &[Fr254::one(), -Fr254::one()],
-                    Fr254::zero(),
-                )
-            })?;
-        circuit.enforce_equal(prod, circuit.zero())
+        RollupKeyGenerator::generate_vk_check_constraint(check_hash, vk_hashes, circuit)
     }
 }
 
@@ -694,6 +405,8 @@ pub struct RollupPreppedInfo {
     pub specific_pi: Vec<Vec<Fr254>>,
     pub extra_info: Vec<Vec<Fr254>>,
     pub extra_decider_info: Vec<Fr254>,
+    pub srs_digest: [u8; 32],
+    pub rollup_size: u32,
 }
 
 /// The output of the rollup prover, it contains the UltraPlonk proof and the KZG accumulators.
@@ -797,6 +510,15 @@ impl RecursiveProvingEngine<PlonkProof> for RollupProver {
             .into_iter()
             .map(|(output, vk, pi)| ((output, vk), pi))
             .unzip();
+
+        let n_total_transactions = 64u32;
+        const MAX_KZG_DEGREE: usize = 26;
+        let srs_digest_hex = expected_sha256_for_label(format!("{MAX_KZG_DEGREE}").as_str())
+            .ok_or(PlonkError::InvalidParameters(
+                "Failed to generate SHA256 label".to_string(),
+            ))?;
+        let srs_digest = <[u8; 32]>::from_hex(srs_digest_hex)
+            .map_err(|e| PlonkError::InvalidParameters(format!("Hex conversion error: {e}")))?;
 
         // Get all the commitments and nullifiers from the public inputs
         // Flattens all commitments and nullifiers from the public inputs into vectors.
@@ -1012,6 +734,8 @@ impl RecursiveProvingEngine<PlonkProof> for RollupProver {
                 specific_pi,
                 extra_info,
                 extra_decider_info: extra_info_vec,
+                srs_digest,
+                rollup_size: n_total_transactions,
             },
             [new_commitment_root, nullifier_root, updated_historic_root],
         ))
@@ -1024,6 +748,8 @@ impl RecursiveProvingEngine<PlonkProof> for RollupProver {
                 &info.specific_pi,
                 &info.extra_decider_info,
                 &info.extra_info,
+                &info.srs_digest,
+                info.rollup_size,
             )
             .map_err(RollupProofError::from)?,
         ))
@@ -1214,6 +940,8 @@ mod tests {
         let mut extra_info_vec: Vec<Fr254> = historic_root_proof.into();
         extra_info_vec.insert(0, root_proof_len_field);
         extra_info_vec.push(old_historic_root);
+        let rollup_size = 64;
+        let srs_digest = [0u8; 32];
 
         RollupProver::preprocess(
             &d_proofs,
@@ -1222,6 +950,8 @@ mod tests {
             &extra_info_vec,
             &ipa_srs,
             &kzg_srs,
+            &srs_digest,
+            rollup_size,
         )
         .unwrap();
     }
