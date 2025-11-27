@@ -1,6 +1,6 @@
 use std::{fmt, time::Duration};
 
-use alloy_rlp::BytesMut;
+use tokio_util::bytes::BytesMut;
 /// A module containing uncategorised functions used by more than one component
 use configuration::settings::get_settings;
 use futures::StreamExt;
