@@ -2,6 +2,7 @@
 
 use crate::plonk_prover::get_client_proving_key;
 use ark_bn254::{Bn254, Fq as Fq254, Fr as Fr254};
+use ark_ff::PrimeField;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::{path::Path, One, Zero};
 use jf_plonk::{
@@ -202,9 +203,30 @@ impl RecursiveProver for RollupKeyGenerator {
 
     fn base_grumpkin_checks(
         specific_pis: &[Vec<Variable>],
-        _circuit: &mut PlonkCircuit<Fq254>,
+        circuit: &mut PlonkCircuit<Fq254>,
     ) -> Result<Vec<Variable>, CircuitError> {
-        Ok(specific_pis.concat())
+        let mut output_pis = Vec::<Variable>::new();
+        // We are in the base case, so we enforce the initialisation message and length separators to be constant
+        // Everything else we simply concatenate into the output `Variable`s.
+        let mut init_bytes = "public_inputs".as_bytes().to_vec();
+        init_bytes.extend_from_slice("version1".as_bytes());
+        for specific_pi in specific_pis {
+            circuit.enforce_constant(
+                specific_pi[0],
+                Fq254::from_le_bytes_mod_order(init_bytes.as_slice()),
+            )?;
+            circuit.enforce_constant(specific_pi[1], Fq254::one())?;
+            output_pis.push(specific_pi[2]);
+            circuit.enforce_constant(specific_pi[3], Fq254::from(4u8))?;
+            output_pis.extend_from_slice(&specific_pi[4..8]);
+            circuit.enforce_constant(specific_pi[8], Fq254::from(4u8))?;
+            output_pis.extend_from_slice(&specific_pi[9..13]);
+            circuit.enforce_constant(specific_pi[13], Fq254::from(4u8))?;
+            output_pis.extend_from_slice(&specific_pi[14..18]);
+            circuit.enforce_constant(specific_pi[18], Fq254::from(5u8))?;
+            output_pis.extend_from_slice(&specific_pi[19..]);
+        }
+        Ok(output_pis)
     }
 
     fn bn254_merge_circuit_checks(

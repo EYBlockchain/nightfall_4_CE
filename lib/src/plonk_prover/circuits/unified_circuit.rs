@@ -14,7 +14,7 @@ use alloy::{
     sol_types::SolValue,
 };
 use ark_ec::{twisted_edwards::Affine, AffineRepr};
-use ark_ff::{One, Zero};
+use ark_ff::{One, PrimeField, Zero};
 use jf_plonk::errors::PlonkError;
 use jf_primitives::circuit::poseidon::PoseidonHashGadget;
 use jf_relation::{errors::CircuitError, gadgets::ecc::Point, Circuit, PlonkCircuit, Variable};
@@ -219,14 +219,27 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
         )?;
 
         // We set the relevant variables to be public here in the order:
+        // hash initialisation (domain tag, version)
         // fee
         // roots
         // commitments
         // nullifiers
         // compressed_secrets
+        let mut init_bytes = "public_inputs".as_bytes().to_vec();
+        init_bytes.extend_from_slice("version1".as_bytes());
+        let init_pi_var =
+            self.create_constant_variable(Fr254::from_le_bytes_mod_order(init_bytes.as_slice()))?;
+        self.set_variable_public(init_pi_var)?;
+
+        //We insert length separators for each section of the public inputs
+
+        let fee_len_sep = self.create_constant_variable(Fr254::from(1u8))?;
+        self.set_variable_public(fee_len_sep)?;
         self.set_variable_public(fee)?;
         let fee = self.witness(fee)?;
 
+        let roots_len_sep = self.create_constant_variable(Fr254::from(4u8))?;
+        self.set_variable_public(roots_len_sep)?;
         let roots: [Fr254; 4] = roots
             .iter()
             .map(|&root| {
@@ -241,6 +254,8 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
                 )
             })?;
 
+        let comms_len_sep = self.create_constant_variable(Fr254::from(4u8))?;
+        self.set_variable_public(comms_len_sep)?;
         let commitments: [Fr254; 4] = commitments
             .iter()
             .map(|&commitment| {
@@ -255,6 +270,8 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
                 )
             })?;
 
+        let nulls_len_sep = self.create_constant_variable(Fr254::from(4u8))?;
+        self.set_variable_public(nulls_len_sep)?;
         let nullifiers: [Fr254; 4] = nullifiers
             .iter()
             .map(|&nullifier| {
@@ -269,6 +286,8 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
                 )
             })?;
 
+        let comp_secs_len_sep = self.create_constant_variable(Fr254::from(5u8))?;
+        self.set_variable_public(comp_secs_len_sep)?;
         let compressed_secrets: [Fr254; 5] = public_data
             .iter()
             .map(|&pd| {

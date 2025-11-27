@@ -111,11 +111,20 @@ impl PublicInputs {
 
 impl From<&PublicInputs> for Vec<Fr254> {
     fn from(value: &PublicInputs) -> Self {
+        // We include the initialisation bytes and length separators
+        let mut init_bytes = "public_inputs".as_bytes().to_vec();
+        init_bytes.extend_from_slice("version1".as_bytes());
         [
+            &[Fr254::from_le_bytes_mod_order(init_bytes.as_slice())],
+            &[Fr254::one()],
             &[value.fee],
+            &[Fr254::from(value.roots.len() as u8)],
             value.roots.as_slice(),
+            &[Fr254::from(value.commitments.len() as u8)],
             value.commitments.as_slice(),
+            &[Fr254::from(value.nullifiers.len() as u8)],
             value.nullifiers.as_slice(),
+            &[Fr254::from(value.compressed_secrets.len() as u8)],
             value.compressed_secrets.as_slice(),
         ]
         .concat()
