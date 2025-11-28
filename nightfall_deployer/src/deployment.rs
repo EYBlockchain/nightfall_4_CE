@@ -6,7 +6,7 @@ use configuration::{
 };
 use jf_plonk::recursion::RecursiveProver;
 
-use log::{error, info};
+use log::{error, info, debug};
 use nightfall_proposer::driven::rollup_prover::RollupProver;
 use serde_json::Value;
 use std::{
