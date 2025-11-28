@@ -455,7 +455,7 @@ where
         Ok(IMTCircuitInsertionInfo {
             old_root,
             circuit_info,
-            first_index: first_index.into(),
+            first_index,
             low_nullifiers,
             pending_inserts,
         })

@@ -59,7 +59,7 @@ impl<F: PrimeField> From<IndexedLeaf<F>> for LeafDBEntry<F> {
 
         LeafDBEntry {
             value,
-            index: _id.into(),
+            index: _id,
             next_index: F::from(next_index),
             next_value,
         }
