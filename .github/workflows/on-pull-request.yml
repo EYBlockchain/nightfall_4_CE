@@ -38,7 +38,7 @@ jobs:
           cargo build
           cargo run --release --bin key_generation
       - name: Run test
-        run: cargo +stable test
+        run: cargo test
   resync:
     name: Synchronisation Test with Mock Prover
     needs: [build]
