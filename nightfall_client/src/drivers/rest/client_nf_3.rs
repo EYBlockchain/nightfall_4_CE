@@ -753,7 +753,6 @@ where
             error!("{id} Error when reading recipeint address: {e}");
             TransactionHandlerError::CustomError(e.to_string())
         })?;
-    // TODO: update APIs so that we allow passing in specific commitments.
     // For now we just use the commitment selection algorithm to minimise change.
     let spend_commitments;
 
