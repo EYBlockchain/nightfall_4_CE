@@ -23,8 +23,8 @@ pub struct TreeMetadata<F: PrimeField> {
     pub(crate) tree_height: u32,
     pub(crate) sub_tree_height: u32,
     /// the number of sub-trees in the tree
-    pub sub_tree_count: u64, // we really want a u64 here but BSON doesn't handle those.
-    pub(crate) _id: u32,
+    pub sub_tree_count: u64,
+    pub(crate) _id: u64,
     #[serde(
         serialize_with = "serialize_fr_padded",
         deserialize_with = "deserialize_fr_padded"
@@ -39,8 +39,8 @@ pub struct IndexedLeaf<F: PrimeField> {
         deserialize_with = "deserialize_fr_padded"
     )]
     pub(crate) value: F,
-    pub(crate) _id: u32, // todo, this should ideally be a u64 but BSON doesn't handle those.
-    pub(crate) next_index: u32,
+    pub(crate) _id: u64,
+    pub(crate) next_index: u64,
     #[serde(
         serialize_with = "serialize_fr_padded",
         deserialize_with = "deserialize_fr_padded"
@@ -318,7 +318,7 @@ pub trait IndexedLeaves<F: PrimeField> {
     async fn store_leaf(
         &self,
         leaf: F,
-        index: Option<u32>,
+        index: Option<u64>,
         tree_id: &str,
     ) -> Result<Option<()>, Self::Error>;
     /// Searches the database for a leaf with the supplied fields. If it finds one, it returns it.
@@ -339,7 +339,7 @@ pub trait IndexedLeaves<F: PrimeField> {
     async fn update_leaf(
         &self,
         leaf: F,
-        new_next_index: u32,
+        new_next_index: u64,
         new_next_value: F,
         tree_id: &str,
     ) -> Result<(), Self::Error>;

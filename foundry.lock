@@ -1,0 +1,17 @@
+{
+  "blockchain_assets/solidity_lib/erc-3525": {
+    "rev": "d80df770e34b0407b7e72551940f24f4334a289c"
+  },
+  "blockchain_assets/solidity_lib/forge-std": {
+    "rev": "551a2d30d7fecba7092ab45a587b5268149a48fb"
+  },
+  "blockchain_assets/solidity_lib/openzeppelin-contracts": {
+    "rev": "24a641d9c9e0137093592a466c5496315626d98d"
+  },
+  "blockchain_assets/solidity_lib/openzeppelin-contracts-upgradeable": {
+    "rev": "723f8cab09cdae1aca9ec9cc1cfa040c2d4b06c1"
+  },
+  "blockchain_assets/solidity_lib/openzeppelin-foundry-upgrades": {
+    "rev": "cbce1e00305e943aa1661d43f41e5ac72c662b07"
+  }
+}
