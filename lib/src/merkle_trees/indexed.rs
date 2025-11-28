@@ -14,6 +14,20 @@ use jf_primitives::{
 use log::{debug, error};
 use mongodb::bson::doc;
 
+use std::convert::TryFrom; // already in prelude, but explicit is fine
+
+// a small helper for u64 -> i64 with a bound check
+fn u64_to_i64_checked(x: u64) -> Result<i64, MerkleTreeError<mongodb::error::Error>> {
+    if x > i64::MAX as u64 {
+        return Err(MerkleTreeError::Error(format!(
+            "Index {} exceeds i64::MAX ({}) for BSON storage",
+            x,
+            i64::MAX
+        )));
+    }
+    Ok(x as i64)
+}
+
 #[async_trait::async_trait]
 impl<F> IndexedTree<F> for mongodb::Client
 where
@@ -38,7 +52,7 @@ where
         let hasher = <Self as MutableTree<F>>::TreeHasher::new();
         let entry_value = entry.value;
         let entry_next_value = entry.next_value;
-        let entry_next_index = F::from(entry.next_index as u64);
+        let entry_next_index = F::from(entry.next_index);
         let leaf_value = hasher
             .hash(&[entry_value, entry_next_index, entry_next_value])
             .expect("hashing failed");
@@ -77,10 +91,10 @@ where
             .await?
             .ok_or(MerkleTreeError::Error("Could not get low leaf".to_string()))?;
         let hasher = <Self as MutableTree<F>>::TreeHasher::new();
-        let ln_index = low_nullifier._id as u64;
+        let ln_index = low_nullifier._id;
         let mut node_index = 2u64.pow(height) - 1 + ln_index;
         let low_nullifier_value: F = low_nullifier.value;
-        let low_nullifier_next_index = F::from(low_nullifier.next_index as u64);
+        let low_nullifier_next_index = F::from(low_nullifier.next_index);
         let low_nullifier_next_value: F = low_nullifier.next_value;
         let leaf_value = hasher.hash(&[
             low_nullifier_value,
@@ -180,7 +194,7 @@ where
                 let res = <Self as IndexedLeaves<F>>::store_leaf(
                     self,
                     *inner_leaf,
-                    Some(insert_index),
+                    Some(insert_index.into()),
                     tree_id,
                 )
                 .await?;
@@ -217,7 +231,7 @@ where
             .map(|indexed_leaf| {
                 if !indexed_leaf.value.is_zero() {
                     let leaf_value: F = indexed_leaf.value;
-                    let leaf_next_index = F::from(indexed_leaf.next_index as u64);
+                    let leaf_next_index = F::from(indexed_leaf.next_index);
                     let leaf_next_value: F = indexed_leaf.next_value;
                     hasher
                         .hash(&[leaf_value, leaf_next_index, leaf_next_value])
@@ -242,7 +256,7 @@ where
             .into_iter()
             .map(|leaf| {
                 let leaf_value: F = leaf.value;
-                let leaf_next_index = F::from(leaf.next_index as u64);
+                let leaf_next_index = F::from(leaf.next_index);
                 let leaf_next_value: F = leaf.next_value;
                 Ok((
                     hasher.hash(&[leaf_value, leaf_next_index, leaf_next_value])?,
@@ -288,7 +302,7 @@ where
         let old_root = metadata.root;
 
         // This is the index of the first leaf of the subtree in the main tree, counted from the left, starting at zero
-        let mut initial_index = metadata.sub_tree_count as u32 * (1u32 << metadata.sub_tree_height);
+        let mut initial_index = metadata.sub_tree_count * (1u64 << metadata.sub_tree_height);
 
         let first_index = initial_index;
 
@@ -343,14 +357,14 @@ where
 
                     let updated_leaf = hasher.hash(&[
                         updated_nullifier.value,
-                        F::from(updated_nullifier.next_index as u64),
+                        F::from(updated_nullifier.next_index),
                         updated_nullifier.next_value,
                     ])?;
                     let ln_index = updated_nullifier._id;
 
                     let _ = <Self as MutableTree<F>>::update_sub_tree(
                         self,
-                        ln_index as u64,
+                        ln_index,
                         &[updated_leaf],
                         true,
                         tree_id,
@@ -372,7 +386,7 @@ where
                     initial_index += 1;
                     let node_value = hasher.hash(&[
                         low_nullifier.value,
-                        F::from(low_nullifier.next_index as u64),
+                        F::from(low_nullifier.next_index),
                         low_nullifier.next_value,
                     ])?;
                     MembershipProof {
@@ -497,7 +511,7 @@ impl<F: PrimeField + PoseidonParams> IndexedLeaves<F> for mongodb::Client {
     async fn store_leaf(
         &self,
         leaf: F,
-        index: Option<u32>,
+        index: Option<u64>,
         tree_id: &str,
     ) -> Result<Option<()>, Self::Error> {
         // If the new leaf is already in the db then we shouldn't store it.
@@ -525,7 +539,7 @@ impl<F: PrimeField + PoseidonParams> IndexedLeaves<F> for mongodb::Client {
             collection
                 .count_documents(doc! {})
                 .await
-                .map_err(MerkleTreeError::DatabaseError)? as u32
+                .map_err(MerkleTreeError::DatabaseError)?
         };
         // Create a new leaf entry
         let entry = IndexedLeaf::<F> {
@@ -539,13 +553,17 @@ impl<F: PrimeField + PoseidonParams> IndexedLeaves<F> for mongodb::Client {
         // then this will throw a duplicate key error. So we upsert the entry rather than insert it.
         let padded_leaf = serialize_to_padded_hex(&leaf)?;
         let padded_next_value = serialize_to_padded_hex(&entry.next_value)?;
+
+        let bson_index = u64_to_i64_checked(index)?;
+        let bson_next_index = u64_to_i64_checked(low_leaf.next_index)?;
+
         let updates_result = collection
             .update_one(
-                doc! { "_id": index as i64 },
+                doc! { "_id": bson_index },
                 doc! {
                     "$set": {
                         "value": padded_leaf,
-                        "next_index": low_leaf.next_index,
+                        "next_index": bson_next_index,
                         "next_value": padded_next_value,
                     }
                 },
@@ -553,6 +571,7 @@ impl<F: PrimeField + PoseidonParams> IndexedLeaves<F> for mongodb::Client {
             .upsert(true)
             .await
             .map_err(MerkleTreeError::DatabaseError)?;
+
         if updates_result.matched_count == 0 && updates_result.upserted_id.is_none() {
             return Err(MerkleTreeError::Error(
                 "Failed to update or upsert the node in the database".to_string(),
@@ -635,7 +654,7 @@ impl<F: PrimeField + PoseidonParams> IndexedLeaves<F> for mongodb::Client {
     async fn update_leaf(
         &self,
         leaf: F,
-        new_next_index: u32,
+        new_next_index: u64,
         new_next_value: F,
         tree_id: &str,
     ) -> Result<(), Self::Error> {
@@ -645,8 +664,9 @@ impl<F: PrimeField + PoseidonParams> IndexedLeaves<F> for mongodb::Client {
         let padded_leaf = serialize_to_padded_hex(&leaf)?;
         let padded_next_value = serialize_to_padded_hex(&new_next_value)?;
         let query = doc! {"value": padded_leaf};
+        let bson_next_index = u64_to_i64_checked(new_next_index)?;
         let update =
-            doc! {"$set": {"next_index": new_next_index as i64, "next_value": padded_next_value}};
+            doc! {"$set": {"next_index": bson_next_index, "next_value": padded_next_value}};
         let result = collection
             .update_one(query, update)
             .await
