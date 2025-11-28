@@ -564,9 +564,17 @@ contract X509 is
             );
             // Before we finally add the address to the allowlist, just check that the sender of the allowlist request actually owns the
             // end user cert.  We do this by getting them to sign the Ethereum address they want allowlisted (RSASSA-PSS).
+
             checkAddressSignaturePSS(
                 addressSignature,
-                abi.encodePacked(uint160(addr)),
+                abi.encodePacked(
+                    "ADDR-LINK|v1|contract:",
+                    address(this),
+                    "|chainId:",
+                    bytes8(uint64(block.chainid)),
+                    "|addr:",
+                    bytes20(addr)
+                ),
                 certificatePublicKey
             );
             expires[addr] = expiry;
