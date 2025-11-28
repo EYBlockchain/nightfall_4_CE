@@ -75,7 +75,6 @@ dependencies = [
 [[package]]
 name = "aho-corasick"
 version = "1.1.4"
-version = "1.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ddd31a130427c27518df266943a5308ed92d4b226cc639f5a8f1002816174301"
 dependencies = [
@@ -5393,7 +5392,6 @@ dependencies = [
  "serde_with 3.16.1",
  "sha1",
  "sha2 0.10.9",
- "socket2 0.6.1",
  "socket2 0.6.1",
  "stringprep",
  "strsim",
