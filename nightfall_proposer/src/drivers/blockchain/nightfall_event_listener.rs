@@ -52,7 +52,6 @@ where
         loop {
             attempts += 1;
             log::info!("Proposer event listener (attempt {attempts})...");
-            log::info!("Proposer event listener (attempt {attempts})...");
             let result = listen_for_events::<P, E, N>(start_block).await;
 
             match result {

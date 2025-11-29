@@ -53,7 +53,6 @@ where
     N: NightfallContract,
 {
     debug!("{id} Handling client operation: {operation:?}");
-    debug!("{id} Handling client operation: {operation:?}");
 
     // get the zkp keys from the global state. They will have been created when the keys were requested using a mnemonic
     let ZKPKeys {
@@ -126,7 +125,7 @@ where
         error!("{id} {e}");
         TransactionHandlerError::CustomError(e.to_string())
     })?;
-    // having done that, we can submit the nighfall transaction, either on or off chain, normally the latter
+    // having done that, we can submit the nighfall transaction to proposer offchain
 
     let tx_receipt = process_transaction_offchain(&operation_result, id)
         .await

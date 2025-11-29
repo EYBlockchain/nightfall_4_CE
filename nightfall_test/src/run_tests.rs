@@ -553,7 +553,6 @@ pub async fn run_tests(
     )
     .await;
     info!("Balance of ERC20 tokens held as layer 2 commitments by client 1: {balance}");
-    info!("Balance of ERC20 tokens held as layer 2 commitments by client 1: {balance}");
     assert_eq!(balance, 14 + client1_starting_balance);
 
     let balance = get_erc20_balance(&http_client, Url::parse("http://client2:3000").unwrap()).await;

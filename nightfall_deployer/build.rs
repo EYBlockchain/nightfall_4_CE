@@ -5,7 +5,6 @@ fn main() {
     info!("Started running nightfall_deployer/build.rs");
     // Check and forge is installed
     if !is_foundry_installed() {
-        info!("Foundry not installed, needed to continue please install via the guide found at https://book.getfoundry.sh/getting-started/installation");
         panic!("Foundry not installed, needed to continue please install via the guide found at https://book.getfoundry.sh/getting-started/installation");
     }
     // Run forge install
@@ -31,7 +30,6 @@ fn is_foundry_installed() -> bool {
             }
         }
         Err(e) => {
-            info!("Got an error from running 'which forge': {e}");
             info!("Got an error from running 'which forge': {e}");
             false
         }
