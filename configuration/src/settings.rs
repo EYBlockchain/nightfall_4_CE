@@ -107,6 +107,11 @@ pub struct CertificateConfig {
     pub extended_key_usages: Vec<String>,
     pub certificate_policies: Vec<String>,
 }
+
+fn default_max_key_download_bytes() -> u64 {
+    30 * 1024 * 1024 * 1024 // 30 gb
+}
+
 #[derive(Debug, Deserialize, Serialize, Default)]
 #[allow(unused)]
 pub struct Settings {
@@ -130,6 +135,10 @@ pub struct Settings {
     pub certificates: CertificateConfig,
     pub configuration_url: String,
     pub run_mode: String,
+    /// Optional upper bound
+    /// If not set, default value of 30 GB is used
+    #[serde(default = "default_max_key_download_bytes")]
+    pub max_key_download_bytes: u64,
 }
 
 impl Settings {
