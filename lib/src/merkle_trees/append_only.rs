@@ -12,7 +12,10 @@ use super::trees::{
     helper_functions::{get_frontier_index, index_to_directions, make_complete_tree},
     AppendOnlyTree, TreeMetadata,
 };
-use crate::merkle_trees::{trees::MerkleTreeError, trees::ToStringRep};
+use crate::merkle_trees::trees::{
+    helper_functions::{pow2_u64, pow2_usize},
+    MerkleTreeError, ToStringRep,
+};
 
 #[derive(Serialize, Deserialize)]
 struct Frontier {
@@ -35,6 +38,22 @@ where
         sub_tree_height: u32,
         tree_id: &str,
     ) -> Result<(), Self::Error> {
+        // An early check to ensure that total tree height fits within
+        // u64 index space so that we can safely compute powers of 2
+        if tree_height >= u64::BITS || sub_tree_height >= u64::BITS {
+            return Err(Self::Error::Error(
+                "tree_height or sub_tree_height too large to represent safely".to_string(),
+            ));
+        }
+        if tree_height
+            .checked_add(sub_tree_height)
+            .filter(|h| *h < u64::BITS)
+            .is_none()
+        {
+            return Err(Self::Error::Error(
+                "combined tree height is too large".to_string(),
+            ));
+        }
         // get a collection where we can write the tree metadata
         let metadata = TreeMetadata {
             tree_height,
@@ -107,7 +126,9 @@ where
             })
             .collect::<Result<Vec<F>, Self::Error>>()?;
         // Basic data validation
-        let sub_tree_capacity = 2_usize.pow(metadata.sub_tree_height);
+        let sub_tree_capacity = pow2_usize(metadata.sub_tree_height).ok_or_else(|| {
+            Self::Error::Error("sub_tree_capacity too large to compute capacity safely".to_string())
+        })?;
         if leaves.len() % sub_tree_capacity != 0 {
             return Err(Self::Error::IncorrectBatchSize);
         }
@@ -116,9 +137,17 @@ where
         }
         let new_sub_trees = leaves.len() / sub_tree_capacity;
         // Prevent the tree from exceeding its maximum capacity (2^tree_height leaves).
-        // It's valid to exactly fill the tree (== capacity), but any insertion that would
-        // push total subtrees beyond capacity must be rejected.
-        if sub_tree_count + new_sub_trees as u64 > (1u64 << metadata.tree_height) {
+        let capacity_subtrees = pow2_u64(metadata.tree_height).ok_or_else(|| {
+            Self::Error::Error("tree_height to large to compute capacity safely".to_string())
+        })?;
+        let new_sub_trees_u64 = u64::try_from(new_sub_trees).map_err(|_| {
+            Self::Error::Error("number of new sub trees does not fit in u64".to_string())
+        })?;
+        if sub_tree_count
+            .checked_add(new_sub_trees_u64)
+            .map(|total| total > capacity_subtrees)
+            .unwrap_or(true)
+        {
             return Err(Self::Error::TreeIsFull);
         }
         if frontier.len() != metadata.tree_height as usize {
@@ -274,6 +303,53 @@ mod test {
         too_many_leaves.append(&mut leaves_5.clone());
 
         let result = client.append_sub_trees(&leaves_5, true, tree_name).await;
-        assert!(result.is_err());
+        use crate::merkle_trees::trees::MerkleTreeError;
+        assert!(matches!(result, Err(MerkleTreeError::TreeIsFull)));
+    }
+
+    #[tokio::test]
+    async fn new_append_only_tree_rejects_too_large_heights() {
+        use crate::merkle_trees::trees::MerkleTreeError;
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+
+        let tree_name = "bad_height_tree";
+        let bad_height = u64::BITS as u32; // guaranteed to be rejected by constructor
+
+        let result = <mongodb::Client as AppendOnlyTree<Fr254>>::new_append_only_tree(
+            &client, bad_height, 0, tree_name,
+        )
+        .await;
+
+        assert!(matches!(result, Err(MerkleTreeError::Error(_))));
+    }
+
+    #[tokio::test]
+    async fn append_sub_trees_rejects_non_multiple_batch_size() {
+        use crate::merkle_trees::trees::MerkleTreeError;
+        let mut rng = ark_std::test_rng();
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+
+        let tree_name = "bad_batch_tree";
+        const TREE_HEIGHT: u32 = 3;
+        const SUB_TREE_HEIGHT: u32 = 3;
+        const SUB_TREE_LEAF_CAPACITY: usize = 2_usize.pow(SUB_TREE_HEIGHT);
+
+        <mongodb::Client as AppendOnlyTree<Fr254>>::new_append_only_tree(
+            &client,
+            TREE_HEIGHT,
+            SUB_TREE_HEIGHT,
+            tree_name,
+        )
+        .await
+        .unwrap();
+
+        // One more leaf than a full subtree capacity
+        let bad_leaves: Vec<Fr254> = make_rnd_leaves(SUB_TREE_LEAF_CAPACITY + 1, &mut rng);
+
+        let result = client.append_sub_trees(&bad_leaves, true, tree_name).await;
+
+        assert!(matches!(result, Err(MerkleTreeError::IncorrectBatchSize)));
     }
 }

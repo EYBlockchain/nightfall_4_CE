@@ -2,7 +2,10 @@ use super::trees::{
     helper_functions::make_complete_tree, MerkleTreeError, MutableTree, TreeMetadata,
 };
 use crate::{
-    merkle_trees::trees::ToStringRep,
+    merkle_trees::trees::{
+        helper_functions::{pow2_u64, pow2_usize},
+        ToStringRep,
+    },
     serialization::{deserialize_fr_padded, serialize_fr_padded, serialize_to_padded_hex},
 };
 use ark_ff::PrimeField;
@@ -43,6 +46,21 @@ where
         sub_tree_height: u32,
         tree_id: &str,
     ) -> Result<(), Self::Error> {
+        // let's make sure total height stays with limits
+        if tree_height >= u64::BITS || sub_tree_height >= u64::BITS {
+            return Err(Self::Error::Error(
+                "tree_height or sub_tree_height too large".to_string(),
+            ));
+        }
+        if tree_height
+            .checked_add(sub_tree_height)
+            .filter(|h| *h < u64::BITS)
+            .is_none()
+        {
+            return Err(Self::Error::Error(
+                "combined tree height too large".to_string(),
+            ));
+        }
         let metadata = TreeMetadata {
             tree_height,
             sub_tree_height,
@@ -367,7 +385,9 @@ where
         let mut sub_tree_count = metadata.sub_tree_count;
         let old_sub_tree_count = sub_tree_count;
         // Basic data validation
-        let sub_tree_capacity = 2_usize.pow(metadata.sub_tree_height);
+        let sub_tree_capacity = pow2_usize(metadata.sub_tree_height).ok_or_else(|| {
+            Self::Error::Error("sub_tree_height too large to compute sub tree capacity".to_string())
+        })?;
         if leaves.len() % sub_tree_capacity != 0 {
             return Err(Self::Error::IncorrectBatchSize);
         }
@@ -376,9 +396,17 @@ where
         }
         let new_sub_trees = leaves.len() / sub_tree_capacity;
         // Prevent the tree from exceeding its maximum capacity (2^tree_height leaves).
-        // It's valid to exactly fill the tree (== capacity), but any insertion that would
-        // push total subtrees beyond capacity must be rejected.
-        if sub_tree_count + new_sub_trees as u64 > (1u64 << metadata.tree_height) {
+        let capacity_subtrees = pow2_u64(metadata.tree_height).ok_or_else(|| {
+            Self::Error::Error("tree_height is too large to compute capacity".to_string())
+        })?;
+        let new_sub_trees_u64 = u64::try_from(new_sub_trees).map_err(|_| {
+            Self::Error::Error("number of new subtrees does not fit u64".to_string())
+        })?;
+        if sub_tree_count
+            .checked_add(new_sub_trees_u64)
+            .map(|total| total > capacity_subtrees)
+            .unwrap_or(true)
+        {
             return Err(Self::Error::TreeIsFull);
         }
         // we'll 'add' each sub tree in turn but only write everything to the db at the end. This will be much
@@ -505,11 +533,39 @@ where
                 let node = node.unwrap(); // safe to unwrap as we've checked it's not None
                 node._id
             }
-            (_, Some(leaf_index)) => leaf_index + 2_u64.pow(height) - 1, // ignore the leaf if we have a leaf index
+            (_, Some(leaf_index)) => {
+                let base = pow2_u64(height)
+                    .and_then(|v| v.checked_sub(1))
+                    .ok_or_else(|| {
+                        MerkleTreeError::Error(
+                            "tree height too large to compute leaf index range".to_string(),
+                        )
+                    })?;
+                leaf_index.checked_add(base).ok_or_else(|| {
+                    MerkleTreeError::Error(
+                        "leaf index too large to compute absolute index".to_string(),
+                    )
+                })?
+            }
             _ => return Err(MerkleTreeError::ItemNotFound),
         };
         // check that the node is actually a leaf node
-        if node_index < 2_u64.pow(height) - 1 || node_index > 2_u64.pow(height + 1) - 2 {
+        let first_leaf_index =
+            pow2_u64(height)
+                .and_then(|v| v.checked_sub(1))
+                .ok_or_else(|| {
+                    MerkleTreeError::Error(
+                        "tree height too large to compute leaf index range".to_string(),
+                    )
+                })?;
+        let last_leaf_index = pow2_u64(height.checked_add(1).ok_or_else(|| {
+            MerkleTreeError::Error("tree height too large to compute leaf index range".to_string())
+        })?)
+        .and_then(|v| v.checked_sub(2))
+        .ok_or_else(|| {
+            MerkleTreeError::Error("tree height too large to compute leaf index range".to_string())
+        })?;
+        if node_index < first_leaf_index || node_index > last_leaf_index {
             debug!(
                 "Node index {} is not a leaf node. Leaf value was {}",
                 node_index,
@@ -538,7 +594,15 @@ where
             }
             node_index = (node_index - 1) / 2;
         }
-        let leaf_index = (leaf_node_index - 2_u64.pow(height) + 1) as usize;
+        let first_leaf_index =
+            pow2_u64(height)
+                .and_then(|v| v.checked_sub(1))
+                .ok_or_else(|| {
+                    MerkleTreeError::Error(
+                        "tree height too large to compute leaf index range".to_string(),
+                    )
+                })?;
+        let leaf_index = (leaf_node_index - first_leaf_index) as usize;
         // look up the leaf value if we need to.
         let leaf = match leaf {
             Some(leaf) => *leaf,
@@ -571,7 +635,15 @@ where
             .ok_or(MerkleTreeError::TreeNotFound)?;
         // Basic data validation
 
-        let tree_capacity = 2_u64.pow(metadata.tree_height + metadata.sub_tree_height);
+        let total_height = metadata
+            .tree_height
+            .checked_add(metadata.sub_tree_height)
+            .ok_or_else(|| {
+                Self::Error::Error("combined tree height too large to compute capacity".to_string())
+            })?;
+        let tree_capacity = pow2_u64(total_height).ok_or_else(|| {
+            Self::Error::Error("tree height too large to compute capacity".to_string())
+        })?;
         if leaves.len().next_power_of_two() != leaves.len() {
             return Err(Self::Error::IncorrectBatchSize);
         }
@@ -595,9 +667,22 @@ where
         let height_to_use = if leaves.len().ilog2() == metadata.sub_tree_height {
             metadata.tree_height
         } else {
-            metadata.tree_height + metadata.sub_tree_height - leaves.len().ilog2()
+            metadata
+                .tree_height
+                .checked_add(metadata.sub_tree_height)
+                .and_then(|h| h.checked_sub(leaves.len().ilog2()))
+                .ok_or_else(|| {
+                    Self::Error::Error(
+                        "derived subtree height too large to compute indices".to_string(),
+                    )
+                })?
         };
-        let sub_tree_node_index = 2_u64.pow(height_to_use) - 1 + sub_tree_index; // this is the index where we're going to put the sub_tree
+        let sub_tree_node_index = pow2_u64(height_to_use)
+            .and_then(|v| v.checked_sub(1))
+            .and_then(|base| base.checked_add(sub_tree_index))
+            .ok_or_else(|| {
+                Self::Error::Error("subtree index too large to compute node index".to_string())
+            })?; // this is the index where we're going to put the sub_tree
         let mut node_index = sub_tree_node_index;
         let mut updates = vec![self.set_node(node_index, sub_tree_root, update_tree, tree_id)]; // this will store all the hash values in the path from the leaf to the root
         let mut hash = sub_tree_root; // the main tree leaf value is the starting hash
@@ -674,7 +759,9 @@ where
             .await
             .map_err(MerkleTreeError::DatabaseError)?
             .ok_or(MerkleTreeError::TreeNotFound)?;
-        let sub_tree_leaf_capacity = 2_usize.pow(metadata.sub_tree_height);
+        let sub_tree_leaf_capacity = pow2_usize(metadata.sub_tree_height).ok_or_else(|| {
+            Self::Error::Error("sub_tree_height too large to compute capacity safely".to_string())
+        })?;
         if commitments.len() % sub_tree_leaf_capacity != 0 {
             return Err(Self::Error::IncorrectBatchSize);
         }
@@ -706,7 +793,10 @@ where
             .map_err(MerkleTreeError::DatabaseError)?
             .ok_or(MerkleTreeError::TreeNotFound)?;
         // we should only be adding one sub tree at a time, if we want more, we should use the batch version
-        if commitments.len() != 2_usize.pow(old_metadata.sub_tree_height) {
+        let expected_len = pow2_usize(old_metadata.sub_tree_height).ok_or_else(|| {
+            Self::Error::Error("sub_tree_height too large to compute capacity safely".to_string())
+        })?;
+        if commitments.len() != expected_len {
             return Err(Self::Error::IncorrectBatchSize);
         }
         let old_root = old_metadata.root;
@@ -716,7 +806,9 @@ where
         // so we can start from any leaf of the sub tree (they're all zero) then remove the sub-tree siblings. If the root is then zero,
         // the proof will verify.
         let sub_tree_height = old_metadata.sub_tree_height;
-        let sub_tree_leaf_capacity = 2_usize.pow(sub_tree_height);
+        let sub_tree_leaf_capacity = pow2_usize(sub_tree_height).ok_or_else(|| {
+            Self::Error::Error("sub_tree_height too large to compute capacity safely".to_string())
+        })?;
         let leaf_index = sub_tree_index * sub_tree_leaf_capacity as u64;
         let mut proof_of_emptiness = self
             .get_membership_proof(None, Some(leaf_index), tree_id)
@@ -906,6 +998,52 @@ mod test {
         too_many_leaves.append(&mut leaves_5.clone());
 
         let result = client.append_sub_trees(&leaves_5, true, tree_name).await;
-        assert!(result.is_err());
+        use crate::merkle_trees::trees::MerkleTreeError;
+        assert!(matches!(result, Err(MerkleTreeError::TreeIsFull)));
+    }
+
+    #[tokio::test]
+    async fn new_mutable_tree_rejects_too_large_heights() {
+        use crate::merkle_trees::trees::MerkleTreeError;
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+
+        let tree_name = "bad_height_mutable_tree";
+        let bad_height = u64::BITS as u32;
+
+        let result = <mongodb::Client as MutableTree<Fr254>>::new_mutable_tree(
+            &client, bad_height, 0, tree_name,
+        )
+        .await;
+
+        assert!(matches!(result, Err(MerkleTreeError::Error(_))));
+    }
+
+    #[tokio::test]
+    async fn mutable_append_sub_trees_rejects_non_multiple_batch_size() {
+        use crate::merkle_trees::trees::MerkleTreeError;
+        let mut rng = ark_std::test_rng();
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+
+        let tree_name = "bad_batch_mutable_tree";
+        const TREE_HEIGHT: u32 = 3;
+        const SUB_TREE_HEIGHT: u32 = 3;
+        const SUB_TREE_LEAF_CAPACITY: usize = 2_usize.pow(SUB_TREE_HEIGHT);
+
+        <mongodb::Client as MutableTree<Fr254>>::new_mutable_tree(
+            &client,
+            TREE_HEIGHT,
+            SUB_TREE_HEIGHT,
+            tree_name,
+        )
+        .await
+        .unwrap();
+
+        let bad_leaves: Vec<Fr254> = make_rnd_leaves(SUB_TREE_LEAF_CAPACITY + 1, &mut rng);
+
+        let result = client.append_sub_trees(&bad_leaves, true, tree_name).await;
+
+        assert!(matches!(result, Err(MerkleTreeError::IncorrectBatchSize)));
     }
 }
