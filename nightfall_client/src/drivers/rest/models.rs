@@ -116,6 +116,7 @@ pub struct NF3WithdrawRequest {
 /// This is a sub-structure of the NF_3 transfer request
 #[derive(Debug, Deserialize, Serialize)]
 pub struct NF3RecipientData {
+    // we made NF4 apis compatible with NF3, but in NF4, we only deal with first element in values when handling transfer.
     pub values: Vec<String>,
     #[serde(rename = "recipientCompressedZkpPublicKeys")]
     pub recipient_compressed_zkp_public_keys: Vec<String>,

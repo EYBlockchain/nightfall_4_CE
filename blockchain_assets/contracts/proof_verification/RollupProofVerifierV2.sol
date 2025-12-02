@@ -7,9 +7,15 @@ import "./IVKProvider.sol";
 
 import {INFVerifier} from "./INFVerifier.sol";
 
-import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {
+    Initializable
+} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {
+    UUPSUpgradeable
+} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {
+    OwnableUpgradeable
+} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {Transcript} from "./lib/Transcript.sol";
 import {Bn254Crypto} from "./lib/Bn254Crypto.sol";
 import {PolynomialEval} from "./lib/PolynomialEval.sol";
@@ -30,7 +36,6 @@ contract RollupProofVerifierV2 is
     constructor() {
         _disableInitializers();
     }
-    
     IVKProvider public vkProvider;
     /**
         Calldata formatting:
@@ -117,7 +122,8 @@ contract RollupProofVerifierV2 is
     function verify(
         bytes calldata acc_proof,
         bytes calldata proofBytes,
-        bytes calldata publicInputsHashBytes
+        bytes calldata publicInputsHashBytes,
+        uint256 rollup_batch_size
     ) external view override returns (bool result) {
         // parse the hardecoded vk and construct a vk object
         Types.VerificationKey memory vk = get_verification_key();
@@ -136,34 +142,43 @@ contract RollupProofVerifierV2 is
         validate_proof(decoded_proof);
         validate_scalar_field(public_inputs_hash);
 
+        // This is the digest of the SRS of size 2^26 taken from nightfish_CE/primitives/src/pcs/univariate_kzg/ptau_digests.rs
+        bytes32 srs_digest = 0xb354d098efff1c5ded84124fa9020eb2620b0faa62c2c7989217e062bf387651;
+
         // Compute the transcripts by appending vk, public inputs and proof
         // reconstruct the tau, beta, gamma, alpha, zeta, v and u challenges based on the transcripts
-        Transcript.TranscriptData memory transcripts;
-        Transcript.compute_challengs(
-            transcripts,
-            vk,
-            decoded_proof,
-            public_inputs_hash
-        );
-        Types.ChallengeTranscript memory full_challenges = transcripts
-            .challenges;
+        // Compute challenges & opening check in a tight scope so those locals die
+        bool ok;
+        {
+            Transcript.TranscriptData memory transcripts;
+            Transcript.ChallengeInputs memory challenges;
+            challenges.vk = vk;
+            challenges.proof = decoded_proof;
+            challenges.public_inputs_hash = public_inputs_hash;
+            challenges.srs_digest = srs_digest;
+            challenges.rollup_tx_batch_size = rollup_batch_size;
+            Transcript.compute_challengs(transcripts, challenges);
+            Types.ChallengeTranscript memory full_challenges = transcripts
+                .challenges;
 
-        uint256[] memory public_inputs = new uint256[](vk.num_inputs);
-        public_inputs[0] = public_inputs_hash;
-        // compute polynomial commitment evaluation info
-        Types.PcsInfo memory pcsInfo = prepare_PcsInfo(
-            vk,
-            public_inputs,
-            decoded_proof,
-            full_challenges
-        );
-
-        return (verify_OpeningProof(
-            full_challenges,
-            pcsInfo,
-            decoded_proof,
-            vk
-        ) && verify_accumulation(acc_proof, vk));
+            // build pcsInfo & verify opening inside the same scope
+            uint256[] memory public_inputs = new uint256[](vk.num_inputs);
+            public_inputs[0] = public_inputs_hash;
+            Types.PcsInfo memory pcsInfo = prepare_PcsInfo(
+                vk,
+                public_inputs,
+                decoded_proof,
+                full_challenges
+            );
+            ok = verify_OpeningProof(
+                full_challenges,
+                pcsInfo,
+                decoded_proof,
+                vk
+            );
+        }
+        if (!ok) return false;
+        return verify_accumulation(acc_proof, vk);
     }
 
     function verify_accumulation(

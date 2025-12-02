@@ -10,11 +10,13 @@ contract MockVerifier is INFVerifier {
     function verify(
         bytes calldata accBytes,
         bytes calldata proofBytes,
-        bytes calldata publicInputsHashBytes
+        bytes calldata publicInputsHashBytes,
+        uint256 rollup_batch_size
     ) external view override returns (bool result) {
         accBytes;
         proofBytes;
         publicInputsHashBytes;
+        rollup_batch_size;
         result = defaultResult;
         return result;
     }

@@ -230,6 +230,7 @@ contract Nightfall is
             }
         }
         // get the output of verify_rollup_proof
+        // total fee is the total fee paid to proposer for transfers and withdraws
         (bool verified, uint256 totalFee) = verify_rollup_proof(
             blk,
             transaction_hashes[0]
@@ -238,9 +239,9 @@ contract Nightfall is
         // now we need to decode the public data for each transaction and do something with it
         for (uint i = 0; i < block_transactions_length; i++) {
             // Now we work out what transaction we're dealing with and dispatch it to an appropriate handler.
-            // for deposit transaction, we need to filter out the appended dummy deposits, and only process the real deposits.
-            // a dummy deposit transaction will have compressed_secrets aka. public_data = [0,0,0,0]
+
             bool is_deposit;
+            // if nullifier[0] is 0, then it's a deposit
             assembly {
                 is_deposit := iszero(
                     calldataload(
@@ -257,6 +258,8 @@ contract Nightfall is
                     )
                 )
             }
+            // for deposit transaction, we need to filter out the appended dummy deposits, and only process the real deposits.
+            // a dummy deposit transaction will have dummy compressed_secrets aka. public_data = [0,0,0,0], we only need to check public_data[0] == 0
             if (is_deposit) {
                 bool is_dummy_deposit;
                 assembly {
@@ -295,6 +298,7 @@ contract Nightfall is
                         )
                     }
                     if (publicData == 0) continue;
+                    // if it's a deposit, then get the fee from feeBinding
                     localTotalFee += feeBinding[publicData].fee;
                     require(
                         feeBinding[publicData].escrowed == 1 &&
@@ -308,6 +312,7 @@ contract Nightfall is
             }
 
             bool is_withdraw;
+            // is_withdraw = (txn.commitments[0] == 0) && (txn.nullifiers[0] != 0)
             assembly {
                 is_withdraw := and(
                     iszero(
@@ -372,7 +377,7 @@ contract Nightfall is
                 // withdraw the amount they are due, they will have to provide the same public data so that the
                 // same hash is created. The recipient address will therefore be successfully altered by the caller.
                 // Thus, if they provide a different address, the call will fail, if not, all they will do is
-                // send the funds for the rightful own, paying gas for the privilege.
+                // send the funds for the nightful own, paying gas for the privilege.
 
                 require(
                     withdrawalIncluded[key] == 0,
@@ -727,12 +732,18 @@ contract Nightfall is
             publicInputsBytes_computed
         );
 
+        uint256 n = blk.transactions.length;
+        bytes calldata accBytes = blk.rollup_proof[32:288];
+        bytes calldata proofBytes = blk.rollup_proof[288:];
+        bool is_proof_valid = verifier.verify(
+            accBytes,
+            proofBytes,
+            publicInputsBytes,
+            n
+        );
+
         return (
-            verifier.verify(
-                blk.rollup_proof[32:288],
-                blk.rollup_proof[288:],
-                publicInputsBytes
-            ),
+            is_proof_valid,
             feeSumAsNumber
         );
     }
@@ -759,3 +770,4 @@ contract Nightfall is
 
     uint256[50] private __gap;
 }
+

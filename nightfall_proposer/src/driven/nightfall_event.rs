@@ -85,7 +85,6 @@ where
                     .await
                     .map_err(|e| {
                         debug!("{e}");
-                        debug!("{e}");
                         EventHandlerError::InvalidCalldata
                     })?;
             }
