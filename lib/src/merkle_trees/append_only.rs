@@ -155,7 +155,7 @@ where
         }
         // we'll 'add' each sub tree in turn but only write everything to the db at the end. This will be
         // more efficient than writing to the db for each sub tree
-        let mut root: Option<F> = None;
+        let mut root = None;
         let hasher = Self::TreeHasher::new();
         for leaf_batch in leaves.chunks(sub_tree_capacity) {
             // first, we'll compute the entire sub tree that we're adding because then we can add its root
