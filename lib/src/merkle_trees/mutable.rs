@@ -921,7 +921,7 @@ mod test {
     use crate::merkle_trees::trees::MerkleTreeError;
     use crate::tests_utils::*;
     use ark_bn254::Fr as Fr254;
-    use ark_std::{rand::Rng, UniformRand, Zero, One};
+    use ark_std::{rand::Rng, One, UniformRand, Zero};
     use mongodb::bson::Document;
 
     /// makes a vector of n leaves with random values.

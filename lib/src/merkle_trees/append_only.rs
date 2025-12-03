@@ -155,7 +155,7 @@ where
         }
         // we'll 'add' each sub tree in turn but only write everything to the db at the end. This will be
         // more efficient than writing to the db for each sub tree
-        let mut root = F::zero();
+        let mut root: Option<F> = None;
         let hasher = Self::TreeHasher::new();
         for leaf_batch in leaves.chunks(sub_tree_capacity) {
             // first, we'll compute the entire sub tree that we're adding because then we can add its root
@@ -190,8 +190,12 @@ where
             sub_tree_count += 1;
 
             // and root
-            root = path.pop().expect("Path is empty. This should never happen");
+            root = Some(path.pop().expect("Path is empty. This should never happen"));
         }
+
+        // since we checked leaves.is_empty() earlier, root must be Some
+        let root = root.expect("root must be set because leaves is non-empty");
+
         let frontier = Frontier {
             frontier: frontier
                 .iter()
