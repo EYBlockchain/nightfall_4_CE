@@ -182,8 +182,7 @@ where
         // doing this validation before the db write to ensure data consistency
         let expected = i64::try_from(cached_entries).map_err(|_| {
             MerkleTreeError::Error(format!(
-                "cached_entries count {} is too large to fit in i64",
-                cached_entries
+                "cached_entries count {cached_entries} is too large to fit in i64"
             ))
         })?;
 
@@ -919,9 +918,11 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::merkle_trees::trees::MerkleTreeError;
     use crate::tests_utils::*;
     use ark_bn254::Fr as Fr254;
-    use ark_std::{rand::Rng, UniformRand};
+    use ark_std::{rand::Rng, UniformRand, Zero, One};
+    use mongodb::bson::Document;
 
     /// makes a vector of n leaves with random values.
     fn make_rnd_leaves<N: UniformRand>(n: usize, mut rng: impl Rng) -> Vec<N> {
@@ -1049,18 +1050,16 @@ mod test {
         too_many_leaves.append(&mut leaves_5.clone());
 
         let result = client.append_sub_trees(&leaves_5, true, tree_name).await;
-        use crate::merkle_trees::trees::MerkleTreeError;
         assert!(matches!(result, Err(MerkleTreeError::TreeIsFull)));
     }
 
     #[tokio::test]
     async fn new_mutable_tree_rejects_too_large_heights() {
-        use crate::merkle_trees::trees::MerkleTreeError;
         let container = get_mongo().await;
         let client = get_db_connection(&container).await;
 
         let tree_name = "bad_height_mutable_tree";
-        let bad_height = u64::BITS as u32;
+        let bad_height = u64::BITS;
 
         let result = <mongodb::Client as MutableTree<Fr254>>::new_mutable_tree(
             &client, bad_height, 0, tree_name,
@@ -1072,7 +1071,6 @@ mod test {
 
     #[tokio::test]
     async fn mutable_append_sub_trees_rejects_non_multiple_batch_size() {
-        use crate::merkle_trees::trees::MerkleTreeError;
         let mut rng = ark_std::test_rng();
         let container = get_mongo().await;
         let client = get_db_connection(&container).await;
@@ -1096,5 +1094,126 @@ mod test {
         let result = client.append_sub_trees(&bad_leaves, true, tree_name).await;
 
         assert!(matches!(result, Err(MerkleTreeError::IncorrectBatchSize)));
+    }
+
+    #[tokio::test]
+    async fn insert_leaf_rejects_combined_height_overflow() {
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+        let tree_id = "overflow_combined_height";
+        let db = client.database(<mongodb::Client as MutableTree<Fr254>>::MUT_DB_NAME);
+
+        // Ensure a clean state for this tree.
+        let metadata_collection_name = format!("{tree_id}_metadata");
+        let _ = db
+            .collection::<Document>(&metadata_collection_name)
+            .drop()
+            .await;
+
+        let metadata_collection = db.collection::<TreeMetadata<Fr254>>(&metadata_collection_name);
+        let metadata = TreeMetadata {
+            tree_height: u32::MAX,
+            sub_tree_height: u32::MAX,
+            sub_tree_count: 0,
+            _id: 0,
+            root: Fr254::zero(),
+        };
+        metadata_collection
+            .insert_one(metadata)
+            .await
+            .expect("failed to seed metadata");
+
+        let result = <mongodb::Client as MutableTree<Fr254>>::insert_leaf(
+            &client,
+            Fr254::one(),
+            true,
+            tree_id,
+        )
+        .await;
+
+        assert!(matches!(
+            result,
+            Err(MerkleTreeError::Error(msg)) if msg.contains("combined tree height too large")
+        ));
+    }
+
+    #[tokio::test]
+    async fn insert_leaf_rejects_excessive_subtree_height() {
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+        let tree_id = "overflow_subtree_height";
+        let db = client.database(<mongodb::Client as MutableTree<Fr254>>::MUT_DB_NAME);
+
+        // Ensure a clean state for this tree.
+        let metadata_collection_name = format!("{tree_id}_metadata");
+        let _ = db
+            .collection::<Document>(&metadata_collection_name)
+            .drop()
+            .await;
+
+        let metadata_collection = db.collection::<TreeMetadata<Fr254>>(&metadata_collection_name);
+        let metadata = TreeMetadata {
+            tree_height: 1,
+            sub_tree_height: u32::from(u8::MAX),
+            sub_tree_count: 0,
+            _id: 0,
+            root: Fr254::zero(),
+        };
+        metadata_collection
+            .insert_one(metadata)
+            .await
+            .expect("failed to seed metadata");
+
+        let result = <mongodb::Client as MutableTree<Fr254>>::insert_leaf(
+            &client,
+            Fr254::one(),
+            true,
+            tree_id,
+        )
+        .await;
+
+        assert!(matches!(
+            result,
+            Err(MerkleTreeError::Error(msg)) if msg.contains("tree height too large")
+        ));
+    }
+
+    #[tokio::test]
+    async fn append_sub_trees_rejects_excessive_subtree_height() {
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+        let tree_id = "append_overflow_subtree_height";
+        let db = client.database(<mongodb::Client as MutableTree<Fr254>>::MUT_DB_NAME);
+
+        // Ensure a clean state for this tree.
+        let metadata_collection_name = format!("{tree_id}_metadata");
+        let _ = db
+            .collection::<Document>(&metadata_collection_name)
+            .drop()
+            .await;
+
+        let metadata_collection = db.collection::<TreeMetadata<Fr254>>(&metadata_collection_name);
+        let metadata = TreeMetadata {
+            tree_height: 1,
+            sub_tree_height: u32::from(u8::MAX),
+            sub_tree_count: 0,
+            _id: 0,
+            root: Fr254::zero(),
+        };
+        metadata_collection
+            .insert_one(metadata)
+            .await
+            .expect("failed to seed metadata");
+
+        let leaves = vec![Fr254::one()];
+        let result = <mongodb::Client as MutableTree<Fr254>>::append_sub_trees(
+            &client, &leaves, true, tree_id,
+        )
+        .await;
+
+        assert!(matches!(
+            result,
+            Err(MerkleTreeError::Error(msg)) if msg.contains("sub_tree_height too large")
+        ));
     }
 }

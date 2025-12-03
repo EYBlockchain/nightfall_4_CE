@@ -314,7 +314,7 @@ mod test {
         let client = get_db_connection(&container).await;
 
         let tree_name = "bad_height_tree";
-        let bad_height = u64::BITS as u32; // guaranteed to be rejected by constructor
+        let bad_height = u64::BITS; // guaranteed to be rejected by constructor
 
         let result = <mongodb::Client as AppendOnlyTree<Fr254>>::new_append_only_tree(
             &client, bad_height, 0, tree_name,
