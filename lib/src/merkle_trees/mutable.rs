@@ -178,6 +178,21 @@ where
             return Ok(());
         }
 
+        // convert cached_entries to i64 for comparison with MongoDB result counts.
+        // doing this validation before the db write to ensure data consistency
+        let expected = i64::try_from(cached_entries).map_err(|_| {
+            MerkleTreeError::Error(format!(
+                "cached_entries count {} is too large to fit in i64",
+                cached_entries
+            ))
+        })?;
+
+        if expected < 1 {
+            return Err(MerkleTreeError::Error(
+                "Invalid cached_entries count: must be positive".to_string(),
+            ));
+        }
+
         // Execute ordered bulk write so that on the first error, remaining operations are not applied.
         let result = self
             .bulk_write(models)
@@ -188,10 +203,10 @@ where
         // For updates, "success" is counted as matched + upserted.
         let applied = result.matched_count + result.upserted_count;
 
-        if applied != i64::try_from(cached_entries).unwrap_or(i64::MAX) {
+        if applied != expected {
             // Do NOT drop the cache; something went wrong.
             return Err(MerkleTreeError::Error(format!(
-                "Bulk write only applied to {applied} of {cached_entries} cached nodes"
+                "Bulk write only applied to {applied} of {expected} cached nodes"
             )));
         }
 
@@ -319,8 +334,28 @@ where
 
         // now hook the sub-tree into the main tree and compute the updated frontier
         // first change our index from a subtree (leaf) index to a node index
-        let sub_tree_node_index = 2_u64.pow(metadata.tree_height + metadata.sub_tree_height) - 1
-            + sub_tree_count * (1 << metadata.sub_tree_height); // this is the index where we're going to put the sub_tree
+        let total_height = metadata
+            .tree_height
+            .checked_add(metadata.sub_tree_height)
+            .ok_or_else(|| {
+                MerkleTreeError::Error(
+                    "combined tree height too large to compute node index".to_string(),
+                )
+            })?;
+        let base_index = pow2_u64(total_height)
+            .and_then(|v| v.checked_sub(1))
+            .ok_or_else(|| {
+                MerkleTreeError::Error("tree height too large to compute node index".to_string())
+            })?;
+        let sub_tree_span = pow2_u64(metadata.sub_tree_height).ok_or_else(|| {
+            MerkleTreeError::Error("sub_tree_height too large to compute node index".to_string())
+        })?;
+        let offset = sub_tree_span.checked_mul(sub_tree_count).ok_or_else(|| {
+            MerkleTreeError::Error("sub_tree_count too large to compute node index".to_string())
+        })?;
+        let sub_tree_node_index = base_index.checked_add(offset).ok_or_else(|| {
+            MerkleTreeError::Error("node index computation overflowed".to_string())
+        })?; // this is the index where we are going to put the sub_tree
         let mut node_index = sub_tree_node_index;
         let mut updates = vec![self.set_node(node_index, leaf, update_tree, tree_id)]; // this will store all the hash values in the path from the leaf to the root
 
@@ -343,10 +378,13 @@ where
 
         // store the updated sub tree count
         if update_tree {
+            let updated_sub_tree_count = sub_tree_count
+                .checked_add(1)
+                .ok_or_else(|| MerkleTreeError::Error("sub_tree_count overflowed".to_string()))?;
             let new_metadata = TreeMetadata {
                 tree_height: metadata.tree_height,
                 sub_tree_height: metadata.sub_tree_height,
-                sub_tree_count: sub_tree_count + 1,
+                sub_tree_count: updated_sub_tree_count,
                 _id: 0,
                 root: hash,
             };
@@ -411,6 +449,13 @@ where
         }
         // we'll 'add' each sub tree in turn but only write everything to the db at the end. This will be much
         // more efficient than writing to the db for each sub tree
+        let first_sub_tree_index_base = pow2_u64(metadata.tree_height)
+            .and_then(|v| v.checked_sub(1))
+            .ok_or_else(|| {
+                Self::Error::Error(
+                    "tree_height is too large to compute sub tree base index".to_string(),
+                )
+            })?;
         let mut hash = F::zero();
         for leaf_batch in leaves.chunks(sub_tree_capacity) {
             // first, we'll compute the entire sub tree that we're adding because then we can add its root
@@ -422,7 +467,11 @@ where
             let sub_tree_root = sub_tree[0];
             // now hook the sub-tree into the main tree and compute the updated frontier
             // first change our index from a subtree (leaf) index to a node index
-            let sub_tree_node_index = 2_u64.pow(metadata.tree_height) - 1 + sub_tree_count; // this is the index where we're going to put the sub_tree
+            let sub_tree_node_index = first_sub_tree_index_base
+                .checked_add(sub_tree_count)
+                .ok_or_else(|| {
+                    Self::Error::Error("sub tree index too large to compute node index".to_string())
+                })?; // this is the index where we're going to put the sub_tree
             let mut node_index = sub_tree_node_index;
             let mut updates = vec![self.set_node(node_index, sub_tree_root, update_tree, tree_id)]; // this will store all the hash values in the path from the leaf to the root
             hash = sub_tree_root; // the main tree leaf value is the starting hash
@@ -463,7 +512,9 @@ where
 
             // run the set functions concurrently to update the nodes we changed
             try_join_all(updates).await?;
-            sub_tree_count += 1;
+            sub_tree_count = sub_tree_count
+                .checked_add(1)
+                .ok_or_else(|| Self::Error::Error("sub_tree_count overflowed".to_string()))?;
         }
         // store the updated sub tree count
         if update_tree {
