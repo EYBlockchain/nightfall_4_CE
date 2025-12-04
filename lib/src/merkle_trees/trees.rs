@@ -349,6 +349,24 @@ pub(crate) mod helper_functions {
     use ark_ff::PrimeField;
     use jf_primitives::trees::{Directions, TreeHasher};
 
+    /// Compute 2^exp as u64
+    pub(crate) fn pow2_u64(exp: u32) -> Option<u64> {
+        if exp >= u64::BITS {
+            None
+        } else {
+            Some(1u64 << exp)
+        }
+    }
+
+    /// Compute 2^exp as usize
+    pub(crate) fn pow2_usize(exp: u32) -> Option<usize> {
+        if exp as u64 >= usize::BITS as u64 {
+            None
+        } else {
+            Some(1usize << exp)
+        }
+    }
+
     /// helper function to compute a complete tree (only use for small trees!)
     ///  /// Nodes are numbered thusly:
     ///                                0
@@ -427,5 +445,37 @@ pub(crate) mod helper_functions {
             }
         }
         index
+    }
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn pow2_u64_small_exponents() {
+            assert_eq!(pow2_u64(0), Some(1));
+            assert_eq!(pow2_u64(1), Some(2));
+            assert_eq!(pow2_u64(5), Some(32));
+        }
+
+        #[test]
+        fn pow2_u64_too_large_exponent() {
+            let bits = u64::BITS;
+            assert_eq!(pow2_u64(bits), None);
+            assert_eq!(pow2_u64(bits + 1), None);
+        }
+
+        #[test]
+        fn pow2_usize_small_exponents() {
+            assert_eq!(pow2_usize(0), Some(1));
+            assert_eq!(pow2_usize(1), Some(2));
+            assert_eq!(pow2_usize(4), Some(16));
+        }
+
+        #[test]
+        fn pow2_usize_too_large_exponent() {
+            let bits = usize::BITS;
+            assert_eq!(pow2_usize(bits), None);
+            assert_eq!(pow2_usize(bits + 1), None);
+        }
     }
 }
