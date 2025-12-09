@@ -3,29 +3,45 @@
 
 ## Contents
 
-- [Overview](#overview)
-- [How it works](#how-it-works)
-- [Handling Fees in Transactions](#handling-fees-in-transactions)
-- [Handling chain reorganisations](#handling-chain-reorganisations)
-- [Local installation and testing](#local-installation-and-testing)
-  - [Prerequisites for local installation](#prerequisites-for-local-installation)
-  - [Download and test](#download-and-test)
-- [Configuration](#configuration)
-- [Deployment on a testnet for integration testing](#deployment-on-a-testnet-for-integration-testing)
-- [Deployment on a testnet for beta testing](#deployment-on-a-testnet-for-beta-testing)
-- [Architecture](#architecture)
-  - [Comparison with Nightfall_3](#comparison-with-nightfall_3)
-  - [Nightfall_4 containers](#nightfall_4-containers)
-  - [Client Webhook](#client-webhook)
-- [APIs](#apis)
-  - [Client APIs](#client-apis)
-    - [X509 Certificates for Client](#x509-certificates-for-client)
-    - [Value transactions](#value-transactions)
-  - [Proposer APIs](#proposer-apis)
-    - [X509 Certificates for Proposer](#x509-certificates-for-proposer)
-- [Test UI: Using the Menu Application](#test-ui-using-the-menu-application)
-- [Production deployment](#production-deployment)
-- [Appendix](#appendix)
+- [Nightfall 4 Documentation](#nightfall-4-documentation)
+  - [Contents](#contents)
+  - [Overview](#overview)
+  - [How it works](#how-it-works)
+  - [Handling Fees in Transactions](#handling-fees-in-transactions)
+  - [Handling chain reorganisations](#handling-chain-reorganisations)
+  - [Local installation and testing](#local-installation-and-testing)
+    - [Prerequisites for local installation](#prerequisites-for-local-installation)
+    - [Download and test](#download-and-test)
+  - [Configuration](#configuration)
+  - [Deployment on a testnet for integration testing](#deployment-on-a-testnet-for-integration-testing)
+    - [Preliminaries](#preliminaries)
+    - [Configuration file](#configuration-file)
+    - [Ethereum private keys](#ethereum-private-keys)
+    - [Environment variables](#environment-variables)
+    - [Initial deployment of contracts](#initial-deployment-of-contracts)
+    - [Subsequent use of deployed contracts](#subsequent-use-of-deployed-contracts)
+  - [Deployment on a testnet for beta testing](#deployment-on-a-testnet-for-beta-testing)
+    - [Beta testing preliminaries](#beta-testing-preliminaries)
+    - [Beta testing configuration](#beta-testing-configuration)
+    - [Deploying contracts](#deploying-contracts)
+    - [Deploying the Proposer and Client](#deploying-the-proposer-and-client)
+  - [Architecture](#architecture)
+    - [Comparison with Nightfall\_3](#comparison-with-nightfall_3)
+    - [Nightfall\_4 containers](#nightfall_4-containers)
+    - [Client Webhook](#client-webhook)
+  - [APIs](#apis)
+    - [Client APIs](#client-apis)
+      - [X509 Certificates for Client](#x509-certificates-for-client)
+      - [Value transactions](#value-transactions)
+    - [Proposer APIs](#proposer-apis)
+      - [X509 Certificates for Proposer](#x509-certificates-for-proposer)
+  - [Test UI: Using the Menu Application](#test-ui-using-the-menu-application)
+    - [1. Build the Menu Application](#1-build-the-menu-application)
+    - [2. Prepare Environment Variables](#2-prepare-environment-variables)
+    - [3. Start the Nightfall Containers (no-test profile)](#3-start-the-nightfall-containers-no-test-profile)
+    - [4. Run the Menu Application](#4-run-the-menu-application)
+  - [Production deployment](#production-deployment)
+  - [Appendix](#appendix)
 
 
 ## Overview
@@ -642,7 +658,7 @@ curl -i --request POST 'http://localhost:3000/v1/deriveKey' \
     --json '{ "mnemonic": "spice split denial symbol resemble knock hunt trial make buzz attitude mom slice define clinic kid crawl guilt frozen there cage light secret work", "child_path": "m/44'/60'/0'/0/0" }'
 ```
 
-Returns: on success `200 OK` and a JSON encoded ZkpKeys object containing the root key and viewing and spending keys.
+Returns: on success `200 OK` and a JSON encoded hex string encoding the spending key in compressed and big-endian form.
 
 This is a convenience function for generating a set of ZKP keys. They are generated from the input path and mnemonic using the BIP32 protocol.
 
