@@ -1,8 +1,11 @@
 # syntax=docker/dockerfile:1-labs
+FROM ghcr.io/foundry-rs/foundry:v1.1.0 AS foundry
 FROM rust:1.88.0 AS builder
 
 WORKDIR /app
 RUN mkdir bin
+COPY --from=foundry /usr/local/bin/forge ./forge
+ENV PATH=/app:$PATH
 COPY --exclude=configuration/bin/*  . .
 COPY configuration/bin/proving_key configuration/bin/deposit_proving_key configuration/bin/
 RUN --mount=type=cache,target=/usr/local/cargo/registry \

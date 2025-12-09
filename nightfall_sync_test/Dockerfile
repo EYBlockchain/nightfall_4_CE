@@ -1,4 +1,5 @@
 # syntax=docker/dockerfile:1-labs
+FROM ghcr.io/foundry-rs/foundry:v1.1.0 AS foundry
 FROM rust:1.88.0 AS runtime
 # install additional ca-certificates e.g. zscaler certificate (can be removed if not needed)
 COPY ./configuration/trust/* /usr/local/share/ca-certificates/
@@ -6,6 +7,8 @@ RUN chmod 644 /usr/local/share/ca-certificates/* && update-ca-certificates
 
 WORKDIR /app
 RUN mkdir bin
+COPY --from=foundry /usr/local/bin/forge ./forge
+ENV PATH=/app:$PATH
 COPY --exclude=configuration/bin/* . .
 
 RUN --mount=type=cache,id=cargo-registry-v4,target=/usr/local/cargo/registry,sharing=locked \

@@ -1,6 +1,9 @@
+FROM ghcr.io/foundry-rs/foundry:v1.1.0 AS foundry
 FROM rust:1.88.0 AS builder
 WORKDIR /app
 RUN mkdir bin
+COPY --from=foundry /usr/local/bin/forge ./forge
+ENV PATH=/app:$PATH
 COPY . .
 RUN --mount=type=cache,id=cargo-registry-v4,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,id=cargo-git-v4,target=/usr/local/cargo/git,sharing=locked \

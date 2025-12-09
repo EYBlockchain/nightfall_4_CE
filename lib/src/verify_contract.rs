@@ -7,10 +7,45 @@ use configuration::addresses::Addresses;
 use nightfall_bindings::artifacts::{
     Nightfall::NightfallInstance, RoundRobin::RoundRobinInstance, X509::X509Instance,
 };
-use nightfall_bindings::{
-    artifacts::{Nightfall, RoundRobin, X509},
-    NIGHTFALL_IMPL_HASH_BYTES, ROUND_ROBIN_IMPL_HASH_BYTES, X509_IMPL_HASH_BYTES,
-};
+use nightfall_bindings::artifacts::{Nightfall, RoundRobin, X509};
+use std::path::PathBuf;
+use serde::Deserialize;
+
+#[derive(Deserialize)]
+struct ContractHashes {
+    nightfall_hash: String,
+    round_robin_hash: String,
+    x509_hash: String,
+}
+
+/// Load deployed contract hashes from file written by deployer
+fn load_deployed_hashes() -> eyre::Result<([u8; 32], [u8; 32], [u8; 32])> {
+    let hashes_path = PathBuf::from("/app/configuration/toml/contract_hashes.toml");
+    
+    if !hashes_path.exists() {
+        eyre::bail!("Contract hashes file not found. Deployer must run first to generate {:?}", hashes_path);
+    }
+    
+    let content = std::fs::read_to_string(&hashes_path)?;
+    let hashes: ContractHashes = toml::from_str(&content)?;
+    
+    let nightfall = hex::decode(&hashes.nightfall_hash)
+        .map_err(|e| eyre::eyre!("Failed to decode nightfall hash: {}", e))?;
+    let round_robin = hex::decode(&hashes.round_robin_hash)
+        .map_err(|e| eyre::eyre!("Failed to decode round_robin hash: {}", e))?;
+    let x509 = hex::decode(&hashes.x509_hash)
+        .map_err(|e| eyre::eyre!("Failed to decode x509 hash: {}", e))?;
+    
+    let mut nf_bytes = [0u8; 32];
+    let mut rr_bytes = [0u8; 32];
+    let mut x509_bytes = [0u8; 32];
+    
+    nf_bytes.copy_from_slice(&nightfall);
+    rr_bytes.copy_from_slice(&round_robin);
+    x509_bytes.copy_from_slice(&x509);
+    
+    Ok((nf_bytes, rr_bytes, x509_bytes))
+}
 
 /// EIP-1967: Proxy implementation storage slot
 ///
@@ -38,14 +73,14 @@ pub async fn get_proxy_implementation<P: Provider>(
     provider: &P,
     proxy: Address,
 ) -> eyre::Result<Address> {
-    print!("Fetching implementation address from proxy at {:?}...\n", proxy);
+    println!("Fetching implementation address from proxy at {proxy:?}...");
     let slot = B256::from_slice(&EIP1967_IMPLEMENTATION_SLOT_BYTES);
 
     let raw: B256 = provider.get_storage_at(proxy, slot.into()).await?.into();
 
     let mut addr = [0u8; 20];
     addr.copy_from_slice(&raw[12..]); // last 20 bytes
-    print!("get the address  {:?}...\n", Address::from(addr));
+    println!("get the address  {:?}...", Address::from(addr));
     Ok(Address::from(addr))
 }
 
@@ -83,37 +118,13 @@ pub async fn get_onchain_code_hash<P: Provider>(
 
     // Use the same metadata stripping logic as build-time
     let hash = strip_metadata_and_hash(&code.0);
-    println!("On-chain hash (metadata stripped): {:?}", hash);
+    println!("On-chain hash (metadata stripped): {hash:?}");
 
     Ok(hash)
 }
 
-/// Compute the keccak256 hash of the runtime bytecode currently deployed
-/// at a given implementation address.
-///
-/// # Why?
-/// This code hash is compared with a build-time hash generated from local
-/// artifacts to ensure critical L1 contracts have not been tampered with.
-///
-/// # Returns
-/// * `[u8; 32]` — keccak256(code)
-// pub async fn get_onchain_code_hash<P: Provider>(
-//     provider: &P,
-//     implementation: Address,
-// ) -> eyre::Result<[u8; 32]> {
-//     let code = provider.get_code_at(implementation).await?;
-//     println!("inside get_onchain_code_hash, On-chain code at {:?}: {:?}", implementation, code);
-//     println!("on chain Code length: {} bytes", code.0.len());
-
-//     let hash = keccak256(code.0);
-
-//     println!("hash onchain: {:?}", hash.0);
-
-//     Ok(hash.0)
-// }
-
 /// Verify that the proxy → implementation mapping is correct,
-/// and that the on-chain implementation bytecode matches the expected build-time hash.
+///   and that the on-chain implementation bytecode matches the expected build-time hash.
 ///
 /// # Security guarantees
 /// - Detects malicious or compromised deployers  
@@ -176,23 +187,27 @@ impl<P: Provider + Clone> VerifiedContracts<P> {
         provider: P,
         addresses: &Addresses,
     ) -> eyre::Result<Self> {
-        ark_std::println!("Verifying deployed contract implementations at these addresses: {:?}", addresses);
+        ark_std::println!("Verifying deployed contract implementations at these addresses: {addresses:?}");
+        
+        // Load the expected hashes from the file written by deployer
+        let (nightfall_hash, round_robin_hash, x509_hash) = load_deployed_hashes()?;
+        
         // Verify each contract's deployed implementation
         verify_impl_hash(
             &provider,
             addresses.nightfall,
-            &NIGHTFALL_IMPL_HASH_BYTES,
+            &nightfall_hash,
             "Nightfall",
         )
         .await?;
         verify_impl_hash(
             &provider,
             addresses.round_robin,
-            &ROUND_ROBIN_IMPL_HASH_BYTES,
+            &round_robin_hash,
             "RoundRobin",
         )
         .await?;
-        verify_impl_hash(&provider, addresses.x509, &X509_IMPL_HASH_BYTES, "X509").await?;
+        verify_impl_hash(&provider, addresses.x509, &x509_hash, "X509").await?;
 
         // Only construct contract bindings if verification passed
         Ok(Self {

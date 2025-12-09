@@ -1,11 +1,12 @@
 use crate::vk_contract::write_vk_to_nightfall_toml;
-use alloy::primitives::Address;
+use alloy::{hex, primitives::Address};
 use configuration::{
     addresses::{Addresses, Sources},
     settings::Settings,
 };
 use jf_plonk::recursion::RecursiveProver;
 
+use lib::blockchain_client::BlockchainClientConnection;
 use log::{debug, error, info};
 use nightfall_proposer::driven::rollup_prover::RollupProver;
 use serde_json::Value;
@@ -66,22 +67,37 @@ fn proxies_from_broadcast(path: &Path) -> anyhow::Result<HashMap<&'static str, A
 
 pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn std::error::Error>> {
     std::env::set_var("NF4_RUN_MODE", &settings.run_mode);
-    forge_command(&["clean"]);
-    forge_command(&["build"]);
+    
+    // Clean up potentially corrupted build-info files from Docker build stage
+    let build_info_path = PathBuf::from("blockchain_assets/artifacts/build-info");
+    if build_info_path.exists() {
+        info!("Cleaning build-info directory to ensure fresh compilation");
+        std::fs::remove_dir_all(&build_info_path).ok();
+    }
+
+    // Also clean cache to ensure deterministic compilation
+    let cache_path = PathBuf::from("blockchain_assets/cache");
+    if cache_path.exists() {
+        info!("Cleaning cache directory");
+        std::fs::remove_dir_all(&cache_path).ok();
+    }
 
     if !settings.mock_prover && settings.contracts.deploy_contracts {
-        forge_command(&["build", "--force"]);
         let vk = RollupProver::get_decider_vk();
         let _ = write_vk_to_nightfall_toml(&vk);
     }
 
+    // Force a clean rebuild to generate proper build-info files for OpenZeppelin validation
+    info!("Building contracts with forge");
+    forge_command(&["build", "--force"]);
+
+    info!("Deploying contracts with forge script");
     forge_command(&[
         "script",
         "Deployer",
         "--fork-url",
         &settings.ethereum_client_url,
         "--broadcast",
-        "--force",
     ]);
 
     // -------- read Foundry broadcast --------
@@ -155,6 +171,54 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn std::er
     info!("Saving addresses for chain_id: {}", addresses.chain_id);
     addresses.save(Sources::File(file_path)).await?;
     info!("Addresses saved successfully");
+    
+    save_deployed_hashes(&addresses).await?;
+    
+    Ok(())
+}
+
+/// Save the hashes of the deployed contract implementations
+/// This allows proposer/client to verify they are using the correct contracts
+async fn save_deployed_hashes(addresses: &Addresses) -> Result<(), Box<dyn std::error::Error>> {
+    use lib::{
+        initialisation::get_blockchain_client_connection,
+        verify_contract::{get_onchain_code_hash, get_proxy_implementation},
+    };
+
+    info!("Calculating deployed contract hashes for verification");
+
+    let blockchain_client = get_blockchain_client_connection()
+        .await
+        .read()
+        .await
+        .get_client();
+    let provider = blockchain_client.root();
+    
+    // Get implementation addresses
+    let nf_impl = get_proxy_implementation(&provider, addresses.nightfall).await?;
+    let rr_impl = get_proxy_implementation(&provider, addresses.round_robin).await?;
+    let x509_impl = get_proxy_implementation(&provider, addresses.x509).await?;
+    
+    // Get on-chain bytecode hashes (with metadata stripped)
+    let nf_hash = get_onchain_code_hash(&provider, nf_impl).await?;
+    let rr_hash = get_onchain_code_hash(&provider, rr_impl).await?;
+    let x509_hash = get_onchain_code_hash(&provider, x509_impl).await?;
+    
+    info!("Nightfall implementation hash: 0x{}", hex::encode(nf_hash));
+    info!("RoundRobin implementation hash: 0x{}", hex::encode(rr_hash));
+    info!("X509 implementation hash: 0x{}", hex::encode(x509_hash));
+    
+    // Save to TOML file that will be read by proposer/client
+    let hashes_path = PathBuf::from("/app/configuration/toml/contract_hashes.toml");
+    let hashes_toml = format!(
+        "nightfall_hash = \"{}\"\nround_robin_hash = \"{}\"\nx509_hash = \"{}\"\n",
+        hex::encode(nf_hash),
+        hex::encode(rr_hash),
+        hex::encode(x509_hash)
+    );
+    std::fs::write(&hashes_path, hashes_toml)?;
+    info!("Contract hashes saved to {hashes_path:?}");
+    
     Ok(())
 }
 
