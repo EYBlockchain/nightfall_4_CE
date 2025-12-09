@@ -4,12 +4,12 @@ use alloy::{
 };
 
 use configuration::addresses::Addresses;
+use nightfall_bindings::artifacts::{Nightfall, RoundRobin, X509};
 use nightfall_bindings::artifacts::{
     Nightfall::NightfallInstance, RoundRobin::RoundRobinInstance, X509::X509Instance,
 };
-use nightfall_bindings::artifacts::{Nightfall, RoundRobin, X509};
-use std::path::PathBuf;
 use serde::Deserialize;
+use std::path::PathBuf;
 
 #[derive(Deserialize)]
 struct ContractHashes {
@@ -21,29 +21,32 @@ struct ContractHashes {
 /// Load deployed contract hashes from file written by deployer
 fn load_deployed_hashes() -> eyre::Result<([u8; 32], [u8; 32], [u8; 32])> {
     let hashes_path = PathBuf::from("/app/configuration/toml/contract_hashes.toml");
-    
+
     if !hashes_path.exists() {
-        eyre::bail!("Contract hashes file not found. Deployer must run first to generate {:?}", hashes_path);
+        eyre::bail!(
+            "Contract hashes file not found. Deployer must run first to generate {:?}",
+            hashes_path
+        );
     }
-    
+
     let content = std::fs::read_to_string(&hashes_path)?;
     let hashes: ContractHashes = toml::from_str(&content)?;
-    
+
     let nightfall = hex::decode(&hashes.nightfall_hash)
         .map_err(|e| eyre::eyre!("Failed to decode nightfall hash: {}", e))?;
     let round_robin = hex::decode(&hashes.round_robin_hash)
         .map_err(|e| eyre::eyre!("Failed to decode round_robin hash: {}", e))?;
     let x509 = hex::decode(&hashes.x509_hash)
         .map_err(|e| eyre::eyre!("Failed to decode x509 hash: {}", e))?;
-    
+
     let mut nf_bytes = [0u8; 32];
     let mut rr_bytes = [0u8; 32];
     let mut x509_bytes = [0u8; 32];
-    
+
     nf_bytes.copy_from_slice(&nightfall);
     rr_bytes.copy_from_slice(&round_robin);
     x509_bytes.copy_from_slice(&x509);
-    
+
     Ok((nf_bytes, rr_bytes, x509_bytes))
 }
 
@@ -84,24 +87,26 @@ pub async fn get_proxy_implementation<P: Provider>(
     Ok(Address::from(addr))
 }
 
-// use alloy::{
-//     primitives::{keccak256, Address, B256},
-//     providers::Provider,
-// };
 
 // Add the metadata stripping function
 fn strip_metadata_and_hash(bytecode: &[u8]) -> [u8; 32] {
     // Solidity metadata is at the end: 0xa2 0x64 'i' 'p' 'f' 's' 0x58 0x22 <32-byte-hash> 0x64 's' 'o' 'l' 'c' 0x43 <version> 0x00 0x33
     // Look for the metadata marker: 0xa264697066735822 (a2 64 "ipfs" 58 22)
     const METADATA_MARKER: [u8; 8] = [0xa2, 0x64, 0x69, 0x70, 0x66, 0x73, 0x58, 0x22];
-    
+
     // Find the last occurrence of the metadata marker
-    if let Some(pos) = bytecode.windows(METADATA_MARKER.len())
-        .rposition(|window| window == METADATA_MARKER) {
+    if let Some(pos) = bytecode
+        .windows(METADATA_MARKER.len())
+        .rposition(|window| window == METADATA_MARKER)
+    {
         // Strip everything from the metadata marker onwards
         let stripped = &bytecode[..pos];
-        println!("Stripped {} bytes of metadata (original: {}, stripped: {})", 
-                 bytecode.len() - stripped.len(), bytecode.len(), stripped.len());
+        println!(
+            "Stripped {} bytes of metadata (original: {}, stripped: {})",
+            bytecode.len() - stripped.len(),
+            bytecode.len(),
+            stripped.len()
+        );
         keccak256(stripped).0
     } else {
         println!("No metadata marker found, using full bytecode");
@@ -187,19 +192,15 @@ impl<P: Provider + Clone> VerifiedContracts<P> {
         provider: P,
         addresses: &Addresses,
     ) -> eyre::Result<Self> {
-        ark_std::println!("Verifying deployed contract implementations at these addresses: {addresses:?}");
-        
+        ark_std::println!(
+            "Verifying deployed contract implementations at these addresses: {addresses:?}"
+        );
+
         // Load the expected hashes from the file written by deployer
         let (nightfall_hash, round_robin_hash, x509_hash) = load_deployed_hashes()?;
-        
+
         // Verify each contract's deployed implementation
-        verify_impl_hash(
-            &provider,
-            addresses.nightfall,
-            &nightfall_hash,
-            "Nightfall",
-        )
-        .await?;
+        verify_impl_hash(&provider, addresses.nightfall, &nightfall_hash, "Nightfall").await?;
         verify_impl_hash(
             &provider,
             addresses.round_robin,

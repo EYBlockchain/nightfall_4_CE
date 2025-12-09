@@ -1,18 +1,13 @@
 # syntax=docker/dockerfile:1-labs
-FROM ghcr.io/foundry-rs/foundry:v1.1.0 AS foundry
 FROM rust:1.88.0 AS builder
 
 WORKDIR /app
 RUN mkdir bin
-COPY --from=foundry /usr/local/bin/forge ./forge
-ENV PATH=/app:$PATH
 COPY --exclude=configuration/bin/*  . .
 COPY configuration/bin/proving_key configuration/bin/deposit_proving_key configuration/bin/
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/app/target \
     --mount=type=cache,target=/usr/local/cargo/git \
-    # cargo clean -p nightfall_bindings && \
-    # cargo build --package nightfall_client --release && \
     cargo build --package nightfall_client --release && \
     mv /app/target/release/nightfall_client /app/bin/client
 

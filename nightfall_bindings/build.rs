@@ -1,7 +1,5 @@
 use log::info;
-use std::{
-    env, os::unix::process::ExitStatusExt, path::Path, path::PathBuf, process::Command,
-};
+use std::{env, os::unix::process::ExitStatusExt, path::Path, path::PathBuf, process::Command};
 
 fn main() {
     // Find repo root: nightfall_bindings/.. is repo root
@@ -11,7 +9,7 @@ fn main() {
     // Check if artifacts exist - they should be pre-compiled by deployer or exist already
     let nightfall_artifact =
         repo_root.join("blockchain_assets/artifacts/Nightfall.sol/Nightfall.json");
-    
+
     if !nightfall_artifact.exists() {
         // If artifacts don't exist, compile them
         info!("Artifacts not found, building with forge");
@@ -19,7 +17,7 @@ fn main() {
     } else {
         info!("Using existing artifacts from blockchain_assets/artifacts/");
     }
-    
+
     // read the artifacts.rs and replace the dummy_artifact with artifacts
     let artifacts_path = Path::new("../nightfall_bindings/src/artifacts.rs");
     if artifacts_path.exists() {
@@ -32,8 +30,10 @@ fn main() {
     } else {
         panic!("Artifacts file not found at {artifacts_path:?}");
     }
-    
-    println!("cargo:warning=Contract verification will use runtime hashes from contract_hashes.toml");
+
+    println!(
+        "cargo:warning=Contract verification will use runtime hashes from contract_hashes.toml"
+    );
 }
 
 /// Function should only be called after we have checked forge is installed by running 'which forge'

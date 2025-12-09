@@ -67,7 +67,7 @@ fn proxies_from_broadcast(path: &Path) -> anyhow::Result<HashMap<&'static str, A
 
 pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn std::error::Error>> {
     std::env::set_var("NF4_RUN_MODE", &settings.run_mode);
-    
+
     // Clean up potentially corrupted build-info files from Docker build stage
     let build_info_path = PathBuf::from("blockchain_assets/artifacts/build-info");
     if build_info_path.exists() {
@@ -171,9 +171,9 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn std::er
     info!("Saving addresses for chain_id: {}", addresses.chain_id);
     addresses.save(Sources::File(file_path)).await?;
     info!("Addresses saved successfully");
-    
+
     save_deployed_hashes(&addresses).await?;
-    
+
     Ok(())
 }
 
@@ -193,21 +193,21 @@ async fn save_deployed_hashes(addresses: &Addresses) -> Result<(), Box<dyn std::
         .await
         .get_client();
     let provider = blockchain_client.root();
-    
+
     // Get implementation addresses
     let nf_impl = get_proxy_implementation(&provider, addresses.nightfall).await?;
     let rr_impl = get_proxy_implementation(&provider, addresses.round_robin).await?;
     let x509_impl = get_proxy_implementation(&provider, addresses.x509).await?;
-    
+
     // Get on-chain bytecode hashes (with metadata stripped)
     let nf_hash = get_onchain_code_hash(&provider, nf_impl).await?;
     let rr_hash = get_onchain_code_hash(&provider, rr_impl).await?;
     let x509_hash = get_onchain_code_hash(&provider, x509_impl).await?;
-    
+
     info!("Nightfall implementation hash: 0x{}", hex::encode(nf_hash));
     info!("RoundRobin implementation hash: 0x{}", hex::encode(rr_hash));
     info!("X509 implementation hash: 0x{}", hex::encode(x509_hash));
-    
+
     // Save to TOML file that will be read by proposer/client
     let hashes_path = PathBuf::from("/app/configuration/toml/contract_hashes.toml");
     let hashes_toml = format!(
@@ -218,7 +218,7 @@ async fn save_deployed_hashes(addresses: &Addresses) -> Result<(), Box<dyn std::
     );
     std::fs::write(&hashes_path, hashes_toml)?;
     info!("Contract hashes saved to {hashes_path:?}");
-    
+
     Ok(())
 }
 
