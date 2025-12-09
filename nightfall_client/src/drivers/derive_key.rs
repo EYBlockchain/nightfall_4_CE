@@ -3,15 +3,14 @@ use crate::ports::keys::KeySpending;
 use ark_bn254::Fr as Fr254;
 use ark_ec::twisted_edwards::Affine as TEAffine;
 use ark_ec::CurveGroup;
+use ark_ff::{BigInteger, BigInteger256, Field, PrimeField};
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
+use bip32::{DerivationPath, Mnemonic, XPrv};
 use jf_primitives::poseidon::{FieldHasher, Poseidon};
 use lib::serialization::{ark_de_hex, ark_se_hex};
 use nf_curves::ed_on_bn254::{
     BJJTEAffine as JubJub, BabyJubjub, Fr as BJJScalar, GENERATOR_X, GENERATOR_Y,
 };
-
-use ark_ff::{BigInteger, BigInteger256, Field, PrimeField};
-use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
-use bip32::{DerivationPath, Mnemonic, XPrv};
 use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
 use std::{error::Error, fmt};
@@ -83,29 +82,38 @@ impl From<ff_ce::PrimeFieldDecodingError> for KeyError {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Default)]
+#[derive(PartialEq, Clone, Default)]
 pub struct ZKPKeys {
-    #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
     pub root_key: Fr254,
-    #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
     pub nullifier_key: Fr254,
-    #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
     pub zkp_private_key: BJJScalar,
+    pub zkp_public_key: JubJub,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ZKPPubKey {
     #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
     pub zkp_public_key: JubJub,
 }
 
-impl fmt::Display for ZKPKeys {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "(rootKey: {}, nullifier_key: {}, zkp_private_key: {}, zkp_public_key: ({}, {}))",
-            self.root_key,
-            self.nullifier_key,
-            self.zkp_private_key,
-            self.zkp_public_key.x,
-            self.zkp_public_key.y
-        )
+impl From<&ZKPKeys> for ZKPPubKey {
+    fn from(k: &ZKPKeys) -> Self {
+        Self {
+            zkp_public_key: k.zkp_public_key,
+        }
+    }
+}
+
+impl ZKPPubKey {
+    /// Compress the public key
+    /// retains the y-coordinate and includes a flag of the parity of the x-coordinate.
+    /// Returns a Little Endian vector of bytes.
+    #[allow(dead_code)]
+    pub fn compressed_public_key(&self) -> Result<Vec<u8>, KeyError> {
+        let mut compressed_bytes = Vec::new();
+        self.zkp_public_key
+            .serialize_compressed(&mut compressed_bytes)?;
+        Ok(compressed_bytes)
     }
 }
 
@@ -238,6 +246,6 @@ mod tests {
         let derivation_path = DerivationPath::from_str("m/44'/60'/0'/0/0").unwrap();
         let zkp_keys_mnemonic = ZKPKeys::derive_from_mnemonic(&mnemonic, &derivation_path).unwrap();
         let zkp_keys = ZKPKeys::new(root_key).unwrap();
-        assert_eq!(zkp_keys_mnemonic, zkp_keys);
+        assert!(zkp_keys_mnemonic.eq(&zkp_keys));
     }
 }
