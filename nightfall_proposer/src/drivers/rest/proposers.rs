@@ -1,9 +1,11 @@
 use crate::{domain::error::ProposerRejection, initialisation::get_blockchain_client_connection};
 use alloy::primitives::U256;
 use configuration::{addresses::get_addresses, settings::get_settings};
-use lib::{blockchain_client::BlockchainClientConnection, error::ProposerError};
+use lib::{
+    blockchain_client::BlockchainClientConnection, error::ProposerError,
+    verify_contract::VerifiedContracts,
+};
 use log::{info, warn};
-use nightfall_bindings::artifacts::RoundRobin;
 /// APIs for managing proposers
 use warp::{hyper::StatusCode, path, reply::Reply, Filter};
 
@@ -22,7 +24,14 @@ async fn handle_rotate_proposer() -> Result<impl Reply, warp::Rejection> {
         .read()
         .await
         .get_client();
-    let proposer_manager = RoundRobin::new(get_addresses().round_robin, blockchain_client.root());
+    let verified =
+        VerifiedContracts::resolve_and_verify_contract(blockchain_client.root(), get_addresses())
+            .await
+            .map_err(|e| {
+                warn!("Contract verification failed: {e}");
+                warp::reject::custom(ProposerRejection::FailedToRotateProposer)
+            })?;
+    let proposer_manager = verified.round_robin;
     match proposer_manager.proposer_count().call().await {
         Ok(count) => {
             if count <= U256::ONE {
@@ -64,7 +73,13 @@ async fn handle_add_proposer(url: String) -> Result<impl Reply, warp::Rejection>
     let caller = read_connection.get_address();
     let signer = read_connection.get_signer();
     let client = blockchain_client.root();
-    let proposer_manager = RoundRobin::new(get_addresses().round_robin, client.clone());
+    let verified = VerifiedContracts::resolve_and_verify_contract(client, get_addresses())
+        .await
+        .map_err(|e| {
+            warn!("Contract verification failed: {e}");
+            warp::reject::custom(ProposerRejection::FailedToRotateProposer)
+        })?;
+    let proposer_manager = verified.round_robin;
 
     let nonce = blockchain_client
         .get_transaction_count(caller)
@@ -133,7 +148,13 @@ async fn handle_remove_proposer() -> Result<impl Reply, warp::Rejection> {
     let signer_address = read_connection.get_address();
     let signer = read_connection.get_signer();
     let client = blockchain_client.root();
-    let proposer_manager = RoundRobin::new(get_addresses().round_robin, client.clone());
+    let verified = VerifiedContracts::resolve_and_verify_contract(client, get_addresses())
+        .await
+        .map_err(|e| {
+            warn!("Contract verification failed: {e}");
+            warp::reject::custom(ProposerRejection::FailedToRotateProposer)
+        })?;
+    let proposer_manager = verified.round_robin;
 
     // Read penalty + cooling config from settings
     let settings = get_settings();
@@ -222,7 +243,14 @@ async fn handle_withdraw(amount: u64) -> Result<impl Reply, warp::Rejection> {
     let blockchain_client = read_connection.get_client();
     let caller = read_connection.get_address();
     let signer = read_connection.get_signer();
-    let proposer_manager = RoundRobin::new(get_addresses().round_robin, blockchain_client.root());
+    let verified =
+        VerifiedContracts::resolve_and_verify_contract(blockchain_client.root(), get_addresses())
+            .await
+            .map_err(|e| {
+                warn!("Contract verification failed: {e}");
+                warp::reject::custom(ProposerRejection::FailedToRotateProposer)
+            })?;
+    let proposer_manager = verified.round_robin;
     // attemp to withdraw the stake
     let nonce = blockchain_client
         .get_transaction_count(caller)

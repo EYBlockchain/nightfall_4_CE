@@ -4095,6 +4095,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "hex-literal"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e712f64ec3850b98572bffac52e2c6f282b29fe6c5fa6d42334b30be438d95c1"
+
+[[package]]
 name = "hickory-proto"
 version = "0.25.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5062,8 +5068,10 @@ dependencies = [
  "bincode",
  "configuration",
  "dotenv",
+ "eyre",
  "futures",
  "hex",
+ "hex-literal",
  "itertools 0.14.0",
  "jf-plonk",
  "jf-primitives",
@@ -5496,6 +5504,8 @@ dependencies = [
  "alloy",
  "configuration",
  "log",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

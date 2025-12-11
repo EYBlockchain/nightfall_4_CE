@@ -19,6 +19,7 @@ pub mod tests_utils;
 pub mod utils;
 pub mod validate_certificate;
 pub mod validate_keys;
+pub mod verify_contract;
 pub mod wallets;
 
 use alloy::dyn_abi::abi::encode;
