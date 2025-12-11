@@ -17,6 +17,7 @@ use lib::{
     blockchain_client::BlockchainClientConnection,
     error::{ConversionError, EventHandlerError, NightfallContractError},
     nf_client_proof::Proof,
+    verify_contract::VerifiedContracts,
 };
 use log::{debug, error, info, warn};
 use nightfall_bindings::artifacts::RoundRobin;
@@ -211,8 +212,14 @@ where
         .get_client()
         .clone();
     let client = blockchain_client.root().clone();
-    let round_robin_instance =
-        Arc::new(RoundRobin::new(get_addresses().round_robin, client.clone()));
+    let verified = VerifiedContracts::resolve_and_verify_contract(client.clone(), get_addresses())
+        .await
+        .map_err(|e| {
+            NightfallContractError::ContractVerificationError(format!(
+                "Contract verification failed: {e}"
+            ))
+        })?;
+    let round_robin_instance = Arc::new(verified.round_robin.clone());
 
     let rr_addr = get_addresses().round_robin;
     let code = blockchain_client

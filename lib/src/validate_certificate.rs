@@ -2,6 +2,7 @@ use super::models::CertificateReq;
 use crate::{
     blockchain_client::BlockchainClientConnection, error::CertificateVerificationError,
     initialisation::get_blockchain_client_connection, models::bad_request,
+    verify_contract::VerifiedContracts,
 };
 use alloy::primitives::{Address, U256};
 use configuration::addresses::get_addresses;
@@ -144,8 +145,16 @@ pub async fn handle_certificate_validation(
         .get_address();
     trace!("Requestor address: {requestor_address}");
 
-    let x509_addr = get_addresses().x509;
-    let x509_instance = X509::new(x509_addr, blockchain_client.clone());
+    let verified =
+        VerifiedContracts::resolve_and_verify_contract(blockchain_client.clone(), get_addresses())
+            .await
+            .map_err(|e| {
+                error!("Contract verification failed: {e}");
+                warp::reject::custom(CertificateVerificationError::new(
+                    "Failed to verify contract implementation",
+                ))
+            })?;
+    let x509_instance = verified.x509;
 
     // 3) Build signature over the requester address
     debug!("Signing ethereum address {requestor_address} with certificate private key");
@@ -171,7 +180,6 @@ pub async fn handle_certificate_validation(
     let check_only = true;
 
     if let Err(err) = validate_certificate(
-        x509_addr,
         certificate_req.certificate.clone(),
         ethereum_address_signature.clone(),
         is_end_user,
@@ -194,7 +202,6 @@ pub async fn handle_certificate_validation(
     let check_only = false;
 
     if let Err(err) = validate_certificate(
-        x509_addr,
         certificate_req.certificate.clone(),
         ethereum_address_signature,
         is_end_user,
@@ -229,7 +236,6 @@ pub async fn handle_certificate_validation(
 }
 // Function to perform certificate validation via smart contract
 async fn validate_certificate(
-    x509_contract_address: Address,
     certificate: Vec<u8>,
     ethereum_address_signature: Vec<u8>,
     is_end_user: bool,
@@ -241,8 +247,14 @@ async fn validate_certificate(
     let provider = read_connection.get_client();
     let blockchain_client = provider.root();
     let caller = read_connection.get_address();
-
-    let x509_instance = X509::new(x509_contract_address, blockchain_client);
+    let verified =
+        VerifiedContracts::resolve_and_verify_contract(blockchain_client.clone(), get_addresses())
+            .await
+            .map_err(|e| {
+                error!("Contract verification failed: {e}");
+                Box::new(X509ValidationError) as Box<dyn std::error::Error>
+            })?;
+    let x509_instance = verified.x509;
 
     let compute_result = x509_instance
         .computeNumberOfTlvs(certificate.clone().into(), U256::ZERO)

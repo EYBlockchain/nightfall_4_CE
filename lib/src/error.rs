@@ -240,6 +240,7 @@ pub enum NightfallContractError {
     ConversionError(ConversionError),
     TransactionError,
     EscrowError(String),
+    ContractVerificationError(String),
     PoseidonError(PoseidonError),
     BlockNotFound(u64),
     ProviderError(String),
@@ -264,6 +265,9 @@ impl Display for NightfallContractError {
                 write!(f, "Did not receive a transaction receipt")
             }
             NightfallContractError::EscrowError(s) => write!(f, "Escrow Funds Error: {s}"),
+            NightfallContractError::ContractVerificationError(s) => {
+                write!(f, "Contract Verification Error: {s}")
+            }
             NightfallContractError::PoseidonError(e) => write!(f, "Hashing Error: {e}"),
             NightfallContractError::BlockNotFound(n) => {
                 write!(f, "Layer 2 block number {n} not found on-chain")
