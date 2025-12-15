@@ -147,6 +147,9 @@ contract RoundRobinTest is Test {
         assertEq(exists_proposer, true, "Proposer 2 URL doesn't  exists");
          // current proposer (address(this)) deregisters → pays exit penalty
         roundRobin.remove_proposer();
+        // check if the current proposer doesn't hold any stale pointers
+        assertEq(roundRobin.current.next_addr, default_proposer_address, "Next addr incorrect after removal");
+        assertEq(roundRobin.current.previous_addr, default_proposer_address, "Previous addr incorrect after removal");
         // check if proposer url is removed from mapping
         bool exists_proposer2 = roundRobin.proposer_urls(proposer2_url);
         assertEq(exists_proposer2, false, "Proposer 2 URL still exists");
