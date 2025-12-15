@@ -20,6 +20,7 @@ import "./X509/X509.sol";
 
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 enum OperationType {
     DEPOSIT,
@@ -93,7 +94,8 @@ contract Nightfall is
     IERC721Receiver,
     IERC165,
     IERC1155Receiver,
-    IERC3525Receiver
+    IERC3525Receiver,
+    ReentrancyGuard
 {
     
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -185,7 +187,7 @@ contract Nightfall is
      * This function is called by the proposer to submit a new L2 block. It's the main  *
      * entry point to the contract.                                                     *
      ************************************************************************************/
-    function propose_block(Block calldata blk) external virtual onlyCertified {
+    function propose_block(Block calldata blk) external virtual onlyCertified nonReentrant {
         require(
             proposer_manager.get_current_proposer_address() == msg.sender,
             "Only the current proposer can propose a block"
@@ -426,7 +428,7 @@ contract Nightfall is
         uint256 value,
         uint256 secretHash,
         TokenType token_type
-    ) external payable virtual onlyCertified {
+    ) external payable virtual onlyCertified nonReentrant {
         uint256 nfTokenId = sha256_and_shift(abi.encode(ercAddress, tokenId));
         tokenIdMapping[nfTokenId] = TokenIdValue(ercAddress, tokenId);
 
@@ -567,7 +569,7 @@ contract Nightfall is
     function descrow_funds(
         WithdrawData calldata data,
         TokenType token_type
-    ) external payable onlyCertified {
+    ) external payable onlyCertified nonReentrant {
         bytes32 key = keccak256(abi.encode(data));
         require(
             withdrawalIncluded[key] == 1,
@@ -584,10 +586,6 @@ contract Nightfall is
             return;
         }
 
-        // To avoid re-entrancy attacks, we set the withdrawalIncluded[key] to 0 before transferring the funds.
-        withdrawalIncluded[key] = 0;
-        bool success;
-
         if (token_type == TokenType.ERC1155) {
             IERC1155(original.erc_address).safeTransferFrom(
                 address(this),
@@ -596,7 +594,7 @@ contract Nightfall is
                 data.value,
                 ""
             );
-            success = true;
+            withdrawalIncluded[key] = 0;
         } else if (token_type == TokenType.ERC721) {
             require(
                 data.value == 0,
@@ -608,22 +606,13 @@ contract Nightfall is
                 original.token_id,
                 ""
             );
-            success = true;
+            withdrawalIncluded[key] = 0;
         } else if (token_type == TokenType.ERC20) {
             require(
                 original.token_id == 0,
                 "ERC20 tokens should have a tokenId of 0"
             );
-            success = IERC20(original.erc_address).transfer(
-                data.recipient_address,
-                data.value
-            );
-        }
-
-        // If the transfer failed, we revert the state change
-        // and set withdrawalIncluded[key] back to 1 so that the withdraw can be retried.
-        if (!success) {
-            withdrawalIncluded[key] = 1;
+            require(IERC20(original.erc_address).transfer(data.recipient_address, data.value), "ERC20 transfer failed"); 
         }
     }
 
