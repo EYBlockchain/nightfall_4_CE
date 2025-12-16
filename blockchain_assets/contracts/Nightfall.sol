@@ -612,7 +612,8 @@ contract Nightfall is
                 original.token_id == 0,
                 "ERC20 tokens should have a tokenId of 0"
             );
-            require(IERC20(original.erc_address).transfer(data.recipient_address, data.value), "ERC20 transfer failed"); 
+            require(IERC20(original.erc_address).transfer(data.recipient_address, data.value), "ERC20 Descrow-fund failed"); 
+            withdrawalIncluded[key] = 0;
         }
     }
 
