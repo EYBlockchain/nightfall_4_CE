@@ -8,18 +8,13 @@ use crate::{
         verify_nullifiers_gadgets::VerifyNullifiersCircuit,
     },
 };
-use alloy::{
-    dyn_abi::abi::encode,
-    primitives::{keccak256, U256},
-    sol_types::SolValue,
-};
 use ark_ec::{twisted_edwards::Affine, AffineRepr};
 use ark_ff::{One, PrimeField, Zero};
 use jf_plonk::errors::PlonkError;
 use jf_primitives::circuit::poseidon::PoseidonHashGadget;
 use jf_relation::{errors::CircuitError, gadgets::ecc::Point, Circuit, PlonkCircuit, Variable};
 use nf_curves::ed_on_bn254::{BabyJubjub, Fq as Fr254};
-use num_bigint::BigUint;
+
 
 /// This trait is used to construct a circuit verify the integrity of withdraw and transfer operations
 pub trait UnifiedCircuit {
