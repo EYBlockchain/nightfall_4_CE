@@ -17,6 +17,8 @@ pub fn get_settings() -> &'static Settings {
 #[allow(unused)]
 pub struct Network {
     pub chain_id: u64,
+    /// Max blocks per eth_getLogs query. if None, uses chain-specific defaults
+    pub log_chunk_size: Option<u64>,
 }
 #[derive(Debug, Deserialize, Serialize, Default, PartialEq, Clone, Eq)]
 #[serde(rename_all = "lowercase")]

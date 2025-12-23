@@ -363,7 +363,7 @@ impl NightfallContract for Nightfall::NightfallCalls {
         let event_sig = B256::from(keccak256("BlockProposed(int256)"));
         let filter = Filter::new()
             .address(nightfall_address)
-            .from_block(0u64)
+            .from_block(get_settings().genesis_block as u64)
             .to_block(latest_block)
             .event_signature(event_sig)
             .topic1(block_topic);

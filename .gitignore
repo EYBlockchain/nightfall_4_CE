@@ -19,3 +19,5 @@ soljson*
 configuration/toml
 remappings.txt
 local.env
+*.txt
+.env.*

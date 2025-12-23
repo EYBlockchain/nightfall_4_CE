@@ -69,7 +69,7 @@ pub fn get_log_chunk_size() -> u64 {
         // Ethereum mainnet & testnets
         1 | 5 | 11155111 => 5_000,
 
-        // Polygon & Mumbai
+        // Polygon, Mumbai, Amoy
         137 | 80001 | 80002 => 3_000,
 
         // BSC & BSC Testnet

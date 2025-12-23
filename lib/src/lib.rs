@@ -10,7 +10,7 @@ pub mod derive_key;
 pub mod error;
 pub mod health_check;
 pub mod hex_conversion;
-pub mod keys;
+pub mod log_fetcher;
 pub mod merkle_trees;
 pub mod models;
 pub mod nf_client_proof;
