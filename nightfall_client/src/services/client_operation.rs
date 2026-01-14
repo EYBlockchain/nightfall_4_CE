@@ -142,6 +142,7 @@ where
     // Construct Private Inputs [ Commitment value, salt, recipient public_key];
     let nf_address = get_addresses().nightfall();
     let nf_token_id = spend_commitments[0].get_nf_token_id();
+    let fee_token_id = get_fee_token_id();
     let (mut public_inputs, mut private_inputs) = (
         PublicInputs::new()
             .fee(new_commitments[2].get_value())
@@ -152,6 +153,7 @@ where
             .value(new_commitments[0].get_value())
             .nf_token_id(nf_token_id)
             .nf_slot_id(nf_slot_id)
+            .fee_token_id(fee_token_id)
             .nullifier_key(key.get_nullifier_key())
             .nullifiers_values(&spend_commitments.map(|c| c.get_value()))
             .nullifiers_salts(&spend_commitments.map(|c| c.get_salt()))
