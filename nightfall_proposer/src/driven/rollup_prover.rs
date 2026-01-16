@@ -45,7 +45,7 @@ use mongodb::{bson::doc, Client};
 
 use lib::{
     deposit_circuit::deposit_circuit_builder,
-    entities::DepositData,
+    shared_entities::DepositData,
     error::ConversionError,
     merkle_trees::trees::{MerkleTreeError, MutableTree, TreeMetadata},
     nf_client_proof::PublicInputs,

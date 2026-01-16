@@ -29,7 +29,6 @@ pub mod client_nf_3;
 pub mod client_operation;
 mod commitment;
 mod keys;
-pub mod models;
 pub mod proposers;
 mod request_status;
 mod synchronisation;

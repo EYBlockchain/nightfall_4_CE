@@ -19,7 +19,7 @@ use ark_ff::BigInteger;
 use lib::{
     blockchain_client::BlockchainClientConnection,
     contract_conversions::FrBn254,
-    entities::DepositData,
+    shared_entities::DepositData,
     error::EventHandlerError,
     get_fee_token_id,
     hex_conversion::HexConvertible,

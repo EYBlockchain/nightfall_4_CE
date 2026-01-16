@@ -1,15 +1,11 @@
 use crate::{
     domain::{
-        entities::{DepositSecret, Preimage, Salt},
         error::DepositError,
     },
     initialisation::get_db_connection,
     ports::{
-        commitments::{Commitment, Nullifiable},
         contracts::{NightfallContract, TokenContract},
         db::CommitmentDB,
-        keys::KeySpending,
-        secret_hash::SecretHash,
         trees::CommitmentTree,
     },
 };
@@ -20,10 +16,13 @@ use ark_std::Zero;
 use configuration::addresses::get_addresses;
 use jf_primitives::{poseidon::Poseidon, trees::MembershipProof};
 use lib::{
+    commitments::{Commitment, Nullifiable},
     get_fee_token_id,
     hex_conversion::HexConvertible,
+    keys::KeySpending,
     nf_client_proof::{PrivateInputs, Proof, ProvingEngine, PublicInputs},
-    shared_entities::{ClientTransaction, CompressedSecrets, TokenType},
+     secret_hash::SecretHash,
+    shared_entities::{DepositSecret, ClientTransaction, CompressedSecrets, Preimage, Salt, TokenType},
 };
 use log::{debug, error, info, warn};
 use nf_curves::ed_on_bn254::{BabyJubjub as BabyJubJub, Fr as BJJScalar};

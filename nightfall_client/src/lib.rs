@@ -3,11 +3,10 @@ pub mod driven;
 pub mod drivers;
 pub mod ports;
 pub mod services;
-pub mod test_helpers;
 
 use bip32::DerivationPath;
 use bip32::Mnemonic;
-use drivers::derive_key::ZKPKeys;
+use lib::derive_key::ZKPKeys;
 use std::sync::{Mutex, OnceLock};
 
 /// This function is used to retrieve the zkp keys

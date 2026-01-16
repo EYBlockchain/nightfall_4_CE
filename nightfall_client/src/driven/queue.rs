@@ -7,7 +7,6 @@ use crate::{
         },
         rest::{
             client_nf_3::handle_request,
-            models::{NF3DepositRequest, NF3TransferRequest, NF3WithdrawRequest},
         },
     },
     initialisation::get_db_connection,
@@ -18,6 +17,7 @@ use configuration::settings::get_settings;
 use lib::{
     nf_client_proof::{Proof, ProvingEngine},
     shared_entities::SynchronisationPhase::Desynchronized,
+    client_models::{NF3DepositRequest, NF3TransferRequest, NF3WithdrawRequest},
 };
 use log::{debug, error, info, warn};
 use std::{collections::VecDeque, time::Duration};

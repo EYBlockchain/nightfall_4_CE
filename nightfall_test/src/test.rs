@@ -20,29 +20,29 @@ use jf_primitives::{
 };
 use lib::{
     blockchain_client::BlockchainClientConnection,
+    client_models::{
+            DeEscrowDataReq, KeyRequest, NF3DepositRequest, NF3RecipientData, NF3TransferRequest,
+            NF3WithdrawRequest, WithdrawDataReq,
+        },
+    commitments::Commitment,
+    derive_key::ZKPKeys,
     error::NightfallContractError,
     hex_conversion::HexConvertible,
     initialisation::get_blockchain_client_connection,
     models::CertificateReq,
     nf_client_proof::{PrivateInputs, ProvingEngine, PublicInputs},
     plonk_prover::plonk_proof::{PlonkProof, PlonkProvingEngine},
+    secret_hash::SecretHash,
+    shared_entities::{DepositSecret, Preimage, Salt,},
 };
 use log::{debug, info};
 use nf_curves::ed_on_bn254::{BabyJubjub as BabyJubJub, Fr as BJJScalar};
 use nightfall_client::{
     domain::{
-        entities::{CommitmentStatus, DepositSecret, Preimage, Salt, TokenData},
+        entities::{CommitmentStatus, TokenData},
         notifications::NotificationPayload,
     },
     driven::db::mongo::CommitmentEntry,
-    drivers::{
-        derive_key::ZKPKeys,
-        rest::models::{
-            DeEscrowDataReq, KeyRequest, NF3DepositRequest, NF3RecipientData, NF3TransferRequest,
-            NF3WithdrawRequest, WithdrawDataReq,
-        },
-    },
-    ports::{commitments::Commitment, secret_hash::SecretHash},
 };
 use num_bigint::BigUint;
 use reqwest::{

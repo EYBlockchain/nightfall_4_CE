@@ -14,7 +14,7 @@ use bson::doc;
 use jf_primitives::poseidon::{FieldHasher, Poseidon};
 use lib::{
     blockchain_client::BlockchainClientConnection,
-    entities::DepositData,
+    shared_entities::DepositData,
     hex_conversion::HexConvertible,
     nf_client_proof::{Proof, PublicInputs},
     utils::get_block_size,

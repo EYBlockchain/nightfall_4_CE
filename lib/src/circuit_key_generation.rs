@@ -1,7 +1,7 @@
 use crate::{
     constants::MAX_KZG_DEGREE,
     deposit_circuit::deposit_circuit_builder,
-    entities::DepositData,
+    shared_entities::DepositData,
     nf_client_proof::PublicInputs,
     rollup_circuit_checks::{find_file_with_path, RollupKeyGenerator},
     utils::get_block_size,

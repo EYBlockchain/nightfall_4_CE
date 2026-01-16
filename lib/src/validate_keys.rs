@@ -15,7 +15,7 @@ use crate::{
     circuit_key_generation::{generate_rollup_keys_for_production, universal_setup_for_production},
     constants::MAX_KZG_DEGREE,
     deposit_circuit::deposit_circuit_builder,
-    entities::DepositData,
+    shared_entities::DepositData,
     error::KeyVerificationError,
     initialisation::get_blockchain_client_connection,
     nf_client_proof::PublicInputs,

@@ -1,17 +1,21 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
 use crate::{
-    domain::entities::Preimage,
     driven::db::mongo::CommitmentEntry,
     initialisation::get_db_connection,
     ports::{
-        commitments::Commitment,
         db::{CommitmentDB, CommitmentEntryDB},
     },
 };
 use ark_bn254::Fr as Fr254;
 use ark_ff::{BigInteger256, PrimeField, Zero};
-use lib::{contract_conversions::FrBn254, get_fee_token_id, hex_conversion::HexConvertible};
+use lib::{
+    commitments::Commitment,
+    contract_conversions::FrBn254, 
+    get_fee_token_id, 
+    hex_conversion::HexConvertible,
+    shared_entities::Preimage,
+};
 use log::{debug, trace};
 use mongodb::options::FindOneAndUpdateOptions;
 use mongodb::{Client, Database};

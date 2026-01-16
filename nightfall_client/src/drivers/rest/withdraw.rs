@@ -1,6 +1,9 @@
-use super::models::DeEscrowDataReq;
+use lib::{
+    client_models::DeEscrowDataReq,
+    shared_entities::WithdrawData as NFWithdrawData, 
+};
 use crate::{
-    domain::entities::WithdrawData as NFWithdrawData, ports::contracts::NightfallContract,
+    ports::contracts::NightfallContract,
 };
 use ::nightfall_bindings::artifacts::Nightfall;
 use log::{debug, error};

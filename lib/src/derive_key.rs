@@ -1,5 +1,3 @@
-use crate::ports::keys::KeySpending;
-
 use ark_bn254::Fr as Fr254;
 use ark_ec::twisted_edwards::Affine as TEAffine;
 use ark_ec::CurveGroup;
@@ -7,7 +5,7 @@ use ark_ff::{BigInteger, BigInteger256, Field, PrimeField};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use bip32::{DerivationPath, Mnemonic, XPrv};
 use jf_primitives::poseidon::{FieldHasher, Poseidon};
-use lib::serialization::{ark_de_hex, ark_se_hex};
+use crate::{keys::KeySpending, serialization::{ark_de_hex, ark_se_hex}};
 use nf_curves::ed_on_bn254::{
     BJJTEAffine as JubJub, BabyJubjub, Fr as BJJScalar, GENERATOR_X, GENERATOR_Y,
 };

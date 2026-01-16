@@ -4,10 +4,12 @@ use bip32::Mnemonic;
 use dotenv::dotenv;
 use inquire::Select;
 use inquire::Text;
-use lib::hex_conversion::HexConvertible;
-use nightfall_client::drivers::derive_key::ZKPPubKey;
-use nightfall_client::drivers::rest::models::{
-    NF3DepositRequest, NF3RecipientData, NF3TransferRequest, NF3WithdrawRequest,
+use lib::{
+    derive_key::ZKPPubKey,
+    hex_conversion::HexConvertible,
+    client_models::{
+        NF3DepositRequest, NF3RecipientData, NF3TransferRequest, NF3WithdrawRequest,
+    },   
 };
 use nightfall_test::validate_certs::validate_all_certificates;
 use reqwest::Client;

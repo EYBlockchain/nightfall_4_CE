@@ -4,8 +4,10 @@ use figment::{
     providers::{Format, Toml},
     Figment,
 };
-use lib::rollup_circuit_checks::find_file_with_path;
-use nightfall_client::drivers::rest::models::KeyRequest;
+use lib::{
+    client_models::KeyRequest,
+    rollup_circuit_checks::find_file_with_path
+};
 use serde::Deserialize;
 use std::{fs::File, io::Read, path::Path, sync::OnceLock};
 
