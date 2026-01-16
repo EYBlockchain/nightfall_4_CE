@@ -21,6 +21,7 @@ use lib::{
     error::EventHandlerError,
     hex_conversion::HexConvertible,
     initialisation::get_blockchain_client_connection,
+    log_fetcher::get_logs_paginated,
     shared_entities::{OnChainTransaction, SynchronisationPhase, SynchronisationStatus},
 };
 use log::{debug, info, warn};
@@ -115,10 +116,14 @@ pub async fn listen_for_events<N: NightfallContract>(
             .expect("could not get latest block number");
 
         if latest_block >= start_block as u64 {
-            let past_events = blockchain_client
-                .get_logs(&events_filter.clone().to_block(latest_block))
-                .await
-                .expect("could not get past events");
+            let past_events = get_logs_paginated(
+                blockchain_client.root(),
+                events_filter.clone(),
+                start_block as u64,
+                latest_block,
+            )
+            .await
+            .expect("could not get past events");
             log::info!("Found {} past events to process", past_events.len());
             for evt in past_events {
                 let event = match Nightfall::NightfallEvents::decode_log(&evt.inner) {

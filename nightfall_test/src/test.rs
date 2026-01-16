@@ -29,6 +29,7 @@ use lib::{
     error::NightfallContractError,
     hex_conversion::HexConvertible,
     initialisation::get_blockchain_client_connection,
+    log_fetcher::get_logs_paginated,
     models::CertificateReq,
     nf_client_proof::{PrivateInputs, ProvingEngine, PublicInputs},
     plonk_prover::plonk_proof::{PlonkProof, PlonkProvingEngine},
@@ -653,7 +654,7 @@ pub async fn get_l1_block_hash_of_layer2_block(
     block_number: I256,
 ) -> Result<B256, NightfallContractError> {
     let block_number = block_number - I256::ONE;
-    let client = get_blockchain_client_connection()
+    let blockchain_client = get_blockchain_client_connection()
         .await
         .read()
         .await
@@ -661,7 +662,7 @@ pub async fn get_l1_block_hash_of_layer2_block(
     let nightfall_address = get_addresses().nightfall();
     let block_topic = B256::from_slice(&block_number.to_be_bytes::<32>());
 
-    let latest_block = client.get_block_number().await.map_err(|e| {
+    let latest_block = blockchain_client.get_block_number().await.map_err(|e| {
         NightfallContractError::ProviderError(format!("get_block_number error: {e}"))
     })?;
 
@@ -673,10 +674,14 @@ pub async fn get_l1_block_hash_of_layer2_block(
         .event_signature(event_sig)
         .topic1(block_topic);
 
-    let logs = client
-        .get_logs(&filter)
-        .await
-        .map_err(|e| NightfallContractError::ProviderError(format!("Provider error: {e}")))?;
+    let logs = get_logs_paginated(
+        blockchain_client.root(),
+        filter.clone(),
+        get_settings().genesis_block as u64,
+        latest_block,
+    )
+    .await
+    .map_err(|e| NightfallContractError::ProviderError(format!("Provider error: {e}")))?;
 
     // get the first log, as we only check first l1 block which contains the block number
     let log = logs
@@ -687,7 +692,7 @@ pub async fn get_l1_block_hash_of_layer2_block(
     })?;
 
     // Fetch the full transaction to get block hash
-    let tx = client
+    let tx = blockchain_client
         .get_transaction_by_hash(tx_hash)
         .await
         .map_err(|e| NightfallContractError::ProviderError(format!("get_transaction error: {e}")))?

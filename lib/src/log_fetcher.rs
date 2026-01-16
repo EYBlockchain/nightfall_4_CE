@@ -3,9 +3,8 @@
 //! This module provides utilities to fetch blockchain logs with automatic pagination
 //! to handle RPC provider block range limits gracefully.
 
-use alloy::primitives::Log;
 use alloy::providers::Provider;
-use alloy::rpc::types::Filter;
+use alloy::rpc::types::{Filter, Log};
 use configuration::settings::get_settings;
 use log::{debug, warn};
 use std::error::Error;
@@ -58,11 +57,15 @@ pub fn get_log_chunk_size() -> u64 {
 
     // 1. Try config-specified chunk size first
     if let Some(chunk) = settings.network.log_chunk_size {
+        debug!(
+            "Using configured log_chunk_size: {} (chain_id: {})",
+            chunk, settings.network.chain_id
+        );
         return chunk;
     }
 
     // 2. Fall back to known defaults by chain ID
-    match settings.network.chain_id {
+    let chunk_size = match settings.network.chain_id {
         // Local development - no limits
         31337 => u64::MAX,
 
@@ -98,7 +101,20 @@ pub fn get_log_chunk_size() -> u64 {
 
         // Safe default for unknown chains
         _ => 5_000,
+    };
+
+    if chunk_size == u64::MAX {
+        debug!(
+            "Using chain-id default log_chunk_size: unlimited (chain_id: {})",
+            settings.network.chain_id
+        );
+    } else {
+        debug!(
+            "Using chain-id default log_chunk_size: {} (chain_id: {})",
+            chunk_size, settings.network.chain_id
+        );
     }
+    chunk_size
 }
 
 /// Returns the genesis block number from configuration.
@@ -140,6 +156,9 @@ pub async fn get_logs_paginated<P: Provider>(
 
     // If chunk size is unlimited (local dev), try single query first
     if initial_chunk_size == u64::MAX {
+        debug!(
+            "Chunk size is unlimited - fetching all logs in single query (blocks {from_block} to {to_block})"
+        );
         let filter = base_filter
             .clone()
             .from_block(from_block)
@@ -148,16 +167,23 @@ pub async fn get_logs_paginated<P: Provider>(
         return provider
             .get_logs(&filter)
             .await
-            .map(|logs| logs.into_iter().map(|l| l.inner).collect())
             .map_err(|e| LogFetchError::ProviderError(e.to_string()));
     }
+
+    let total_blocks = to_block.saturating_sub(from_block) + 1;
+    let estimated_chunks = total_blocks.div_ceil(initial_chunk_size);
+    debug!(
+        "Starting paginated log fetch: blocks {from_block} to {to_block} ({total_blocks} blocks total, chunk_size: {initial_chunk_size}, estimated {estimated_chunks} chunks)"
+    );
 
     let mut all_logs = Vec::new();
     let mut current_from = from_block;
     let mut chunk_size = initial_chunk_size;
     let min_chunk_size = 100u64;
+    let mut chunk_count = 0u64;
 
     while current_from <= to_block {
+        chunk_count += 1;
         let current_to = current_from.saturating_add(chunk_size - 1).min(to_block);
 
         let filter = base_filter
@@ -166,12 +192,15 @@ pub async fn get_logs_paginated<P: Provider>(
             .to_block(current_to);
 
         debug!(
-            "Fetching logs from block {current_from} to {current_to} (chunk_size: {chunk_size})"
+            "[Chunk {chunk_count}/~{estimated_chunks}] Fetching logs: blocks {current_from} to {current_to} (chunk_size: {chunk_size})"
         );
 
         match provider.get_logs(&filter).await {
             Ok(logs) => {
-                all_logs.extend(logs.into_iter().map(|l| l.inner));
+                let logs_in_chunk = logs.len();
+                let total_so_far = all_logs.len() + logs_in_chunk;
+                all_logs.extend(logs);
+                debug!("[Chunk {chunk_count}] Retrieved {logs_in_chunk} logs (total so far: {total_so_far})");
                 current_from = current_to.saturating_add(1);
             }
             Err(e) => {
@@ -205,7 +234,10 @@ pub async fn get_logs_paginated<P: Provider>(
         }
     }
 
-    debug!("Fetched {} total logs", all_logs.len());
+    let total_logs = all_logs.len();
+    debug!(
+        "Pagination complete: {total_logs} total logs fetched across {chunk_count} chunks (initial chunk_size: {initial_chunk_size}, final chunk_size: {chunk_size})"
+    );
     Ok(all_logs)
 }
 
