@@ -1,11 +1,8 @@
-use super::{
-    client_operation::handle_client_operation,
-};
+use super::client_operation::handle_client_operation;
 use crate::{
     domain::{
         entities::{
-            CommitmentStatus, ERCAddress, Operation, OperationType, 
-            RequestStatus, Transport,
+            CommitmentStatus, ERCAddress, Operation, OperationType, RequestStatus, Transport,
         },
         error::TransactionHandlerError,
         notifications::NotificationPayload,
@@ -964,7 +961,7 @@ mod tests {
     use ark_std::Zero;
     use lib::{
         client_models::NF3RecipientData,
-        plonk_prover::plonk_proof::{PlonkProof, PlonkProvingEngine}
+        plonk_prover::plonk_proof::{PlonkProof, PlonkProvingEngine},
     };
     use nf_curves::ed_on_bn254::BabyJubjub;
     use nf_curves::ed_on_bn254::Fq;

@@ -1,9 +1,9 @@
 use crate::{
     constants::MAX_KZG_DEGREE,
     deposit_circuit::deposit_circuit_builder,
-    shared_entities::DepositData,
     nf_client_proof::PublicInputs,
     rollup_circuit_checks::{find_file_with_path, RollupKeyGenerator},
+    shared_entities::DepositData,
     utils::get_block_size,
 };
 use ark_bn254::{Bn254, Fq as Fq254, Fr as Fr254, FrConfig};

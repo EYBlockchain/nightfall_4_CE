@@ -3,18 +3,13 @@
 use crate::{
     driven::db::mongo::CommitmentEntry,
     initialisation::get_db_connection,
-    ports::{
-        db::{CommitmentDB, CommitmentEntryDB},
-    },
+    ports::db::{CommitmentDB, CommitmentEntryDB},
 };
 use ark_bn254::Fr as Fr254;
 use ark_ff::{BigInteger256, PrimeField, Zero};
 use lib::{
-    commitments::Commitment,
-    contract_conversions::FrBn254, 
-    get_fee_token_id, 
-    hex_conversion::HexConvertible,
-    shared_entities::Preimage,
+    commitments::Commitment, contract_conversions::FrBn254, get_fee_token_id,
+    hex_conversion::HexConvertible, shared_entities::Preimage,
 };
 use log::{debug, trace};
 use mongodb::options::FindOneAndUpdateOptions;

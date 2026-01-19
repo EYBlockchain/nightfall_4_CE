@@ -1,3 +1,12 @@
+use crate::{
+    commitments::Commitment,
+    derive_key::ZKPKeys,
+    hex_conversion::HexConvertible,
+    nf_client_proof::{PrivateInputs, PublicInputs},
+    nf_token_id::to_nf_token_id_from_str,
+    secret_hash::SecretHash,
+    shared_entities::{DepositSecret, Preimage, Salt},
+};
 use alloy::primitives::{hex, keccak256};
 use ark_bn254::Fr as Fr254;
 use ark_ec::twisted_edwards::Affine as TEAffine;
@@ -8,15 +17,6 @@ use ark_std::{
 use jf_primitives::{
     poseidon::Poseidon,
     trees::{Directions, MembershipProof, PathElement, TreeHasher},
-};
-use crate::{
-    commitments::Commitment,
-    derive_key::ZKPKeys,
-    hex_conversion::HexConvertible,
-    nf_client_proof::{PrivateInputs, PublicInputs},
-    nf_token_id::to_nf_token_id_from_str,
-    secret_hash::SecretHash,
-    shared_entities::{DepositSecret, Preimage, Salt},
 };
 use nf_curves::ed_on_bn254::{BabyJubjub as BabyJubJub, Fr as BJJScalar};
 use num_bigint::BigUint;

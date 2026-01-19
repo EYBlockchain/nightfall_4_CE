@@ -45,13 +45,13 @@ use mongodb::{bson::doc, Client};
 
 use lib::{
     deposit_circuit::deposit_circuit_builder,
-    shared_entities::DepositData,
     error::ConversionError,
     merkle_trees::trees::{MerkleTreeError, MutableTree, TreeMetadata},
     nf_client_proof::PublicInputs,
     plonk_prover::{get_client_proving_key, plonk_proof::PlonkProof},
     rollup_circuit_checks::{get_configuration_path, RollupKeyGenerator},
     serialization::{ark_de_hex, ark_se_hex},
+    shared_entities::DepositData,
     utils::load_key_from_server,
 };
 use serde::{Deserialize, Serialize};

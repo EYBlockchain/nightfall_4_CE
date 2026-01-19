@@ -1,11 +1,11 @@
 use crate::ports::key_provider::KeyProvider;
 use ark_bn254::Fr as Fr254;
 use ark_ff::BigInteger256;
+use lib::hex_conversion::HexConvertible;
 use lib::{
     error::HexError,
     serialization::{ark_de_hex, ark_se_hex},
 };
-use lib::hex_conversion::HexConvertible;
 use nf_curves::ed_on_bn254::Fr as BJJScalar;
 use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};

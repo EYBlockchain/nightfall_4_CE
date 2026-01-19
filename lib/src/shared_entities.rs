@@ -9,14 +9,14 @@ use alloy::primitives::Address;
 use ark_bn254::Fr as Fr254;
 use ark_ec::twisted_edwards::Affine as TEAffine;
 use ark_serialize::SerializationError;
+use ark_std::UniformRand;
 use jf_primitives::poseidon::{FieldHasher, Poseidon, PoseidonError};
 use log::{error, warn};
+use nf_curves::ed_on_bn254::BabyJubjub as BabyJubJub;
 use nightfall_bindings::artifacts::Nightfall;
-use ark_std::UniformRand;
 use serde::{Deserialize, Serialize};
 use sha3::{Digest, Keccak256};
 use std::fmt::Debug;
-use nf_curves::ed_on_bn254::BabyJubjub as BabyJubJub;
 
 /// Struct used to represent deposit data, used in making deposit proofs by the proposer.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq)]

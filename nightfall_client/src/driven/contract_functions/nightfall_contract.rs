@@ -1,8 +1,5 @@
 //! Implementation of the [`NightfallContract`] trait from `ports/contracts.rs`.
-use crate::{
-    domain::entities::TokenData,
-    ports::contracts::NightfallContract,
-};
+use crate::{domain::entities::TokenData, ports::contracts::NightfallContract};
 use alloy::primitives::{keccak256, Address, B256, I256};
 use alloy::rpc::types::Filter;
 use alloy::{

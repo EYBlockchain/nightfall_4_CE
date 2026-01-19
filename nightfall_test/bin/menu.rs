@@ -5,11 +5,9 @@ use dotenv::dotenv;
 use inquire::Select;
 use inquire::Text;
 use lib::{
+    client_models::{NF3DepositRequest, NF3RecipientData, NF3TransferRequest, NF3WithdrawRequest},
     derive_key::ZKPPubKey,
     hex_conversion::HexConvertible,
-    client_models::{
-        NF3DepositRequest, NF3RecipientData, NF3TransferRequest, NF3WithdrawRequest,
-    },   
 };
 use nightfall_test::validate_certs::validate_all_certificates;
 use reqwest::Client;

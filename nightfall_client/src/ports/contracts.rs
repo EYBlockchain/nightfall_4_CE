@@ -1,15 +1,15 @@
 //! This module defines interfaces for different types of smart contract that NIghtfall 4 deals with.
 //! These mainly include token contracts and the "Nightfall" contract.
 
-use crate::domain::{
-    entities::TokenData,
-    error::TokenContractError,
-};
+use crate::domain::{entities::TokenData, error::TokenContractError};
 use alloy::primitives::{Address, I256};
 use ark_bn254::Fr as Fr254;
 use ark_ff::BigInteger256;
 use futures::Future;
-use lib::{error::NightfallContractError, shared_entities::{DepositSecret, TokenType, WithdrawData}};
+use lib::{
+    error::NightfallContractError,
+    shared_entities::{DepositSecret, TokenType, WithdrawData},
+};
 use nightfall_bindings::artifacts::Nightfall;
 
 /// Interface trait for a token contract.

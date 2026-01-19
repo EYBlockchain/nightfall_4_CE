@@ -7,18 +7,15 @@ use jf_plonk::{
     nightfall::{ipa_structs::VerificationKeyId, FFTPlonk},
     proof_system::UniversalSNARK,
 };
-use jf_primitives::{
-    pcs::prelude::*,
-    rescue::sponge::RescueCRHF,
-};
+use jf_primitives::{pcs::prelude::*, rescue::sponge::RescueCRHF};
 use lib::{
     build_transfer_inputs::build_valid_transfer_inputs,
     circuit_key_generation::{generate_rollup_keys_for_production, universal_setup_for_production},
     constants::MAX_KZG_DEGREE,
     deposit_circuit::deposit_circuit_builder,
-    shared_entities::{DepositData},
     nf_client_proof::PublicInputs,
     plonk_prover::circuits::unified_circuit::unified_circuit_builder,
+    shared_entities::DepositData,
 };
 use std::fs::File;
 fn main() {

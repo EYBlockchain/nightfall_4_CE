@@ -1,7 +1,5 @@
 use crate::{
-    domain::{
-        error::DepositError,
-    },
+    domain::error::DepositError,
     initialisation::get_db_connection,
     ports::{
         contracts::{NightfallContract, TokenContract},
@@ -21,8 +19,10 @@ use lib::{
     hex_conversion::HexConvertible,
     keys::KeySpending,
     nf_client_proof::{PrivateInputs, Proof, ProvingEngine, PublicInputs},
-     secret_hash::SecretHash,
-    shared_entities::{DepositSecret, ClientTransaction, CompressedSecrets, Preimage, Salt, TokenType},
+    secret_hash::SecretHash,
+    shared_entities::{
+        ClientTransaction, CompressedSecrets, DepositSecret, Preimage, Salt, TokenType,
+    },
 };
 use log::{debug, error, info, warn};
 use nf_curves::ed_on_bn254::{BabyJubjub as BabyJubJub, Fr as BJJScalar};

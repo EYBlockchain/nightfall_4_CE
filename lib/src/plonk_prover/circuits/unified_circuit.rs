@@ -15,7 +15,6 @@ use jf_primitives::circuit::poseidon::PoseidonHashGadget;
 use jf_relation::{errors::CircuitError, gadgets::ecc::Point, Circuit, PlonkCircuit, Variable};
 use nf_curves::ed_on_bn254::{BabyJubjub, Fq as Fr254};
 
-
 /// This trait is used to construct a circuit verify the integrity of withdraw and transfer operations
 pub trait UnifiedCircuit {
     // this function takes PrivateInputs (all except fee_token_id) and PublicInputs (fee and root specifically)

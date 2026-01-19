@@ -9,8 +9,8 @@ use ark_ff::{BigInteger, PrimeField};
 use ark_serialize::SerializationError;
 use lib::error::ConversionError;
 use lib::{
-    shared_entities::DepositData,
     nf_client_proof::{Proof, ProvingEngine, PublicInputs},
+    shared_entities::DepositData,
     shared_entities::OnChainTransaction,
 };
 

@@ -16,11 +16,11 @@ use crate::{
     circuit_key_generation::{generate_rollup_keys_for_production, universal_setup_for_production},
     constants::MAX_KZG_DEGREE,
     deposit_circuit::deposit_circuit_builder,
-    shared_entities::DepositData,
     error::KeyVerificationError,
     initialisation::get_blockchain_client_connection,
     nf_client_proof::PublicInputs,
     plonk_prover::circuits::unified_circuit::unified_circuit_builder,
+    shared_entities::DepositData,
     utils::get_block_size,
 };
 use alloy::primitives::{B256, U256};
@@ -811,7 +811,8 @@ fn regenerate_keys_for_production() -> Result<(), warp::Rejection> {
     let mut circuit = unified_circuit_builder(&mut public_inputs, &mut private_inputs)
         .map_err(|e| warp::reject::custom(KeyVerificationError::from(e)))?;
 
-    circuit.finalize_for_recursive_arithmetization::<RescueCRHF<Fq254>>()
+    circuit
+        .finalize_for_recursive_arithmetization::<RescueCRHF<Fq254>>()
         .map_err(|e| warp::reject::custom(KeyVerificationError::from(e)))?;
 
     // We prepare some dummy deposit data and later rollup them to build rollup keys.
@@ -836,7 +837,8 @@ fn regenerate_keys_for_production() -> Result<(), warp::Rejection> {
         Some(VerificationKeyId::Client),
         &circuit,
         true,
-    ).map_err(|e| {
+    )
+    .map_err(|e| {
         error!("Failed to preprocess unified circuit: {e}");
         warp::reject::custom(KeyVerificationError::new(
             "Error preprocessing unified circuit",
@@ -1186,8 +1188,14 @@ mod tests {
             .iter()
             .find(|s| s.name == "deposit_proving_key")
             .unwrap_or_else(|| panic!("Should have deposit_proving_key in specs: {specs:?}"));
-        assert_eq!(deposit_proving_key.url, format!("{config_url}/deposit_proving_key"));
-        assert_eq!(deposit_proving_key.out_path, out_dir.join("deposit_proving_key"));
+        assert_eq!(
+            deposit_proving_key.url,
+            format!("{config_url}/deposit_proving_key")
+        );
+        assert_eq!(
+            deposit_proving_key.out_path,
+            out_dir.join("deposit_proving_key")
+        );
         let proving_key = specs
             .iter()
             .find(|s| s.name == "proving_key")

@@ -1,9 +1,7 @@
 use crate::{
-    domain::entities::{
-        CommitmentStatus, Request, RequestCommitmentMapping, RequestStatus,
-    },
-    ports::db::{CommitmentDB, RequestCommitmentMappingDB, RequestDB, WithdrawalDB},
+    domain::entities::{CommitmentStatus, Request, RequestCommitmentMapping, RequestStatus},
     ports::db::CommitmentEntryDB,
+    ports::db::{CommitmentDB, RequestCommitmentMappingDB, RequestDB, WithdrawalDB},
 };
 use alloy::primitives::Address;
 use alloy::primitives::TxHash;
