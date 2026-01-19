@@ -12,6 +12,7 @@
 
 use crate::{
     blockchain_client::BlockchainClientConnection,
+    build_transfer_inputs::build_valid_transfer_inputs,
     circuit_key_generation::{generate_rollup_keys_for_production, universal_setup_for_production},
     constants::MAX_KZG_DEGREE,
     deposit_circuit::deposit_circuit_builder,
@@ -19,6 +20,7 @@ use crate::{
     error::KeyVerificationError,
     initialisation::get_blockchain_client_connection,
     nf_client_proof::PublicInputs,
+    plonk_prover::circuits::unified_circuit::unified_circuit_builder,
     utils::get_block_size,
 };
 use alloy::primitives::{B256, U256};
@@ -428,6 +430,16 @@ fn build_key_specs(configuration_url: &str, out_dir: &Path) -> anyhow::Result<Ve
             url: format!("{configuration_url}/base_grumpkin_pk"),
             out_path: out_dir.join("base_grumpkin_pk"),
         },
+        KeySpec {
+            name: "deposit_proving_key".into(),
+            url: format!("{configuration_url}/deposit_proving_key"),
+            out_path: out_dir.join("deposit_proving_key"),
+        },
+        KeySpec {
+            name: "proving_key".into(),
+            url: format!("{configuration_url}/proving_key"),
+            out_path: out_dir.join("proving_key"),
+        },
     ];
 
     let block_size = get_block_size().context("Failed to get block size")?;
@@ -794,6 +806,14 @@ fn regenerate_keys_for_production() -> Result<(), warp::Rejection> {
         ))
     })?;
 
+    let (mut public_inputs, mut private_inputs) =
+        build_valid_transfer_inputs(&mut ark_std::rand::thread_rng());
+    let mut circuit = unified_circuit_builder(&mut public_inputs, &mut private_inputs)
+        .map_err(|e| warp::reject::custom(KeyVerificationError::from(e)))?;
+
+    circuit.finalize_for_recursive_arithmetization::<RescueCRHF<Fq254>>()
+        .map_err(|e| warp::reject::custom(KeyVerificationError::from(e)))?;
+
     // We prepare some dummy deposit data and later rollup them to build rollup keys.
     let deposit_data = [DepositData::default(); 4];
     let mut deposit_public_inputs = PublicInputs::new();
@@ -803,6 +823,25 @@ fn regenerate_keys_for_production() -> Result<(), warp::Rejection> {
         .finalize_for_recursive_arithmetization::<RescueCRHF<Fq254>>()
         .map_err(|e| warp::reject::custom(KeyVerificationError::from(e)))?;
 
+    let path = std::env::current_dir()
+        .map_err(|e| {
+            error!("Failed to get current directory: {e}");
+            warp::reject::custom(KeyVerificationError::new("Error getting current directory"))
+        })?
+        .as_path()
+        .join("configuration");
+
+    let (unified_pk, _) = FFTPlonk::<UnivariateKzgPCS<Bn254>>::preprocess(
+        &kzg_srs,
+        Some(VerificationKeyId::Client),
+        &circuit,
+        true,
+    ).map_err(|e| {
+        error!("Failed to preprocess unified circuit: {e}");
+        warp::reject::custom(KeyVerificationError::new(
+            "Error preprocessing unified circuit",
+        ))
+    })?;
     let (deposit_pk, _) = FFTPlonk::<UnivariateKzgPCS<Bn254>>::preprocess(
         &kzg_srs,
         Some(VerificationKeyId::Deposit),
@@ -816,19 +855,19 @@ fn regenerate_keys_for_production() -> Result<(), warp::Rejection> {
         ))
     })?;
 
-    let path = std::env::current_dir()
-        .map_err(|e| {
-            error!("Failed to get current directory: {e}");
-            warp::reject::custom(KeyVerificationError::new("Error getting current directory"))
-        })?
-        .as_path()
-        .join("configuration");
-    let deposit_pk_path = path.join("bin/test/deposit_proving_key");
+    let deposit_pk_path = path.join("bin/deposit_proving_key");
+    let pk_path = path.join("bin/proving_key");
 
-    let mut file = File::create(deposit_pk_path.clone()).map_err(|e| {
+    let mut deposit_file = File::create(deposit_pk_path.clone()).map_err(|e| {
         error!("Failed to create deposit proving key file: {e}");
         warp::reject::custom(KeyVerificationError::new(
             "Error creating deposit proving key file",
+        ))
+    })?;
+    let mut unified_file = File::create(pk_path.clone()).map_err(|e| {
+        error!("Failed to create proving key file: {e}");
+        warp::reject::custom(KeyVerificationError::new(
+            "Error creating proving key file",
         ))
     })?;
     let mut deposit_compressed_bytes = Vec::new();
@@ -840,10 +879,26 @@ fn regenerate_keys_for_production() -> Result<(), warp::Rejection> {
                 "Error serializing deposit proving key",
             ))
         })?;
-    file.write_all(&deposit_compressed_bytes).map_err(|e| {
+    deposit_file.write_all(&deposit_compressed_bytes).map_err(|e| {
         error!("Failed to write deposit_compressed_bytes to file: {e}");
         warp::reject::custom(KeyVerificationError::new(
             "Error writing deposit_compressed_bytes to file",
+        ))
+    })?;
+
+    let mut unified_compressed_bytes = Vec::new();
+    unified_pk
+        .serialize_compressed(&mut unified_compressed_bytes)
+        .map_err(|e| {
+            error!("Failed to serialize unified proving key: {e}");
+            warp::reject::custom(KeyVerificationError::new(
+                "Error serializing unified proving key",
+            ))
+        })?;
+    unified_file.write_all(&unified_compressed_bytes).map_err(|e| {
+        error!("Failed to write unified_compressed_bytes to file: {e}");
+        warp::reject::custom(KeyVerificationError::new(
+            "Error writing unified_compressed_bytes to file",
         ))
     })?;
 
@@ -935,6 +990,8 @@ mod tests {
             "base_grumpkin_pk".to_string(),
             "base_bn254_pk".to_string(),
             "decider_pk".to_string(),
+            "deposit_proving_key".to_string(),
+            "proving_key".to_string(),
         ];
         // Add merge_bn254_pk_0 .. merge_bn254_pk_{bn254_count-1}
         for i in 0..bn254_count {
@@ -1123,6 +1180,20 @@ mod tests {
         let config_url = "http://example.com";
         let specs = build_key_specs(config_url, &out_dir)
             .unwrap_or_else(|e| panic!("Failed to build key specs: {e:?}"));
+
+        // Should contain client keys with correct URLs and paths
+        let deposit_proving_key = specs
+            .iter()
+            .find(|s| s.name == "deposit_proving_key")
+            .unwrap_or_else(|| panic!("Should have deposit_proving_key in specs: {specs:?}"));
+        assert_eq!(deposit_proving_key.url, format!("{config_url}/deposit_proving_key"));
+        assert_eq!(deposit_proving_key.out_path, out_dir.join("deposit_proving_key"));
+        let proving_key = specs
+            .iter()
+            .find(|s| s.name == "proving_key")
+            .unwrap_or_else(|| panic!("Should have proving_key in specs: {specs:?}"));
+        assert_eq!(proving_key.url, format!("{config_url}/proving_key"));
+        assert_eq!(proving_key.out_path, out_dir.join("proving_key"));
 
         // Should contain base keys with correct URLs and paths
         let decider_pk = specs
