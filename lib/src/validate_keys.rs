@@ -196,17 +196,17 @@ async fn handle_keys_validation(params: FormParams) -> Result<impl Reply, warp::
         error!(
             "Verification failed - keys from the config server are incorrect. Response: {resp:?}"
         );
-        return Err(warp::reject::custom(KeyVerificationError::new(
+        Err(warp::reject::custom(KeyVerificationError::new(
             "Verification failed - keys from the config server are incorrect",
-        )));
+        )))
     } else if download_status && !onchain_status {
         error!("Verification failed - on-chain decider VK does not match regenerated local VK. Response: {resp:?}");
-        return Err(warp::reject::custom(KeyVerificationError::new(
+        Err(warp::reject::custom(KeyVerificationError::new(
             "Verification failed - on-chain decider VK does not match regenerated local VK",
-        )));
+        )))
     } else {
         error!("Verification failed - keys from the config server and onchain decider vk are incorrect. Response: {resp:?}.");
-        return Err(warp::reject::custom(KeyVerificationError::new("Verification failed - keys from the config server and onchain decider vk are incorrect")));
+        Err(warp::reject::custom(KeyVerificationError::new("Verification failed - keys from the config server and onchain decider vk are incorrect")))
     }
 }
 
