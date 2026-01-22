@@ -129,7 +129,7 @@ where
         let sub_tree_capacity = pow2_usize(metadata.sub_tree_height).ok_or_else(|| {
             Self::Error::Error("sub_tree_capacity too large to compute capacity safely".to_string())
         })?;
-        if leaves.len() % sub_tree_capacity != 0 {
+        if !leaves.len().is_multiple_of(sub_tree_capacity) {
             return Err(Self::Error::IncorrectBatchSize);
         }
         if leaves.is_empty() {

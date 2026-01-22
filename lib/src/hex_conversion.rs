@@ -94,7 +94,7 @@ impl HexConvertible for Vec<u8> {
 
     fn from_hex_string(hex_str: &str) -> Result<Vec<u8>, HexError> {
         let s_int = hex_str.strip_prefix("0x").unwrap_or(hex_str);
-        if s_int.len() % 2 != 0 || s_int.is_empty() {
+        if !s_int.len().is_multiple_of(2) || s_int.is_empty() {
             return Err(HexError::InvalidStringLength);
         }
         hex::decode(s_int).map_err(|_| HexError::InvalidString)

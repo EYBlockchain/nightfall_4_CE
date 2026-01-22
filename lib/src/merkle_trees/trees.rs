@@ -435,7 +435,7 @@ pub(crate) mod helper_functions {
             let mut pow1: usize = 2;
             let mut pow2: usize = pow1 << 1;
             while index == 0 {
-                if (leaf_index + 1 - pow1) % pow2 == 0 {
+                if (leaf_index + 1 - pow1).is_multiple_of(pow2) {
                     index = exp1;
                 } else {
                     pow1 = pow2;

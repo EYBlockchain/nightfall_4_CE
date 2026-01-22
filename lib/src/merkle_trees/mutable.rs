@@ -425,7 +425,7 @@ where
         let sub_tree_capacity = pow2_usize(metadata.sub_tree_height).ok_or_else(|| {
             Self::Error::Error("sub_tree_height too large to compute sub tree capacity".to_string())
         })?;
-        if leaves.len() % sub_tree_capacity != 0 {
+        if !leaves.len().is_multiple_of(sub_tree_capacity) {
             return Err(Self::Error::IncorrectBatchSize);
         }
         if leaves.is_empty() {
@@ -812,7 +812,7 @@ where
         let sub_tree_leaf_capacity = pow2_usize(metadata.sub_tree_height).ok_or_else(|| {
             Self::Error::Error("sub_tree_height too large to compute capacity safely".to_string())
         })?;
-        if commitments.len() % sub_tree_leaf_capacity != 0 {
+        if !commitments.len().is_multiple_of(sub_tree_leaf_capacity) {
             return Err(Self::Error::IncorrectBatchSize);
         }
         // call insert circuit for each sub_tree

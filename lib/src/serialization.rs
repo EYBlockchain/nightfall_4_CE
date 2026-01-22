@@ -125,7 +125,7 @@ where
             .map_err(serde::de::Error::custom)?;
     Ok(fr)
 }
-
+#[allow(dead_code)]
 struct FrWrapper(Fr);
 
 impl Serialize for FrWrapper {
