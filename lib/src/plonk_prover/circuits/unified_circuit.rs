@@ -8,18 +8,13 @@ use crate::{
         verify_nullifiers_gadgets::VerifyNullifiersCircuit,
     },
 };
-use alloy::{
-    dyn_abi::abi::encode,
-    primitives::{keccak256, U256},
-    sol_types::SolValue,
-};
 use ark_ec::{twisted_edwards::Affine, AffineRepr};
 use ark_ff::{One, PrimeField, Zero};
 use jf_plonk::errors::PlonkError;
 use jf_primitives::circuit::poseidon::PoseidonHashGadget;
 use jf_relation::{errors::CircuitError, gadgets::ecc::Point, Circuit, PlonkCircuit, Variable};
 use nf_curves::ed_on_bn254::{BabyJubjub, Fq as Fr254};
-use num_bigint::BigUint;
+
 
 /// This trait is used to construct a circuit verify the integrity of withdraw and transfer operations
 pub trait UnifiedCircuit {
@@ -57,23 +52,6 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
             .map_err(|_| {
                 CircuitError::ParameterError("Couldn't convert to fixed length array".to_string())
             })?;
-
-        // We need fee_token_id and nf_address to create commitments.
-        // fee_token_id should be similar to nf_token_id, so it should be private
-        // nf_address is similar to recipient_public_key, so it should be private too.
-        // because fee_token_id = keccak256_shift_right(nf_address, 0) >> 4
-        // if we give fee_token_id and nf_address as inputs, we need a keccak256_shift_right circuit to check if they are correct
-        // therefore, we just give nf_address as private input, and compute fee_token_id from nf_address and then make the result as private input
-        // this is similar to how to deal with commitment/nullifier verification
-        // (instead of asserting that input commitment/nullfiers are correct, we compute them from inputs and return them as public inputs)
-        // calculate fee_token_id from nf_address
-        let nf_address_token = private_inputs.nf_address.tokenize();
-        let u256_zero = U256::ZERO.tokenize();
-        let fee_token_id_biguint =
-            BigUint::from_bytes_be(keccak256(encode(&(nf_address_token, u256_zero))).as_slice())
-                >> 4;
-        let fee_token_id_field = Fr254::from(fee_token_id_biguint);
-        private_inputs.fee_token_id = fee_token_id_field;
 
         let PrivateInputsVar {
             fee_token_id,

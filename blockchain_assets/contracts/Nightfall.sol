@@ -20,6 +20,8 @@ import "./X509/X509.sol";
 
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+
 
 enum OperationType {
     DEPOSIT,
@@ -93,7 +95,8 @@ contract Nightfall is
     IERC721Receiver,
     IERC165,
     IERC1155Receiver,
-    IERC3525Receiver
+    IERC3525Receiver,
+    ReentrancyGuardUpgradeable
 {
     
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -134,6 +137,7 @@ contract Nightfall is
         address sanctionsListAddress
     ) public initializer {
         __UUPSUpgradeable_init();
+        __ReentrancyGuard_init();
         __Certified_init(msg.sender, x509_address, sanctionsListAddress);
 
         nullifierRoot = initialNullifierRoot;
@@ -148,7 +152,6 @@ contract Nightfall is
 
         verifier = addr_verifier;
 
-        // feeId = keccak256(abi.encode(address(this), 0)) >> 4
         uint256 computedFeeId;
         assembly {
             // Allocate memory pointer (free memory pointer)
@@ -185,7 +188,7 @@ contract Nightfall is
      * This function is called by the proposer to submit a new L2 block. It's the main  *
      * entry point to the contract.                                                     *
      ************************************************************************************/
-    function propose_block(Block calldata blk) external virtual onlyCertified {
+    function propose_block(Block calldata blk) external virtual onlyCertified nonReentrant {
         require(
             proposer_manager.get_current_proposer_address() == msg.sender,
             "Only the current proposer can propose a block"
@@ -426,7 +429,7 @@ contract Nightfall is
         uint256 value,
         uint256 secretHash,
         TokenType token_type
-    ) external payable virtual onlyCertified {
+    ) external payable virtual onlyCertified nonReentrant {
         uint256 nfTokenId = sha256_and_shift(abi.encode(ercAddress, tokenId));
         tokenIdMapping[nfTokenId] = TokenIdValue(ercAddress, tokenId);
 
@@ -450,6 +453,8 @@ contract Nightfall is
             feeBinding[key].escrowed == 0,
             "Funds have already been escrowed for this Deposit"
         );
+
+        feeBinding[key] = DepositFeeState(fee, 1, 0);
 
         if (token_type == TokenType.ERC3525) {
             ERC3525(ercAddress).transferFrom(
@@ -487,7 +492,6 @@ contract Nightfall is
             revert escrowFundsError();
         }
 
-        feeBinding[key] = DepositFeeState(fee, 1, 0);
         emit DepositEscrowed(nfSlotId, value);
 
         require( msg.value == fee || msg.value >= 2 * fee, "Invalid msg.value for fee or top-up" );
@@ -567,8 +571,9 @@ contract Nightfall is
     function descrow_funds(
         WithdrawData calldata data,
         TokenType token_type
-    ) external payable onlyCertified {
+    ) external payable onlyCertified nonReentrant {
         bytes32 key = keccak256(abi.encode(data));
+        // ---- CHECKS ----
         require(
             withdrawalIncluded[key] == 1,
             "Either no funds are available to withdraw, or they are already withdrawn"
@@ -577,6 +582,9 @@ contract Nightfall is
         // Now that we know the withdraw is present we get the actual erc-address and tokenId from our mapping.
         TokenIdValue memory original = tokenIdMapping[data.nf_token_id];
         if (original.erc_address == address(0)) {
+             // ---- EFFECTS ----
+            withdrawalIncluded[key] = 0;
+             // ---- INTERACTIONS ----
             (bool complete, ) = data.recipient_address.call{value: data.value}(
                 ""
             );
@@ -584,11 +592,31 @@ contract Nightfall is
             return;
         }
 
-        // To avoid re-entrancy attacks, we set the withdrawalIncluded[key] to 0 before transferring the funds.
+        // Perform token-type-specific checks
+        if (token_type == TokenType.ERC721) {
+            require(
+                data.value == 0,
+                "ERC721 tokens should have a value of zero"
+            );
+        } else if (token_type == TokenType.ERC20) {
+            require(
+                original.token_id == 0,
+                "ERC20 tokens should have a tokenId of 0"
+            );
+        }
+    
+        // ---- EFFECTS ----
+        // Update state before interacting with external contracts
         withdrawalIncluded[key] = 0;
-        bool success;
-
-        if (token_type == TokenType.ERC1155) {
+ 
+        // ---- INTERACTIONS ----
+        // Perform the token transfer based on token type
+        if (token_type == TokenType.ERC3525) {
+            uint256 id = IERC3525(original.erc_address).transferFrom(
+                original.token_id, 
+                data.recipient_address,
+                data.value);
+        } else if (token_type == TokenType.ERC1155) {
             IERC1155(original.erc_address).safeTransferFrom(
                 address(this),
                 data.recipient_address,
@@ -596,34 +624,15 @@ contract Nightfall is
                 data.value,
                 ""
             );
-            success = true;
         } else if (token_type == TokenType.ERC721) {
-            require(
-                data.value == 0,
-                "ERC721 tokens should have a value of zero"
-            );
             IERC721(original.erc_address).safeTransferFrom(
                 address(this),
                 data.recipient_address,
                 original.token_id,
                 ""
             );
-            success = true;
         } else if (token_type == TokenType.ERC20) {
-            require(
-                original.token_id == 0,
-                "ERC20 tokens should have a tokenId of 0"
-            );
-            success = IERC20(original.erc_address).transfer(
-                data.recipient_address,
-                data.value
-            );
-        }
-
-        // If the transfer failed, we revert the state change
-        // and set withdrawalIncluded[key] back to 1 so that the withdraw can be retried.
-        if (!success) {
-            withdrawalIncluded[key] = 1;
+            require(IERC20(original.erc_address).transfer(data.recipient_address, data.value), "ERC20 Descrow-fund failed"); 
         }
     }
 

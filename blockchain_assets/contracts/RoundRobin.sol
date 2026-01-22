@@ -286,12 +286,9 @@ contract RoundRobin is ProposerManager, Certified, UUPSUpgradeable {
         delete proposers[proposer_address];
 
         proposer_count--;
-
-        // we may now just have a single proposer. If this is the case, we need to link it to itself.
-        // it must also be the current proposer so we need to update the current proposer too.
-        if (proposer_count == 1) {
-            current = proposers[current.addr];
-        }
+        
+        // Refresh the `current` struct to ensure it has up-to-date pointers
+        current = proposers[current.addr];
     }
 
     function get_current_proposer_address()
