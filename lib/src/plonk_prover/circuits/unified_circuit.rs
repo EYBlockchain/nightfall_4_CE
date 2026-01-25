@@ -123,6 +123,19 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
         // Calculate the nullifierKeys and the zkpPublicKeys from the root key
         let zkp_pub_key =
             self.variable_base_scalar_mul::<BabyJubjub>(zkp_private_key, &pub_point)?;
+        // Verify that one of the public keys matches the zkp public key unless the public key is neutral point or nullifier value is zero
+        for i in 0..4 {
+            let is_neutral = self.is_neutral_point::<BabyJubjub>(&public_keys[i])?;
+            let is_zero_value = self.is_zero(nullifiers_values[i])?;
+            
+            let x_matches = self.is_equal(zkp_pub_key.get_x(), public_keys[i].get_x())?;
+            let y_matches = self.is_equal(zkp_pub_key.get_y(), public_keys[i].get_y())?;
+            let key_matches = self.logic_and(x_matches, y_matches)?;
+            
+            let skip = self.logic_or(is_neutral, is_zero_value)?;
+            let valid = self.logic_or(skip, key_matches)?;
+            self.enforce_true(valid.into())?;
+        }
 
         // Verify ownership to prevent double-spend
         for i in 0..4 {
