@@ -868,9 +868,7 @@ fn regenerate_keys_for_production() -> Result<(), warp::Rejection> {
     })?;
     let mut unified_file = File::create(pk_path.clone()).map_err(|e| {
         error!("Failed to create proving key file: {e}");
-        warp::reject::custom(KeyVerificationError::new(
-            "Error creating proving key file",
-        ))
+        warp::reject::custom(KeyVerificationError::new("Error creating proving key file"))
     })?;
     let mut deposit_compressed_bytes = Vec::new();
     deposit_pk
@@ -881,12 +879,14 @@ fn regenerate_keys_for_production() -> Result<(), warp::Rejection> {
                 "Error serializing deposit proving key",
             ))
         })?;
-    deposit_file.write_all(&deposit_compressed_bytes).map_err(|e| {
-        error!("Failed to write deposit_compressed_bytes to file: {e}");
-        warp::reject::custom(KeyVerificationError::new(
-            "Error writing deposit_compressed_bytes to file",
-        ))
-    })?;
+    deposit_file
+        .write_all(&deposit_compressed_bytes)
+        .map_err(|e| {
+            error!("Failed to write deposit_compressed_bytes to file: {e}");
+            warp::reject::custom(KeyVerificationError::new(
+                "Error writing deposit_compressed_bytes to file",
+            ))
+        })?;
 
     let mut unified_compressed_bytes = Vec::new();
     unified_pk
@@ -897,12 +897,14 @@ fn regenerate_keys_for_production() -> Result<(), warp::Rejection> {
                 "Error serializing unified proving key",
             ))
         })?;
-    unified_file.write_all(&unified_compressed_bytes).map_err(|e| {
-        error!("Failed to write unified_compressed_bytes to file: {e}");
-        warp::reject::custom(KeyVerificationError::new(
-            "Error writing unified_compressed_bytes to file",
-        ))
-    })?;
+    unified_file
+        .write_all(&unified_compressed_bytes)
+        .map_err(|e| {
+            error!("Failed to write unified_compressed_bytes to file: {e}");
+            warp::reject::custom(KeyVerificationError::new(
+                "Error writing unified_compressed_bytes to file",
+            ))
+        })?;
 
     generate_rollup_keys_for_production(deposit_circuit, deposit_pk_path, &kzg_srs).map_err(
         |e| {

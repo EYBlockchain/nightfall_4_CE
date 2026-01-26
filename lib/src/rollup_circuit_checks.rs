@@ -1,5 +1,6 @@
 //! This module contains the code for circuit checking. It builds a struct and implements the `RecursiveProver` trait from nightfish_CE and from the `ports` module.
 
+use anyhow::{Context, Result};
 use ark_bn254::{Bn254, Fq as Fq254, Fr as Fr254};
 use ark_ff::PrimeField;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
@@ -24,7 +25,6 @@ use jf_primitives::{
 };
 use jf_relation::{errors::CircuitError, Circuit, PlonkCircuit, Variable};
 use std::{env, fs::File, io::Write, path::PathBuf, vec};
-use anyhow::{Context, Result};
 
 /// Function that starts at the current working directory and returns the path to the configuration file.
 pub fn get_configuration_path() -> Option<PathBuf> {
@@ -43,28 +43,44 @@ pub fn get_configuration_path() -> Option<PathBuf> {
 pub fn get_client_proving_key_locally() -> Result<ProvingKey<UnivariateKzgPCS<Bn254>>> {
     let client_pk_path = Path::new("./configuration/bin/proving_key");
 
-    let source_file = find_file_with_path(client_pk_path)
-        .with_context(|| format!("Could not find proving key file at path: {}", client_pk_path.display()))?;
-    
-    let key_bytes = std::fs::read(&source_file)
-        .with_context(|| format!("Could not read proving key from file: {}", source_file.display()))?;
-    
+    let source_file = find_file_with_path(client_pk_path).with_context(|| {
+        format!(
+            "Could not find proving key file at path: {}",
+            client_pk_path.display()
+        )
+    })?;
+
+    let key_bytes = std::fs::read(&source_file).with_context(|| {
+        format!(
+            "Could not read proving key from file: {}",
+            source_file.display()
+        )
+    })?;
+
     ProvingKey::<UnivariateKzgPCS<Bn254>>::deserialize_compressed_unchecked(&*key_bytes)
-        .map_err(|e| anyhow::anyhow!("Could not deserialize proving key: {}", e))
+        .map_err(|e| anyhow::anyhow!("Could not deserialize proving key: {e}"))
 }
 
 /// Function that retrieves the deposit proving key from a local file.
 pub fn get_deposit_proving_key_locally() -> Result<ProvingKey<UnivariateKzgPCS<Bn254>>> {
     let deposit_pk_path = Path::new("./configuration/bin/deposit_proving_key");
 
-    let source_file = find_file_with_path(deposit_pk_path)
-        .with_context(|| format!("Could not find deposit proving key file at path: {}", deposit_pk_path.display()))?;
-    
-    let key_bytes = std::fs::read(&source_file)
-        .with_context(|| format!("Could not read deposit proving key from file: {}", source_file.display()))?;
-    
+    let source_file = find_file_with_path(deposit_pk_path).with_context(|| {
+        format!(
+            "Could not find deposit proving key file at path: {}",
+            deposit_pk_path.display()
+        )
+    })?;
+
+    let key_bytes = std::fs::read(&source_file).with_context(|| {
+        format!(
+            "Could not read deposit proving key from file: {}",
+            source_file.display()
+        )
+    })?;
+
     ProvingKey::<UnivariateKzgPCS<Bn254>>::deserialize_compressed_unchecked(&*key_bytes)
-        .map_err(|e| anyhow::anyhow!("Could not deserialize deposit proving key: {}", e))
+        .map_err(|e| anyhow::anyhow!("Could not deserialize deposit proving key: {e}"))
 }
 
 /// Function that searches for a file starting from the current working directory and moving up the directory tree.
