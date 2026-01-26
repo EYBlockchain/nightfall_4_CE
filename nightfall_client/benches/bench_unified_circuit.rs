@@ -294,7 +294,7 @@ fn build_valid_transfer_inputs() -> CircuitTestInfo {
             nullified_four.get_secret_preimage().to_array(),
         ])
         .zkp_private_key(keys.zkp_private_key)
-        .root_key(keys.root_key)      
+        .root_key(keys.root_key)
         .lambda(keys.lambda)
         .public_keys(&[
             nullified_one.get_public_key(),

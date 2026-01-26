@@ -57,7 +57,10 @@ where
         ])?;
 
         // Calculate the commitment's nullifier
-        let nullifier_1 = self.poseidon_hash(&[nullifiers_key, commitment_hash_1])?;
+        let secret_hash = self.poseidon_hash(&secret_preimages[0])?;
+        let neutral_point = self.is_neutral_point::<P>(&public_keys[0])?;
+        let key_to_use = self.conditional_select(neutral_point, nullifiers_key, secret_hash)?;
+        let nullifier_1 = self.poseidon_hash(&[key_to_use, commitment_hash_1])?;
 
         // Check if the nullifier is equal to the public transaction nullifier hash, or input commitment value is zero
         // Check if the Merkle root is equal to the supplied one.

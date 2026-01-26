@@ -16,8 +16,6 @@ use jf_relation::{errors::CircuitError, gadgets::ecc::Point, Circuit, PlonkCircu
 use nf_curves::ed_on_bn254::{BabyJubjub, Fq as Fr254};
 use num_bigint::BigUint;
 
-
-
 /// This trait is used to construct a circuit verify the integrity of withdraw and transfer operations
 pub trait UnifiedCircuit {
     // this function takes PrivateInputs (all except fee_token_id) and PublicInputs (fee and root specifically)
@@ -131,41 +129,45 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
         for i in 0..4 {
             let is_neutral = self.is_neutral_point::<BabyJubjub>(&public_keys[i])?;
             let is_zero_value = self.is_zero(nullifiers_values[i])?;
-            
+
             let x_matches = self.is_equal(zkp_pub_key.get_x(), public_keys[i].get_x())?;
             let y_matches = self.is_equal(zkp_pub_key.get_y(), public_keys[i].get_y())?;
             let key_matches = self.logic_and(x_matches, y_matches)?;
-            
+
             let skip = self.logic_or(is_neutral, is_zero_value)?;
             let valid = self.logic_or(skip, key_matches)?;
             self.enforce_true(valid.into())?;
-        }  
+        }
 
         // Constrain nullifier_key from root_key
-        let nullifier_prefix = self.create_constant_variable(
-            Fr254::from(BigUint::parse_bytes(
+        let nullifier_prefix = self.create_constant_variable(Fr254::from(
+            BigUint::parse_bytes(
                 b"7805187439118198468809896822299973897593108379494079213870562208229492109015",
-                10
-            ).unwrap())
-        )?;
+                10,
+            )
+            .unwrap(),
+        ))?;
         let nullifier_key = self.poseidon_hash(&[root_key, nullifier_prefix])?;
 
-
-        // Constrain zkp_private_key_fr254 from root_key  
-        let private_prefix = self.create_constant_variable(
-            Fr254::from(BigUint::parse_bytes(
+        // Constrain zkp_private_key_fr254 from root_key
+        let private_prefix = self.create_constant_variable(Fr254::from(
+            BigUint::parse_bytes(
                 b"2708019456231621178814538244712057499818649907582893776052749473028258908910",
-                10
-            ).unwrap())
-        )?;
+                10,
+            )
+            .unwrap(),
+        ))?;
         let expected_zkp_priv = self.poseidon_hash(&[root_key, private_prefix])?;
 
         // BJJ Scalar Order constant
-        let bjj_scalar_order = Fr254::from(BigUint::parse_bytes(
-            b"2736030358979909402780800718157159386076813972158567259200215660948447373041",
-            10
-        ).unwrap());
-        
+        let bjj_scalar_order = Fr254::from(
+            BigUint::parse_bytes(
+                b"2736030358979909402780800718157159386076813972158567259200215660948447373041",
+                10,
+            )
+            .unwrap(),
+        );
+
         self.lin_comb_gate(
             &[Fr254::one(), bjj_scalar_order],
             &Fr254::zero(),
@@ -174,7 +176,6 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
         )?;
         self.enforce_lt_constant(zkp_private_key, bjj_scalar_order)?;
         self.enforce_lt_constant(lambda, Fr254::from(8u64))?;
-        
 
         // Calculate the shared secret for the encryption/first commitment
         let shared_secret =
