@@ -88,7 +88,10 @@ where
             old_commitment_salts[1],
         ])?;
         // Calculate the commitment's nullifier
-        let nullifier_2 = self.poseidon_hash(&[nullifiers_key, commitment_hash_2])?;
+        let secret_hash_2 = self.poseidon_hash(&secret_preimages[1])?;
+        let neutral_point_2 = self.is_neutral_point::<P>(&public_keys[1])?;
+        let key_to_use_2 = self.conditional_select(neutral_point_2, nullifiers_key, secret_hash_2)?;
+        let nullifier_2 = self.poseidon_hash(&[key_to_use_2, commitment_hash_2])?;
 
         // Check if the nullifier is equal to the public transaction nullifier hash, or input commitment value is zero
         // Check if the Merkle root is equal to the supplied one.
@@ -124,7 +127,10 @@ where
         ])?;
 
         // Calculate the commitment's nullifier
-        let nullifier_3 = self.poseidon_hash(&[nullifiers_key, commitment_hash_3])?;
+        let secret_hash_3 = self.poseidon_hash(&secret_preimages[2])?;
+        let neutral_point_3 = self.is_neutral_point::<P>(&public_keys[2])?;
+        let key_to_use_3 = self.conditional_select(neutral_point_3, nullifiers_key, secret_hash_3)?;
+        let nullifier_3 = self.poseidon_hash(&[key_to_use_3, commitment_hash_3])?;
 
         // Check if the nullifier is equal to the public transaction nullifier hash, or input commitment value is zero
         // Check if the Merkle root is equal to the supplied one.
@@ -160,7 +166,10 @@ where
         ])?;
 
         // Calculate the commitment's nullifier
-        let nullifier_4 = self.poseidon_hash(&[nullifiers_key, commitment_hash_4])?;
+        let secret_hash_4 = self.poseidon_hash(&secret_preimages[3])?;
+        let neutral_point_4 = self.is_neutral_point::<P>(&public_keys[3])?;
+        let key_to_use_4 = self.conditional_select(neutral_point_4, nullifiers_key, secret_hash_4)?;
+        let nullifier_4 = self.poseidon_hash(&[key_to_use_4, commitment_hash_4])?;
 
         // Check if the nullifier is equal to the public transaction nullifier hash, or input commitment value is zero
         // Check if the Merkle root is equal to the supplied one.

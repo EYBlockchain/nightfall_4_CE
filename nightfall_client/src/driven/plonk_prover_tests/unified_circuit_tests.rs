@@ -442,10 +442,22 @@ mod tests {
             preimage_four.hash().unwrap(),
         ];
         let poseidon = Poseidon::<Fr254>::new();
-        let expected_nullifiers = spend_commitments.map(|c| {
-            poseidon
-                .hash(&[keys.nullifier_key, c.hash().unwrap()])
-                .unwrap()
+        let expected_nullifiers: [Fr254; 4] = [
+            (nullified_one, &nullified_one.get_secret_preimage()),
+            (nullified_two, &nullified_two.get_secret_preimage()),
+            (nullified_three, &nullified_three.get_secret_preimage()),
+            (nullified_four, &nullified_four.get_secret_preimage()),
+        ]
+        .map(|(c, secret)| {
+            let commitment_hash = c.hash().unwrap();
+            if c.get_public_key() == Affine::<BabyJubjub>::zero() {
+                // Deposit: use H(secret_preimage)
+                let secret_hash = poseidon.hash(&secret.to_array()).unwrap();
+                poseidon.hash(&[secret_hash, commitment_hash]).unwrap()
+            } else {
+                // Transfer: use nullifier_key
+                poseidon.hash(&[keys.nullifier_key, commitment_hash]).unwrap()
+            }
         });
 
         let expected_compressed_secrets: [Fr254; 5] = kemdem_encrypt::<false>(
@@ -680,10 +692,22 @@ mod tests {
             preimage_three.hash().unwrap(),
             preimage_four.hash().unwrap(),
         ];
-        let expected_nullifiers = spend_commitments.map(|c| {
-            poseidon
-                .hash(&[keys.nullifier_key, c.hash().unwrap()])
-                .unwrap()
+        let expected_nullifiers: [Fr254; 4] = [
+            (nullified_one, &nullified_one.get_secret_preimage()),
+            (nullified_two, &nullified_two.get_secret_preimage()),
+            (nullified_three, &nullified_three.get_secret_preimage()),
+            (nullified_four, &nullified_four.get_secret_preimage()),
+        ]
+        .map(|(c, secret)| {
+            let commitment_hash = c.hash().unwrap();
+            if c.get_public_key() == Affine::<BabyJubjub>::zero() {
+                // Deposit: use H(secret_preimage)
+                let secret_hash = poseidon.hash(&secret.to_array()).unwrap();
+                poseidon.hash(&[secret_hash, commitment_hash]).unwrap()
+            } else {
+                // Transfer: use nullifier_key
+                poseidon.hash(&[keys.nullifier_key, commitment_hash]).unwrap()
+            }
         });
 
         let expected_compressed_secrets: [Fr254; 5] = kemdem_encrypt::<true>(
