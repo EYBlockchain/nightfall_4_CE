@@ -87,6 +87,7 @@ pub struct ZKPKeys {
     pub root_key: Fr254,
     pub nullifier_key: Fr254,
     pub zkp_private_key: BJJScalar,
+    pub lambda: Fr254,
     pub zkp_public_key: JubJub,
 }
 
@@ -132,9 +133,17 @@ impl ZKPKeys {
 
         let nullifier_key: Fr254 = nullifier_key_bytes?;
 
+        let zkp_private_key_hash: Fr254 = zkp_private_key_bytes?;
         let zkp_private_key = BJJScalar::from_be_bytes_mod_order(
-            &BigInteger256::from(zkp_private_key_bytes?).to_bytes_be(),
+            &BigInteger256::from(zkp_private_key_hash).to_bytes_be(),
         );
+
+        let zkp_as_fr254 = Fr254::from(zkp_private_key.into_bigint());
+        let bjj_order = Fr254::from(BigUint::parse_bytes(
+            b"2736030358979909402780800718157159386076813972158567259200215660948447373041",
+            10
+        ).unwrap());
+        let lambda = (zkp_private_key_hash - zkp_as_fr254) / bjj_order;
 
         // let generator = JubJubAffine::new(GENERATOR_X, GENERATOR_Y);
         let generator = TEAffine::<BabyJubjub>::new(GENERATOR_X, GENERATOR_Y);
@@ -143,6 +152,7 @@ impl ZKPKeys {
             root_key,
             zkp_private_key,
             zkp_public_key,
+            lambda,
             nullifier_key,
         };
         Ok(zkp_keys)

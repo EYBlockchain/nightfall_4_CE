@@ -287,7 +287,6 @@ fn build_valid_transfer_inputs() -> CircuitTestInfo {
         .commitments_values(&[value_change, fee_change])
         .commitments_salts(&new_salts)
         .membership_proofs(&mem_proofs)
-        .nullifier_key(keys.nullifier_key)
         .secret_preimages(&[
             nullified_one.get_secret_preimage().to_array(),
             nullified_two.get_secret_preimage().to_array(),
@@ -295,6 +294,8 @@ fn build_valid_transfer_inputs() -> CircuitTestInfo {
             nullified_four.get_secret_preimage().to_array(),
         ])
         .zkp_private_key(keys.zkp_private_key)
+        .root_key(keys.root_key)      
+        .lambda(keys.lambda)
         .public_keys(&[
             nullified_one.get_public_key(),
             nullified_two.get_public_key(),

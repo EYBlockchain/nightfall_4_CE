@@ -8,7 +8,6 @@ use crate::{
         commitments::{Commitment, Nullifiable},
         contracts::{NightfallContract, TokenContract},
         db::CommitmentDB,
-        keys::KeySpending,
         secret_hash::SecretHash,
         trees::CommitmentTree,
     },
@@ -32,8 +31,9 @@ use nf_curves::ed_on_bn254::{BabyJubjub as BabyJubJub, Fr as BJJScalar};
 pub async fn client_operation<P, E>(
     spend_commitments: &[impl Nullifiable; 4],
     new_commitments: &[impl Commitment; 4],
-    key: impl KeySpending,
     zkp_private_key: BJJScalar,
+    root_key: Fr254,
+    lambda: Fr254,
     ephemeral_key: BJJScalar,
     withdraw_address: Fr254,
     secret_preimages: &[impl SecretHash; 4],
@@ -154,7 +154,6 @@ where
             .nf_token_id(nf_token_id)
             .nf_slot_id(nf_slot_id)
             .fee_token_id(fee_token_id)
-            .nullifier_key(key.get_nullifier_key())
             .nullifiers_values(&spend_commitments.map(|c| c.get_value()))
             .nullifiers_salts(&spend_commitments.map(|c| c.get_salt()))
             .commitments_values(&[
@@ -169,6 +168,8 @@ where
             .public_keys(&public_keys)
             .recipient_public_key(recipient_public_key)
             .zkp_private_key(zkp_private_key)
+            .root_key(root_key)
+            .lambda(lambda)
             .ephemeral_key(ephemeral_key)
             .membership_proofs(&fixed_proofs)
             .withdraw_address(withdraw_address)

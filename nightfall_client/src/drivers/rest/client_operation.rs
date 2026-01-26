@@ -5,7 +5,7 @@ use crate::{
         notifications::NotificationPayload,
     },
     driven::db::mongo::CommitmentEntry,
-    drivers::{derive_key::ZKPKeys, rest::models::NullifierKey},
+    drivers::derive_key::ZKPKeys,
     get_zkp_keys,
     initialisation::get_db_connection,
     ports::{
@@ -57,6 +57,8 @@ where
     // get the zkp keys from the global state. They will have been created when the keys were requested using a mnemonic
     let ZKPKeys {
         zkp_private_key,
+        root_key,
+        lambda,
         zkp_public_key,
         nullifier_key,
         ..
@@ -113,8 +115,9 @@ where
     let mut operation_result: ClientTransaction<P> = client_operation::<P, E>(
         &spend_commitments,
         &new_commitments,
-        NullifierKey(nullifier_key),
         zkp_private_key,
+        root_key,
+        lambda,
         ephemeral_private_key,
         recipient_address,
         &secret_preimages,

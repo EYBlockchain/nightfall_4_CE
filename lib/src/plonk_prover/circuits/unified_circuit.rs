@@ -14,6 +14,8 @@ use jf_plonk::errors::PlonkError;
 use jf_primitives::circuit::poseidon::PoseidonHashGadget;
 use jf_relation::{errors::CircuitError, gadgets::ecc::Point, Circuit, PlonkCircuit, Variable};
 use nf_curves::ed_on_bn254::{BabyJubjub, Fq as Fr254};
+use num_bigint::BigUint;
+
 
 
 /// This trait is used to construct a circuit verify the integrity of withdraw and transfer operations
@@ -66,8 +68,9 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
             commitments_salts,
             public_keys,
             recipient_public_key,
-            nullifier_key,
             zkp_private_key,
+            root_key,
+            lambda,
             ephemeral_key,
             withdraw_address,
             withdraw_flag,
@@ -120,9 +123,10 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
         let pub_point =
             self.create_point_variable(&Point::<Fr254>::from(Affine::<BabyJubjub>::generator()))?;
 
-        // Calculate the nullifierKeys and the zkpPublicKeys from the root key
+        // Calculate zkpPublicKey and constrain nullifier_key and zkp_private_key_fr254 from root_key
         let zkp_pub_key =
             self.variable_base_scalar_mul::<BabyJubjub>(zkp_private_key, &pub_point)?;
+
         // Verify that one of the public keys matches the zkp public key unless the public key is neutral point or nullifier value is zero
         for i in 0..4 {
             let is_neutral = self.is_neutral_point::<BabyJubjub>(&public_keys[i])?;
@@ -135,21 +139,42 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
             let skip = self.logic_or(is_neutral, is_zero_value)?;
             let valid = self.logic_or(skip, key_matches)?;
             self.enforce_true(valid.into())?;
-        }
+        }  
 
-        // Verify ownership to prevent double-spend
-        for i in 0..4 {
-            let is_neutral = self.is_neutral_point::<BabyJubjub>(&public_keys[i])?;
-            let is_zero_value = self.is_zero(nullifiers_values[i])?;
-            
-            let x_matches = self.is_equal(zkp_pub_key.get_x(), public_keys[i].get_x())?;
-            let y_matches = self.is_equal(zkp_pub_key.get_y(), public_keys[i].get_y())?;
-            let key_matches = self.logic_and(x_matches, y_matches)?;
-            
-            let skip = self.logic_or(is_neutral, is_zero_value)?;
-            let valid = self.logic_or(skip, key_matches)?;
-            self.enforce_true(valid.into())?;
-        }    
+        // Constrain nullifier_key from root_key
+        let nullifier_prefix = self.create_constant_variable(
+            Fr254::from(BigUint::parse_bytes(
+                b"7805187439118198468809896822299973897593108379494079213870562208229492109015",
+                10
+            ).unwrap())
+        )?;
+        let nullifier_key = self.poseidon_hash(&[root_key, nullifier_prefix])?;
+
+
+        // Constrain zkp_private_key_fr254 from root_key  
+        let private_prefix = self.create_constant_variable(
+            Fr254::from(BigUint::parse_bytes(
+                b"2708019456231621178814538244712057499818649907582893776052749473028258908910",
+                10
+            ).unwrap())
+        )?;
+        let expected_zkp_priv = self.poseidon_hash(&[root_key, private_prefix])?;
+
+        // BJJ Scalar Order constant
+        let bjj_scalar_order = Fr254::from(BigUint::parse_bytes(
+            b"2736030358979909402780800718157159386076813972158567259200215660948447373041",
+            10
+        ).unwrap());
+        
+        self.lin_comb_gate(
+            &[Fr254::one(), bjj_scalar_order],
+            &Fr254::zero(),
+            &[zkp_private_key, lambda],
+            &expected_zkp_priv,
+        )?;
+        self.enforce_lt_constant(zkp_private_key, bjj_scalar_order)?;
+        self.enforce_lt_constant(lambda, Fr254::from(8u64))?;
+        
 
         // Calculate the shared secret for the encryption/first commitment
         let shared_secret =
