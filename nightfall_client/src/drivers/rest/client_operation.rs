@@ -58,7 +58,6 @@ where
     let ZKPKeys {
         zkp_private_key,
         root_key,
-        lambda,
         zkp_public_key,
         nullifier_key,
         ..
@@ -117,7 +116,6 @@ where
         &new_commitments,
         zkp_private_key,
         root_key,
-        lambda,
         ephemeral_private_key,
         recipient_address,
         &secret_preimages,

@@ -33,7 +33,6 @@ pub async fn client_operation<P, E>(
     new_commitments: &[impl Commitment; 4],
     zkp_private_key: BJJScalar,
     root_key: Fr254,
-    lambda: Fr254,
     ephemeral_key: BJJScalar,
     withdraw_address: Fr254,
     secret_preimages: &[impl SecretHash; 4],
@@ -169,7 +168,6 @@ where
             .recipient_public_key(recipient_public_key)
             .zkp_private_key(zkp_private_key)
             .root_key(root_key)
-            .lambda(lambda)
             .ephemeral_key(ephemeral_key)
             .membership_proofs(&fixed_proofs)
             .withdraw_address(withdraw_address)

@@ -162,7 +162,6 @@ pub struct PrivateInputs {
     pub recipient_public_key: TEAffine<BabyJubjub>,
     pub zkp_private_key: BJJScalar,
     pub root_key: Fr254,
-    pub lambda: Fr254,
     pub ephemeral_key: Fr254,
     pub withdraw_address: Fr254,
     pub secret_preimages: [[Fr254; 3]; 4],
@@ -197,7 +196,6 @@ impl Default for PrivateInputs {
             recipient_public_key: TEAffine::<BabyJubjub>::generator(),
             zkp_private_key: BJJScalar::zero(),
             root_key: Fr254::zero(),
-            lambda: Fr254::zero(),
             ephemeral_key: Fr254::zero(),
             withdraw_address: Fr254::zero(),
             secret_preimages: [[Fr254::zero(); 3]; 4],
@@ -244,10 +242,7 @@ impl PrivateInputs {
         self.root_key = root_key;
         self
     }
-    pub fn lambda(&mut self, lambda: Fr254) -> &mut Self {
-        self.lambda = lambda;
-        self
-    }
+
     pub fn nullifiers_values(&mut self, nullifiers_values: &[Fr254; 4]) -> &mut Self {
         self.nullifiers_values = *nullifiers_values;
         self
@@ -322,7 +317,6 @@ impl PrivateInputs {
             recipient_public_key: self.recipient_public_key,
             zkp_private_key: self.zkp_private_key,
             root_key: self.root_key,
-            lambda: self.lambda,
             ephemeral_key: self.ephemeral_key,
             withdraw_address: self.withdraw_address,
             secret_preimages: self.secret_preimages,
@@ -360,8 +354,6 @@ pub struct PrivateInputsVar {
     pub zkp_private_key: Variable,
     /// Root key
     pub root_key: Variable,
-    /// Lambda
-    pub lambda: Variable,
     /// Ephemeral key
     pub ephemeral_key: Variable,
     /// The address to withdraw to in a withdraw
@@ -446,7 +438,6 @@ impl PrivateInputsVar {
         let zkp_private = fr_to_fq::<Fr254, BabyJubjub>(&private_inputs.zkp_private_key);
         let zkp_private_key = circuit.create_variable(zkp_private)?;
         let root_key = circuit.create_variable(private_inputs.root_key)?;
-        let lambda = circuit.create_variable(private_inputs.lambda)?;
         let ephemeral_key = circuit.create_variable(private_inputs.ephemeral_key)?;
         let withdraw_address = circuit.create_variable(private_inputs.withdraw_address)?;
         let withdraw_flag = circuit.is_zero(withdraw_address)?;
@@ -530,7 +521,6 @@ impl PrivateInputsVar {
             recipient_public_key,
             zkp_private_key,
             root_key,
-            lambda,
             ephemeral_key,
             withdraw_address,
             withdraw_flag,
