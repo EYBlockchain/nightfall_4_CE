@@ -11,7 +11,7 @@ use alloy::primitives::{hex, keccak256};
 use ark_bn254::Fr as Fr254;
 use ark_ec::twisted_edwards::Affine as TEAffine;
 use ark_std::{
-    rand::{self, Rng},
+    rand::{Rng},
     UniformRand,
 };
 use jf_primitives::{
@@ -61,11 +61,9 @@ fn rand_96_bit(rng: &mut impl Rng) -> Fr254 {
 }
 
 pub fn build_valid_transfer_inputs(rng: &mut impl Rng) -> (PublicInputs, PrivateInputs) {
-    let mut rng_erc_address = rand::thread_rng();
-    let erc_address: [u8; 20] = rng_erc_address.gen();
+    let erc_address: [u8; 20] = rng.gen();
     let erc_address_string = format!("0x{}", hex::encode(erc_address));
-    let mut rng_token_id = ark_std::rand::thread_rng();
-    let token_id_fr = Fr254::rand(&mut rng_token_id);
+    let token_id_fr = Fr254::rand(rng);
     let token_id_string = Fr254::to_hex_string(&token_id_fr);
 
     let nf_token_id = to_nf_token_id_from_str(&erc_address_string, &token_id_string).unwrap();
