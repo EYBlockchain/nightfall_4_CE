@@ -183,7 +183,7 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
         self.enforce_lt_constant(zkp_private_key, bjj_scalar_order)?;
         self.enforce_lt_constant(lambda, Fr254::from(8u64))?;// Verify BiiScaler Lambda is small
 
-        print!("Lambda constrained {}",self.witness(lambda)?);
+      
 
         // Calculate the shared secret for the encryption/first commitment
         let shared_secret =
