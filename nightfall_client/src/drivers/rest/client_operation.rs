@@ -56,7 +56,6 @@ where
 
     // get the zkp keys from the global state. They will have been created when the keys were requested using a mnemonic
     let ZKPKeys {
-        zkp_private_key,
         root_key,
         zkp_public_key,
         nullifier_key,
@@ -114,7 +113,6 @@ where
     let mut operation_result: ClientTransaction<P> = client_operation::<P, E>(
         &spend_commitments,
         &new_commitments,
-        zkp_private_key,
         root_key,
         ephemeral_private_key,
         recipient_address,

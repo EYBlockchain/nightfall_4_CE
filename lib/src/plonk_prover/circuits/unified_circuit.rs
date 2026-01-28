@@ -68,7 +68,6 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
             commitments_salts,
             public_keys,
             recipient_public_key,
-            zkp_private_key,
             root_key,
             ephemeral_key,
             withdraw_address,
@@ -122,24 +121,6 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
         let pub_point =
             self.create_point_variable(&Point::<Fr254>::from(Affine::<BabyJubjub>::generator()))?;
 
-        // Calculate zkpPublicKey and constrain nullifier_key and zkp_private_key_fr254 from root_key
-        let zkp_pub_key =
-            self.variable_base_scalar_mul::<BabyJubjub>(zkp_private_key, &pub_point)?;
-
-        // Verify that one of the public keys matches the zkp public key unless the public key is neutral point or nullifier value is zero
-        for i in 0..4 {
-            let is_neutral = self.is_neutral_point::<BabyJubjub>(&public_keys[i])?;
-            let is_zero_value = self.is_zero(nullifiers_values[i])?;
-
-            let x_matches = self.is_equal(zkp_pub_key.get_x(), public_keys[i].get_x())?;
-            let y_matches = self.is_equal(zkp_pub_key.get_y(), public_keys[i].get_y())?;
-            let key_matches = self.logic_and(x_matches, y_matches)?;
-
-            let skip = self.logic_or(is_neutral, is_zero_value)?;
-            let valid = self.logic_or(skip, key_matches)?;
-            self.enforce_true(valid.into())?;
-        }
-
         // Constrain nullifier_key from root_key
         let nullifier_prefix = self.create_constant_variable(Fr254::from(
             BigUint::parse_bytes(
@@ -159,15 +140,18 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
             .unwrap(),
         ))?;
         let expected_zkp_priv = self.poseidon_hash(&[root_key, private_prefix])?;
-
         let expected_zkp_priv_val = self.witness(expected_zkp_priv)?;
-        let zkp_private_key_val = self.witness(zkp_private_key)?;
 
         let hash_bigint = BigUint::from(BigInteger256::from(expected_zkp_priv_val));
-        let zkp_bigint = BigUint::from(BigInteger256::from(zkp_private_key_val));
         let bjj_order_bigint = BigUint::from(BJJScalar::MODULUS);
-        let lambda_val = Fr254::from((&hash_bigint - &zkp_bigint) / &bjj_order_bigint);
+        let zkp_private_key_val = Fr254::from(&hash_bigint % &bjj_order_bigint);
+        let zkp_private_key = self.create_variable(zkp_private_key_val)?;
 
+        // Calculate zkpPublicKey and constrain nullifier_key and zkp_private_key_fr254 from root_key
+        let zkp_pub_key =
+            self.variable_base_scalar_mul::<BabyJubjub>(zkp_private_key, &pub_point)?;
+
+        let lambda_val = Fr254::from(&hash_bigint / &bjj_order_bigint);
         let lambda = self.create_variable(lambda_val)?;
 
         // BJJ Scalar Order constant
@@ -181,6 +165,21 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
         )?;
         self.enforce_lt_constant(zkp_private_key, bjj_scalar_order)?;
         self.enforce_lt_constant(lambda, Fr254::from(8u64))?; // Verify BiiScaler Lambda is small
+
+
+        // Verify that one of the public keys matches the zkp public key unless the public key is neutral point or nullifier value is zero
+        for i in 0..4 {
+            let is_neutral = self.is_neutral_point::<BabyJubjub>(&public_keys[i])?;
+            let is_zero_value = self.is_zero(nullifiers_values[i])?;
+
+            let x_matches = self.is_equal(zkp_pub_key.get_x(), public_keys[i].get_x())?;
+            let y_matches = self.is_equal(zkp_pub_key.get_y(), public_keys[i].get_y())?;
+            let key_matches = self.logic_and(x_matches, y_matches)?;
+
+            let skip = self.logic_or(is_neutral, is_zero_value)?;
+            let valid = self.logic_or(skip, key_matches)?;
+            self.enforce_true(valid.into())?;
+        }
 
         // Calculate the shared secret for the encryption/first commitment
         let shared_secret =

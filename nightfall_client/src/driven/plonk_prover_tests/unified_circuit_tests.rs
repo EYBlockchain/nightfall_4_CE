@@ -384,7 +384,6 @@ mod tests {
                 nullified_three.get_secret_preimage().to_array(),
                 nullified_four.get_secret_preimage().to_array(),
             ])
-            .zkp_private_key(keys.zkp_private_key)
             .root_key(keys.root_key)
             .public_keys(&[
                 nullified_one.get_public_key(),
@@ -659,7 +658,6 @@ mod tests {
                 nullified_three.get_secret_preimage().to_array(),
                 nullified_four.get_secret_preimage().to_array(),
             ])
-            .zkp_private_key(keys.zkp_private_key)
             .root_key(keys.root_key)
             .public_keys(&[
                 nullified_one.get_public_key(),

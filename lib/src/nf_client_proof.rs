@@ -13,7 +13,6 @@ use jf_relation::{
     gadgets::ecc::{Point, PointVariable},
     BoolVar, Circuit, PlonkCircuit, Variable,
 };
-use jf_utils::fr_to_fq;
 use nf_curves::ed_on_bn254::{BabyJubjub, Fr as BJJScalar};
 use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
@@ -160,7 +159,6 @@ pub struct PrivateInputs {
     /// The public keys of the owners of the old commitments that will be nullified.
     pub public_keys: [TEAffine<BabyJubjub>; 4],
     pub recipient_public_key: TEAffine<BabyJubjub>,
-    pub zkp_private_key: BJJScalar,
     pub root_key: Fr254,
     pub ephemeral_key: Fr254,
     pub withdraw_address: Fr254,
@@ -194,7 +192,6 @@ impl Default for PrivateInputs {
             commitments_salts: [Fr254::zero(); 3],
             public_keys: [TEAffine::<BabyJubjub>::default(); 4],
             recipient_public_key: TEAffine::<BabyJubjub>::generator(),
-            zkp_private_key: BJJScalar::zero(),
             root_key: Fr254::zero(),
             ephemeral_key: Fr254::zero(),
             withdraw_address: Fr254::zero(),
@@ -234,10 +231,6 @@ impl PrivateInputs {
         self
     }
 
-    pub fn zkp_private_key(&mut self, zkp_private_key: BJJScalar) -> &mut Self {
-        self.zkp_private_key = zkp_private_key;
-        self
-    }
     pub fn root_key(&mut self, root_key: Fr254) -> &mut Self {
         self.root_key = root_key;
         self
@@ -315,7 +308,6 @@ impl PrivateInputs {
             commitments_salts: self.commitments_salts,
             public_keys: self.public_keys,
             recipient_public_key: self.recipient_public_key,
-            zkp_private_key: self.zkp_private_key,
             root_key: self.root_key,
             ephemeral_key: self.ephemeral_key,
             withdraw_address: self.withdraw_address,
@@ -350,8 +342,6 @@ pub struct PrivateInputsVar {
     pub public_keys: [PointVariable; 4],
     /// Recipient public key
     pub recipient_public_key: PointVariable,
-    /// ZKP private key
-    pub zkp_private_key: Variable,
     /// Root key
     pub root_key: Variable,
     /// Ephemeral key
@@ -435,8 +425,6 @@ impl PrivateInputsVar {
             .create_point_variable(&Point::<Fr254>::from(private_inputs.recipient_public_key))?;
         // The recipient_public_key should also not be in the small subgroup in the case of a transfer
         // and constrained to be the neutral point in the case of a withdraw.
-        let zkp_private = fr_to_fq::<Fr254, BabyJubjub>(&private_inputs.zkp_private_key);
-        let zkp_private_key = circuit.create_variable(zkp_private)?;
         let root_key = circuit.create_variable(private_inputs.root_key)?;
         let ephemeral_key = circuit.create_variable(private_inputs.ephemeral_key)?;
         let withdraw_address = circuit.create_variable(private_inputs.withdraw_address)?;
@@ -519,7 +507,6 @@ impl PrivateInputsVar {
             commitments_salts,
             public_keys,
             recipient_public_key,
-            zkp_private_key,
             root_key,
             ephemeral_key,
             withdraw_address,

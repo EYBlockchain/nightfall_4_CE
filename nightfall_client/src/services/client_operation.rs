@@ -31,7 +31,6 @@ use nf_curves::ed_on_bn254::{BabyJubjub as BabyJubJub, Fr as BJJScalar};
 pub async fn client_operation<P, E>(
     spend_commitments: &[impl Nullifiable; 4],
     new_commitments: &[impl Commitment; 4],
-    zkp_private_key: BJJScalar,
     root_key: Fr254,
     ephemeral_key: BJJScalar,
     withdraw_address: Fr254,
@@ -166,7 +165,6 @@ where
             ])
             .public_keys(&public_keys)
             .recipient_public_key(recipient_public_key)
-            .zkp_private_key(zkp_private_key)
             .root_key(root_key)
             .ephemeral_key(ephemeral_key)
             .membership_proofs(&fixed_proofs)
