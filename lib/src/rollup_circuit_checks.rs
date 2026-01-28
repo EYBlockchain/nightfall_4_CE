@@ -57,7 +57,7 @@ pub fn get_client_proving_key_locally() -> Result<ProvingKey<UnivariateKzgPCS<Bn
         )
     })?;
 
-    ProvingKey::<UnivariateKzgPCS<Bn254>>::deserialize_compressed_unchecked(&*key_bytes)
+    ProvingKey::<UnivariateKzgPCS<Bn254>>::deserialize_compressed(&*key_bytes)
         .map_err(|e| anyhow::anyhow!("Could not deserialize proving key: {e}"))
 }
 
@@ -79,7 +79,7 @@ pub fn get_deposit_proving_key_locally() -> Result<ProvingKey<UnivariateKzgPCS<B
         )
     })?;
 
-    ProvingKey::<UnivariateKzgPCS<Bn254>>::deserialize_compressed_unchecked(&*key_bytes)
+    ProvingKey::<UnivariateKzgPCS<Bn254>>::deserialize_compressed(&*key_bytes)
         .map_err(|e| anyhow::anyhow!("Could not deserialize deposit proving key: {e}"))
 }
 
