@@ -167,7 +167,7 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
         self.enforce_lt_constant(lambda, Fr254::from(8u64))?; // Verify BiiScaler Lambda is small
 
 
-        // Verify that one of the public keys 
+        // Verify that one of the public keys matches zkp_pub_key
         //(skip if neutral point or zero value)
         for i in 0..4 {
             let is_neutral = self.is_neutral_point::<BabyJubjub>(&public_keys[i])?;

@@ -1266,6 +1266,7 @@ pub fn build_valid_transfer_inputs(rng: &mut impl Rng) -> (PublicInputs, Private
             nullified_three.get_secret_preimage().to_array(),
             nullified_four.get_secret_preimage().to_array(),
         ])
+        .root_key(keys.root_key)
         .public_keys(&[
             nullified_one.get_public_key(),
             nullified_two.get_public_key(),
