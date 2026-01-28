@@ -10,10 +10,7 @@ use crate::{
 use alloy::primitives::{hex, keccak256};
 use ark_bn254::Fr as Fr254;
 use ark_ec::twisted_edwards::Affine as TEAffine;
-use ark_std::{
-    rand::{Rng},
-    UniformRand,
-};
+use ark_std::{rand::Rng, UniformRand};
 use jf_primitives::{
     poseidon::Poseidon,
     trees::{Directions, MembershipProof, PathElement, TreeHasher},
