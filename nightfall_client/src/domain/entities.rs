@@ -5,7 +5,7 @@ use crate::ports::{
 };
 use ark_bn254::Fr as Fr254;
 use ark_ec::twisted_edwards::Affine as TEAffine;
-use ark_ff::{BigInteger256,PrimeField};
+use ark_ff::{BigInteger256, PrimeField};
 use ark_std::UniformRand;
 use lib::{
     error::HexError,
@@ -310,7 +310,7 @@ impl Nullifiable for Preimage {
     fn nullifier_hash(&self, nullifier_key: &Fr254) -> Result<Fr254, PoseidonError> {
         let commitment_hash = self.hash()?;
         let poseidon: Poseidon<Fr254> = Poseidon::new();
-        
+
         let key = match &self.salt {
             Salt::Deposit(secret) if self.public_key == TEAffine::<BabyJubjub>::zero() => {
                 // Deposit: use hash(secret_preimage, DOMAIN)
@@ -327,7 +327,7 @@ impl Nullifiable for Preimage {
                 *nullifier_key
             }
         };
-        
+
         poseidon.hash(&[key, commitment_hash])
     }
 }

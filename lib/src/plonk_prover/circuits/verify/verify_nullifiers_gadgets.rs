@@ -64,9 +64,7 @@ where
             public_keys[0].get_y(),
             old_commitment_salts[0],
         ])?;
-        let deposit_domain = self.create_constant_variable(
-            deposit_nullifier_domain::<F>()
-        )?;
+        let deposit_domain = self.create_constant_variable(deposit_nullifier_domain::<F>())?;
         // Calculate the commitment's nullifier
         let deposit_nullifier_key_1 = self.poseidon_hash(&[
             secret_preimages[0][0],
@@ -75,7 +73,8 @@ where
             deposit_domain,
         ])?;
         let neutral_point = self.is_neutral_point::<P>(&public_keys[0])?;
-        let key_to_use = self.conditional_select(neutral_point, nullifiers_key, deposit_nullifier_key_1)?;
+        let key_to_use =
+            self.conditional_select(neutral_point, nullifiers_key, deposit_nullifier_key_1)?;
         let nullifier_1 = self.poseidon_hash(&[key_to_use, commitment_hash_1])?;
 
         // Check if the nullifier is equal to the public transaction nullifier hash, or input commitment value is zero
@@ -111,7 +110,8 @@ where
             deposit_domain,
         ])?;
         let neutral_point_2 = self.is_neutral_point::<P>(&public_keys[1])?;
-        let key_to_use_2 = self.conditional_select(neutral_point_2, nullifiers_key, deposit_nullifier_key_2)?;
+        let key_to_use_2 =
+            self.conditional_select(neutral_point_2, nullifiers_key, deposit_nullifier_key_2)?;
         let nullifier_2 = self.poseidon_hash(&[key_to_use_2, commitment_hash_2])?;
 
         // Check if the nullifier is equal to the public transaction nullifier hash, or input commitment value is zero
@@ -155,7 +155,8 @@ where
             deposit_domain,
         ])?;
         let neutral_point_3 = self.is_neutral_point::<P>(&public_keys[2])?;
-        let key_to_use_3 = self.conditional_select(neutral_point_3, nullifiers_key, deposit_nullifier_key_3)?;
+        let key_to_use_3 =
+            self.conditional_select(neutral_point_3, nullifiers_key, deposit_nullifier_key_3)?;
         let nullifier_3 = self.poseidon_hash(&[key_to_use_3, commitment_hash_3])?;
 
         // Check if the nullifier is equal to the public transaction nullifier hash, or input commitment value is zero
@@ -199,7 +200,8 @@ where
             deposit_domain,
         ])?;
         let neutral_point_4 = self.is_neutral_point::<P>(&public_keys[3])?;
-        let key_to_use_4 = self.conditional_select(neutral_point_4, nullifiers_key, deposit_nullifier_key_4)?;
+        let key_to_use_4 =
+            self.conditional_select(neutral_point_4, nullifiers_key, deposit_nullifier_key_4)?;
         let nullifier_4 = self.poseidon_hash(&[key_to_use_4, commitment_hash_4])?;
 
         // Check if the nullifier is equal to the public transaction nullifier hash, or input commitment value is zero

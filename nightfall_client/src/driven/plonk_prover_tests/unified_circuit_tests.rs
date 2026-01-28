@@ -451,16 +451,22 @@ mod tests {
             let commitment_hash = c.hash().unwrap();
             if c.get_public_key() == Affine::<BabyJubjub>::zero() {
                 // Deposit: use hash(preimage, DOMAIN)
-                let deposit_nullifier_key = poseidon.hash(&[
-                    secret.to_array()[0],
-                    secret.to_array()[1],
-                    secret.to_array()[2],
-                    Fr254::from_le_bytes_mod_order(b"DEPOSIT_NULLIFIER_V1"),
-                ]).unwrap();
-                poseidon.hash(&[deposit_nullifier_key, commitment_hash]).unwrap()
+                let deposit_nullifier_key = poseidon
+                    .hash(&[
+                        secret.to_array()[0],
+                        secret.to_array()[1],
+                        secret.to_array()[2],
+                        Fr254::from_le_bytes_mod_order(b"DEPOSIT_NULLIFIER_V1"),
+                    ])
+                    .unwrap();
+                poseidon
+                    .hash(&[deposit_nullifier_key, commitment_hash])
+                    .unwrap()
             } else {
                 // Transfer: use nullifier_key
-                poseidon.hash(&[keys.nullifier_key, commitment_hash]).unwrap()
+                poseidon
+                    .hash(&[keys.nullifier_key, commitment_hash])
+                    .unwrap()
             }
         });
 
@@ -705,16 +711,22 @@ mod tests {
             let commitment_hash = c.hash().unwrap();
             if c.get_public_key() == Affine::<BabyJubjub>::zero() {
                 // Deposit: use hash(preimage, DOMAIN)
-                let deposit_nullifier_key = poseidon.hash(&[
-                    secret.to_array()[0],
-                    secret.to_array()[1],
-                    secret.to_array()[2],
-                    Fr254::from_le_bytes_mod_order(b"DEPOSIT_NULLIFIER_V1"),
-                ]).unwrap();
-                poseidon.hash(&[deposit_nullifier_key, commitment_hash]).unwrap()
+                let deposit_nullifier_key = poseidon
+                    .hash(&[
+                        secret.to_array()[0],
+                        secret.to_array()[1],
+                        secret.to_array()[2],
+                        Fr254::from_le_bytes_mod_order(b"DEPOSIT_NULLIFIER_V1"),
+                    ])
+                    .unwrap();
+                poseidon
+                    .hash(&[deposit_nullifier_key, commitment_hash])
+                    .unwrap()
             } else {
                 // Transfer: use nullifier_key
-                poseidon.hash(&[keys.nullifier_key, commitment_hash]).unwrap()
+                poseidon
+                    .hash(&[keys.nullifier_key, commitment_hash])
+                    .unwrap()
             }
         });
 

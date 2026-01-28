@@ -9,15 +9,14 @@ use crate::{
     },
 };
 use ark_ec::{twisted_edwards::Affine, AffineRepr};
+use ark_ff::BigInteger256;
 use ark_ff::{One, PrimeField, Zero};
 use jf_plonk::errors::PlonkError;
 use jf_primitives::circuit::poseidon::PoseidonHashGadget;
 use jf_relation::{errors::CircuitError, gadgets::ecc::Point, Circuit, PlonkCircuit, Variable};
+use nf_curves::ed_on_bn254::Fr as BJJScalar;
 use nf_curves::ed_on_bn254::{BabyJubjub, Fq as Fr254};
 use num_bigint::BigUint;
-use nf_curves::ed_on_bn254::Fr as BJJScalar;
-use ark_ff::BigInteger256;
-
 
 /// This trait is used to construct a circuit verify the integrity of withdraw and transfer operations
 pub trait UnifiedCircuit {
@@ -173,7 +172,7 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
 
         // BJJ Scalar Order constant
         let bjj_scalar_order = Fr254::from(BJJScalar::MODULUS);
-    
+
         self.lin_comb_gate(
             &[Fr254::one(), bjj_scalar_order],
             &Fr254::zero(),
@@ -181,9 +180,7 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
             &expected_zkp_priv,
         )?;
         self.enforce_lt_constant(zkp_private_key, bjj_scalar_order)?;
-        self.enforce_lt_constant(lambda, Fr254::from(8u64))?;// Verify BiiScaler Lambda is small
-
-      
+        self.enforce_lt_constant(lambda, Fr254::from(8u64))?; // Verify BiiScaler Lambda is small
 
         // Calculate the shared secret for the encryption/first commitment
         let shared_secret =
@@ -368,17 +365,3 @@ pub fn unified_circuit_builder(
         circuit.assess_operation_integrity(public_input, private_input)?;
     Ok(circuit)
 }
-
-
-// #[test]
-// fn test_circuit_satisfiability() {
-//     let mut circuit_test_info = build_valid_transfer_inputs();
-//     let circuit = unified_circuit_builder(
-//         &mut circuit_test_info.public_inputs,
-//         &mut circuit_test_info.private_inputs,
-//     )
-//     .unwrap();
-
-//     let pi = circuit.public_input().unwrap();
-//     circuit.check_circuit_satisfiability(&pi).unwrap();
-// }
