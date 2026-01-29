@@ -14,10 +14,10 @@ use jf_primitives::{pcs::prelude::UnivariateKzgPCS, rescue::sponge::RescueCRHF};
 use jf_utils::fr_to_fq;
 use lib::{
     deposit_circuit::deposit_circuit_builder,
-    entities::DepositData,
     merkle_trees::trees::{MerkleTreeError, MutableTree, TreeMetadata},
     nf_client_proof::PublicInputs,
     plonk_prover::{get_client_proving_key, plonk_proof::PlonkProof},
+    shared_entities::DepositData,
 };
 use std::collections::HashMap;
 

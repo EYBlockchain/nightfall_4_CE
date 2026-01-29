@@ -5,10 +5,7 @@ use crate::{
         blockchain::{
             event_listener_manager::restart, nightfall_event_listener::get_synchronisation_status,
         },
-        rest::{
-            client_nf_3::handle_request,
-            models::{NF3DepositRequest, NF3TransferRequest, NF3WithdrawRequest},
-        },
+        rest::client_nf_3::handle_request,
     },
     initialisation::get_db_connection,
     ports::{contracts::NightfallContract, db::RequestDB},
@@ -16,6 +13,7 @@ use crate::{
 };
 use configuration::settings::get_settings;
 use lib::{
+    client_models::{NF3DepositRequest, NF3TransferRequest, NF3WithdrawRequest},
     nf_client_proof::{Proof, ProvingEngine},
     shared_entities::SynchronisationPhase::Desynchronized,
 };

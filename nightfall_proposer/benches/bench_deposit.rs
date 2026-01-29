@@ -11,8 +11,8 @@ use jf_primitives::pcs::prelude::UnivariateKzgPCS;
 use jf_relation::{Arithmetization, Circuit, PlonkCircuit};
 use jf_utils::test_rng;
 use lib::{
-    deposit_circuit::DepositCircuitGadget, entities::DepositData,
-    nf_token_id::to_nf_token_id_from_fr254,
+    deposit_circuit::DepositCircuitGadget, nf_token_id::to_nf_token_id_from_fr254,
+    shared_entities::DepositData,
 };
 use nf_curves::ed_on_bn254::Fq as Fr254;
 use std::time::{Duration, Instant};

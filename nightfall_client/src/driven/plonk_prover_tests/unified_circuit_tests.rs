@@ -1,11 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::{
-        domain::entities::{DepositSecret, Preimage, Salt},
-        driven::primitives::kemdem_functions::kemdem_encrypt,
-        drivers::derive_key::ZKPKeys,
-        ports::{commitments::Commitment, secret_hash::SecretHash},
-    };
+    use crate::driven::primitives::kemdem_functions::kemdem_encrypt;
     use alloy::{
         dyn_abi::abi::encode,
         primitives::{keccak256, Address, U256},
@@ -27,10 +22,14 @@ mod tests {
     };
     use jf_relation::{Arithmetization, Circuit};
     use lib::{
+        commitments::Commitment,
+        derive_key::ZKPKeys,
         hex_conversion::HexConvertible,
         nf_client_proof::{PrivateInputs, PublicInputs},
         nf_token_id::to_nf_token_id_from_str,
         plonk_prover::circuits::{unified_circuit::unified_circuit_builder, DOMAIN_SHARED_SALT},
+        secret_hash::SecretHash,
+        shared_entities::{DepositSecret, Preimage, Salt},
     };
     use nf_curves::ed_on_bn254::{BabyJubjub, Fq as Fr254, Fr as BJJScalar};
     use num_bigint::BigUint;

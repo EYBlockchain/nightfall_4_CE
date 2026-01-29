@@ -1,13 +1,13 @@
 use bip32::DerivationPath;
 use warp::{hyper::StatusCode, path, reject, reply, Filter, Rejection, Reply};
 
-use crate::{
-    drivers::derive_key::{ZKPKeys, ZKPPubKey},
-    get_zkp_keys,
-};
+use crate::get_zkp_keys;
 use bip32::Mnemonic;
 
-use super::models::KeyRequest;
+use lib::{
+    client_models::KeyRequest,
+    derive_key::{ZKPKeys, ZKPPubKey},
+};
 
 #[derive(Debug)]
 struct BadKeyRequest;
