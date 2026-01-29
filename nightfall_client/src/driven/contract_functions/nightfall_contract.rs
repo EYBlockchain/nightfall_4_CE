@@ -1,8 +1,5 @@
 //! Implementation of the [`NightfallContract`] trait from `ports/contracts.rs`.
-use crate::{
-    domain::entities::{DepositSecret, TokenData, WithdrawData},
-    ports::{contracts::NightfallContract, secret_hash::SecretHash},
-};
+use crate::{domain::entities::TokenData, ports::contracts::NightfallContract};
 use alloy::primitives::{keccak256, Address, B256, I256};
 use alloy::rpc::types::Filter;
 use alloy::{
@@ -21,7 +18,8 @@ use lib::{
     error::NightfallContractError,
     initialisation::get_blockchain_client_connection,
     nf_token_id::to_nf_token_id_from_solidity,
-    shared_entities::TokenType,
+    secret_hash::SecretHash,
+    shared_entities::{DepositSecret, TokenType, WithdrawData},
     verify_contract::VerifiedContracts,
 };
 use log::{debug, info};

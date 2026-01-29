@@ -1,15 +1,13 @@
-use crate::domain::entities::{CommitmentStatus, Preimage, Request, RequestStatus};
-
-use super::{
-    commitments::Commitment,
-    keys::{ProvingKey, VerifyingKey},
-};
-
+use crate::domain::entities::{CommitmentStatus, Request, RequestStatus};
 use alloy::primitives::TxHash;
 use ark_bn254::Fr as Fr254;
 use async_trait::async_trait;
 use futures::Future;
-use lib::shared_entities::Node;
+use lib::{
+    commitments::Commitment,
+    keys::{ProvingKey, VerifyingKey},
+    shared_entities::{Node, Preimage},
+};
 
 #[async_trait]
 pub trait RequestDB {

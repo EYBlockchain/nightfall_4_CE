@@ -87,7 +87,6 @@ pub async fn get_proxy_implementation<P: Provider>(
     Ok(Address::from(addr))
 }
 
-
 // Add the metadata stripping function
 fn strip_metadata_and_hash(bytecode: &[u8]) -> [u8; 32] {
     // Solidity metadata is at the end: 0xa2 0x64 'i' 'p' 'f' 's' 0x58 0x22 <32-byte-hash> 0x64 's' 'o' 'l' 'c' 0x43 <version> 0x00 0x33

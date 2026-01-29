@@ -1,6 +1,6 @@
 //! This module contains the code for generating the deposit proofs, these are made by the proposer because they deal with
 //! sha256 hashes within a circuit.
-use crate::{entities::DepositData, nf_client_proof::PublicInputs};
+use crate::{nf_client_proof::PublicInputs, shared_entities::DepositData};
 use ark_bn254::Fr as Fr254;
 use ark_ff::{PrimeField, Zero};
 use jf_primitives::circuit::{poseidon::PoseidonHashGadget, sha256::Sha256HashGadget};

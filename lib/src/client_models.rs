@@ -1,9 +1,10 @@
 use crate::{
-    domain::entities::{DepositSecret, WithdrawData},
-    ports::keys::KeySpending,
+    hex_conversion::HexConvertible,
+    keys::KeySpending,
+    nf_token_id::to_nf_token_id_from_str,
+    shared_entities::{DepositSecret, WithdrawData},
 };
 use ark_bn254::Fr as Fr254;
-use lib::{hex_conversion::HexConvertible, nf_token_id::to_nf_token_id_from_str};
 use serde::{Deserialize, Serialize};
 use std::{
     error::Error,
