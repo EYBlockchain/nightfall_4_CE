@@ -1,12 +1,8 @@
-use super::{
-    client_operation::handle_client_operation,
-    models::{NF3DepositRequest, NF3TransferRequest, NF3WithdrawRequest, NullifierKey},
-};
+use super::client_operation::handle_client_operation;
 use crate::{
     domain::{
         entities::{
-            CommitmentStatus, DepositSecret, ERCAddress, Operation, OperationType, Preimage,
-            RequestStatus, Salt, Transport,
+            CommitmentStatus, ERCAddress, Operation, OperationType, RequestStatus, Transport,
         },
         error::TransactionHandlerError,
         notifications::NotificationPayload,
@@ -15,14 +11,11 @@ use crate::{
         db::mongo::CommitmentEntry,
         queue::{get_queue, QueuedRequest, TransactionRequest},
     },
-    drivers::derive_key::ZKPKeys,
     get_zkp_keys,
     initialisation::get_db_connection,
     ports::{
-        commitments::{Commitment, Nullifiable},
         contracts::NightfallContract,
         db::{CommitmentDB, CommitmentEntryDB, RequestCommitmentMappingDB, RequestDB},
-        keys::KeySpending,
     },
     services::{
         client_operation::deposit_operation, commitment_selection::find_usable_commitments,
@@ -35,14 +28,18 @@ use ark_std::{rand::thread_rng, UniformRand};
 use configuration::{addresses::get_addresses, settings::get_settings};
 use jf_primitives::poseidon::{FieldHasher, Poseidon};
 use lib::{
+    client_models::{NF3DepositRequest, NF3TransferRequest, NF3WithdrawRequest, NullifierKey},
+    commitments::{Commitment, Nullifiable},
     contract_conversions::FrBn254,
+    derive_key::ZKPKeys,
     get_fee_token_id,
     hex_conversion::HexConvertible,
+    keys::KeySpending,
     nf_client_proof::{Proof, ProvingEngine},
     nf_token_id::to_nf_token_id_from_str,
     plonk_prover::circuits::DOMAIN_SHARED_SALT,
     serialization::ark_de_hex,
-    shared_entities::TokenType,
+    shared_entities::{DepositSecret, Preimage, Salt, TokenType},
 };
 use log::{debug, error, info};
 use nf_curves::ed_on_bn254::{BJJTEAffine as JubJub, BabyJubjub, Fr as BJJScalar};
@@ -958,12 +955,14 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::super::models::NF3RecipientData;
     use super::*;
     use ark_ff::One;
     use ark_serialize::{CanonicalSerialize, Compress};
     use ark_std::Zero;
-    use lib::plonk_prover::plonk_proof::{PlonkProof, PlonkProvingEngine};
+    use lib::{
+        client_models::NF3RecipientData,
+        plonk_prover::plonk_proof::{PlonkProof, PlonkProvingEngine},
+    };
     use nf_curves::ed_on_bn254::BabyJubjub;
     use nf_curves::ed_on_bn254::Fq;
 

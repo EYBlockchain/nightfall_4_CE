@@ -1,9 +1,7 @@
 use crate::{
-    domain::entities::{
-        CommitmentStatus, Preimage, Request, RequestCommitmentMapping, RequestStatus, WithdrawData,
-    },
+    domain::entities::{CommitmentStatus, Request, RequestCommitmentMapping, RequestStatus},
+    ports::db::CommitmentEntryDB,
     ports::db::{CommitmentDB, RequestCommitmentMappingDB, RequestDB, WithdrawalDB},
-    ports::{commitments::Commitment, db::CommitmentEntryDB},
 };
 use alloy::primitives::Address;
 use alloy::primitives::TxHash;
@@ -18,8 +16,10 @@ use jf_primitives::{
 };
 use lib::hex_conversion::HexConvertible;
 use lib::{
+    commitments::Commitment,
     contract_conversions::FrBn254,
     serialization::{ark_de_hex, ark_se_hex},
+    shared_entities::{Preimage, WithdrawData},
 };
 use log::{debug, error, info};
 use mongodb::{
@@ -301,7 +301,7 @@ impl Commitment for CommitmentEntry {
     fn hash(&self) -> Result<Fr254, PoseidonError> {
         self.preimage.hash()
     }
-    fn get_secret_preimage(&self) -> crate::domain::entities::DepositSecret {
+    fn get_secret_preimage(&self) -> lib::shared_entities::DepositSecret {
         self.preimage.get_secret_preimage()
     }
 }

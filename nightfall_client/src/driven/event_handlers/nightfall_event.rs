@@ -1,6 +1,6 @@
 use crate::{
     domain::{
-        entities::{CommitmentStatus, Preimage, RequestStatus, Salt},
+        entities::{CommitmentStatus, RequestStatus},
         notifications::NotificationPayload,
     },
     driven::{
@@ -8,11 +8,9 @@ use crate::{
         notifier::webhook_notifier::WebhookNotifier,
         primitives::kemdem_functions::kemdem_decrypt,
     },
-    drivers::derive_key::ZKPKeys,
     get_zkp_keys,
     initialisation::get_db_connection,
     ports::{
-        commitments::{Commitment, Nullifiable},
         contracts::NightfallContract,
         db::{CommitmentDB, CommitmentEntryDB, RequestCommitmentMappingDB, RequestDB},
         events::EventHandler,
@@ -29,11 +27,13 @@ use configuration::settings::get_settings;
 use alloy::primitives::{TxHash, I256, U256};
 use lib::{
     blockchain_client::BlockchainClientConnection,
+    commitments::{Commitment, Nullifiable},
     contract_conversions::FrBn254,
+    derive_key::ZKPKeys,
     error::EventHandlerError,
     hex_conversion::HexConvertible,
     initialisation::get_blockchain_client_connection,
-    shared_entities::{CompressedSecrets, OnChainTransaction},
+    shared_entities::{CompressedSecrets, OnChainTransaction, Preimage, Salt},
 };
 use log::{debug, error, info, warn};
 use nightfall_bindings::artifacts::Nightfall;

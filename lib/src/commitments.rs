@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use ark_bn254::Fr as Fr254;
 use nf_curves::ed_on_bn254::BJJTEAffine as JubJub;
 
-use crate::domain::entities::{DepositSecret, Preimage};
+use crate::shared_entities::{DepositSecret, Preimage};
 use jf_primitives::{poseidon::PoseidonError, trees::MembershipProof};
 
 pub trait Commitment: Debug {
