@@ -140,19 +140,15 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
             )
             .unwrap(),
         ))?;
-        let expected_zkp_priv = self.poseidon_hash(&[root_key, private_prefix])?;
-        let expected_zkp_priv_val = self.witness(expected_zkp_priv)?;
+        let fr_zkp_priv_key = self.poseidon_hash(&[root_key, private_prefix])?;
+        let fr_zkp_priv_key_val = self.witness(fr_zkp_priv_key)?;
 
-        let hash_bigint = BigUint::from(BigInteger256::from(expected_zkp_priv_val));
+        let hash_bigint = BigUint::from(BigInteger256::from(fr_zkp_priv_key_val));
         let bjj_order_bigint = BigUint::from(BJJScalar::MODULUS);
         let zkp_private_key_val = Fr254::from(&hash_bigint % &bjj_order_bigint);
         let zkp_private_key = self.create_variable(zkp_private_key_val)?;
 
-        // Calculate zkp_public_key from zkp_private_key
-        let zkp_pub_key =
-            self.variable_base_scalar_mul::<BabyJubjub>(zkp_private_key, &pub_point)?;
-
-        // Constrain zkp_private_key: zkp_private_key + lambda * BJJ_ORDER == expected_zkp_priv  
+        // Constrain zkp_private_key: zkp_private_key + lambda * BJJ_ORDER == fr_zkp_priv_key  
         let lambda_val = Fr254::from(&hash_bigint / &bjj_order_bigint);
         let lambda = self.create_variable(lambda_val)?;
         let bjj_scalar_order = Fr254::from(BJJScalar::MODULUS);
@@ -161,11 +157,14 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
             &[Fr254::one(), bjj_scalar_order],
             &Fr254::zero(),
             &[zkp_private_key, lambda],
-            &expected_zkp_priv,
+            &fr_zkp_priv_key,
         )?;
         self.enforce_lt_constant(zkp_private_key, bjj_scalar_order)?;
-        self.enforce_lt_constant(lambda, Fr254::from(8u64))?; // Verify BiiScaler Lambda is small
+        self.enforce_lt_constant(lambda, Fr254::from(8u64))?; 
 
+        // Calculate zkp_public_key from zkp_private_key
+        let zkp_pub_key =
+            self.variable_base_scalar_mul::<BabyJubjub>(zkp_private_key, &pub_point)?;
 
         // Verify that one of the public keys matches zkp_pub_key
         //(skip if neutral point or zero value)
@@ -178,8 +177,9 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
             let key_matches = self.logic_and(x_matches, y_matches)?;
 
             let skip = self.logic_or(is_neutral, is_zero_value)?;
-            let valid = self.logic_or(skip, key_matches)?;
-            self.enforce_true(valid.into())?;
+            let one_minus_skip = self.sub(self.one(), skip.into())?;
+            let one_minus_key_matches = self.sub(self.one(), key_matches.into())?;
+            self.mul_gate(one_minus_skip, one_minus_key_matches, self.zero())?;
         }
 
         // Calculate the shared secret for the encryption/first commitment

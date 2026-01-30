@@ -73,9 +73,9 @@ where
             deposit_domain,
         ])?;
         let neutral_point = self.is_neutral_point::<P>(&public_keys[0])?;
-        let key_to_use =
+        let key_to_use_1 =
             self.conditional_select(neutral_point, nullifiers_key, deposit_nullifier_key_1)?;
-        let nullifier_1 = self.poseidon_hash(&[key_to_use, commitment_hash_1])?;
+        let nullifier_1 = self.poseidon_hash(&[key_to_use_1, commitment_hash_1])?;
 
         // Check if the nullifier is equal to the public transaction nullifier hash, or input commitment value is zero
         // Check if the Merkle root is equal to the supplied one.

@@ -441,13 +441,14 @@ mod tests {
         ];
         let poseidon = Poseidon::<Fr254>::new();
         let expected_nullifiers: [Fr254; 4] = [
-            (nullified_one, &nullified_one.get_secret_preimage()),
-            (nullified_two, &nullified_two.get_secret_preimage()),
-            (nullified_three, &nullified_three.get_secret_preimage()),
-            (nullified_four, &nullified_four.get_secret_preimage()),
+            nullified_one,
+            nullified_two,
+            nullified_three,
+            nullified_four,
         ]
-        .map(|(c, secret)| {
+        .map(|c| {
             let commitment_hash = c.hash().unwrap();
+            let secret = c.get_secret_preimage();
             if c.get_public_key() == Affine::<BabyJubjub>::zero() {
                 // Deposit: use hash(preimage, DOMAIN)
                 let deposit_nullifier_key = poseidon
@@ -699,14 +700,15 @@ mod tests {
             preimage_three.hash().unwrap(),
             preimage_four.hash().unwrap(),
         ];
-        let expected_nullifiers: [Fr254; 4] = [
-            (nullified_one, &nullified_one.get_secret_preimage()),
-            (nullified_two, &nullified_two.get_secret_preimage()),
-            (nullified_three, &nullified_three.get_secret_preimage()),
-            (nullified_four, &nullified_four.get_secret_preimage()),
+       let expected_nullifiers: [Fr254; 4] = [
+            nullified_one,
+            nullified_two,
+            nullified_three,
+            nullified_four,
         ]
-        .map(|(c, secret)| {
+        .map(|c| {
             let commitment_hash = c.hash().unwrap();
+            let secret = c.get_secret_preimage();
             if c.get_public_key() == Affine::<BabyJubjub>::zero() {
                 // Deposit: use hash(preimage, DOMAIN)
                 let deposit_nullifier_key = poseidon
