@@ -177,9 +177,13 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
             let key_matches = self.logic_and(x_matches, y_matches)?;
 
             let skip = self.logic_or(is_neutral, is_zero_value)?;
-            let one_minus_skip = self.sub(self.one(), skip.into())?;
-            let one_minus_key_matches = self.sub(self.one(), key_matches.into())?;
-            self.mul_gate(one_minus_skip, one_minus_key_matches, self.zero())?;
+            self.quad_poly_gate(
+                &[skip.into(), key_matches.into(), self.zero(), self.zero(), self.one()],
+                &[Fr254::one(), Fr254::one(), Fr254::zero(), Fr254::zero()],
+                &[-Fr254::one(), Fr254::zero()],
+                Fr254::one(),
+                Fr254::zero(),
+            )?;
         }
 
         // Calculate the shared secret for the encryption/first commitment
