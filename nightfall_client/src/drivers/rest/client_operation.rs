@@ -19,7 +19,6 @@ use configuration::addresses::get_addresses;
 use futures::future::join_all;
 use lib::{
     blockchain_client::BlockchainClientConnection,
-    client_models::NullifierKey,
     commitments::Nullifiable,
     derive_key::ZKPKeys,
     hex_conversion::HexConvertible,
@@ -57,7 +56,7 @@ where
 
     // get the zkp keys from the global state. They will have been created when the keys were requested using a mnemonic
     let ZKPKeys {
-        zkp_private_key,
+        root_key,
         zkp_public_key,
         nullifier_key,
         ..
@@ -114,8 +113,7 @@ where
     let mut operation_result: ClientTransaction<P> = client_operation::<P, E>(
         &spend_commitments,
         &new_commitments,
-        NullifierKey(nullifier_key),
-        zkp_private_key,
+        root_key,
         ephemeral_private_key,
         recipient_address,
         &secret_preimages,
