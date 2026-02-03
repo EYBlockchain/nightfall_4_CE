@@ -28,13 +28,12 @@ use ark_std::{rand::thread_rng, UniformRand};
 use configuration::{addresses::get_addresses, settings::get_settings};
 use jf_primitives::poseidon::{FieldHasher, Poseidon};
 use lib::{
-    client_models::{NF3DepositRequest, NF3TransferRequest, NF3WithdrawRequest, NullifierKey},
+    client_models::{NF3DepositRequest, NF3TransferRequest, NF3WithdrawRequest},
     commitments::{Commitment, Nullifiable},
     contract_conversions::FrBn254,
     derive_key::ZKPKeys,
     get_fee_token_id,
     hex_conversion::HexConvertible,
-    keys::KeySpending,
     nf_client_proof::{Proof, ProvingEngine},
     nf_token_id::to_nf_token_id_from_str,
     plonk_prover::circuits::DOMAIN_SHARED_SALT,
@@ -874,15 +873,9 @@ where
         transport: Transport::OffChain,
         operation_type: OperationType::Withdraw,
     };
-    let poseidon = Poseidon::<Fr254>::new();
-    let withdraw_fund_salt = poseidon
-        .hash(&[
-            NullifierKey(keys.nullifier_key).get_nullifier_key(),
-            spend_commitments[0]
-                .hash()
-                .expect("Failed to hash spend_commitments[0]"),
-        ])
-        .unwrap();
+    let withdraw_fund_salt = spend_commitments[0]
+        .nullifier_hash(&keys.nullifier_key)
+        .expect("Failed to compute nullifier hash");
     match handle_client_operation::<P, E, N>(
         op,
         spend_commitments,
