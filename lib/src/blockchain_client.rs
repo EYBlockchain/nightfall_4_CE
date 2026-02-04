@@ -30,7 +30,7 @@ pub trait BlockchainClientConnection: Clone + Send + Sync {
 
     fn get_wallet_type(&self) -> &WalletType;
 
-    fn get_signer(&self) -> PrivateKeySigner
+    fn get_signer(&self) -> Arc<PrivateKeySigner>
     where
         Self: Sized;
 

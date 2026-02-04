@@ -58,7 +58,7 @@ impl NightfallContract for Nightfall::NightfallCalls {
             .max_fee_per_gas(max_fee_per_gas)
             .max_priority_fee_per_gas(max_priority_fee_per_gas)
             .chain_id(get_settings().network.chain_id) // Linea testnet chain ID
-            .build_raw_transaction(signer)
+            .build_raw_transaction((*signer).clone())
             .await
             .map_err(|_| NightfallContractError::TransactionError)?;
 

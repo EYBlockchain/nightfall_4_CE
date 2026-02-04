@@ -22,6 +22,7 @@ use std::error::Error;
 use std::io::Read;
 use warp::{filters::multipart::FormData, path, reply::Reply, Buf, Filter};
 use x509_parser::nom::AsBytes;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 #[derive(Debug)]
 pub struct X509ValidationError;
 
@@ -289,6 +290,11 @@ async fn validate_certificate(
 }
 
 #[allow(dead_code)]
+#[derive(Zeroize, ZeroizeOnDrop)]
+struct PrivateKeyMaterial {
+    key: Vec<u8>,
+}
+
 /// Sign an Ethereum address using an RSA private key
 pub fn sign_ethereum_address(
     der_private_key: &[u8],
@@ -297,7 +303,11 @@ pub fn sign_ethereum_address(
     chain_id: u64,
 ) -> Result<Vec<u8>, Box<dyn Error>> {
     // Create an RSA object from the DER-encoded private key
-    let private_key = Rsa::private_key_from_der(der_private_key)?;
+    let mut key_material = PrivateKeyMaterial {
+        key: der_private_key.to_vec(),
+    };
+    
+    let private_key = Rsa::private_key_from_der(&key_material.key)?;
 
     let pkey = PKey::from_rsa(private_key)?;
 
@@ -323,7 +333,7 @@ pub fn sign_ethereum_address(
     // Sign the address bytes
     signer.update(&preimage)?;
     let signature = signer.sign_to_vec()?;
-
+    key_material.zeroize(); // Zeroize private key material
     Ok(signature)
 }
 
