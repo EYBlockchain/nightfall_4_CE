@@ -66,7 +66,7 @@ impl TokenContract for IERC20::IERC20Calls {
             .max_fee_per_gas(max_fee_per_gas)
             .max_priority_fee_per_gas(max_priority_fee_per_gas)
             .chain_id(get_settings().network.chain_id) // Linea testnet chain ID
-            .build_raw_transaction(signer)
+            .build_raw_transaction((*signer).clone())
             .await
             .map_err(|e| {
                 BlockchainClientConnectionError::ProviderError(format!(
@@ -153,7 +153,7 @@ impl TokenContract for IERC721::IERC721Calls {
             .max_fee_per_gas(max_fee_per_gas)
             .max_priority_fee_per_gas(max_priority_fee_per_gas)
             .chain_id(get_settings().network.chain_id) // Linea testnet chain ID
-            .build_raw_transaction(signer)
+            .build_raw_transaction((*signer).clone())
             .await
             .map_err(|e| {
                 BlockchainClientConnectionError::ProviderError(format!("Contract error: {e}"))
@@ -238,7 +238,7 @@ impl TokenContract for IERC1155::IERC1155Calls {
             .max_fee_per_gas(max_fee_per_gas)
             .max_priority_fee_per_gas(max_priority_fee_per_gas)
             .chain_id(get_settings().network.chain_id) // Linea testnet chain ID
-            .build_raw_transaction(signer)
+            .build_raw_transaction((*signer).clone())
             .await
             .map_err(|e| {
                 BlockchainClientConnectionError::ProviderError(format!(
@@ -323,7 +323,7 @@ impl TokenContract for IERC3525::IERC3525Calls {
             .max_fee_per_gas(max_fee_per_gas)
             .max_priority_fee_per_gas(max_priority_fee_per_gas)
             .chain_id(get_settings().network.chain_id) // Linea testnet chain ID
-            .build_raw_transaction(signer)
+            .build_raw_transaction((*signer).clone())
             .await
             .map_err(|e| {
                 BlockchainClientConnectionError::ProviderError(format!(

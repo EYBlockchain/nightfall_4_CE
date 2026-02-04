@@ -104,7 +104,7 @@ async fn handle_add_proposer(url: String) -> Result<impl Reply, warp::Rejection>
         .max_fee_per_gas(max_fee_per_gas)
         .max_priority_fee_per_gas(max_priority_fee_per_gas)
         .chain_id(get_settings().network.chain_id) // Linea testnet chain ID
-        .build_raw_transaction(signer)
+        .build_raw_transaction((*signer).clone())
         .await
         .map_err(|e| {
             warn!("{e}");
@@ -199,7 +199,7 @@ async fn handle_remove_proposer() -> Result<impl Reply, warp::Rejection> {
         .max_fee_per_gas(max_fee_per_gas)
         .max_priority_fee_per_gas(max_priority_fee_per_gas)
         .chain_id(get_settings().network.chain_id) // Linea testnet chain ID
-        .build_raw_transaction(signer)
+        .build_raw_transaction((*signer).clone())
         .await
         .map_err(|e| {
             warn!("{e}");
@@ -274,7 +274,7 @@ async fn handle_withdraw(amount: u64) -> Result<impl Reply, warp::Rejection> {
         .max_fee_per_gas(max_fee_per_gas)
         .max_priority_fee_per_gas(max_priority_fee_per_gas)
         .chain_id(get_settings().network.chain_id) // Linea testnet chain ID
-        .build_raw_transaction(signer)
+        .build_raw_transaction((*signer).clone())
         .await
         .map_err(|e| {
             warn!("{e}");

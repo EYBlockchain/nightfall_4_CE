@@ -21,7 +21,7 @@ use url::Url;
 
 #[derive(Clone, Debug)]
 pub enum WalletType {
-    Local(PrivateKeySigner),
+    Local(Box<PrivateKeySigner>),
     Azure(AzureWallet),
 }
 
@@ -277,14 +277,14 @@ pub struct LocalWsClient {
 
 #[async_trait]
 impl BlockchainClientConnection for LocalWsClient {
-    type W = PrivateKeySigner;
+    type W = Box<PrivateKeySigner>;
     type T = WsConnect;
     type S = configuration::settings::Settings;
 
     async fn new(url: Url, local_signer: Self::W) -> Result<Self, BlockchainClientConnectionError> {
         // Create WebSocket provider with local signer
         let provider = ProviderBuilder::new()
-            .wallet(local_signer.clone())
+            .wallet((*local_signer).clone())
             .connect_ws(WsConnect::new(url.clone()))
             .await
             .map_err(|e| BlockchainClientConnectionError::ProviderError(e.to_string()))?;
@@ -320,9 +320,9 @@ impl BlockchainClientConnection for LocalWsClient {
     }
 
     /// Get the PrivateKeySigner if using a local wallet
-    fn get_signer(&self) -> PrivateKeySigner {
+    fn get_signer(&self) -> Arc<PrivateKeySigner> {
         match &self.wallet {
-            WalletType::Local(signer) => signer.clone(),
+            WalletType::Local(signer) => Arc::from(signer.clone()),
             WalletType::Azure(_) => {
                 panic!(
                     "Cannot get PrivateKeySigner for Azure wallet - use provider methods instead"
@@ -344,10 +344,10 @@ impl BlockchainClientConnection for LocalWsClient {
                     .signing_key
                     .parse::<PrivateKeySigner>()
                     .map_err(BlockchainClientConnectionError::WalletError)?;
-
+                let local_signer = Box::new(local_signer);
                 let ws = WsConnect::new(settings.ethereum_client_url.clone());
                 let provider = ProviderBuilder::new()
-                    .wallet(local_signer.clone())
+                    .wallet((*local_signer).clone())
                     .connect_ws(ws)
                     .await
                     .map_err(|e| BlockchainClientConnectionError::ProviderError(e.to_string()))?;
