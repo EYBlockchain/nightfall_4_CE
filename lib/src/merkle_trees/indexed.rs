@@ -1,10 +1,7 @@
 use super::trees::{
     IndexedLeaf, IndexedLeaves, IndexedTree, MerkleTreeError, MutableTree, TreeMetadata,
 };
-use crate::{
-    merkle_trees::trees::ToStringRep,
-    serialization::fr_to_bson_padded,
-};
+use crate::{merkle_trees::trees::ToStringRep, serialization::fr_to_bson_padded};
 use ark_ff::PrimeField;
 use futures::{future::join_all, TryStreamExt};
 use jf_primitives::{
