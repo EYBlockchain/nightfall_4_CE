@@ -1,9 +1,9 @@
 use crate::{hex_conversion::HexConvertible, merkle_trees::trees::MerkleTreeError};
 use ark_bn254::Fr;
 use ark_serialize::{
-    CanonicalDeserialize, CanonicalSerialize, Compress, SerializationError, Validate,
+    CanonicalDeserialize, CanonicalSerialize, Compress, Validate,
 };
-use mongodb::error::Error as MongoError;
+use mongodb::{bson, error::Error as MongoError};
 use serde::{ser::Serialize, Deserialize, Deserializer, Serializer};
 use std::fmt::{Debug, Write};
 
@@ -53,18 +53,21 @@ where
     Ok(a)
 }
 
-pub fn serialize_to_padded_hex<T: CanonicalSerialize>(
+pub fn fr_to_bson_padded<T: CanonicalSerialize + Debug>(
     value: &T,
-) -> Result<String, MerkleTreeError<MongoError>> {
-    let mut value_hex_bytes = vec![];
-    value
-        .serialize_compressed(&mut value_hex_bytes)
-        .map_err(|e: SerializationError| {
-            MerkleTreeError::DatabaseError(MongoError::custom(e.to_string()))
-        })?;
+) -> Result<bson::Bson, MerkleTreeError<MongoError>> {
+    struct Padded<'a, T: CanonicalSerialize + Debug>(&'a T);
 
-    let value_big_endian_bytes = bigint_to_big_endian(value_hex_bytes);
-    Ok(bytes_to_hex_lpadded(&value_big_endian_bytes, 32))
+    impl<'a, T: CanonicalSerialize + Debug> Serialize for Padded<'a, T> {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            serialize_fr_padded(self.0, serializer)
+        }
+    }
+
+    bson::to_bson(&Padded(value)).map_err(|e| MerkleTreeError::DatabaseError(e.into()))
 }
 
 pub fn bytes_to_hex_lpadded(bytes: &[u8], max_bytes: usize) -> String {

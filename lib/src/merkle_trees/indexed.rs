@@ -1,7 +1,10 @@
 use super::trees::{
     IndexedLeaf, IndexedLeaves, IndexedTree, MerkleTreeError, MutableTree, TreeMetadata,
 };
-use crate::{merkle_trees::trees::ToStringRep, serialization::serialize_to_padded_hex};
+use crate::{
+    merkle_trees::trees::ToStringRep,
+    serialization::fr_to_bson_padded,
+};
 use ark_ff::PrimeField;
 use futures::{future::join_all, TryStreamExt};
 use jf_primitives::{
@@ -551,8 +554,8 @@ impl<F: PrimeField + PoseidonParams> IndexedLeaves<F> for mongodb::Client {
         // Insert the new leaf into the db. This should work as we've already checked that the leaf is not in the db.
         // but that doesn't mean that the index hasn't already been written to the db. If the index is already in the db
         // then this will throw a duplicate key error. So we upsert the entry rather than insert it.
-        let padded_leaf = serialize_to_padded_hex(&leaf)?;
-        let padded_next_value = serialize_to_padded_hex(&entry.next_value)?;
+        let padded_leaf = fr_to_bson_padded(&leaf)?;
+        let padded_next_value = fr_to_bson_padded(&entry.next_value)?;
 
         let bson_index = u64_to_i64_checked(index)?;
         let bson_next_index = u64_to_i64_checked(low_leaf.next_index)?;
@@ -594,22 +597,22 @@ impl<F: PrimeField + PoseidonParams> IndexedLeaves<F> for mongodb::Client {
         let collection = db.collection::<IndexedLeaf<F>>(&collection_name);
         let query = match (value, next_value) {
             (Some(value), Some(next_value)) => {
-                let value_padded_hex = serialize_to_padded_hex(&value)?;
-                let next_value_padded_hex = serialize_to_padded_hex(&next_value)?;
+                let value_padded_hex = fr_to_bson_padded(&value)?;
+                let next_value_padded_hex = fr_to_bson_padded(&next_value)?;
                 doc! {
                     "value": value_padded_hex,
                     "next_value": next_value_padded_hex
                 }
             }
             (Some(value), None) => {
-                let value_padded_hex = serialize_to_padded_hex(&value)?;
+                let value_padded_hex = fr_to_bson_padded(&value)?;
 
                 doc! {
                     "value": value_padded_hex
                 }
             }
             (None, Some(next_value)) => {
-                let next_value_padded_hex = serialize_to_padded_hex(&next_value)?;
+                let next_value_padded_hex = fr_to_bson_padded(&next_value)?;
 
                 doc! {
                    "next_value": next_value_padded_hex
@@ -632,7 +635,7 @@ impl<F: PrimeField + PoseidonParams> IndexedLeaves<F> for mongodb::Client {
         let collection_name = format!("{}_{}", tree_id, "indexed_leaves");
         let db = self.database(<Self as IndexedLeaves<F>>::DB);
         let collection = db.collection::<IndexedLeaf<F>>(&collection_name);
-        let padded_hex = serialize_to_padded_hex(leaf_value)?;
+        let padded_hex = fr_to_bson_padded(leaf_value)?;
         let mut cursor = collection
             .find(doc! {"value": {"$lt": padded_hex}})
             .sort(doc! {"value": -1})
@@ -661,8 +664,8 @@ impl<F: PrimeField + PoseidonParams> IndexedLeaves<F> for mongodb::Client {
         let collection_name = format!("{}_{}", tree_id, "indexed_leaves");
         let db = self.database(<Self as IndexedLeaves<F>>::DB);
         let collection = db.collection::<IndexedLeaf<F>>(&collection_name);
-        let padded_leaf = serialize_to_padded_hex(&leaf)?;
-        let padded_next_value = serialize_to_padded_hex(&new_next_value)?;
+        let padded_leaf = fr_to_bson_padded(&leaf)?;
+        let padded_next_value = fr_to_bson_padded(&new_next_value)?;
         let query = doc! {"value": padded_leaf};
         let bson_next_index = u64_to_i64_checked(new_next_index)?;
         let update =
