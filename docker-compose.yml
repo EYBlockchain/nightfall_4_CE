@@ -540,6 +540,7 @@ services:
       dockerfile: nightfall_sync_test/Dockerfile
       context: .
     volumes:
+      - ./blockchain_assets/logs:/app/blockchain_assets/logs # to be able to see deployed contract addresses locally
       - type: volume
         source: address_data
         target: /app/configuration/toml
