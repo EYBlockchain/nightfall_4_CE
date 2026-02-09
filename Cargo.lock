@@ -5100,6 +5100,7 @@ dependencies = [
  "url",
  "warp",
  "x509-parser",
+ "zeroize",
 ]
 
 [[package]]

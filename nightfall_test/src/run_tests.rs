@@ -104,7 +104,8 @@ pub async fn run_tests(
         client2_starting_balance,
         client1_starting_fee_balance,
         nullified_count,
-    ) = 
+    ) = if std::env::var("NF4_LARGE_BLOCK_TEST").is_ok()
+        && std::env::var("NF4_LARGE_BLOCK_TEST").unwrap() == "true"
     {
         warn!("Running large block test");
         let block_size = match get_block_size() {
@@ -252,10 +253,9 @@ pub async fn run_tests(
             client1_starting_fee_balance,
             nullifier_count,
         )
-    } ;
-    // else {
-    //     (0, 0, 0, 0)
-    // };
+    } else {
+        (0, 0, 0, 0)
+    };
 
     /***********************************************************************************************
      * Tests using the client_nf_3 API
