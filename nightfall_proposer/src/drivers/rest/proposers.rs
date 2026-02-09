@@ -47,11 +47,19 @@ async fn handle_rotate_proposer() -> Result<impl Reply, warp::Rejection> {
     let tx_result = tx_call.send().await;
     match tx_result {
         Ok(tx) => {
-            tx.get_receipt().await.map_err(|e| {
+            let tx_receipt = tx.get_receipt().await.map_err(|e| {
                 warn!("Failed to get transaction receipt: {e}");
                 ProposerError::ProviderError(e.to_string())
             })?;
-            Ok(StatusCode::OK)
+            if tx_receipt.status() {
+                info!("Rotated proposer successfully");
+                Ok(StatusCode::OK)
+            } else {
+                warn!("Failed to rotate proposer");
+                Err(warp::reject::custom(
+                    ProposerRejection::FailedToRotateProposer,
+                ))
+            }
         }
         Err(_e) => Err(warp::reject::custom(
             ProposerRejection::FailedToRotateProposer,
