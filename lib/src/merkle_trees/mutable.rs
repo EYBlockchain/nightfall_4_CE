@@ -6,7 +6,7 @@ use crate::{
         helper_functions::{pow2_u64, pow2_usize},
         ToStringRep,
     },
-    serialization::{deserialize_fr_padded, serialize_fr_padded, serialize_to_padded_hex},
+    serialization::{deserialize_fr_padded, fr_to_bson_padded, serialize_fr_padded},
 };
 use ark_ff::PrimeField;
 use futures::{future::try_join_all, TryStreamExt};
@@ -156,7 +156,7 @@ where
 
             let bson_id =
                 to_bson(&node._id).map_err(|e| MerkleTreeError::DatabaseError(e.into()))?;
-            let value_padded_hex = serialize_to_padded_hex(&node.value)?;
+            let value_padded_hex = fr_to_bson_padded(&node.value)?;
 
             // Build an UpdateOneModel for this node
             let update_model = UpdateOneModel::builder()
@@ -232,7 +232,7 @@ where
         let node_collection = self
             .database(<Self as MutableTree<F>>::MUT_DB_NAME)
             .collection::<Node<F>>(&node_collection_name);
-        let value_padded_hex = serialize_to_padded_hex(value)?;
+        let value_padded_hex = fr_to_bson_padded(value)?;
         let node = node_collection
             .find_one(doc! {"value": value_padded_hex})
             .await
@@ -252,7 +252,7 @@ where
         update_tree: bool,
         tree_id: &str,
     ) -> Result<(), Self::Error> {
-        let update_value = serialize_to_padded_hex(&value)?;
+        let update_value = fr_to_bson_padded(&value)?;
         let bson_index = to_bson(&index).map_err(|e| MerkleTreeError::DatabaseError(e.into()))?;
         if !update_tree {
             let cache_collection_name = format!("{}_{}", tree_id, "cache");
@@ -568,7 +568,7 @@ where
                         "Cannot search for the index of a zero leaf".to_string(),
                     ));
                 }
-                let leaf_padded_hex = serialize_to_padded_hex(leaf)?;
+                let leaf_padded_hex = fr_to_bson_padded(leaf)?;
                 let node = node_collection
                     .find_one(doc! {"value": leaf_padded_hex})
                     .await

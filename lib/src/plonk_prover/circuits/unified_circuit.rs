@@ -148,7 +148,7 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
         let zkp_private_key_val = Fr254::from(&hash_bigint % &bjj_order_bigint);
         let zkp_private_key = self.create_variable(zkp_private_key_val)?;
 
-        // Constrain zkp_private_key: zkp_private_key + lambda * BJJ_ORDER == fr_zkp_priv_key  
+        // Constrain zkp_private_key: zkp_private_key + lambda * BJJ_ORDER == fr_zkp_priv_key
         let lambda_val = Fr254::from(&hash_bigint / &bjj_order_bigint);
         let lambda = self.create_variable(lambda_val)?;
         let bjj_scalar_order = Fr254::from(BJJScalar::MODULUS);
@@ -160,7 +160,7 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
             &fr_zkp_priv_key,
         )?;
         self.enforce_lt_constant(zkp_private_key, bjj_scalar_order)?;
-        self.enforce_lt_constant(lambda, Fr254::from(8u64))?; 
+        self.enforce_lt_constant(lambda, Fr254::from(8u64))?;
 
         // Calculate zkp_public_key from zkp_private_key
         let zkp_pub_key =
@@ -178,7 +178,13 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
 
             let skip = self.logic_or(is_neutral, is_zero_value)?;
             self.quad_poly_gate(
-                &[skip.into(), key_matches.into(), self.zero(), self.zero(), self.one()],
+                &[
+                    skip.into(),
+                    key_matches.into(),
+                    self.zero(),
+                    self.zero(),
+                    self.one(),
+                ],
                 &[Fr254::one(), Fr254::one(), Fr254::zero(), Fr254::zero()],
                 &[-Fr254::one(), Fr254::zero()],
                 Fr254::one(),
