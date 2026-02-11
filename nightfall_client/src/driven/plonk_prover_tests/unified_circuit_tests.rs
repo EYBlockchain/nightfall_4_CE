@@ -699,7 +699,7 @@ mod tests {
             preimage_three.hash().unwrap(),
             preimage_four.hash().unwrap(),
         ];
-       let expected_nullifiers: [Fr254; 4] = [
+        let expected_nullifiers: [Fr254; 4] = [
             nullified_one,
             nullified_two,
             nullified_three,
