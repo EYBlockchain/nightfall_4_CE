@@ -133,11 +133,11 @@ impl ZKPKeys {
 
         let nullifier_key: Fr254 = nullifier_key_bytes?;
 
+        let zkp_private_key_hash: Fr254 = zkp_private_key_bytes?;
         let zkp_private_key = BJJScalar::from_be_bytes_mod_order(
-            &BigInteger256::from(zkp_private_key_bytes?).to_bytes_be(),
+            &BigInteger256::from(zkp_private_key_hash).to_bytes_be(),
         );
 
-        // let generator = JubJubAffine::new(GENERATOR_X, GENERATOR_Y);
         let generator = TEAffine::<BabyJubjub>::new(GENERATOR_X, GENERATOR_Y);
         let zkp_public_key = (generator * zkp_private_key).into_affine();
         let zkp_keys = ZKPKeys {

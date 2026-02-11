@@ -9,11 +9,14 @@ use crate::{
     },
 };
 use ark_ec::{twisted_edwards::Affine, AffineRepr};
+use ark_ff::BigInteger256;
 use ark_ff::{One, PrimeField, Zero};
 use jf_plonk::errors::PlonkError;
 use jf_primitives::circuit::poseidon::PoseidonHashGadget;
 use jf_relation::{errors::CircuitError, gadgets::ecc::Point, Circuit, PlonkCircuit, Variable};
+use nf_curves::ed_on_bn254::Fr as BJJScalar;
 use nf_curves::ed_on_bn254::{BabyJubjub, Fq as Fr254};
+use num_bigint::BigUint;
 
 /// This trait is used to construct a circuit verify the integrity of withdraw and transfer operations
 pub trait UnifiedCircuit {
@@ -65,8 +68,7 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
             commitments_salts,
             public_keys,
             recipient_public_key,
-            nullifier_key,
-            zkp_private_key,
+            root_key,
             ephemeral_key,
             withdraw_address,
             withdraw_flag,
@@ -119,9 +121,70 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
         let pub_point =
             self.create_point_variable(&Point::<Fr254>::from(Affine::<BabyJubjub>::generator()))?;
 
-        // Calculate the nullifierKeys and the zkpPublicKeys from the root key
+        // Constrain nullifier_key from root_key
+        let nullifier_prefix = self.create_constant_variable(Fr254::from(
+            BigUint::parse_bytes(
+                b"7805187439118198468809896822299973897593108379494079213870562208229492109015",
+                10,
+            )
+            .unwrap(),
+        ))?;
+        let nullifier_key = self.poseidon_hash(&[root_key, nullifier_prefix])?;
+
+        // Compute zkp_private_key from root_key
+        // zkp_private_key = poseidon_hash(root_key, prefix) % BJJ_ORDER
+        let private_prefix = self.create_constant_variable(Fr254::from(
+            BigUint::parse_bytes(
+                b"2708019456231621178814538244712057499818649907582893776052749473028258908910",
+                10,
+            )
+            .unwrap(),
+        ))?;
+        let fr_zkp_priv_key = self.poseidon_hash(&[root_key, private_prefix])?;
+        let fr_zkp_priv_key_val = self.witness(fr_zkp_priv_key)?;
+
+        let hash_bigint = BigUint::from(BigInteger256::from(fr_zkp_priv_key_val));
+        let bjj_order_bigint = BigUint::from(BJJScalar::MODULUS);
+        let zkp_private_key_val = Fr254::from(&hash_bigint % &bjj_order_bigint);
+        let zkp_private_key = self.create_variable(zkp_private_key_val)?;
+
+        // Constrain zkp_private_key: zkp_private_key + lambda * BJJ_ORDER == fr_zkp_priv_key  
+        let lambda_val = Fr254::from(&hash_bigint / &bjj_order_bigint);
+        let lambda = self.create_variable(lambda_val)?;
+        let bjj_scalar_order = Fr254::from(BJJScalar::MODULUS);
+
+        self.lin_comb_gate(
+            &[Fr254::one(), bjj_scalar_order],
+            &Fr254::zero(),
+            &[zkp_private_key, lambda],
+            &fr_zkp_priv_key,
+        )?;
+        self.enforce_lt_constant(zkp_private_key, bjj_scalar_order)?;
+        self.enforce_lt_constant(lambda, Fr254::from(8u64))?; 
+
+        // Calculate zkp_public_key from zkp_private_key
         let zkp_pub_key =
             self.variable_base_scalar_mul::<BabyJubjub>(zkp_private_key, &pub_point)?;
+
+        // Verify that one of the public keys matches zkp_pub_key
+        //(skip if neutral point or zero value)
+        for i in 0..4 {
+            let is_neutral = self.is_neutral_point::<BabyJubjub>(&public_keys[i])?;
+            let is_zero_value = self.is_zero(nullifiers_values[i])?;
+
+            let x_matches = self.is_equal(zkp_pub_key.get_x(), public_keys[i].get_x())?;
+            let y_matches = self.is_equal(zkp_pub_key.get_y(), public_keys[i].get_y())?;
+            let key_matches = self.logic_and(x_matches, y_matches)?;
+
+            let skip = self.logic_or(is_neutral, is_zero_value)?;
+            self.quad_poly_gate(
+                &[skip.into(), key_matches.into(), self.zero(), self.zero(), self.one()],
+                &[Fr254::one(), Fr254::one(), Fr254::zero(), Fr254::zero()],
+                &[-Fr254::one(), Fr254::zero()],
+                Fr254::one(),
+                Fr254::zero(),
+            )?;
+        }
 
         // Calculate the shared secret for the encryption/first commitment
         let shared_secret =
