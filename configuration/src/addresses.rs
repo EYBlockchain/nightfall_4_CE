@@ -170,7 +170,7 @@ pub fn get_addresses() -> &'static Addresses {
             }
         }
         let base = validate_config_url(&settings.configuration_url).expect("Invalid or untrusted configuration URL");
-        let url = base.join("addresses").expect("Could not parse addresses server endpoint");
+        let url = base.join("configuration/toml/addresses.toml").expect("Could not parse addresses server endpoint");
         // Retry logic: wait for deployer to finish and save addresses
         let max_attempts = 32;
         let mut wait_time = 2;

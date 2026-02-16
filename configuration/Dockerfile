@@ -8,7 +8,9 @@ RUN chmod 644 /usr/local/share/ca-certificates/* && update-ca-certificates || tr
 RUN rm /etc/nginx/conf.d/default.conf
 
 # Create config directory
-RUN mkdir -p /var/www/html/configuration/toml 
+RUN mkdir -p /var/www/html/configuration/toml \
+&& chmod -R 755 /var/www/html
+COPY ./configuration/toml/* /var/www/html/
 
 # Copy our nginx config
 COPY ./configuration/nginx.conf /etc/nginx/conf.d/default.conf
