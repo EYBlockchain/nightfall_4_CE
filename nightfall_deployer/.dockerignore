@@ -1,0 +1,3 @@
+# Ignore huge proving keys and ptau/setup
+configuration/bin/*
+!configuration/bin/decider_vk
