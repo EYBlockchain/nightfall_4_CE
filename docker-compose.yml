@@ -75,7 +75,7 @@ services:
         condition: service_healthy
     tty: true # required for logs to print in colour
     environment:
-      - NF4_RUN_MODE=${NF4_RUN_MODE:-base_sepolia}
+      - NF4_RUN_MODE=${NF4_RUN_MODE:-sepolia}
       - RUST_BACKTRACE=${RUST_BACKTRACE:-0}
       - NF4_SIGNING_KEY=${CLIENT_SIGNING_KEY}
       - NF4_NIGHTFALL_CLIENT__DB_URL=mongodb://nf4_db_client:27017
