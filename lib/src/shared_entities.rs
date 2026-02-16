@@ -5,7 +5,7 @@ use crate::{
     secret_hash::SecretHash,
     serialization::{ark_de_hex, ark_se_hex},
 };
-use alloy::primitives::Address;
+use alloy::{dyn_abi::abi::token, primitives::Address};
 use ark_bn254::Fr as Fr254;
 use ark_ec::twisted_edwards::Affine as TEAffine;
 use ark_serialize::SerializationError;
@@ -188,6 +188,7 @@ pub enum TokenType {
     ERC1155,
     ERC721,
     ERC3525,
+    FeeToken,
 }
 
 impl From<TokenType> for u8 {
@@ -197,19 +198,22 @@ impl From<TokenType> for u8 {
             TokenType::ERC1155 => 1,
             TokenType::ERC721 => 2,
             TokenType::ERC3525 => 3,
+            TokenType::FeeToken => 4,
         }
     }
 }
 
 impl From<u8> for TokenType {
+    // We should return error here if the value is not supported.
     fn from(value: u8) -> Self {
         match value {
             0 => TokenType::ERC20,
             1 => TokenType::ERC1155,
             2 => TokenType::ERC721,
             3 => TokenType::ERC3525,
+            4 => TokenType::FeeToken,
             _ => {
-                warn!("TokenType value {value} not supported, defaulting to ERC20");
+               warn!("Received unsupported token type value: {value}, defaulting to ERC20");
                 TokenType::ERC20
             }
         }
@@ -511,6 +515,7 @@ mod tests {
                 0xea730722,
                 0x00,
             ]));
+            let token_type = TokenType::ERC1155;
             let token_id = Fr254::new(BigInt::new([
                 0x94c25463ca1c3fbe,
                 0x042da2de98c064cf,

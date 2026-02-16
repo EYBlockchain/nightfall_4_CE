@@ -3,29 +3,17 @@ use crate::{
         entities::{CommitmentStatus, Operation, RequestStatus},
         error::TransactionHandlerError,
         notifications::NotificationPayload,
-    },
-    driven::db::mongo::CommitmentEntry,
-    get_zkp_keys,
-    initialisation::get_db_connection,
-    ports::{
+    }, driven::db::mongo::CommitmentEntry, get_zkp_keys, initialisation::get_db_connection, ports::{
         contracts::NightfallContract,
         db::{CommitmentDB, CommitmentEntryDB, RequestCommitmentMappingDB, RequestDB},
-    },
-    services::client_operation::client_operation,
+    }, services::client_operation::client_operation
 };
 use alloy::rpc::types::TransactionReceipt;
 use ark_bn254::Fr as Fr254;
 use configuration::addresses::get_addresses;
 use futures::future::join_all;
 use lib::{
-    blockchain_client::BlockchainClientConnection,
-    commitments::Nullifiable,
-    derive_key::ZKPKeys,
-    hex_conversion::HexConvertible,
-    initialisation::get_blockchain_client_connection,
-    nf_client_proof::{Proof, ProvingEngine},
-    secret_hash::SecretHash,
-    shared_entities::{ClientTransaction, Preimage},
+    blockchain_client::BlockchainClientConnection, commitments::Nullifiable, derive_key::ZKPKeys, hex_conversion::HexConvertible, initialisation::get_blockchain_client_connection, nf_client_proof::{Proof, ProvingEngine}, nf_token_id, secret_hash::SecretHash, shared_entities::{ClientTransaction, Preimage}
 };
 use log::{debug, error, info, warn};
 use nf_curves::ed_on_bn254::Fr as BJJScalar;
@@ -80,6 +68,10 @@ where
                 && i != 0
                 && commitment.get_preimage() != Preimage::default()
             {
+                let nf_token_id = commitment.get_nf_token_id();
+                let token_type = N::get_token_info(nf_token_id)
+                    .await
+                    .map_err(|e| TransactionHandlerError::CustomError(e.to_string()))?.token_type;
                 let nullifier = commitment
                     .nullifier_hash(&nullifier_key)
                     .expect("Nullifiers must be hashable");
@@ -87,6 +79,7 @@ where
                     commitment.get_preimage(),
                     nullifier,
                     CommitmentStatus::PendingCreation,
+                    token_type,
                     None,
                     None,
                 );

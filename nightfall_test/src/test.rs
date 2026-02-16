@@ -260,6 +260,7 @@ pub async fn get_fee_balance(http_client: &reqwest::Client, url: Url) -> i64 {
     )
     .unwrap_or(0)
 }
+
 #[derive(Debug)]
 struct CertificateValidationError {
     status: StatusCode,
