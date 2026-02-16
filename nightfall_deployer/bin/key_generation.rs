@@ -26,7 +26,7 @@ fn main() {
         println!("Generating keys for REAL rollup prover");
     }
     generate_proving_keys(&settings).unwrap();
-    println!("Generating keys for REAL rollup prover finished.");
+    println!("Generating keys for rollup prover finished.");
 }
 
 /// Generates the proving key and writes it to file.
