@@ -17,6 +17,7 @@ use std::{
     fmt::{Debug, Display, Formatter},
 };
 use warp::reject;
+use jf_plonk::errors::PlonkError;
 
 // The event processor (located in the Repository) and the REST API both need to call the following function. Thus, it can't really be located in services,
 //otherwise we'd be doing a reentrant call from repository to services, which is a bit of an odd pattern.
@@ -42,6 +43,7 @@ pub enum ClientTransactionError<E: ProvingEngine<P>, P: Proof> {
     DuplicateNullifier,
     CommitmentRootUnknown,
     NullifiersAllZero,
+    WrongProof,
 }
 impl<E: ProvingEngine<P>, P: Proof> Error for ClientTransactionError<E, P> {}
 impl<E: ProvingEngine<P>, P: Proof> Display for ClientTransactionError<E, P> {
@@ -69,6 +71,9 @@ impl<E: ProvingEngine<P>, P: Proof> Display for ClientTransactionError<E, P> {
             ClientTransactionError::NullifiersAllZero => {
                 write!(f, "All nullifiers are zero")
             }
+            ClientTransactionError::WrongProof => {
+                write!(f, "Client transaction zk proof is wrong")
+            }
         }
     }
 }
@@ -91,9 +96,7 @@ where
     match E::verify(&client_transaction.proof, &public_inputs) {
         Ok(true) => {}
         Ok(false) => {
-            return Err(ClientTransactionError::ProofDidNotVerify(
-                PlonkError::WrongProof,
-            ));
+            return Err(ClientTransactionError::WrongProof);
         }
         Err(error) => {
             return Err(ClientTransactionError::ProofDidNotVerify(error));

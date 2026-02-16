@@ -418,10 +418,14 @@ services:
     volumes:
       - ./blockchain_assets/test_contracts:/test_contracts
       - ./blockchain_assets/logs:/app/blockchain_assets/logs # to be able to see deployed contract addresses locally
+      - type: volume
+        source: key_data
+        target: /app/configuration/bin
+        read_only: false
     stdin_open: true # keep stdin open, so we can print things in docker compose up
     tty: true # required for logs to print in colour
     environment:
-      - NF4_RUN_MODE=${NF4_RUN_MODE:-base_sepolia}
+      - NF4_RUN_MODE=${NF4_RUN_MODE:-sepolia}
       - NF4_CONTRACTS__DEPLOY_CONTRACTS=${NF4_CONTRACTS__DEPLOY_CONTRACTS:-true}
       - RUST_BACKTRACE=${RUST_BACKTRACE:-0}
       - NF4_SIGNING_KEY=${DEPLOYER_SIGNING_KEY}
@@ -440,15 +444,19 @@ services:
     build:
       dockerfile: configuration/Dockerfile
       context: .
-    # restart: unless-stopped
-    # ports:
-    #   - "8080:80"     replace with a port that is exposed for configuration service if required
+    restart: unless-stopped
+    ports:
+      - "8080:80"     # replace with a port that is exposed for configuration service if required
     platform: linux/amd64 # Required for building on M1 Macs
     volumes:
       - type: bind
         source: ./configuration/toml
         target: /var/www/html/configuration/toml
         read_only: false
+      - type: volume
+        source: key_data
+        target: /var/www/html/configuration/bin
+        read_only: true
     networks:
       - nightfall_network
     stdin_open: true # keep stdin open, so we can print things in docker compose up
@@ -566,6 +574,8 @@ volumes:
   # mongodb_client2_data:
   # mongodb_proposer_data:
   address_data:
+  key_data:
+
 
 networks:
    nightfall_network:
