@@ -346,6 +346,7 @@ impl BlockchainClientConnection for LocalWsClient {
                     .map_err(BlockchainClientConnectionError::WalletError)?;
                 let local_signer = Box::new(local_signer);
                 let ws = WsConnect::new(settings.ethereum_client_url.clone());
+                ark_std::println!("the url we are visiting for ethereum_client_url:{}", ws.url());
                 let provider = ProviderBuilder::new()
                     .wallet((*local_signer).clone())
                     .connect_ws(ws)

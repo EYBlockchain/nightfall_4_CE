@@ -135,14 +135,14 @@ certificate_policies = [
 oid_group = 0
 
 [sepolia]
-signing_key = ""
+signing_key = "0x65b92e83d9df0878a79691b2a20a5f0dfa4e8d1556f5ba1123a0229e3b0bad68"
 azure_vault_url = "vault url is not set"
 azure_key_name = "key name not set"
 log_app_only = true
 test_x509_certificates = true
 mock_prover = false
 genesis_block = 0
-ethereum_client_url = "https://eth-sepolia.g.alchemy.com/v2/NjACEiAIuOIsZBd7dsIF_"
+ethereum_client_url = "wss://eth-sepolia.g.alchemy.com/v2/NjACEiAIuOIsZBd7dsIF_"
 configuration_url = "http://35.225.105.10:8080" # The name of the proposer config to use can be overridden by env var NF4_PROPOSER_CONFIG
 
 
