@@ -306,7 +306,7 @@ pub fn sign_ethereum_address(
     let mut key_material = PrivateKeyMaterial {
         key: der_private_key.to_vec(),
     };
-    
+
     let private_key = Rsa::private_key_from_der(&key_material.key)?;
 
     let pkey = PKey::from_rsa(private_key)?;

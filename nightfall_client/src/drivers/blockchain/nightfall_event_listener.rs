@@ -27,6 +27,7 @@ use log::{debug, info, warn};
 use nightfall_bindings::artifacts::Nightfall;
 use std::{panic, time::Duration};
 use tokio::time::sleep;
+use lib::log_fetcher::get_logs_paginated;
 /// This function starts the event handler. It will attempt to restart the event handler in case of errors
 /// with an exponential backoff  for a configurable number of attempts. If the event handler
 /// fails after the maximum number of attempts, it will log an error and send a notification (if configured).
@@ -78,6 +79,7 @@ async fn notify_failure_client(message: &str) -> Result<(), ()> {
     Ok(())
 }
 
+
 // This function listens for events and processes them. It's started by the start_event_listener function
 pub async fn listen_for_events<N: NightfallContract>(
     start_block: usize,
@@ -115,10 +117,15 @@ pub async fn listen_for_events<N: NightfallContract>(
             .expect("could not get latest block number");
 
         if latest_block >= start_block as u64 {
-            let past_events = blockchain_client
-                .get_logs(&events_filter.clone().to_block(latest_block))
-                .await
-                .expect("could not get past events");
+            let past_events = get_logs_paginated(
+                blockchain_client.root(),
+                events_filter.clone(),
+                start_block as u64,
+                latest_block,
+            )
+            .await
+            .expect("could not get past events");
+
             log::info!("Found {} past events to process", past_events.len());
             for evt in past_events {
                 let event = match Nightfall::NightfallEvents::decode_log(&evt.inner) {
