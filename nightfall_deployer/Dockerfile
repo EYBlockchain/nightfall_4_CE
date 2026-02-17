@@ -28,7 +28,6 @@ RUN --mount=type=cache,id=cargo-registry-v4,target=/usr/local/cargo/registry,sha
 FROM debian:bookworm-slim
 WORKDIR /app
 COPY --from=builder /app/bin/deployer bin/
-COPY configuration/bin/*_vk configuration/bin/
 COPY --from=builder /app/blockchain_assets blockchain_assets/
 COPY .env *.env nightfall.toml foundry.toml ./
 

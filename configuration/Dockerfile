@@ -10,6 +10,7 @@ RUN rm /etc/nginx/conf.d/default.conf
 # Create config directory
 RUN mkdir -p /var/www/html/configuration/toml 
 
+
 # Copy our nginx config
 COPY ./configuration/nginx.conf /etc/nginx/conf.d/default.conf
 
