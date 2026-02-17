@@ -471,7 +471,7 @@ impl Addresses {
                 #[cfg(unix)]
                 {
                     use std::os::unix::fs::PermissionsExt;
-                    let perms = std::fs::Permissions::from_mode(0o600);
+                    let perms = std::fs::Permissions::from_mode(0o644);
                     std::fs::set_permissions(&path, perms).map_err(|e| {
                         AddressesError::Toml(format!("Could not set permissions: {e}"))
                     })?;
