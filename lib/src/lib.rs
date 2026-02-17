@@ -27,6 +27,7 @@ pub mod validate_certificate;
 pub mod validate_keys;
 pub mod verify_contract;
 pub mod wallets;
+pub mod log_fetcher;
 
 use alloy::dyn_abi::abi::encode;
 use alloy::primitives::{keccak256, U256};
