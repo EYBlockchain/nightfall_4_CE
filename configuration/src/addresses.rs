@@ -85,7 +85,7 @@ fn deny_if_dns_private(host: &str) -> Result<(), AddressesError> {
 
 /// Validates configuration URLs with security enforcement.
 /// Production: HTTPS. Debug: HTTP allowed for localhost/test containers.
-fn validate_config_url(raw: &str) -> Result<Url, AddressesError> {
+pub fn validate_config_url(raw: &str) -> Result<Url, AddressesError> {
     let url = Url::parse(raw).map_err(|_| AddressesError::Toml(format!("Invalid URL: {raw}")))?;
 
     let host = url
@@ -137,7 +137,8 @@ fn validate_config_url(raw: &str) -> Result<Url, AddressesError> {
     }
 
     // Scheme enforcement: HTTPS only in production
-    if url.scheme() != "https" && !is_development {
+    let is_production = matches!(run_mode.as_str(), "production");
+    if url.scheme() != "https" && is_production {
         let scheme = url.scheme();
         warn!("HTTP not allowed in production, use HTTPS");
         return Err(AddressesError::Toml(format!(
@@ -170,7 +171,7 @@ pub fn get_addresses() -> &'static Addresses {
             }
         }
         let base = validate_config_url(&settings.configuration_url).expect("Invalid or untrusted configuration URL");
-        let url = base.join("addresses").expect("Could not parse addresses server endpoint");
+        let url = base.join("configuration/toml/addresses.toml").expect("Could not parse addresses server endpoint");
         // Retry logic: wait for deployer to finish and save addresses
         let max_attempts = 32;
         let mut wait_time = 2;
