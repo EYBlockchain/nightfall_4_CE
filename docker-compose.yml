@@ -574,7 +574,7 @@ services:
         condition: service_healthy
     
 volumes:
-  # mongodb_client_data:
+  mongodb_client_data:
   # mongodb_client2_data:
   mongodb_proposer_data:
   address_data:
