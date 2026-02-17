@@ -18,6 +18,7 @@ COPY configuration/bin/deposit_proving_key configuration/bin/
 COPY configuration/bin/merge_bn254_pk_0 configuration/bin/
 COPY configuration/bin/merge_grumpkin_pk_0 configuration/bin/
 COPY configuration/bin/merge_grumpkin_pk_1 configuration/bin/
+COPY configuration/bin/proving_key configuration/bin/
 ENV PATH=/app:$PATH
 RUN --mount=type=cache,id=cargo-registry-v4,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,id=cargo-git-v4,target=/usr/local/cargo/git,sharing=locked \

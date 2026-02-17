@@ -8,3 +8,4 @@ configuration/bin/*
 !configuration/bin/merge_bn254_pk_0
 !configuration/bin/merge_grumpkin_pk_0
 !configuration/bin/merge_grumpkin_pk_1
+!configuration/bin/proving_key
