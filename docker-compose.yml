@@ -81,7 +81,7 @@ services:
       - NF4_NIGHTFALL_CLIENT__DB_URL=mongodb://nf4_db_client:27017
       - NF4_ETHEREUM_CLIENT_URL
       - NF4_MOCK_PROVER=${NF4_MOCK_PROVER:-false}
-      - NF4_NIGHTFALL_PROPOSER__URL=${NF4_NIGHTFALL_PROPOSER__URL:-localhost:3001}
+      - NF4_NIGHTFALL_PROPOSER__URL=${NF4_NIGHTFALL_PROPOSER__URL:-http://35.225.105.10:3001}
 
   client2:
     container_name: nf4_client2
@@ -282,8 +282,8 @@ services:
       - "27017:27017"    
     networks:
       - nightfall_network
-  #  volumes:
-  #    - mongodb_client_data:/data/db
+   volumes:
+     - mongodb_client_data:/data/db
     environment:
       - NF4_RUN_MODE=${NF4_RUN_MODE:-development}
 
