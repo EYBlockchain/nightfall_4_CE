@@ -1,3 +1,10 @@
 # Ignore huge proving keys and ptau/setup
 configuration/bin/*
 !configuration/bin/decider_vk
+!configuration/bin/base_bn254_pk
+!configuration/bin/base_grumpkin_pk
+!configuration/bin/decider_pk
+!configuration/bin/deposit_proving_key
+!configuration/bin/merge_bn254_pk_0
+!configuration/bin/merge_grumpkin_pk_0
+!configuration/bin/merge_grumpkin_pk_1
