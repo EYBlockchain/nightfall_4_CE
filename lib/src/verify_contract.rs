@@ -3,11 +3,11 @@ use alloy::{
     providers::Provider,
 };
 
-use configuration::settings::Settings;
-use eyre::eyre;
-use configuration::addresses::AddressesError;
 use configuration::addresses::validate_config_url;
 use configuration::addresses::Addresses;
+use configuration::addresses::AddressesError;
+use configuration::settings::Settings;
+use eyre::eyre;
 use nightfall_bindings::artifacts::{Nightfall, RoundRobin, X509};
 use nightfall_bindings::artifacts::{
     Nightfall::NightfallInstance, RoundRobin::RoundRobinInstance, X509::X509Instance,
@@ -37,7 +37,8 @@ pub async fn load_deployed_hashes() -> eyre::Result<([u8; 32], [u8; 32], [u8; 32
             .join("configuration/toml/contract_hashes.toml")
             .map_err(|e| eyre!("Could not build contract hashes URL: {}", e))?;
 
-        let response = reqwest::get(url.clone()).await
+        let response = reqwest::get(url.clone())
+            .await
             .map_err(|e| eyre!("Failed to fetch contract hashes from {}: {}", url, e))?;
 
         if !response.status().is_success() {

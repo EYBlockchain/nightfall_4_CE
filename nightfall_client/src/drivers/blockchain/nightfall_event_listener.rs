@@ -16,6 +16,7 @@ use alloy::{
 use configuration::addresses::get_addresses;
 use futures::StreamExt;
 use futures::{future::BoxFuture, FutureExt};
+use lib::log_fetcher::get_logs_paginated;
 use lib::{
     blockchain_client::BlockchainClientConnection,
     error::EventHandlerError,
@@ -27,7 +28,6 @@ use log::{debug, info, warn};
 use nightfall_bindings::artifacts::Nightfall;
 use std::{panic, time::Duration};
 use tokio::time::sleep;
-use lib::log_fetcher::get_logs_paginated;
 /// This function starts the event handler. It will attempt to restart the event handler in case of errors
 /// with an exponential backoff  for a configurable number of attempts. If the event handler
 /// fails after the maximum number of attempts, it will log an error and send a notification (if configured).

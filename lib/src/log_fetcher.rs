@@ -193,13 +193,18 @@ pub async fn get_logs_paginated<P: Provider>(
     // Rate limiting: calculate delay between calls if rate limit is set
     let rpc_rate_limit = get_rpc_rate_limit();
     let delay_between_calls = if rpc_rate_limit > 0 {
-        Some(std::time::Duration::from_secs_f64(1.0 / rpc_rate_limit as f64))
+        Some(std::time::Duration::from_secs_f64(
+            1.0 / rpc_rate_limit as f64,
+        ))
     } else {
         None
     };
-    
+
     if let Some(delay) = delay_between_calls {
-        log::info!("RPC rate limit: {rpc_rate_limit} calls/sec (delay: {}ms per call)", delay.as_millis());
+        log::info!(
+            "RPC rate limit: {rpc_rate_limit} calls/sec (delay: {}ms per call)",
+            delay.as_millis()
+        );
     }
 
     let mut last_call_time = std::time::Instant::now();
@@ -251,7 +256,7 @@ pub async fn get_logs_paginated<P: Provider>(
                         );
                         return Err(LogFetchError::ProviderError(e.to_string()));
                     }
-                    
+
                     // Exponential backoff: 2s, 4s, 8s, 16s, 32s
                     let backoff_secs = 2u64.pow(rate_limit_retries.min(5));
                     warn!(

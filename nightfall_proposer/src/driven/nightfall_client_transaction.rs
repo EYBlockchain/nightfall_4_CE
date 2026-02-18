@@ -7,6 +7,7 @@ use crate::{
     },
 };
 use ark_std::Zero;
+use jf_plonk::errors::PlonkError;
 use lib::{
     nf_client_proof::{Proof, ProvingEngine, PublicInputs},
     shared_entities::{ClientTransaction, OnChainTransaction},
@@ -17,7 +18,6 @@ use std::{
     fmt::{Debug, Display, Formatter},
 };
 use warp::reject;
-use jf_plonk::errors::PlonkError;
 
 // The event processor (located in the Repository) and the REST API both need to call the following function. Thus, it can't really be located in services,
 //otherwise we'd be doing a reentrant call from repository to services, which is a bit of an odd pattern.

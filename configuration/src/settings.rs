@@ -116,7 +116,6 @@ fn default_rpc_rate_limit() -> u32 {
     0 // 0 = unlimited
 }
 
-
 #[derive(Debug, Deserialize, Serialize, Default)]
 #[allow(unused)]
 pub struct Settings {

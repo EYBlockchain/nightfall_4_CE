@@ -248,6 +248,7 @@ pub enum NightfallContractError {
     TransactionNotFound(alloy::primitives::TxHash),
     AbiDecodeError(String),
     DecodedCallError(String),
+    X509Error(String),
 }
 
 impl Display for NightfallContractError {
@@ -265,6 +266,7 @@ impl Display for NightfallContractError {
                 write!(f, "Did not receive a transaction receipt")
             }
             NightfallContractError::EscrowError(s) => write!(f, "Escrow Funds Error: {s}"),
+            NightfallContractError::X509Error(s) => write!(f, "X509 certificate Error: {s}"),
             NightfallContractError::ContractVerificationError(s) => {
                 write!(f, "Contract Verification Error: {s}")
             }

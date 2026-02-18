@@ -374,7 +374,7 @@ docker compose --profile indie-client build
 docker compose --profile indie-client --env-file local.env up
 ```
 ### Step 3.7: Call Client APIs
-You can then interact with Nightfall using the client APIs: https://github.com/EYBlockchain/nightfall_4_CE/blob/master/doc/nf_4.md#client-apis
+When you see `nightfall_client::drivers::blockchain::nightfall_event_listener Subscribed to events`,  you can then interact with Nightfall using the client APIs: https://github.com/EYBlockchain/nightfall_4_CE/blob/master/doc/nf_4.md#client-apis
 
 ------
 ******

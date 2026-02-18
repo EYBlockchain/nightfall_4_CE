@@ -1,12 +1,17 @@
 use super::models::CertificateReq;
+use crate::error::NightfallContractError;
 use crate::{
     blockchain_client::BlockchainClientConnection, error::CertificateVerificationError,
     initialisation::get_blockchain_client_connection, models::bad_request,
     verify_contract::VerifiedContracts,
 };
 use alloy::primitives::{Address, U256};
+use alloy::providers::Provider;
+use ark_std::Zero;
 use configuration::addresses::get_addresses;
+use configuration::settings::get_settings;
 use futures::stream::TryStreamExt;
+use log::info;
 use log::{debug, error, trace, warn};
 use nightfall_bindings::artifacts::X509;
 use openssl::{
@@ -273,18 +278,66 @@ async fn validate_certificate(
         addr: sender_address,
     };
 
-    let tx_receipt = x509_instance
-        .validateCertificate(certificate_args)
-        .from(caller)
-        .send()
+    let signer = get_blockchain_client_connection()
+        .await
+        .read()
+        .await
+        .get_signer();
+
+    let nonce = blockchain_client
+        .get_transaction_count(signer.address())
+        .await
+        .map_err(|e| NightfallContractError::X509Error(format!("Transaction unsuccesful: {e}")))?;
+    let gas_price = blockchain_client
+        .get_gas_price()
+        .await
+        .map_err(|e| NightfallContractError::X509Error(format!("Transaction unsuccesful: {e}")))?;
+    let max_fee_per_gas = gas_price * 2;
+    let max_priority_fee_per_gas = gas_price;
+    let gas_limit = 5000000u64;
+
+    let call = x509_instance
+        .validateCertificate(certificate_args.clone())
+        .nonce(nonce)
+        .gas(gas_limit)
+        .max_fee_per_gas(max_fee_per_gas)
+        .max_priority_fee_per_gas(max_priority_fee_per_gas)
+        .chain_id(get_settings().network.chain_id) // Linea testnet chain ID
+        .build_raw_transaction((*signer).clone())
         .await
         .map_err(|e| {
-            warn!("{e}");
-            X509ValidationError
+            NightfallContractError::EscrowError(format!("Transaction unsuccesful: {e}"))
         })?;
-    if tx_receipt.get_receipt().await.is_err() {
-        error!("X509Validation transaction failed");
-        return Err(Box::new(X509ValidationError));
+
+    let tx_receipt = blockchain_client
+        .send_raw_transaction(&call)
+        .await
+        .map_err(|e| NightfallContractError::EscrowError(format!("Error getting receipt: {e}")))?
+        .get_receipt()
+        .await
+        .map_err(|e| {
+            NightfallContractError::EscrowError(format!("Transaction unsuccesful: {e}"))
+        })?;
+    ark_std::println!("x509 tx receipt: {:?}", tx_receipt);
+
+    // let tx_receipt = x509_instance
+    //     .validateCertificate(certificate_args.clone())
+    //     .from(caller)
+    //     .send()
+    //     .await
+    //     .map_err(|e| {
+    //         warn!("{e}");
+    //         X509ValidationError
+    //     })?;
+    // if tx_receipt.get_receipt().await.is_err() {
+    //     error!("X509Validation transaction failed");
+    //     return Err(Box::new(X509ValidationError));
+    // }
+    if !tx_receipt.gas_used.is_zero() {
+        info!(
+            "Gas used in X509 certificate check: {:?}",
+            tx_receipt.gas_used
+        );
     }
     Ok(())
 }

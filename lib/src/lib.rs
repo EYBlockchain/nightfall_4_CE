@@ -11,6 +11,7 @@ pub mod error;
 pub mod health_check;
 pub mod hex_conversion;
 pub mod keys;
+pub mod log_fetcher;
 pub mod merkle_trees;
 pub mod models;
 pub mod nf_client_proof;
@@ -27,7 +28,6 @@ pub mod validate_certificate;
 pub mod validate_keys;
 pub mod verify_contract;
 pub mod wallets;
-pub mod log_fetcher;
 
 use alloy::dyn_abi::abi::encode;
 use alloy::primitives::{keccak256, U256};

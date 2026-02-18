@@ -15,6 +15,7 @@ use ark_bn254::Fr as Fr254;
 use configuration::{addresses::get_addresses, settings::get_settings};
 use futures::StreamExt;
 use futures::{future::BoxFuture, FutureExt};
+use lib::log_fetcher::get_logs_paginated;
 use lib::{
     blockchain_client::BlockchainClientConnection,
     error::EventHandlerError,
@@ -29,8 +30,6 @@ use tokio::{
     sync::{OnceCell, RwLock},
     time::sleep,
 };
-use lib::log_fetcher::get_logs_paginated;
-
 
 /// This function starts the event handler. It will attempt to restart the event handler in case of errors
 /// with an exponential backoff for a configurable number of attempts. If the event handler
