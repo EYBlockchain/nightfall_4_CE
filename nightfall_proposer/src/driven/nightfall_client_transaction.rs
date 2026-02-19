@@ -7,7 +7,6 @@ use crate::{
     },
 };
 use ark_std::Zero;
-use jf_plonk::errors::PlonkError;
 use lib::{
     nf_client_proof::{Proof, ProvingEngine, PublicInputs},
     shared_entities::{ClientTransaction, OnChainTransaction},

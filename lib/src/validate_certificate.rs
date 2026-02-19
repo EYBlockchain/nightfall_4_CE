@@ -7,11 +7,9 @@ use crate::{
 };
 use alloy::primitives::{Address, U256};
 use alloy::providers::Provider;
-use ark_std::Zero;
 use configuration::addresses::get_addresses;
 use configuration::settings::get_settings;
 use futures::stream::TryStreamExt;
-use log::info;
 use log::{debug, error, trace, warn};
 use nightfall_bindings::artifacts::X509;
 use openssl::{

@@ -3,7 +3,7 @@ use alloy::primitives::U256;
 use configuration::{addresses::get_addresses, settings::get_settings};
 use lib::{
     blockchain_client::BlockchainClientConnection,
-    error::{NightfallContractError, ProposerError},
+    error::ProposerError,
     verify_contract::VerifiedContracts,
 };
 use log::{info, warn};

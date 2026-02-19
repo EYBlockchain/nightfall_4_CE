@@ -1,21 +1,18 @@
 use std::{fmt, time::Duration};
-
 use crate::error::ConfigError;
-use ark_serialize::CanonicalDeserialize;
 use ark_std::fs;
-use ark_std::path::PathBuf;
 /// A module containing uncategorised functions used by more than one component
 use configuration::settings::get_settings;
 use futures::StreamExt;
-use jf_plonk::nightfall::ipa_structs::ProvingKey;
-use jf_plonk::recursion::circuits::Kzg;
 use log::{debug, info, warn};
 use serde::ser::StdError;
-use std::sync::Arc;
-use tokio::{runtime::Handle, task::block_in_place};
-use tokio_util::bytes::BytesMut;
 use url::Url;
 use warp::hyper::body::Bytes;
+use tokio::runtime::Handle;
+use alloy_rlp::BytesMut;
+use tokio::task::block_in_place;
+use ark_std::path::PathBuf;
+
 
 // log progress every 100 MB during key downloads
 const DOWNLOAD_PROGRESS_LOG_INTERVAL_BYTES: u64 = 100 * 1024 * 1024;
