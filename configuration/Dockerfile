@@ -15,7 +15,7 @@ RUN mkdir -p /var/www/html/configuration/toml
 COPY ./configuration/nginx.conf /etc/nginx/conf.d/default.conf
 
 # Copy static files (if any go into /var/www/html/bin)
-COPY ./configuration/bin/* /var/www/html/
+COPY ./configuration/bin/keys/* /var/www/html/
 
 RUN chown -R nginx:nginx /var/www/html \     
     && chmod -R 755 /var/www/html  

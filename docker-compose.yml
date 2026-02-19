@@ -420,7 +420,7 @@ services:
       - ./blockchain_assets/logs:/app/blockchain_assets/logs # to be able to see deployed contract addresses locally
       - type: volume
         source: key_data
-        target: /app/configuration/bin
+        target: /app/configuration/bin/keys
         read_only: false
       - type: volume
         source: toml_data
@@ -459,7 +459,7 @@ services:
         read_only: true
       - type: volume
         source: key_data
-        target: /var/www/html/configuration/bin
+        target: /var/www/html/configuration/bin/keys
         read_only: true
     networks:
       - nightfall_network

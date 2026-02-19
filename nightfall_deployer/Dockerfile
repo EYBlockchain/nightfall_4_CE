@@ -10,15 +10,7 @@ WORKDIR /app
 RUN mkdir -p bin
 COPY --from=foundry /usr/local/bin/forge ./forge
 COPY --exclude=configuration/bin/*  . .
-COPY configuration/bin/decider_vk configuration/bin/
-COPY configuration/bin/base_bn254_pk configuration/bin/
-COPY configuration/bin/base_grumpkin_pk configuration/bin/
-COPY configuration/bin/decider_pk configuration/bin/
-COPY configuration/bin/deposit_proving_key configuration/bin/
-COPY configuration/bin/merge_bn254_pk_0 configuration/bin/
-COPY configuration/bin/merge_grumpkin_pk_0 configuration/bin/
-COPY configuration/bin/merge_grumpkin_pk_1 configuration/bin/
-COPY configuration/bin/proving_key configuration/bin/
+COPY configuration/bin/keys/ configuration/bin/keys/
 ENV PATH=/app:$PATH
 RUN --mount=type=cache,id=cargo-registry-v4,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,id=cargo-git-v4,target=/usr/local/cargo/git,sharing=locked \
