@@ -2,7 +2,8 @@ use crate::{domain::error::ProposerRejection, initialisation::get_blockchain_cli
 use alloy::primitives::U256;
 use configuration::{addresses::get_addresses, settings::get_settings};
 use lib::{
-    blockchain_client::BlockchainClientConnection, error::ProposerError,
+    blockchain_client::BlockchainClientConnection,
+    error::{NightfallContractError, ProposerError},
     verify_contract::VerifiedContracts,
 };
 use log::{info, warn};
@@ -43,28 +44,74 @@ async fn handle_rotate_proposer() -> Result<impl Reply, warp::Rejection> {
         }
     }
     // rotate the proposer
-    let tx_call = proposer_manager.rotate_proposer();
-    let tx_result = tx_call.send().await;
-    match tx_result {
-        Ok(tx) => {
-            let tx_receipt = tx.get_receipt().await.map_err(|e| {
-                warn!("Failed to get transaction receipt: {e}");
-                ProposerError::ProviderError(e.to_string())
-            })?;
-            if tx_receipt.status() {
-                info!("Rotated proposer successfully");
-                Ok(StatusCode::OK)
-            } else {
-                warn!("Failed to rotate proposer");
-                Err(warp::reject::custom(
-                    ProposerRejection::FailedToRotateProposer,
-                ))
-            }
-        }
-        Err(_e) => Err(warp::reject::custom(
+    let signer = get_blockchain_client_connection()
+        .await
+        .read()
+        .await
+        .get_signer();
+
+    let nonce = blockchain_client
+        .get_transaction_count(signer.address())
+        .await
+        .expect("Failed to generate nonce during proposer rotation");
+    let gas_price = blockchain_client
+        .get_gas_price()
+        .await
+        .expect("Failed to generate gas_price during proposer rotation");
+    let max_fee_per_gas = gas_price * 2;
+    let max_priority_fee_per_gas = gas_price;
+    let gas_limit = 5000000u64;
+
+    let call = proposer_manager
+        .rotate_proposer()
+        .nonce(nonce)
+        .gas(gas_limit)
+        .max_fee_per_gas(max_fee_per_gas)
+        .max_priority_fee_per_gas(max_priority_fee_per_gas)
+        .chain_id(get_settings().network.chain_id) // Linea testnet chain ID
+        .build_raw_transaction((*signer).clone())
+        .await
+        .expect("Failed to call rotate_proposer");
+
+    let tx_receipt = blockchain_client
+        .send_raw_transaction(&call)
+        .await
+        .expect("Failed to send rotation proposer transaction")
+        .get_receipt()
+        .await
+        .expect("Failed to get receipt of rotation proposer transaction");
+    if tx_receipt.status() {
+        info!("Rotated proposer successfully");
+        Ok(StatusCode::OK)
+    } else {
+        warn!("Failed to rotate proposer");
+        Err(warp::reject::custom(
             ProposerRejection::FailedToRotateProposer,
-        )),
+        ))
     }
+
+    // let tx_call = proposer_manager.rotate_proposer();
+    // let tx_result = tx_call.send().await;
+    // match tx_result {
+    //     Ok(tx) => {
+    //         let tx_receipt = tx.get_receipt().await.map_err(|e| {
+    //             warn!("Failed to get transaction receipt: {e}");
+    //             ProposerError::ProviderError(e.to_string())
+    //         })?;
+    //         if tx_receipt.status() {
+    //             info!("Rotated proposer successfully");
+    //             Ok(StatusCode::OK)
+    //         } else {
+    //             warn!("Failed to rotate proposer");
+    //             Err(warp::reject::custom(
+    //                 ProposerRejection::FailedToRotateProposer,
+    //             ))
+    //         }
+    //     }
+    //     Err(_e) => Err(warp::reject::custom(
+    //         ProposerRejection::FailedToRotateProposer,
+    //     )),
+    // }
 }
 
 // Add a proposer
