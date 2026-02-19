@@ -339,7 +339,7 @@ impl NightfallContract for Nightfall::NightfallCalls {
         Ok(TokenData {
             erc_address: FrBn254::from(token_info.ercAddress).into(),
             token_id: BigInteger256::from(Uint256(token_info.tokenId)),
-            token_type: TokenType::try_from(token_info.tokenType).unwrap(),
+            token_type: TokenType::from(token_info.tokenType),
         })
     }
     // given a layer 2 block number, return the layer 2 block and the sender address

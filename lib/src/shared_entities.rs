@@ -4,8 +4,9 @@ use crate::{
     nf_client_proof::{Proof, PublicInputs},
     secret_hash::SecretHash,
     serialization::{ark_de_hex, ark_se_hex},
+    error::ConversionError
 };
-use alloy::{dyn_abi::abi::token, primitives::Address};
+use alloy::primitives::Address;
 use ark_bn254::Fr as Fr254;
 use ark_ec::twisted_edwards::Affine as TEAffine;
 use ark_ff::PrimeField;
@@ -216,6 +217,18 @@ impl From<u8> for TokenType {
                warn!("Received unsupported token type value: {value}, defaulting to ERC20");
                 TokenType::ERC20
             }
+        }
+    }
+}
+impl TokenType {
+    pub fn parse_token_type(token_type: &str) -> Result<TokenType, ConversionError> {
+        match token_type.trim().to_ascii_uppercase().as_str() {
+            "ERC20" => Ok(TokenType::ERC20),
+            "ERC1155" => Ok(TokenType::ERC1155),
+            "ERC721" => Ok(TokenType::ERC721),
+            "ERC3525" => Ok(TokenType::ERC3525),
+            "FEETOKEN" | "FEE_TOKEN" => Ok(TokenType::FeeToken),
+            _ => Err(ConversionError::InvalidTokenType),
         }
     }
 }

@@ -417,7 +417,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
         &self,
         token_type: &str,
     ) -> Result<Vec<(Fr254, CommitmentEntry)>, mongodb::error::Error> {
-        let filter = doc! { "preimage.token_type": token_type, "status": "Unspent" };
+        let filter = doc! { "token_type": token_type, "status": "Unspent" };
         let mut cursor = self
             .database(DB)
             .collection::<CommitmentEntry>("commitments")
@@ -437,7 +437,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
         nf_token_id: Fr254,
     ) -> Result<Vec<(Fr254, CommitmentEntry)>, mongodb::error::Error> {
         let filter = doc! {
-            "preimage.token_type": token_type,
+            "token_type": token_type,
             "preimage.nf_token_id": nf_token_id.to_hex_string(),
             "status": "Unspent"
         };

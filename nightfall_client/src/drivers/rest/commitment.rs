@@ -8,6 +8,9 @@ use ark_bn254::Fr as Fr254;
 use ark_ff::{BigInteger, PrimeField, Zero, One};
 use lib::{hex_conversion::HexConvertible, shared_entities::TokenType};
 
+
+
+
 /// GET request for a specific commitment by key
 pub fn get_commitment(
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
@@ -88,8 +91,8 @@ pub async fn handle_get_max_transferable_amount_by_token_type(
         .get_commitments_by_token_type_and_nf_token_id(&token_type, nf_token_id)
         .await
         .map_err(|_| warp::reject::custom(crate::domain::error::ClientRejection::DatabaseError))?;
-    let token_type: TokenType = u8::from_str_radix(&token_type, 16)
-                                .map_err(|_| warp::reject::custom(crate::domain::error::ClientRejection::InvalidTokenType))?.into();
+    let token_type = TokenType::parse_token_type(&token_type)
+        .map_err(|_| warp::reject::custom(crate::domain::error::ClientRejection::InvalidTokenType))?;
 
     let max_transferable_value = |entries: &[(Fr254, CommitmentEntry)]| -> Fr254 {
         let mut values = entries
