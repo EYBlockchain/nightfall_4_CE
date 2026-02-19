@@ -54,7 +54,7 @@ pub fn get_configuration_keys_path() -> Option<PathBuf> {
 
 /// Function that retrieves the client proving key from a local file.
 pub fn get_client_proving_key_locally() -> Result<ProvingKey<UnivariateKzgPCS<Bn254>>> {
-    let client_pk_path = Path::new("./configuration/bin/proving_key");
+    let client_pk_path = Path::new("./configuration/bin/keys/proving_key");
 
     let source_file = find_file_with_path(client_pk_path).with_context(|| {
         format!(
@@ -76,7 +76,7 @@ pub fn get_client_proving_key_locally() -> Result<ProvingKey<UnivariateKzgPCS<Bn
 
 /// Function that retrieves the deposit proving key from a local file.
 pub fn get_deposit_proving_key_locally() -> Result<ProvingKey<UnivariateKzgPCS<Bn254>>> {
-    let deposit_pk_path = Path::new("./configuration/bin/deposit_proving_key");
+    let deposit_pk_path = Path::new("./configuration/bin/keys/deposit_proving_key");
 
     let source_file = find_file_with_path(deposit_pk_path).with_context(|| {
         format!(

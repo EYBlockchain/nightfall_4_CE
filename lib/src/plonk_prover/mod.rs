@@ -19,7 +19,7 @@ pub fn get_client_proving_key() -> &'static Arc<ProvingKey<UnivariateKzgPCS<Bn25
     static PK: OnceLock<Arc<ProvingKey<UnivariateKzgPCS<Bn254>>>> = OnceLock::new();
     PK.get_or_init(|| {
         // We'll try to load from the configuration server first.
-        let path = Path::new("./configuration/bin/proving_key");
+        let path = Path::new("./configuration/bin/keys/proving_key");
         let source_file = find_file_with_path(path).expect("Could not find path");
 
         if let Some(_key_bytes) = load_key_locally(&source_file) {

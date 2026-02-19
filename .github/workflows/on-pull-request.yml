@@ -92,7 +92,7 @@ jobs:
             chmod 444 ptau-cache/ppot_26.ptau # Make it read-only
             echo "Cached ppot_26.ptau created"
           fi
-          ln -sf /home/testrunner/ptau-cache/ppot_26.ptau /home/testrunner/actions-runner/_work/nightfall_4_PV/nightfall_4_PV/configuration/bin/ppot_26.ptau
+          ln -sf /home/testrunner/ptau-cache/ppot_26.ptau /home/testrunner/actions-runner/_work/nightfall_4_PV/nightfall_4_PV/configuration/bin/trusted_setup/ppot_26.ptau
       - name: link bn254 setup cache
         shell: bash
         run: |
@@ -101,7 +101,7 @@ jobs:
           VERSION_SUFFIX="${NF4_SRS_VERSION:-v1}"
           CACHE_DIR="/home/testrunner/srs-cache"
           CACHE_FILE="$CACHE_DIR/bn254_setup_26.${VERSION_SUFFIX}.cache"
-          TARGET_DIR="$GITHUB_WORKSPACE/configuration/bin"
+          TARGET_DIR="$GITHUB_WORKSPACE/configuration/bin/trusted_setup"
           TARGET="$TARGET_DIR/bn254_setup_26.cache"
           mkdir -p "$CACHE_DIR" "$TARGET_DIR"
           # Prevent two concurrent workflows from trampling the cache
