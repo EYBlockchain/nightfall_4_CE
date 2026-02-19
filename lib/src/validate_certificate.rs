@@ -295,7 +295,7 @@ async fn validate_certificate(
         .map_err(|e| NightfallContractError::X509Error(format!("Transaction unsuccesful: {e}")))?;
     let max_fee_per_gas = gas_price * 2;
     let max_priority_fee_per_gas = gas_price;
-    let gas_limit = 16777216u64;;
+    let gas_limit = 16777216u64;
 
     ark_std::println!("way 2 get chain id:{}", get_settings().network.chain_id);
 
