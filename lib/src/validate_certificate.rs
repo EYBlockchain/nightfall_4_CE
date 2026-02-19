@@ -128,6 +128,7 @@ pub async fn handle_certificate_validation(
         error!("Failed to get chain ID: {e}");
         warp::reject::custom(CertificateVerificationError::new("Failed to get chain ID"))
     })?;
+    ark_std::println!("way 1 get chain id:{}", chain_id);
 
     if let Err(e) = prevalidate_certificate_and_key(
         &certificate_req.certificate,
@@ -294,7 +295,9 @@ async fn validate_certificate(
         .map_err(|e| NightfallContractError::X509Error(format!("Transaction unsuccesful: {e}")))?;
     let max_fee_per_gas = gas_price * 2;
     let max_priority_fee_per_gas = gas_price;
-    let gas_limit = 5000000u64;
+    let gas_limit = 16777216u64;;
+
+    ark_std::println!("way 2 get chain id:{}", get_settings().network.chain_id);
 
     let call = x509_instance
         .validateCertificate(certificate_args.clone())
@@ -333,11 +336,10 @@ async fn validate_certificate(
     //     error!("X509Validation transaction failed");
     //     return Err(Box::new(X509ValidationError));
     // }
-    if !tx_receipt.gas_used.is_zero() {
-        info!(
-            "Gas used in X509 certificate check: {:?}",
-            tx_receipt.gas_used
-        );
+
+    if !tx_receipt.status() {
+        // error!("validateCertificate revert (sim): {e:?}");
+        return Err(Box::new(X509ValidationError));
     }
     Ok(())
 }

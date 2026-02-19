@@ -14,7 +14,7 @@ genesis_block = 10252070
 # RPC rate limit (calls per second). 0 = unlimited. 
 # For Alchemy free tier: 8 calls/sec for eth_getLogs (500 CU/s / 60 CU per call)
 rpc_rate_limit = 8
-ethereum_client_url = "wss://eth-sepolia.g.alchemy.com/v2/NjACEiAIuOIsZBd7dsIF_"
+ethereum_client_url = "wss://ethereum-sepolia-rpc.publicnode.com"
 configuration_url = "http://35.225.105.10:8080" # The name of the proposer config to use can be overridden by env var NF4_PROPOSER_CONFIG
 
 
