@@ -407,7 +407,7 @@ NF4_MOCK_PROVER=false cargo run --release --bin key_generation
 or you can get the keys using the configuartion url, `curl -v [host-chain]-configuration_url:8080/<key_name> -o configuration/bin/<key_name>`
 where you need to it for following keys `base_bn254_pk`, `base_grumpkin_pk`, `decider_pk`, `deposit_proving_key`, `merge_bn254_pk_0`, `merge_grumpkin_pk_0`, `merge_grumpkin_pk_1`, `proving_key`.
 
-Note that when the deployer starts the deployment with `block_size == 64`, it will generate the aforementioned keys, but proposer can decide to increase the `block_size` to `256`, in this way, proposer can just run key generation itself.
+Note that when the deployer starts the deployment with `block_size == 64`, it will generate the aforementioned keys, but proposer can decide to increase the `block_size` to `256`, in this way, proposer have to run key generation itself.
 
 
 
