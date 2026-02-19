@@ -246,7 +246,7 @@ NF4_MOCK_PROVER=false cargo run --release --bin key_generation
 ```bash
 curl -v [host-chain]-configuration_url:8080/<key_name> -o configuration/bin/<key_name>`
 ```
-where you need to it for these keys: `base_bn254_pk`, `base_grumpkin_pk`, `decider_pk`, `deposit_proving_key`, `merge_bn254_pk_0`, `merge_grumpkin_pk_0`, `merge_grumpkin_pk_1`. You can verify the key size as mentioned before.
+where you need to it for these keys: `base_bn254_pk`, `base_grumpkin_pk`, `decider_pk`, `deposit_proving_key`, `merge_bn254_pk_0`, `merge_grumpkin_pk_0`, `merge_grumpkin_pk_1`, `proving_key`. You can verify the key size as mentioned before.
 
 Note that when the deployer starts the deployment with `block_size == 64`, it will generate the aforementioned keys, but proposer can decide to increase the `block_size` to `256`, in this case, proposer need to run key generation itself and change `block_size = 64` to `block_size = 256` in `[host-chain.nightfall_proposer]` of `nightfall.toml`. Only 64 and 256 are surpported.
 
