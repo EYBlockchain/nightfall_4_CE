@@ -169,7 +169,7 @@ This deploys all Nightfall contracts.
 - Deployment logs are saved under: `blockchain_assets/logs`
 
 
-As usual, a `Code 0` exit indicates a successful outcome.
+`nf4_indie_deployer exited with code 0` indicates a successful outcome.
 
 > ⚠️ **Troubleshooting:**
 >
@@ -199,7 +199,7 @@ docker compose --profile configuration --env-file local.env logs -f
 ```
 
 To verify if this step finishes successfully, you can check if configuration url (`[host-chain]-configuration_url`) hosts keys, contract addresses and contract hashes correctly:
-1. Open another terminal in a new folder to get keys, `curl -v [host-chain]-configuration_url:8080/<key_name> -o configuration/bin/<key_name>`
+1. Open another terminal in a new folder to get keys, `curl -v [host-chain]-configuration_url:8080/<key_name> -o configuration/bin/keys/<key_name>`
 where you need to it for following keys `base_bn254_pk`, `base_grumpkin_pk`, `decider_pk`, `deposit_proving_key`, `merge_bn254_pk_0`, `merge_grumpkin_pk_0`, `merge_grumpkin_pk_1`, and `proving_key`. use `ls -lh`to check the key size, it should match the size mentioned before.
 2. `curl [host-chain]-configuration_url/configuration/toml/addresses.toml` to get addresses for `nightfall`, `round_robin`, `x509` and `verifier`.
 3. `curl [host-chain]-configuration_url/configuration/toml/contract_hashes.toml` to get contract hashes for `nightfall_hash`, `round_robin_hash`, `x509_hash`.
