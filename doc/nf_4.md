@@ -553,7 +553,7 @@ WithdrawResponse {
 }
 ```
 
-This call will nullify one or two spend commitments (same for fee spend commitments) and descrow the corresponding funds so that the user can withdraw funds. NB unlike a deposit, which both escrows funds and then creates a deposit transaction without further user input, a withdraw transaction, that moves funds from Layer 2 to Layer 1, must be manually followed up with a de-escrow transaction to recover the funds into the recipient's account from the Nightfall contracts 'pending' balance. This is because of the use of the safer 'withdraw' pattern.
+This call will nullify one or two spend commitments (same for fee spend commitments) and de-escrow the corresponding funds so that the user can withdraw funds. After successful withdraw operation client will automatically do the de-escrow.
 
 The components of the JSON object have the following meaning:
 
@@ -563,37 +563,6 @@ The components of the JSON object have the following meaning:
 - tokenType: The type of token being transacted: 0 => ERC20, 1 => ERC1155, 2 => ERC721, 3 => ERC3525.
 - recipientAddress: The Ethereum address of the recipient of the withdrawn tokens.
 - fee: The amount that will be paid to the `proposer` which processes this transaction.
-
-***
-
-GET /v1/de-escrow
-
-```sh
-curl -i --request POST 'http://localhost:3000/v1/de-escrow' \
-    --json '{ 
-    "tokenId": "0x00",
-    "ercAddress": "0x959922be3caee4b8cd9a407cc3ac1c251c2007b1", 
-    "recipientAddress": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-    "value": "0x01",  // this value has to be the whole value associated with the withraw you did before.
-    "tokenType": "10",
-    "withdrawFundSalt": "cb56f2a1befb9954b4d7885f5d3d29cfe9f7417118f1ec0f1bb9741abae01f0c"
-}'
-```
-
-Returns:
-
-- If funds are available: it will return `1`. The funds will also have been de-escrowed.
-- If funds are not available, it will return `0`.
-
-This call withdraws funds from escrow, after a successful Layer 2 -> Layer 1 withdraw, returning the funds to recipient address. There is no requirement for the caller to be the recipient.
-
-The components of the JSON object have the following meaning:
-
-- ercAddress: The Ethereum address of the ERC20|721|1155|3525 contract that we are using as a source of funds to move into Layer 2.
-- tokenId: The token ID of the token, for a 721|1155|3525 contract. It should be set to "0x00" for an ERC20 contract.
-- value: The value of the token; "0x00" for ERC721  or non-fungible ERC1155 tokens.
-- tokenType: The type of token being transacted: 0 => ERC20, 1 => ERC1155, 2 => ERC721, 3 => ERC3525.
-- recipientAddress: The Ethereum address of the recipient of the withdrawn tokens.
 
 ***
 

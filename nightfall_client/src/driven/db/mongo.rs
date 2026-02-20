@@ -165,6 +165,7 @@ impl RequestDB for Client {
         let request = Request {
             uuid: request_id.to_string(),
             status,
+            child_request_args: None,
         };
         let result = self
             .database(DB)
@@ -201,6 +202,37 @@ impl RequestDB for Client {
             error!("{request_id} Got an error updating request: {e}");
             return None;
         }
+        Some(())
+    }
+
+    async fn update_request_child_args(&self, request_id: &str, child_args: &str) -> Option<()> {
+        let filter = doc! { "uuid": request_id };
+        let update = doc! {"$set": { "child_request_args": child_args }};
+        let result = self
+            .database(DB)
+            .collection::<Request>("requests")
+            .update_one(filter, update)
+            .await;
+        if let Err(e) = result {
+            error!("{request_id} Got an error updating request child_request_args: {e}");
+            return None;
+        }
+        Some(())
+    }
+
+    async fn clear_request_child_args(&self, request_id: &str) -> Option<()> {
+        let filter = doc! { "uuid": request_id };
+        let update = doc! {"$unset": { "child_request_args": "" }};
+        let result = self
+            .database(DB)
+            .collection::<Request>("requests")
+            .update_one(filter, update)
+            .await;
+        if let Err(e) = result {
+            error!("{request_id} Got an error clearing child_request_args: {e}");
+            return None;
+        }
+        debug!("{request_id} Successfully cleared child_request_args");
         Some(())
     }
 }

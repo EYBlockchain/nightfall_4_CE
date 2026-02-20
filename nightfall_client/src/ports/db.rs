@@ -14,6 +14,8 @@ pub trait RequestDB {
     async fn store_request(&self, id: &str, status: RequestStatus) -> Option<()>;
     async fn get_request(&self, id: &str) -> Option<Request>;
     async fn update_request(&self, id: &str, status: RequestStatus) -> Option<()>;
+    async fn update_request_child_args(&self, id: &str, child_args: &str) -> Option<()>;
+    async fn clear_request_child_args(&self, id: &str) -> Option<()>;
 }
 
 #[async_trait]

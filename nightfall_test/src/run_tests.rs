@@ -1,7 +1,7 @@
 use crate::{
     test::{
         self, create_nf3_deposit_transaction, create_nf3_transfer_transaction,
-        create_nf3_withdraw_transaction, de_escrow_request, get_key, get_recipient_address,
+        create_nf3_withdraw_transaction, get_key, get_recipient_address,
         set_anvil_mining_interval, verify_deposit_commitments_nf_token_id, wait_for_all_responses,
         wait_on_chain, TokenType,
     },
@@ -20,7 +20,7 @@ use ark_std::{collections::HashMap, Zero};
 use configuration::settings::{get_settings, Settings};
 use futures::future::try_join_all;
 use lib::{
-    blockchain_client::BlockchainClientConnection, client_models::DeEscrowDataReq,
+    blockchain_client::BlockchainClientConnection,
     hex_conversion::HexConvertible, initialisation::get_blockchain_client_connection,
     utils::get_block_size,
 };
@@ -826,32 +826,6 @@ pub async fn run_tests(
         withdraw_data[i].1.withdraw_fund_salt = response.1.withdraw_fund_salt.clone();
     }
 
-    // convert the withdraw_data into DeEscrowDataReq
-    let de_escrow_data_requests = withdraw_data
-        .into_iter()
-        .map(|(_, l)| DeEscrowDataReq {
-            token_id: l.token_id,
-            erc_address: l.erc_address,
-            recipient_address: l.recipient_address,
-            value: l.value,
-            token_type: l.token_type,
-            withdraw_fund_salt: l.withdraw_fund_salt,
-        })
-        .collect::<Vec<_>>();
-
-    // Wait until all ERC20 funds are available to withdraw
-    info!("Waiting for ERC20 funds to be available for withdrawal");
-    for request in &de_escrow_data_requests {
-        while !de_escrow_request(request, "http://client2:3000")
-            .await
-            .unwrap()
-        {
-            info!("Not yet able to withdraw funds {request:?}");
-            tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-        }
-    }
-    info!("Successfully withdrew ERC20 tokens");
-
     //check the balance of the ERC20 tokens after the withdraws
     let balance = get_erc20_balance(&http_client, Url::parse("http://client2:3000").unwrap()).await;
     info!("Balance of ERC20 tokens held as layer 2 commitments by client2: {balance}");
@@ -933,32 +907,6 @@ pub async fn run_tests(
     for (i, response) in withdraw_responses.iter().enumerate() {
         withdraw_data[i].1.withdraw_fund_salt = response.1.withdraw_fund_salt.clone();
     }
-
-    // convert the withdraw_data into DeEscrowDataReq
-    let de_escrow_data_requests = withdraw_data
-        .into_iter()
-        .map(|(_, l)| DeEscrowDataReq {
-            token_id: l.token_id,
-            erc_address: l.erc_address,
-            recipient_address: l.recipient_address,
-            value: l.value,
-            token_type: l.token_type,
-            withdraw_fund_salt: l.withdraw_fund_salt,
-        })
-        .collect::<Vec<_>>();
-
-    // Wait until all ERC721, ERC3525 and ERC1155 funds are available to withdraw
-    info!("Waiting for ERC721, ERC3525 and ERC1155 funds to be available for withdrawal");
-    for request in &de_escrow_data_requests {
-        while !de_escrow_request(request, "http://client2:3000")
-            .await
-            .unwrap()
-        {
-            info!("Not yet able to withdraw funds {request:?}");
-            tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-        }
-    }
-    info!("Successfully withdrew other tokens");
 
     // get the final balance of all the addresses used. As these are all addresses funded by Anvil,
     // we can simple print those balances
