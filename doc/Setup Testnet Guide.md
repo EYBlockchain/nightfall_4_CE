@@ -244,7 +244,7 @@ NF4_MOCK_PROVER=false cargo run --release --bin key_generation
 ```
 2. Method 2: get the keys using the configuartion url in the root of `nightfall_4_CE` folder, 
 ```bash
-curl -v [host-chain]-configuration_url:8080/<key_name> -o configuration/bin/<key_name>`
+curl -v [host-chain]-configuration_url:8080/<key_name> -o configuration/bin/keys/<key_name>`
 ```
 where you need to it for these keys: `base_bn254_pk`, `base_grumpkin_pk`, `decider_pk`, `deposit_proving_key`, `merge_bn254_pk_0`, `merge_grumpkin_pk_0`, `merge_grumpkin_pk_1`, `proving_key`. You can verify the key size as mentioned before.
 
@@ -339,10 +339,11 @@ After this step, you will get the mocked ERC address of `ERC20Mock`, `ERC721Mock
 ### Step 3.3: Get the proving key from configuration server
 Client node needs to prove its transfers and withdraws using the `proving_key` from configuration url:
 ```bash
-curl -v [host-chain]-configuration_url:8080/proving_key -o configuration/bin/proving_key`
+mkdir configuration/bin/keys
+curl -v [host-chain]-configuration_url:8080/proving_key -o configuration/bin/keys/proving_key`
 ```
 
-You can verify that there is `configuration/bin/proving_key` with size 30M.
+You can verify that there is `configuration/bin/keys/proving_key` with size 30M.
 ---
 
 ### Step 3.4: Stop & clean previous Docker state
