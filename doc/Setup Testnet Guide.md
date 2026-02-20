@@ -91,8 +91,9 @@ Replace placeholders (`0x...`) where required.
 The deployer will use the account corresponding to DEPLOYER_SIGNING_KEY to deploy contracts on the host chain.
 
 ```bash
-DEPLOYER_SIGNING_KEY="0x......." # your private key
+DEPLOYER_SIGNING_KEY="0x......." 
 ```
+where `DEPLOYER_SIGNING_KEY` is private key of deployer's L1 address on host chain.
 Make sure the deployer account is funded (0.1 ETH):
 ```
 
@@ -124,7 +125,6 @@ forge clean && forge build
 This will download a large file and generate multiple keys:
 ```bash
 NF4_MOCK_PROVER=false cargo run --release --bin key_generation
-
 ```
 You should see:
 
@@ -132,8 +132,7 @@ You should see:
 
 - `Generating keys for rollup prover finished` when complete
 
-Key generation can take ~1.5 hours the first time, it's because we need to download a huge file and run trusted setup. Subsequent runs are faster (~20 minutes) because
-`ppot_26.ptau` and `bn254_setup_26.cache` are reused if they are not broken. Only need to change keys when circuits are changed. 
+Key generation can take ~1.5 hours the first time, it's because we need to download a huge file and run trusted setup. Subsequent runs are faster (~20 minutes) because `ppot_26.ptau` and `bn254_setup_26.cache` are reused if they are not broken. Only need to change keys when circuits are changed. 
 
 Keys and intermediate files are stored under configuration/bin/, for example for `block_size == 64`, we have the following keys:
 ```bash
@@ -199,9 +198,15 @@ docker compose --profile configuration --env-file local.env logs -f
 ```
 
 To verify if this step finishes successfully, you can check if configuration url (`[host-chain]-configuration_url`) hosts keys, contract addresses and contract hashes correctly:
-1. Open another terminal in a new folder to get keys, `mkdir configuration/bin/keys`,`curl -v [host-chain]-configuration_url:8080/<key_name> -o configuration/bin/keys/<key_name>`
+1. Open another terminal in a new folder to get keys:
+```bash
+mkdir configuration/bin/keys
+curl -v [host-chain]-configuration_url:8080/<key_name> -o configuration/bin/keys/<key_name>
+```
 where you need to it for following keys `base_bn254_pk`, `base_grumpkin_pk`, `decider_pk`, `deposit_proving_key`, `merge_bn254_pk_0`, `merge_grumpkin_pk_0`, `merge_grumpkin_pk_1`, and `proving_key`. use `ls -lh`to check the key size, it should match the size mentioned before.
+
 2. `curl [host-chain]-configuration_url/configuration/toml/addresses.toml` to get addresses for `nightfall`, `round_robin`, `x509` and `verifier`.
+
 3. `curl [host-chain]-configuration_url/configuration/toml/contract_hashes.toml` to get contract hashes for `nightfall_hash`, `round_robin_hash`, `x509_hash`.
 
 
@@ -210,7 +215,7 @@ where you need to it for following keys `base_bn254_pk`, `base_grumpkin_pk`, `de
 ______
 
 ## Step 2: Start the disignated proposer
-As mentioned before, disignated proposer is for liveness, but this doesn't mean that Nightfall has centralisation problem for proposer. You can safely skip this step, and run Step 3 to start a proposer node, and rotate proposer to its turn. 
+As mentioned before, disignated proposer is for liveness, but this doesn't mean that Nightfall has centralisation problem for proposer. You can safely skip this step, and run Step 4 to start a proposer node, and rotate proposer to its turn when it's time to rotate proposer. 
 > ⚠️ **Resource requirement:**
 >
 > Proving a L2 block with full privacy is heavy. A large server is recommended (e.g., 144 cores / 750GB RAM).
@@ -246,9 +251,9 @@ NF4_MOCK_PROVER=false cargo run --release --bin key_generation
 ```bash
 curl -v [host-chain]-configuration_url:8080/<key_name> -o configuration/bin/keys/<key_name>`
 ```
-where you need to it for these keys: `base_bn254_pk`, `base_grumpkin_pk`, `decider_pk`, `deposit_proving_key`, `merge_bn254_pk_0`, `merge_grumpkin_pk_0`, `merge_grumpkin_pk_1`, `proving_key`. You can verify the key size as mentioned before.
+Replace `<key_name>` with: `base_bn254_pk`, `base_grumpkin_pk`, `decider_pk`, `deposit_proving_key`, `merge_bn254_pk_0`, `merge_grumpkin_pk_0`, `merge_grumpkin_pk_1`, `proving_key`. You can verify the key size as mentioned before.
 
-Note that when the deployer starts the deployment with `block_size == 64`, it will generate the aforementioned keys, but proposer can decide to increase the `block_size` to `256`, in this case, proposer need to run key generation itself and change `block_size = 64` to `block_size = 256` in `[host-chain.nightfall_proposer]` of `nightfall.toml`. Only 64 and 256 are surpported.
+Note that when the deployer starts the deployment with `block_size == 64` or `block_size == 256`, it will generate the aforementioned keys, but proposer can decide to increase the `block_size` to `256`, in this case, proposer need to run key generation itself and change `block_size = 64` to `block_size = 256` in `[host-chain.nightfall_proposer]` of `nightfall.toml`. Only 64 and 256 are surpported.
 
 ---
 ### Step 2.4: Create `local.env`
@@ -258,7 +263,8 @@ Create a file named `local.env` in the repo root with the following content. Rep
 ```bash
 PROPOSER_SIGNING_KEY="0x......." 
 ```
-`PROPOSER_SIGNING_KEY` is your private key for L1 address on host chain.
+
+where `PROPOSER_SIGNING_KEY` is your private key for L1 address on host chain.
 ---
 
 ### Step 2.5: Change `nightfall.toml` and `docker-compose.yml`
@@ -280,7 +286,25 @@ docker compose --profile indie-proposer --env-file local.env up -d
 docker compose --profile indie-proposer --env-file local.env logs -f
 ```
 
+If you enable x509 during the deployement, proposer needs to call X509 validation api:
 
+***
+
+POST /v1/certification
+
+```sh
+curl -i -X POST 'http://localhost:3000/v1/certification' \
+  -H 'Content-Type: multipart/form-data' \
+  -F 'certificate=@blockchain_assets/test_contracts/X509/_certificates/user/user-1.der;type=application/pkix-cert' \
+  -F 'certificate_private_key=@blockchain_assets/test_contracts/X509/_certificates/user/user-1.priv_key;type=application/octet-stream'
+```
+
+This request will ask the X509 smart contract to validate the passed-in X509 certificate. The `client` whose endpoint is called will also generate a signature over its Ethereum address, using the passed-in private key. This too will be passed to the X509 contract, and the Ethereum address will be added to the contract's 'allow list' if the signature and certifcate match up. Note that this api call will return you the status of the caller's X509 validation onchain.
+
+Now the proposer is started, it will start to assemble a block when block assembly is triggered. It's fine if you see logs like `Jiajie: add later` and `Jiajie: add later`
+It means proposer is still waiting.
+
+Jiajie: add some logs here to guide proposer's behaviours.
 ------
 ******
 ______
@@ -340,7 +364,7 @@ After this step, you will get the mocked ERC address of `ERC20Mock`, `ERC721Mock
 Client node needs to prove its transfers and withdraws using the `proving_key` from configuration url:
 ```bash
 mkdir configuration/bin/keys
-curl -v [host-chain]-configuration_url:8080/proving_key -o configuration/bin/keys/proving_key`
+curl -v [host-chain]-configuration_url:8080/keys/proving_key -o configuration/bin/keys/proving_key`
 ```
 
 You can verify that there is `configuration/bin/keys/proving_key` with size 30M.
@@ -375,7 +399,7 @@ docker compose --profile indie-client build
 docker compose --profile indie-client --env-file local.env up
 ```
 ### Step 3.7: Call Client APIs
-When you see `nightfall_client::drivers::blockchain::nightfall_event_listener Subscribed to events`,  you can then interact with Nightfall using the client APIs: https://github.com/EYBlockchain/nightfall_4_CE/blob/master/doc/nf_4.md#client-apis
+When you see `nightfall_client::drivers::blockchain::nightfall_event_listener Subscribed to events`,  you can then interact with Nightfall using the client APIs: https://github.com/EYBlockchain/nightfall_4_CE/blob/master/doc/nf_4.md#client-apis. /v1/certification should be called first if X509 is enabled during deployment.
 
 ------
 ******
