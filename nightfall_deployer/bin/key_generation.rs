@@ -76,6 +76,7 @@ pub fn generate_proving_keys(settings: &Settings) -> Result<(), PlonkError> {
     )?;
 
     let pk_path = path.join("bin/keys/proving_key");
+    ark_std::println!("path for proving_key: {}", pk_path);
     let mut file = File::create(pk_path).map_err(PlonkError::IoError)?;
     let mut compressed_bytes = Vec::new();
     pk.serialize_compressed(&mut compressed_bytes)?;
@@ -83,7 +84,7 @@ pub fn generate_proving_keys(settings: &Settings) -> Result<(), PlonkError> {
         .map_err(PlonkError::IoError)?;
 
     let deposit_pk_path = path.join("bin/keys/deposit_proving_key");
-
+    ark_std::println!("path for deposit_proving_key: {}", deposit_pk_path);
     let mut file = File::create(deposit_pk_path.clone()).map_err(PlonkError::IoError)?;
     let mut deposit_compressed_bytes = Vec::new();
     deposit_pk.serialize_compressed(&mut deposit_compressed_bytes)?;
