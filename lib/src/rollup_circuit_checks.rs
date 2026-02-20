@@ -474,11 +474,16 @@ impl RecursiveProver for RollupKeyGenerator {
     }
 
     fn store_decider_vk(vk: &PlonkVerifyingKey<Bn254>) {
-        let path = get_configuration_keys_path().expect("Failed to get path for configuration keys").join("decider_vk");
-        let mut file = File::create(path).expect("Failed to create path configuration/bin/keys/decider_vk");
+        let path = get_configuration_keys_path()
+            .expect("Failed to get path for configuration keys")
+            .join("decider_vk");
+        let mut file =
+            File::create(path).expect("Failed to create path configuration/bin/keys/decider_vk");
         let mut compressed_bytes = Vec::new();
-        vk.serialize_compressed(&mut compressed_bytes).expect("Failed to serialize vk");
-        file.write_all(&compressed_bytes).expect("Failed to write vk into configuration/bin/keys/decider_vk");
+        vk.serialize_compressed(&mut compressed_bytes)
+            .expect("Failed to serialize vk");
+        file.write_all(&compressed_bytes)
+            .expect("Failed to write vk into configuration/bin/keys/decider_vk");
     }
 
     fn generate_vk_check_constraint(

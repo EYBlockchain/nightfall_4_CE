@@ -43,7 +43,6 @@ use jf_relation::{errors::CircuitError, PlonkCircuit, Variable};
 use log::{debug, warn};
 use mongodb::{bson::doc, Client};
 
-use lib::{rollup_circuit_checks::get_configuration_keys_path, utils::load_key_locally};
 use lib::{
     deposit_circuit::deposit_circuit_builder,
     error::ConversionError,
@@ -55,6 +54,7 @@ use lib::{
     shared_entities::DepositData,
     utils::load_key_from_server,
 };
+use lib::{rollup_circuit_checks::get_configuration_keys_path, utils::load_key_locally};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
@@ -306,8 +306,8 @@ impl RecursiveProver for RollupProver {
 
         GRUMPKIN_MERGE_PKS
             .get_or_init(|| {
-                let config_path = get_configuration_keys_path()
-                    .expect("Configuration path not found");
+                let config_path =
+                    get_configuration_keys_path().expect("Configuration path not found");
 
                 let mut pks = Vec::new();
                 let mut i = 0;
@@ -337,8 +337,8 @@ impl RecursiveProver for RollupProver {
 
         BN254_MERGE_PKS
             .get_or_init(|| {
-                let config_path = get_configuration_keys_path()
-                    .expect("Configuration path not found");
+                let config_path =
+                    get_configuration_keys_path().expect("Configuration path not found");
 
                 let mut pks = Vec::new();
                 let mut i = 0;

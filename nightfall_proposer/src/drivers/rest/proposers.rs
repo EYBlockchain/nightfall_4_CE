@@ -2,8 +2,7 @@ use crate::{domain::error::ProposerRejection, initialisation::get_blockchain_cli
 use alloy::primitives::U256;
 use configuration::{addresses::get_addresses, settings::get_settings};
 use lib::{
-    blockchain_client::BlockchainClientConnection,
-    error::ProposerError,
+    blockchain_client::BlockchainClientConnection, error::ProposerError,
     verify_contract::VerifiedContracts,
 };
 use log::{info, warn};

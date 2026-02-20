@@ -1202,7 +1202,10 @@ mod tests {
             .iter()
             .find(|s| s.name == "proving_key")
             .unwrap_or_else(|| panic!("Should have proving_key in specs: {specs:?}"));
-        assert_eq!(proving_key.url, format!("{config_url}/bin/keys/proving_key"));
+        assert_eq!(
+            proving_key.url,
+            format!("{config_url}/bin/keys/proving_key")
+        );
         assert_eq!(proving_key.out_path, out_dir.join("proving_key"));
 
         // Should contain base keys with correct URLs and paths
@@ -1224,14 +1227,20 @@ mod tests {
             .iter()
             .find(|s| s.name == "base_bn254_pk")
             .unwrap_or_else(|| panic!("Should have base_bn254_pk in specs: {specs:?}"));
-        assert_eq!(base_bn254.url, format!("{config_url}/bin/keys/base_bn254_pk"));
+        assert_eq!(
+            base_bn254.url,
+            format!("{config_url}/bin/keys/base_bn254_pk")
+        );
         assert_eq!(base_bn254.out_path, out_dir.join("base_bn254_pk"));
 
         let base_grumpkin = specs
             .iter()
             .find(|s| s.name == "base_grumpkin_pk")
             .unwrap_or_else(|| panic!("Should have base_grumpkin_pk in specs: {specs:?}"));
-        assert_eq!(base_grumpkin.url, format!("{config_url}/bin/keys/base_grumpkin_pk"));
+        assert_eq!(
+            base_grumpkin.url,
+            format!("{config_url}/bin/keys/base_grumpkin_pk")
+        );
         assert_eq!(base_grumpkin.out_path, out_dir.join("base_grumpkin_pk"));
 
         let merge_counts = merge_counts(

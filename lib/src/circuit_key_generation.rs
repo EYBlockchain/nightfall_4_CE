@@ -45,7 +45,9 @@ pub fn universal_setup_for_production(
     let ptau_file = path.join(format!("bin/trusted_setup/ppot_{max_kzg_degree}.ptau"));
     UnivariateKzgPCS::download_ptau_file_if_needed(max_kzg_degree, &ptau_file)
         .expect("Failed to download ptau file");
-    let cache_file = path.join(format!("bin/trusted_setup/bn254_setup_{max_kzg_degree}.cache"));
+    let cache_file = path.join(format!(
+        "bin/trusted_setup/bn254_setup_{max_kzg_degree}.cache"
+    ));
     UnivariateKzgPCS::universal_setup_bn254_cached(&ptau_file, 1 << max_kzg_degree, &cache_file)
 }
 
