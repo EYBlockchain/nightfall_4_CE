@@ -59,7 +59,7 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
             fee_token_id,
             nf_address,
             value,
-            nf_token_id,
+            nf_token_ids,
             nf_slot_id,
             nullifiers_values,
             nullifiers_salts,
@@ -206,7 +206,7 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
         let commitments = self.verify_commitments(
             fee_token_id,
             nf_address,
-            nf_token_id,
+            nf_token_ids,
             nf_slot_id,
             value,
             fee,
@@ -220,7 +220,7 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
         // Calculate nullifiers
         let nullifiers = self.verify_nullifiers::<BabyJubjub>(
             fee_token_id,
-            nf_token_id,
+            nf_token_ids,
             nf_slot_id,
             nullifier_key,
             &public_keys,
@@ -237,7 +237,7 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
 
         // Perform the encryption of the recipient's commitment preimage was performed appropriately
         let public_data = self.verify_encryption(
-            nf_token_id,
+            nf_token_ids[0],
             nf_slot_id,
             value,
             &shared_secret,

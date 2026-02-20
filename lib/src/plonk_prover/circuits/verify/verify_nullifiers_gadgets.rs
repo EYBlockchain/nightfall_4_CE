@@ -25,7 +25,7 @@ where
     fn verify_nullifiers<P: HasTEForm<BaseField = F>>(
         &mut self,
         fee_token_id: Variable,
-        nf_token_id: Variable, // could be nf4_token_id or fee_token_id
+        nf_token_ids: [Variable; 2], // could be nf4_token_id or fee_token_id
         nf_slot_id: Variable,
         nullifiers_key: Variable,
         public_keys: &[PointVariable; 4],
@@ -45,7 +45,7 @@ where
     fn verify_nullifiers<P: HasTEForm<BaseField = F>>(
         &mut self,
         fee_token_id: Variable,
-        nf_token_id: Variable,
+        nf_token_ids: [Variable; 2],
         nf_slot_id: Variable,
         nullifiers_key: Variable,
         public_keys: &[PointVariable; 4],
@@ -57,7 +57,7 @@ where
     ) -> Result<[Variable; 4], jf_relation::errors::CircuitError> {
         // Check the first nullifier, nullify Withdrawn/Transferred token
         let commitment_hash_1 = self.poseidon_hash(&[
-            nf_token_id,
+            nf_token_ids[0],
             nf_slot_id,
             old_commitment_values[0],
             public_keys[0].get_x(),
@@ -95,7 +95,7 @@ where
         let is_zero = self.is_zero(old_commitment_values[1])?;
 
         let commitment_hash_2 = self.poseidon_hash(&[
-            nf_token_id,
+            nf_token_ids[1],
             nf_slot_id,
             old_commitment_values[1],
             public_keys[1].get_x(),

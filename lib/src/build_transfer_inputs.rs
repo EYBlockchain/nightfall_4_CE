@@ -171,7 +171,7 @@ pub fn build_valid_transfer_inputs(rng: &mut impl Rng) -> (PublicInputs, Private
 
     let private_inputs = PrivateInputs::new()
         .value(value)
-        .nf_token_id(nf_token_id)
+        .nf_token_ids([nf_token_id, nf_token_id])
         .nf_slot_id(nf_slot_id)
         .ephemeral_key(ephemeral_key)
         .recipient_public_key(recipient_public_key)
