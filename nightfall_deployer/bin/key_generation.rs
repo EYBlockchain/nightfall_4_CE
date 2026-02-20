@@ -18,6 +18,7 @@ use lib::{
     shared_entities::DepositData,
 };
 use std::fs::File;
+use std::fs;
 fn main() {
     let settings: Settings = settings::Settings::new().unwrap();
     if settings.mock_prover {
