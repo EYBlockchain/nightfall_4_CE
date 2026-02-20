@@ -10,6 +10,7 @@ WORKDIR /app
 RUN mkdir -p bin
 COPY --from=foundry /usr/local/bin/forge ./forge
 COPY --exclude=configuration/bin/*  . .
+RUN mkdir -p bin/keys
 COPY configuration/bin/keys/ configuration/bin/keys/
 ENV PATH=/app:$PATH
 RUN --mount=type=cache,id=cargo-registry-v4,target=/usr/local/cargo/registry,sharing=locked \
