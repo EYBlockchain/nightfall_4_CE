@@ -8,6 +8,7 @@ use crate::{
 use alloy::primitives::Address;
 use ark_bn254::Fr as Fr254;
 use ark_ec::twisted_edwards::Affine as TEAffine;
+use ark_ff::PrimeField;
 use ark_serialize::SerializationError;
 use ark_std::UniformRand;
 use jf_primitives::poseidon::{FieldHasher, Poseidon, PoseidonError};
@@ -17,7 +18,6 @@ use nightfall_bindings::artifacts::Nightfall;
 use serde::{Deserialize, Serialize};
 use sha3::{Digest, Keccak256};
 use std::fmt::Debug;
-use ark_ff::PrimeField;
 
 /// Struct used to represent deposit data, used in making deposit proofs by the proposer.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq)]
@@ -365,23 +365,24 @@ impl Nullifiable for Preimage {
     fn nullifier_hash(&self, nullifier_key: &Fr254) -> Result<Fr254, PoseidonError> {
         let commitment_hash = self.hash()?;
         let poseidon: Poseidon<Fr254> = Poseidon::new();
-        
+
         let key = match &self.salt {
             Salt::Deposit(secret) if self.public_key == TEAffine::<BabyJubJub>::zero() => {
                 // Deposit: use hash(secret_preimage, DOMAIN)
                 let arr = secret.to_array();
                 poseidon.hash(&[
-                    arr[0], arr[1], arr[2],
+                    arr[0],
+                    arr[1],
+                    arr[2],
                     Fr254::from_le_bytes_mod_order(b"DEPOSIT_NULLIFIER_V1"),
                 ])?
             }
-            _ => *nullifier_key  // Transfer: use nullifier_key
+            _ => *nullifier_key, // Transfer: use nullifier_key
         };
-        
+
         poseidon.hash(&[key, commitment_hash])
     }
 }
-
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct DepositSecret {

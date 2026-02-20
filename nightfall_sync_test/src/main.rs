@@ -65,7 +65,7 @@ async fn main() {
         certificate_private_key: proposer_2_cert_private_key,
     };
     let http_client = reqwest::Client::new();
-    let cert_url = Url::parse(&settings.nightfall_proposer.url)
+    let cert_url = Url::parse("http://proposer2:3000")
         .unwrap()
         .join("/v1/certification")
         .unwrap();
@@ -116,7 +116,7 @@ async fn main() {
     info!("Proposer list: {list:?}");
     // rotating the proposer now, should fail
     info!("Rotating proposers again");
-    let url = Url::parse(&settings.nightfall_proposer.url)
+    let url = Url::parse("http://proposer2:3000")
         .unwrap()
         .join("/v1/rotate")
         .unwrap();
