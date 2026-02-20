@@ -7,12 +7,12 @@ Setting up Nightfall_4 on a host chain (testnet) involves deploying smart contra
 At a high level, the process consists of:
 
 1. Running the **deployment service** to deploy contracts and generate proving keys.
-2. Running the **configuration service** to host contract addresses, hashes, and keys.
+2. Running the **configuration service** to host contract addresses, contract hashes, and keys.
 3. Starting the **designated proposer** to assemble and submit L2 blocks.
 4. Starting the **client service** to submit transactions.
 5. Optionally registering and rotating additional proposers.
 
-During deployment, a **designated proposer** is registered. This proposer is responsible for assembling Layer 2 (L2) blocks and proposing them to the host chain. Additional proposers can later be registered and rotated into the active role.
+During deployment, a **designated proposer** is registered by deployer. This proposer is responsible for assembling L2 blocks and proposing them to the host chain. Additional proposers can later be registered and rotated into the active role when it's ready to rotate proposer.
 
 ------
 ******
@@ -132,8 +132,8 @@ You should see:
 
 - `Generating keys for rollup prover finished` when complete
 
-Key generation can take ~1.5 hours the first time. Subsequent runs are faster (~20 minutes) because
-`ppot_26.ptau` and `bn254_setup_26.cache` are reused. Only need to change keys when circuits are changed. 
+Key generation can take ~1.5 hours the first time, it's because we need to download a huge file and run trusted setup. Subsequent runs are faster (~20 minutes) because
+`ppot_26.ptau` and `bn254_setup_26.cache` are reused if they are not broken. Only need to change keys when circuits are changed. 
 
 Keys and intermediate files are stored under configuration/bin/, for example for `block_size == 64`, we have the following keys:
 ```bash

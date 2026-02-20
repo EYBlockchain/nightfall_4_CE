@@ -146,7 +146,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          BIN_DIR="$GITHUB_WORKSPACE/configuration/bin"
+          BIN_DIR="$GITHUB_WORKSPACE/configuration/bin/trusted_setup"
           mkdir -p "$BIN_DIR"
           hydrate() {
             local f="$1"

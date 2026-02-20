@@ -74,8 +74,8 @@ fn default_concurrency() -> usize {
 /// Specification for each key to be validated
 struct KeySpec {
     name: String,      // e.g., "decider_pk"
-    url: String,       // e.g., "{configuration_url}/decider_pk"
-    out_path: PathBuf, // e.g., "configuration/bin/decider_pk"
+    url: String,       // e.g., "{configuration_url}/bin/keys/decider_pk"
+    out_path: PathBuf, // e.g., "configuration/bin/keys/decider_pk"
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -932,7 +932,7 @@ fn delete_existing_key_files(
         error!("{error_msg}");
         return Err(warp::reject::custom(KeyVerificationError::new(&error_msg)));
     }
-    let bin_path = base_path.join("configuration/bin");
+    let bin_path = base_path.join("configuration/bin/keys");
     if !bin_path.exists() {
         let error_msg = format!(
             "Bin directory '{}' does not exist - cannot clean up key files",
@@ -954,7 +954,7 @@ fn delete_existing_key_files(
             })?;
         }
     }
-    let ppot_file_path = base_path.join(format!("configuration/bin/ppot_{MAX_KZG_DEGREE}.ptau"));
+    let ppot_file_path = base_path.join(format!("configuration/bin/trusted_setup/ppot_{MAX_KZG_DEGREE}.ptau"));
     if ppot_file_path.exists() {
         std::fs::remove_file(ppot_file_path.clone()).map_err(|e| {
             error!(
@@ -979,7 +979,7 @@ mod tests {
     fn test_delete_existing_key_files() {
         // Create a temporary directory structure
         let temp_dir = std::env::temp_dir().join("test_key_deletion");
-        std::fs::create_dir_all(temp_dir.join("configuration/bin"))
+        std::fs::create_dir_all(temp_dir.join("configuration/bin/keys"))
             .unwrap_or_else(|e| panic!("Failed to create test directory structure: {e:?}"));
 
         let merge_counts = merge_counts(
@@ -1009,7 +1009,7 @@ mod tests {
 
         // Create the static test files
         for file in &static_test_files {
-            let file_path = temp_dir.join("configuration/bin").join(file);
+            let file_path = temp_dir.join("configuration/bin/keys").join(file);
             std::fs::write(&file_path, b"test_key_data")
                 .unwrap_or_else(|e| panic!("Failed to write test key file '{file}': {e:?}"));
             assert!(file_path.exists(), "Test file should be created: {file}");
@@ -1018,13 +1018,13 @@ mod tests {
         // Also create some files that should NOT be deleted (to ensure we're selective)
         let preserve_files = vec!["other_file.txt", "config.toml"];
         for file in &preserve_files {
-            let file_path = temp_dir.join("configuration/bin").join(file);
+            let file_path = temp_dir.join("configuration/bin/keys").join(file);
             std::fs::write(&file_path, b"preserve_me")
                 .unwrap_or_else(|e| panic!("Failed to write preserve file '{file}': {e:?}"));
         }
 
         // Get the KeySpecs
-        let out_dir = PathBuf::from("configuration").join("bin");
+        let out_dir = PathBuf::from("configuration").join("bin/keys");
         let specs = build_key_specs("http://example.com/configuration", &out_dir)
             .unwrap_or_else(|e| panic!("Failed to build key specs: {e:?}"));
 
@@ -1038,7 +1038,7 @@ mod tests {
 
         // Verify that all static key files are deleted
         for file in &static_test_files {
-            let file_path = temp_dir.join("configuration/bin").join(file);
+            let file_path = temp_dir.join("configuration/bin/keys").join(file);
             assert!(
                 !file_path.exists(),
                 "Static key file should be deleted: {file}"
@@ -1047,7 +1047,7 @@ mod tests {
 
         // Verify that non-key files are preserved
         for file in &preserve_files {
-            let file_path = temp_dir.join("configuration/bin").join(file);
+            let file_path = temp_dir.join("configuration/bin/keys").join(file);
             assert!(
                 file_path.exists(),
                 "Non-key file should be preserved: {file}",
@@ -1061,7 +1061,7 @@ mod tests {
     #[test]
     fn test_delete_existing_key_files_nonexistent_directory() {
         // Get the KeySpecs
-        let out_dir = PathBuf::from("configuration").join("bin");
+        let out_dir = PathBuf::from("configuration").join("bin/keys");
         let specs = build_key_specs("http://example.com/configuration", &out_dir)
             .unwrap_or_else(|e| panic!("Failed to build key specs: {e:?}"));
 
@@ -1080,7 +1080,7 @@ mod tests {
     #[test]
     fn test_delete_existing_key_files_missing_bin_directory() {
         // Get the KeySpecs
-        let out_dir = PathBuf::from("configuration").join("bin");
+        let out_dir = PathBuf::from("configuration").join("bin/keys");
         let specs = build_key_specs("http://example.com/configuration", &out_dir)
             .unwrap_or_else(|e| panic!("Failed to build key specs: {e:?}"));
 
@@ -1104,19 +1104,19 @@ mod tests {
     #[test]
     fn test_delete_existing_key_files_partial_files() {
         // Get the KeySpecs
-        let out_dir = PathBuf::from("configuration").join("bin");
+        let out_dir = PathBuf::from("configuration").join("bin/keys");
         let specs = build_key_specs("http://example.com/configuration", &out_dir)
             .unwrap_or_else(|e| panic!("Failed to build key specs: {e:?}"));
 
         // Test with only some files existing
         let temp_dir = std::env::temp_dir().join("test_partial_key_deletion");
-        std::fs::create_dir_all(temp_dir.join("configuration/bin"))
+        std::fs::create_dir_all(temp_dir.join("configuration/bin/keys"))
             .unwrap_or_else(|e| panic!("Failed to create test directory: {e:?}"));
 
         // Create only some of the expected files
         let partial_files = vec!["base_grumpkin_pk", "merge_bn254_pk_0"];
         for file in &partial_files {
-            let file_path = temp_dir.join("configuration/bin").join(file);
+            let file_path = temp_dir.join("configuration/bin/keys").join(file);
             std::fs::write(&file_path, b"test_key_data")
                 .unwrap_or_else(|e| panic!("Failed to write partial test file '{file}': {e:?}"));
         }
@@ -1131,7 +1131,7 @@ mod tests {
 
         // Verify that existing files are deleted
         for file in &partial_files {
-            let file_path = temp_dir.join("configuration/bin").join(file);
+            let file_path = temp_dir.join("configuration/bin/keys").join(file);
             assert!(
                 !file_path.exists(),
                 "Existing key file should be deleted: {file}"

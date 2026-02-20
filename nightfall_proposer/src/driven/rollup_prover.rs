@@ -370,7 +370,7 @@ impl RecursiveProver for RollupProver {
     fn get_decider_vk() -> PlonkVerifyingKey<Bn254> {
         let path = get_configuration_path()
             .expect("Configuration path not found")
-            .join("bin/decider_vk");
+            .join("bin/keys/decider_vk");
         let source_file = find(&path).unwrap();
         PlonkVerifyingKey::<Bn254>::deserialize_compressed_unchecked(
             &*std::fs::read(source_file).expect("Could not read verifying key"),
