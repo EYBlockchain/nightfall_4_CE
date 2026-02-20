@@ -30,13 +30,13 @@ const MAX_POSSIBLE_COMMITMENTS: usize = 2;
 // The function returns exactly MAX_POSSIBLE_COMMITMENTS preimages, with unused slots
 // filled with Preimage::default().
 pub async fn find_usable_commitments(
-    target_token_id: Fr254,
+    target_slot_id: Fr254,
     target_value: Fr254,
     db: &Client,
 ) -> Result<[Preimage; MAX_POSSIBLE_COMMITMENTS], &'static str> {
     // Verify enough commitments and get sorted available commitments
     let (avaliable_sorted_commitments, min_num_c) =
-        verify_enough_commitments(target_token_id, target_value, db).await?;
+        verify_enough_commitments(target_slot_id, target_value, db).await?;
 
     // Determine max number of commitments to use
     let max_num_c = avaliable_sorted_commitments
@@ -244,23 +244,22 @@ fn calculate_minimum_commitments(
 // Fetch and filter on-chain commitments
 async fn fetch_on_chain_commitments(
     db: &Client,
-    token_id: Fr254,
+    slot_id: Fr254,
 ) -> Result<Vec<Preimage>, &'static str> {
     let commitments = db
-        .get_available_commitments(token_id)
+        .get_available_commitments(slot_id)
         .await
         .ok_or("No commmitments found in the db")?;
     Ok(commitments.into_iter().map(|c| c.get_preimage()).collect())
 }
 
 async fn verify_enough_commitments(
-    target_token_id: Fr254,
+    target_slot_id: Fr254,
     target_value: Fr254,
     db: &Client,
 ) -> Result<(std::vec::Vec<Preimage>, usize), &'static str> {
     // Fetch on-chain commitments for the non-fee component
-    let mut on_chain_old_value_commitments =
-        fetch_on_chain_commitments(db, target_token_id).await?;
+    let mut on_chain_old_value_commitments = fetch_on_chain_commitments(db, target_slot_id).await?;
     on_chain_old_value_commitments.sort_by_key(|a| a.get_value());
     trace!("On-chain commitments for value: {on_chain_old_value_commitments:?}");
 

@@ -138,7 +138,9 @@ where
         .map_err(|_| "Could not convert roots into fixed length array")?;
     // Construct Private Inputs [ Commitment value, salt, recipient public_key];
     let nf_address = get_addresses().nightfall();
-    let nf_token_id = spend_commitments[0].get_nf_token_id();
+    let nf_token_id_1 = spend_commitments[0].get_nf_token_id();
+    let nf_token_id_2 = spend_commitments[2].get_nf_token_id();
+    let nf_token_ids = [nf_token_id_1, nf_token_id_2];
     let fee_token_id = get_fee_token_id();
     let (mut public_inputs, mut private_inputs) = (
         PublicInputs::new()
@@ -148,7 +150,7 @@ where
         PrivateInputs::new()
             .nf_address(nf_address)
             .value(new_commitments[0].get_value())
-            .nf_token_id(nf_token_id)
+            .nf_token_ids(nf_token_ids)
             .nf_slot_id(nf_slot_id)
             .fee_token_id(fee_token_id)
             .nullifiers_values(&spend_commitments.map(|c| c.get_value()))

@@ -95,6 +95,20 @@ where
         .and_then(queue_withdraw_request)
 }
 
+async fn resolve_target_slot_id_from_token_id(db: &mongodb::Client, nf_token_id: Fr254) -> Fr254 {
+    db.get_all_commitments()
+        .await
+        .ok()
+        .and_then(|entries| {
+            entries.into_iter().map(|(_, entry)| entry).find(|entry| {
+                entry.get_status() == CommitmentStatus::Unspent
+                    && entry.get_nf_token_id() == nf_token_id
+            })
+        })
+        .map(|entry| entry.get_nf_slot_id())
+        .unwrap_or(nf_token_id)
+}
+
 /// function to queue the deposit requests
 async fn queue_deposit_request(
     deposit_req: NF3DepositRequest,
@@ -512,7 +526,8 @@ where
     {
         let db = get_db_connection().await;
         let fee_token_id = get_fee_token_id();
-        let spend_value_commitments = find_usable_commitments(nf_token_id, value,db)
+        let nf_slot_id = resolve_target_slot_id_from_token_id(db, nf_token_id).await;
+        let spend_value_commitments = find_usable_commitments(nf_slot_id, value,db)
         .await.map_err(|e|{
             error!("{id} Could not find enough usable value commitments to complete this transfer, suggest depositing more tokens: {e}"); 
             TransactionHandlerError::CustomError(e.to_string())})?;
@@ -754,7 +769,8 @@ where
     {
         let db = get_db_connection().await;
         let fee_token_id = get_fee_token_id();
-        let spend_value_commitments = find_usable_commitments(nf_token_id, value,db)
+        let nf_slot_id = resolve_target_slot_id_from_token_id(db, nf_token_id).await;
+        let spend_value_commitments = find_usable_commitments(nf_slot_id, value,db)
         .await.map_err(|e|{
             error!("{id} Could not find enough usable value commitments to complete this withdraw, suggest depositing more tokens: {e}"); 
             TransactionHandlerError::CustomError(e.to_string())})?;
