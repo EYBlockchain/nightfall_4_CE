@@ -412,7 +412,7 @@ impl RecursiveProver for RollupKeyGenerator {
 
     fn store_base_grumpkin_pk(pk: MLEProvingKey<Zmorph>) -> Option<()> {
         let config_path = get_configuration_keys_path()?;
-        let file_path = config_path.join("bin/base_grumpkin_pk");
+        let file_path = config_path.join("base_grumpkin_pk");
 
         let mut buf = Vec::<u8>::new();
         pk.serialize_compressed(&mut buf).ok()?;
