@@ -296,7 +296,7 @@ If you enable x509 during the deployement, proposer needs to call X509 validatio
 POST /v1/certification
 
 ```sh
-curl -i -X POST 'http://localhost:3000/v1/certification' \
+curl -i -X POST 'http://localhost:3001/v1/certification' \
   -H 'Content-Type: multipart/form-data' \
   -F 'certificate=@blockchain_assets/test_contracts/X509/_certificates/user/user-1.der;type=application/pkix-cert' \
   -F 'certificate_private_key=@blockchain_assets/test_contracts/X509/_certificates/user/user-1.priv_key;type=application/octet-stream'
