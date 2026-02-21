@@ -12,7 +12,7 @@ At a high level, the process consists of:
 4. Starting the **client service** to submit transactions.
 5. Optionally registering and rotating additional proposers.
 
-During deployment, a **designated proposer** is registered by deployer for liveness. This proposer is responsible for assembling L2 blocks and proposing them to the host chain. Additional proposers can later be registered and rotated into the active role when it's ready to rotate proposer.
+During deployment, a **designated proposer** is registered by deployer for liveness. This proposer is responsible for assembling L2 blocks and proposing them to the host chain. Additional proposers can later be registered and rotated into the active role when it's ready to rotate proposer (difference between the L1 block number when last proposer is working and the current L1 block number should be more than `proposer_rotation_blocks` defined in `nightfall.toml`).
 
 ------
 ******
