@@ -146,7 +146,7 @@ pub fn get_base_grumpkin_proving_key() -> &'static Arc<MLEProvingKey<Zmorph>> {
     static PK: OnceLock<Arc<MLEProvingKey<Zmorph>>> = OnceLock::new();
     PK.get_or_init(|| {
         // We'll try to load key locally first, if it fails we will load from server.
-        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("configuration/bin/keys/base_grumpkin_pk");
+        let path = get_configuration_keys_path().expect("Configuration keys path not found").join("base_grumpkin_pk");
         let source_file = find(&path).unwrap();
         if let Some(key_bytes) = load_key_locally(&source_file) {
             let base_grumpkin_proving_key =
@@ -171,7 +171,7 @@ pub fn get_base_bn254_proving_key() -> &'static Arc<ProvingKey<Kzg>> {
     static PK: OnceLock<Arc<ProvingKey<Kzg>>> = OnceLock::new();
     PK.get_or_init(|| {
         // 1) We'll try to load key locally first, if it fails we will load from server.
-        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("configuration/bin/keys/base_bn254_pk");
+        let path = get_configuration_keys_path().expect("Configuration keys path not found").join("base_bn254_pk");
         let source_file = find(&path).unwrap();
         if let Some(key_bytes) = load_key_locally(&source_file) {
             let base_bn254_proving_key =
@@ -197,7 +197,7 @@ pub fn get_decider_proving_key() -> &'static Arc<PlonkProvingKey<Bn254>> {
     static PK: OnceLock<Arc<PlonkProvingKey<Bn254>>> = OnceLock::new();
 
     PK.get_or_init(|| {
-        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("configuration/bin/keys/decider_pk");
+        let path = get_configuration_keys_path().expect("Configuration keys path not found").join("decider_pk");
         let source_file = find(&path).expect("Could not locate decider_pk file");
 
         // 1) We'll try to load key locally first, if it fails we will load from server.

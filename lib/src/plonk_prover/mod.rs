@@ -2,6 +2,7 @@ pub mod circuit_builder;
 pub mod circuits;
 pub mod plonk_proof;
 
+use crate::rollup_circuit_checks::get_configuration_keys_path;
 use crate::utils::load_key_locally;
 use crate::{rollup_circuit_checks::find_file_with_path, utils::load_key_from_server};
 use ark_bn254::Bn254;
@@ -14,14 +15,16 @@ use std::{
     sync::{Arc, OnceLock},
 };
 use ark_std::path::PathBuf;
+use warp::path;
 
 /// This function is used to retrieve the client proving key.
 pub fn get_client_proving_key() -> &'static Arc<ProvingKey<UnivariateKzgPCS<Bn254>>> {
     static PK: OnceLock<Arc<ProvingKey<UnivariateKzgPCS<Bn254>>>> = OnceLock::new();
     PK.get_or_init(|| {
         // We'll try to load from the configuration server first.
-        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("configuration/bin/keys/proving_key");
-        let source_file = find_file_with_path(&path).expect("Could not find path");
+        let clienpatht_pk_path = get_configuration_keys_path().expect("Configuration keys path not found").join("proving_key");
+        let source_file = find_file_with_path(&clienpatht_pk_path).expect("Could not find path");
+        
 
         if let Some(_key_bytes) = load_key_locally(&source_file) {
             let proving_key =
