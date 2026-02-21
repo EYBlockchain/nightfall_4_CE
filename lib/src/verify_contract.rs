@@ -121,12 +121,12 @@ fn strip_metadata_and_hash(bytecode: &[u8]) -> [u8; 32] {
     {
         // Strip everything from the metadata marker onwards
         let stripped = &bytecode[..pos];
-        println!(
-            "Stripped {} bytes of metadata (original: {}, stripped: {})",
-            bytecode.len() - stripped.len(),
-            bytecode.len(),
-            stripped.len()
-        );
+        // println!(
+        //     "Stripped {} bytes of metadata (original: {}, stripped: {})",
+        //     bytecode.len() - stripped.len(),
+        //     bytecode.len(),
+        //     stripped.len()
+        // );
         keccak256(stripped).0
     } else {
         println!("No metadata marker found, using full bytecode");
@@ -139,11 +139,11 @@ pub async fn get_onchain_code_hash<P: Provider>(
     implementation: Address,
 ) -> eyre::Result<[u8; 32]> {
     let code = provider.get_code_at(implementation).await?;
-    println!("On-chain code length: {} bytes", code.0.len());
+    // println!("On-chain code length: {} bytes", code.0.len());
 
     // Use the same metadata stripping logic as build-time
     let hash = strip_metadata_and_hash(&code.0);
-    println!("On-chain hash (metadata stripped): {hash:?}");
+    // println!("On-chain hash (metadata stripped): {hash:?}");
 
     Ok(hash)
 }

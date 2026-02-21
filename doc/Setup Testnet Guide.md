@@ -12,7 +12,7 @@ At a high level, the process consists of:
 4. Starting the **client service** to submit transactions.
 5. Optionally registering and rotating additional proposers.
 
-During deployment, a **designated proposer** is registered by deployer. This proposer is responsible for assembling L2 blocks and proposing them to the host chain. Additional proposers can later be registered and rotated into the active role when it's ready to rotate proposer.
+During deployment, a **designated proposer** is registered by deployer for liveness. This proposer is responsible for assembling L2 blocks and proposing them to the host chain. Additional proposers can later be registered and rotated into the active role when it's ready to rotate proposer.
 
 ------
 ******
@@ -24,8 +24,6 @@ ______
 >
 > The host chain RPC endpoint **must support WebSocket connections** (`ws://` or `wss://`).
 > Nightfall subscribes to blockchain events, so an `http://` / `https://` endpoint will **not** work.
-
-For example, for the Plume host chain, a WebSocket endpoint such as: `wss://host chain-rpc.plume.org`. 
 
 ### Step 1.1: Setup the Configuration file
 
@@ -44,7 +42,7 @@ Host-chain dependent items:
 
 - `[host-chain]-ethereum_client_url`: The host chain RPC URL. Must be WebSocket (`ws://` / `wss://`).
 
-- `[host-chain]-configuration_url`: URL where the configuration service is exposed. If you change the port (default `8080`), update it here and expose the same port in `docker-compose.yml`.
+- `[host-chain]-configuration_url`: URL where the configuration service is exposed. If you change the port (default `8080`), update it here and expose the same port in `docker-compose.yml`. Deployer will host metadat like prving keys, contract addressess and contract hashes on `[host-chain]-configuration_url::8080`, so that client and proposer can download when they need.
 
 - `[host-chain.network]-chain_id`: Chain ID of the host chain. Deployment logs are written under a folder named after this chain ID.
 
@@ -53,7 +51,7 @@ Host-chain dependent items:
 - `[host-chain.nightfall_deployer]`: `default_proposer_address` and `default_proposer_url` bootstrap L2 block proposing.
 When running the default proposer node, you must expose port `3001` on the host.
 Set `default_proposer_url` to something like `http://<server-ip>:3001`.
-Other values such as `proposer_stake` and `proposer_ding` are liveness parameters.
+Other values such as `proposer_stake` and `proposer_ding` are liveness parameters. Note that `proposer_stake` must be greater than `proposer_exit_penalty`.
 If you need to modify these after deployment, you must upgrade the RoundRobin contract.
 See `doc/Upgradable Contracts Guide.md`.
 
@@ -94,20 +92,20 @@ The deployer will use the account corresponding to DEPLOYER_SIGNING_KEY to deplo
 DEPLOYER_SIGNING_KEY="0x......." 
 ```
 where `DEPLOYER_SIGNING_KEY` is private key of deployer's L1 address on host chain.
-Make sure the deployer account is funded (0.1 ETH):
+Make sure the deployer account has at least 0.1 ETH:
 ```
 
 export NF4_ETHEREUM_CLIENT_URL="your-rpc-url"
-cast balance 0x...(your host chain account) --rpc-url "$NF4_ETHEREUM_CLIENT_URL"
+cast balance 0x-L1_Add --rpc-url "$NF4_ETHEREUM_CLIENT_URL"
 
 ```
-
+Replace `your-rpc-url` with host chain RPC URL, replace `0x-L1_Add` with your L1 address on your host chain.
 ### Step 1.3: Disable X509 certifiate check if needed
 If you don't need clients/proposers to submit X509 certificate, you can disable X509 by changing `x509Contract.enableAllowlisting(true);` to `x509Contract.enableAllowlisting(false);`  in `blockchain_assets/script/deployer.s.sol`.
 
 ### Step 1.4: Deploying contracts
 
-You usually only need to deploy once. Re-deploy only when smart contracts change.
+You usually only need to deploy once. If contracts are changed due to governance, you should upgrade related contracts following `doc/Upgradable Contracts Guide.md` for decentralisation.
 > ⚠️ **Resource requirement:**
 >
 > Key generation is heavy. A large server is recommended (e.g., 144 cores / 750GB RAM).
@@ -148,7 +146,7 @@ proving_key: 30M
 ppot_26.ptau: 73G
 bn254_setup_26.cache: 2.1G
 ```
-We have extra keys for `block_size == 256`. 
+We have extra keys for `block_size == 256`. Therefore, if proposer node decides to use a different block size, it will need to generate keys itself.
 
 
 ---
@@ -177,7 +175,7 @@ This deploys all Nightfall contracts.
 ERROR panic: 'main' panicked at 'Could not create blockchain client connection:
 ProviderError("URL error: URL scheme not supported")': /app/lib/src/lib.rs:63
 `
-it usually means the RPC endpoint is invalid or uses an unsupported scheme. 
+it usually means the RPC endpoint is invalid or uses an unsupported scheme. Try to use a different RPC URL.
 
 ### Step 1.5: Run the configuration service
 
@@ -307,10 +305,13 @@ This request will ask the X509 smart contract to validate the passed-in X509 cer
 Now the proposer is started, it will start to assemble a block when block assembly is triggered. It's fine if you see logs like `nightfall_proposer::driven::block_assembler] Not enough transactions to assemble a block yet.` It means proposer is still waiting.
 
 When there is a deposit transaction, you will see `Received DepositEscrowed event`, and it will save this tx into its mempool.
-When there is a transfer or withdraw transaction, you will see `This block has x deposit(s), y transfer(s), and z withdrawal(s)`.
+When there is a transfer or withdraw transaction, you will see ``.
 When proposer is making a block, you will see `This block has x deposit(s), y transfer(s), and z withdrawal(s)`.
-When proposer is proving a block, you will see `Computing block`, it will take 20 mins depending on your proposer's computing ability.
+When proposer is proving a block, you will see `Computing block`, it will take 20 mins depending on your proposer's computing ability. When it's finished you will see `Block computation took xx` and `Added block to queue (1 pending)`.
 When proposer successfully sent the block to L1, you will see `The L2 block was sent to L1`, you can verify this by checking the L1 exploere of nightfall contract address.
+
+
+Proposer can twist block making parameters by changing `block_assembly_max_wait_secs` `block_assembly_target_fill_ratio`, `block_assembly_initial_interval_secs`, `max_event_listener_attempts`, `block_size` in [host-chain.nightfall_proposer] nightfall.toml.
 
 ------
 ******
