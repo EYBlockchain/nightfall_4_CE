@@ -818,8 +818,9 @@ This endpoint will rotate the proposers if the current `proposer` has been activ
 POST /v1/register
 
 ```sh
-curl -i --request POST 'http://localhost:3000/v1/register' \
-    --json '{ "http://example.com" }'
+curl -i -X POST http://localhost:3001/v1/register \
+  -H "Content-Type: application/json" \
+  -d '"http://example.com"'
 ```
 
 Returns: on success `200 OK`
