@@ -306,6 +306,12 @@ This request will ask the X509 smart contract to validate the passed-in X509 cer
 
 Now the proposer is started, it will start to assemble a block when block assembly is triggered. It's fine if you see logs like `nightfall_proposer::driven::block_assembler] Not enough transactions to assemble a block yet.` It means proposer is still waiting.
 
+When there is a deposit transaction, you will see `Received DepositEscrowed event`, and it will save this tx into its mempool.
+When there is a transfer or withdraw transaction, you will see `This block has x deposit(s), y transfer(s), and z withdrawal(s)`.
+When proposer is making a block, you will see `This block has x deposit(s), y transfer(s), and z withdrawal(s)`.
+When proposer is proving a block, you will see `Computing block`, it will take 20 mins depending on your proposer's computing ability.
+When proposer 
+
 ------
 ******
 ______
@@ -401,6 +407,15 @@ docker compose --profile indie-client --env-file local.env up
 ```
 ### Step 3.7: Call Client APIs
 When you see `nightfall_client::drivers::blockchain::nightfall_event_listener Subscribed to events`,  you can then interact with Nightfall using the client APIs: https://github.com/EYBlockchain/nightfall_4_CE/blob/master/doc/nf_4.md#client-apis. /v1/certification should be called first if X509 is enabled during deployment.
+
+POST /v1/certification
+
+```sh
+curl -i -X POST 'http://localhost:3000/v1/certification' \
+  -H 'Content-Type: multipart/form-data' \
+  -F 'certificate=@blockchain_assets/test_contracts/X509/_certificates/user/user-3.der;type=application/pkix-cert' \
+  -F 'certificate_private_key=@blockchain_assets/test_contracts/X509/_certificates/user/user-3.priv_key;type=application/octet-stream'
+```
 
 ------
 ******

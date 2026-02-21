@@ -53,7 +53,7 @@ pub fn get_deposit_proving_key() -> &'static Arc<ProvingKey<UnivariateKzgPCS<Bn2
     static PK: OnceLock<Arc<ProvingKey<UnivariateKzgPCS<Bn254>>>> = OnceLock::new();
     PK.get_or_init(|| {
         // We'll try to load from the configuration directory first.
-        let path = Path::new("./configuration/bin/keys/deposit_proving_key");
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("configuration/bin/keys/deposit_proving_key");
         let source_file = find_file_with_path(path).unwrap();
         if let Some(_key_bytes) = load_key_locally(&source_file) {
             let deposit_proving_key =
