@@ -23,6 +23,7 @@ use std::{
     path::Path,
     sync::{Arc, OnceLock, RwLock},
 };
+use ark_std::path::PathBuf;
 type AppendOnlyTree = Timber<Fr254, Poseidon<Fr254>>;
 
 type NullifierTree = IndexedMerkleTree<Fr254, Poseidon<Fr254>, HashMap<Fr254, LeafDBEntry<Fr254>>>;
