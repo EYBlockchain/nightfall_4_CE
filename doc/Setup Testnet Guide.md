@@ -304,10 +304,8 @@ curl -i -X POST 'http://localhost:3001/v1/certification' \
 
 This request will ask the X509 smart contract to validate the passed-in X509 certificate. The `client` whose endpoint is called will also generate a signature over its Ethereum address, using the passed-in private key. This too will be passed to the X509 contract, and the Ethereum address will be added to the contract's 'allow list' if the signature and certifcate match up. Note that this api call will return you the status of the caller's X509 validation onchain.
 
-Now the proposer is started, it will start to assemble a block when block assembly is triggered. It's fine if you see logs like `Jiajie: add later` and `Jiajie: add later`
-It means proposer is still waiting.
+Now the proposer is started, it will start to assemble a block when block assembly is triggered. It's fine if you see logs like `nightfall_proposer::driven::block_assembler] Not enough transactions to assemble a block yet.` It means proposer is still waiting.
 
-Jiajie: add some logs here to guide proposer's behaviours.
 ------
 ******
 ______
@@ -358,8 +356,8 @@ If you want to do mock ERC deployments, you can do:
 2. Add Nightfall contract address in `local.env-NIGHTFALL_ADDRESS` and your host chain L1 private key to `local.env-NF4_SIGNING_KEY`. You will need to add `CLIENT2_ADDRESS`, which can be a dummy value or the same value as `CLIENT_ADDRESS`, this is just for testing.
 3.	`forge clean && forge build` 
 4.	`export $(grep -v '^#' local.env | xargs)`  
-5.  `forge script blockchain_assets/script/mock_deployment.s.sol:MockDeployer --rpc-url host-chain-rpc-url --broadcast --legacy --slow`	
-
+5.  `forge script blockchain_assets/script/mock_deployment.s.sol:MockDeployer --rpc-url XXXXXXXXXhost-chain-rpc-urlXXXXXXXXX --broadcast --legacy --slow`	
+Change `XXXXXXXXXhost-chain-rpc-urlXXXXXXXXX` to the host chain RPC URL.
 After this step, you will get the mocked ERC address of `ERC20Mock`, `ERC721Mock`, `ERC1155Mock`, and `ERC3525Mock`. You should store these addresses locally, which will be used later when you are using client APIs.
 ---
 
@@ -410,75 +408,9 @@ ______
 
 ## Step 4: Start the proposer node
 
-### Step 4.1: Get the source
+### Step 4.1 - 4.5: Follow Step 2.1 - 2.5
 
-```bash
-git clone https://github.com/EYBlockchain/nightfall_4_CE.git
-cd nightfall_4_CE
-git checkout -b host-chain/proposer
-```
----
-
-### Step 4.2:Stop & clean previous Docker state
-```bash
-docker compose --profile indie-proposer down -v
-# DANGER: removes images, containers, networks, and volumes
-docker system prune -a --volumes
-```
----
-
-### Step 4.3: Generate/download proving keys
-```bash
-NF4_MOCK_PROVER=false cargo run --release --bin key_generation
-```
-
-or you can get the keys using the configuartion url, `curl -v [host-chain]-configuration_url:8080/<key_name> -o configuration/bin/<key_name>`
-where you need to it for following keys `base_bn254_pk`, `base_grumpkin_pk`, `decider_pk`, `deposit_proving_key`, `merge_bn254_pk_0`, `merge_grumpkin_pk_0`, `merge_grumpkin_pk_1`, `proving_key`.
-
-Note that when the deployer starts the deployment with `block_size == 64`, it will generate the aforementioned keys, but proposer can decide to increase the `block_size` to `256`, in this way, proposer have to run key generation itself.
-
-
-
-
-
----
-### Step 4.4: Create `local.env`
-
-Create a file named `local.env` in the repo root with the following content. Replace placeholders (`0x....`) with your values where indicated.
-
-```bash
-CLIENT_SIGNING_KEY=
-CLIENT2_SIGNING_KEY=
-CLIENT_ADDRESS=
-CLIENT2_ADDRESS=
-PROPOSER_SIGNING_KEY="0x......." # your private key
-PROPOSER_2_SIGNING_KEY=
-DEPLOYER_SIGNING_KEY=
-NIGHTFALL_ADDRESS=
-WEBHOOK_URL=
-AZURE_VAULT_URL=
-DEPLOYER_SIGNING_KEY_NAME=
-PROPOSER_SIGNING_KEY_NAME=
-PROPOSER_2_SIGNING_KEY_NAME=
-CLIENT_SIGNING_KEY_NAME=
-CLIENT2_SIGNING_KEY_NAME=
-AZURE_CLIENT_ID=
-AZURE_CLIENT_SECRET=
-AZURE_TENANT_ID=
-```
-### Step 4.5: Build and run the Nightfall indie proposer node
-
-From the repo root:
-
-```bash
-docker compose --profile indie-proposer build
-
-docker compose --profile indie-proposer --env-file local.env up -d
-
-docker compose --profile indie-proposer --env-file local.env logs -f
-```
-
-### Step 4.6: Rotate Proposer
+### Step 4.6: Register as a Proposer 
 
 Now since you started as a proposer, you need to register as a proposer with the url `http://<server-ip>:3001` using the following api
 
@@ -488,7 +420,7 @@ POST /v1/register
 curl -i --request POST 'http://localhost:3000/v1/register' \
     --json '{ "url": "http://<server-ip>:3001" }'
 ```
-### Step 4.7: Register as a Proposer
+### Step 4.7: Rotate Proposer
 If you want create blocks as a proposer, you can call rotate proposer api
 
 GET v1/rotate
@@ -499,3 +431,5 @@ curl -i 'http://localhost:3001/v1/rotate'
 
 Returns: on success `200 OK` if the active `proposer` was rotated, `423 LOCKED` if proposer rotation was not allowed by the smart contract.
 This endpoint will rotate the proposers if the current `proposer` has been active for more than the number of Layer 1 blocks that a `proposer` is allowed to propose for (ROTATION_BlOCKS) (currently set as 4 blocks). This value is set in the construction of RoundRobin.sol.
+
+### Step 4.7: Follow Step 2.6.
