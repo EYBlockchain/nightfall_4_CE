@@ -39,11 +39,23 @@ pub fn get_configuration_path() -> Option<PathBuf> {
     }
 }
 
+/// Function that starts at the current working directory and returns the path to the configuration/keys folder for all the keys needed for proving.
+pub fn get_configuration_keys_path() -> Option<PathBuf> {
+    let mut cwd = env::current_dir().ok()?;
+    loop {
+        let file_path = cwd.join("configuration/bin/keys");
+        if file_path.is_dir() {
+            return Some(file_path);
+        }
+
+        cwd = cwd.parent()?.to_path_buf();
+    }
+}
+
 /// Function that retrieves the client proving key from a local file.
 pub fn get_client_proving_key_locally() -> Result<ProvingKey<UnivariateKzgPCS<Bn254>>> {
-    let client_pk_path = Path::new("./configuration/bin/proving_key");
-
-    let source_file = find_file_with_path(client_pk_path).with_context(|| {
+    let client_pk_path = get_configuration_keys_path().expect("Configuration keys path not found").join("proving_key");
+    let source_file = find_file_with_path(&client_pk_path).with_context(|| {
         format!(
             "Could not find proving key file at path: {}",
             client_pk_path.display()
@@ -63,9 +75,8 @@ pub fn get_client_proving_key_locally() -> Result<ProvingKey<UnivariateKzgPCS<Bn
 
 /// Function that retrieves the deposit proving key from a local file.
 pub fn get_deposit_proving_key_locally() -> Result<ProvingKey<UnivariateKzgPCS<Bn254>>> {
-    let deposit_pk_path = Path::new("./configuration/bin/deposit_proving_key");
-
-    let source_file = find_file_with_path(deposit_pk_path).with_context(|| {
+    let deposit_pk_path = get_configuration_keys_path().expect("Configuration keys path not found").join("deposit_proving_key");
+    let source_file = find_file_with_path(&deposit_pk_path).with_context(|| {
         format!(
             "Could not find deposit proving key file at path: {}",
             deposit_pk_path.display()
@@ -398,8 +409,8 @@ impl RecursiveProver for RollupKeyGenerator {
     }
 
     fn store_base_grumpkin_pk(pk: MLEProvingKey<Zmorph>) -> Option<()> {
-        let config_path = get_configuration_path()?;
-        let file_path = config_path.join("bin/base_grumpkin_pk");
+        let config_path = get_configuration_keys_path()?;
+        let file_path = config_path.join("base_grumpkin_pk");
 
         let mut buf = Vec::<u8>::new();
         pk.serialize_compressed(&mut buf).ok()?;
@@ -409,8 +420,8 @@ impl RecursiveProver for RollupKeyGenerator {
     }
 
     fn store_base_bn254_pk(pk: ProvingKey<Kzg>) -> Option<()> {
-        let config_path = get_configuration_path()?;
-        let file_path = config_path.join("bin/base_bn254_pk");
+        let config_path = get_configuration_keys_path()?;
+        let file_path = config_path.join("base_bn254_pk");
 
         let mut buf = Vec::<u8>::new();
         pk.serialize_compressed(&mut buf).ok()?;
@@ -420,9 +431,9 @@ impl RecursiveProver for RollupKeyGenerator {
     }
 
     fn store_merge_grumpkin_pks(pks: Vec<MLEProvingKey<Zmorph>>) -> Option<()> {
-        let config_path = get_configuration_path()?;
+        let config_path = get_configuration_keys_path()?;
         for (i, pk) in pks.into_iter().enumerate() {
-            let file_path = config_path.join(format!("bin/merge_grumpkin_pk_{i}"));
+            let file_path = config_path.join(format!("merge_grumpkin_pk_{i}"));
 
             let mut buf = Vec::<u8>::new();
             pk.serialize_compressed(&mut buf).ok()?;
@@ -435,9 +446,9 @@ impl RecursiveProver for RollupKeyGenerator {
     }
 
     fn store_merge_bn254_pks(pks: Vec<ProvingKey<Kzg>>) -> Option<()> {
-        let config_path = get_configuration_path()?;
+        let config_path = get_configuration_keys_path()?;
         for (i, pk) in pks.into_iter().enumerate() {
-            let file_path: PathBuf = config_path.join(format!("bin/merge_bn254_pk_{i}"));
+            let file_path: PathBuf = config_path.join(format!("merge_bn254_pk_{i}"));
 
             let mut buf = Vec::<u8>::new();
             pk.serialize_compressed(&mut buf).ok()?; // serialize the proving key
@@ -450,8 +461,8 @@ impl RecursiveProver for RollupKeyGenerator {
     }
 
     fn store_decider_pk(pk: PlonkProvingKey<Bn254>) -> Option<()> {
-        let config_path = get_configuration_path()?;
-        let file_path = config_path.join("bin/decider_pk");
+        let config_path = get_configuration_keys_path()?;
+        let file_path = config_path.join("decider_pk");
 
         let mut buf = Vec::<u8>::new();
         pk.serialize_compressed(&mut buf).ok()?;
@@ -461,11 +472,16 @@ impl RecursiveProver for RollupKeyGenerator {
     }
 
     fn store_decider_vk(vk: &PlonkVerifyingKey<Bn254>) {
-        let path = get_configuration_path().unwrap().join("bin/decider_vk");
-        let mut file = File::create(path).unwrap();
+        let path = get_configuration_keys_path()
+            .expect("Failed to get path for configuration keys")
+            .join("decider_vk");
+        let mut file =
+            File::create(path).expect("Failed to create path configuration/bin/keys/decider_vk");
         let mut compressed_bytes = Vec::new();
-        vk.serialize_compressed(&mut compressed_bytes).unwrap();
-        file.write_all(&compressed_bytes).unwrap();
+        vk.serialize_compressed(&mut compressed_bytes)
+            .expect("Failed to serialize vk");
+        file.write_all(&compressed_bytes)
+            .expect("Failed to write vk into configuration/bin/keys/decider_vk");
     }
 
     fn generate_vk_check_constraint(

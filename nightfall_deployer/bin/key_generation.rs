@@ -18,6 +18,7 @@ use lib::{
     shared_entities::DepositData,
 };
 use std::fs::File;
+use std::fs;
 fn main() {
     let settings: Settings = settings::Settings::new().unwrap();
     if settings.mock_prover {
@@ -26,6 +27,7 @@ fn main() {
         println!("Generating keys for REAL rollup prover");
     }
     generate_proving_keys(&settings).unwrap();
+    println!("Generating keys for rollup prover finished.");
 }
 
 /// Generates the proving key and writes it to file.
@@ -74,15 +76,20 @@ pub fn generate_proving_keys(settings: &Settings) -> Result<(), PlonkError> {
         true,
     )?;
 
-    let pk_path = path.join("bin/proving_key");
+    let pk_path = path.join("bin/keys/proving_key");
+    if let Some(parent) = pk_path.parent() {
+        fs::create_dir_all(parent).map_err(PlonkError::IoError)?;
+    }
     let mut file = File::create(pk_path).map_err(PlonkError::IoError)?;
     let mut compressed_bytes = Vec::new();
     pk.serialize_compressed(&mut compressed_bytes)?;
     file.write_all(&compressed_bytes)
         .map_err(PlonkError::IoError)?;
 
-    let deposit_pk_path = path.join("bin/deposit_proving_key");
-
+    let deposit_pk_path = path.join("bin/keys/deposit_proving_key");
+    if let Some(parent) = deposit_pk_path.parent() {
+        fs::create_dir_all(parent).map_err(PlonkError::IoError)?;
+    }
     let mut file = File::create(deposit_pk_path.clone()).map_err(PlonkError::IoError)?;
     let mut deposit_compressed_bytes = Vec::new();
     deposit_pk.serialize_compressed(&mut deposit_compressed_bytes)?;

@@ -70,7 +70,7 @@ impl NightfallContract for Nightfall::NightfallCalls {
             .await
             .map_err(|_| NightfallContractError::TransactionError)?;
         info!(
-            "Received receipt for submitted block with hash: {}, gas used was: {}",
+            "The L2 block was sent to L1. Received receipt for submitted block with hash: {}, gas used was: {}",
             receipt.transaction_hash, receipt.gas_used
         );
         Ok(())

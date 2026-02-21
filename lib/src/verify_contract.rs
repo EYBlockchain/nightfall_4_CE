@@ -3,7 +3,11 @@ use alloy::{
     providers::Provider,
 };
 
+use configuration::addresses::validate_config_url;
 use configuration::addresses::Addresses;
+use configuration::addresses::AddressesError;
+use configuration::settings::Settings;
+use eyre::eyre;
 use nightfall_bindings::artifacts::{Nightfall, RoundRobin, X509};
 use nightfall_bindings::artifacts::{
     Nightfall::NightfallInstance, RoundRobin::RoundRobinInstance, X509::X509Instance,
@@ -19,17 +23,34 @@ struct ContractHashes {
 }
 
 /// Load deployed contract hashes from file written by deployer
-fn load_deployed_hashes() -> eyre::Result<([u8; 32], [u8; 32], [u8; 32])> {
+pub async fn load_deployed_hashes() -> eyre::Result<([u8; 32], [u8; 32], [u8; 32])> {
     let hashes_path = PathBuf::from("/app/configuration/toml/contract_hashes.toml");
+    let settings = Settings::new().map_err(|_| AddressesError::Settings)?;
+    let content = if hashes_path.exists() {
+        std::fs::read_to_string(&hashes_path)?
+    } else {
+        // Fallback to remote configuration server
+        let base = validate_config_url(&settings.configuration_url)
+            .map_err(|e| eyre!("Invalid or untrusted configuration URL: {}", e))?;
 
-    if !hashes_path.exists() {
-        eyre::bail!(
-            "Contract hashes file not found. Deployer must run first to generate {:?}",
-            hashes_path
-        );
-    }
+        let url = base
+            .join("configuration/toml/contract_hashes.toml")
+            .map_err(|e| eyre!("Could not build contract hashes URL: {}", e))?;
 
-    let content = std::fs::read_to_string(&hashes_path)?;
+        let response = reqwest::get(url.clone())
+            .await
+            .map_err(|e| eyre!("Failed to fetch contract hashes from {}: {}", url, e))?;
+
+        if !response.status().is_success() {
+            return Err(eyre!(
+                "Configuration server returned error {} for {}",
+                response.status(),
+                url
+            ));
+        }
+
+        response.text().await?
+    };
     let hashes: ContractHashes = toml::from_str(&content)?;
 
     let nightfall = hex::decode(&hashes.nightfall_hash)
@@ -76,14 +97,14 @@ pub async fn get_proxy_implementation<P: Provider>(
     provider: &P,
     proxy: Address,
 ) -> eyre::Result<Address> {
-    println!("Fetching implementation address from proxy at {proxy:?}...");
+    // println!("Fetching implementation address from proxy at {proxy:?}...");
     let slot = B256::from_slice(&EIP1967_IMPLEMENTATION_SLOT_BYTES);
 
     let raw: B256 = provider.get_storage_at(proxy, slot.into()).await?.into();
 
     let mut addr = [0u8; 20];
     addr.copy_from_slice(&raw[12..]); // last 20 bytes
-    println!("get the address  {:?}...", Address::from(addr));
+    // println!("get the address  {:?}...", Address::from(addr));
     Ok(Address::from(addr))
 }
 
@@ -100,12 +121,12 @@ fn strip_metadata_and_hash(bytecode: &[u8]) -> [u8; 32] {
     {
         // Strip everything from the metadata marker onwards
         let stripped = &bytecode[..pos];
-        println!(
-            "Stripped {} bytes of metadata (original: {}, stripped: {})",
-            bytecode.len() - stripped.len(),
-            bytecode.len(),
-            stripped.len()
-        );
+        // println!(
+        //     "Stripped {} bytes of metadata (original: {}, stripped: {})",
+        //     bytecode.len() - stripped.len(),
+        //     bytecode.len(),
+        //     stripped.len()
+        // );
         keccak256(stripped).0
     } else {
         println!("No metadata marker found, using full bytecode");
@@ -118,11 +139,11 @@ pub async fn get_onchain_code_hash<P: Provider>(
     implementation: Address,
 ) -> eyre::Result<[u8; 32]> {
     let code = provider.get_code_at(implementation).await?;
-    println!("On-chain code length: {} bytes", code.0.len());
+    // println!("On-chain code length: {} bytes", code.0.len());
 
     // Use the same metadata stripping logic as build-time
     let hash = strip_metadata_and_hash(&code.0);
-    println!("On-chain hash (metadata stripped): {hash:?}");
+    // println!("On-chain hash (metadata stripped): {hash:?}");
 
     Ok(hash)
 }
@@ -196,7 +217,7 @@ impl<P: Provider + Clone> VerifiedContracts<P> {
         );
 
         // Load the expected hashes from the file written by deployer
-        let (nightfall_hash, round_robin_hash, x509_hash) = load_deployed_hashes()?;
+        let (nightfall_hash, round_robin_hash, x509_hash) = load_deployed_hashes().await?;
 
         // Verify each contract's deployed implementation
         verify_impl_hash(&provider, addresses.nightfall, &nightfall_hash, "Nightfall").await?;

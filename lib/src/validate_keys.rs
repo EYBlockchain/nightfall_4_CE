@@ -74,8 +74,8 @@ fn default_concurrency() -> usize {
 /// Specification for each key to be validated
 struct KeySpec {
     name: String,      // e.g., "decider_pk"
-    url: String,       // e.g., "{configuration_url}/decider_pk"
-    out_path: PathBuf, // e.g., "configuration/bin/decider_pk"
+    url: String,       // e.g., "{configuration_url}/bin/keys/decider_pk"
+    out_path: PathBuf, // e.g., "configuration/bin/keys/decider_pk"
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -159,7 +159,7 @@ async fn handle_keys_validation(params: FormParams) -> Result<impl Reply, warp::
 
     // 3) Fetch + hash all keys from configuration server (streaming, resumable, bounded concurrency)
     // Where to store downloads
-    let out_dir = PathBuf::from("configuration").join("bin");
+    let out_dir = PathBuf::from("configuration").join("bin/keys");
     let (spec, keys) = fetch_and_hash_keys(&configuration_url, &out_dir, params.concurrency)
         .await
         .map_err(|e| {
@@ -412,32 +412,32 @@ fn build_key_specs(configuration_url: &str, out_dir: &Path) -> anyhow::Result<Ve
     let mut specs = vec![
         KeySpec {
             name: "decider_pk".into(),
-            url: format!("{configuration_url}/decider_pk"),
+            url: format!("{configuration_url}/bin/keys/decider_pk"),
             out_path: out_dir.join("decider_pk"),
         },
         KeySpec {
             name: "decider_vk".into(),
-            url: format!("{configuration_url}/decider_vk"),
+            url: format!("{configuration_url}/bin/keys/decider_vk"),
             out_path: out_dir.join("decider_vk"),
         },
         KeySpec {
             name: "base_bn254_pk".into(),
-            url: format!("{configuration_url}/base_bn254_pk"),
+            url: format!("{configuration_url}/bin/keys/base_bn254_pk"),
             out_path: out_dir.join("base_bn254_pk"),
         },
         KeySpec {
             name: "base_grumpkin_pk".into(),
-            url: format!("{configuration_url}/base_grumpkin_pk"),
+            url: format!("{configuration_url}/bin/keys/base_grumpkin_pk"),
             out_path: out_dir.join("base_grumpkin_pk"),
         },
         KeySpec {
             name: "deposit_proving_key".into(),
-            url: format!("{configuration_url}/deposit_proving_key"),
+            url: format!("{configuration_url}/bin/keys/deposit_proving_key"),
             out_path: out_dir.join("deposit_proving_key"),
         },
         KeySpec {
             name: "proving_key".into(),
-            url: format!("{configuration_url}/proving_key"),
+            url: format!("{configuration_url}/bin/keys/proving_key"),
             out_path: out_dir.join("proving_key"),
         },
     ];
@@ -857,8 +857,8 @@ fn regenerate_keys_for_production() -> Result<(), warp::Rejection> {
         ))
     })?;
 
-    let deposit_pk_path = path.join("bin/deposit_proving_key");
-    let pk_path = path.join("bin/proving_key");
+    let deposit_pk_path = path.join("bin/keys/deposit_proving_key");
+    let pk_path = path.join("bin/keys/proving_key");
 
     let mut deposit_file = File::create(deposit_pk_path.clone()).map_err(|e| {
         error!("Failed to create deposit proving key file: {e}");
@@ -932,7 +932,7 @@ fn delete_existing_key_files(
         error!("{error_msg}");
         return Err(warp::reject::custom(KeyVerificationError::new(&error_msg)));
     }
-    let bin_path = base_path.join("configuration/bin");
+    let bin_path = base_path.join("configuration/bin/keys");
     if !bin_path.exists() {
         let error_msg = format!(
             "Bin directory '{}' does not exist - cannot clean up key files",
@@ -954,7 +954,7 @@ fn delete_existing_key_files(
             })?;
         }
     }
-    let ppot_file_path = base_path.join(format!("configuration/bin/ppot_{MAX_KZG_DEGREE}.ptau"));
+    let ppot_file_path = base_path.join(format!("configuration/bin/trusted_setup/ppot_{MAX_KZG_DEGREE}.ptau"));
     if ppot_file_path.exists() {
         std::fs::remove_file(ppot_file_path.clone()).map_err(|e| {
             error!(
@@ -979,7 +979,7 @@ mod tests {
     fn test_delete_existing_key_files() {
         // Create a temporary directory structure
         let temp_dir = std::env::temp_dir().join("test_key_deletion");
-        std::fs::create_dir_all(temp_dir.join("configuration/bin"))
+        std::fs::create_dir_all(temp_dir.join("configuration/bin/keys"))
             .unwrap_or_else(|e| panic!("Failed to create test directory structure: {e:?}"));
 
         let merge_counts = merge_counts(
@@ -1009,7 +1009,7 @@ mod tests {
 
         // Create the static test files
         for file in &static_test_files {
-            let file_path = temp_dir.join("configuration/bin").join(file);
+            let file_path = temp_dir.join("configuration/bin/keys").join(file);
             std::fs::write(&file_path, b"test_key_data")
                 .unwrap_or_else(|e| panic!("Failed to write test key file '{file}': {e:?}"));
             assert!(file_path.exists(), "Test file should be created: {file}");
@@ -1018,13 +1018,13 @@ mod tests {
         // Also create some files that should NOT be deleted (to ensure we're selective)
         let preserve_files = vec!["other_file.txt", "config.toml"];
         for file in &preserve_files {
-            let file_path = temp_dir.join("configuration/bin").join(file);
+            let file_path = temp_dir.join("configuration/bin/keys").join(file);
             std::fs::write(&file_path, b"preserve_me")
                 .unwrap_or_else(|e| panic!("Failed to write preserve file '{file}': {e:?}"));
         }
 
         // Get the KeySpecs
-        let out_dir = PathBuf::from("configuration").join("bin");
+        let out_dir = PathBuf::from("configuration").join("bin/keys");
         let specs = build_key_specs("http://example.com/configuration", &out_dir)
             .unwrap_or_else(|e| panic!("Failed to build key specs: {e:?}"));
 
@@ -1038,7 +1038,7 @@ mod tests {
 
         // Verify that all static key files are deleted
         for file in &static_test_files {
-            let file_path = temp_dir.join("configuration/bin").join(file);
+            let file_path = temp_dir.join("configuration/bin/keys").join(file);
             assert!(
                 !file_path.exists(),
                 "Static key file should be deleted: {file}"
@@ -1047,7 +1047,7 @@ mod tests {
 
         // Verify that non-key files are preserved
         for file in &preserve_files {
-            let file_path = temp_dir.join("configuration/bin").join(file);
+            let file_path = temp_dir.join("configuration/bin/keys").join(file);
             assert!(
                 file_path.exists(),
                 "Non-key file should be preserved: {file}",
@@ -1061,7 +1061,7 @@ mod tests {
     #[test]
     fn test_delete_existing_key_files_nonexistent_directory() {
         // Get the KeySpecs
-        let out_dir = PathBuf::from("configuration").join("bin");
+        let out_dir = PathBuf::from("configuration").join("bin/keys");
         let specs = build_key_specs("http://example.com/configuration", &out_dir)
             .unwrap_or_else(|e| panic!("Failed to build key specs: {e:?}"));
 
@@ -1080,7 +1080,7 @@ mod tests {
     #[test]
     fn test_delete_existing_key_files_missing_bin_directory() {
         // Get the KeySpecs
-        let out_dir = PathBuf::from("configuration").join("bin");
+        let out_dir = PathBuf::from("configuration").join("bin/keys");
         let specs = build_key_specs("http://example.com/configuration", &out_dir)
             .unwrap_or_else(|e| panic!("Failed to build key specs: {e:?}"));
 
@@ -1104,19 +1104,19 @@ mod tests {
     #[test]
     fn test_delete_existing_key_files_partial_files() {
         // Get the KeySpecs
-        let out_dir = PathBuf::from("configuration").join("bin");
+        let out_dir = PathBuf::from("configuration").join("bin/keys");
         let specs = build_key_specs("http://example.com/configuration", &out_dir)
             .unwrap_or_else(|e| panic!("Failed to build key specs: {e:?}"));
 
         // Test with only some files existing
         let temp_dir = std::env::temp_dir().join("test_partial_key_deletion");
-        std::fs::create_dir_all(temp_dir.join("configuration/bin"))
+        std::fs::create_dir_all(temp_dir.join("configuration/bin/keys"))
             .unwrap_or_else(|e| panic!("Failed to create test directory: {e:?}"));
 
         // Create only some of the expected files
         let partial_files = vec!["base_grumpkin_pk", "merge_bn254_pk_0"];
         for file in &partial_files {
-            let file_path = temp_dir.join("configuration/bin").join(file);
+            let file_path = temp_dir.join("configuration/bin/keys").join(file);
             std::fs::write(&file_path, b"test_key_data")
                 .unwrap_or_else(|e| panic!("Failed to write partial test file '{file}': {e:?}"));
         }
@@ -1131,7 +1131,7 @@ mod tests {
 
         // Verify that existing files are deleted
         for file in &partial_files {
-            let file_path = temp_dir.join("configuration/bin").join(file);
+            let file_path = temp_dir.join("configuration/bin/keys").join(file);
             assert!(
                 !file_path.exists(),
                 "Existing key file should be deleted: {file}"
@@ -1180,7 +1180,7 @@ mod tests {
 
     #[test]
     fn test_build_key_specs() {
-        let out_dir = PathBuf::from("test/bin");
+        let out_dir = PathBuf::from("test/bin/keys");
         let config_url = "http://example.com";
         let specs = build_key_specs(config_url, &out_dir)
             .unwrap_or_else(|e| panic!("Failed to build key specs: {e:?}"));
@@ -1192,7 +1192,7 @@ mod tests {
             .unwrap_or_else(|| panic!("Should have deposit_proving_key in specs: {specs:?}"));
         assert_eq!(
             deposit_proving_key.url,
-            format!("{config_url}/deposit_proving_key")
+            format!("{config_url}/bin/keys/deposit_proving_key")
         );
         assert_eq!(
             deposit_proving_key.out_path,
@@ -1202,7 +1202,10 @@ mod tests {
             .iter()
             .find(|s| s.name == "proving_key")
             .unwrap_or_else(|| panic!("Should have proving_key in specs: {specs:?}"));
-        assert_eq!(proving_key.url, format!("{config_url}/proving_key"));
+        assert_eq!(
+            proving_key.url,
+            format!("{config_url}/bin/keys/proving_key")
+        );
         assert_eq!(proving_key.out_path, out_dir.join("proving_key"));
 
         // Should contain base keys with correct URLs and paths
@@ -1210,28 +1213,34 @@ mod tests {
             .iter()
             .find(|s| s.name == "decider_pk")
             .unwrap_or_else(|| panic!("Should have decider_pk in specs: {specs:?}"));
-        assert_eq!(decider_pk.url, format!("{config_url}/decider_pk"));
+        assert_eq!(decider_pk.url, format!("{config_url}/bin/keys/decider_pk"));
         assert_eq!(decider_pk.out_path, out_dir.join("decider_pk"));
 
         let decider_vk = specs
             .iter()
             .find(|s| s.name == "decider_vk")
             .unwrap_or_else(|| panic!("Should have decider_vk in specs: {specs:?}"));
-        assert_eq!(decider_vk.url, format!("{config_url}/decider_vk"));
+        assert_eq!(decider_vk.url, format!("{config_url}/bin/keys/decider_vk"));
         assert_eq!(decider_vk.out_path, out_dir.join("decider_vk"));
 
         let base_bn254 = specs
             .iter()
             .find(|s| s.name == "base_bn254_pk")
             .unwrap_or_else(|| panic!("Should have base_bn254_pk in specs: {specs:?}"));
-        assert_eq!(base_bn254.url, format!("{config_url}/base_bn254_pk"));
+        assert_eq!(
+            base_bn254.url,
+            format!("{config_url}/bin/keys/base_bn254_pk")
+        );
         assert_eq!(base_bn254.out_path, out_dir.join("base_bn254_pk"));
 
         let base_grumpkin = specs
             .iter()
             .find(|s| s.name == "base_grumpkin_pk")
             .unwrap_or_else(|| panic!("Should have base_grumpkin_pk in specs: {specs:?}"));
-        assert_eq!(base_grumpkin.url, format!("{config_url}/base_grumpkin_pk"));
+        assert_eq!(
+            base_grumpkin.url,
+            format!("{config_url}/bin/keys/base_grumpkin_pk")
+        );
         assert_eq!(base_grumpkin.out_path, out_dir.join("base_grumpkin_pk"));
 
         let merge_counts = merge_counts(
@@ -1258,7 +1267,7 @@ mod tests {
                 .iter()
                 .find(|s| s.name == name)
                 .unwrap_or_else(|| panic!("Should have {name}"));
-            assert_eq!(spec.url, format!("{config_url}/{name}"));
+            assert_eq!(spec.url, format!("{config_url}/bin/keys/{name}"));
             assert_eq!(spec.out_path, out_dir.join(&name));
         }
     }
