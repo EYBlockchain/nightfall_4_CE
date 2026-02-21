@@ -55,7 +55,7 @@ pub fn get_deposit_proving_key() -> &'static Arc<ProvingKey<UnivariateKzgPCS<Bn2
     PK.get_or_init(|| {
         // We'll try to load from the configuration directory first.
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("configuration/bin/keys/deposit_proving_key");
-        let source_file = find_file_with_path(&path).unwrap();
+        let source_file = find_file_with_path(&path).unwrap_or_else(|| panic!("deposit proving key not found at {:?}", path));
         if let Some(_key_bytes) = load_key_locally(&source_file) {
             let deposit_proving_key =
                 ProvingKey::<UnivariateKzgPCS<Bn254>>::deserialize_compressed_unchecked(
