@@ -32,15 +32,15 @@ ark-serialize = "0.4.2"
 ark-std = { version = "0.4.0", default-features = false }
 ark-bn254 = "0.4.0"
 alloy-rlp = "0.3.12" 
-jf-plonk = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", branch = "livesey/optimise-IPA", features = [
+jf-plonk = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", features = [
     "test-srs",
 ] }
-jf-relation = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", branch = "livesey/optimise-IPA" }
-jf-primitives = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", branch = "livesey/optimise-IPA" }
-jf-utils = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", branch = "livesey/optimise-IPA", features = [
+jf-relation = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git" }
+jf-primitives = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git" }
+jf-utils = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", features = [
     "parallel",
 ] }
-nf-curves = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", branch = "livesey/optimise-IPA" }
+nf-curves = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git" }
 ark-ec = { version = "0.4.2", features = ["parallel"] }
 num-bigint = "0.4.6"
 num = "0.4.3"
@@ -62,8 +62,8 @@ zeroize = { version = "1.6", features = ["derive"] }
 [build-dependencies]
 configuration = { path = "../configuration" }
 tokio = { version = "1.45.0", features = ["full"] }
-jf-primitives = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", branch = "livesey/optimise-IPA" }
-jf-plonk = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", branch = "livesey/optimise-IPA", features = [
+jf-primitives = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git" }
+jf-plonk = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git", features = [
     "test-srs",
 ] }
 
