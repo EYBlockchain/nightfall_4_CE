@@ -300,15 +300,17 @@ curl -i -X POST 'http://localhost:3001/v1/certification' \
   -F 'certificate_private_key=@blockchain_assets/test_contracts/X509/_certificates/user/user-1.priv_key;type=application/octet-stream'
 ```
 
-This request will ask the X509 smart contract to validate the passed-in X509 certificate. The `client` whose endpoint is called will also generate a signature over its Ethereum address, using the passed-in private key. This too will be passed to the X509 contract, and the Ethereum address will be added to the contract's 'allow list' if the signature and certifcate match up. Note that this api call will return you the status of the caller's X509 validation onchain.
-
 Now the proposer is started, it will start to assemble a block when block assembly is triggered. It's fine if you see logs like `nightfall_proposer::driven::block_assembler] Not enough transactions to assemble a block yet.` It means proposer is still waiting.
 
 When there is a deposit transaction, you will see `Received DepositEscrowed event`, and it will save this tx into its mempool.
-When there is a transfer or withdraw transaction, you will see ``.
+
+When there is a transfer or withdraw transaction, you will see `Client Transaction is valid, storing in database` if the proof submitted by client is valid.
+
 When proposer is making a block, you will see `This block has x deposit(s), y transfer(s), and z withdrawal(s)`.
+
 When proposer is proving a block, you will see `Computing block`, it will take 20 mins depending on your proposer's computing ability. When it's finished you will see `Block computation took xx` and `Added block to queue (1 pending)`.
-When proposer successfully sent the block to L1, you will see `The L2 block was sent to L1`, you can verify this by checking the L1 exploere of nightfall contract address.
+
+When proposer successfully sent the block to L1, you will see `The L2 block was sent to L1`, you can verify this by checking the L1 exploer of nightfall contract address.
 
 
 Proposer can twist block making parameters by changing `block_assembly_max_wait_secs` `block_assembly_target_fill_ratio`, `block_assembly_initial_interval_secs`, `max_event_listener_attempts`, `block_size` in [host-chain.nightfall_proposer] nightfall.toml.
@@ -333,24 +335,7 @@ Create a file named `local.env` in the repo root with the following content. Rep
 
 ```bash
 CLIENT_SIGNING_KEY="0x......." 
-CLIENT2_SIGNING_KEY= 
 CLIENT_ADDRESS="0x......." 
-CLIENT2_ADDRESS=
-PROPOSER_SIGNING_KEY=
-PROPOSER_2_SIGNING_KEY=
-DEPLOYER_SIGNING_KEY=
-NIGHTFALL_ADDRESS=
-NF4_SIGNING_KEY=
-WEBHOOK_URL=
-AZURE_VAULT_URL=
-DEPLOYER_SIGNING_KEY_NAME=
-PROPOSER_SIGNING_KEY_NAME=
-PROPOSER_2_SIGNING_KEY_NAME=
-CLIENT_SIGNING_KEY_NAME=
-CLIENT2_SIGNING_KEY_NAME=
-AZURE_CLIENT_ID=
-AZURE_CLIENT_SECRET=
-AZURE_TENANT_ID=
 ```
 `CLIENT_SIGNING_KEY` is your L1 address's private key on host chain.
 `CLIENT_ADDRESS` is your L1 address on host chain.
@@ -360,7 +345,7 @@ You can  deploy your own ERC-20/721/1155/3525 contracts using the following scri
 
 If you want to do mock ERC deployments, you can do:
 1. Run `curl [host-chain]-configuration_url:8080/configuration/toml/addresses.toml` to get Nightfall contract address
-2. Add Nightfall contract address in `local.env-NIGHTFALL_ADDRESS` and your host chain L1 private key to `local.env-NF4_SIGNING_KEY`. You will need to add `CLIENT2_ADDRESS`, which can be a dummy value or the same value as `CLIENT_ADDRESS`, this is just for testing.
+2. Add `NIGHTFALL_ADDRESS`, `NF4_SIGNING_KEY` and `CLIENT2_ADDRESS` in your `local.env`, where Nightfall contract address is `local.env-NIGHTFALL_ADDRESS` and your host chain L1 private key is `NF4_SIGNING_KEY`. `CLIENT2_ADDRESS` can be a dummy value or the same value as `CLIENT_ADDRESS`, this is just for testing.
 3.	`forge clean && forge build` 
 4.	`export $(grep -v '^#' local.env | xargs)`  
 5.  `forge script blockchain_assets/script/mock_deployment.s.sol:MockDeployer --rpc-url XXXXXXXXXhost-chain-rpc-urlXXXXXXXXX --broadcast --legacy --slow`	
