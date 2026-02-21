@@ -249,6 +249,7 @@ NF4_MOCK_PROVER=false cargo run --release --bin key_generation
 ```
 2. Method 2: get the keys using the configuartion url in the root of `nightfall_4_CE` folder, 
 ```bash
+mkdir configuration/bin/keys
 curl -v [host-chain]-configuration_url:8080/<key_name> -o configuration/bin/keys/<key_name>`
 ```
 Replace `<key_name>` with: `base_bn254_pk`, `base_grumpkin_pk`, `decider_pk`, `deposit_proving_key`, `merge_bn254_pk_0`, `merge_grumpkin_pk_0`, `merge_grumpkin_pk_1`, `proving_key`. You can verify the key size as mentioned before.
@@ -279,6 +280,8 @@ Go to `volumes:`, uncomment `mongodb_proposer_data:`
 From the repo root:
 
 ```bash
+forge clean && forge build
+
 docker compose --profile indie-proposer build
 
 docker compose --profile indie-proposer --env-file local.env up -d
