@@ -23,7 +23,7 @@ chain_id = 11155111
 
 [sepolia.nightfall_client]
 url = "http://client:3000"
-log_level = "debug"
+log_level = "info"
 wallet_type = "local"
 db_url = "mongodb://nf4_db_client:27017"
 max_event_listener_attempts = 10

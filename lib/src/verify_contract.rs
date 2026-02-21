@@ -97,14 +97,14 @@ pub async fn get_proxy_implementation<P: Provider>(
     provider: &P,
     proxy: Address,
 ) -> eyre::Result<Address> {
-    println!("Fetching implementation address from proxy at {proxy:?}...");
+    // println!("Fetching implementation address from proxy at {proxy:?}...");
     let slot = B256::from_slice(&EIP1967_IMPLEMENTATION_SLOT_BYTES);
 
     let raw: B256 = provider.get_storage_at(proxy, slot.into()).await?.into();
 
     let mut addr = [0u8; 20];
     addr.copy_from_slice(&raw[12..]); // last 20 bytes
-    println!("get the address  {:?}...", Address::from(addr));
+    // println!("get the address  {:?}...", Address::from(addr));
     Ok(Address::from(addr))
 }
 
