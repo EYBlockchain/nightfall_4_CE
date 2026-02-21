@@ -310,7 +310,7 @@ When there is a deposit transaction, you will see `Received DepositEscrowed even
 When there is a transfer or withdraw transaction, you will see `This block has x deposit(s), y transfer(s), and z withdrawal(s)`.
 When proposer is making a block, you will see `This block has x deposit(s), y transfer(s), and z withdrawal(s)`.
 When proposer is proving a block, you will see `Computing block`, it will take 20 mins depending on your proposer's computing ability.
-When proposer 
+When proposer successfully sent the block to L1, you will see `The L2 block was sent to L1`, you can verify this by checking the L1 exploere of nightfall contract address.
 
 ------
 ******
