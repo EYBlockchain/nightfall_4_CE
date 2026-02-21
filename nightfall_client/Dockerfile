@@ -27,6 +27,7 @@ RUN chmod 644 /usr/local/share/ca-certificates/* && update-ca-certificates
 
 # Copy application binaries and configuration
 COPY --from=builder /app/bin/client bin/
+RUN mkdir -p configuration/bin/keys
 COPY configuration/bin/keys/proving_key configuration/bin/keys/
 COPY .env *.env nightfall.toml .
 
