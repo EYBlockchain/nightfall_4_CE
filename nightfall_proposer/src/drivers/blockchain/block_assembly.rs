@@ -29,6 +29,7 @@ use std::{
 };
 use std::{sync::Arc, time::Duration};
 use tokio::sync::Mutex;
+use alloy::sol_types::SolEvent;
 
 #[derive(Debug)]
 pub enum BlockAssemblyError {
