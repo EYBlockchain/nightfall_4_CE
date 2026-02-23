@@ -318,14 +318,14 @@ where
                 //     }
                 // }
                 // 3) ROTATION PATH: query rotation events (don’t return; log+continue)
-                let genesis_block = get_genesis_block();
+                let genenisus_block = get_genesis_block();
                 let round_robin_events = rr
                     .event_filter::<RoundRobin::ProposerRotated>()
                     .from_block(genenisus_block);
 
                 let rotate_proposer_log = match round_robin_events.query().await {
                     Ok(logs) => logs,
-                    Err(_) => {
+                    Err(e) => {
                         // return Err(BlockAssemblyError::FailedToAssembleBlock(
                         //     "Failed to query round robin rotate proposer events".to_string(),
                         // ));
@@ -362,8 +362,7 @@ where
                         Ok(true) => {
                             // Process all pending blocks
                             info!("Rotate Proposer Transaction finalized: {tx_hash:?}");
-                            info!("Proposing {} pending blocks", blocks.len());
-                            // drain + propose all pending blocks
+\                            // drain + propose all pending blocks
                             let drained_after_finality: Vec<_> = {
                                 let mut guard = pending_blocks.lock().await;
                                 guard.drain(..).collect()
