@@ -362,7 +362,7 @@ where
                         Ok(true) => {
                             // Process all pending blocks
                             info!("Rotate Proposer Transaction finalized: {tx_hash:?}");
-\                            // drain + propose all pending blocks
+                            // drain + propose all pending blocks
                             let drained_after_finality: Vec<_> = {
                                 let mut guard = pending_blocks.lock().await;
                                 guard.drain(..).collect()
