@@ -12,6 +12,7 @@ use ark_bn254::Fr as Fr254;
 use ark_ff::BigInteger256;
 use ark_std::Zero;
 use configuration::{addresses::get_addresses, settings::get_settings};
+use lib::log_fetcher::get_genesis_block;
 use lib::{
     blockchain_client::BlockchainClientConnection,
     contract_conversions::{Addr, FrBn254, Uint256},
@@ -361,9 +362,10 @@ impl NightfallContract for Nightfall::NightfallCalls {
         })?;
 
         let event_sig = B256::from(keccak256("BlockProposed(int256)"));
+        let genenisus_block = get_genesis_block();
         let filter = Filter::new()
             .address(nightfall_address)
-            .from_block(0u64)
+            .from_block(genenisus_block)
             .to_block(latest_block)
             .event_signature(event_sig)
             .topic1(block_topic);

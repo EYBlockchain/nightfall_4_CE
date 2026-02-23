@@ -954,7 +954,9 @@ fn delete_existing_key_files(
             })?;
         }
     }
-    let ppot_file_path = base_path.join(format!("configuration/bin/trusted_setup/ppot_{MAX_KZG_DEGREE}.ptau"));
+    let ppot_file_path = base_path.join(format!(
+        "configuration/bin/trusted_setup/ppot_{MAX_KZG_DEGREE}.ptau"
+    ));
     if ppot_file_path.exists() {
         std::fs::remove_file(ppot_file_path.clone()).map_err(|e| {
             error!(

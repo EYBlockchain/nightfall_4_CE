@@ -17,8 +17,8 @@ use lib::{
     plonk_prover::circuits::unified_circuit::unified_circuit_builder,
     shared_entities::DepositData,
 };
-use std::fs::File;
 use std::fs;
+use std::fs::File;
 fn main() {
     let settings: Settings = settings::Settings::new().unwrap();
     if settings.mock_prover {

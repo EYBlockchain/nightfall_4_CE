@@ -6,6 +6,7 @@ pub mod services;
 
 use ark_bn254::{Bn254, Fr as Fr254};
 use ark_serialize::CanonicalDeserialize;
+use ark_std::path::PathBuf;
 use jf_plonk::nightfall::ipa_structs::ProvingKey;
 use jf_primitives::{
     pcs::prelude::UnivariateKzgPCS,
@@ -15,15 +16,14 @@ use jf_primitives::{
         timber::Timber,
     },
 };
-use lib::{rollup_circuit_checks::get_configuration_keys_path, utils::load_key_locally};
 use lib::{rollup_circuit_checks::find_file_with_path, utils::load_key_from_server};
+use lib::{rollup_circuit_checks::get_configuration_keys_path, utils::load_key_locally};
 use log::warn;
 use std::{
     collections::HashMap,
     path::Path,
     sync::{Arc, OnceLock, RwLock},
 };
-use ark_std::path::PathBuf;
 type AppendOnlyTree = Timber<Fr254, Poseidon<Fr254>>;
 
 type NullifierTree = IndexedMerkleTree<Fr254, Poseidon<Fr254>, HashMap<Fr254, LeafDBEntry<Fr254>>>;
@@ -54,8 +54,11 @@ pub fn get_deposit_proving_key() -> &'static Arc<ProvingKey<UnivariateKzgPCS<Bn2
     static PK: OnceLock<Arc<ProvingKey<UnivariateKzgPCS<Bn254>>>> = OnceLock::new();
     PK.get_or_init(|| {
         // We'll try to load from the configuration directory first.
-        let path = get_configuration_keys_path().expect("Configuration keys path not found").join("deposit_proving_key");
-        let source_file = find_file_with_path(&path).unwrap_or_else(|| panic!("deposit proving key not found at {:?}", path));
+        let path = get_configuration_keys_path()
+            .expect("Configuration keys path not found")
+            .join("deposit_proving_key");
+        let source_file = find_file_with_path(&path)
+            .unwrap_or_else(|| panic!("deposit proving key not found at {:?}", path));
         if let Some(_key_bytes) = load_key_locally(&source_file) {
             let deposit_proving_key =
                 ProvingKey::<UnivariateKzgPCS<Bn254>>::deserialize_compressed_unchecked(

@@ -104,7 +104,7 @@ pub async fn get_proxy_implementation<P: Provider>(
 
     let mut addr = [0u8; 20];
     addr.copy_from_slice(&raw[12..]); // last 20 bytes
-    // println!("get the address  {:?}...", Address::from(addr));
+                                      // println!("get the address  {:?}...", Address::from(addr));
     Ok(Address::from(addr))
 }
 

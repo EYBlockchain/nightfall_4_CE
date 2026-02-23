@@ -13,6 +13,7 @@ use alloy::{
 use ark_serialize::SerializationError;
 use configuration::{addresses::get_addresses, settings::get_settings};
 use jf_plonk::errors::PlonkError;
+use lib::log_fetcher::get_genesis_block;
 use lib::{
     blockchain_client::BlockchainClientConnection,
     error::{ConversionError, EventHandlerError, NightfallContractError},
@@ -27,7 +28,6 @@ use std::{
 };
 use std::{sync::Arc, time::Duration};
 use tokio::sync::Mutex;
-use lib::log_fetcher::get_genesis_block;
 
 #[derive(Debug)]
 pub enum BlockAssemblyError {
@@ -290,7 +290,9 @@ where
 
                 let round_robin_events = rr
                     .event_filter::<RoundRobin::ProposerRotated>()
-                    .from_block(0u64);
+                    .from_block(genenisus_block);
+                // if there are events print something, otherwise print
+
                 let rotate_proposer_log = match round_robin_events.query().await {
                     Ok(logs) => logs,
                     Err(_) => {
@@ -299,6 +301,18 @@ where
                         ));
                     }
                 };
+                if rotate_proposer_log.is_empty() {
+                    println!("No proposer rotation events found.");
+                } else {
+                    println!(
+                        "Found {} proposer rotation event(s).",
+                        rotate_proposer_log.len()
+                    );
+
+                    for event in &rotate_proposer_log {
+                        println!("Event: {:?}", event);
+                    }
+                }
                 let client = blockchain_client.root().clone();
                 for (_, log_meta) in rotate_proposer_log {
                     let tx_hash = log_meta.transaction_hash.ok_or_else(|| {
