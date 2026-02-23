@@ -409,7 +409,59 @@ ______
 
 ## Step 4: Start the proposer node
 
-### Step 4.1 - 4.5: Follow Step 2.1 - 2.5
+### Step 4.1: Get the source
+
+```bash
+git clone https://github.com/EYBlockchain/nightfall_4_CE.git
+cd nightfall_4_CE
+git checkout -b host-chain/proposer
+forge clean && forge build
+```
+---
+
+### Step 4.2: Stop & clean previous Docker state
+```bash
+docker compose --profile indie-proposer down -v
+# DANGER: removes images, containers, networks, and volumes
+docker system prune -a --volumes
+```
+---
+
+### Step 4.3: Generate/download proving keys
+There are two ways to form the keys needed to proving a L2 block, proposer can generate itself or download from the configuration url
+
+1. Method 1: generate keys
+```bash
+NF4_MOCK_PROVER=false cargo run --release --bin key_generation
+```
+2. Method 2: get the keys using the configuartion url in the root of `nightfall_4_CE` folder, 
+```bash
+mkdir configuration/bin/keys
+curl -v [host-chain]-configuration_url:8080/<key_name> -o configuration/bin/keys/<key_name>`
+```
+Replace `<key_name>` with: `base_bn254_pk`, `base_grumpkin_pk`, `decider_pk`, `deposit_proving_key`, `merge_bn254_pk_0`, `merge_grumpkin_pk_0`, `merge_grumpkin_pk_1`, `proving_key`. You can verify the key size as mentioned before.
+
+Note that when the deployer starts the deployment with `block_size == 64` or `block_size == 256`, it will generate the aforementioned keys, but proposer can decide to increase the `block_size` to `256`, in this case, proposer need to run key generation itself and change `block_size = 64` to `block_size = 256` in `[host-chain.nightfall_proposer]` of `nightfall.toml`. Only 64 and 256 are surpported.
+
+---
+### Step 4.4: Create `local.env`
+
+Create a file named `local.env` in the repo root with the following content. Replace placeholders (`0x....`) with your values where indicated.
+
+```bash
+PROPOSER_SIGNING_KEY="0x......." 
+```
+
+where `PROPOSER_SIGNING_KEY` is your private key for L1 address on host chain.
+---
+
+### Step 4.5: Change `nightfall.toml` and `docker-compose.yml`
+1. Copy the values added in Step 1.1.1 for `nightfall.toml`.
+2. Change `docker-compose.yml`:
+Go to `indie-proposer-environment`, change `- NF4_RUN_MODE=${NF4_RUN_MODE:-host-chain}`
+Go to `volumes:`, uncomment `mongodb_proposer_data:`
+---
+
 
 ### Step 4.6: Register as a Proposer 
 
@@ -433,10 +485,51 @@ curl -i 'http://localhost:3001/v1/rotate'
 Returns: on success `200 OK` if the active `proposer` was rotated, `423 LOCKED` if proposer rotation was not allowed by the smart contract.
 This endpoint will rotate the proposers if the current `proposer` has been active for more than the number of Layer 1 blocks that a `proposer` is allowed to propose for (ROTATION_BlOCKS) (currently set as 4 blocks). This value is set in the construction of RoundRobin.sol.
 
-### Step 4.7: Follow Step 2.6.
+### Step 4.7: Build and run the Nightfall indie proposer node
+
+From the repo root:
+
+```bash
+forge clean && forge build
+
+docker compose --profile indie-proposer build
+
+docker compose --profile indie-proposer --env-file local.env up -d
+
+docker compose --profile indie-proposer --env-file local.env logs -f
+```
+
+If you enable x509 during the deployement, proposer needs to call X509 validation api:
+
+***
+
+POST /v1/certification
+
+```sh
+curl -i -X POST 'http://localhost:3001/v1/certification' \
+  -H 'Content-Type: multipart/form-data' \
+  -F 'certificate=@blockchain_assets/test_contracts/X509/_certificates/user/user-1.der;type=application/pkix-cert' \
+  -F 'certificate_private_key=@blockchain_assets/test_contracts/X509/_certificates/user/user-1.priv_key;type=application/octet-stream'
+```
+
+Now the proposer is started, it will start to assemble a block when block assembly is triggered. It's fine if you see logs like `nightfall_proposer::driven::block_assembler] Not enough transactions to assemble a block yet.` It means proposer is still waiting.
+
+When there is a deposit transaction, you will see `Received DepositEscrowed event`, and it will save this tx into its mempool.
+
+When there is a transfer or withdraw transaction, you will see `Client Transaction is valid, storing in database` if the proof submitted by client is valid.
+
+When proposer is making a block, you will see `This block has x deposit(s), y transfer(s), and z withdrawal(s)`.
+
+When proposer is proving a block, you will see `Computing block`, it will take 20 mins depending on your proposer's computing ability. When it's finished you will see `Block computation took xx`, `Proposing x pending blocks` and `Added block to queue (1 pending)`.
+
+When proposer successfully sent the block to L1, you will see `The L2 block was sent to L1`, you can verify this by checking the L1 exploer of nightfall contract address.
 
 
+Proposer can twist block making parameters by changing `block_assembly_max_wait_secs` `block_assembly_target_fill_ratio`, `block_assembly_initial_interval_secs`, `max_event_listener_attempts`, `block_size` in [host-chain.nightfall_proposer] nightfall.toml.
 
+------
+******
+______
 ## Troubleshooting
 ```sh
 [ ERROR alloy_transport_ws::native]
