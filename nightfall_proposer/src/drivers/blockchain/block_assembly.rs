@@ -300,7 +300,7 @@ where
                     );
                     for block in drained {
                         if let Err(e) = N::propose_block(block).await {
-                            error!("Finality checke (first proposer): propose_block failed: {e}");
+                            error!("Finality check (first proposer): propose_block failed: {e}");
                         }
                     }
                 }
@@ -319,21 +319,54 @@ where
                 // }
                 // 3) ROTATION PATH: query rotation events (don’t return; log+continue)
                 let genenisus_block = get_genesis_block();
-                let round_robin_events = rr
-                    .event_filter::<RoundRobin::ProposerRotated>()
-                    .from_block(genenisus_block);
-
-                let rotate_proposer_log = match round_robin_events.query().await {
-                    Ok(logs) => logs,
+                let latest_block = match blockchain_client.root().get_block_number().await {
+                    Ok(n) => n,
                     Err(e) => {
-                        // return Err(BlockAssemblyError::FailedToAssembleBlock(
-                        //     "Failed to query round robin rotate proposer events".to_string(),
-                        // ));
-                        error!("Finality checker: failed to query ProposerRotated events: {e}");
+                        error!("Finality checker: failed to get latest block number: {e}");
                         tokio::time::sleep(finality_check_interval).await;
                         continue;
                     }
                 };
+
+                let from_block = get_genesis_block();
+
+                // IMPORTANT: use pagination instead of .query()
+                let rotation_filter = rr
+                    .event_filter::<RoundRobin::ProposerRotated>()
+                    .from_block(from_block);
+
+                let rotate_proposer_log = match get_logs_paginated(
+                    blockchain_client.root(),
+                    rotation_filter.filter.clone(), // underlying Filter
+                    from_block,
+                    latest_block,
+                )
+                .await
+                {
+                    Ok(events) => events,
+                    Err(e) => {
+                        error!(
+                            "Finality checker: failed to fetch ProposerRotated logs paginated: {e}"
+                        );
+                        tokio::time::sleep(finality_check_interval).await;
+                        continue;
+                    }
+                };
+                // let round_robin_events = rr
+                //     .event_filter::<RoundRobin::ProposerRotated>()
+                //     .from_block(genenisus_block);
+
+                // let rotate_proposer_log = match round_robin_events.query().await {
+                //     Ok(logs) => logs,
+                //     Err(e) => {
+                //         // return Err(BlockAssemblyError::FailedToAssembleBlock(
+                //         //     "Failed to query round robin rotate proposer events".to_string(),
+                //         // ));
+                //         error!("Finality checker: failed to query ProposerRotated events: {e}");
+                //         tokio::time::sleep(finality_check_interval).await;
+                //         continue;
+                //     }
+                // };
                 if rotate_proposer_log.is_empty() {
                     println!("No proposer rotation events found.");
                 } else {
