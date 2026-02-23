@@ -282,6 +282,7 @@ where
                 if start_block == genenisus_block && !blocks.is_empty() {
                     info!("Proposing {} pending blocks", blocks.len());
                     for block in blocks.drain(..) {
+                        ark_std::println!("+++++++++++++++Jiajie: Calling propose_block on 285");
                         if let Err(e) = N::propose_block(block).await {
                             error!("Failed to propose block: {e}");
                         }
@@ -331,6 +332,7 @@ where
                             info!("Rotate Proposer Transaction finalized: {tx_hash:?}");
                             info!("Proposing {} pending blocks", blocks.len());
                             for block in blocks.drain(..) {
+                                ark_std::println!("---------------Jiajie: Calling propose_block on 335");
                                 if let Err(e) = N::propose_block(block).await {
                                     error!("Failed to propose block: {e}");
                                 }
