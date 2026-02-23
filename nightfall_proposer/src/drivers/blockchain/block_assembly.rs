@@ -14,6 +14,7 @@ use ark_serialize::SerializationError;
 use configuration::{addresses::get_addresses, settings::get_settings};
 use jf_plonk::errors::PlonkError;
 use lib::log_fetcher::get_genesis_block;
+use lib::log_fetcher::get_logs_paginated;
 use lib::{
     blockchain_client::BlockchainClientConnection,
     error::{ConversionError, EventHandlerError, NightfallContractError},
@@ -265,6 +266,7 @@ where
         let rr = Arc::clone(&round_robin_instance);
         let blockchain_client = blockchain_client.clone();
         tokio::spawn(async move {
+            let mut last_scanned: u64 = get_genesis_block();
             loop {
                 let tick = std::time::Instant::now();
                 println!("FINALITY TICK start {:?}", tick);
@@ -318,7 +320,7 @@ where
                 //     }
                 // }
                 // 3) ROTATION PATH: query rotation events (don’t return; log+continue)
-                let genenisus_block = get_genesis_block();
+                // let genenisus_block = get_genesis_block();
                 let latest_block = match blockchain_client.root().get_block_number().await {
                     Ok(n) => n,
                     Err(e) => {
@@ -328,7 +330,15 @@ where
                     }
                 };
 
-                let from_block = get_genesis_block();
+                if latest_block < last_scanned {
+                    // chain reorg / provider weirdness; just clamp
+                    last_scanned = latest_block;
+                }
+
+                // let from_block = get_genesis_block();
+
+                // small safety overlap to not miss logs at boundary
+                let from_block = last_scanned.saturating_sub(5);
 
                 // IMPORTANT: use pagination instead of .query()
                 let rotation_filter = rr
@@ -367,6 +377,10 @@ where
                 //         continue;
                 //     }
                 // };
+
+                // advance cursor only after successful fetch
+                last_scanned = latest_block;
+
                 if rotate_proposer_log.is_empty() {
                     println!("No proposer rotation events found.");
                 } else {
@@ -380,8 +394,15 @@ where
                     }
                 }
                 let client = blockchain_client.root().clone();
-                for (_, log_meta) in rotate_proposer_log {
-                    let tx_hash = log_meta.transaction_hash.ok_or_else(|| {
+                let mut decoded_rotation_events = Vec::new();
+
+                for evt in rotate_proposer_log {
+                    if let Ok(decoded) = RoundRobin::ProposerRotated::decode_log(&evt.inner) {
+                        decoded_rotation_events.push((decoded, evt));
+                    }
+                }
+                if let Some((_decoded, evt)) = decoded_rotation_events.last() {
+                    let tx_hash = evt.transaction_hash.ok_or_else(|| {
                         BlockAssemblyError::Other("Transaction hash is None".to_string())
                     })?;
                     match check_l1_finality(
