@@ -302,7 +302,6 @@ fn is_range_error(msg: &str) -> bool {
         || msg.contains("query timeout")
         || msg.contains("10 block range")
         || msg.contains("10 block")
-        || msg.contains("超出") // Chinese provider: "exceeded"
 }
 
 /// Checks if an error message indicates too many results were returned.
