@@ -278,8 +278,8 @@ where
                 let mut blocks = pending_blocks.lock().await;
                 let genenisus_block = get_genesis_block();
                 ark_std::println!("pending block size:{}", blocks.len());
-                // If start_block is ge, then we assume the contract has just been deployed and rotation has not yet started.
-                if !blocks.is_empty() {
+                // If start_block is genenisus_block, then we assume the contract has just been deployed and rotation has not yet started.
+                if start_block == genenisus_block && !blocks.is_empty() {
                     info!("Proposing {} pending blocks", blocks.len());
                     for block in blocks.drain(..) {
                         if let Err(e) = N::propose_block(block).await {
