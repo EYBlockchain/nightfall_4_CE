@@ -27,6 +27,7 @@ use std::{
 };
 use std::{sync::Arc, time::Duration};
 use tokio::sync::Mutex;
+use lib::log_fetcher::get_genesis_block;
 
 #[derive(Debug)]
 pub enum BlockAssemblyError {
