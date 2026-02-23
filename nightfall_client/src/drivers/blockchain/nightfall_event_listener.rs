@@ -116,14 +116,23 @@ pub async fn listen_for_events<N: NightfallContract>(
             .expect("could not get latest block number");
 
         if latest_block >= start_block as u64 {
-            let past_events = get_logs_paginated(
+            log::info!("Fetching past events from block {start_block} to {latest_block}");
+            let past_events = match get_logs_paginated(
                 blockchain_client.root(),
                 events_filter.clone(),
                 start_block as u64,
                 latest_block,
             )
             .await
-            .expect("could not get past events");
+            {
+                Ok(events) => events,
+                Err(e) => {
+                    log::error!("Failed to fetch past events: {e}. Will retry...");
+                    return Err(EventHandlerError::IOError(format!(
+                        "Failed to fetch past events: {e}"
+                    )));
+                }
+            };
             log::info!("Found {} past events to process", past_events.len());
             for evt in past_events {
                 let event = match Nightfall::NightfallEvents::decode_log(&evt.inner) {

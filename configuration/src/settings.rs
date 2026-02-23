@@ -142,6 +142,10 @@ fn default_max_key_download_bytes() -> u64 {
     30 * 1024 * 1024 * 1024 // 30 gb
 }
 
+fn default_rpc_rate_limit() -> u32 {
+    0 // 0 = unlimited
+}
+
 #[derive(Debug, Deserialize, Serialize, Default)]
 #[allow(unused)]
 pub struct Settings {
@@ -169,6 +173,11 @@ pub struct Settings {
     /// If not set, default value of 30 GB is used
     #[serde(default = "default_max_key_download_bytes")]
     pub max_key_download_bytes: u64,
+    /// Max RPC calls per second (0 = unlimited).
+    /// Useful for staying within provider rate limits (e.g., Alchemy free tier: ~8 calls/sec).
+    /// Configurable via `NF4_RPC_RATE_LIMIT` env var or `rpc_rate_limit` in nightfall.toml.
+    #[serde(default = "default_rpc_rate_limit")]
+    pub rpc_rate_limit: u32,
 }
 
 impl Settings {
