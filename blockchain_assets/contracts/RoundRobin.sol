@@ -71,8 +71,8 @@ contract RoundRobin is ProposerManager, Certified, UUPSUpgradeable {
         __Certified_init(msg.sender, x509_address, sanctionsListAddress);
 
         require(cooling_blocks > 0, "Cooling blocks must be > 0");
-        require(stake >= exit_penalty, "Stake < exit penalty");
-        require(lazy_penalty > exit_penalty, "LazyPenalty <= exit penalty");
+        require(stake >= lazy_penalty, "Stake should be more than exit penalty");
+        require(lazy_penalty > exit_penalty, "LazyPenalty should be more than  exit penalty");
         require(grace_blocks > 0 && grace_blocks < rotation_blocks, "Grace blocks must be > 0 and less than rotation blocks");
 
         STAKE = stake;
@@ -157,7 +157,7 @@ contract RoundRobin is ProposerManager, Certified, UUPSUpgradeable {
             lazy_penalize_proposer(current.addr);
         }
         // Define the minimum eligibility floor
-        uint256 eligibilityFloor = EXIT_PENALTY + LAZY_PENALTY;
+        uint256 eligibilityFloor = LAZY_PENALTY;
 
         // Iterate through the proposer list to find an eligible proposer
         address nextProposer = current.next_addr;

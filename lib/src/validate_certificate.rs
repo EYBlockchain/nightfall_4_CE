@@ -1,11 +1,14 @@
 use super::models::CertificateReq;
+use crate::error::NightfallContractError;
 use crate::{
     blockchain_client::BlockchainClientConnection, error::CertificateVerificationError,
     initialisation::get_blockchain_client_connection, models::bad_request,
     verify_contract::VerifiedContracts,
 };
 use alloy::primitives::{Address, U256};
+use alloy::providers::Provider;
 use configuration::addresses::get_addresses;
+use configuration::settings::get_settings;
 use futures::stream::TryStreamExt;
 use log::{debug, error, trace, warn};
 use nightfall_bindings::artifacts::X509;
@@ -123,6 +126,7 @@ pub async fn handle_certificate_validation(
         error!("Failed to get chain ID: {e}");
         warp::reject::custom(CertificateVerificationError::new("Failed to get chain ID"))
     })?;
+    ark_std::println!("way 1 get chain id:{}", chain_id);
 
     if let Err(e) = prevalidate_certificate_and_key(
         &certificate_req.certificate,
@@ -176,32 +180,9 @@ pub async fn handle_certificate_validation(
         }
     };
 
-    // 4) READ-ONLY validation first (no state change). Treat any error as "not certified".
-    let is_end_user = true; // end-entity certs coming from clients/proposers
-    let check_only = true;
-
-    if let Err(err) = validate_certificate(
-        certificate_req.certificate.clone(),
-        ethereum_address_signature.clone(),
-        is_end_user,
-        check_only, // read-only
-        0,
-        requestor_address,
-    )
-    .await
-    {
-        error!("Read-only certificate validation failed: {err}");
-        let body = warp::reply::json(&serde_json::json!({
-            "status": "ok",
-            "certified": false
-        }));
-        return Ok(warp::reply::with_status(body, StatusCode::ACCEPTED));
-    }
-
-    // 5) ENROLL (state-changing): write the binding on-chain and await receipt.
-    // We want one API that validates AND enrolls, so we do the write:
+    // 4) ENROLL (state-changing): write the binding on-chain and await receipt.
     let check_only = false;
-
+    let is_end_user = true; // end-entity certs coming from clients/proposers
     if let Err(err) = validate_certificate(
         certificate_req.certificate.clone(),
         ethereum_address_signature,
@@ -217,7 +198,7 @@ pub async fn handle_certificate_validation(
         warn!("Enroll (write) failed: {err}");
     }
 
-    // 6) Return POST-STATE truth from chain
+    // 5) Return POST-STATE truth from chain
     let is_certified_now = x509_instance
         .x509Check(requestor_address)
         .call()
@@ -247,7 +228,6 @@ async fn validate_certificate(
     let read_connection = get_blockchain_client_connection().await.read().await;
     let provider = read_connection.get_client();
     let blockchain_client = provider.root();
-    let caller = read_connection.get_address();
     let verified =
         VerifiedContracts::resolve_and_verify_contract(blockchain_client.clone(), get_addresses())
             .await
@@ -273,17 +253,66 @@ async fn validate_certificate(
         addr: sender_address,
     };
 
-    let tx_receipt = x509_instance
-        .validateCertificate(certificate_args)
-        .from(caller)
-        .send()
+    let signer = get_blockchain_client_connection()
+        .await
+        .read()
+        .await
+        .get_signer();
+
+    let nonce = blockchain_client
+        .get_transaction_count(signer.address())
+        .await
+        .map_err(|e| NightfallContractError::X509Error(format!("Transaction unsuccesful: {e}")))?;
+    let gas_price = blockchain_client
+        .get_gas_price()
+        .await
+        .map_err(|e| NightfallContractError::X509Error(format!("Transaction unsuccesful: {e}")))?;
+    let max_fee_per_gas = gas_price * 2;
+    let max_priority_fee_per_gas = gas_price;
+    let gas_limit = 16777216u64;
+
+    ark_std::println!("way 2 get chain id:{}", get_settings().network.chain_id);
+
+    let call = x509_instance
+        .validateCertificate(certificate_args.clone())
+        .nonce(nonce)
+        .gas(gas_limit)
+        .max_fee_per_gas(max_fee_per_gas)
+        .max_priority_fee_per_gas(max_priority_fee_per_gas)
+        .chain_id(get_settings().network.chain_id) // Linea testnet chain ID
+        .build_raw_transaction((*signer).clone())
         .await
         .map_err(|e| {
-            warn!("{e}");
-            X509ValidationError
+            NightfallContractError::EscrowError(format!("Transaction unsuccesful: {e}"))
         })?;
-    if tx_receipt.get_receipt().await.is_err() {
-        error!("X509Validation transaction failed");
+
+    let tx_receipt = blockchain_client
+        .send_raw_transaction(&call)
+        .await
+        .map_err(|e| NightfallContractError::EscrowError(format!("Error getting receipt: {e}")))?
+        .get_receipt()
+        .await
+        .map_err(|e| {
+            NightfallContractError::EscrowError(format!("Transaction unsuccesful: {e}"))
+        })?;
+    ark_std::println!("x509 tx receipt: {:?}", tx_receipt);
+
+    // let tx_receipt = x509_instance
+    //     .validateCertificate(certificate_args.clone())
+    //     .from(caller)
+    //     .send()
+    //     .await
+    //     .map_err(|e| {
+    //         warn!("{e}");
+    //         X509ValidationError
+    //     })?;
+    // if tx_receipt.get_receipt().await.is_err() {
+    //     error!("X509Validation transaction failed");
+    //     return Err(Box::new(X509ValidationError));
+    // }
+
+    if !tx_receipt.status() {
+        // error!("validateCertificate revert (sim): {e:?}");
         return Err(Box::new(X509ValidationError));
     }
     Ok(())
@@ -306,7 +335,7 @@ pub fn sign_ethereum_address(
     let mut key_material = PrivateKeyMaterial {
         key: der_private_key.to_vec(),
     };
-    
+
     let private_key = Rsa::private_key_from_der(&key_material.key)?;
 
     let pkey = PKey::from_rsa(private_key)?;

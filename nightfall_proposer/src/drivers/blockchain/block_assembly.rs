@@ -27,6 +27,7 @@ use std::{
 };
 use std::{sync::Arc, time::Duration};
 use tokio::sync::Mutex;
+use lib::log_fetcher::get_genesis_block;
 
 #[derive(Debug)]
 pub enum BlockAssemblyError {
@@ -274,8 +275,9 @@ where
                     }
                 };
                 let mut blocks = pending_blocks.lock().await;
-                // If start_block is zero, then we assume the contract has just been deployed and rotation has not yet started.
-                if start_block.is_zero() && !blocks.is_empty() {
+                let genenisus_block = get_genesis_block();
+                // If start_block is ge, then we assume the contract has just been deployed and rotation has not yet started.
+                if start_block == genenisus_block && !blocks.is_empty() {
                     info!("Proposing {} pending blocks", blocks.len());
                     for block in blocks.drain(..) {
                         if let Err(e) = N::propose_block(block).await {

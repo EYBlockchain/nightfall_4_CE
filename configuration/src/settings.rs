@@ -112,6 +112,10 @@ fn default_max_key_download_bytes() -> u64 {
     30 * 1024 * 1024 * 1024 // 30 gb
 }
 
+fn default_rpc_rate_limit() -> u32 {
+    0 // 0 = unlimited
+}
+
 #[derive(Debug, Deserialize, Serialize, Default)]
 #[allow(unused)]
 pub struct Settings {
@@ -139,6 +143,14 @@ pub struct Settings {
     /// If not set, default value of 30 GB is used
     #[serde(default = "default_max_key_download_bytes")]
     pub max_key_download_bytes: u64,
+    /// Optional log chunk size for RPC queries
+    /// If not set, defaults based on chain ID are used
+    #[serde(default)]
+    pub log_chunk_size: Option<u64>,
+    /// Optional max RPC calls per second (0 = unlimited)
+    /// Useful for staying within provider rate limits (e.g., Alchemy free tier: 8 calls/sec)
+    #[serde(default = "default_rpc_rate_limit")]
+    pub rpc_rate_limit: u32,
 }
 
 impl Settings {

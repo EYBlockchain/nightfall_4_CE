@@ -1,16 +1,17 @@
-use std::{fmt, time::Duration};
-
+use crate::error::ConfigError;
+use alloy_rlp::BytesMut;
+use ark_std::fs;
+use ark_std::path::PathBuf;
 /// A module containing uncategorised functions used by more than one component
 use configuration::settings::get_settings;
 use futures::StreamExt;
 use log::{debug, info, warn};
 use serde::ser::StdError;
-use tokio::{runtime::Handle, task::block_in_place};
-use tokio_util::bytes::BytesMut;
+use std::{fmt, time::Duration};
+use tokio::runtime::Handle;
+use tokio::task::block_in_place;
 use url::Url;
 use warp::hyper::body::Bytes;
-
-use crate::error::ConfigError;
 
 // log progress every 100 MB during key downloads
 const DOWNLOAD_PROGRESS_LOG_INTERVAL_BYTES: u64 = 100 * 1024 * 1024;
@@ -142,6 +143,23 @@ pub fn load_key_from_server(key_file: &str) -> Option<Bytes> {
         });
     }
     None
+}
+
+/// function to load the key locally as a byte array
+/// Our logic is that proposer should either generated keys or load from server before up the service. So when it's proving it should read keys locally, this is to ensure using correct keys when proposer decides to increase block size which is different from what deployer has used during its key generation.
+pub fn load_key_locally(source_file: &PathBuf) -> Option<Bytes> {
+    if Handle::try_current().is_err() {
+        return None;
+    }
+
+    // Check if file exists
+    if !source_file.exists() {
+        return None;
+    }
+
+    // Read file safely
+    let data = fs::read(source_file).ok()?;
+    Some(Bytes::from(data))
 }
 
 /// function to drop a database

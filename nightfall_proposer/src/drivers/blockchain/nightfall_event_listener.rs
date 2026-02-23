@@ -15,6 +15,7 @@ use ark_bn254::Fr as Fr254;
 use configuration::{addresses::get_addresses, settings::get_settings};
 use futures::StreamExt;
 use futures::{future::BoxFuture, FutureExt};
+use lib::log_fetcher::get_logs_paginated;
 use lib::{
     blockchain_client::BlockchainClientConnection,
     error::EventHandlerError,
@@ -126,10 +127,23 @@ where
             .expect("could not get latest block number");
 
         if latest_block >= start_block as u64 {
-            let past_events = blockchain_client
-                .get_logs(&events_filter.clone().to_block(latest_block))
-                .await
-                .expect("could not get past events");
+            log::info!("Fetching past events from block {start_block} to {latest_block}");
+            let past_events = match get_logs_paginated(
+                blockchain_client.root(),
+                events_filter.clone(),
+                start_block as u64,
+                latest_block,
+            )
+            .await
+            {
+                Ok(events) => events,
+                Err(e) => {
+                    log::error!("Failed to fetch past events: {e}. Will retry...");
+                    return Err(EventHandlerError::IOError(format!(
+                        "Failed to fetch past events: {e}"
+                    )));
+                }
+            };
             log::info!("Found {} past events to process", past_events.len());
             for evt in past_events {
                 let event = match Nightfall::NightfallEvents::decode_log(&evt.inner) {

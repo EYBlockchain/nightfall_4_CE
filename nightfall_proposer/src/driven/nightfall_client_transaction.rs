@@ -42,6 +42,7 @@ pub enum ClientTransactionError<E: ProvingEngine<P>, P: Proof> {
     DuplicateNullifier,
     CommitmentRootUnknown,
     NullifiersAllZero,
+    WrongProof,
 }
 impl<E: ProvingEngine<P>, P: Proof> Error for ClientTransactionError<E, P> {}
 impl<E: ProvingEngine<P>, P: Proof> Display for ClientTransactionError<E, P> {
@@ -69,6 +70,9 @@ impl<E: ProvingEngine<P>, P: Proof> Display for ClientTransactionError<E, P> {
             ClientTransactionError::NullifiersAllZero => {
                 write!(f, "All nullifiers are zero")
             }
+            ClientTransactionError::WrongProof => {
+                write!(f, "Client transaction zk proof is wrong")
+            }
         }
     }
 }
@@ -88,9 +92,16 @@ where
     let db = get_db_connection().await; // `db` is now &'static mongodb::Client
                                         // `db` is directly usable for all database operations, including writes.
     let public_inputs = PublicInputs::from(&client_transaction);
-    if let Err(error) = E::verify(&client_transaction.proof, &public_inputs) {
-        return Err(ClientTransactionError::ProofDidNotVerify(error));
+    match E::verify(&client_transaction.proof, &public_inputs) {
+        Ok(true) => {}
+        Ok(false) => {
+            return Err(ClientTransactionError::WrongProof);
+        }
+        Err(error) => {
+            return Err(ClientTransactionError::ProofDidNotVerify(error));
+        }
     }
+
     // 2) then we should check that the transaction is not already in the database i.e. this isn't a replay
     let hash = &client_transaction
         .hash()

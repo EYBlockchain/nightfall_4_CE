@@ -75,13 +75,13 @@ services:
         condition: service_healthy
     tty: true # required for logs to print in colour
     environment:
-      - NF4_RUN_MODE=${NF4_RUN_MODE:-base_sepolia}
+      - NF4_RUN_MODE=${NF4_RUN_MODE:-sepolia}
       - RUST_BACKTRACE=${RUST_BACKTRACE:-0}
       - NF4_SIGNING_KEY=${CLIENT_SIGNING_KEY}
       - NF4_NIGHTFALL_CLIENT__DB_URL=mongodb://nf4_db_client:27017
       - NF4_ETHEREUM_CLIENT_URL
       - NF4_MOCK_PROVER=${NF4_MOCK_PROVER:-false}
-      - NF4_NIGHTFALL_PROPOSER__URL=${NF4_NIGHTFALL_PROPOSER__URL:-localhost:3001}
+      - NF4_NIGHTFALL_PROPOSER__URL=${NF4_NIGHTFALL_PROPOSER__URL:-http://35.225.105.10:3001}
 
   client2:
     container_name: nf4_client2
@@ -208,7 +208,7 @@ services:
     stdin_open: true # keep stdin open, so we can print things in docker compose up
     tty: true # required for logs to print in colour
     environment:
-      - NF4_RUN_MODE=${NF4_RUN_MODE:-base_sepolia}
+      - NF4_RUN_MODE=${NF4_RUN_MODE:-sepolia}
       - RUST_BACKTRACE=${RUST_BACKTRACE:-0}
       - NF4_SIGNING_KEY=${PROPOSER_SIGNING_KEY}
       - NF4_MOCK_PROVER=${NF4_MOCK_PROVER:-false}
@@ -282,8 +282,8 @@ services:
       - "27017:27017"    
     networks:
       - nightfall_network
-  #  volumes:
-  #    - mongodb_client_data:/data/db
+    volumes:
+     - mongodb_client_data:/data/db
     environment:
       - NF4_RUN_MODE=${NF4_RUN_MODE:-development}
 
@@ -418,10 +418,18 @@ services:
     volumes:
       - ./blockchain_assets/test_contracts:/test_contracts
       - ./blockchain_assets/logs:/app/blockchain_assets/logs # to be able to see deployed contract addresses locally
+      - type: volume
+        source: key_data
+        target: /app/configuration/bin/keys
+        read_only: false
+      - type: volume
+        source: toml_data
+        target: /app/configuration/toml
+        read_only: false
     stdin_open: true # keep stdin open, so we can print things in docker compose up
     tty: true # required for logs to print in colour
     environment:
-      - NF4_RUN_MODE=${NF4_RUN_MODE:-base_sepolia}
+      - NF4_RUN_MODE=${NF4_RUN_MODE:-sepolia}
       - NF4_CONTRACTS__DEPLOY_CONTRACTS=${NF4_CONTRACTS__DEPLOY_CONTRACTS:-true}
       - RUST_BACKTRACE=${RUST_BACKTRACE:-0}
       - NF4_SIGNING_KEY=${DEPLOYER_SIGNING_KEY}
@@ -440,15 +448,19 @@ services:
     build:
       dockerfile: configuration/Dockerfile
       context: .
-    # restart: unless-stopped
-    # ports:
-    #   - "8080:80"     replace with a port that is exposed for configuration service if required
+    restart: unless-stopped
+    ports:
+      - "8080:80"     # replace with a port that is exposed for configuration service if required
     platform: linux/amd64 # Required for building on M1 Macs
     volumes:
-      - type: bind
-        source: ./configuration/toml
+      - type: volume
+        source: toml_data
         target: /var/www/html/configuration/toml
-        read_only: false
+        read_only: true
+      - type: volume
+        source: key_data
+        target: /var/www/html/configuration/bin/keys
+        read_only: true
     networks:
       - nightfall_network
     stdin_open: true # keep stdin open, so we can print things in docker compose up
@@ -562,10 +574,13 @@ services:
         condition: service_healthy
     
 volumes:
-  # mongodb_client_data:
+  mongodb_client_data:
   # mongodb_client2_data:
-  # mongodb_proposer_data:
+  mongodb_proposer_data:
   address_data:
+  key_data:
+  toml_data:
+
 
 networks:
    nightfall_network:
