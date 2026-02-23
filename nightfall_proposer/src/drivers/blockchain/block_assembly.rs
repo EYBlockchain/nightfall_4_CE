@@ -260,46 +260,78 @@ where
 
     // Spawn the finality checking task
     // we should start this if we have at least one pending block
-    let _finality_checker: tokio::task::JoinHandle<Result<(), BlockAssemblyError>> = {
+    let finality_checker: tokio::task::JoinHandle<Result<(), BlockAssemblyError>> = {
         let pending_blocks = Arc::clone(&pending_blocks);
         let rr = Arc::clone(&round_robin_instance);
+        let blockchain_client = blockchain_client.clone();
         tokio::spawn(async move {
             loop {
+                let tick = std::time::Instant::now();
+                println!("FINALITY TICK start {:?}", tick);
+
                 ark_std::println!("Jiajie: Am in the first loop");
+
+                // 1) Fetch start_block (NEVER return Err from inside the loop for transient failures)
                 // Check proposer rotation events
                 let start_block = match rr.start_l1_block().call().await {
                     Ok(block) => block,
-                    Err(_) => {
-                        return Err(BlockAssemblyError::FailedToAssembleBlock(
-                            "Failed to get start block for round robin".to_string(),
-                        ));
+                    Err(e) => {
+                        error!("Finality checker: failed to get start_l1_block(): {e}");
+                        tokio::time::sleep(finality_check_interval).await;
+                        continue;
                     }
                 };
-                let mut blocks = pending_blocks.lock().await;
-                let genenisus_block = get_genesis_block();
-                ark_std::println!("pending block size:{}", blocks.len());
-                // If start_block is genenisus_block, then we assume the contract has just been deployed and rotation has not yet started.
-                if start_block == genenisus_block && !blocks.is_empty() {
-                    info!("Proposing {} pending blocks", blocks.len());
-                    for block in blocks.drain(..) {
-                        ark_std::println!("+++++++++++++++Jiajie: Calling propose_block on 285");
+                // 2) FIRST-PROPOSER PATH: drain + propose if start_block == genesis and queue non-empty
+                // Only lock long enough to read/drain, never across awaits
+                let drained: Vec<_> = {
+                    let mut guard = pending_blocks.lock().await;
+                    if !guard.is_empty() && start_block == get_genesis_block() {
+                        guard.drain(..).collect()
+                    } else {
+                        Vec::new()
+                    }
+                };
+
+                // If we drained blocks, propose them (no lock held here)
+                if !drained.is_empty() {
+                    info!(
+                        "Finality checker (first proposer): proposing {} pending blocks",
+                        drained.len()
+                    );
+                    for block in drained {
                         if let Err(e) = N::propose_block(block).await {
-                            error!("Failed to propose block: {e}");
+                            error!("Finality checke (first proposer): propose_block failed: {e}");
                         }
                     }
                 }
-
+                // let mut blocks = pending_blocks.lock().await;
+                // let genenisus_block = get_genesis_block();
+                // ark_std::println!("pending block size:{}", blocks.len());
+                // // If start_block is genenisus_block, then we assume the contract has just been deployed and rotation has not yet started.
+                // if start_block == genenisus_block && !blocks.is_empty() {
+                //     info!("Proposing {} pending blocks", blocks.len());
+                //     for block in blocks.drain(..) {
+                //         ark_std::println!("+++++++++++++++Jiajie: Calling propose_block on 285");
+                //         if let Err(e) = N::propose_block(block).await {
+                //             error!("Failed to propose block: {e}");
+                //         }
+                //     }
+                // }
+                // 3) ROTATION PATH: query rotation events (don’t return; log+continue)
+                let genesis_block = get_genesis_block();
                 let round_robin_events = rr
                     .event_filter::<RoundRobin::ProposerRotated>()
                     .from_block(genenisus_block);
-                // if there are events print something, otherwise print
 
                 let rotate_proposer_log = match round_robin_events.query().await {
                     Ok(logs) => logs,
                     Err(_) => {
-                        return Err(BlockAssemblyError::FailedToAssembleBlock(
-                            "Failed to query round robin rotate proposer events".to_string(),
-                        ));
+                        // return Err(BlockAssemblyError::FailedToAssembleBlock(
+                        //     "Failed to query round robin rotate proposer events".to_string(),
+                        // ));
+                        error!("Finality checker: failed to query ProposerRotated events: {e}");
+                        tokio::time::sleep(finality_check_interval).await;
+                        continue;
                     }
                 };
                 if rotate_proposer_log.is_empty() {
@@ -331,15 +363,32 @@ where
                             // Process all pending blocks
                             info!("Rotate Proposer Transaction finalized: {tx_hash:?}");
                             info!("Proposing {} pending blocks", blocks.len());
-                            for block in blocks.drain(..) {
-                                ark_std::println!("---------------Jiajie: Calling propose_block on 335");
-                                if let Err(e) = N::propose_block(block).await {
-                                    error!("Failed to propose block: {e}");
+                            // drain + propose all pending blocks
+                            let drained_after_finality: Vec<_> = {
+                                let mut guard = pending_blocks.lock().await;
+                                guard.drain(..).collect()
+                            };
+                            if !drained_after_finality.is_empty() {
+                                info!(
+                                    "Finality checker (after rotation finality): proposing {} pending blocks",
+                                    drained_after_finality.len()
+                                );
+                                for block in drained_after_finality {
+                                    if let Err(e) = N::propose_block(block).await {
+                                        error!("Finality checker: propose_block failed: {e}");
+                                    }
                                 }
                             }
+
+                            // for block in blocks.drain(..) {
+                            //     ark_std::println!("---------------Jiajie: Calling propose_block on 335");
+                            //     if let Err(e) = N::propose_block(block).await {
+                            //         error!("Failed to propose block: {e}");
+                            //     }
+                            // }
                         }
                         Ok(false) => {
-                            debug!("Transaction not yet finalized");
+                            debug!("Rotation Transaction not yet finalized");
                         }
                         Err(e) => {
                             error!("Finality check error: {e}");
@@ -347,9 +396,23 @@ where
                     }
                 }
                 tokio::time::sleep(finality_check_interval).await;
+                println!("FINALITY TICK end, elapsed={:?}", tick.elapsed());
             }
         })
     };
+    tokio::spawn(async move {
+        match finality_checker.await {
+            Ok(Ok(())) => {
+                error!("Finality checker exited unexpectedly with Ok(())");
+            }
+            Ok(Err(e)) => {
+                error!("Finality checker exited with error: {e}");
+            }
+            Err(e) => {
+                error!("Finality checker join/panic/cancel: {e}");
+            }
+        }
+    });
     // Main block assembly loop
     loop {
         ark_std::println!("Jiajie: Am in the second loop");
