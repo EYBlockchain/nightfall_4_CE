@@ -308,7 +308,7 @@ When there is a transfer or withdraw transaction, you will see `Client Transacti
 
 When proposer is making a block, you will see `This block has x deposit(s), y transfer(s), and z withdrawal(s)`.
 
-When proposer is proving a block, you will see `Computing block`, it will take 20 mins depending on your proposer's computing ability. When it's finished you will see `Block computation took xx` and `Added block to queue (1 pending)`.
+When proposer is proving a block, you will see `Computing block`, it will take 20 mins depending on your proposer's computing ability. When it's finished you will see `Block computation took xx`, `Proposing x pending blocks` and `Added block to queue (1 pending)`.
 
 When proposer successfully sent the block to L1, you will see `The L2 block was sent to L1`, you can verify this by checking the L1 exploer of nightfall contract address.
 

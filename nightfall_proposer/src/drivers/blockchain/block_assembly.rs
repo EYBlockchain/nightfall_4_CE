@@ -265,6 +265,7 @@ where
         let rr = Arc::clone(&round_robin_instance);
         tokio::spawn(async move {
             loop {
+                ark_std::println!("Jiajie: Am in the first loop");
                 // Check proposer rotation events
                 let start_block = match rr.start_l1_block().call().await {
                     Ok(block) => block,
@@ -335,6 +336,7 @@ where
     };
     // Main block assembly loop
     loop {
+        ark_std::println!("Jiajie: Am in the second loop");
         debug!("Checking proposer status...");
         // Step 1: Get current proposer address from smart contract
         let current_proposer = match round_robin_instance

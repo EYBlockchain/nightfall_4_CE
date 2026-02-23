@@ -32,7 +32,7 @@ max_queue_size = 1000
 
 [sepolia.nightfall_proposer]
 url = "http://35.225.105.10:3001"
-log_level = "info"
+log_level = "debug"
 wallet_type = "local"
 db_url = "mongodb://nf4_db_proposer:27017"
 block_assembly_max_wait_secs = 120 
