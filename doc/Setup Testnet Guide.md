@@ -434,3 +434,14 @@ Returns: on success `200 OK` if the active `proposer` was rotated, `423 LOCKED` 
 This endpoint will rotate the proposers if the current `proposer` has been active for more than the number of Layer 1 blocks that a `proposer` is allowed to propose for (ROTATION_BlOCKS) (currently set as 4 blocks). This value is set in the construction of RoundRobin.sol.
 
 ### Step 4.7: Follow Step 2.6.
+
+
+
+## Troubleshooting
+```sh
+[ ERROR alloy_transport_ws::native]
+WS connection error
+WebSocket protocol error: Connection reset without closing handshake
+```
+This error is related to a temporary host chain RPC WebSocket connection issue.
+Nightfall automatically handles recovery by restarting the affected service and re-establishing the connection. No user action is required.
