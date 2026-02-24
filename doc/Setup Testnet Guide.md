@@ -387,6 +387,7 @@ Go to `db_client`, uncomment `volumes: - mongodb_client_data:/data/db`
 From the repo root:
 
 ```bash
+forge clean && forge build
 docker compose --profile indie-client build
 
 docker compose --profile indie-client --env-file local.env up
