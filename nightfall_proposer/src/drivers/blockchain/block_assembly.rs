@@ -271,7 +271,7 @@ where
     let finality_check_interval = Duration::from_secs(5);
 
     debug!("Starting block assembly");
-    println!("Starting block assembly");
+    // println!("Starting block assembly");
     // Finality checker task:
     // - scan ProposerRotated logs
     // - wait finality for the latest seen rotation tx
@@ -279,7 +279,7 @@ where
     // - ONLY THEN drain + propose pending blocks (and only if we're the current proposer)
 
     // Spawn the finality checking task
-    let finality_checker: tokio::task::JoinHandle<Result<(), BlockAssemblyError>> = {
+    let _finality_checker: tokio::task::JoinHandle<Result<(), BlockAssemblyError>> = {
         let pending_blocks = Arc::clone(&pending_blocks);
         let rr = Arc::clone(&round_robin_instance);
         let blockchain_client = blockchain_client.clone();
@@ -288,9 +288,9 @@ where
 
             loop {
                 let tick = std::time::Instant::now();
-                println!("FINALITY TICK start {:?}", tick);
+                // println!("FINALITY TICK start {:?}", tick);
 
-                ark_std::println!("Jiajie: Am in the first loop");
+                // ark_std::println!("Jiajie: Am in the first loop");
 
                 // If nothing to propose, don't waste RPC calls
                 let has_pending = {
@@ -299,10 +299,10 @@ where
                 };
                 if !has_pending {
                     tokio::time::sleep(finality_check_interval).await;
-                    println!(
-                        "FINALITY TICK end (no pending), elapsed={:?}",
-                        tick.elapsed()
-                    );
+                    // println!(
+                    //     "FINALITY TICK end (no pending), elapsed={:?}",
+                    //     tick.elapsed()
+                    // );
                     continue;
                 }
 
@@ -351,9 +351,9 @@ where
 
                 if rotation_logs.is_empty() {
                     debug!("Finality checker: no ProposerRotated logs in range {from_block}..{latest_block}");
-                    println!("Finality checker: no ProposerRotated logs in range {from_block}..{latest_block}");
+                    // println!("Finality checker: no ProposerRotated logs in range {from_block}..{latest_block}");
                     tokio::time::sleep(finality_check_interval).await;
-                    println!("FINALITY TICK end, elapsed={:?}", tick.elapsed());
+                    // println!("FINALITY TICK end, elapsed={:?}", tick.elapsed());
                     continue;
                 }
 
@@ -368,9 +368,9 @@ where
                 // If decode failed for all, just sleep and retry.
                 let Some((_decoded, evt)) = decoded_rotation_events.last() else {
                     warn!("Finality checker: ProposerRotated logs found but none decoded");
-                    println!("Finality checker: ProposerRotated logs found but none decoded");
+                    // println!("Finality checker: ProposerRotated logs found but none decoded");
                     tokio::time::sleep(finality_check_interval).await;
-                    println!("FINALITY TICK end, elapsed={:?}", tick.elapsed());
+                    // println!("FINALITY TICK end, elapsed={:?}", tick.elapsed());
                     continue;
                 };
 
@@ -379,7 +379,7 @@ where
                     None => {
                         error!("Finality checker: rotation event missing transaction_hash");
                         tokio::time::sleep(finality_check_interval).await;
-                        println!("FINALITY TICK end, elapsed={:?}", tick.elapsed());
+                        // println!("FINALITY TICK end, elapsed={:?}", tick.elapsed());
                         continue;
                     }
                 };
@@ -389,7 +389,7 @@ where
                     None => {
                         error!("Finality checker: rotation event missing block_number");
                         tokio::time::sleep(finality_check_interval).await;
-                        println!("FINALITY TICK end, elapsed={:?}", tick.elapsed());
+                        // println!("FINALITY TICK end, elapsed={:?}", tick.elapsed());
                         continue;
                     }
                 };
@@ -413,7 +413,7 @@ where
                             Err(e) => {
                                 error!("Finality checker: failed rr.start_l1_block(): {e}");
                                 tokio::time::sleep(finality_check_interval).await;
-                                println!("FINALITY TICK end, elapsed={:?}", tick.elapsed());
+                                // println!("FINALITY TICK end, elapsed={:?}", tick.elapsed());
                                 continue;
                             }
                         };
@@ -424,7 +424,7 @@ where
                                 onchain_start_block, evt_block_number
                             );
                             tokio::time::sleep(finality_check_interval).await;
-                            println!("FINALITY TICK end, elapsed={:?}", tick.elapsed());
+                            // println!("FINALITY TICK end, elapsed={:?}", tick.elapsed());
                             continue;
                         }
 
@@ -438,7 +438,7 @@ where
                             Err(e) => {
                                 error!("Finality checker: failed rr.get_current_proposer_address(): {e}");
                                 tokio::time::sleep(finality_check_interval).await;
-                                println!("FINALITY TICK end, elapsed={:?}", tick.elapsed());
+                                // println!("FINALITY TICK end, elapsed={:?}", tick.elapsed());
                                 continue;
                             }
                         };
@@ -455,7 +455,7 @@ where
                                 onchain_current_proposer, our_addr
                             );
                             tokio::time::sleep(finality_check_interval).await;
-                            println!("FINALITY TICK end, elapsed={:?}", tick.elapsed());
+                            // println!("FINALITY TICK end, elapsed={:?}", tick.elapsed());
                             continue;
                         }
 
@@ -486,7 +486,7 @@ where
                 }
 
                 tokio::time::sleep(finality_check_interval).await;
-                println!("FINALITY TICK end, elapsed={:?}", tick.elapsed());
+                // println!("FINALITY TICK end, elapsed={:?}", tick.elapsed());
             }
         })
     };
@@ -700,7 +700,7 @@ where
     // });
     // Main block assembly loop
     loop {
-        ark_std::println!("Jiajie: Am in the second loop");
+        // ark_std::println!("Jiajie: Am in the second loop");
         debug!("Checking proposer status...");
         // Step 1: Get current proposer address from smart contract
         let current_proposer = match round_robin_instance
