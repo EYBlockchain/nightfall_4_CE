@@ -308,170 +308,170 @@ where
                     last_scanned = latest_block;
                 }
 
-                // // Small safety overlap to not miss logs at boundary.
-                // // NOTE: do NOT always restart from genesis, keep a cursor.
-                // let from_block = last_scanned.saturating_sub(5);
+                // Small safety overlap to not miss logs at boundary.
+                // NOTE: do NOT always restart from genesis, keep a cursor.
+                let from_block = last_scanned.saturating_sub(5);
 
-                // let rotation_filter = rr
-                //     .event_filter::<RoundRobin::ProposerRotated>()
-                //     .from_block(from_block);
+                let rotation_filter = rr
+                    .event_filter::<RoundRobin::ProposerRotated>()
+                    .from_block(from_block);
 
-                // let rotation_logs = match get_logs_paginated(
-                //     blockchain_client.root(),
-                //     rotation_filter.filter.clone(),
-                //     from_block,
-                //     latest_block,
-                // )
-                // .await
-                // {
-                //     Ok(events) => events,
-                //     Err(e) => {
-                //         error!(
-                //             "Finality checker: failed to fetch ProposerRotated logs paginated: {e}"
-                //         );
-                //         tokio::time::sleep(finality_check_interval).await;
-                //         continue;
-                //     }
-                // };
+                let rotation_logs = match get_logs_paginated(
+                    blockchain_client.root(),
+                    rotation_filter.filter.clone(),
+                    from_block,
+                    latest_block,
+                )
+                .await
+                {
+                    Ok(events) => events,
+                    Err(e) => {
+                        error!(
+                            "Finality checker: failed to fetch ProposerRotated logs paginated: {e}"
+                        );
+                        tokio::time::sleep(finality_check_interval).await;
+                        continue;
+                    }
+                };
 
-                // // Advance cursor only after successful fetch.
-                // last_scanned = latest_block;
+                // Advance cursor only after successful fetch.
+                last_scanned = latest_block;
 
-                // if rotation_logs.is_empty() {
-                //     debug!("Finality checker: no ProposerRotated logs in range {from_block}..{latest_block}");
-                //     println!("Finality checker: no ProposerRotated logs in range {from_block}..{latest_block}");
-                //     tokio::time::sleep(finality_check_interval).await;
-                //     println!("FINALITY TICK end, elapsed={:?}", tick.elapsed());
-                //     continue;
-                // }
+                if rotation_logs.is_empty() {
+                    debug!("Finality checker: no ProposerRotated logs in range {from_block}..{latest_block}");
+                    println!("Finality checker: no ProposerRotated logs in range {from_block}..{latest_block}");
+                    tokio::time::sleep(finality_check_interval).await;
+                    println!("FINALITY TICK end, elapsed={:?}", tick.elapsed());
+                    continue;
+                }
 
-                // // Decode (best-effort) and keep the last event in this window.
-                // let mut decoded_rotation_events = Vec::new();
-                // for evt in rotation_logs {
-                //     if let Ok(decoded) = RoundRobin::ProposerRotated::decode_log(&evt.inner) {
-                //         decoded_rotation_events.push((decoded, evt));
-                //     }
-                // }
+                // Decode (best-effort) and keep the last event in this window.
+                let mut decoded_rotation_events = Vec::new();
+                for evt in rotation_logs {
+                    if let Ok(decoded) = RoundRobin::ProposerRotated::decode_log(&evt.inner) {
+                        decoded_rotation_events.push((decoded, evt));
+                    }
+                }
 
-                // // If decode failed for all, just sleep and retry.
-                // let Some((_decoded, evt)) = decoded_rotation_events.last() else {
-                //     warn!("Finality checker: ProposerRotated logs found but none decoded");
-                //     println!("Finality checker: ProposerRotated logs found but none decoded");
-                //     tokio::time::sleep(finality_check_interval).await;
-                //     println!("FINALITY TICK end, elapsed={:?}", tick.elapsed());
-                //     continue;
-                // };
+                // If decode failed for all, just sleep and retry.
+                let Some((_decoded, evt)) = decoded_rotation_events.last() else {
+                    warn!("Finality checker: ProposerRotated logs found but none decoded");
+                    println!("Finality checker: ProposerRotated logs found but none decoded");
+                    tokio::time::sleep(finality_check_interval).await;
+                    println!("FINALITY TICK end, elapsed={:?}", tick.elapsed());
+                    continue;
+                };
 
-                // let tx_hash = match evt.transaction_hash {
-                //     Some(h) => h,
-                //     None => {
-                //         error!("Finality checker: rotation event missing transaction_hash");
-                //         tokio::time::sleep(finality_check_interval).await;
-                //         println!("FINALITY TICK end, elapsed={:?}", tick.elapsed());
-                //         continue;
-                //     }
-                // };
+                let tx_hash = match evt.transaction_hash {
+                    Some(h) => h,
+                    None => {
+                        error!("Finality checker: rotation event missing transaction_hash");
+                        tokio::time::sleep(finality_check_interval).await;
+                        println!("FINALITY TICK end, elapsed={:?}", tick.elapsed());
+                        continue;
+                    }
+                };
 
-                // let evt_block_number = match evt.block_number {
-                //     Some(n) => n,
-                //     None => {
-                //         error!("Finality checker: rotation event missing block_number");
-                //         tokio::time::sleep(finality_check_interval).await;
-                //         println!("FINALITY TICK end, elapsed={:?}", tick.elapsed());
-                //         continue;
-                //     }
-                // };
+                let evt_block_number = match evt.block_number {
+                    Some(n) => n,
+                    None => {
+                        error!("Finality checker: rotation event missing block_number");
+                        tokio::time::sleep(finality_check_interval).await;
+                        println!("FINALITY TICK end, elapsed={:?}", tick.elapsed());
+                        continue;
+                    }
+                };
 
-                // let client = blockchain_client.root().clone();
+                let client = blockchain_client.root().clone();
 
-                // match check_l1_finality(
-                //     &client,
-                //     tx_hash,
-                //     confirmations_required,
-                //     Some(finality_check_interval),
-                // )
-                // .await
-                // {
-                //     Ok(true) => {
-                //         info!("ProposerRotated tx finalized: {tx_hash:?} (event block: {evt_block_number})");
+                match check_l1_finality(
+                    &client,
+                    tx_hash,
+                    confirmations_required,
+                    Some(finality_check_interval),
+                )
+                .await
+                {
+                    Ok(true) => {
+                        info!("ProposerRotated tx finalized: {tx_hash:?} (event block: {evt_block_number})");
 
-                //         // Canonicality check #1: start_l1_block must match this rotation event's block.
-                //         let onchain_start_block = match rr.start_l1_block().call().await {
-                //             Ok(b) => b,
-                //             Err(e) => {
-                //                 error!("Finality checker: failed rr.start_l1_block(): {e}");
-                //                 tokio::time::sleep(finality_check_interval).await;
-                //                 println!("FINALITY TICK end, elapsed={:?}", tick.elapsed());
-                //                 continue;
-                //             }
-                //         };
+                        // Canonicality check #1: start_l1_block must match this rotation event's block.
+                        let onchain_start_block = match rr.start_l1_block().call().await {
+                            Ok(b) => b,
+                            Err(e) => {
+                                error!("Finality checker: failed rr.start_l1_block(): {e}");
+                                tokio::time::sleep(finality_check_interval).await;
+                                println!("FINALITY TICK end, elapsed={:?}", tick.elapsed());
+                                continue;
+                            }
+                        };
 
-                //         if onchain_start_block != evt_block_number {
-                //             debug!(
-                //                 "Finality checker: start_l1_block mismatch (onchain: {}, event: {}). Skipping propose.",
-                //                 onchain_start_block, evt_block_number
-                //             );
-                //             tokio::time::sleep(finality_check_interval).await;
-                //             println!("FINALITY TICK end, elapsed={:?}", tick.elapsed());
-                //             continue;
-                //         }
+                        if onchain_start_block != evt_block_number {
+                            debug!(
+                                "Finality checker: start_l1_block mismatch (onchain: {}, event: {}). Skipping propose.",
+                                onchain_start_block, evt_block_number
+                            );
+                            tokio::time::sleep(finality_check_interval).await;
+                            println!("FINALITY TICK end, elapsed={:?}", tick.elapsed());
+                            continue;
+                        }
 
-                //         // Canonicality check #2: we only propose if we are the current proposer NOW.
-                //         let onchain_current_proposer = match rr
-                //             .get_current_proposer_address()
-                //             .call()
-                //             .await
-                //         {
-                //             Ok(addr) => addr,
-                //             Err(e) => {
-                //                 error!("Finality checker: failed rr.get_current_proposer_address(): {e}");
-                //                 tokio::time::sleep(finality_check_interval).await;
-                //                 println!("FINALITY TICK end, elapsed={:?}", tick.elapsed());
-                //                 continue;
-                //             }
-                //         };
+                        // Canonicality check #2: we only propose if we are the current proposer NOW.
+                        let onchain_current_proposer = match rr
+                            .get_current_proposer_address()
+                            .call()
+                            .await
+                        {
+                            Ok(addr) => addr,
+                            Err(e) => {
+                                error!("Finality checker: failed rr.get_current_proposer_address(): {e}");
+                                tokio::time::sleep(finality_check_interval).await;
+                                println!("FINALITY TICK end, elapsed={:?}", tick.elapsed());
+                                continue;
+                            }
+                        };
 
-                //         let our_addr = get_blockchain_client_connection()
-                //             .await
-                //             .read()
-                //             .await
-                //             .get_address();
+                        let our_addr = get_blockchain_client_connection()
+                            .await
+                            .read()
+                            .await
+                            .get_address();
 
-                //         if onchain_current_proposer != our_addr {
-                //             debug!(
-                //                 "Finality checker: proposer is {:?}, we are {:?}. Not our turn.",
-                //                 onchain_current_proposer, our_addr
-                //             );
-                //             tokio::time::sleep(finality_check_interval).await;
-                //             println!("FINALITY TICK end, elapsed={:?}", tick.elapsed());
-                //             continue;
-                //         }
+                        if onchain_current_proposer != our_addr {
+                            debug!(
+                                "Finality checker: proposer is {:?}, we are {:?}. Not our turn.",
+                                onchain_current_proposer, our_addr
+                            );
+                            tokio::time::sleep(finality_check_interval).await;
+                            println!("FINALITY TICK end, elapsed={:?}", tick.elapsed());
+                            continue;
+                        }
 
-                //         // Drain + propose all pending blocks (no lock held across awaits).
-                //         let drained_after_finality: Vec<_> = {
-                //             let mut guard = pending_blocks.lock().await;
-                //             guard.drain(..).collect()
-                //         };
+                        // Drain + propose all pending blocks (no lock held across awaits).
+                        let drained_after_finality: Vec<_> = {
+                            let mut guard = pending_blocks.lock().await;
+                            guard.drain(..).collect()
+                        };
 
-                //         if !drained_after_finality.is_empty() {
-                //             info!(
-                //                 "Finality checker: finalized & canonical rotation, proposing {} pending blocks",
-                //                 drained_after_finality.len()
-                //             );
-                //             for block in drained_after_finality {
-                //                 if let Err(e) = N::propose_block(block).await {
-                //                     error!("Finality checker: propose_block failed: {e}");
-                //                 }
-                //             }
-                //         }
-                //     }
-                //     Ok(false) => {
-                //         debug!("Finality checker: rotation tx not yet finalized: {tx_hash:?}");
-                //     }
-                //     Err(e) => {
-                //         error!("Finality checker: finality check error: {e}");
-                //     }
-                // }
+                        if !drained_after_finality.is_empty() {
+                            info!(
+                                "Finality checker: finalized & canonical rotation, proposing {} pending blocks",
+                                drained_after_finality.len()
+                            );
+                            for block in drained_after_finality {
+                                if let Err(e) = N::propose_block(block).await {
+                                    error!("Finality checker: propose_block failed: {e}");
+                                }
+                            }
+                        }
+                    }
+                    Ok(false) => {
+                        debug!("Finality checker: rotation tx not yet finalized: {tx_hash:?}");
+                    }
+                    Err(e) => {
+                        error!("Finality checker: finality check error: {e}");
+                    }
+                }
 
                 tokio::time::sleep(finality_check_interval).await;
                 println!("FINALITY TICK end, elapsed={:?}", tick.elapsed());
