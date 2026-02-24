@@ -479,19 +479,19 @@ where
         })
     };
 
-    tokio::spawn(async move {
-        match finality_checker.await {
-            Ok(Ok(())) => {
-                error!("Finality checker exited unexpectedly with Ok(())");
-            }
-            Ok(Err(e)) => {
-                error!("Finality checker exited with error: {e}");
-            }
-            Err(e) => {
-                error!("Finality checker join/panic/cancel: {e}");
-            }
-        }
-    });
+    // tokio::spawn(async move {
+    //     match finality_checker.await {
+    //         Ok(Ok(())) => {
+    //             error!("Finality checker exited unexpectedly with Ok(())");
+    //         }
+    //         Ok(Err(e)) => {
+    //             error!("Finality checker exited with error: {e}");
+    //         }
+    //         Err(e) => {
+    //             error!("Finality checker join/panic/cancel: {e}");
+    //         }
+    //     }
+    // });
 
     //             // 1) Fetch start_block (NEVER return Err from inside the loop for transient failures)
     //             // Check proposer rotation events
