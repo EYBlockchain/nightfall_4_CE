@@ -30,6 +30,7 @@ use std::{
 };
 use std::{sync::Arc, time::Duration};
 use tokio::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 #[derive(Debug)]
 pub enum BlockAssemblyError {
@@ -255,6 +256,17 @@ where
 
     // Shared queue for blocks waiting for finality confirmation
     let pending_blocks = Arc::new(Mutex::new(Vec::new()));
+    // Single-writer flag to prevent concurrent block assembly runs
+    let is_assembling = Arc::new(AtomicBool::new(false));
+    // simple RAII guard to clear the flag on drop
+    struct AssemblingGuard(Arc<AtomicBool>);
+    impl Drop for AssemblingGuard {
+        fn drop(&mut self) {
+            self.0.store(false, Ordering::SeqCst);
+        }
+    }
+
+
     let confirmations_required = U64::from(12);
     let finality_check_interval = Duration::from_secs(5);
 
@@ -765,6 +777,17 @@ where
             warn!("We are not synchronised. We won't make blocks until we are");
             continue;
         }
+        // if another assembly is running, skip this trigger
+        if is_assembling
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .is_err()
+        {
+            info!("Proposer: My another block assembly is currently running; skipping this trigger");
+            continue;
+        }
+        // ensure the flag is cleared when we leave this scope (success, error, or panic unwind)
+        let _assembling_guard = AssemblingGuard(Arc::clone(&is_assembling));
+        
         debug!("Triggered block assembly");
         let block_result = assemble_block::<P, R>().await;
         let block = match block_result {

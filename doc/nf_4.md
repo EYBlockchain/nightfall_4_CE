@@ -471,10 +471,10 @@ curl -i \
   -H 'Content-Type: application/json' \
   -X POST 'http://localhost:3000/v1/deposit' \
   --data-raw '{
-    "ercAddress": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+    "ercAddress": "0x6d30362C7e36404646b403876bAAEc3Cb5d689ca",
     "tokenId": "0x00",
     "tokenType": "0",
-    "value": "0x04",
+    "value": "0x01",
     "fee": "0x02",
     "deposit_fee": "0x05"
   }'
