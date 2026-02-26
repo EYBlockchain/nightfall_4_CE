@@ -374,14 +374,38 @@ impl RecursiveProver for RollupProver {
     }
 
     fn get_decider_vk() -> PlonkVerifyingKey<Bn254> {
-        let path = get_configuration_path()
-            .expect("Configuration path not found")
-            .join("bin/keys/decider_vk");
-        let source_file = find(&path).unwrap();
-        PlonkVerifyingKey::<Bn254>::deserialize_compressed_unchecked(
-            &*std::fs::read(source_file).expect("Could not read verifying key"),
-        )
-        .expect("Could not deserialise verifying key")
+        let path = get_configuration_keys_path()
+            .expect("Configuration keys path not found")
+            .join("decider_vk");
+
+        // 1) Try local file first (mirrors get_decider_proving_key pattern).
+        if let Some(source_file) = find(&path) {
+            if let Some(bytes) = load_key_locally(&source_file) {
+                if let Ok(vk) =
+                    PlonkVerifyingKey::<Bn254>::deserialize_compressed_unchecked(bytes.as_ref())
+                {
+                    return vk;
+                }
+                warn!("Failed to deserialize local decider_vk, trying server");
+            } else {
+                warn!("Could not read local decider_vk, trying server");
+            }
+        } else {
+            warn!("Could not locate decider_vk locally, trying server");
+        }
+
+        // 2) Try configuration server.
+        if let Some(bytes) = load_key_from_server("decider_vk") {
+            if let Ok(vk) =
+                PlonkVerifyingKey::<Bn254>::deserialize_compressed_unchecked(bytes.as_ref())
+            {
+                return vk;
+            }
+            warn!("Failed to deserialize decider_vk from server");
+        }
+
+        // 3) Nothing worked — abort loudly.
+        panic!("Failed to load decider_vk from both local filesystem and configuration server");
     }
 
     fn store_base_grumpkin_pk(pk: MLEProvingKey<Zmorph>) -> Option<()> {
