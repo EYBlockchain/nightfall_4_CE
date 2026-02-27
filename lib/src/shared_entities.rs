@@ -529,7 +529,6 @@ mod tests {
                 0xea730722,
                 0x00,
             ]));
-            let token_type = TokenType::ERC1155;
             let token_id = Fr254::new(BigInt::new([
                 0x94c25463ca1c3fbe,
                 0x042da2de98c064cf,

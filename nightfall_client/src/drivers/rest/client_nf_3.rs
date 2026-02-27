@@ -386,7 +386,7 @@ pub async fn handle_deposit<N: NightfallContract>(
             preimage_fee,
             nullifier,
             CommitmentStatus::PendingCreation,
-            token_type,
+            TokenType::FeeToken,
             None,
             None,
         );

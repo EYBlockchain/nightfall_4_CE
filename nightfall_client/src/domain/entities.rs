@@ -1,5 +1,4 @@
 use crate::ports::key_provider::KeyProvider;
-use alloy::dyn_abi::abi::Token;
 use ark_bn254::Fr as Fr254;
 use ark_ff::BigInteger256;
 use lib::hex_conversion::HexConvertible;

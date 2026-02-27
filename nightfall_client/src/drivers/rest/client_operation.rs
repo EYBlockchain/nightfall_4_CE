@@ -13,7 +13,9 @@ use ark_bn254::Fr as Fr254;
 use configuration::addresses::get_addresses;
 use futures::future::join_all;
 use lib::{
-    blockchain_client::BlockchainClientConnection, commitments::Nullifiable, derive_key::ZKPKeys, hex_conversion::HexConvertible, initialisation::get_blockchain_client_connection, nf_client_proof::{Proof, ProvingEngine}, nf_token_id, secret_hash::SecretHash, shared_entities::{ClientTransaction, Preimage}
+    blockchain_client::BlockchainClientConnection, commitments::Nullifiable, derive_key::ZKPKeys, hex_conversion::HexConvertible, 
+    initialisation::get_blockchain_client_connection, nf_client_proof::{Proof, ProvingEngine}, 
+    secret_hash::SecretHash, shared_entities::{ClientTransaction, Preimage}
 };
 use log::{debug, error, info, warn};
 use nf_curves::ed_on_bn254::Fr as BJJScalar;
