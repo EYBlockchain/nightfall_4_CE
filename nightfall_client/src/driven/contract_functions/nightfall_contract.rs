@@ -17,6 +17,7 @@ use lib::{
     contract_conversions::{Addr, FrBn254, Uint256},
     error::NightfallContractError,
     initialisation::get_blockchain_client_connection,
+    log_fetcher::get_logs_paginated,
     nf_token_id::to_nf_token_id_from_solidity,
     secret_hash::SecretHash,
     shared_entities::{DepositSecret, TokenType, WithdrawData},
@@ -363,15 +364,19 @@ impl NightfallContract for Nightfall::NightfallCalls {
         let event_sig = B256::from(keccak256("BlockProposed(int256)"));
         let filter = Filter::new()
             .address(nightfall_address)
-            .from_block(0u64)
+            .from_block(get_settings().genesis_block as u64)
             .to_block(latest_block)
             .event_signature(event_sig)
             .topic1(block_topic);
 
-        let logs = client
-            .get_logs(&filter)
-            .await
-            .map_err(|e| NightfallContractError::ProviderError(format!("Provider error: {e}")))?;
+        let logs = get_logs_paginated(
+            client,
+            filter.clone(),
+            get_settings().genesis_block as u64,
+            latest_block,
+        )
+        .await
+        .map_err(|e| NightfallContractError::ProviderError(format!("Provider error: {e}")))?;
 
         let log = logs
             .first()

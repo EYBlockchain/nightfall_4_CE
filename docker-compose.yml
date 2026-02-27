@@ -41,6 +41,8 @@ services:
     environment:
       - NF4_RUN_MODE=${NF4_RUN_MODE:-development}
       - RUST_BACKTRACE=${RUST_BACKTRACE:-0}
+      - RUST_LOG=${RUST_LOG:-info}
+      - NF4_NETWORK__LOG_CHUNK_SIZE=${NF4_NETWORK__LOG_CHUNK_SIZE:-}
       - NF4_SIGNING_KEY=${CLIENT_SIGNING_KEY}
       - NF4_NIGHTFALL_CLIENT__DB_URL=mongodb://nf4_db_client:27017
       - AZURE_VAULT_URL=${AZURE_VAULT_URL}
@@ -174,6 +176,8 @@ services:
     environment:
       - NF4_RUN_MODE=${NF4_RUN_MODE:-development}
       - RUST_BACKTRACE=${RUST_BACKTRACE:-0}
+      - RUST_LOG=${RUST_LOG:-info}
+      - NF4_NETWORK__LOG_CHUNK_SIZE=${NF4_NETWORK__LOG_CHUNK_SIZE:-}
       - NF4_SIGNING_KEY=${PROPOSER_SIGNING_KEY}
       - NF4_MOCK_PROVER=${NF4_MOCK_PROVER:-true}
       - AZURE_VAULT_URL=${AZURE_VAULT_URL}
