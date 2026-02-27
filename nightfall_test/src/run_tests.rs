@@ -177,13 +177,7 @@ pub async fn run_tests(
                 .collect::<Vec<_>>();
         // note that the responses vector is now empty
 
-        //now we can resume block assembly
-        let resume_url = Url::parse(&settings.nightfall_proposer.url)
-            .unwrap()
-            .join("v1/resume")
-            .unwrap();
-        let res = http_client.get(resume_url).send().await.unwrap();
-        assert!(res.status().is_success());
+        //Block assembly should be resumed now as the block has been filled with the deposit transactions.
         info!("Waiting for deposits to be on-chain");
         wait_on_chain(&large_block_deposits, &get_settings().nightfall_client.url)
             .await
@@ -240,13 +234,7 @@ pub async fn run_tests(
             .filter(|n| !((Fr254::from_hex_string(n.as_str().unwrap()).unwrap()).is_zero()))
             .count();
 
-        // now we can resume block assembly
-        let resume_url = Url::parse(&settings.nightfall_proposer.url)
-            .unwrap()
-            .join("v1/resume")
-            .unwrap();
-        let res = http_client.get(resume_url).send().await.unwrap();
-        assert!(res.status().is_success());
+        //Block assembly should be resumed now as the block has been filled with the transfer transactions.
         info!("Waiting for transfers to be on-chain");
         wait_on_chain(
             large_block_transfers
