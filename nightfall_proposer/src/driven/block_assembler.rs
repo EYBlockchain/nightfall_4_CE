@@ -204,42 +204,51 @@ impl<P: Proof + Send + Sync> SmartTrigger<P> {
 
     async fn break_pause(&self) -> bool {
         let db = self.db;
-
-        let num_deposit_groups =
-            match <mongodb::Client as TransactionsDB<P>>::count_mempool_deposits(db).await {
-                Ok(count) => {
-                    let groups = count.div_ceil(4);
-                    debug!("Mempool deposits: {count}, grouped into: {groups}");
-                    groups
-                }
-                Err(e) => {
-                    error!("Error counting deposits: {e:?}");
-                    0
-                }
-            } as f32;
-
-        let num_client_txs =
-            match <mongodb::Client as TransactionsDB<P>>::count_mempool_client_transactions(db)
-                .await
-            {
-                Ok(count) => {
-                    debug!("Mempool client transactions: {count}");
-                    count
-                }
-                Err(e) => {
-                    error!("Error counting client transactions: {e:?}");
-                    0
-                }
-            } as f32;
-
-        let block_size = match get_block_size() {
-            Ok(size) => size as f32,
+    
+        // Total number of deposit *requests*
+        let deposit_count = match <mongodb::Client as TransactionsDB<P>>::count_mempool_deposits(db).await {
+            Ok(count) => {
+                debug!("Mempool deposits: {count}");
+                count
+            }
             Err(e) => {
-                log::warn!("Falling back to default block size 64 due to error: {e:?}");
-                64.0
+                error!("Error counting deposits: {e:?}");
+                0
             }
         };
-        (num_deposit_groups + num_client_txs) >= block_size
+    
+        // Total number of client transactions
+        let client_tx_count = match <mongodb::Client as TransactionsDB<P>>::count_mempool_client_transactions(db).await {
+            Ok(count) => {
+                debug!("Mempool client transactions: {count}");
+                count
+            }
+            Err(e) => {
+                error!("Error counting client transactions: {e:?}");
+                0
+            }
+        };
+    
+        // Number of *full* deposit groups we can form right now (each group = 4 deposits = 1 tx)
+        let full_deposit_groups = deposit_count / 4; // integer division = floor
+        let deposit_remainder   = deposit_count % 4; // optional, for logging/debugging
+    
+        debug!(
+            "Full deposit groups: {full_deposit_groups}, remainder deposits: {deposit_remainder}"
+        );
+    
+        let block_size: u64 = match get_block_size() {
+            Ok(size) => size as u64,
+            Err(e) => {
+                log::warn!("Falling back to default block size 64 due to error: {e:?}");
+                64
+            }
+        };
+    
+        // We can fully fill a block only if we have at least `block_size` *usable* tx slots:
+        //   - each full deposit group uses 1 slot
+        //   - each client tx uses 1 slot
+        full_deposit_groups + client_tx_count >= block_size
     }
 }
 
