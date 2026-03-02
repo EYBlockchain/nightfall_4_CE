@@ -44,3 +44,4 @@ RUN mkdir -p nightfall_deployer/blockchain_assets
 RUN ln -s /app/blockchain_assets /app/nightfall_deployer/blockchain_assets
 
 CMD ["/app/bin/deployer"]
+#CMD ["sh", "-lc", "/app/bin/deployer; chmod -R a+rX /app/configuration/toml"]
