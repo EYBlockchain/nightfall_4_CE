@@ -164,6 +164,7 @@ pub enum ConversionError {
     FixedLengthArrayError,
     ParseFailed,
     PoseidonError(PoseidonError),
+    InvalidTokenType,
 }
 impl Error for ConversionError {}
 
@@ -177,7 +178,8 @@ impl Display for ConversionError {
             ConversionError::ProofCompression(e) => write!(f, "Error during proof compression: {e}"),
             ConversionError::FixedLengthArrayError => write!(f, "Failed to convert to a fixed length array"),
             ConversionError::ParseFailed => write!(f, "Failed to parse data"),
-            ConversionError::PoseidonError(e) => write!(f, "Poseidon Error: {e}")
+            ConversionError::PoseidonError(e) => write!(f, "Poseidon Error: {e}"),
+            ConversionError::InvalidTokenType => write!(f, "Invalid token type"),
         }
     }
 }
