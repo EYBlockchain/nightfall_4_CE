@@ -4,6 +4,7 @@ use crate::{
     nf_client_proof::{Proof, PublicInputs},
     secret_hash::SecretHash,
     serialization::{ark_de_hex, ark_se_hex},
+    error::ConversionError
 };
 use alloy::primitives::Address;
 use ark_bn254::Fr as Fr254;
@@ -188,6 +189,7 @@ pub enum TokenType {
     ERC1155,
     ERC721,
     ERC3525,
+    FeeToken,
 }
 
 impl From<TokenType> for u8 {
@@ -197,21 +199,36 @@ impl From<TokenType> for u8 {
             TokenType::ERC1155 => 1,
             TokenType::ERC721 => 2,
             TokenType::ERC3525 => 3,
+            TokenType::FeeToken => 4,
         }
     }
 }
 
 impl From<u8> for TokenType {
+    // We should return error here if the value is not supported.
     fn from(value: u8) -> Self {
         match value {
             0 => TokenType::ERC20,
             1 => TokenType::ERC1155,
             2 => TokenType::ERC721,
             3 => TokenType::ERC3525,
+            4 => TokenType::FeeToken,
             _ => {
-                warn!("TokenType value {value} not supported, defaulting to ERC20");
+               warn!("Received unsupported token type value: {value}, defaulting to ERC20");
                 TokenType::ERC20
             }
+        }
+    }
+}
+impl TokenType {
+    pub fn parse_token_type(token_type: &str) -> Result<TokenType, ConversionError> {
+        match token_type.trim().to_ascii_uppercase().as_str() {
+            "ERC20" => Ok(TokenType::ERC20),
+            "ERC1155" => Ok(TokenType::ERC1155),
+            "ERC721" => Ok(TokenType::ERC721),
+            "ERC3525" => Ok(TokenType::ERC3525),
+            "FEETOKEN" | "FEE_TOKEN" => Ok(TokenType::FeeToken),
+            _ => Err(ConversionError::InvalidTokenType),
         }
     }
 }

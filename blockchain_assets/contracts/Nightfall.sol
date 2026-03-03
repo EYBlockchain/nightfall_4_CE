@@ -38,7 +38,8 @@ enum TokenType {
     ERC20, // 0
     ERC1155, // 1
     ERC721, // 2
-    ERC3525 // 3
+    ERC3525, // 3
+    FeeToken //4
 }
 
 // This is the format for a transaction that has been processed by a Proposer and rolled up into a block
@@ -83,6 +84,7 @@ struct Block {
 struct TokenIdValue {
     address erc_address;
     uint256 token_id;
+    TokenType token_type;
 }
 
 error escrowFundsError();
@@ -165,7 +167,7 @@ contract Nightfall is
         }
         feeId = computedFeeId;
         // nfTokenId for fee commitment is keccak256(abi.encode(address(this), 0))
-        tokenIdMapping[feeId] = TokenIdValue(address(this), 0);
+        tokenIdMapping[feeId] = TokenIdValue(address(this), 0, TokenType.FeeToken);
     }
 
     function set_x509_address(address x509_address) external onlyOwner {
@@ -431,7 +433,7 @@ contract Nightfall is
         TokenType token_type
     ) external payable virtual onlyCertified nonReentrant {
         uint256 nfTokenId = sha256_and_shift(abi.encode(ercAddress, tokenId));
-        tokenIdMapping[nfTokenId] = TokenIdValue(ercAddress, tokenId);
+        tokenIdMapping[nfTokenId] = TokenIdValue(ercAddress, tokenId, token_type);
 
         uint256 nfSlotId = (token_type == TokenType.ERC3525)
             ? uint256(
@@ -559,11 +561,11 @@ contract Nightfall is
     // This is useful if someone transfers a Nightfall token to you and you want to know what the underlying token is.
     function getTokenInfo(
         uint256 nfTokenId
-    ) external view returns (address ercAddress, uint256 tokenId) {
+    ) external view returns (address ercAddress, uint256 tokenId, TokenType tokenType) {
         TokenIdValue memory tokenData = tokenIdMapping[nfTokenId];
-        return (tokenData.erc_address, tokenData.token_id);
+        return (tokenData.erc_address, tokenData.token_id, tokenData.token_type);
     }
-
+    
     // Called by the client to remove their funds from escrow, once they've proved they're entitled to them
     // by submitting a Withdraw transaction that is then proved in a block. We used the compressed_secrets,
     // not because they're really required to prove ownership, but because they are different for every commitment

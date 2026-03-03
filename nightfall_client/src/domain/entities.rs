@@ -2,6 +2,7 @@ use crate::ports::key_provider::KeyProvider;
 use ark_bn254::Fr as Fr254;
 use ark_ff::BigInteger256;
 use lib::hex_conversion::HexConvertible;
+use lib::shared_entities::TokenType;
 use lib::{
     error::HexError,
     serialization::{ark_de_hex, ark_se_hex},
@@ -201,6 +202,7 @@ pub struct TokenData {
     pub erc_address: Fr254,
     #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
     pub token_id: BigInteger256,
+    pub token_type: TokenType,
 }
 pub struct ERCAddress;
 impl ERCAddress {

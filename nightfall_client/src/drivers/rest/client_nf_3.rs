@@ -335,6 +335,7 @@ pub async fn handle_deposit<N: NightfallContract>(
             )
             .await
         }
+        TokenType::FeeToken => todo!(),
     }
     .map_err(TransactionHandlerError::DepositError)?;
 
@@ -349,6 +350,7 @@ pub async fn handle_deposit<N: NightfallContract>(
         preimage_value,
         nullifier,
         CommitmentStatus::PendingCreation,
+        token_type,
         None,
         None,
     );
@@ -384,6 +386,7 @@ pub async fn handle_deposit<N: NightfallContract>(
             preimage_fee,
             nullifier,
             CommitmentStatus::PendingCreation,
+            TokenType::FeeToken,
             None,
             None,
         );
