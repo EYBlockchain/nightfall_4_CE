@@ -8,6 +8,7 @@ use crate::{
         notifier::webhook_notifier::WebhookNotifier,
         primitives::kemdem_functions::kemdem_decrypt,
     },
+    drivers::rest::withdraw::handle_de_escrow,
     get_zkp_keys,
     initialisation::get_db_connection,
     ports::{
@@ -27,6 +28,7 @@ use configuration::settings::get_settings;
 use alloy::primitives::{TxHash, I256, U256};
 use lib::{
     blockchain_client::BlockchainClientConnection,
+    client_models::DeEscrowDataReq,
     commitments::{Commitment, Nullifiable},
     contract_conversions::FrBn254,
     derive_key::ZKPKeys,
@@ -354,6 +356,28 @@ async fn process_propose_block_event<N: NightfallContract>(
                 debug!("Marking request {request_id} as confirmed");
                 db.update_request(&request_id, RequestStatus::Confirmed)
                     .await;
+                if let Some(request) = db.get_request(&request_id).await {
+                    if let Some(child_args_json) = request.child_request_args {
+                        match serde_json::from_str::<DeEscrowDataReq>(&child_args_json) {
+                            Ok(de_escrow_req) => {
+                                match handle_de_escrow(de_escrow_req).await {
+                                    Ok(_) => {
+                                        debug!("{request_id} De-escrow operation completed successfully");
+                                        db.clear_request_child_args(&request_id).await;
+                                    }
+                                    Err(e) => {
+                                        error!("{request_id} De-escrow operation failed: {e:?}");
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                error!(
+                                    "{request_id} Failed to deserialize child_request_args: {e}"
+                                );
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -413,10 +437,14 @@ async fn process_propose_block_event<N: NightfallContract>(
             let nullifier = test_preimage
                 .nullifier_hash(&nullifier_key)
                 .map_err(|_| EventHandlerError::HashError)?;
+            let token_type = N::get_token_info(decrypt[0]).await.map_err(|_| {
+                EventHandlerError::IOError("Could not retrieve token type".to_string())
+            })?.token_type;
             let commitment_entry = CommitmentEntry::new(
                 test_preimage,
                 nullifier,
                 CommitmentStatus::Unspent,
+                token_type,
                 Some(transaction_hash),
                 Some(filter.layer2_block_number)
                     .filter(|&b| b >= I256::ZERO)

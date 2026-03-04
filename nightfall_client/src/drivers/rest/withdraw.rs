@@ -3,14 +3,7 @@ use ::nightfall_bindings::artifacts::Nightfall;
 use lib::{client_models::DeEscrowDataReq, shared_entities::WithdrawData as NFWithdrawData};
 use log::{debug, error};
 use reqwest::StatusCode;
-use warp::{path, reject, Filter, Reply};
-
-/// GET request for a specific commitment by key
-pub fn de_escrow() -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
-    path!("v1" / "de-escrow")
-        .and(warp::body::json())
-        .and_then(handle_de_escrow)
-}
+use warp::{reject, Reply};
 
 pub async fn handle_de_escrow(data: DeEscrowDataReq) -> Result<impl Reply, warp::Rejection> {
     let token_type = u8::from_str_radix(&data.token_type, 16)

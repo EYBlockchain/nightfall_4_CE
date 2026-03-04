@@ -28,7 +28,7 @@ use ark_std::{rand::thread_rng, UniformRand};
 use configuration::{addresses::get_addresses, settings::get_settings};
 use jf_primitives::poseidon::{FieldHasher, Poseidon};
 use lib::{
-    client_models::{NF3DepositRequest, NF3TransferRequest, NF3WithdrawRequest},
+    client_models::{DeEscrowDataReq, NF3DepositRequest, NF3TransferRequest, NF3WithdrawRequest},
     commitments::{Commitment, Nullifiable},
     contract_conversions::FrBn254,
     derive_key::ZKPKeys,
@@ -335,6 +335,7 @@ pub async fn handle_deposit<N: NightfallContract>(
             )
             .await
         }
+        TokenType::FeeToken => todo!(),
     }
     .map_err(TransactionHandlerError::DepositError)?;
 
@@ -349,6 +350,7 @@ pub async fn handle_deposit<N: NightfallContract>(
         preimage_value,
         nullifier,
         CommitmentStatus::PendingCreation,
+        token_type,
         None,
         None,
     );
@@ -384,6 +386,7 @@ pub async fn handle_deposit<N: NightfallContract>(
             preimage_fee,
             nullifier,
             CommitmentStatus::PendingCreation,
+            TokenType::FeeToken,
             None,
             None,
         );
@@ -502,10 +505,6 @@ where
     let shared_secret: Affine<BabyJubjub> = (recipient_public_key * ephemeral_private_key).into();
 
     // add the id to the request database
-    let db = get_db_connection().await;
-    db.store_request(id, RequestStatus::Queued)
-        .await
-        .ok_or(TransactionHandlerError::DatabaseError)?;
 
     // Select the commitments to be spent.
     let spend_commitments;
@@ -718,10 +717,6 @@ where
     } = withdraw_req;
 
     // add the id to the request database
-    let db = get_db_connection().await;
-    db.store_request(id, RequestStatus::Queued)
-        .await
-        .ok_or(TransactionHandlerError::DatabaseError)?;
 
     // Convert the request into the relevant types.
     let nf_token_id =
@@ -750,9 +745,9 @@ where
         })?;
     // For now we just use the commitment selection algorithm to minimise change.
     let spend_commitments;
+    let db = get_db_connection().await;
 
     {
-        let db = get_db_connection().await;
         let fee_token_id = get_fee_token_id();
         let spend_value_commitments = find_usable_commitments(nf_token_id, value,db)
         .await.map_err(|e|{
@@ -887,7 +882,33 @@ where
     )
     .await
     {
-        Ok(res) => res,
+        Ok(res) => {
+            let de_escrow_req = DeEscrowDataReq {
+                token_id: token_id.clone(),
+                erc_address: erc_address.clone(),
+                recipient_address: recipient_address.to_hex_string(),
+                value: value.to_hex_string(),
+                token_type: withdraw_req.token_type.clone(),
+                withdraw_fund_salt: withdraw_fund_salt.to_hex_string(),
+            };
+            match serde_json::to_string(&de_escrow_req) {
+                Ok(child_args_json) => {
+                    if db
+                        .update_request_child_args(id, &child_args_json)
+                        .await
+                        .is_none()
+                    {
+                        error!("{id} Failed to store child_request_args in database");
+                    } else {
+                        debug!("{id} Successfully stored child_request_args in request collection");
+                    }
+                }
+                Err(e) => {
+                    error!("{id} Failed to serialize de_escrow_req: {e}");
+                }
+            }
+            res
+        }
         Err(e) => {
             // Rollback to UNSPENT status if handle_client_operation fails
             let db = get_db_connection().await;
