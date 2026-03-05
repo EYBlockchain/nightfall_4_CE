@@ -177,6 +177,7 @@ impl Error for SyncingError {}
 pub enum ClientRejection {
     NoSuchToken,
     InvalidTokenId,
+    InvalidTokenType,
     InvalidRequestId,
     QueueFull,
     DatabaseError,
@@ -193,6 +194,7 @@ impl std::fmt::Display for ClientRejection {
         match self {
             ClientRejection::NoSuchToken => write!(f, "No such token found"),
             ClientRejection::InvalidTokenId => write!(f, "Invalid token id"),
+            ClientRejection::InvalidTokenType => write!(f, "Invalid token type"),
             ClientRejection::InvalidRequestId => write!(f, "Invalid request id"),
             ClientRejection::QueueFull => write!(f, "Queue is full"),
             ClientRejection::DatabaseError => {

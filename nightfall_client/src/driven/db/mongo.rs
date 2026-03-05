@@ -14,7 +14,7 @@ use jf_primitives::{
     poseidon::{FieldHasher, Poseidon},
     trees::{Directions, PathElement},
 };
-use lib::hex_conversion::HexConvertible;
+use lib::{hex_conversion::HexConvertible, shared_entities::TokenType};
 use lib::{
     commitments::Commitment,
     contract_conversions::FrBn254,
@@ -165,6 +165,7 @@ impl RequestDB for Client {
         let request = Request {
             uuid: request_id.to_string(),
             status,
+            child_request_args: None,
         };
         let result = self
             .database(DB)
@@ -201,6 +202,37 @@ impl RequestDB for Client {
             error!("{request_id} Got an error updating request: {e}");
             return None;
         }
+        Some(())
+    }
+
+    async fn update_request_child_args(&self, request_id: &str, child_args: &str) -> Option<()> {
+        let filter = doc! { "uuid": request_id };
+        let update = doc! {"$set": { "child_request_args": child_args }};
+        let result = self
+            .database(DB)
+            .collection::<Request>("requests")
+            .update_one(filter, update)
+            .await;
+        if let Err(e) = result {
+            error!("{request_id} Got an error updating request child_request_args: {e}");
+            return None;
+        }
+        Some(())
+    }
+
+    async fn clear_request_child_args(&self, request_id: &str) -> Option<()> {
+        let filter = doc! { "uuid": request_id };
+        let update = doc! {"$unset": { "child_request_args": "" }};
+        let result = self
+            .database(DB)
+            .collection::<Request>("requests")
+            .update_one(filter, update)
+            .await;
+        if let Err(e) = result {
+            error!("{request_id} Got an error clearing child_request_args: {e}");
+            return None;
+        }
+        debug!("{request_id} Successfully cleared child_request_args");
         Some(())
     }
 }
@@ -275,6 +307,7 @@ pub struct CommitmentEntry {
         default
     )]
     pub nullifier: Fr254,
+    pub token_type: TokenType, // we store token type as string for easier querying, but it should be the same as preimage.token_type
     pub layer_1_transaction_hash: Option<TxHash>, // hash of the L1 transaction that created this commitment
     pub layer_2_block_number: Option<i64>, // block number of the L2 block that created this commitment
 }
@@ -310,6 +343,7 @@ impl CommitmentEntryDB for CommitmentEntry {
         preimage: Preimage,
         nullifier: Fr254,
         status: CommitmentStatus,
+        token_type: TokenType,
         layer_1_transaction_hash: Option<TxHash>,
         layer_2_block_number: Option<i64>,
     ) -> Self {
@@ -319,6 +353,7 @@ impl CommitmentEntryDB for CommitmentEntry {
             status,
             nullifier,
             key,
+            token_type,
             layer_1_transaction_hash,
             layer_2_block_number,
         }
@@ -401,6 +436,47 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
             .database(DB)
             .collection::<CommitmentEntry>("commitments")
             .find(doc! {})
+            .await?;
+        let mut result: Vec<(Fr254, CommitmentEntry)> = Vec::new();
+        while cursor.advance().await? {
+            let v = cursor.deserialize_current()?;
+            result.push((v.key, v))
+        }
+        Ok(result)
+    }
+    // get commitments by token type
+    async fn get_commitments_by_token_type(
+        &self,
+        token_type: &str,
+    ) -> Result<Vec<(Fr254, CommitmentEntry)>, mongodb::error::Error> {
+        let filter = doc! { "token_type": token_type, "status": "Unspent" };
+        let mut cursor = self
+            .database(DB)
+            .collection::<CommitmentEntry>("commitments")
+            .find(filter)
+            .await?;
+        let mut result: Vec<(Fr254, CommitmentEntry)> = Vec::new();
+        while cursor.advance().await? {
+            let v = cursor.deserialize_current()?;
+            result.push((v.key, v))
+        }
+        Ok(result)
+    }
+    // get commitments by token type and nf_token_id
+    async fn get_commitments_by_token_type_and_nf_token_id(
+        &self,
+        token_type: &str,
+        nf_token_id: Fr254,
+    ) -> Result<Vec<(Fr254, CommitmentEntry)>, mongodb::error::Error> {
+        let filter = doc! {
+            "token_type": token_type,
+            "preimage.nf_token_id": nf_token_id.to_hex_string(),
+            "status": "Unspent"
+        };
+        let mut cursor = self
+            .database(DB)
+            .collection::<CommitmentEntry>("commitments")
+            .find(filter)
             .await?;
         let mut result: Vec<(Fr254, CommitmentEntry)> = Vec::new();
         while cursor.advance().await? {

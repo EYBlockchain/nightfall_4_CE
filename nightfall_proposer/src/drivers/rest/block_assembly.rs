@@ -27,3 +27,22 @@ pub async fn handle_resume_block_assembly() -> Result<impl warp::Reply, warp::Re
     get_block_assembly_status().await.write().await.resume();
     Ok(warp::http::StatusCode::OK)
 }
+
+// function to get the block assembly status
+pub fn get_block_assembly_status_route(
+) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
+    path!("v1" / "status")
+        .and(warp::get())
+        .and_then(handle_get_block_assembly_status)
+}
+
+pub async fn handle_get_block_assembly_status() -> Result<impl warp::Reply, warp::Rejection> {
+    let status = get_block_assembly_status().await.read().await.is_running();
+    let response = if status {
+        "Reunning"
+    } else {
+        "Paused"
+    };
+    Ok(warp::reply::json(&response))
+}
+

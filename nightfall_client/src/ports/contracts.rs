@@ -57,7 +57,6 @@ pub trait NightfallContract {
     fn get_token_info(
         nf_token_id: Fr254,
     ) -> impl Future<Output = Result<TokenData, NightfallContractError>> + Send;
-
     fn get_layer2_block_by_number(
         block_number: I256,
     ) -> impl Future<Output = Result<(Address, Nightfall::Block), NightfallContractError>> + Send;

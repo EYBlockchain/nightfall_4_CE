@@ -286,7 +286,7 @@ where
 
                 let round_robin_events = rr
                     .event_filter::<RoundRobin::ProposerRotated>()
-                    .from_block(0u64);
+                    .from_block(get_settings().genesis_block as u64);
                 let rotate_proposer_log = match round_robin_events.query().await {
                     Ok(logs) => logs,
                     Err(_) => {

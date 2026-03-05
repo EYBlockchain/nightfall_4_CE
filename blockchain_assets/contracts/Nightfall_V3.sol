@@ -22,7 +22,7 @@ contract NightfallV3 is Nightfall {
         TokenType token_type
     ) external payable virtual override onlyCertified {
         uint256 nfTokenId = sha256_and_shift(abi.encode(ercAddress, tokenId));
-        tokenIdMapping[nfTokenId] = TokenIdValue(ercAddress, tokenId);
+        tokenIdMapping[nfTokenId] = TokenIdValue(ercAddress, tokenId, token_type);
 
         uint256 nfSlotId = (token_type == TokenType.ERC3525)
             ? uint256(

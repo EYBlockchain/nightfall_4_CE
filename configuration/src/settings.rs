@@ -2,7 +2,7 @@ use figment::{
     providers::{Env, Format, Toml},
     Figment,
 };
-use serde::{Deserialize, Serialize};
+use serde::{de, Deserialize, Deserializer, Serialize};
 use std::{env, sync::OnceLock};
 
 // rather than pass around what are effectively constant values, or recreate them locally,
@@ -13,10 +13,40 @@ pub fn get_settings() -> &'static Settings {
     SETTINGS.get_or_init(|| Settings::new().unwrap())
 }
 
+/// Deserializes an optional u64, treating empty strings as None.
+/// This handles the case where an env var is set but empty (e.g., `NF4_NETWORK__LOG_CHUNK_SIZE=`).
+fn deserialize_optional_u64<'de, D>(deserializer: D) -> Result<Option<u64>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    // First try to deserialize as Option<u64> directly
+    // If that fails, try as a string and handle empty case
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum StringOrU64 {
+        U64(u64),
+        Str(String),
+        None,
+    }
+
+    match Option::<StringOrU64>::deserialize(deserializer)? {
+        Some(StringOrU64::U64(n)) => Ok(Some(n)),
+        Some(StringOrU64::Str(s)) if s.is_empty() => Ok(None),
+        Some(StringOrU64::Str(s)) => s
+            .parse::<u64>()
+            .map(Some)
+            .map_err(|_| de::Error::custom(format!("invalid u64 value: {s}"))),
+        Some(StringOrU64::None) | None => Ok(None),
+    }
+}
+
 #[derive(Debug, Deserialize, Default, Serialize)]
 #[allow(unused)]
 pub struct Network {
     pub chain_id: u64,
+    /// Max blocks per eth_getLogs query. if None, uses chain-specific defaults
+    #[serde(default, deserialize_with = "deserialize_optional_u64")]
+    pub log_chunk_size: Option<u64>,
 }
 #[derive(Debug, Deserialize, Serialize, Default, PartialEq, Clone, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -112,6 +142,10 @@ fn default_max_key_download_bytes() -> u64 {
     30 * 1024 * 1024 * 1024 // 30 gb
 }
 
+fn default_rpc_rate_limit() -> u32 {
+    0 // 0 = unlimited
+}
+
 #[derive(Debug, Deserialize, Serialize, Default)]
 #[allow(unused)]
 pub struct Settings {
@@ -139,6 +173,11 @@ pub struct Settings {
     /// If not set, default value of 30 GB is used
     #[serde(default = "default_max_key_download_bytes")]
     pub max_key_download_bytes: u64,
+    /// Max RPC calls per second (0 = unlimited).
+    /// Useful for staying within provider rate limits (e.g., Alchemy free tier: ~8 calls/sec).
+    /// Configurable via `NF4_RPC_RATE_LIMIT` env var or `rpc_rate_limit` in nightfall.toml.
+    #[serde(default = "default_rpc_rate_limit")]
+    pub rpc_rate_limit: u32,
 }
 
 impl Settings {

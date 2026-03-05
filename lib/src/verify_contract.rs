@@ -10,6 +10,7 @@ use nightfall_bindings::artifacts::{
 };
 use serde::Deserialize;
 use std::path::PathBuf;
+use log::{debug};
 
 #[derive(Deserialize)]
 struct ContractHashes {
@@ -76,14 +77,13 @@ pub async fn get_proxy_implementation<P: Provider>(
     provider: &P,
     proxy: Address,
 ) -> eyre::Result<Address> {
-    println!("Fetching implementation address from proxy at {proxy:?}...");
+    debug!("Fetching implementation address from proxy at {proxy:?}...");
     let slot = B256::from_slice(&EIP1967_IMPLEMENTATION_SLOT_BYTES);
 
     let raw: B256 = provider.get_storage_at(proxy, slot.into()).await?.into();
 
     let mut addr = [0u8; 20];
     addr.copy_from_slice(&raw[12..]); // last 20 bytes
-    println!("get the address  {:?}...", Address::from(addr));
     Ok(Address::from(addr))
 }
 
@@ -100,15 +100,9 @@ fn strip_metadata_and_hash(bytecode: &[u8]) -> [u8; 32] {
     {
         // Strip everything from the metadata marker onwards
         let stripped = &bytecode[..pos];
-        println!(
-            "Stripped {} bytes of metadata (original: {}, stripped: {})",
-            bytecode.len() - stripped.len(),
-            bytecode.len(),
-            stripped.len()
-        );
         keccak256(stripped).0
     } else {
-        println!("No metadata marker found, using full bytecode");
+        debug!("No metadata marker found, using full bytecode");
         keccak256(bytecode).0
     }
 }
@@ -118,12 +112,8 @@ pub async fn get_onchain_code_hash<P: Provider>(
     implementation: Address,
 ) -> eyre::Result<[u8; 32]> {
     let code = provider.get_code_at(implementation).await?;
-    println!("On-chain code length: {} bytes", code.0.len());
-
     // Use the same metadata stripping logic as build-time
     let hash = strip_metadata_and_hash(&code.0);
-    println!("On-chain hash (metadata stripped): {hash:?}");
-
     Ok(hash)
 }
 
@@ -191,10 +181,6 @@ impl<P: Provider + Clone> VerifiedContracts<P> {
         provider: P,
         addresses: &Addresses,
     ) -> eyre::Result<Self> {
-        ark_std::println!(
-            "Verifying deployed contract implementations at these addresses: {addresses:?}"
-        );
-
         // Load the expected hashes from the file written by deployer
         let (nightfall_hash, round_robin_hash, x509_hash) = load_deployed_hashes()?;
 
