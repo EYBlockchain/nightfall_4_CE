@@ -406,6 +406,7 @@ impl RecursiveProver for RollupProver {
 
         // 3) Nothing worked — abort loudly.
         panic!("Failed to load decider_vk from both local filesystem and configuration server");
+    } 
 
     fn store_base_grumpkin_pk(pk: MLEProvingKey<Zmorph>) -> Option<()> {
         RollupKeyGenerator::store_base_grumpkin_pk(pk)
