@@ -374,6 +374,7 @@ impl RecursiveProver for RollupProver {
     }
 
     fn get_decider_vk() -> PlonkVerifyingKey<Bn254> {
+        println!("key path is: {:?}", get_configuration_keys_path());
         let path = get_configuration_keys_path()
             .expect("Configuration keys path not found")
             .join("decider_vk");
