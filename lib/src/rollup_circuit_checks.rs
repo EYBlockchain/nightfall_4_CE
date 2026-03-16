@@ -42,9 +42,11 @@ pub fn get_configuration_path() -> Option<PathBuf> {
 /// Function that starts at the current working directory and returns the path to the configuration/keys folder for all the keys needed for proving.
 pub fn get_configuration_keys_path() -> Option<PathBuf> {
     let mut cwd = env::current_dir().ok()?;
+    println!("Current working directory: {}", cwd.display());
     loop {
         let file_path = cwd.join("configuration/bin/keys");
         if file_path.is_dir() {
+            println!("Found configuration keys directory at: {}", file_path.display());
             return Some(file_path);
         }
 
