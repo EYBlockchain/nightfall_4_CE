@@ -23,6 +23,7 @@ FROM debian:bookworm-slim
 WORKDIR /app
 COPY --from=builder /app/bin/deployer bin/
 COPY --from=builder /app/blockchain_assets blockchain_assets/
+COPY --from=builder /app/configuration/bin/keys configuration/bin/keys/
 COPY .env *.env nightfall.toml foundry.toml ./
 
 
