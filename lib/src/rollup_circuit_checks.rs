@@ -47,8 +47,6 @@ pub fn get_configuration_keys_path() -> Option<PathBuf> {
         let file_path = cwd.join("configuration/bin/keys");
         println!("Checking for configuration keys directory at: {}", file_path.display());
         println!("Does the configuration keys directory exist? {}", file_path.is_dir());
-        println!("Current directory contents: {:?}", std::fs::read_dir(&cwd).ok()?.map(|entry| entry.map(|e| e.file_name()).ok()).collect::<Vec<_>>());
-        println!("Configuration directory: {}", cwd.join("configuration").map(|p| p.display().to_string()).unwrap_or("None".to_string()));
         if file_path.is_dir() {
             println!("Found configuration keys directory at: {}", file_path.display());
             return Some(file_path);
