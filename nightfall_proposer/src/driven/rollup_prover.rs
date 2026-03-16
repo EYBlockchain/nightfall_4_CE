@@ -79,7 +79,7 @@ impl Error for RollupProofError {}
 impl Display for RollupProofError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
-            RollupProofError::ConversionError(e) => write!(f, "RollupProofError: ConversionError: {e}"),
+            RollupProofError::ConversionError(e) => write!(f, "RollupProofError : ConversionError: {e}"),
             RollupProofError::SerializationError(e) => write!(f, "RollupProofError: SerializationError: {e}"),
             RollupProofError::ProvingError(e) => write!(f, "RollupProofError: ProvingError: {e}"),
             RollupProofError::MerkleTreeError(e) => write!(f, "RollupProofError: MerkleTreeError: {e}"),
