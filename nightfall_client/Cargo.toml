@@ -57,6 +57,7 @@ testcontainers = { version = "0.24.0", features = ["blocking"] }
 lib = { path = "../lib" }
 uuid = { version = "1.16.0", features = ["v4"] }
 ark-crypto-primitives = { version = "0.4", features = ["sponge"] }
+thiserror = "2"
 
 [dev-dependencies]
 criterion = { version = "0.4", features = ["html_reports"] }

@@ -1,25 +1,14 @@
-use std::{
-    error::Error,
-    fmt::{Debug, Display, Formatter},
-};
+use std::fmt::{Debug, Display, Formatter};
 
 use jf_primitives::poseidon::PoseidonError;
 use lib::error::ConversionError;
 use lib::error::{BlockchainClientConnectionError, EventHandlerError, NightfallContractError};
-use warp::reject::{self};
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
+#[error("Failed to perform client operation")]
 pub struct FailedClientOperation;
 
-impl Error for FailedClientOperation {}
-
-impl std::fmt::Display for FailedClientOperation {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "Failed to perform client operation")
-    }
-}
-
-impl reject::Reject for FailedClientOperation {}
+impl warp::reject::Reject for FailedClientOperation {}
 
 /// errors for a merkle tree
 #[derive(Debug)]
@@ -35,7 +24,7 @@ pub enum MerkleTreeError<E> {
     InvalidProof,
 }
 
-impl<E: Display + Debug> Error for MerkleTreeError<E> {}
+impl<E: Display + Debug> std::error::Error for MerkleTreeError<E> {}
 
 impl<E: Display> Display for MerkleTreeError<E> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -52,166 +41,77 @@ impl<E: Display> Display for MerkleTreeError<E> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 /// Error type used by the handler that processes deposit, transfer and withdraw transactions
 pub enum TransactionHandlerError {
+    #[error("Json conversion error: {0}")]
     JsonConversionError(serde_json::Error),
-    DepositError(DepositError),
+    #[error("Deposit error: {0}")]
+    DepositError(#[from] DepositError),
+    #[error("Database error")]
     DatabaseError,
+    #[error("Transaction error: {0}")]
     CustomError(String),
+    #[error("Transaction error")]
     Error,
+    #[error("Client not synchronized")]
     ClientNotSynchronized,
 }
 
-impl Display for TransactionHandlerError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            TransactionHandlerError::JsonConversionError(e) => {
-                write!(f, "Json conversion error: {e}")
-            }
-            TransactionHandlerError::DepositError(e) => write!(f, "Deposit error: {e}"),
-            TransactionHandlerError::DatabaseError => write!(f, "Database error"),
-            TransactionHandlerError::CustomError(s) => write!(f, "Transaction error: {s}"),
-            TransactionHandlerError::Error => write!(f, "Transaction error"),
-            TransactionHandlerError::ClientNotSynchronized => write!(f, "Client not synchronized"),
-        }
-    }
-}
-
-impl Error for TransactionHandlerError {}
-
 /// Error type for handling calls to a token contract
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum TokenContractError {
-    BlockchainClientConnectionError(BlockchainClientConnectionError),
-    ConversionError(ConversionError),
+    #[error("Token Contract Error: Blockchain Client Connection Error: {0}")]
+    BlockchainClientConnectionError(#[from] BlockchainClientConnectionError),
+    #[error("Token Contract Error: Error while converting to Solidity type: {0}")]
+    ConversionError(#[from] ConversionError),
+    #[error("Did not receive a transaction receipt")]
     TransactionError,
+    #[error("Token Type Error: {0}")]
     TokenTypeError(String),
 }
 
-impl Display for TokenContractError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            TokenContractError::BlockchainClientConnectionError(e) => write!(
-                f,
-                "Token Contract Error: Blockchain Client Connection Error: {e}"
-            ),
-            TokenContractError::ConversionError(e) => write!(
-                f,
-                "Token Contract Error: Error while converting to Solidity type: {e}"
-            ),
-            TokenContractError::TransactionError => {
-                write!(f, "Did not receive a transaction receipt")
-            }
-            TokenContractError::TokenTypeError(s) => write!(f, "Token Type Error: {s}"),
-        }
-    }
-}
-
-impl Error for TokenContractError {}
-
-impl From<BlockchainClientConnectionError> for TokenContractError {
-    fn from(e: BlockchainClientConnectionError) -> Self {
-        Self::BlockchainClientConnectionError(e)
-    }
-}
-
-impl From<ConversionError> for TokenContractError {
-    fn from(e: ConversionError) -> Self {
-        Self::ConversionError(e)
-    }
-}
-
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum DepositError {
-    TokenError(TokenContractError),
-    NightfallError(NightfallContractError),
-    PoseidonError(PoseidonError),
+    #[error("Deposit Error: {0}")]
+    TokenError(#[from] TokenContractError),
+    #[error("Deposit Error: {0}")]
+    NightfallError(#[from] NightfallContractError),
+    #[error("Deposit Error: {0}")]
+    PoseidonError(#[from] PoseidonError),
 }
 
-impl Display for DepositError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            DepositError::TokenError(e) => write!(f, "Deposit Error: {e}"),
-            DepositError::NightfallError(e) => write!(f, "Deposit Error: {e}"),
-            DepositError::PoseidonError(e) => write!(f, "Deposit Error: {e}"),
-        }
-    }
-}
-
-impl Error for DepositError {}
-
-impl From<TokenContractError> for DepositError {
-    fn from(e: TokenContractError) -> Self {
-        Self::TokenError(e)
-    }
-}
-
-impl From<NightfallContractError> for DepositError {
-    fn from(e: NightfallContractError) -> Self {
-        Self::NightfallError(e)
-    }
-}
-
-impl From<PoseidonError> for DepositError {
-    fn from(e: PoseidonError) -> Self {
-        Self::PoseidonError(e)
-    }
-}
-
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
+#[error("Could not sync {0}")]
 pub struct SyncingError(pub EventHandlerError);
 
-impl Display for SyncingError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            SyncingError(e) => write!(f, "Could not sync {e}"),
-        }
-    }
-}
-
-impl Error for SyncingError {}
-
 /// Custom rejection type for REST API errors
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum ClientRejection {
+    #[error("No such token found")]
     NoSuchToken,
+    #[error("Invalid token id")]
     InvalidTokenId,
+    #[error("Invalid token type")]
     InvalidTokenType,
+    #[error("Invalid request id")]
     InvalidRequestId,
+    #[error("Queue is full")]
     QueueFull,
+    #[error("Database error or duplicate transaction")]
     DatabaseError,
+    #[error("Invalid commitment key")]
     InvalidCommitmentKey,
+    #[error("Commitment not found")]
     CommitmentNotFound,
+    #[error("Failed to get list of Proposers")]
     ProposerError,
+    #[error("No such request")]
     RequestNotFound,
+    #[error("Failed to de-escrow funds")]
     FailedDeEscrow,
+    #[error("Synchronisation service unavailable")]
     SynchronisationUnavailable,
 }
-
-impl std::fmt::Display for ClientRejection {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ClientRejection::NoSuchToken => write!(f, "No such token found"),
-            ClientRejection::InvalidTokenId => write!(f, "Invalid token id"),
-            ClientRejection::InvalidTokenType => write!(f, "Invalid token type"),
-            ClientRejection::InvalidRequestId => write!(f, "Invalid request id"),
-            ClientRejection::QueueFull => write!(f, "Queue is full"),
-            ClientRejection::DatabaseError => {
-                write!(f, "Database error or duplicate transaction")
-            }
-            ClientRejection::InvalidCommitmentKey => write!(f, "Invalid commitment key"),
-            ClientRejection::CommitmentNotFound => write!(f, "Commitment not found"),
-            ClientRejection::ProposerError => write!(f, "Failed to get list of Proposers"),
-            ClientRejection::RequestNotFound => write!(f, "No such request"),
-            ClientRejection::FailedDeEscrow => write!(f, "Failed to de-escrow funds"),
-            ClientRejection::SynchronisationUnavailable => {
-                write!(f, "Synchronisation service unavailable")
-            }
-        }
-    }
-}
-
-impl std::error::Error for ClientRejection {}
 
 impl warp::reject::Reject for ClientRejection {}

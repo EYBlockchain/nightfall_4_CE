@@ -6,32 +6,21 @@ use ark_serialize::SerializationError;
 use jf_plonk::errors::PlonkError;
 use jf_primitives::poseidon::PoseidonError;
 use jf_relation::errors::CircuitError;
-use std::{
-    error::Error,
-    fmt::{self, Debug, Display},
-};
+use std::error::Error;
+use std::fmt;
 use warp::reject::Reject;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, thiserror::Error)]
 pub enum HexError {
+    #[error("Invalid string length")]
     InvalidStringLength,
+    #[error("Invalid string")]
     InvalidString,
+    #[error("Invalid hex format")]
     InvalidHexFormat,
+    #[error("Invalid conversion")]
     InvalidConversion,
 }
-
-impl std::fmt::Display for HexError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            HexError::InvalidStringLength => write!(f, "Invalid string length"),
-            HexError::InvalidString => write!(f, "Invalid string"),
-            HexError::InvalidHexFormat => write!(f, "Invalid hex format"),
-            HexError::InvalidConversion => write!(f, "Invalid conversion"),
-        }
-    }
-}
-
-impl std::error::Error for HexError {}
 
 #[derive(Debug)]
 pub struct CertificateVerificationError {
@@ -98,268 +87,124 @@ impl Error for KeyVerificationError {}
 impl Reject for KeyVerificationError {}
 
 /// Errors that can be throw when working with a blockchain client connector
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum BlockchainClientConnectionError {
-    RpcError(RpcError<String>),
-    TransportError(TransportError),
+    #[error("RPC error: {0}")]
+    RpcError(#[from] RpcError<String>),
+    #[error("Transport error: {0}")]
+    TransportError(#[from] TransportError),
+    #[error("Provider error: {0}")]
     ProviderError(String),
-    WalletError(WalletError),
-    AzureError(Box<dyn Error + Send + Sync>),
+    #[error("Wallet error: {0}")]
+    WalletError(#[from] WalletError),
+    #[error("Azure error: {0}")]
+    AzureError(#[from] Box<dyn Error + Send + Sync>),
+    #[error("InvalidWalletType: {0}")]
     InvalidWalletType(String),
 }
-
-impl Display for BlockchainClientConnectionError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            BlockchainClientConnectionError::RpcError(e) => write!(f, "RPC error: {e}"),
-            BlockchainClientConnectionError::TransportError(e) => write!(f, "Transport error: {e}"),
-            BlockchainClientConnectionError::ProviderError(e) => write!(f, "Provider error: {e}"),
-            BlockchainClientConnectionError::WalletError(e) => write!(f, "Wallet error: {e}"),
-            BlockchainClientConnectionError::AzureError(e) => write!(f, "Azure error: {e}"),
-            BlockchainClientConnectionError::InvalidWalletType(e) => {
-                write!(f, "InvalidWalletType: {e}")
-            }
-        }
-    }
-}
-
-impl Error for BlockchainClientConnectionError {}
 
 impl From<String> for BlockchainClientConnectionError {
     fn from(e: String) -> Self {
         BlockchainClientConnectionError::ProviderError(e)
     }
 }
-impl From<RpcError<String>> for BlockchainClientConnectionError {
-    fn from(e: RpcError<String>) -> Self {
-        BlockchainClientConnectionError::RpcError(e)
-    }
-}
-
-impl From<WalletError> for BlockchainClientConnectionError {
-    fn from(e: WalletError) -> Self {
-        BlockchainClientConnectionError::WalletError(e)
-    }
-}
-
-impl From<Box<dyn Error + Send + Sync>> for BlockchainClientConnectionError {
-    fn from(e: Box<dyn Error + Send + Sync>) -> Self {
-        BlockchainClientConnectionError::AzureError(e)
-    }
-}
-impl From<TransportError> for BlockchainClientConnectionError {
-    fn from(e: TransportError) -> Self {
-        BlockchainClientConnectionError::TransportError(e)
-    }
-}
 
 /// An error that we can throw during type conversion
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum ConversionError {
+    #[error("Overflow during conversion. Uints cannot be bigger than (q-1)/2 where q is the modulus of the scalar field")]
     Overflow,
+    #[error("Error during proof decompression")]
     ProofDecompression,
+    #[error("Error during proof compression: {0}")]
     ProofCompression(SerializationError),
-    SerialisationError(SerializationError),
+    #[error("Error during serialisation: {0}")]
+    SerialisationError(#[from] SerializationError),
+    #[error("Could not convert the public data bytes into ERC20 deposit data")]
     NotErc20DepositData,
+    #[error("Failed to convert to a fixed length array")]
     FixedLengthArrayError,
+    #[error("Failed to parse data")]
     ParseFailed,
-    PoseidonError(PoseidonError),
+    #[error("Poseidon Error: {0}")]
+    PoseidonError(#[from] PoseidonError),
+    #[error("Invalid token type")]
     InvalidTokenType,
-}
-impl Error for ConversionError {}
-
-impl Display for ConversionError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ConversionError::Overflow => write!(f, "Overflow during conversion. Uints cannot be bigger than (q-1)/2 where q is the modulus of the scalar field"),
-            ConversionError::ProofDecompression => write!(f, "Error during proof decompression"),
-            ConversionError::SerialisationError(e) => write!(f, "Error during serialisation: {e}"),
-            ConversionError::NotErc20DepositData => write!(f, "Could not convert the public data bytes into ERC20 deposit data"),
-            ConversionError::ProofCompression(e) => write!(f, "Error during proof compression: {e}"),
-            ConversionError::FixedLengthArrayError => write!(f, "Failed to convert to a fixed length array"),
-            ConversionError::ParseFailed => write!(f, "Failed to parse data"),
-            ConversionError::PoseidonError(e) => write!(f, "Poseidon Error: {e}"),
-            ConversionError::InvalidTokenType => write!(f, "Invalid token type"),
-        }
-    }
 }
 impl Reject for ConversionError {}
 
-impl From<SerializationError> for ConversionError {
-    fn from(e: SerializationError) -> Self {
-        ConversionError::SerialisationError(e)
-    }
-}
-
-impl From<PoseidonError> for ConversionError {
-    fn from(e: PoseidonError) -> Self {
-        Self::PoseidonError(e)
-    }
-}
-
 /// Error type used by the Event Listener, that listens for blockchain events and processes them.
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum EventHandlerError {
+    #[error("Could not connect to event stream")]
     NoEventStream,
+    #[error("Event stream terminated")]
     StreamTerminated,
+    #[error("Invalid calldata")]
     InvalidCalldata,
+    #[error("IO Error: {0}")]
     IOError(String),
+    #[error("Missing layer 2 blocks. Last processed was: {0}")]
     MissingBlocks(usize),
+    #[error("Hashing error")]
     HashError,
+    #[error("Block not found: {0}")]
     BlockNotFound(u64),
+    #[error("Block hash error, expected block hash: {0}, got block hash: {1}")]
     BlockHashError(Fr254, Fr254),
 }
-
-impl Display for EventHandlerError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            EventHandlerError::NoEventStream => write!(f, "Could not connect to event stream"),
-            EventHandlerError::StreamTerminated => write!(f, "Event stream terminated"),
-            EventHandlerError::InvalidCalldata => write!(f, "Invalid calldata"),
-            EventHandlerError::IOError(s) => write!(f, "IO Error: {s}"),
-            EventHandlerError::MissingBlocks(n) => {
-                write!(f, "Missing layer 2 blocks. Last processed was: {n}")
-            }
-            EventHandlerError::HashError => write!(f, "Hashing error"),
-            EventHandlerError::BlockNotFound(block_number) => {
-                write!(f, "Block not found: {block_number}")
-            }
-            EventHandlerError::BlockHashError(a, b) => write!(
-                f,
-                "Block hash error, expected block hash: {a}, got block hash: {b}"
-            ),
-        }
-    }
-}
-
-impl Error for EventHandlerError {}
 impl Reject for EventHandlerError {}
 
 /// Error type for handling calls to a token contract
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum NightfallContractError {
-    BlockchainClientConnectionError(BlockchainClientConnectionError),
-    ConversionError(ConversionError),
+    #[error("Nightfall Contract Error: Blockchain Client Connection Error: {0}")]
+    BlockchainClientConnectionError(#[from] BlockchainClientConnectionError),
+    #[error("Nightfall Contract Error: Error while converting to Solidity type: {0}")]
+    ConversionError(#[from] ConversionError),
+    #[error("Did not receive a transaction receipt")]
     TransactionError,
+    #[error("Escrow Funds Error: {0}")]
     EscrowError(String),
+    #[error("De-Escrow Funds Error: {0}")]
     DeEscrowError(String),
+    #[error("Contract Verification Error: {0}")]
     ContractVerificationError(String),
-    PoseidonError(PoseidonError),
+    #[error("Hashing Error: {0}")]
+    PoseidonError(#[from] PoseidonError),
+    #[error("Layer 2 block number {0} not found on-chain")]
     BlockNotFound(u64),
+    #[error("Blockchain provider error: {0}")]
     ProviderError(String),
+    #[error("Missing transaction hash: {0}")]
     MissingTransactionHash(String),
+    #[error("Transaction not found: {0}")]
     TransactionNotFound(alloy::primitives::TxHash),
+    #[error("ABI decode error: {0}")]
     AbiDecodeError(String),
+    #[error("Decoded call error: {0}")]
     DecodedCallError(String),
+    #[error("X509 error: {0}")]
     X509Error(String),
+    #[error("Block proposal error: {0}")]
     BlockProposalError(String),
 }
 
-impl Display for NightfallContractError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            NightfallContractError::BlockchainClientConnectionError(e) => write!(
-                f,
-                "Nightfall Contract Error: Blockchain Client Connection Error: {e}"
-            ),
-            NightfallContractError::ConversionError(e) => write!(
-                f,
-                "Nightfall Contract Error: Error while converting to Solidity type: {e}"
-            ),
-            NightfallContractError::TransactionError => {
-                write!(f, "Did not receive a transaction receipt")
-            }
-            NightfallContractError::EscrowError(s) => write!(f, "Escrow Funds Error: {s}"),
-            NightfallContractError::DeEscrowError(s) => write!(f, "De-Escrow Funds Error: {s}"),
-            NightfallContractError::ContractVerificationError(s) => {
-                write!(f, "Contract Verification Error: {s}")
-            }
-            NightfallContractError::PoseidonError(e) => write!(f, "Hashing Error: {e}"),
-            NightfallContractError::BlockNotFound(n) => {
-                write!(f, "Layer 2 block number {n} not found on-chain")
-            }
-            NightfallContractError::ProviderError(e) => {
-                write!(f, "Blockchain provider error: {e}")
-            }
-            NightfallContractError::MissingTransactionHash(s) => {
-                write!(f, "Missing transaction hash: {s}")
-            }
-            NightfallContractError::TransactionNotFound(tx_hash) => {
-                write!(f, "Transaction not found: {tx_hash}")
-            }
-            NightfallContractError::AbiDecodeError(s) => {
-                write!(f, "ABI decode error: {s}")
-            }
-            NightfallContractError::DecodedCallError(s) => {
-                write!(f, "Decoded call error: {s}")
-            }
-            NightfallContractError::X509Error(s) => {
-                write!(f, "X509 error: {s}")
-            }
-            NightfallContractError::BlockProposalError(s) => {
-                write!(f, "Block proposal error: {s}")
-            }
-        }
-    }
-}
-
-impl Error for NightfallContractError {}
-
-impl From<BlockchainClientConnectionError> for NightfallContractError {
-    fn from(e: BlockchainClientConnectionError) -> Self {
-        Self::BlockchainClientConnectionError(e)
-    }
-}
-
-impl From<ConversionError> for NightfallContractError {
-    fn from(e: ConversionError) -> Self {
-        Self::ConversionError(e)
-    }
-}
-
-impl From<PoseidonError> for NightfallContractError {
-    fn from(e: PoseidonError) -> Self {
-        Self::PoseidonError(e)
-    }
-}
-
 /// Error type for proposer rotation
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum ProposerError {
+    #[error("Failed to get list of Proposers")]
     FailedToGetProposers,
+    #[error("Provider error")]
     ProviderError(String),
 }
 
-impl std::fmt::Display for ProposerError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ProposerError::FailedToGetProposers => {
-                write!(f, "Failed to get list of Proposers")
-            }
-            ProposerError::ProviderError(_) => {
-                write!(f, "Provider error")
-            }
-        }
-    }
-}
-
-impl std::error::Error for ProposerError {}
-
 impl warp::reject::Reject for ProposerError {}
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum ConfigError {
+    #[error("Invalid block size: {0}")]
     InvalidBlockSize(String),
+    #[error("Configuration error: {0}")]
     Other(String),
 }
-
-impl fmt::Display for ConfigError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ConfigError::InvalidBlockSize(msg) => write!(f, "Invalid block size: {msg}"),
-            ConfigError::Other(msg) => write!(f, "Configuration error: {msg}"),
-        }
-    }
-}
-
-impl std::error::Error for ConfigError {}

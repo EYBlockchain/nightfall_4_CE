@@ -1,7 +1,4 @@
-use std::{
-    error::Error,
-    fmt::{Debug, Display, Formatter},
-};
+use std::fmt::{Debug, Display, Formatter};
 
 /// errors for a merkle tree
 #[derive(Debug)]
@@ -17,7 +14,7 @@ pub enum MerkleTreeError<E> {
     InvalidProof,
 }
 
-impl<E: Display + Debug> Error for MerkleTreeError<E> {}
+impl<E: Display + Debug> std::error::Error for MerkleTreeError<E> {}
 
 impl<E: Display> Display for MerkleTreeError<E> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -34,31 +31,22 @@ impl<E: Display> Display for MerkleTreeError<E> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum ProposerRejection {
+    #[error("Block data unavailable")]
     BlockDataUnavailable,
+    #[error("Client transaction failed")]
     ClientTransactionFailed,
+    #[error("Failed to rotate proposer")]
     FailedToRotateProposer,
+    #[error("Failed to add proposer")]
     FailedToAddProposer,
+    #[error("Failed to remove proposer")]
     FailedToRemoveProposer,
+    #[error("Failed to withdraw stake")]
     FailedToWithdrawStake,
+    #[error("Provider error")]
     ProviderError,
 }
-
-impl std::fmt::Display for ProposerRejection {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ProposerRejection::BlockDataUnavailable => write!(f, "Block data unavailable"),
-            ProposerRejection::ClientTransactionFailed => write!(f, "Client transaction failed"),
-            ProposerRejection::FailedToRotateProposer => write!(f, "Failed to rotate proposer"),
-            ProposerRejection::FailedToAddProposer => write!(f, "Failed to add proposer"),
-            ProposerRejection::FailedToRemoveProposer => write!(f, "Failed to remove proposer"),
-            ProposerRejection::FailedToWithdrawStake => write!(f, "Failed to withdraw stake"),
-            ProposerRejection::ProviderError => write!(f, "Provider error"),
-        }
-    }
-}
-
-impl std::error::Error for ProposerRejection {}
 
 impl warp::reject::Reject for ProposerRejection {}
