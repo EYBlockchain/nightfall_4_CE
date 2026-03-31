@@ -132,12 +132,14 @@ async fn queue_request(
     request_id: String,
 ) -> Result<impl Reply, warp::Rejection> {
     let settings = get_settings();
-    let max_queue_size = settings
+    let max_queue_size: usize = settings
         .nightfall_client
         .max_queue_size
         .unwrap_or(1000)
         .try_into()
-        .unwrap();
+        .map_err(|_| {
+            warp::reject::custom(crate::domain::error::ClientRejection::DatabaseError)
+        })?;
 
     // check if the id is a valid uuid
     if Uuid::parse_str(&request_id).is_err() {
@@ -340,12 +342,17 @@ pub async fn handle_deposit<N: NightfallContract>(
     .map_err(TransactionHandlerError::DepositError)?;
 
     // Insert the preimage into the commitments DB as pending creation
-    // TODO remove the blocknumber
     let ZKPKeys { nullifier_key, .. } = *get_zkp_keys().lock().expect("Poisoned Mutex lock");
     let nullifier = preimage_value
         .nullifier_hash(&nullifier_key)
-        .expect("Could not hash commitment {}");
-    let commitment_hash = preimage_value.hash().expect("Could not hash commitment");
+        .map_err(|e| {
+            error!("{id} Could not compute nullifier hash: {e}");
+            TransactionHandlerError::CustomError(format!("Could not compute nullifier hash: {e}"))
+        })?;
+    let commitment_hash = preimage_value.hash().map_err(|e| {
+        error!("{id} Could not hash commitment: {e}");
+        TransactionHandlerError::CustomError(format!("Could not hash commitment: {e}"))
+    })?;
     let commitment_entry = CommitmentEntry::new(
         preimage_value,
         nullifier,
@@ -372,8 +379,16 @@ pub async fn handle_deposit<N: NightfallContract>(
     if let Some(preimage_fee) = preimage_fee_option {
         let nullifier = preimage_fee
             .nullifier_hash(&nullifier_key)
-            .expect("Could not hash commitment");
-        let commitment_hash = preimage_fee.hash().expect("Could not hash commitment");
+            .map_err(|e| {
+                error!("{id} Could not compute fee nullifier hash: {e}");
+                TransactionHandlerError::CustomError(format!(
+                    "Could not compute fee nullifier hash: {e}"
+                ))
+            })?;
+        let commitment_hash = preimage_fee.hash().map_err(|e| {
+            error!("{id} Could not hash fee commitment: {e}");
+            TransactionHandlerError::CustomError(format!("Could not hash fee commitment: {e}"))
+        })?;
 
         // Add the mapping for fee commitment as well
         let commitment_hex = commitment_hash.to_hex_string();
@@ -402,16 +417,31 @@ pub async fn handle_deposit<N: NightfallContract>(
         Some(preimage_fee) => vec![
             preimage_value
                 .hash()
-                .expect("Preimage must be hashable - this should not happen")
+                .map_err(|e| {
+                    error!("{id} Could not hash preimage value: {e}");
+                    TransactionHandlerError::CustomError(format!(
+                        "Could not hash preimage value: {e}"
+                    ))
+                })?
                 .to_hex_string(),
             preimage_fee
                 .hash()
-                .expect("Preimage must be hashable - this should not happen")
+                .map_err(|e| {
+                    error!("{id} Could not hash preimage fee: {e}");
+                    TransactionHandlerError::CustomError(format!(
+                        "Could not hash preimage fee: {e}"
+                    ))
+                })?
                 .to_hex_string(),
         ],
         None => vec![preimage_value
             .hash()
-            .expect("Preimage must be hashable - this should not happen")
+            .map_err(|e| {
+                error!("{id} Could not hash preimage value: {e}");
+                TransactionHandlerError::CustomError(format!(
+                    "Could not hash preimage value: {e}"
+                ))
+            })?
             .to_hex_string()],
     };
     debug!("{id} Deposit request completed successfully - returning reply to caller");
@@ -456,11 +486,14 @@ where
         })?;
     let keys = get_zkp_keys().lock().expect("Poisoned Mutex lock").clone();
 
-    let value =
-        Fr254::from_hex_string(recipient_data.values.first().unwrap().as_str()).map_err(|e| {
-            error!("{id} Error when reading value: {e}");
-            TransactionHandlerError::CustomError(e.to_string())
-        })?;
+    let first_value = recipient_data.values.first().ok_or_else(|| {
+        error!("{id} No value provided in recipient data");
+        TransactionHandlerError::CustomError("No value provided in recipient data".into())
+    })?;
+    let value = Fr254::from_hex_string(first_value.as_str()).map_err(|e| {
+        error!("{id} Error when reading value: {e}");
+        TransactionHandlerError::CustomError(e.to_string())
+    })?;
 
     let fee: Fr254 = Fr254::from_hex_string(fee.as_str()).map_err(|e| {
         error!("{id} Error when reading fee: {e}");
@@ -499,7 +532,8 @@ where
     }
 
     let ephemeral_private_key = {
-        let mut rng = ark_std::rand::thread_rng(); // TODO initialise in main and pass around as a rwlock
+        // thread_rng() is already thread-local and cheap to create; no need to share via RwLock.
+        let mut rng = ark_std::rand::thread_rng();
         BJJScalar::rand(&mut rng)
     };
     let shared_secret: Affine<BabyJubjub> = (recipient_public_key * ephemeral_private_key).into();
@@ -631,10 +665,13 @@ where
         new_commitment_four,
     ];
 
-    dbg!(new_commitments
-        .iter()
-        .map(|c| c.hash().unwrap().to_hex_string())
-        .collect::<Vec<_>>());
+    debug!(
+        "{id} New commitment hashes: {:?}",
+        new_commitments
+            .iter()
+            .filter_map(|c| c.hash().ok().map(|h| h.to_hex_string()))
+            .collect::<Vec<_>>()
+    );
 
     let secret_preimages = [
         spend_commitments[0].get_secret_preimage(),
@@ -665,7 +702,7 @@ where
             // Rollback the spend commitments to unspent
             let commitment_ids = spend_commitments
                 .iter()
-                .map(|c| c.hash().unwrap())
+                .filter_map(|c| c.hash().ok())
                 .collect::<Vec<_>>();
 
             info!(
@@ -687,7 +724,7 @@ where
             // Delete new commitments
             let new_commitment_ids = new_commitments
                 .iter()
-                .map(|c| c.hash().unwrap())
+                .filter_map(|c| c.hash().ok())
                 .collect::<Vec<_>>();
 
             info!("{id} Deleting {} new commitments", new_commitment_ids.len());
@@ -870,7 +907,10 @@ where
     };
     let withdraw_fund_salt = spend_commitments[0]
         .nullifier_hash(&keys.nullifier_key)
-        .expect("Failed to compute nullifier hash");
+        .map_err(|e| {
+            error!("{id} Failed to compute nullifier hash: {e}");
+            TransactionHandlerError::CustomError(format!("Failed to compute nullifier hash: {e}"))
+        })?;
     match handle_client_operation::<P, E, N>(
         op,
         spend_commitments,
@@ -916,7 +956,7 @@ where
             // Rollback spend commitments
             let commitment_ids = spend_commitments
                 .iter()
-                .map(|c| c.hash().unwrap())
+                .filter_map(|c| c.hash().ok())
                 .collect::<Vec<_>>();
 
             info!(
@@ -938,7 +978,7 @@ where
             // Delete new commitments
             let new_commitment_ids = new_commitments
                 .iter()
-                .map(|c| c.hash().unwrap())
+                .filter_map(|c| c.hash().ok())
                 .collect::<Vec<_>>();
 
             info!("{id} Deleting {} new commitments", new_commitment_ids.len());
