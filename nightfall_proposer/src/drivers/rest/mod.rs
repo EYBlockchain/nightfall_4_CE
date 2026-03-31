@@ -21,6 +21,7 @@ pub mod block_assembly;
 pub mod block_data;
 pub mod client_transactions;
 pub mod proposers;
+pub mod metrics;
 pub mod synchronisation;
 
 pub fn routes<P, E>() -> impl Filter<Extract = (impl warp::Reply,)> + Clone
@@ -40,6 +41,7 @@ where
         .or(synchronisation())
         .or(pause_block_assembly())
         .or(resume_block_assembly())
+        .or(metrics::metrics())
         .recover(handle_rejection)
 }
 

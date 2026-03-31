@@ -34,6 +34,7 @@ mod keys;
 pub mod proposers;
 mod request_status;
 mod synchronisation;
+pub mod metrics;
 mod token_info;
 pub mod withdraw;
 
@@ -61,6 +62,7 @@ where
         .or(get_queue_length())
         .or(get_token_info::<N>())
         .or(get_l1_balance())
+        .or(metrics::metrics())
         .recover(handle_rejection)
 }
 
