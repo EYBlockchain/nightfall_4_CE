@@ -36,6 +36,7 @@ mod request_status;
 mod synchronisation;
 pub mod metrics;
 mod token_info;
+pub mod readiness;
 pub mod withdraw;
 
 pub fn routes<P, N>() -> impl Filter<Extract = (impl warp::Reply,)> + Clone
@@ -44,6 +45,7 @@ where
     N: NightfallContract,
 {
     health_route()
+        .or(readiness::readiness_check())
         .or(deposit_request::<P>())
         .or(transfer_request::<P>())
         .or(withdraw_request::<P>())
