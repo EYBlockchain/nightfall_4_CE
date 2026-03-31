@@ -266,4 +266,20 @@ contract RoundRobinTest is Test {
         );
     }
 
+    /// @dev Adding a proposer when the ring is already at MAX_PROPOSERS must revert.
+    function test_addProposer_revertsWhenMaxReached() public {
+        x509Contract.enableAllowlisting(false);
+
+        // Storage slot 70 holds proposer_count (from `forge inspect RoundRobin storage-layout`).
+        // Write MAX_PROPOSERS directly into the proxy's storage to simulate a full ring.
+        uint256 maxProposers = roundRobin.MAX_PROPOSERS();
+        vm.store(address(roundRobin), bytes32(uint256(70)), bytes32(maxProposers));
+
+        assertEq(roundRobin.proposer_count(), maxProposers);
+
+        // The next add_proposer call should revert
+        vm.expectRevert("Maximum proposer count reached");
+        roundRobin.add_proposer{value: 5}("http://localhost:9999");
+    }
+
 }
