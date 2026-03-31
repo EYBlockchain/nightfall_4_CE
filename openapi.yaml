@@ -1,0 +1,1137 @@
+openapi: 3.0.3
+info:
+  title: Nightfall 4 CE API
+  description: |
+    REST API specification for the Nightfall 4 Community Edition protocol.
+    The system consists of two services: a **Client** (default port 3000) and a **Proposer** (default port 3001).
+    The Client handles deposits, transfers, withdrawals, commitment queries, and key management.
+    The Proposer handles block assembly, proposer registration/rotation, and receives client transactions.
+  version: 1.0.0
+  license:
+    name: See repository for license details
+
+servers:
+  - url: http://localhost:3000
+    description: Nightfall Client
+  - url: http://localhost:3001
+    description: Nightfall Proposer
+
+tags:
+  - name: Client - Transactions
+    description: Deposit, transfer, and withdraw operations (Client)
+  - name: Client - Commitments
+    description: Commitment queries (Client)
+  - name: Client - Balance
+    description: Balance queries (Client)
+  - name: Client - Keys
+    description: Key derivation (Client)
+  - name: Client - Proposers
+    description: Proposer list queries (Client)
+  - name: Client - Request Status
+    description: Transaction request status and queue (Client)
+  - name: Client - Token Info
+    description: Token information queries (Client)
+  - name: Proposer - Transactions
+    description: Client transaction submission (Proposer)
+  - name: Proposer - Management
+    description: Proposer registration, deregistration, rotation, and stake withdrawal (Proposer)
+  - name: Proposer - Block Assembly
+    description: Block assembly control (Proposer)
+  - name: Proposer - Block Data
+    description: Block data queries (Proposer)
+  - name: Shared
+    description: Endpoints available on both Client and Proposer
+
+paths:
+  # ──────────────────────────────────────────────
+  # Shared endpoints (available on both services)
+  # ──────────────────────────────────────────────
+  /v1/health:
+    get:
+      tags: [Shared]
+      summary: Health check
+      description: Returns "Healthy" if the service is running.
+      operationId: healthCheck
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Healthy
+
+  /v1/certification:
+    post:
+      tags: [Shared]
+      summary: Validate an X.509 certificate on-chain
+      description: |
+        Submits an X.509 certificate and its corresponding private key for on-chain validation.
+        The service signs its own Ethereum address with the private key and calls the X509 smart
+        contract to bind the certificate to the address. Returns the resulting certification status.
+      operationId: certificationValidation
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - certificate
+                - certificate_private_key
+              properties:
+                certificate:
+                  type: string
+                  format: binary
+                  description: DER-encoded X.509 certificate file
+                certificate_private_key:
+                  type: string
+                  format: binary
+                  description: DER-encoded RSA private key file corresponding to the certificate
+      responses:
+        "202":
+          description: Certificate validation processed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CertificationResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /v1/keys_validation:
+    post:
+      tags: [Shared]
+      summary: Validate verification keys
+      description: |
+        Validates the integrity and consistency of zero-knowledge proof verification keys
+        used in the Nightfall protocol. Ensures that keys stored on the key server and
+        on-chain verification keys have been generated honestly by the deployer.
+      operationId: keysValidation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KeysValidationRequest"
+      responses:
+        "200":
+          description: Keys validation result
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /v1/synchronisation:
+    get:
+      tags: [Shared]
+      summary: Get synchronisation status
+      description: |
+        Returns the current synchronisation status of the service with the blockchain.
+        On the Client, returns a JSON synchronisation status object.
+        On the Proposer, returns a plain text string ("Synchronised" or "Not synchronised").
+      operationId: getSynchronisation
+      responses:
+        "200":
+          description: Synchronisation status
+          content:
+            application/json:
+              schema:
+                type: object
+                description: Synchronisation status (Client)
+            text/plain:
+              schema:
+                type: string
+                enum: [Synchronised, Not synchronised]
+                description: Synchronisation status (Proposer)
+        "503":
+          description: Synchronisation service unavailable (Client only)
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Synchronisation service unavailable
+
+  # ──────────────────────────────────────────────
+  # Client endpoints
+  # ──────────────────────────────────────────────
+  /v1/deposit:
+    post:
+      tags: [Client - Transactions]
+      summary: Submit a deposit request
+      description: |
+        Queues a deposit request to move tokens from Layer 1 into the Nightfall Layer 2.
+        The request is queued and processed asynchronously. Returns 202 Accepted with an
+        X-Request-ID header that can be used to track the request status.
+
+        The user pays `2 * fee + deposit_fee` to the Nightfall contract: one fee for the
+        value deposit commitment, one for the fee deposit commitment, plus the deposit_fee
+        which acts as a reserve for future proposer fees.
+      operationId: deposit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NF3DepositRequest"
+      responses:
+        "202":
+          description: Deposit request queued successfully
+          headers:
+            X-Request-ID:
+              description: UUID to track the request status
+              schema:
+                type: string
+                format: uuid
+          content:
+            application/json:
+              schema:
+                type: string
+                example: Request queued
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        "503":
+          description: Transaction queue is full
+          content:
+            application/json:
+              schema:
+                type: string
+                example: Queue is full
+
+  /v1/transfer:
+    post:
+      tags: [Client - Transactions]
+      summary: Submit a transfer request
+      description: |
+        Queues a transfer request to send tokens to another user within Nightfall Layer 2.
+        Nullifies one or two input commitments and creates two output commitments (one for
+        the recipient and one for change). The system automatically selects the most suitable
+        input commitments.
+      operationId: transfer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NF3TransferRequest"
+      responses:
+        "202":
+          description: Transfer request queued successfully
+          headers:
+            X-Request-ID:
+              description: UUID to track the request status
+              schema:
+                type: string
+                format: uuid
+          content:
+            application/json:
+              schema:
+                type: string
+                example: Request queued
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        "503":
+          description: Transaction queue is full
+          content:
+            application/json:
+              schema:
+                type: string
+                example: Queue is full
+
+  /v1/withdraw:
+    post:
+      tags: [Client - Transactions]
+      summary: Submit a withdraw request (Client) or withdraw proposer stake (Proposer)
+      description: |
+        **Client (port 3000):** Queues a withdraw request to move tokens from Layer 2 back
+        to Layer 1. Nullifies input commitments and de-escrows the corresponding funds.
+
+        **Proposer (port 3001):** Withdraws the stake of a de-registered proposer (up to the
+        staked amount). Can only be called by the de-registered proposer.
+      operationId: withdraw
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: "#/components/schemas/NF3WithdrawRequest"
+                - type: integer
+                  format: int64
+                  description: Amount to withdraw (Proposer stake withdrawal)
+                  example: 20
+      responses:
+        "200":
+          description: Proposer stake withdrawal successful
+        "202":
+          description: Client withdraw request queued successfully
+          headers:
+            X-Request-ID:
+              description: UUID to track the request status
+              schema:
+                type: string
+                format: uuid
+          content:
+            application/json:
+              schema:
+                type: string
+                example: Request queued
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        "503":
+          description: Transaction queue is full (Client only)
+          content:
+            application/json:
+              schema:
+                type: string
+                example: Queue is full
+
+  /v1/commitment/{key}:
+    get:
+      tags: [Client - Commitments]
+      summary: Get a specific commitment by its hash key
+      description: |
+        Returns the commitment entry from the database matching the given commitment hash.
+        The key should be a hex-encoded field element representing the commitment hash.
+      operationId: getCommitment
+      parameters:
+        - name: key
+          in: path
+          required: true
+          description: Hex-encoded commitment hash
+          schema:
+            $ref: "#/components/schemas/HexFieldElement"
+      responses:
+        "200":
+          description: Commitment found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommitmentEntry"
+        "400":
+          description: Invalid commitment key
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Invalid commitment key
+        "404":
+          description: Commitment not found
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Commitment not found
+
+  /v1/commitments:
+    get:
+      tags: [Client - Commitments]
+      summary: Get all commitments
+      description: Returns all commitment entries stored in the client database. Use with care on large datasets.
+      operationId: getAllCommitments
+      responses:
+        "200":
+          description: List of all commitments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CommitmentEntry"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /v1/commitments/token_type/{token_type}:
+    get:
+      tags: [Client - Commitments]
+      summary: Get commitments by token type
+      description: Returns all commitment entries matching the given token type string.
+      operationId: getCommitmentsByTokenType
+      parameters:
+        - name: token_type
+          in: path
+          required: true
+          description: "Token type string (e.g., ERC20, ERC721, ERC1155, ERC3525, FeeToken)"
+          schema:
+            type: string
+            enum: [ERC20, ERC721, ERC1155, ERC3525, FeeToken]
+      responses:
+        "200":
+          description: Commitments matching the token type
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CommitmentEntry"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /v1/commitments/max_transferable_amount/{token_type}/{nf_token_id}:
+    get:
+      tags: [Client - Commitments]
+      summary: Get maximum transferable amount for a token type
+      description: |
+        Returns the maximum transferable amount for the given token type and Nightfall token ID.
+        For fungible tokens (ERC20, ERC1155, ERC3525, FeeToken), this is the sum of the two
+        highest-value commitments. For ERC721, it is 1 if any commitment exists, otherwise 0.
+        The result is returned as a big-endian hex-encoded string.
+      operationId: getMaxTransferableAmount
+      parameters:
+        - name: token_type
+          in: path
+          required: true
+          description: "Token type string"
+          schema:
+            type: string
+            enum: [ERC20, ERC721, ERC1155, ERC3525, FeeToken]
+        - name: nf_token_id
+          in: path
+          required: true
+          description: Hex-encoded Nightfall token ID
+          schema:
+            $ref: "#/components/schemas/HexFieldElement"
+      responses:
+        "200":
+          description: Maximum transferable amount as a big-endian hex string
+          content:
+            text/plain:
+              schema:
+                type: string
+                pattern: "^[0-9a-fA-F]+$"
+                example: "0000000000000000000000000000000000000000000000000000000000000008"
+        "400":
+          description: Invalid token ID or token type
+          content:
+            text/plain:
+              schema:
+                type: string
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /v1/balance/{erc_address}/{token_id}:
+    get:
+      tags: [Client - Balance]
+      summary: Get Layer 2 token balance
+      description: |
+        Returns the Layer 2 balance for the given ERC contract address and token ID.
+        The balance is encoded as a big-endian hex string. For ERC20 tokens, use token_id "0x00".
+        For ERC721, returns "0x00" if the token exists in the wallet.
+      operationId: getBalance
+      parameters:
+        - name: erc_address
+          in: path
+          required: true
+          description: ERC contract address (hex string)
+          schema:
+            $ref: "#/components/schemas/HexString"
+        - name: token_id
+          in: path
+          required: true
+          description: Token ID (hex string, use "0x00" for ERC20)
+          schema:
+            $ref: "#/components/schemas/HexString"
+      responses:
+        "200":
+          description: Balance as a big-endian hex string
+          content:
+            text/plain:
+              schema:
+                type: string
+                pattern: "^[0-9a-fA-F]+$"
+                example: "0000000000000000000000000000000000000000000000000000000000000004"
+        "400":
+          description: Invalid token ID
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Invalid token id
+        "404":
+          description: No such token in the wallet
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: No such token
+
+  /v1/fee_balance:
+    get:
+      tags: [Client - Balance]
+      summary: Get Layer 2 fee token balance
+      description: Returns the balance of fee tokens in the user's Layer 2 wallet as a big-endian hex string.
+      operationId: getFeeBalance
+      responses:
+        "200":
+          description: Fee balance as a big-endian hex string
+          content:
+            text/plain:
+              schema:
+                type: string
+                pattern: "^[0-9a-fA-F]+$"
+        "404":
+          description: No fee token balance found
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: No such token
+
+  /v1/l1_balance:
+    get:
+      tags: [Client - Balance]
+      summary: Get Layer 1 wallet balance
+      description: Returns the on-chain (Layer 1) Ethereum balance of the client's wallet as a big-endian hex string.
+      operationId: getL1Balance
+      responses:
+        "200":
+          description: L1 balance as a hex string
+          content:
+            text/plain:
+              schema:
+                type: string
+                pattern: "^0x[0-9a-fA-F]+$"
+        "404":
+          description: Unable to retrieve balance
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: No such token
+
+  /v1/deriveKey:
+    post:
+      tags: [Client - Keys]
+      summary: Derive ZKP keys from a mnemonic
+      description: |
+        Derives a set of ZKP keys from the provided BIP-32 mnemonic and derivation path.
+        The derived key is stored as the active key for the client. If called without a body,
+        returns the current public key.
+      operationId: deriveKey
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KeyRequest"
+      responses:
+        "200":
+          description: The ZKP public key (compressed, big-endian hex)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ZKPPubKey"
+        "404":
+          description: Key derivation failed
+
+  /v1/proposers:
+    get:
+      tags: [Client - Proposers]
+      summary: Get list of registered proposers
+      description: Returns a list of all proposers currently registered on-chain, including their URLs and stake information.
+      operationId: getProposers
+      responses:
+        "200":
+          description: List of proposers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Proposer"
+        "503":
+          description: Failed to retrieve proposers
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Failed to get list of Proposers
+
+  /v1/request/{uuid}:
+    get:
+      tags: [Client - Request Status]
+      summary: Get request status by UUID
+      description: |
+        Returns the status of a deposit, transfer, or withdraw request identified by its UUID
+        (the X-Request-ID value returned when the request was submitted).
+      operationId: getRequestStatus
+      parameters:
+        - name: uuid
+          in: path
+          required: true
+          description: The request UUID (X-Request-ID)
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Request status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RequestStatus"
+        "400":
+          description: Invalid request ID
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Invalid request id
+        "404":
+          description: Request not found
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: No such request
+
+  /v1/queue:
+    get:
+      tags: [Client - Request Status]
+      summary: Get transaction queue length
+      description: Returns the current number of pending requests in the transaction queue.
+      operationId: getQueueLength
+      responses:
+        "200":
+          description: Queue length
+          content:
+            application/json:
+              schema:
+                type: integer
+                minimum: 0
+                example: 5
+
+  /v1/token/{nf_token_id}:
+    get:
+      tags: [Client - Token Info]
+      summary: Get token information by Nightfall token ID
+      description: |
+        Retrieves detailed information about a token using its Nightfall token ID.
+        Useful for looking up the Layer 1 contract address and token ID for a token
+        received via transfer.
+      operationId: getTokenInfo
+      parameters:
+        - name: nf_token_id
+          in: path
+          required: true
+          description: Nightfall token ID (hex string)
+          schema:
+            $ref: "#/components/schemas/HexFieldElement"
+      responses:
+        "200":
+          description: Token information
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenInfo"
+        "400":
+          description: Invalid token ID
+        "404":
+          description: Token not found
+
+  # ──────────────────────────────────────────────
+  # Proposer endpoints
+  # ──────────────────────────────────────────────
+  /v1/transaction:
+    post:
+      tags: [Proposer - Transactions]
+      summary: Submit a client transaction to the proposer
+      description: |
+        Accepts a JSON-encoded ClientTransaction object from a client. This is the main
+        endpoint used by clients to submit their zero-knowledge proof transactions to a
+        proposer for inclusion in a Layer 2 block.
+      operationId: submitTransaction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClientTransaction"
+      responses:
+        "201":
+          description: Transaction accepted by the proposer
+        "400":
+          description: Client transaction failed validation
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Client transaction failed
+
+  /v1/register:
+    post:
+      tags: [Proposer - Management]
+      summary: Register a new proposer
+      description: |
+        Registers a new proposer on-chain with the given URL. The proposer must send a stake
+        along with the registration transaction. The URL is where clients can reach the proposer.
+      operationId: registerProposer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: string
+              description: The URL at which clients can reach the proposer
+              example: "http://proposer.example.com:3001"
+      responses:
+        "200":
+          description: Proposer registered successfully
+        "400":
+          description: Failed to add proposer
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Failed to add proposer
+
+  /v1/deregister:
+    get:
+      tags: [Proposer - Management]
+      summary: Deregister a proposer
+      description: |
+        Removes (de-registers) the calling proposer from the on-chain registry. Only the
+        proposer itself can call this endpoint because the smart contract requires the
+        request to originate from the registered Ethereum address. If the proposer is the
+        current active proposer, an exit penalty is applied and a cooldown period begins.
+      operationId: deregisterProposer
+      responses:
+        "200":
+          description: Proposer deregistered successfully
+        "400":
+          description: Failed to remove proposer
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Failed to remove proposer
+
+  /v1/rotate:
+    get:
+      tags: [Proposer - Management]
+      summary: Rotate the active proposer
+      description: |
+        Triggers proposer rotation if the current proposer has been active for more than
+        the allowed number of Layer 1 blocks (ROTATION_BLOCKS). Returns 423 Locked if
+        rotation is not permitted by the smart contract.
+      operationId: rotateProposer
+      responses:
+        "200":
+          description: Proposer rotated successfully
+        "423":
+          description: Proposer rotation not allowed
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Failed to rotate proposer
+
+  /v1/pause:
+    get:
+      tags: [Proposer - Block Assembly]
+      summary: Pause block assembly
+      description: Pauses the proposer's block assembly process. No new blocks will be assembled until resumed.
+      operationId: pauseBlockAssembly
+      responses:
+        "200":
+          description: Block assembly paused
+
+  /v1/resume:
+    get:
+      tags: [Proposer - Block Assembly]
+      summary: Resume block assembly
+      description: Resumes the proposer's block assembly process after it has been paused.
+      operationId: resumeBlockAssembly
+      responses:
+        "200":
+          description: Block assembly resumed
+
+  /v1/blockdata:
+    get:
+      tags: [Proposer - Block Data]
+      summary: Get current Layer 2 block number
+      description: Returns the expected next Layer 2 block number as a JSON integer.
+      operationId: getBlockData
+      responses:
+        "200":
+          description: Current Layer 2 block number
+          content:
+            application/json:
+              schema:
+                type: integer
+                format: int64
+                example: 42
+        "503":
+          description: Block data unavailable
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Block data unavailable
+
+components:
+  schemas:
+    HexString:
+      type: string
+      pattern: "^0x[0-9a-fA-F]+$"
+      description: A hex-encoded string prefixed with 0x
+      example: "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+
+    HexFieldElement:
+      type: string
+      pattern: "^(0x)?[0-9a-fA-F]+$"
+      description: A hex-encoded BN254 field element, with or without 0x prefix
+      example: "18e7718c4db06feeae3a16c919e2a253a313d86bcd961a498079fbcfdb596f93"
+
+    NF3DepositRequest:
+      type: object
+      required:
+        - ercAddress
+        - tokenId
+        - tokenType
+        - value
+        - fee
+        - deposit_fee
+      properties:
+        ercAddress:
+          $ref: "#/components/schemas/HexString"
+          description: Ethereum address of the ERC20/721/1155/3525 contract
+        tokenId:
+          $ref: "#/components/schemas/HexString"
+          description: "Token ID (use \"0x00\" for ERC20)"
+        tokenType:
+          type: string
+          description: "Token type: 0=ERC20, 1=ERC1155, 2=ERC721, 3=ERC3525"
+          enum: ["0", "1", "2", "3"]
+        value:
+          $ref: "#/components/schemas/HexString"
+          description: "Value to deposit (\"0x00\" for ERC721)"
+        fee:
+          $ref: "#/components/schemas/HexString"
+          description: Fee paid to the proposer (user pays 2x this amount)
+        deposit_fee:
+          $ref: "#/components/schemas/HexString"
+          description: Additional fee deposited as reserve for future transaction fees
+      example:
+        ercAddress: "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+        tokenId: "0x00"
+        tokenType: "0"
+        value: "0x04"
+        fee: "0x02"
+        deposit_fee: "0x05"
+
+    NF3TransferRequest:
+      type: object
+      required:
+        - ercAddress
+        - tokenId
+        - recipientData
+        - fee
+      properties:
+        ercAddress:
+          $ref: "#/components/schemas/HexString"
+          description: Ethereum address of the ERC contract
+        tokenId:
+          $ref: "#/components/schemas/HexString"
+          description: "Token ID (use \"0x00\" for ERC20)"
+        recipientData:
+          $ref: "#/components/schemas/NF3RecipientData"
+        fee:
+          $ref: "#/components/schemas/HexString"
+          description: Fee paid to the proposer
+      example:
+        ercAddress: "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+        tokenId: "0x00"
+        recipientData:
+          values: ["0x01"]
+          recipientCompressedZkpPublicKeys:
+            - "0572aa70f4e62bcb8f53a28a1c259bd6d3538818afcccc0d8598486973ec2f2a"
+        fee: "0x01"
+
+    NF3RecipientData:
+      type: object
+      required:
+        - values
+        - recipientCompressedZkpPublicKeys
+      properties:
+        values:
+          type: array
+          items:
+            $ref: "#/components/schemas/HexString"
+          description: Values to transfer to each recipient
+        recipientCompressedZkpPublicKeys:
+          type: array
+          items:
+            type: string
+            pattern: "^[0-9a-fA-F]+$"
+          description: Compressed ZKP public keys of the recipients (Layer 2 addresses)
+
+    NF3WithdrawRequest:
+      type: object
+      required:
+        - ercAddress
+        - tokenId
+        - tokenType
+        - value
+        - recipientAddress
+        - fee
+      properties:
+        ercAddress:
+          $ref: "#/components/schemas/HexString"
+          description: Ethereum address of the ERC contract
+        tokenId:
+          $ref: "#/components/schemas/HexString"
+          description: "Token ID (use \"0x00\" for ERC20)"
+        tokenType:
+          type: string
+          description: "Token type: 0=ERC20, 1=ERC1155, 2=ERC721, 3=ERC3525"
+          enum: ["0", "1", "2", "3"]
+        value:
+          $ref: "#/components/schemas/HexString"
+          description: "Value to withdraw (\"0x00\" for ERC721)"
+        recipientAddress:
+          $ref: "#/components/schemas/HexString"
+          description: Ethereum address to receive the withdrawn tokens on Layer 1
+        fee:
+          $ref: "#/components/schemas/HexString"
+          description: Fee paid to the proposer
+      example:
+        ercAddress: "0x98eddadcfde04dc22a0e62119617e74a6bc77313"
+        tokenId: "0x01"
+        tokenType: "1"
+        value: "0x00"
+        recipientAddress: "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"
+        fee: "0x09"
+
+    KeyRequest:
+      type: object
+      required:
+        - mnemonic
+        - child_path
+      properties:
+        mnemonic:
+          type: string
+          description: BIP-39 mnemonic phrase (typically 24 words)
+          example: "spice split denial symbol resemble knock hunt trial make buzz attitude mom slice define clinic kid crawl guilt frozen there cage light secret work"
+        child_path:
+          type: string
+          description: BIP-32 derivation path
+          example: "m/44'/60'/0'/0/0"
+
+    ZKPPubKey:
+      type: object
+      properties:
+        zkp_public_key:
+          type: string
+          description: Compressed BabyJubJub public key as a hex string
+          example: "0572aa70f4e62bcb8f53a28a1c259bd6d3538818afcccc0d8598486973ec2f2a"
+
+    CommitmentEntry:
+      type: object
+      properties:
+        preimage:
+          $ref: "#/components/schemas/Preimage"
+        status:
+          $ref: "#/components/schemas/CommitmentStatus"
+        _id:
+          $ref: "#/components/schemas/HexFieldElement"
+          description: Commitment hash (key)
+        nullifier:
+          $ref: "#/components/schemas/HexFieldElement"
+          description: Nullifier for this commitment
+        token_type:
+          $ref: "#/components/schemas/TokenType"
+        layer_1_transaction_hash:
+          type: string
+          nullable: true
+          description: Hash of the L1 transaction that created this commitment
+          example: "0xabc123..."
+        layer_2_block_number:
+          type: integer
+          format: int64
+          nullable: true
+          description: Layer 2 block number when this commitment was created
+
+    Preimage:
+      type: object
+      properties:
+        value:
+          $ref: "#/components/schemas/HexFieldElement"
+          description: Token value
+        nf_token_id:
+          $ref: "#/components/schemas/HexFieldElement"
+          description: Nightfall token ID
+        nf_slot_id:
+          $ref: "#/components/schemas/HexFieldElement"
+          description: Nightfall slot ID
+        public_key:
+          type: string
+          description: Owner's BabyJubJub public key (compressed hex)
+        salt:
+          type: object
+          description: Salt used in the commitment hash
+
+    CommitmentStatus:
+      type: string
+      enum:
+        - PendingSpend
+        - Spent
+        - PendingCreation
+        - Unspent
+      description: Current status of the commitment
+
+    TokenType:
+      type: string
+      enum:
+        - ERC20
+        - ERC1155
+        - ERC721
+        - ERC3525
+        - FeeToken
+
+    RequestStatus:
+      type: string
+      enum:
+        - Queued
+        - Submitted
+        - Failed
+        - Processing
+        - ProposerUnreachable
+        - Confirmed
+      description: |
+        Status of a transaction request:
+        - Queued: Waiting to be processed by the client
+        - Processing: Client is actively working on it
+        - Submitted: Successfully handed off to blockchain or proposer
+        - Failed: The hand-off to the next stage did not succeed
+        - ProposerUnreachable: Client was unable to reach the proposer
+        - Confirmed: Transaction lifecycle is complete, commitments are on-chain
+
+    Proposer:
+      type: object
+      properties:
+        stake:
+          type: string
+          description: Proposer's staked amount (U256 as hex or decimal string)
+        addr:
+          type: string
+          description: Ethereum address of the proposer
+          example: "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"
+        url:
+          type: string
+          description: URL at which clients can reach the proposer
+          example: "http://proposer:3001"
+        next_addr:
+          type: string
+          description: Address of the next proposer in the linked list
+        previous_addr:
+          type: string
+          description: Address of the previous proposer in the linked list
+
+    ClientTransaction:
+      type: object
+      description: |
+        A zero-knowledge proof transaction submitted by a client. Contains proof data,
+        commitments, nullifiers, and encrypted secrets. This is a complex structure
+        primarily used for client-to-proposer communication.
+      properties:
+        fee:
+          $ref: "#/components/schemas/HexFieldElement"
+          description: Transaction fee
+        historic_commitment_roots:
+          type: array
+          items:
+            $ref: "#/components/schemas/HexFieldElement"
+          minItems: 4
+          maxItems: 4
+          description: Four historic Merkle tree root values
+        commitments:
+          type: array
+          items:
+            $ref: "#/components/schemas/HexFieldElement"
+          minItems: 4
+          maxItems: 4
+          description: Four output commitment hashes
+        nullifiers:
+          type: array
+          items:
+            $ref: "#/components/schemas/HexFieldElement"
+          minItems: 4
+          maxItems: 4
+          description: Four nullifier values
+        compressed_secrets:
+          type: object
+          description: Encrypted secrets for the transaction recipients
+        swap_link:
+          $ref: "#/components/schemas/HexFieldElement"
+          description: Swap link field element
+        proof:
+          type: object
+          description: Zero-knowledge proof object
+
+    TokenInfo:
+      type: object
+      description: Information about a token registered in Nightfall
+      properties:
+        erc_address:
+          $ref: "#/components/schemas/HexString"
+          description: The ERC contract address for the token
+        token_id:
+          $ref: "#/components/schemas/HexString"
+          description: The token ID (for ERC721/1155/3525)
+      example:
+        erc_address: "0x6fcb6af7f7947f8480c36e8ffca0c66f6f2be32b"
+        token_id: "0x00"
+
+    CertificationResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "ok"
+        certified:
+          type: boolean
+          description: Whether the caller is now certified on-chain
+
+    KeysValidationRequest:
+      type: object
+      required:
+        - configuration_url
+      properties:
+        configuration_url:
+          type: string
+          description: URL of the configuration/key server to validate against
+          example: "http://deployer:3003"
+        concurrency:
+          type: integer
+          description: Concurrency level for key downloads (default 2)
+          default: 2
+          example: 2
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        text/plain:
+          schema:
+            type: string
+            example: Bad request
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        text/plain:
+          schema:
+            type: string
+            example: INTERNAL_SERVER_ERROR
