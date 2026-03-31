@@ -38,4 +38,8 @@ pub fn init_logging(log_level: &str, app_only: bool) {
     };
 
     tracing_subscriber::fmt().with_env_filter(filter).init();
+
+    std::panic::set_hook(Box::new(|panic_info| {
+        tracing::error!("{}", panic_info);
+    }));
 }

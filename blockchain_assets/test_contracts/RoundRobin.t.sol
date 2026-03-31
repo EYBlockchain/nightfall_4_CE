@@ -271,6 +271,7 @@ contract RoundRobinTest is Test {
         x509Contract.enableAllowlisting(false);
 
         // Storage slot 70 holds proposer_count (from `forge inspect RoundRobin storage-layout`).
+        // Re-derive with: forge inspect RoundRobin storage-layout | grep proposer_count
         // Write MAX_PROPOSERS directly into the proxy's storage to simulate a full ring.
         uint256 maxProposers = roundRobin.MAX_PROPOSERS();
         vm.store(address(roundRobin), bytes32(uint256(70)), bytes32(maxProposers));

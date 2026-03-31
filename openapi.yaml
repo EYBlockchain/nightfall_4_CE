@@ -61,6 +61,63 @@ paths:
                 type: string
                 example: Healthy
 
+  /v1/ready:
+    get:
+      tags: [Shared]
+      summary: Readiness probe
+      description: |
+        Returns readiness status including dependency checks (e.g. database connectivity).
+        Returns 200 when all checks pass, 503 when any check fails.
+      operationId: readinessProbe
+      responses:
+        "200":
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ready
+                  checks:
+                    type: object
+                    properties:
+                      database:
+                        type: string
+                        example: ok
+        "503":
+          description: Service is not ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: not_ready
+                  checks:
+                    type: object
+                    properties:
+                      database:
+                        type: string
+                        example: "error: connection refused"
+
+  /metrics:
+    get:
+      tags: [Shared]
+      summary: Prometheus metrics
+      description: Returns Prometheus metrics in text exposition format.
+      operationId: prometheusMetrics
+      responses:
+        "200":
+          description: Prometheus metrics
+          content:
+            text/plain:
+              schema:
+                type: string
+                description: Prometheus exposition format metrics
+
   /v1/certification:
     post:
       tags: [Shared]

@@ -35,6 +35,7 @@ use nf_curves::ed_on_bn254::{BJJTEAffine as JubJub, BabyJubjub, Fr as BJJScalar}
 use nightfall_bindings::artifacts::Nightfall;
 use serde::Deserialize;
 use ark_std::UniformRand;
+use tracing::{debug, error, info, warn};
 
 #[derive(Deserialize)]
 struct JubJubPubKey(#[serde(deserialize_with = "ark_de_hex")] JubJub);
