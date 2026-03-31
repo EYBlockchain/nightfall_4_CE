@@ -80,7 +80,6 @@ key-gen:
 clean:
 	cargo clean && forge clean
 
-# Remove Docker containers, volumes, and dangling images
+# Remove Docker containers, volumes, and locally-built images
 docker-clean:
-	docker compose down -v
-	docker system prune -f
+	docker compose down -v --rmi local

@@ -442,7 +442,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
             find = find.skip(offset);
         }
         if let Some(limit) = limit {
-            find = find.limit(limit as i64);
+            find = find.limit(limit.min(i64::MAX as u64) as i64);
         }
         let mut cursor = find.await?;
         let mut result: Vec<(Fr254, CommitmentEntry)> = Vec::new();

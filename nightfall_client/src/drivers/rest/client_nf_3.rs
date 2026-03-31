@@ -40,7 +40,7 @@ use lib::{
     serialization::ark_de_hex,
     shared_entities::{DepositSecret, Preimage, Salt, TokenType},
 };
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use nf_curves::ed_on_bn254::{BJJTEAffine as JubJub, BabyJubjub, Fr as BJJScalar};
 use nightfall_bindings::artifacts::{Nightfall, IERC1155, IERC20, IERC3525, IERC721};
 use serde::{Deserialize, Serialize};
@@ -559,7 +559,13 @@ where
                     // rollback the value commitments to unspent if fails to find fee commitments
                     let value_commitment_ids = spend_value_commitments
                         .iter()
-                        .filter_map(|c| c.hash().ok())
+                        .filter_map(|c| match c.hash() {
+                            Ok(h) => Some(h),
+                            Err(e) => {
+                                error!("{id} Failed to hash commitment during rollback, commitment may be orphaned: {e}");
+                                None
+                            }
+                        })
                         .collect::<Vec<_>>();
 
                     for commitment_id in &value_commitment_ids {
@@ -669,7 +675,13 @@ where
         "{id} New commitment hashes: {:?}",
         new_commitments
             .iter()
-            .filter_map(|c| c.hash().ok().map(|h| h.to_hex_string()))
+            .filter_map(|c| match c.hash() {
+                Ok(h) => Some(h.to_hex_string()),
+                Err(e) => {
+                    warn!("{id} Failed to hash commitment for debug output: {e}");
+                    None
+                }
+            })
             .collect::<Vec<_>>()
     );
 
@@ -702,7 +714,13 @@ where
             // Rollback the spend commitments to unspent
             let commitment_ids = spend_commitments
                 .iter()
-                .filter_map(|c| c.hash().ok())
+                .filter_map(|c| match c.hash() {
+                    Ok(h) => Some(h),
+                    Err(e) => {
+                        error!("{id} Failed to hash commitment during rollback, commitment may be orphaned: {e}");
+                        None
+                    }
+                })
                 .collect::<Vec<_>>();
 
             info!(
@@ -724,7 +742,13 @@ where
             // Delete new commitments
             let new_commitment_ids = new_commitments
                 .iter()
-                .filter_map(|c| c.hash().ok())
+                .filter_map(|c| match c.hash() {
+                    Ok(h) => Some(h),
+                    Err(e) => {
+                        error!("{id} Failed to hash commitment during rollback, commitment may be orphaned: {e}");
+                        None
+                    }
+                })
                 .collect::<Vec<_>>();
 
             info!("{id} Deleting {} new commitments", new_commitment_ids.len());
@@ -800,7 +824,13 @@ where
                     // rollback the value commitments to unspent if fails to find fee commitments
                     let value_commitment_ids = spend_value_commitments
                         .iter()
-                        .filter_map(|c| c.hash().ok())
+                        .filter_map(|c| match c.hash() {
+                            Ok(h) => Some(h),
+                            Err(e) => {
+                                error!("{id} Failed to hash commitment during rollback, commitment may be orphaned: {e}");
+                                None
+                            }
+                        })
                         .collect::<Vec<_>>();
                     for commitment_id in &value_commitment_ids {
                         if let Some(existing) = db.get_commitment(commitment_id).await {
@@ -956,7 +986,13 @@ where
             // Rollback spend commitments
             let commitment_ids = spend_commitments
                 .iter()
-                .filter_map(|c| c.hash().ok())
+                .filter_map(|c| match c.hash() {
+                    Ok(h) => Some(h),
+                    Err(e) => {
+                        error!("{id} Failed to hash commitment during rollback, commitment may be orphaned: {e}");
+                        None
+                    }
+                })
                 .collect::<Vec<_>>();
 
             info!(
@@ -978,7 +1014,13 @@ where
             // Delete new commitments
             let new_commitment_ids = new_commitments
                 .iter()
-                .filter_map(|c| c.hash().ok())
+                .filter_map(|c| match c.hash() {
+                    Ok(h) => Some(h),
+                    Err(e) => {
+                        error!("{id} Failed to hash commitment during rollback, commitment may be orphaned: {e}");
+                        None
+                    }
+                })
                 .collect::<Vec<_>>();
 
             info!("{id} Deleting {} new commitments", new_commitment_ids.len());
