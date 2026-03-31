@@ -1,4 +1,4 @@
-use log::info;
+use tracing::info;
 use std::{os::unix::process::ExitStatusExt, process::Command};
 
 fn main() {

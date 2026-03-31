@@ -6,7 +6,7 @@
 use alloy::providers::Provider;
 use alloy::rpc::types::{Filter, Log};
 use configuration::settings::get_settings;
-use log::{debug, info, warn};
+use tracing::{debug, info, warn};
 use std::error::Error;
 use std::fmt;
 

@@ -6,7 +6,7 @@ use lib::{
     shared_entities::Node,
     utils,
 };
-use log::{error, info};
+use tracing::{error, info};
 use nightfall_bindings::artifacts::Nightfall;
 use nightfall_client::{
     domain::entities::Request,

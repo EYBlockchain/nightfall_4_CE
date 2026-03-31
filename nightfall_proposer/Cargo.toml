@@ -26,7 +26,6 @@ futures = "0.3.31"
 configuration = { path = "../configuration" }
 lib = { path = "../lib" }
 tokio = { version = "1.45.0", features = ["full"] }
-log = "0.4.27"
 warp = "0.3.7"
 async-trait = "0.1.88"
 mongodb = "3.2.3"

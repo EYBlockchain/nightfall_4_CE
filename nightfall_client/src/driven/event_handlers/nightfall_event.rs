@@ -37,7 +37,7 @@ use lib::{
     initialisation::get_blockchain_client_connection,
     shared_entities::{CompressedSecrets, OnChainTransaction, Preimage, Salt},
 };
-use log::{debug, error, info, warn};
+use tracing::{debug, error, info, warn};
 use nightfall_bindings::artifacts::Nightfall;
 use std::{collections::HashSet, sync::OnceLock};
 use tokio::{join, sync::Mutex};

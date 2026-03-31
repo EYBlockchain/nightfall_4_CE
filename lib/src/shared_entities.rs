@@ -14,7 +14,7 @@ use ark_serialize::SerializationError;
 use ark_std::UniformRand;
 use ark_std::Zero;
 use jf_primitives::poseidon::{FieldHasher, Poseidon, PoseidonError};
-use log::{error, warn};
+use tracing::{error, warn};
 use nf_curves::ed_on_bn254::BabyJubjub as BabyJubJub;
 use nightfall_bindings::artifacts::Nightfall;
 use serde::{Deserialize, Serialize};

@@ -4,7 +4,7 @@ use lib::{
     health_check::health_route, nf_client_proof::Proof,
     validate_certificate::certification_validation_request, validate_keys::keys_validation_request,
 };
-use log::error;
+use tracing::error;
 use proposers::get_proposers;
 use reqwest::StatusCode;
 use std::fmt::Debug;

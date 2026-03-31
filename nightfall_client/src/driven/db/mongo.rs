@@ -21,7 +21,7 @@ use lib::{
     shared_entities::{Preimage, WithdrawData},
 };
 use lib::{hex_conversion::HexConvertible, shared_entities::TokenType};
-use log::{debug, error, info};
+use tracing::{debug, error, info};
 use mongodb::{
     bson::doc,
     error::{ErrorKind, WriteFailure::WriteError},

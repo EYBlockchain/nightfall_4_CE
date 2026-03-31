@@ -24,7 +24,7 @@ use lib::{
         ClientTransaction, CompressedSecrets, DepositSecret, Preimage, Salt, TokenType,
     },
 };
-use log::{debug, error, info, warn};
+use tracing::{debug, error, info, warn};
 use nf_curves::ed_on_bn254::{BabyJubjub as BabyJubJub, Fr as BJJScalar};
 
 #[allow(clippy::too_many_arguments)]

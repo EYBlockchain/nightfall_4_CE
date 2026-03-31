@@ -27,7 +27,7 @@ use lib::{
     secret_hash::SecretHash,
     shared_entities::{ClientTransaction, Preimage},
 };
-use log::{debug, error, info, warn};
+use tracing::{debug, error, info, warn};
 use nf_curves::ed_on_bn254::Fr as BJJScalar;
 use nightfall_bindings::artifacts::ProposerManager;
 use reqwest::{Client, Error as ReqwestError};

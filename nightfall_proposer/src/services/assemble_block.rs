@@ -19,7 +19,7 @@ use lib::{
     shared_entities::DepositData,
     utils::get_block_size,
 };
-use log::{info, warn};
+use tracing::{info, warn};
 use std::cmp::Reverse;
 use tokio::time::Instant;
 

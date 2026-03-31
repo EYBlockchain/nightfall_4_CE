@@ -1,6 +1,6 @@
 use crate::settings::Settings;
 use alloy::primitives::Address;
-use log::{info, warn};
+use tracing::{info, warn};
 use rand::Rng;
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};

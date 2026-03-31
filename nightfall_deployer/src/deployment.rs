@@ -7,7 +7,7 @@ use configuration::{
 use jf_plonk::recursion::RecursiveProver;
 
 use lib::blockchain_client::BlockchainClientConnection;
-use log::{debug, error, info};
+use tracing::{debug, error, info};
 use nightfall_proposer::driven::rollup_prover::RollupProver;
 use serde_json::Value;
 use std::{

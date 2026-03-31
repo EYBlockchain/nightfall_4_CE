@@ -9,7 +9,7 @@ use crate::drivers::blockchain::nightfall_event_listener::get_synchronisation_st
 use ark_bn254::Fr as Fr254;
 use configuration::settings::get_settings;
 use lib::shared_entities::SynchronisationPhase::Synchronized;
-use log::{debug, info, warn};
+use tracing::{debug, info, warn};
 use mongodb::Client as MongoClient;
 use tokio::{
     sync::{Mutex, OnceCell, RwLock},

@@ -6,7 +6,7 @@ use bson::Document;
 use configuration::settings::get_settings;
 use jf_primitives::{poseidon::PoseidonParams, trees::MembershipProof};
 use lib::merkle_trees::trees::{IndexedTree, MerkleTreeError, MutableTree};
-use log::debug;
+use tracing::debug;
 use mongodb::Client;
 
 /// Trait defining the functionality of a commitment tree.

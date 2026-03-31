@@ -24,7 +24,7 @@ use lib::{
     hex_conversion::HexConvertible, initialisation::get_blockchain_client_connection,
     utils::get_block_size,
 };
-use log::{debug, info, warn};
+use tracing::{debug, info, warn};
 use nightfall_client::drivers::rest::client_nf_3::WithdrawResponse;
 use serde_json::Value;
 use test::{

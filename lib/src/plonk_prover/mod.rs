@@ -10,7 +10,7 @@ use ark_bn254::Bn254;
 use ark_serialize::CanonicalDeserialize;
 use jf_plonk::nightfall::ipa_structs::ProvingKey;
 use jf_primitives::pcs::prelude::UnivariateKzgPCS;
-use log::warn;
+use tracing::warn;
 use std::sync::{Arc, OnceLock};
 
 /// This function is used to retrieve the client proving key.

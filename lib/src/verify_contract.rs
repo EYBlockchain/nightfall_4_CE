@@ -8,7 +8,7 @@ use configuration::{
     settings::Settings,
 };
 use eyre::eyre;
-use log::debug;
+use tracing::debug;
 use nightfall_bindings::artifacts::{Nightfall, RoundRobin, X509};
 use nightfall_bindings::artifacts::{
     Nightfall::NightfallInstance, RoundRobin::RoundRobinInstance, X509::X509Instance,

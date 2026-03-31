@@ -24,7 +24,7 @@ use lib::{
     log_fetcher::get_logs_paginated,
     shared_entities::{OnChainTransaction, SynchronisationPhase, SynchronisationStatus},
 };
-use log::{debug, info, warn};
+use tracing::{debug, info, warn};
 use nightfall_bindings::artifacts::Nightfall;
 use std::{panic, time::Duration};
 use tokio::time::sleep;

@@ -4,7 +4,7 @@ use lib::{
     nf_client_proof::{Proof, ProvingEngine},
     shared_entities::ClientTransaction,
 };
-use log::{error, info};
+use tracing::{error, info};
 
 use warp::{hyper::StatusCode, path, Filter};
 

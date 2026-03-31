@@ -1,5 +1,5 @@
 use crate::{driven::queue::get_queue, initialisation::get_db_connection, ports::db::RequestDB};
-use log::debug;
+use tracing::debug;
 use uuid::Uuid;
 use warp::{http::StatusCode, path, reply::Reply, Filter};
 

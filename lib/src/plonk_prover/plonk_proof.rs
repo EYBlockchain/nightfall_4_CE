@@ -19,7 +19,7 @@ use crate::{
 use alloy::primitives::Bytes;
 use jf_primitives::{pcs::prelude::UnivariateKzgPCS, rescue::sponge::RescueCRHF};
 use jf_relation::PlonkCircuit;
-use log::{debug, error};
+use tracing::{debug, error};
 use serde::{Deserialize, Serialize};
 
 use std::sync::Arc;

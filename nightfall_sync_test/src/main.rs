@@ -1,6 +1,6 @@
 use configuration::{logging::init_logging, settings::get_settings};
 use lib::models::CertificateReq;
-use log::{debug, info};
+use tracing::{debug, info};
 use nightfall_client::domain::entities::Proposer;
 use nightfall_test::test::validate_certificate_with_server;
 use reqwest::{StatusCode, Url};

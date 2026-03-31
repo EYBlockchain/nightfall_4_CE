@@ -10,7 +10,7 @@ use lib::{
     blockchain_client::BlockchainClientConnection, error::NightfallContractError,
     verify_contract::VerifiedContracts,
 };
-use log::info;
+use tracing::info;
 use nightfall_bindings::artifacts::Nightfall;
 
 #[async_trait::async_trait]

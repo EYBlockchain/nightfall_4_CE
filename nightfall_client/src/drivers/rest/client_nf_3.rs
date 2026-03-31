@@ -40,7 +40,7 @@ use lib::{
     serialization::ark_de_hex,
     shared_entities::{DepositSecret, Preimage, Salt, TokenType},
 };
-use log::{debug, error, info, warn};
+use tracing::{debug, error, info, warn};
 use nf_curves::ed_on_bn254::{BJJTEAffine as JubJub, BabyJubjub, Fr as BJJScalar};
 use nightfall_bindings::artifacts::{Nightfall, IERC1155, IERC20, IERC3525, IERC721};
 use serde::{Deserialize, Serialize};

@@ -21,7 +21,7 @@ use lib::{
 };
 use std::collections::HashMap;
 
-use log::debug;
+use tracing::debug;
 use mongodb::{bson::doc, Client};
 
 use super::rollup_prover::RollupProofError;
