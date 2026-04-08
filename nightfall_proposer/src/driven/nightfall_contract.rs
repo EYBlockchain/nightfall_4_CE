@@ -8,7 +8,7 @@ use alloy::primitives::I256;
 use configuration::{addresses::get_addresses, settings::get_settings};
 use lib::{
     blockchain_client::BlockchainClientConnection, error::NightfallContractError,
-    verify_contract::VerifiedContracts,
+    verify_contract::VerifiedContracts, wallets::WalletType,
 };
 use log::info;
 use nightfall_bindings::artifacts::Nightfall;
@@ -16,17 +16,11 @@ use nightfall_bindings::artifacts::Nightfall;
 #[async_trait::async_trait]
 impl NightfallContract for Nightfall::NightfallCalls {
     async fn propose_block(block: Block) -> Result<(), NightfallContractError> {
-        let blockchain_client = get_blockchain_client_connection()
-            .await
-            .read()
-            .await
-            .get_client();
+        let read_connection = get_blockchain_client_connection().await.read().await;
+        let blockchain_client = read_connection.get_client();
         let client = blockchain_client.root();
-        let signer = get_blockchain_client_connection()
-            .await
-            .read()
-            .await
-            .get_signer();
+        let caller = read_connection.get_address();
+        let wallet = read_connection.get_wallet_type().clone();
         let verified =
             VerifiedContracts::resolve_and_verify_contract(client.clone(), get_addresses())
                 .await
@@ -40,7 +34,7 @@ impl NightfallContract for Nightfall::NightfallCalls {
         // Convert the block transactions to the Nightfall format
         let blk: Nightfall::Block = block.into();
         let nonce = blockchain_client
-            .get_transaction_count(signer.address())
+            .get_transaction_count(caller)
             .await
             .map_err(|_| NightfallContractError::TransactionError)?;
         let gas_price = blockchain_client
@@ -51,16 +45,28 @@ impl NightfallContract for Nightfall::NightfallCalls {
         let max_priority_fee_per_gas = gas_price;
         let gas_limit = 5000000u64;
 
-        let raw_tx = nightfall
-            .propose_block(blk)
-            .nonce(nonce)
-            .gas(gas_limit)
-            .max_fee_per_gas(max_fee_per_gas)
-            .max_priority_fee_per_gas(max_priority_fee_per_gas)
-            .chain_id(get_settings().network.chain_id) // Linea testnet chain ID
-            .build_raw_transaction((*signer).clone())
-            .await
-            .map_err(|_| NightfallContractError::TransactionError)?;
+        let raw_tx = match wallet {
+            WalletType::Local(signer) => nightfall
+                .propose_block(blk.clone())
+                .nonce(nonce)
+                .gas(gas_limit)
+                .max_fee_per_gas(max_fee_per_gas)
+                .max_priority_fee_per_gas(max_priority_fee_per_gas)
+                .chain_id(get_settings().network.chain_id)
+                .build_raw_transaction((*signer).clone())
+                .await
+                .map_err(|_| NightfallContractError::TransactionError)?,
+            WalletType::Azure(azure_wallet) => nightfall
+                .propose_block(blk)
+                .nonce(nonce)
+                .gas(gas_limit)
+                .max_fee_per_gas(max_fee_per_gas)
+                .max_priority_fee_per_gas(max_priority_fee_per_gas)
+                .chain_id(get_settings().network.chain_id)
+                .build_raw_transaction(azure_wallet)
+                .await
+                .map_err(|_| NightfallContractError::TransactionError)?,
+        };
 
         let receipt = blockchain_client
             .send_raw_transaction(&raw_tx)
