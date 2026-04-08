@@ -11,6 +11,7 @@ use lib::{
     contract_conversions::{Addr, Uint256},
     error::BlockchainClientConnectionError,
     initialisation::get_blockchain_client_connection,
+    wallets::WalletType,
 };
 use log::debug;
 use nightfall_bindings::artifacts::{IERC1155, IERC20, IERC3525, IERC721};
@@ -39,11 +40,7 @@ impl TokenContract for IERC20::IERC20Calls {
         let provider = read.get_client();
         let client = provider.root();
         let caller = read.get_address();
-        let signer = get_blockchain_client_connection()
-            .await
-            .read()
-            .await
-            .get_signer();
+        let wallet = read.get_wallet_type().clone();
 
         let nonce = client.get_transaction_count(caller).await.map_err(|e| {
             BlockchainClientConnectionError::ProviderError(format!(
@@ -59,20 +56,36 @@ impl TokenContract for IERC20::IERC20Calls {
         let max_priority_fee_per_gas = gas_price;
         let gas_limit = 5000000u64;
 
-        let raw_tx = IERC20::new(solidity_erc_address.0, client.clone())
-            .approve(spender, amount.0)
-            .nonce(nonce)
-            .gas(gas_limit)
-            .max_fee_per_gas(max_fee_per_gas)
-            .max_priority_fee_per_gas(max_priority_fee_per_gas)
-            .chain_id(get_settings().network.chain_id) // Linea testnet chain ID
-            .build_raw_transaction((*signer).clone())
-            .await
-            .map_err(|e| {
-                BlockchainClientConnectionError::ProviderError(format!(
-                    "Contract error when building raw transaction in ERC20::set_approval: {e}"
-                ))
-            })?;
+        let raw_tx = match wallet {
+            WalletType::Local(signer) => IERC20::new(solidity_erc_address.0, client.clone())
+                .approve(spender, amount.0)
+                .nonce(nonce)
+                .gas(gas_limit)
+                .max_fee_per_gas(max_fee_per_gas)
+                .max_priority_fee_per_gas(max_priority_fee_per_gas)
+                .chain_id(get_settings().network.chain_id)// Linea testnet chain ID
+                .build_raw_transaction((*signer).clone())
+                .await
+                .map_err(|e| {
+                    BlockchainClientConnectionError::ProviderError(format!(
+                        "Contract error when building raw transaction in ERC20::set_approval: {e}"
+                    ))
+                })?,
+            WalletType::Azure(azure_wallet) => IERC20::new(solidity_erc_address.0, client.clone())
+                .approve(spender, amount.0)
+                .nonce(nonce)
+                .gas(gas_limit)
+                .max_fee_per_gas(max_fee_per_gas)
+                .max_priority_fee_per_gas(max_priority_fee_per_gas)
+                .chain_id(get_settings().network.chain_id)
+                .build_raw_transaction(azure_wallet)
+                .await
+                .map_err(|e| {
+                    BlockchainClientConnectionError::ProviderError(format!(
+                        "Contract error when building raw transaction in ERC20::set_approval: {e}"
+                    ))
+                })?,
+        };
 
         let tx_receipt = client
             .send_raw_transaction(&raw_tx)
@@ -127,11 +140,7 @@ impl TokenContract for IERC721::IERC721Calls {
         let provider = read.get_client();
         let client = provider.root();
         let caller = read.get_address();
-        let signer = get_blockchain_client_connection()
-            .await
-            .read()
-            .await
-            .get_signer();
+        let wallet = read.get_wallet_type().clone();
 
         let nonce = client.get_transaction_count(caller).await.map_err(|e| {
             BlockchainClientConnectionError::ProviderError(format!(
@@ -146,18 +155,36 @@ impl TokenContract for IERC721::IERC721Calls {
         let max_fee_per_gas = gas_price * 2;
         let max_priority_fee_per_gas = gas_price;
         let gas_limit = 5000000u64;
-        let raw_tx = IERC721::new(solidity_erc_address.0, client.clone())
-            .approve(spender, token_id_u256.0)
-            .nonce(nonce)
-            .gas(gas_limit)
-            .max_fee_per_gas(max_fee_per_gas)
-            .max_priority_fee_per_gas(max_priority_fee_per_gas)
-            .chain_id(get_settings().network.chain_id) // Linea testnet chain ID
-            .build_raw_transaction((*signer).clone())
-            .await
-            .map_err(|e| {
-                BlockchainClientConnectionError::ProviderError(format!("Contract error: {e}"))
-            })?;
+        let raw_tx = match wallet {
+            WalletType::Local(signer) => IERC721::new(solidity_erc_address.0, client.clone())
+                .approve(spender, token_id_u256.0)
+                .nonce(nonce)
+                .gas(gas_limit)
+                .max_fee_per_gas(max_fee_per_gas)
+                .max_priority_fee_per_gas(max_priority_fee_per_gas)
+                .chain_id(get_settings().network.chain_id)// Linea testnet chain ID
+                .build_raw_transaction((*signer).clone())
+                .await
+                .map_err(|e| {
+                    BlockchainClientConnectionError::ProviderError(format!("Contract error: {e}"))
+                })?,
+            WalletType::Azure(azure_wallet) => {
+                IERC721::new(solidity_erc_address.0, client.clone())
+                    .approve(spender, token_id_u256.0)
+                    .nonce(nonce)
+                    .gas(gas_limit)
+                    .max_fee_per_gas(max_fee_per_gas)
+                    .max_priority_fee_per_gas(max_priority_fee_per_gas)
+                    .chain_id(get_settings().network.chain_id)
+                    .build_raw_transaction(azure_wallet)
+                    .await
+                    .map_err(|e| {
+                        BlockchainClientConnectionError::ProviderError(format!(
+                            "Contract error: {e}"
+                        ))
+                    })?
+            }
+        };
 
         let tx_receipt = client
             .send_raw_transaction(&raw_tx)
@@ -210,11 +237,7 @@ impl TokenContract for IERC1155::IERC1155Calls {
         let provider = read.get_client();
         let client = provider.root();
         let caller = read.get_address();
-        let signer = get_blockchain_client_connection()
-            .await
-            .read()
-            .await
-            .get_signer();
+        let wallet = read.get_wallet_type().clone();
 
         let erc1155 = IERC1155::new(solidity_erc_address.0, client.clone());
 
@@ -231,20 +254,36 @@ impl TokenContract for IERC1155::IERC1155Calls {
         let max_fee_per_gas = gas_price * 2;
         let max_priority_fee_per_gas = gas_price;
         let gas_limit = 5000000u64;
-        let raw_tx = erc1155
-            .setApprovalForAll(operator, true)
-            .nonce(nonce)
-            .gas(gas_limit)
-            .max_fee_per_gas(max_fee_per_gas)
-            .max_priority_fee_per_gas(max_priority_fee_per_gas)
-            .chain_id(get_settings().network.chain_id) // Linea testnet chain ID
-            .build_raw_transaction((*signer).clone())
-            .await
-            .map_err(|e| {
-                BlockchainClientConnectionError::ProviderError(format!(
-                    "Contract error when building raw transaction in ERC1155::set_approval: {e}"
-                ))
-            })?;
+        let raw_tx = match wallet {
+            WalletType::Local(signer) => erc1155
+                .setApprovalForAll(operator, true)
+                .nonce(nonce)
+                .gas(gas_limit)
+                .max_fee_per_gas(max_fee_per_gas)
+                .max_priority_fee_per_gas(max_priority_fee_per_gas)
+                .chain_id(get_settings().network.chain_id)// Linea testnet chain ID
+                .build_raw_transaction((*signer).clone())
+                .await
+                .map_err(|e| {
+                    BlockchainClientConnectionError::ProviderError(format!(
+                        "Contract error when building raw transaction in ERC1155::set_approval: {e}"
+                    ))
+                })?,
+            WalletType::Azure(azure_wallet) => erc1155
+                .setApprovalForAll(operator, true)
+                .nonce(nonce)
+                .gas(gas_limit)
+                .max_fee_per_gas(max_fee_per_gas)
+                .max_priority_fee_per_gas(max_priority_fee_per_gas)
+                .chain_id(get_settings().network.chain_id)
+                .build_raw_transaction(azure_wallet)
+                .await
+                .map_err(|e| {
+                    BlockchainClientConnectionError::ProviderError(format!(
+                        "Contract error when building raw transaction in ERC1155::set_approval: {e}"
+                    ))
+                })?,
+        };
 
         let tx_receipt = client
             .send_raw_transaction(&raw_tx)
@@ -292,11 +331,7 @@ impl TokenContract for IERC3525::IERC3525Calls {
         let provider = read.get_client();
         let client = provider.root();
         let caller = read.get_address();
-        let signer = get_blockchain_client_connection()
-            .await
-            .read()
-            .await
-            .get_signer();
+        let wallet = read.get_wallet_type().clone();
 
         debug!("ERC3525 caller: {caller:?}");
         // NOTE: IERC3525 has overloaded approve functions in many implementations.
@@ -316,20 +351,38 @@ impl TokenContract for IERC3525::IERC3525Calls {
         let max_fee_per_gas = gas_price * 2;
         let max_priority_fee_per_gas = gas_price;
         let gas_limit = 500000000u64;
-        let raw_tx = IERC3525::new(solidity_erc_address.0, client.clone())
-            .approve_0(spender, token_id_u256.0)
-            .nonce(nonce)
-            .gas(gas_limit)
-            .max_fee_per_gas(max_fee_per_gas)
-            .max_priority_fee_per_gas(max_priority_fee_per_gas)
-            .chain_id(get_settings().network.chain_id) // Linea testnet chain ID
-            .build_raw_transaction((*signer).clone())
-            .await
-            .map_err(|e| {
-                BlockchainClientConnectionError::ProviderError(format!(
-                    "Contract error when building raw transaction in ERC1155::set_approval: {e}"
-                ))
-            })?;
+        let raw_tx = match wallet {
+            WalletType::Local(signer) => IERC3525::new(solidity_erc_address.0, client.clone())
+                .approve_0(spender, token_id_u256.0)
+                .nonce(nonce)
+                .gas(gas_limit)
+                .max_fee_per_gas(max_fee_per_gas)
+                .max_priority_fee_per_gas(max_priority_fee_per_gas)
+                .chain_id(get_settings().network.chain_id)// Linea testnet chain ID
+                .build_raw_transaction((*signer).clone())
+                .await
+                .map_err(|e| {
+                    BlockchainClientConnectionError::ProviderError(format!(
+                        "Contract error when building raw transaction in ERC1155::set_approval: {e}"
+                    ))
+                })?,
+            WalletType::Azure(azure_wallet) => {
+                IERC3525::new(solidity_erc_address.0, client.clone())
+                    .approve_0(spender, token_id_u256.0)
+                    .nonce(nonce)
+                    .gas(gas_limit)
+                    .max_fee_per_gas(max_fee_per_gas)
+                    .max_priority_fee_per_gas(max_priority_fee_per_gas)
+                    .chain_id(get_settings().network.chain_id)
+                    .build_raw_transaction(azure_wallet)
+                    .await
+                    .map_err(|e| {
+                        BlockchainClientConnectionError::ProviderError(format!(
+                            "Contract error when building raw transaction in ERC1155::set_approval: {e}"
+                        ))
+                    })?
+            }
+        };
 
         let tx_receipt = client
             .send_raw_transaction(&raw_tx)
