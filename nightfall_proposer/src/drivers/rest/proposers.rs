@@ -3,7 +3,7 @@ use alloy::primitives::U256;
 use configuration::{addresses::get_addresses, settings::get_settings};
 use lib::{
     blockchain_client::BlockchainClientConnection, error::ProposerError,
-    verify_contract::VerifiedContracts, wallets::WalletType,
+    verify_contract::VerifiedContracts,
 };
 use log::{info, warn};
 use std::future::Future;
@@ -62,34 +62,19 @@ async fn handle_rotate_proposer() -> Result<impl Reply, warp::Rejection> {
         let max_priority_fee_per_gas = gas_price;
         let gas_limit = 5000000u64;
 
-        let call = match wallet {
-            WalletType::Local(signer) => proposer_manager
-                .rotate_proposer()
-                .nonce(nonce)
-                .gas(gas_limit)
-                .max_fee_per_gas(max_fee_per_gas)
-                .max_priority_fee_per_gas(max_priority_fee_per_gas)
-                .chain_id(get_settings().network.chain_id)
-                .build_raw_transaction((*signer).clone())
-                .await
-                .map_err(|e| {
-                    warn!("Failed to build rotate_proposer transaction: {e}");
-                    warp::reject::custom(ProposerRejection::FailedToRotateProposer)
-                })?,
-            WalletType::Azure(azure_wallet) => proposer_manager
-                .rotate_proposer()
-                .nonce(nonce)
-                .gas(gas_limit)
-                .max_fee_per_gas(max_fee_per_gas)
-                .max_priority_fee_per_gas(max_priority_fee_per_gas)
-                .chain_id(get_settings().network.chain_id)
-                .build_raw_transaction(azure_wallet)
-                .await
-                .map_err(|e| {
-                    warn!("Failed to build rotate_proposer transaction: {e}");
-                    warp::reject::custom(ProposerRejection::FailedToRotateProposer)
-                })?,
-        };
+        let call = proposer_manager
+            .rotate_proposer()
+            .nonce(nonce)
+            .gas(gas_limit)
+            .max_fee_per_gas(max_fee_per_gas)
+            .max_priority_fee_per_gas(max_priority_fee_per_gas)
+            .chain_id(get_settings().network.chain_id)
+            .build_raw_transaction(wallet)
+            .await
+            .map_err(|e| {
+                warn!("Failed to build rotate_proposer transaction: {e}");
+                warp::reject::custom(ProposerRejection::FailedToRotateProposer)
+            })?;
 
         let tx_receipt = blockchain_client
             .send_raw_transaction(&call)
@@ -166,36 +151,20 @@ async fn handle_add_proposer(url: String) -> Result<impl Reply, warp::Rejection>
     let max_priority_fee_per_gas = gas_price;
     let gas_limit = 5000000u64;
 
-    let raw_tx = match wallet {
-        WalletType::Local(signer) => proposer_manager
-            .add_proposer(url.clone())
-            .value(U256::from(get_settings().nightfall_deployer.proposer_stake))
-            .nonce(nonce)
-            .gas(gas_limit)
-            .max_fee_per_gas(max_fee_per_gas)
-            .max_priority_fee_per_gas(max_priority_fee_per_gas)
-            .chain_id(get_settings().network.chain_id)
-            .build_raw_transaction((*signer).clone())
-            .await
-            .map_err(|e| {
-                warn!("{e}");
-                ProposerRejection::FailedToAddProposer
-            })?,
-        WalletType::Azure(azure_wallet) => proposer_manager
-            .add_proposer(url)
-            .value(U256::from(get_settings().nightfall_deployer.proposer_stake))
-            .nonce(nonce)
-            .gas(gas_limit)
-            .max_fee_per_gas(max_fee_per_gas)
-            .max_priority_fee_per_gas(max_priority_fee_per_gas)
-            .chain_id(get_settings().network.chain_id)
-            .build_raw_transaction(azure_wallet)
-            .await
-            .map_err(|e| {
-                warn!("{e}");
-                ProposerRejection::FailedToAddProposer
-            })?,
-    };
+    let raw_tx = proposer_manager
+        .add_proposer(url)
+        .value(U256::from(get_settings().nightfall_deployer.proposer_stake))
+        .nonce(nonce)
+        .gas(gas_limit)
+        .max_fee_per_gas(max_fee_per_gas)
+        .max_priority_fee_per_gas(max_priority_fee_per_gas)
+        .chain_id(get_settings().network.chain_id)
+        .build_raw_transaction(wallet)
+        .await
+        .map_err(|e| {
+            warn!("{e}");
+            ProposerRejection::FailedToAddProposer
+        })?;
     // add the proposer
     let tx = blockchain_client
         .send_raw_transaction(&raw_tx)
@@ -279,34 +248,19 @@ async fn handle_remove_proposer() -> Result<impl Reply, warp::Rejection> {
         let max_priority_fee_per_gas = gas_price;
         let gas_limit = 5000000u64;
 
-        let raw_tx = match wallet {
-            WalletType::Local(signer) => proposer_manager
-                .remove_proposer()
-                .nonce(nonce)
-                .gas(gas_limit)
-                .max_fee_per_gas(max_fee_per_gas)
-                .max_priority_fee_per_gas(max_priority_fee_per_gas)
-                .chain_id(get_settings().network.chain_id)
-                .build_raw_transaction((*signer).clone())
-                .await
-                .map_err(|e| {
-                    warn!("{e}");
-                    ProposerRejection::FailedToRemoveProposer
-                })?,
-            WalletType::Azure(azure_wallet) => proposer_manager
-                .remove_proposer()
-                .nonce(nonce)
-                .gas(gas_limit)
-                .max_fee_per_gas(max_fee_per_gas)
-                .max_priority_fee_per_gas(max_priority_fee_per_gas)
-                .chain_id(get_settings().network.chain_id)
-                .build_raw_transaction(azure_wallet)
-                .await
-                .map_err(|e| {
-                    warn!("{e}");
-                    ProposerRejection::FailedToRemoveProposer
-                })?,
-        };
+        let raw_tx = proposer_manager
+            .remove_proposer()
+            .nonce(nonce)
+            .gas(gas_limit)
+            .max_fee_per_gas(max_fee_per_gas)
+            .max_priority_fee_per_gas(max_priority_fee_per_gas)
+            .chain_id(get_settings().network.chain_id)
+            .build_raw_transaction(wallet)
+            .await
+            .map_err(|e| {
+                warn!("{e}");
+                ProposerRejection::FailedToRemoveProposer
+            })?;
         // add the proposer
         let tx = blockchain_client
             .send_raw_transaction(&raw_tx)
@@ -386,34 +340,19 @@ async fn handle_withdraw(amount: u64) -> Result<impl Reply, warp::Rejection> {
     let max_priority_fee_per_gas = gas_price;
     let gas_limit = 5000000u64;
 
-    let raw_tx = match wallet {
-        WalletType::Local(signer) => proposer_manager
-            .withdraw(U256::from(amount))
-            .nonce(nonce)
-            .gas(gas_limit)
-            .max_fee_per_gas(max_fee_per_gas)
-            .max_priority_fee_per_gas(max_priority_fee_per_gas)
-            .chain_id(get_settings().network.chain_id)
-            .build_raw_transaction((*signer).clone())
-            .await
-            .map_err(|e| {
-                warn!("{e}");
-                ProposerRejection::FailedToWithdrawStake
-            })?,
-        WalletType::Azure(azure_wallet) => proposer_manager
-            .withdraw(U256::from(amount))
-            .nonce(nonce)
-            .gas(gas_limit)
-            .max_fee_per_gas(max_fee_per_gas)
-            .max_priority_fee_per_gas(max_priority_fee_per_gas)
-            .chain_id(get_settings().network.chain_id)
-            .build_raw_transaction(azure_wallet)
-            .await
-            .map_err(|e| {
-                warn!("{e}");
-                ProposerRejection::FailedToWithdrawStake
-            })?,
-    };
+    let raw_tx = proposer_manager
+        .withdraw(U256::from(amount))
+        .nonce(nonce)
+        .gas(gas_limit)
+        .max_fee_per_gas(max_fee_per_gas)
+        .max_priority_fee_per_gas(max_priority_fee_per_gas)
+        .chain_id(get_settings().network.chain_id)
+        .build_raw_transaction(wallet)
+        .await
+        .map_err(|e| {
+            warn!("{e}");
+            ProposerRejection::FailedToWithdrawStake
+        })?;
     // add the proposer
     let tx = blockchain_client
         .send_raw_transaction(&raw_tx)

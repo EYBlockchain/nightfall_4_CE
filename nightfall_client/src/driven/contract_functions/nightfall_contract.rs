@@ -25,7 +25,6 @@ use lib::{
     secret_hash::SecretHash,
     shared_entities::{DepositSecret, TokenType, WithdrawData},
     verify_contract::VerifiedContracts,
-    wallets::WalletType,
 };
 use log::{debug, info};
 use nightfall_bindings::artifacts::{Nightfall, IERC3525};
@@ -73,12 +72,9 @@ impl NightfallContract for Nightfall::NightfallCalls {
         } else {
             fee + fee + deposit_fee
         };
-        let nonce = client
-            .get_transaction_count(caller)
-            .await
-            .map_err(|e| {
-                NightfallContractError::EscrowError(format!("Transaction unsuccesful: {e}"))
-            })?;
+        let nonce = client.get_transaction_count(caller).await.map_err(|e| {
+            NightfallContractError::EscrowError(format!("Transaction unsuccesful: {e}"))
+        })?;
         let gas_price = client.get_gas_price().await.map_err(|e| {
             NightfallContractError::EscrowError(format!("Transaction unsuccesful: {e}"))
         })?;
@@ -86,48 +82,26 @@ impl NightfallContract for Nightfall::NightfallCalls {
         let max_priority_fee_per_gas = gas_price;
         let gas_limit = 5000000u64;
 
-        let call = match wallet {
-            WalletType::Local(signer) => contract
-                .escrow_funds(
-                    solidity_fee.0,
-                    solidity_token_address.0,
-                    solidity_token_id.0,
-                    solidity_value.0,
-                    solidity_secret_hash.0,
-                    token_type.into(),
-                )
-                .value(Uint256::from(total_fee).0)
-                .nonce(nonce)
-                .gas(gas_limit)
-                .max_fee_per_gas(max_fee_per_gas)
-                .max_priority_fee_per_gas(max_priority_fee_per_gas)
-                .chain_id(get_settings().network.chain_id)// Linea testnet chain ID
-                .build_raw_transaction((*signer).clone())
-                .await
-                .map_err(|e| {
-                    NightfallContractError::EscrowError(format!("Transaction unsuccesful: {e}"))
-                })?,
-            WalletType::Azure(azure_wallet) => contract
-                .escrow_funds(
-                    solidity_fee.0,
-                    solidity_token_address.0,
-                    solidity_token_id.0,
-                    solidity_value.0,
-                    solidity_secret_hash.0,
-                    token_type.into(),
-                )
-                .value(Uint256::from(total_fee).0)
-                .nonce(nonce)
-                .gas(gas_limit)
-                .max_fee_per_gas(max_fee_per_gas)
-                .max_priority_fee_per_gas(max_priority_fee_per_gas)
-                .chain_id(get_settings().network.chain_id)
-                .build_raw_transaction(azure_wallet)
-                .await
-                .map_err(|e| {
-                    NightfallContractError::EscrowError(format!("Transaction unsuccesful: {e}"))
-                })?,
-        };
+        let call = contract
+            .escrow_funds(
+                solidity_fee.0,
+                solidity_token_address.0,
+                solidity_token_id.0,
+                solidity_value.0,
+                solidity_secret_hash.0,
+                token_type.into(),
+            )
+            .value(Uint256::from(total_fee).0)
+            .nonce(nonce)
+            .gas(gas_limit)
+            .max_fee_per_gas(max_fee_per_gas)
+            .max_priority_fee_per_gas(max_priority_fee_per_gas)
+            .chain_id(get_settings().network.chain_id)
+            .build_raw_transaction(wallet)
+            .await
+            .map_err(|e| {
+                NightfallContractError::EscrowError(format!("Transaction unsuccesful: {e}"))
+            })?;
 
         let receipt = client
             .send_raw_transaction(&call)
@@ -205,44 +179,27 @@ impl NightfallContract for Nightfall::NightfallCalls {
                 })?;
         let contract = verified.nightfall;
 
-        let nonce = client
-            .get_transaction_count(caller)
-            .await
-            .map_err(|e| {
-                NightfallContractError::DeEscrowError(format!("Transaction unsuccesful: {e}"))
-            })?;
+        let nonce = client.get_transaction_count(caller).await.map_err(|e| {
+            NightfallContractError::DeEscrowError(format!("Transaction unsuccesful: {e}"))
+        })?;
         let gas_price = client.get_gas_price().await.map_err(|e| {
             NightfallContractError::DeEscrowError(format!("Transaction unsuccesful: {e}"))
         })?;
         let max_fee_per_gas = gas_price * 2;
         let max_priority_fee_per_gas = gas_price;
         let gas_limit = 5000000u64;
-        let call = match wallet {
-            WalletType::Local(signer) => contract
-                .descrow_funds(decode_data.clone(), token_type.into())
-                .nonce(nonce)
-                .gas(gas_limit)
-                .max_fee_per_gas(max_fee_per_gas)
-                .max_priority_fee_per_gas(max_priority_fee_per_gas)
-                .chain_id(get_settings().network.chain_id)// Linea testnet chain ID
-                .build_raw_transaction((*signer).clone())
-                .await
-                .map_err(|e| {
-                    NightfallContractError::DeEscrowError(format!("Transaction unsuccesful: {e}"))
-                })?,
-            WalletType::Azure(azure_wallet) => contract
-                .descrow_funds(decode_data.clone(), token_type.into())
-                .nonce(nonce)
-                .gas(gas_limit)
-                .max_fee_per_gas(max_fee_per_gas)
-                .max_priority_fee_per_gas(max_priority_fee_per_gas)
-                .chain_id(get_settings().network.chain_id)
-                .build_raw_transaction(azure_wallet)
-                .await
-                .map_err(|e| {
-                    NightfallContractError::DeEscrowError(format!("Transaction unsuccesful: {e}"))
-                })?,
-        };
+        let call = contract
+            .descrow_funds(decode_data.clone(), token_type.into())
+            .nonce(nonce)
+            .gas(gas_limit)
+            .max_fee_per_gas(max_fee_per_gas)
+            .max_priority_fee_per_gas(max_priority_fee_per_gas)
+            .chain_id(get_settings().network.chain_id)
+            .build_raw_transaction(wallet)
+            .await
+            .map_err(|e| {
+                NightfallContractError::DeEscrowError(format!("Transaction unsuccesful: {e}"))
+            })?;
 
         let receipt = client
             .send_raw_transaction(&call)

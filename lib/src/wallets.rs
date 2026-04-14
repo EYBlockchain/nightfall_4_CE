@@ -3,7 +3,7 @@ use crate::{
 };
 use alloy::{
     consensus::SignableTransaction,
-    network::{Ethereum, NetworkWallet, TxSigner},
+    network::{Ethereum, EthereumWallet, IntoWallet, NetworkWallet, TxSigner},
     primitives::{Address, Signature},
     providers::{Provider, ProviderBuilder, WsConnect},
     signers::{local::PrivateKeySigner, utils::public_key_to_address},
@@ -23,6 +23,34 @@ use url::Url;
 pub enum WalletType {
     Local(Box<PrivateKeySigner>),
     Azure(AzureWallet),
+}
+
+#[async_trait]
+impl TxSigner<Signature> for WalletType {
+    fn address(&self) -> Address {
+        match self {
+            Self::Local(signer) => signer.address(),
+            Self::Azure(wallet) => wallet.address(),
+        }
+    }
+
+    async fn sign_transaction(
+        &self,
+        tx: &mut dyn SignableTransaction<Signature>,
+    ) -> Result<Signature, alloy::signers::Error> {
+        match self {
+            Self::Local(signer) => TxSigner::sign_transaction(&**signer, tx).await,
+            Self::Azure(wallet) => TxSigner::sign_transaction(wallet, tx).await,
+        }
+    }
+}
+
+impl IntoWallet<Ethereum> for WalletType {
+    type NetworkWallet = EthereumWallet;
+
+    fn into_wallet(self) -> Self::NetworkWallet {
+        EthereumWallet::new(self)
+    }
 }
 
 /// AzureWallet
@@ -317,18 +345,6 @@ impl BlockchainClientConnection for LocalWsClient {
 
     fn get_wallet_type(&self) -> &WalletType {
         &self.wallet
-    }
-
-    /// Get the PrivateKeySigner if using a local wallet
-    fn get_signer(&self) -> Arc<PrivateKeySigner> {
-        match &self.wallet {
-            WalletType::Local(signer) => Arc::from(signer.clone()),
-            WalletType::Azure(_) => {
-                panic!(
-                    "Cannot get PrivateKeySigner for Azure wallet - use provider methods instead"
-                )
-            }
-        }
     }
 
     /// Create a new instance from configuration settings

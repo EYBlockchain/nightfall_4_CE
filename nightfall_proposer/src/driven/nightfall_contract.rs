@@ -8,7 +8,7 @@ use alloy::primitives::I256;
 use configuration::{addresses::get_addresses, settings::get_settings};
 use lib::{
     blockchain_client::BlockchainClientConnection, error::NightfallContractError,
-    verify_contract::VerifiedContracts, wallets::WalletType,
+    verify_contract::VerifiedContracts,
 };
 use log::info;
 use nightfall_bindings::artifacts::Nightfall;
@@ -45,28 +45,16 @@ impl NightfallContract for Nightfall::NightfallCalls {
         let max_priority_fee_per_gas = gas_price;
         let gas_limit = 5000000u64;
 
-        let raw_tx = match wallet {
-            WalletType::Local(signer) => nightfall
-                .propose_block(blk.clone())
-                .nonce(nonce)
-                .gas(gas_limit)
-                .max_fee_per_gas(max_fee_per_gas)
-                .max_priority_fee_per_gas(max_priority_fee_per_gas)
-                .chain_id(get_settings().network.chain_id)
-                .build_raw_transaction((*signer).clone())
-                .await
-                .map_err(|_| NightfallContractError::TransactionError)?,
-            WalletType::Azure(azure_wallet) => nightfall
-                .propose_block(blk)
-                .nonce(nonce)
-                .gas(gas_limit)
-                .max_fee_per_gas(max_fee_per_gas)
-                .max_priority_fee_per_gas(max_priority_fee_per_gas)
-                .chain_id(get_settings().network.chain_id)
-                .build_raw_transaction(azure_wallet)
-                .await
-                .map_err(|_| NightfallContractError::TransactionError)?,
-        };
+        let raw_tx = nightfall
+            .propose_block(blk)
+            .nonce(nonce)
+            .gas(gas_limit)
+            .max_fee_per_gas(max_fee_per_gas)
+            .max_priority_fee_per_gas(max_priority_fee_per_gas)
+            .chain_id(get_settings().network.chain_id)
+            .build_raw_transaction(wallet)
+            .await
+            .map_err(|_| NightfallContractError::TransactionError)?;
 
         let receipt = blockchain_client
             .send_raw_transaction(&raw_tx)

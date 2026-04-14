@@ -5,7 +5,6 @@ use crate::{
     initialisation::get_blockchain_client_connection,
     models::bad_request,
     verify_contract::VerifiedContracts,
-    wallets::WalletType,
 };
 use alloy::{
     primitives::{Address, U256},
@@ -272,34 +271,19 @@ async fn validate_certificate(
     let max_priority_fee_per_gas = gas_price;
     let gas_limit = 16777216u64;
 
-    let call = match wallet {
-        WalletType::Local(signer) => x509_instance
-            .validateCertificate(certificate_args.clone())
-            .nonce(nonce)
-            .gas(gas_limit)
-            .max_fee_per_gas(max_fee_per_gas)
-            .max_priority_fee_per_gas(max_priority_fee_per_gas)
-            .chain_id(get_settings().network.chain_id) // Linea testnet chain ID
-            .build_raw_transaction((*signer).clone())
-            .await
-            .map_err(|e| {
-                warn!("{e}");
-                X509ValidationError
-            })?,
-        WalletType::Azure(azure_wallet) => x509_instance
-            .validateCertificate(certificate_args.clone())
-            .nonce(nonce)
-            .gas(gas_limit)
-            .max_fee_per_gas(max_fee_per_gas)
-            .max_priority_fee_per_gas(max_priority_fee_per_gas)
-            .chain_id(get_settings().network.chain_id) // Linea testnet chain ID
-            .build_raw_transaction(azure_wallet)
-            .await
-            .map_err(|e| {
-                warn!("{e}");
-                X509ValidationError
-            })?,
-    };
+    let call = x509_instance
+        .validateCertificate(certificate_args.clone())
+        .nonce(nonce)
+        .gas(gas_limit)
+        .max_fee_per_gas(max_fee_per_gas)
+        .max_priority_fee_per_gas(max_priority_fee_per_gas)
+        .chain_id(get_settings().network.chain_id) // Linea testnet chain ID
+        .build_raw_transaction(wallet)
+        .await
+        .map_err(|e| {
+            warn!("{e}");
+            X509ValidationError
+        })?;
     let tx_receipt = blockchain_client
         .send_raw_transaction(&call)
         .await
