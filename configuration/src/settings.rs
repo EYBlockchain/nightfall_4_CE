@@ -62,6 +62,12 @@ pub enum WalletTypeConfig {
     EyTransactionManager,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WalletRole {
+    Client,
+    Proposer,
+}
+
 #[derive(Debug, Deserialize, Default, Serialize)]
 #[allow(unused)]
 pub struct ClientConfig {
@@ -205,6 +211,13 @@ impl Settings {
         }
         Ok(settings)
     }
+
+    pub fn wallet_type_for_role(&self, role: WalletRole) -> &WalletTypeConfig {
+        match role {
+            WalletRole::Client => &self.nightfall_client.wallet_type,
+            WalletRole::Proposer => &self.nightfall_proposer.wallet_type,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -323,6 +336,42 @@ mod tests {
         match tmp_run_mode {
             Some(val) => env::set_var("NF4_RUN_MODE", val),
             None => env::remove_var("NF4_RUN_MODE"),
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn test_wallet_type_is_resolved_per_role() {
+        let tmp_run_mode = env::var("NF4_RUN_MODE").ok();
+        let tmp_client_wallet_type = env::var("NF4_NIGHTFALL_CLIENT__WALLET_TYPE").ok();
+        let tmp_proposer_wallet_type = env::var("NF4_NIGHTFALL_PROPOSER__WALLET_TYPE").ok();
+
+        env::set_var("NF4_RUN_MODE", "development");
+        env::set_var("NF4_NIGHTFALL_CLIENT__WALLET_TYPE", "local");
+        env::set_var("NF4_NIGHTFALL_PROPOSER__WALLET_TYPE", "azure");
+
+        let s = Settings::new().unwrap();
+
+        assert_eq!(
+            s.wallet_type_for_role(WalletRole::Client),
+            &WalletTypeConfig::Local
+        );
+        assert_eq!(
+            s.wallet_type_for_role(WalletRole::Proposer),
+            &WalletTypeConfig::Azure
+        );
+
+        match tmp_run_mode {
+            Some(val) => env::set_var("NF4_RUN_MODE", val),
+            None => env::remove_var("NF4_RUN_MODE"),
+        }
+        match tmp_client_wallet_type {
+            Some(val) => env::set_var("NF4_NIGHTFALL_CLIENT__WALLET_TYPE", val),
+            None => env::remove_var("NF4_NIGHTFALL_CLIENT__WALLET_TYPE"),
+        }
+        match tmp_proposer_wallet_type {
+            Some(val) => env::set_var("NF4_NIGHTFALL_PROPOSER__WALLET_TYPE", val),
+            None => env::remove_var("NF4_NIGHTFALL_PROPOSER__WALLET_TYPE"),
         }
     }
 }

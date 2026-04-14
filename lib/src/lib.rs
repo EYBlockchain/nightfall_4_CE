@@ -50,7 +50,7 @@ pub fn get_fee_token_id() -> Fr254 {
 
 pub mod initialisation {
     use crate::{blockchain_client::BlockchainClientConnection, wallets::LocalWsClient};
-    use configuration::settings::get_settings;
+    use configuration::settings::{get_settings, WalletRole};
     use tokio::sync::{OnceCell, RwLock};
     /// This function is used to provide a singleton blockchain client connection across the entire application.
     pub async fn get_blockchain_client_connection() -> &'static RwLock<LocalWsClient> {
@@ -59,7 +59,7 @@ pub mod initialisation {
         BLOCKCHAIN_CLIENT_CONNECTION
             .get_or_init(|| async {
                 RwLock::new(
-                    LocalWsClient::try_from_settings(get_settings())
+                    LocalWsClient::try_from_settings(get_settings(), WalletRole::Client)
                         .await
                         .expect("Could not create blockchain client connection"),
                 )

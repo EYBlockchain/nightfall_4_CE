@@ -12,7 +12,7 @@ use async_trait::async_trait;
 use azure_identity;
 use azure_security_keyvault::{prelude::*, KeyClient};
 use base64::prelude::*;
-use configuration::settings::WalletTypeConfig;
+use configuration::settings::{WalletRole, WalletTypeConfig};
 use k256::ecdsa::{RecoveryId, Signature as K256Signature, VerifyingKey};
 use k256::EncodedPoint;
 use log::{debug, info};
@@ -334,11 +334,12 @@ impl BlockchainClientConnection for LocalWsClient {
     /// Create a new instance from configuration settings
     async fn try_from_settings(
         settings: &Self::S,
+        role: WalletRole,
     ) -> Result<Self, BlockchainClientConnectionError> {
-        match settings.nightfall_client.wallet_type {
+        match settings.wallet_type_for_role(role) {
             // Handle different wallet types
             WalletTypeConfig::Local => {
-                info!("Creating local wallet");
+                info!("Creating local wallet for role {role:?}");
                 // Parse the private key from settings
                 let local_signer = settings
                     .signing_key
@@ -358,6 +359,7 @@ impl BlockchainClientConnection for LocalWsClient {
                 })
             }
             WalletTypeConfig::Azure => {
+                info!("Creating Azure wallet for role {role:?}");
                 // Initialize AzureWallet
                 let azure_wallet =
                     AzureWallet::new(&settings.azure_vault_url, &settings.azure_key_name).await?;

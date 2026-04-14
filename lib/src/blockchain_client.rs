@@ -6,6 +6,7 @@ use alloy::pubsub::PubSubConnect;
 use alloy::signers::local::PrivateKeySigner;
 use alloy::signers::Signer;
 use async_trait::async_trait;
+use configuration::settings::WalletRole;
 use serde::Deserialize;
 use std::{marker::Sync, sync::Arc};
 use url::Url;
@@ -38,7 +39,10 @@ pub trait BlockchainClientConnection: Clone + Send + Sync {
     where
         Self: Sized;
 
-    async fn try_from_settings(settings: &Self::S) -> Result<Self, BlockchainClientConnectionError>
+    async fn try_from_settings(
+        settings: &Self::S,
+        role: WalletRole,
+    ) -> Result<Self, BlockchainClientConnectionError>
     where
         Self: Sized;
 }
