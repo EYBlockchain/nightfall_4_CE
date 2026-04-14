@@ -160,8 +160,8 @@ pub struct Settings {
     pub swap_cancel_auth_token: Option<String>,
     #[serde(default)]
     pub azure_vault_url: String,
-    #[serde(default)]
-    pub azure_key_name: String,
+    pub client_azure_key_name: Option<String>,
+    pub proposer_azure_key_name: Option<String>,
     pub log_app_only: bool,
     pub test_x509_certificates: bool,
     pub mock_prover: bool,
@@ -199,23 +199,55 @@ impl Settings {
             .select(run_mode);
 
         let mut settings: Settings = figment.extract().map_err(|e| format!("{e}"))?;
-        // Check the wallet type and read additional Azure-specific settings
-        if settings.nightfall_client.wallet_type == WalletTypeConfig::Azure
-            || settings.nightfall_proposer.wallet_type == WalletTypeConfig::Azure
-        {
-            settings.azure_vault_url = env::var("AZURE_VAULT_URL").unwrap_or_default();
-            settings.azure_key_name = env::var("PROPOSER_SIGNING_KEY_NAME")
-                .or_else(|_| env::var("CLIENT_SIGNING_KEY_NAME"))
-                .or_else(|_| env::var("AZURE_KEY_NAME"))
-                .unwrap_or_default();
+        let client_uses_azure = settings.nightfall_client.wallet_type == WalletTypeConfig::Azure;
+        let proposer_uses_azure =
+            settings.nightfall_proposer.wallet_type == WalletTypeConfig::Azure;
+
+        if client_uses_azure || proposer_uses_azure {
+            settings.azure_vault_url =
+                Self::require_env("AZURE_VAULT_URL", "Azure wallet configuration")?;
+        }
+        if client_uses_azure {
+            settings.client_azure_key_name = Some(Self::require_env(
+                "CLIENT_SIGNING_KEY_NAME",
+                "Azure client wallet",
+            )?);
+        }
+        if proposer_uses_azure {
+            settings.proposer_azure_key_name = Some(Self::require_env(
+                "PROPOSER_SIGNING_KEY_NAME",
+                "Azure proposer wallet",
+            )?);
         }
         Ok(settings)
+    }
+
+    fn require_env(var_name: &str, context: &str) -> Result<String, String> {
+        match env::var(var_name) {
+            Ok(value) if !value.trim().is_empty() => Ok(value),
+            Ok(_) | Err(_) => Err(format!("Missing {var_name} for {context}")),
+        }
     }
 
     pub fn wallet_type_for_role(&self, role: WalletRole) -> &WalletTypeConfig {
         match role {
             WalletRole::Client => &self.nightfall_client.wallet_type,
             WalletRole::Proposer => &self.nightfall_proposer.wallet_type,
+        }
+    }
+
+    pub fn azure_key_name_for_role(&self, role: WalletRole) -> Result<&str, String> {
+        match role {
+            WalletRole::Client => self
+                .client_azure_key_name
+                .as_deref()
+                .ok_or_else(|| "Missing CLIENT_SIGNING_KEY_NAME for Azure client wallet".to_string()),
+            WalletRole::Proposer => self
+                .proposer_azure_key_name
+                .as_deref()
+                .ok_or_else(|| {
+                    "Missing PROPOSER_SIGNING_KEY_NAME for Azure proposer wallet".to_string()
+                }),
         }
     }
 }
@@ -345,10 +377,14 @@ mod tests {
         let tmp_run_mode = env::var("NF4_RUN_MODE").ok();
         let tmp_client_wallet_type = env::var("NF4_NIGHTFALL_CLIENT__WALLET_TYPE").ok();
         let tmp_proposer_wallet_type = env::var("NF4_NIGHTFALL_PROPOSER__WALLET_TYPE").ok();
+        let tmp_proposer_signing_key_name = env::var("PROPOSER_SIGNING_KEY_NAME").ok();
+        let tmp_azure_vault_url = env::var("AZURE_VAULT_URL").ok();
 
         env::set_var("NF4_RUN_MODE", "development");
         env::set_var("NF4_NIGHTFALL_CLIENT__WALLET_TYPE", "local");
         env::set_var("NF4_NIGHTFALL_PROPOSER__WALLET_TYPE", "azure");
+        env::set_var("PROPOSER_SIGNING_KEY_NAME", "proposer-key");
+        env::set_var("AZURE_VAULT_URL", "https://example.vault.azure.net");
 
         let s = Settings::new().unwrap();
 
@@ -372,6 +408,100 @@ mod tests {
         match tmp_proposer_wallet_type {
             Some(val) => env::set_var("NF4_NIGHTFALL_PROPOSER__WALLET_TYPE", val),
             None => env::remove_var("NF4_NIGHTFALL_PROPOSER__WALLET_TYPE"),
+        }
+        match tmp_proposer_signing_key_name {
+            Some(val) => env::set_var("PROPOSER_SIGNING_KEY_NAME", val),
+            None => env::remove_var("PROPOSER_SIGNING_KEY_NAME"),
+        }
+        match tmp_azure_vault_url {
+            Some(val) => env::set_var("AZURE_VAULT_URL", val),
+            None => env::remove_var("AZURE_VAULT_URL"),
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn test_missing_client_azure_key_name_fails_fast() {
+        let tmp_run_mode = env::var("NF4_RUN_MODE").ok();
+        let tmp_client_wallet_type = env::var("NF4_NIGHTFALL_CLIENT__WALLET_TYPE").ok();
+        let tmp_proposer_wallet_type = env::var("NF4_NIGHTFALL_PROPOSER__WALLET_TYPE").ok();
+        let tmp_client_signing_key_name = env::var("CLIENT_SIGNING_KEY_NAME").ok();
+        let tmp_azure_vault_url = env::var("AZURE_VAULT_URL").ok();
+
+        env::set_var("NF4_RUN_MODE", "development");
+        env::set_var("NF4_NIGHTFALL_CLIENT__WALLET_TYPE", "azure");
+        env::set_var("NF4_NIGHTFALL_PROPOSER__WALLET_TYPE", "local");
+        env::remove_var("CLIENT_SIGNING_KEY_NAME");
+        env::set_var("AZURE_VAULT_URL", "https://example.vault.azure.net");
+
+        let err = Settings::new().unwrap_err();
+        assert_eq!(
+            err,
+            "Missing CLIENT_SIGNING_KEY_NAME for Azure client wallet"
+        );
+
+        match tmp_run_mode {
+            Some(val) => env::set_var("NF4_RUN_MODE", val),
+            None => env::remove_var("NF4_RUN_MODE"),
+        }
+        match tmp_client_wallet_type {
+            Some(val) => env::set_var("NF4_NIGHTFALL_CLIENT__WALLET_TYPE", val),
+            None => env::remove_var("NF4_NIGHTFALL_CLIENT__WALLET_TYPE"),
+        }
+        match tmp_proposer_wallet_type {
+            Some(val) => env::set_var("NF4_NIGHTFALL_PROPOSER__WALLET_TYPE", val),
+            None => env::remove_var("NF4_NIGHTFALL_PROPOSER__WALLET_TYPE"),
+        }
+        match tmp_client_signing_key_name {
+            Some(val) => env::set_var("CLIENT_SIGNING_KEY_NAME", val),
+            None => env::remove_var("CLIENT_SIGNING_KEY_NAME"),
+        }
+        match tmp_azure_vault_url {
+            Some(val) => env::set_var("AZURE_VAULT_URL", val),
+            None => env::remove_var("AZURE_VAULT_URL"),
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn test_missing_proposer_azure_key_name_fails_fast() {
+        let tmp_run_mode = env::var("NF4_RUN_MODE").ok();
+        let tmp_client_wallet_type = env::var("NF4_NIGHTFALL_CLIENT__WALLET_TYPE").ok();
+        let tmp_proposer_wallet_type = env::var("NF4_NIGHTFALL_PROPOSER__WALLET_TYPE").ok();
+        let tmp_proposer_signing_key_name = env::var("PROPOSER_SIGNING_KEY_NAME").ok();
+        let tmp_azure_vault_url = env::var("AZURE_VAULT_URL").ok();
+
+        env::set_var("NF4_RUN_MODE", "development");
+        env::set_var("NF4_NIGHTFALL_CLIENT__WALLET_TYPE", "local");
+        env::set_var("NF4_NIGHTFALL_PROPOSER__WALLET_TYPE", "azure");
+        env::remove_var("PROPOSER_SIGNING_KEY_NAME");
+        env::set_var("AZURE_VAULT_URL", "https://example.vault.azure.net");
+
+        let err = Settings::new().unwrap_err();
+        assert_eq!(
+            err,
+            "Missing PROPOSER_SIGNING_KEY_NAME for Azure proposer wallet"
+        );
+
+        match tmp_run_mode {
+            Some(val) => env::set_var("NF4_RUN_MODE", val),
+            None => env::remove_var("NF4_RUN_MODE"),
+        }
+        match tmp_client_wallet_type {
+            Some(val) => env::set_var("NF4_NIGHTFALL_CLIENT__WALLET_TYPE", val),
+            None => env::remove_var("NF4_NIGHTFALL_CLIENT__WALLET_TYPE"),
+        }
+        match tmp_proposer_wallet_type {
+            Some(val) => env::set_var("NF4_NIGHTFALL_PROPOSER__WALLET_TYPE", val),
+            None => env::remove_var("NF4_NIGHTFALL_PROPOSER__WALLET_TYPE"),
+        }
+        match tmp_proposer_signing_key_name {
+            Some(val) => env::set_var("PROPOSER_SIGNING_KEY_NAME", val),
+            None => env::remove_var("PROPOSER_SIGNING_KEY_NAME"),
+        }
+        match tmp_azure_vault_url {
+            Some(val) => env::set_var("AZURE_VAULT_URL", val),
+            None => env::remove_var("AZURE_VAULT_URL"),
         }
     }
 }

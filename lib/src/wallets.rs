@@ -361,8 +361,11 @@ impl BlockchainClientConnection for LocalWsClient {
             WalletTypeConfig::Azure => {
                 info!("Creating Azure wallet for role {role:?}");
                 // Initialize AzureWallet
+                let azure_key_name = settings
+                    .azure_key_name_for_role(role)
+                    .map_err(BlockchainClientConnectionError::InvalidWalletType)?;
                 let azure_wallet =
-                    AzureWallet::new(&settings.azure_vault_url, &settings.azure_key_name).await?;
+                    AzureWallet::new(&settings.azure_vault_url, azure_key_name).await?;
 
                 let ws = WsConnect::new(settings.ethereum_client_url.clone());
                 let provider = ProviderBuilder::new()
