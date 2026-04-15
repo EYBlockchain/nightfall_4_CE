@@ -14,7 +14,10 @@ use async_trait::async_trait;
 use azure_identity;
 use azure_security_keyvault::{prelude::*, KeyClient};
 use base64::prelude::*;
-use configuration::{addresses::get_addresses, settings::get_settings};
+use configuration::{
+    addresses::get_addresses,
+    settings::{get_settings, WalletRole, X509SignerTypeConfig},
+};
 use futures::stream::TryStreamExt;
 use log::{debug, error, trace, warn};
 use nightfall_bindings::artifacts::X509;
@@ -121,18 +124,23 @@ impl CertificateSigner for AzureRsaCertificateSigner {
 }
 
 pub fn certification_validation_request(
+    role: WalletRole,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     debug!("Received certification request");
     path!("v1" / "certification")
         .and(warp::post())
         .and(warp::multipart::form().max_length(16192))
-        .and_then(handle_certificate_validation)
+        .and_then(move |x509_data| handle_certificate_validation(x509_data, role))
 }
 
 // Middleware to validate the certificate
 pub async fn handle_certificate_validation(
     mut x509_data: FormData,
+    role: WalletRole,
 ) -> Result<impl Reply, warp::Rejection> {
+    let settings = get_settings();
+    let x509_signer_type = settings.x509_signer_type_for_role(role).clone();
+
     // Parse the certificate validation request (by FIELD NAME, not filename)
     let mut certificate_req = CertificateReq::default();
     while let Some(part_res) = x509_data.try_next().await.transpose() {
@@ -181,7 +189,9 @@ pub async fn handle_certificate_validation(
     if certificate_req.certificate.is_empty() {
         return Ok(bad_request("Missing 'certificate' field or empty file"));
     }
-    if certificate_req.certificate_private_key.is_empty() {
+    if x509_signer_type == X509SignerTypeConfig::Local
+        && certificate_req.certificate_private_key.is_empty()
+    {
         return Ok(bad_request("Missing 'priv_key' field or empty file"));
     }
 
@@ -210,13 +220,20 @@ pub async fn handle_certificate_validation(
         warp::reject::custom(CertificateVerificationError::new("Failed to get chain ID"))
     })?;
 
-    if let Err(e) = prevalidate_certificate_and_key(
-        &certificate_req.certificate,
-        &certificate_req.certificate_private_key,
-        &prevalidation_address,
-        &x509_addr,
-        chain_id,
-    ) {
+    let prevalidation_result = match x509_signer_type {
+        X509SignerTypeConfig::Local => prevalidate_certificate_and_key(
+            &certificate_req.certificate,
+            &certificate_req.certificate_private_key,
+            &prevalidation_address,
+            &x509_addr,
+            chain_id,
+        ),
+        X509SignerTypeConfig::Azure => {
+            prevalidate_certificate(&certificate_req.certificate)
+        }
+    };
+
+    if let Err(e) = prevalidation_result {
         warn!("Client-side certificate prevalidation failed: {e}");
         return Ok(bad_request(
             "Certificate / private key prevalidation failed",
@@ -244,9 +261,32 @@ pub async fn handle_certificate_validation(
     let x509_instance = verified.x509;
 
     // 3) Build signature over the requester address
-    debug!("Signing ethereum address {requestor_address} with certificate private key");
-    let certificate_signer =
-        LocalCertificateSigner::new(certificate_req.certificate_private_key.clone());
+    let certificate_signer: Box<dyn CertificateSigner> = match x509_signer_type {
+        X509SignerTypeConfig::Local => {
+            debug!("Signing ethereum address {requestor_address} with local certificate private key");
+            Box::new(LocalCertificateSigner::new(
+                certificate_req.certificate_private_key.clone(),
+            ))
+        }
+        X509SignerTypeConfig::Azure => {
+            let key_name = settings.x509_azure_key_name_for_role(role).map_err(|e| {
+                error!("Missing Azure X509 key configuration: {e}");
+                warp::reject::custom(CertificateVerificationError::new(
+                    "Failed to resolve Azure X509 signer configuration",
+                ))
+            })?;
+
+            debug!("Signing ethereum address {requestor_address} with Azure X509 key {key_name}");
+            let signer = AzureRsaCertificateSigner::new(&settings.azure_vault_url, key_name)
+                .map_err(|e| {
+                    error!("Failed to create AzureRsaCertificateSigner: {e}");
+                    warp::reject::custom(CertificateVerificationError::new(
+                        "Failed to initialize Azure X509 signer",
+                    ))
+                })?;
+            Box::new(signer)
+        }
+    };
     let ethereum_address_signature = match certificate_signer
         .sign_possession_proof(&requestor_address, &x509_addr, chain_id)
         .await
@@ -530,6 +570,48 @@ fn prevalidate_certificate_and_key(
         return Err(prevalidation_error(
             "Certificate public key does not match supplied private key",
         ));
+    }
+
+    Ok(())
+}
+
+fn prevalidate_certificate(cert_der: &[u8]) -> Result<(), CertificateVerificationError> {
+    let cert = OpensslX509::from_der(cert_der).map_err(|e| {
+        error!("X.509 parse error: {e}");
+        prevalidation_error("Invalid X.509 certificate (DER parsing failed)")
+    })?;
+
+    let now = Asn1Time::days_from_now(0).map_err(|e| {
+        error!("Asn1Time::days_from_now error: {e}");
+        prevalidation_error("Internal time error while checking certificate validity")
+    })?;
+
+    if cert.not_before() > now {
+        return Err(prevalidation_error(
+            "Certificate is not yet valid (not_before is in the future)",
+        ));
+    }
+    if cert.not_after() < now {
+        return Err(prevalidation_error(
+            "Certificate has expired (not_after is in the past)",
+        ));
+    }
+
+    let pubkey = cert.public_key().map_err(|e| {
+        error!("Failed to extract public key from certificate: {e}");
+        prevalidation_error("Cannot extract public key from certificate")
+    })?;
+
+    if pubkey.id() == PKeyId::RSA {
+        let rsa_pub = pubkey.rsa().map_err(|e| {
+            error!("Failed to convert public key to RSA: {e}");
+            prevalidation_error("Invalid RSA public key inside certificate")
+        })?;
+        if rsa_pub.size() < 2048 / 8 {
+            return Err(prevalidation_error(
+                "RSA key too short (must be at least 2048 bits)",
+            ));
+        }
     }
 
     Ok(())

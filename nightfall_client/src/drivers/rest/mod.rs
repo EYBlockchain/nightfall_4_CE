@@ -1,5 +1,6 @@
 use crate::ports::contracts::NightfallContract;
 use balance::{get_balance, get_fee_balance, get_l1_balance};
+use configuration::settings::WalletRole;
 use lib::{
     health_check::health_route, nf_client_proof::Proof,
     validate_certificate::certification_validation_request, validate_keys::keys_validation_request,
@@ -58,7 +59,7 @@ where
         .or(get_max_transferable_amount_by_token_type())
         .or(derive_key_mnemonic())
         .or(get_proposers())
-        .or(certification_validation_request())
+        .or(certification_validation_request(WalletRole::Client))
         .or(keys_validation_request())
         .or(get_balance())
         .or(get_fee_balance())
