@@ -180,16 +180,34 @@ Do not confuse NF4_RUN_MODE, which selects the top-level section of `nightfall.t
 Additonally, any configuration item can also be overridden via an enviroment variable by naming an environment variable `NF4_<name of variable in nightfall.toml>`. You do not need to include the main section name: that is taken from the environment variable `NF4_RUN_MODE`. It defaults to `development` if `NF4_RUN_MODE` is not set. Some configuration variables are in sub-categories, for example under `[development.nightfall_deployer]`. Use a double __ to identify a variable within a sub-category (replacing the dot that would be used in the equivalent Rust struct). For example, the `log_level` variable in `nightfall.toml` that is under `[development]` under `[development.nightfall_deployer]` would be overridden by the environment variable `NF4_NIGHTFALL_DEPLOYER__LOG_LEVEL`, provided of course that `NF4_RUN_MODE` is set to `development` (or left unset).
 
 Finally, secret items, such as keys, do not appear in `nightfall.toml` (except for one signing key used for basic testing - which will be removed soon). Depending on the wallet type being used, keys should instead be set via environment variables, a key-store or an HSM. Test keys are currently provided via a `.env` file in the project root, using the LocalWallet type, that sets its keys as environment variables.
-NF_4 also supports the AzureWallet type, allowing keys to be securely stored in Azure Key Vault. To use this feature, you can register an NF_4 application in Azure App Registration and grant it access to the stored keys. When enabling this functionality, make sure to set the following environment variables:
-AZURE_VAULT_URL=
-DEPLOYER_SIGNING_KEY_NAME=
-PROPOSER_SIGNING_KEY_NAME=
-PROPOSER_2_SIGNING_KEY_NAME=
-CLIENT_SIGNING_KEY_NAME=
-CLIENT2_SIGNING_KEY_NAME=
-AZURE_CLIENT_ID=
-AZURE_CLIENT_SECRET=
-AZURE_TENANT_ID= .
+NF_4 also supports Azure Key Vault-backed signing. To use this feature, register an NF_4 application in Azure App Registration and grant it access to the required keys in Key Vault.
+
+For Azure-backed signing, the configuration is split by signing surface:
+
+```env
+# Ethereum L1 signing
+NF4_NIGHTFALL_CLIENT__WALLET_TYPE=azure
+CLIENT_SIGNING_KEY_NAME=<ethereum-key-name-in-vault>
+
+NF4_NIGHTFALL_PROPOSER__WALLET_TYPE=azure
+PROPOSER_SIGNING_KEY_NAME=<ethereum-key-name-in-vault>
+
+# X.509 proof-of-possession signing
+NF4_NIGHTFALL_CLIENT__X509_SIGNER_TYPE=azure
+CLIENT_X509_SIGNING_KEY_NAME=<rsa-key-name-in-vault>
+
+NF4_NIGHTFALL_PROPOSER__X509_SIGNER_TYPE=azure
+PROPOSER_X509_SIGNING_KEY_NAME=<rsa-key-name-in-vault>
+
+# Shared Azure config
+AZURE_VAULT_URL=https://<vault-name>.vault.azure.net/
+AZURE_CLIENT_ID=...
+AZURE_CLIENT_SECRET=...
+AZURE_TENANT_ID=...
+```
+
+In Azure mode, the Ethereum L1 signing key should be an EC `P-256K` / `secp256k1` key in Key Vault.
+The X.509 proof-of-possession key should be the RSA private key corresponding to the user certificate already accepted by Nightfall.
 
 ### Advisory swap cancellation auth
 
