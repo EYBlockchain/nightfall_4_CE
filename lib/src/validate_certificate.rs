@@ -11,6 +11,9 @@ use alloy::{
     providers::Provider,
 };
 use async_trait::async_trait;
+use azure_identity;
+use azure_security_keyvault::{prelude::*, KeyClient};
+use base64::prelude::*;
 use configuration::{addresses::get_addresses, settings::get_settings};
 use futures::stream::TryStreamExt;
 use log::{debug, error, trace, warn};
@@ -18,6 +21,7 @@ use nightfall_bindings::artifacts::X509;
 use openssl::{
     asn1::Asn1Time,
     hash::MessageDigest,
+    sha::sha256,
     pkey::{Id as PKeyId, PKey},
     rsa::{Padding, Rsa},
     sign::{RsaPssSaltlen, Signer as opensslSigner, Verifier},
@@ -26,6 +30,7 @@ use openssl::{
 use reqwest::StatusCode;
 use std::error::Error;
 use std::io::Read;
+use std::sync::Arc;
 use warp::{filters::multipart::FormData, path, reply::Reply, Buf, Filter};
 use x509_parser::nom::AsBytes;
 use zeroize::{Zeroize, ZeroizeOnDrop};
@@ -73,6 +78,45 @@ impl CertificateSigner for LocalCertificateSigner {
     ) -> CertificateSignerResult<Vec<u8>> {
         let preimage = build_certificate_possession_preimage(address, verifying_contract, chain_id);
         sign_certificate_possession_preimage(&self.der_private_key, &preimage)
+    }
+}
+
+#[derive(Clone)]
+pub struct AzureRsaCertificateSigner {
+    key_client: Arc<KeyClient>,
+    key_name: String,
+}
+
+impl AzureRsaCertificateSigner {
+    pub fn new(vault_url: &str, key_name: &str) -> CertificateSignerResult<Self> {
+        let credential = azure_identity::create_credential()?;
+        let key_client = KeyClient::new(vault_url, credential)?;
+
+        Ok(Self {
+            key_client: Arc::new(key_client),
+            key_name: key_name.to_string(),
+        })
+    }
+}
+
+#[async_trait]
+impl CertificateSigner for AzureRsaCertificateSigner {
+    async fn sign_possession_proof(
+        &self,
+        address: &Address,
+        verifying_contract: &Address,
+        chain_id: u64,
+    ) -> CertificateSignerResult<Vec<u8>> {
+        let preimage = build_certificate_possession_preimage(address, verifying_contract, chain_id);
+        let digest = sha256(&preimage);
+        let digest_base64 = BASE64_STANDARD.encode(digest);
+
+        let sign_result = self
+            .key_client
+            .sign(&self.key_name, SignatureAlgorithm::PS256, digest_base64)
+            .await?;
+
+        Ok(sign_result.signature)
     }
 }
 
