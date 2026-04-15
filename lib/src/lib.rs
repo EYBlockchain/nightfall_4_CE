@@ -52,18 +52,39 @@ pub mod initialisation {
     use crate::{blockchain_client::BlockchainClientConnection, wallets::LocalWsClient};
     use configuration::settings::{get_settings, WalletRole};
     use tokio::sync::{OnceCell, RwLock};
+
     /// This function is used to provide a singleton blockchain client connection across the entire application.
     pub async fn get_blockchain_client_connection() -> &'static RwLock<LocalWsClient> {
-        static BLOCKCHAIN_CLIENT_CONNECTION: OnceCell<RwLock<LocalWsClient>> =
+        get_blockchain_client_connection_for_role(WalletRole::Client).await
+    }
+
+    pub async fn get_blockchain_client_connection_for_role(
+        role: WalletRole,
+    ) -> &'static RwLock<LocalWsClient> {
+        static CLIENT_BLOCKCHAIN_CLIENT_CONNECTION: OnceCell<RwLock<LocalWsClient>> =
             OnceCell::const_new();
-        BLOCKCHAIN_CLIENT_CONNECTION
-            .get_or_init(|| async {
-                RwLock::new(
-                    LocalWsClient::try_from_settings(get_settings(), WalletRole::Client)
-                        .await
-                        .expect("Could not create blockchain client connection"),
-                )
-            })
-            .await
+        static PROPOSER_BLOCKCHAIN_CLIENT_CONNECTION: OnceCell<RwLock<LocalWsClient>> =
+            OnceCell::const_new();
+
+        match role {
+            WalletRole::Client => CLIENT_BLOCKCHAIN_CLIENT_CONNECTION
+                .get_or_init(|| async {
+                    RwLock::new(
+                        LocalWsClient::try_from_settings(get_settings(), WalletRole::Client)
+                            .await
+                            .expect("Could not create blockchain client connection"),
+                    )
+                })
+                .await,
+            WalletRole::Proposer => PROPOSER_BLOCKCHAIN_CLIENT_CONNECTION
+                .get_or_init(|| async {
+                    RwLock::new(
+                        LocalWsClient::try_from_settings(get_settings(), WalletRole::Proposer)
+                            .await
+                            .expect("Could not create proposer blockchain client connection"),
+                    )
+                })
+                .await,
+        }
     }
 }

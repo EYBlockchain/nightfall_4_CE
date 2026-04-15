@@ -2,7 +2,7 @@ use super::models::CertificateReq;
 use crate::{
     blockchain_client::BlockchainClientConnection,
     error::{CertificateVerificationError, NightfallContractError},
-    initialisation::get_blockchain_client_connection,
+    initialisation::get_blockchain_client_connection_for_role,
     models::bad_request,
     verify_contract::VerifiedContracts,
 };
@@ -201,7 +201,7 @@ pub async fn handle_certificate_validation(
     let prevalidation_address = {
         // We do not yet have the blockchain client, but the requestor address is
         // exactly what will be bound, so we need it here anyway.
-        let conn_guard = get_blockchain_client_connection().await;
+        let conn_guard = get_blockchain_client_connection_for_role(role).await;
         let read_conn = conn_guard.read().await;
         read_conn.get_address()
     };
@@ -209,7 +209,7 @@ pub async fn handle_certificate_validation(
     let x509_addr = get_addresses().x509;
 
     // Resolve client
-    let client = get_blockchain_client_connection()
+    let client = get_blockchain_client_connection_for_role(role)
         .await
         .read()
         .await
@@ -242,7 +242,7 @@ pub async fn handle_certificate_validation(
 
     // 2) Resolve address
     let blockchain_client = client.root();
-    let requestor_address = get_blockchain_client_connection()
+    let requestor_address = get_blockchain_client_connection_for_role(role)
         .await
         .read()
         .await
@@ -314,6 +314,7 @@ pub async fn handle_certificate_validation(
         check_only, // write path
         0,
         requestor_address,
+        role,
     )
     .await
     {
@@ -348,8 +349,12 @@ async fn validate_certificate(
     check_only: bool,
     oid_group: u32,
     sender_address: Address,
+    role: WalletRole,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let read_connection = get_blockchain_client_connection().await.read().await;
+    let read_connection = get_blockchain_client_connection_for_role(role)
+        .await
+        .read()
+        .await;
     let provider = read_connection.get_client();
     let blockchain_client = provider.root();
     let verified =
