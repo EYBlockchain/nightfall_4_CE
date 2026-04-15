@@ -304,6 +304,28 @@ struct PrivateKeyMaterial {
     key: Vec<u8>,
 }
 
+fn build_certificate_possession_preimage(
+    address: &Address,
+    verifying_contract: &Address,
+    chain_id: u64,
+) -> Vec<u8> {
+    // Minimal domain separation: human-readable, versioned, bound to contract + chain.
+    // preimage = "ADDR-LINK|v1|contract:" || verifying_contract || "|chainId:" || u64_be || "|addr:" || address
+    const PREFIX: &[u8] = b"ADDR-LINK|v1|contract:";
+    const SEP_CHAIN: &[u8] = b"|chainId:";
+    const SEP_ADDR: &[u8] = b"|addr:";
+
+    let mut preimage =
+        Vec::with_capacity(PREFIX.len() + 20 + SEP_CHAIN.len() + 8 + SEP_ADDR.len() + 20);
+    preimage.extend_from_slice(PREFIX);
+    preimage.extend_from_slice(verifying_contract.as_bytes());// 20 bytes
+    preimage.extend_from_slice(SEP_CHAIN);
+    preimage.extend_from_slice(&chain_id.to_be_bytes());// 8 bytes, big-endian
+    preimage.extend_from_slice(SEP_ADDR);
+    preimage.extend_from_slice(address.as_bytes());// 20 bytes
+    preimage
+}
+
 /// Sign an Ethereum address using an RSA private key
 pub fn sign_ethereum_address(
     der_private_key: &[u8],
@@ -325,21 +347,8 @@ pub fn sign_ethereum_address(
     signer.set_rsa_mgf1_md(MessageDigest::sha256())?;
     signer.set_rsa_pss_saltlen(RsaPssSaltlen::DIGEST_LENGTH)?;
 
-    // Minimal domain separation: human-readable, versioned, bound to contract + chain
-    // preimage = "ADDR-LINK|v1|contract:" || verifying_contract || "|chainId:" || u64_be || "|addr:" || address
-    const PREFIX: &[u8] = b"ADDR-LINK|v1|contract:";
-    const SEP_CHAIN: &[u8] = b"|chainId:";
-    const SEP_ADDR: &[u8] = b"|addr:";
-    let mut preimage =
-        Vec::with_capacity(PREFIX.len() + 20 + SEP_CHAIN.len() + 8 + SEP_ADDR.len() + 20);
-    preimage.extend_from_slice(PREFIX);
-    preimage.extend_from_slice(verifying_contract.as_bytes()); // 20 bytes
-    preimage.extend_from_slice(SEP_CHAIN);
-    preimage.extend_from_slice(&chain_id.to_be_bytes()); // 8 bytes, big-endian
-    preimage.extend_from_slice(SEP_ADDR);
-    preimage.extend_from_slice(address.as_bytes()); // 20 bytes
+    let preimage = build_certificate_possession_preimage(address, verifying_contract, chain_id);
 
-    // Sign the address bytes
     signer.update(&preimage)?;
     let signature = signer.sign_to_vec()?;
     key_material.zeroize(); // Zeroize private key material
@@ -456,21 +465,8 @@ fn verify_ethereum_address_signature(
     verifier.set_rsa_mgf1_md(MessageDigest::sha256())?;
     verifier.set_rsa_pss_saltlen(RsaPssSaltlen::DIGEST_LENGTH)?;
 
-    // Minimal domain separation: human-readable, versioned, bound to contract + chain
-    // preimage = "ADDR-LINK|v1|contract:" || verifying_contract || "|chainId:" || u64_be || "|addr:" || address
-    const PREFIX: &[u8] = b"ADDR-LINK|v1|contract:";
-    const SEP_CHAIN: &[u8] = b"|chainId:";
-    const SEP_ADDR: &[u8] = b"|addr:";
-    let mut preimage =
-        Vec::with_capacity(PREFIX.len() + 20 + SEP_CHAIN.len() + 8 + SEP_ADDR.len() + 20);
-    preimage.extend_from_slice(PREFIX);
-    preimage.extend_from_slice(verifying_contract.as_bytes()); // 20 bytes
-    preimage.extend_from_slice(SEP_CHAIN);
-    preimage.extend_from_slice(&chain_id.to_be_bytes()); // 8 bytes, big-endian
-    preimage.extend_from_slice(SEP_ADDR);
-    preimage.extend_from_slice(address.as_bytes()); // 20 bytes
+    let preimage = build_certificate_possession_preimage(address, verifying_contract, chain_id);
 
-    // Verify the signature over the structured preimage
     verifier.update(&preimage)?;
 
     let result = verifier.verify(signature)?; // expects same PKCS#1 v1.5 structure
