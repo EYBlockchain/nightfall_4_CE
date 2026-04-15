@@ -10,6 +10,7 @@ use alloy::{
     primitives::{Address, U256},
     providers::Provider,
 };
+use async_trait::async_trait;
 use configuration::{addresses::get_addresses, settings::get_settings};
 use futures::stream::TryStreamExt;
 use log::{debug, error, trace, warn};
@@ -28,6 +29,9 @@ use std::io::Read;
 use warp::{filters::multipart::FormData, path, reply::Reply, Buf, Filter};
 use x509_parser::nom::AsBytes;
 use zeroize::{Zeroize, ZeroizeOnDrop};
+
+type CertificateSignerResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
+
 #[derive(Debug)]
 pub struct X509ValidationError;
 
@@ -38,6 +42,39 @@ impl std::fmt::Display for X509ValidationError {
 }
 
 impl std::error::Error for X509ValidationError {}
+
+#[async_trait]
+trait CertificateSigner: Send + Sync {
+    async fn sign_possession_proof(
+        &self,
+        address: &Address,
+        verifying_contract: &Address,
+        chain_id: u64,
+    ) -> CertificateSignerResult<Vec<u8>>;
+}
+
+struct LocalCertificateSigner {
+    der_private_key: Vec<u8>,
+}
+
+impl LocalCertificateSigner {
+    fn new(der_private_key: Vec<u8>) -> Self {
+        Self { der_private_key }
+    }
+}
+
+#[async_trait]
+impl CertificateSigner for LocalCertificateSigner {
+    async fn sign_possession_proof(
+        &self,
+        address: &Address,
+        verifying_contract: &Address,
+        chain_id: u64,
+    ) -> CertificateSignerResult<Vec<u8>> {
+        let preimage = build_certificate_possession_preimage(address, verifying_contract, chain_id);
+        sign_certificate_possession_preimage(&self.der_private_key, &preimage)
+    }
+}
 
 pub fn certification_validation_request(
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
@@ -164,15 +201,15 @@ pub async fn handle_certificate_validation(
 
     // 3) Build signature over the requester address
     debug!("Signing ethereum address {requestor_address} with certificate private key");
-    let ethereum_address_signature = match sign_ethereum_address(
-        &certificate_req.certificate_private_key,
-        &requestor_address,
-        &x509_addr,
-        chain_id,
-    ) {
+    let certificate_signer =
+        LocalCertificateSigner::new(certificate_req.certificate_private_key.clone());
+    let ethereum_address_signature = match certificate_signer
+        .sign_possession_proof(&requestor_address, &x509_addr, chain_id)
+        .await
+    {
         Ok(sig) => sig,
         Err(e) => {
-            error!("sign_ethereum_address failed: {e}");
+            error!("CertificateSigner::sign_possession_proof failed: {e}");
             let body = warp::reply::json(&serde_json::json!({
                 "status": "ok",
                 "certified": false
@@ -326,6 +363,28 @@ fn build_certificate_possession_preimage(
     preimage
 }
 
+fn sign_certificate_possession_preimage(
+    der_private_key: &[u8],
+    preimage: &[u8],
+) -> CertificateSignerResult<Vec<u8>> {
+    let mut key_material = PrivateKeyMaterial {
+        key: der_private_key.to_vec(),
+    };
+
+    let private_key = Rsa::private_key_from_der(&key_material.key)?;
+    let pkey = PKey::from_rsa(private_key)?;
+
+    let mut signer = opensslSigner::new(MessageDigest::sha256(), &pkey)?;
+    signer.set_rsa_padding(Padding::PKCS1_PSS)?;
+    signer.set_rsa_mgf1_md(MessageDigest::sha256())?;
+    signer.set_rsa_pss_saltlen(RsaPssSaltlen::DIGEST_LENGTH)?;
+    signer.update(preimage)?;
+
+    let signature = signer.sign_to_vec()?;
+    key_material.zeroize();
+    Ok(signature)
+}
+
 /// Sign an Ethereum address using an RSA private key
 pub fn sign_ethereum_address(
     der_private_key: &[u8],
@@ -333,26 +392,8 @@ pub fn sign_ethereum_address(
     verifying_contract: &Address,
     chain_id: u64,
 ) -> Result<Vec<u8>, Box<dyn Error>> {
-    // Create an RSA object from the DER-encoded private key
-    let mut key_material = PrivateKeyMaterial {
-        key: der_private_key.to_vec(),
-    };
-
-    let private_key = Rsa::private_key_from_der(&key_material.key)?;
-
-    let pkey = PKey::from_rsa(private_key)?;
-
-    let mut signer = opensslSigner::new(MessageDigest::sha256(), &pkey)?;
-    signer.set_rsa_padding(Padding::PKCS1_PSS)?;
-    signer.set_rsa_mgf1_md(MessageDigest::sha256())?;
-    signer.set_rsa_pss_saltlen(RsaPssSaltlen::DIGEST_LENGTH)?;
-
     let preimage = build_certificate_possession_preimage(address, verifying_contract, chain_id);
-
-    signer.update(&preimage)?;
-    let signature = signer.sign_to_vec()?;
-    key_material.zeroize(); // Zeroize private key material
-    Ok(signature)
+    sign_certificate_possession_preimage(der_private_key, &preimage).map_err(|e| e as Box<dyn Error>)
 }
 
 // Convenience alias so we do not keep constructing Box<dyn Error> in the handler
