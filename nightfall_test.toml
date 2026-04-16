@@ -85,6 +85,10 @@ erc3525_transfer_2.value = "0x04"
 erc3525_transfer_2.fee = "0x01"
 erc3525_transfer_2.token_id = "0x08"
 
+erc3525_transfer_same_slot.value = "0x06"
+erc3525_transfer_same_slot.fee = "0x00"
+erc3525_transfer_same_slot.token_id = "0x08"
+
 erc3525_withdraw.value = "0x03"
 erc3525_withdraw.fee = "0x04"
 erc3525_withdraw.token_id = "0x07"

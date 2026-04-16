@@ -76,6 +76,8 @@ pub async fn run_tests(
 
     let erc1155_deposit_1_token_id = test_settings.erc1155_deposit_1.token_id.clone();
     let erc1155_withdraw_1_token_id = test_settings.erc1155_withdraw_1.token_id.clone();
+    let erc3525_token_id_1 = test_settings.erc3525_deposit_1.token_id.clone();
+    let erc3525_token_id_2 = test_settings.erc3525_deposit_2.token_id.clone();
 
     // override the mining interval that may have been set in Anvil. If Anvil was set to automine, also turn that off
     let http_client = reqwest::Client::new();
@@ -90,7 +92,7 @@ pub async fn run_tests(
         .join("v1/deriveKey")
         .unwrap();
     let key_request = test_settings.key_request;
-    let _zkp_key = get_key(url, &key_request).await.unwrap();
+    let zkp_key1 = get_key(url, &key_request).await.unwrap();
     let url = Url::parse("http://client2:3000")
         .unwrap()
         .join("v1/deriveKey")
@@ -166,6 +168,21 @@ pub async fn run_tests(
         .await
         .expect("balanceOf() call failed");
     assert_eq!(my_balance, U256::from(2));
+
+    let erc3525_slot_1 = erc3525_contract
+        .slotOf(U256::from_hex_string(&erc3525_token_id_1).unwrap())
+        .call()
+        .await
+        .expect("slotOf() call failed");
+    let erc3525_slot_2 = erc3525_contract
+        .slotOf(U256::from_hex_string(&erc3525_token_id_2).unwrap())
+        .call()
+        .await
+        .expect("slotOf() call failed");
+    assert_eq!(
+        erc3525_slot_1, erc3525_slot_2,
+        "ERC3525 integration test requires token ids to share a slot"
+    );
 
     //see if the NF4_LARGE_BLOCK_TEST environment variable is set to 'true' and run the large block test only if it is
     let (
@@ -828,6 +845,48 @@ pub async fn run_tests(
         .await
         .unwrap();
     info!("Transfer commitments are now on-chain");
+
+    info!("Sending same-slot ERC3525 transfer from client 2 back to client 1");
+    let client2_transfer_url = Url::parse("http://client2:3000")
+        .unwrap()
+        .join("v1/transfer")
+        .unwrap();
+    let same_slot_erc3525_transfer_id = create_nf3_transfer_transaction(
+        zkp_key1.clone(),
+        &http_client,
+        client2_transfer_url.clone(),
+        TokenType::ERC3525,
+        test_settings.erc3525_transfer_same_slot,
+    )
+    .await
+    .unwrap();
+
+    let same_slot_erc3525_transaction =
+        wait_for_all_responses(&[same_slot_erc3525_transfer_id], responses.clone())
+            .await
+            .into_iter()
+            .map(|(_, l)| {
+                serde_json::from_str::<(Value, Option<TransactionReceipt>)>(&l)
+                    .expect("Failed to parse response")
+            })
+            .map(|l| l.0)
+            .next()
+            .expect("Missing same-slot ERC3525 transfer response");
+
+    let same_slot_erc3525_commitment = Fr254::from_hex_string(
+        same_slot_erc3525_transaction["commitments"][0]
+            .as_str()
+            .expect("Missing same-slot ERC3525 commitment"),
+    )
+    .unwrap();
+
+    wait_on_chain(
+        &[same_slot_erc3525_commitment],
+        &settings.nightfall_client.url,
+    )
+    .await
+    .unwrap();
+    info!("Same-slot ERC3525 transfer commitment is now on-chain");
 
     //check that the new balances are as expected
     let balance = get_erc20_balance(

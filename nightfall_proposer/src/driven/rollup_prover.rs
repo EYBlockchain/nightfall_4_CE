@@ -147,7 +147,8 @@ pub fn get_base_grumpkin_proving_key() -> &'static Arc<MLEProvingKey<Zmorph>> {
     static PK: OnceLock<Arc<MLEProvingKey<Zmorph>>> = OnceLock::new();
     PK.get_or_init(|| {
         // We'll try to load key locally first, if it fails we will load from server.
-        if let Some(path) = get_configuration_keys_path().map(|path| path.join("base_grumpkin_pk")) {
+        if let Some(path) = get_configuration_keys_path().map(|path| path.join("base_grumpkin_pk"))
+        {
             if let Some(source_file) = find(&path) {
                 if let Some(key_bytes) = load_key_locally(&source_file) {
                     let base_grumpkin_proving_key =
@@ -155,7 +156,9 @@ pub fn get_base_grumpkin_proving_key() -> &'static Arc<MLEProvingKey<Zmorph>> {
                             .expect("Could not deserialise base_grumpkin_proving_key");
                     return Arc::new(base_grumpkin_proving_key);
                 }
-                warn!("Could not load base_grumpkin_proving_key from local file. Loading from server");
+                warn!(
+                    "Could not load base_grumpkin_proving_key from local file. Loading from server"
+                );
             } else {
                 warn!(
                     "Could not find local base_grumpkin_pk at {}. Loading from server",
@@ -230,7 +233,10 @@ pub fn get_decider_proving_key() -> &'static Arc<PlonkProvingKey<Bn254>> {
                     warn!("Could not read local decider_proving_key, trying server");
                 }
             } else {
-                warn!("Could not locate decider_pk locally at {}, trying server", path.display());
+                warn!(
+                    "Could not locate decider_pk locally at {}, trying server",
+                    path.display()
+                );
             }
         } else {
             warn!("Configuration keys path not found. Loading decider_pk from server");
@@ -360,8 +366,8 @@ impl RecursiveProver for RollupProver {
 
         BN254_MERGE_PKS
             .get_or_init(|| {
-                let config_path = get_configuration_keys_path()
-                    .expect("Configuration keys path not found");
+                let config_path =
+                    get_configuration_keys_path().expect("Configuration keys path not found");
 
                 let mut pks = Vec::new();
                 let mut i = 0;
