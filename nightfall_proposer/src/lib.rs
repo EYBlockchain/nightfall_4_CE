@@ -15,11 +15,13 @@ use jf_primitives::{
         timber::Timber,
     },
 };
-use lib::{rollup_circuit_checks::find_file_with_path, utils::load_key_from_server};
+use lib::{
+    rollup_circuit_checks::{find_file_with_path, get_configuration_keys_path},
+    utils::{load_key_from_server, load_key_locally},
+};
 use log::warn;
 use std::{
     collections::HashMap,
-    path::Path,
     sync::{Arc, OnceLock, RwLock},
 };
 type AppendOnlyTree = Timber<Fr254, Poseidon<Fr254>>;
@@ -52,6 +54,27 @@ pub fn get_deposit_proving_key() -> &'static Arc<ProvingKey<UnivariateKzgPCS<Bn2
     static PK: OnceLock<Arc<ProvingKey<UnivariateKzgPCS<Bn254>>>> = OnceLock::new();
     PK.get_or_init(|| {
         // We'll try to load from the configuration directory first.
+        if let Some(path) = get_configuration_keys_path().map(|path| path.join("deposit_proving_key")) {
+            if let Some(source_file) = find_file_with_path(&path) {
+                if let Some(key_bytes) = load_key_locally(&source_file) {
+                    let deposit_proving_key =
+                        ProvingKey::<UnivariateKzgPCS<Bn254>>::deserialize_compressed_unchecked(
+                            &*key_bytes,
+                        )
+                        .expect("Could not deserialise deposit_proving_key");
+                    return Arc::new(deposit_proving_key);
+                }
+                warn!("Could not load deposit_proving_key from local file. Loading from server");
+            } else {
+                warn!(
+                    "Could not find local deposit_proving_key at {}. Loading from server",
+                    path.display()
+                );
+            }
+        } else {
+            warn!("Configuration keys path not found. Loading deposit_proving_key from server");
+        }
+
         if let Some(key_bytes) = load_key_from_server("deposit_proving_key") {
             let pk = ProvingKey::<UnivariateKzgPCS<Bn254>>::deserialize_compressed_unchecked(
                 &*key_bytes,
@@ -59,15 +82,7 @@ pub fn get_deposit_proving_key() -> &'static Arc<ProvingKey<UnivariateKzgPCS<Bn2
             .expect("Could not deserialise proving key");
             return Arc::new(pk);
         }
-        // If that fails, we'll try to load from a local file
-        warn!("Could not load deposit proving key from server. Loading from local file");
-        let path = Path::new("./configuration/bin/deposit_proving_key");
-        let source_file = find_file_with_path(path).unwrap();
-        let pk = ProvingKey::<UnivariateKzgPCS<Bn254>>::deserialize_compressed_unchecked(
-            &*std::fs::read(source_file).expect("Could not read proving key"),
-        )
-        .expect("Could not deserialise proving key");
-        Arc::new(pk)
+        panic!("Failed to load deposit_proving_key from both local and server");
     })
 }
 

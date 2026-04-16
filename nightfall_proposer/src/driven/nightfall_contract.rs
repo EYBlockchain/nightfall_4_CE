@@ -65,12 +65,20 @@ impl NightfallContract for Nightfall::NightfallCalls {
         let receipt = blockchain_client
             .send_raw_transaction(&raw_tx)
             .await
-            .map_err(|_| NightfallContractError::TransactionError)?
+            .map_err(|_| {
+                NightfallContractError::BlockProposalError(
+                    "Failed to send raw transaction in propose_block".to_string(),
+                )
+            })?
             .get_receipt()
             .await
-            .map_err(|_| NightfallContractError::TransactionError)?;
+            .map_err(|_| {
+                NightfallContractError::BlockProposalError(
+                    "Failed to get transaction receipt in propose_block".to_string(),
+                )
+            })?;
         info!(
-            "Received receipt for submitted block with hash: {}, gas used was: {}",
+            "The L2 block was sent to L1. Received receipt for submitted block with hash: {}, gas used was: {}",
             receipt.transaction_hash, receipt.gas_used
         );
         Ok(())

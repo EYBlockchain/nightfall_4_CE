@@ -437,9 +437,12 @@ async fn process_propose_block_event<N: NightfallContract>(
             let nullifier = test_preimage
                 .nullifier_hash(&nullifier_key)
                 .map_err(|_| EventHandlerError::HashError)?;
-            let token_type = N::get_token_info(decrypt[0]).await.map_err(|_| {
-                EventHandlerError::IOError("Could not retrieve token type".to_string())
-            })?.token_type;
+            let token_type = N::get_token_info(decrypt[0])
+                .await
+                .map_err(|_| {
+                    EventHandlerError::IOError("Could not retrieve token type".to_string())
+                })?
+                .token_type;
             let commitment_entry = CommitmentEntry::new(
                 test_preimage,
                 nullifier,

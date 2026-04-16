@@ -2,15 +2,16 @@
 FROM ghcr.io/foundry-rs/foundry:v1.1.0 AS foundry
 FROM rust:1.88.0 AS builder
 
-# install additional ca-certificates e.g. zscaler certificate (can be removed if not needed)
-COPY ./configuration/trust/* /usr/local/share/ca-certificates/
-RUN chmod 644 /usr/local/share/ca-certificates/* && update-ca-certificates
+COPY ./configuration/trust/ZscalerRootCertificate-2048-SHA256-Feb2025.pem /usr/local/share/ca-certificates/zscaler-root-feb2025.crt
+RUN chmod 644 /usr/local/share/ca-certificates/zscaler-root-feb2025.crt && update-ca-certificates
 
 WORKDIR /app
 RUN mkdir -p bin
 COPY --from=foundry /usr/local/bin/forge ./forge
 COPY --exclude=configuration/bin/*  . .
-COPY configuration/bin/*_vk configuration/bin/
+RUN mkdir -p configuration/bin/keys
+COPY configuration/bin/keys/proving_key configuration/bin/keys/proving_key
+COPY configuration/bin/keys/deposit_proving_key configuration/bin/keys/deposit_proving_key
 ENV PATH=/app:$PATH
 RUN --mount=type=cache,id=cargo-registry-v4,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,id=cargo-git-v4,target=/usr/local/cargo/git,sharing=locked \
@@ -21,9 +22,10 @@ RUN --mount=type=cache,id=cargo-registry-v4,target=/usr/local/cargo/registry,sha
 FROM debian:bookworm-slim
 WORKDIR /app
 COPY --from=builder /app/bin/deployer bin/
-COPY configuration/bin/*_vk configuration/bin/
 COPY --from=builder /app/blockchain_assets blockchain_assets/
+COPY --from=builder /app/configuration/bin/keys configuration/bin/keys/
 COPY .env *.env nightfall.toml foundry.toml ./
+COPY ./configuration/trust/ZscalerRootCertificate-2048-SHA256-Feb2025.pem /usr/local/share/ca-certificates/zscaler-root-feb2025.crt
 
 
 # RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -32,6 +34,8 @@ COPY .env *.env nightfall.toml foundry.toml ./
 # Install libssl3 + Node.js (includes npm/npx via NodeSource)
 RUN apt-get update && apt-get install -y --no-install-recommends \
       curl ca-certificates gnupg libssl3 \
+ && chmod 644 /usr/local/share/ca-certificates/zscaler-root-feb2025.crt \
+ && update-ca-certificates \
  && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
  && apt-get install -y --no-install-recommends nodejs \
  && npm i -g @openzeppelin/upgrades-core@^1.37.0 \

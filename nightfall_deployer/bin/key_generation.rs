@@ -25,7 +25,14 @@ fn main() {
     } else {
         println!("Generating keys for REAL rollup prover");
     }
+    let path = std::env::current_dir()
+        .expect("Failed to get current path")
+        .as_path()
+        .join("configuration");
+    std::fs::create_dir_all(path.join("bin/keys"))
+        .expect("Failed to create directory for proving keys");
     generate_proving_keys(&settings).unwrap();
+    println!("Generating keys for rollup prover finished.");
 }
 
 /// Generates the proving key and writes it to file.
@@ -74,14 +81,14 @@ pub fn generate_proving_keys(settings: &Settings) -> Result<(), PlonkError> {
         true,
     )?;
 
-    let pk_path = path.join("bin/proving_key");
+    let pk_path = path.join("bin/keys/proving_key");
     let mut file = File::create(pk_path).map_err(PlonkError::IoError)?;
     let mut compressed_bytes = Vec::new();
     pk.serialize_compressed(&mut compressed_bytes)?;
     file.write_all(&compressed_bytes)
         .map_err(PlonkError::IoError)?;
 
-    let deposit_pk_path = path.join("bin/deposit_proving_key");
+    let deposit_pk_path = path.join("bin/keys/deposit_proving_key");
 
     let mut file = File::create(deposit_pk_path.clone()).map_err(PlonkError::IoError)?;
     let mut deposit_compressed_bytes = Vec::new();

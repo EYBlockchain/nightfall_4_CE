@@ -1,15 +1,11 @@
-
 use warp::{hyper::StatusCode, path, reply, Filter, Reply};
 
-use crate::{driven::db::mongo::CommitmentEntry};
+use crate::driven::db::mongo::CommitmentEntry;
 use crate::initialisation::get_db_connection;
 use crate::ports::db::CommitmentDB;
 use ark_bn254::Fr as Fr254;
-use ark_ff::{BigInteger, PrimeField, Zero, One};
+use ark_ff::{BigInteger, One, PrimeField, Zero};
 use lib::{hex_conversion::HexConvertible, shared_entities::TokenType};
-
-
-
 
 /// GET request for a specific commitment by key
 pub fn get_commitment(
@@ -91,8 +87,9 @@ pub async fn handle_get_max_transferable_amount_by_token_type(
         .get_commitments_by_token_type_and_nf_token_id(&token_type, nf_token_id)
         .await
         .map_err(|_| warp::reject::custom(crate::domain::error::ClientRejection::DatabaseError))?;
-    let token_type = TokenType::parse_token_type(&token_type)
-        .map_err(|_| warp::reject::custom(crate::domain::error::ClientRejection::InvalidTokenType))?;
+    let token_type = TokenType::parse_token_type(&token_type).map_err(|_| {
+        warp::reject::custom(crate::domain::error::ClientRejection::InvalidTokenType)
+    })?;
 
     let max_transferable_value = |entries: &[(Fr254, CommitmentEntry)]| -> Fr254 {
         let mut values = entries
@@ -111,15 +108,22 @@ pub async fn handle_get_max_transferable_amount_by_token_type(
         TokenType::ERC20 | TokenType::ERC1155 | TokenType::ERC3525 | TokenType::FeeToken => {
             // For fungible standards, the maximum transferable amount is the sum of the two highest commitments.
             let max_transferable = max_transferable_value(&res);
-            Ok(reply::with_status(hex::encode(max_transferable.into_bigint().to_bytes_be()),
-            StatusCode::OK,))
+            Ok(reply::with_status(
+                hex::encode(max_transferable.into_bigint().to_bytes_be()),
+                StatusCode::OK,
+            ))
         }
         TokenType::ERC721 => {
             // For ERC-721, the maximum transferable amount is 1 if any commitment exists, otherwise 0.
-            let max_transferable = if res.is_empty() { Fr254::zero() } else { Fr254::one() };
-            Ok(reply::with_status(hex::encode(max_transferable.into_bigint().to_bytes_be()),
-            StatusCode::OK,))
+            let max_transferable = if res.is_empty() {
+                Fr254::zero()
+            } else {
+                Fr254::one()
+            };
+            Ok(reply::with_status(
+                hex::encode(max_transferable.into_bigint().to_bytes_be()),
+                StatusCode::OK,
+            ))
         }
-  }
-    
+    }
 }

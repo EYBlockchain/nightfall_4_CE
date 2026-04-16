@@ -180,10 +180,13 @@ impl Mocks {
             ],
             nullifiers: [Fr254::from(0), Fr254::from(0), Fr254::zero(), Fr254::zero()],
             compressed_secrets: Default::default(),
+            swap_link: Fr254::zero(),
+            deadline: Fr254::zero(),
+            swap_side: Fr254::zero(),
             proof: Self::get_mock_proof(),
         }
     }
-
+    
     pub fn get_mock_proof() -> MockProof {
         MockProof {
             a: vec![1, 2, 3],

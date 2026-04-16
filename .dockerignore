@@ -10,4 +10,9 @@ LICENSE
 remappings.txt
 **/*.ptau
 nightfall_bindings/build.rs
-
+# Ignore everything under bin
+configuration/bin/*
+# But allow the keys directory itself
+!configuration/bin/keys/
+# And allow its contents
+!configuration/bin/keys/**

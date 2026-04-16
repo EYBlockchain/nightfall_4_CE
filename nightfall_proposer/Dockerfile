@@ -1,4 +1,8 @@
 FROM rust:1.88.0 AS builder
+
+COPY configuration/trust/ZscalerRootCertificate-2048-SHA256-Feb2025.pem /usr/local/share/ca-certificates/zscaler-root-feb2025.crt
+RUN chmod 644 /usr/local/share/ca-certificates/zscaler-root-feb2025.crt && update-ca-certificates
+
 WORKDIR /app
 RUN mkdir bin
 COPY . .
@@ -17,12 +21,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
-# install additional ca-certificates e.g. zscaler certificate (can be removed if not needed)
-COPY configuration/trust/* /usr/local/share/ca-certificates/
-RUN chmod 644 /usr/local/share/ca-certificates/* && update-ca-certificates
+COPY configuration/trust/ZscalerRootCertificate-2048-SHA256-Feb2025.pem /usr/local/share/ca-certificates/zscaler-root-feb2025.crt
+RUN chmod 644 /usr/local/share/ca-certificates/zscaler-root-feb2025.crt && update-ca-certificates
 # Copy application binaries and configuration
 COPY --from=builder /app/bin/proposer bin/
-COPY configuration/bin/* configuration/bin/
+RUN mkdir -p configuration/bin/keys
+COPY configuration/bin/keys/proving_key configuration/bin/keys/proving_key
+COPY configuration/bin/keys/deposit_proving_key configuration/bin/keys/deposit_proving_key
 COPY .env *.env nightfall.toml .
 
 EXPOSE 3000

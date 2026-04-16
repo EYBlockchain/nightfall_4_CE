@@ -51,7 +51,7 @@ This will download a large file (approximately 12GB):
 cargo run --release --bin key_generation
 ```
 
-or you can get the keys using the configuration url, `curl -v http://35.225.105.10:8080/<key_name> -o configuration/bin/<key_name>
+or you can get the keys using the configuration url, `curl -v http://35.225.105.10:8080/<key_name> -o configuration/bin/keys/<key_name>
 where you need to it for following keys  
 ```bash
 base_bn254_pk    
@@ -121,8 +121,9 @@ Now since you started as a proposer, you need to register as a proposer with the
 POST /v1/register
 
 ```sh
-curl -i --request POST 'http://localhost:3000/v1/register' \
-    --json '{ "url": "http://<server-ip>:3001" }'
+curl -i -X POST http://localhost:3001/v1/register \
+  -H "Content-Type: application/json" \
+  -d '"http://<server-ip>:3001"'
 ```
 ---
 

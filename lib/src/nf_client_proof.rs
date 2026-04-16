@@ -47,6 +47,9 @@ pub struct PublicInputs {
     pub commitments: [Fr254; 4],
     pub nullifiers: [Fr254; 4],
     pub compressed_secrets: [Fr254; 5],
+    pub swap_link: Fr254,
+    pub deadline: Fr254,
+    pub swap_side: Fr254,
 }
 
 impl Default for PublicInputs {
@@ -57,6 +60,9 @@ impl Default for PublicInputs {
             commitments: [Fr254::zero(); 4],
             nullifiers: [Fr254::zero(); 4],
             compressed_secrets: [Fr254::zero(); 5],
+            swap_link: Fr254::zero(),
+            deadline: Fr254::zero(),
+            swap_side: Fr254::zero(),
         }
     }
 }
@@ -91,6 +97,21 @@ impl PublicInputs {
         self
     }
 
+    pub fn swap_link(&mut self, swap_link: Fr254) -> &mut Self {
+        self.swap_link = swap_link;
+        self
+    }
+
+    pub fn deadline(&mut self, deadline: Fr254) -> &mut Self {
+        self.deadline = deadline;
+        self
+    }
+
+    pub fn swap_side(&mut self, swap_side: Fr254) -> &mut Self {
+        self.swap_side = swap_side;
+        self
+    }
+
     /// Call this function after all other parameters have been set to build the finished struct.
     pub fn build(&mut self) -> Self {
         Self {
@@ -99,6 +120,9 @@ impl PublicInputs {
             commitments: self.commitments,
             nullifiers: self.nullifiers,
             compressed_secrets: self.compressed_secrets,
+            swap_link: self.swap_link,
+            deadline: self.deadline,
+            swap_side: self.swap_side,
         }
     }
 
@@ -112,7 +136,7 @@ impl From<&PublicInputs> for Vec<Fr254> {
     fn from(value: &PublicInputs) -> Self {
         // We include the initialisation bytes and length separators
         let mut init_bytes = "public_inputs".as_bytes().to_vec();
-        init_bytes.extend_from_slice("version1".as_bytes());
+        init_bytes.extend_from_slice("version2".as_bytes());
         [
             &[Fr254::from_le_bytes_mod_order(init_bytes.as_slice())],
             &[Fr254::one()],
@@ -125,6 +149,12 @@ impl From<&PublicInputs> for Vec<Fr254> {
             value.nullifiers.as_slice(),
             &[Fr254::from(value.compressed_secrets.len() as u8)],
             value.compressed_secrets.as_slice(),
+            &[Fr254::one()],
+            &[value.swap_link],
+            &[Fr254::one()],
+            &[value.deadline],
+            &[Fr254::one()],
+            &[value.swap_side],
         ]
         .concat()
     }
@@ -146,23 +176,31 @@ pub struct PrivateInputs {
     // nf_address should be similar to recipient_public_key, as we make fee commitment have the fee which is paid to a nightfall address that can't be nullified.
     // so we make it private input
     pub nf_address: Address,
-    pub value: Fr254,
-    pub nf_token_ids: [Fr254; 2],
     pub nf_slot_id: Fr254,
+    /// Token ids for the two value commitments being nullified.
+    pub spent_nf_token_ids: [Fr254; 2],
     pub nullifiers_values: [Fr254; 4],
     pub nullifiers_salts: [Fr254; 4],
     pub membership_proofs: [MembershipProof<Fr254>; 4],
-    /// Values of any change commitments, first for the token second for the fee.
+    /// Change commitments encoded as `[token_change, fee_change]`.
     pub commitments_values: [Fr254; 2],
-    /// Only three as the first commitment salt is derived from the shared secret between sender and recipient
-    pub commitments_salts: [Fr254; 3],
+    /// Salts for sender-owned commitments only: `[commitment_1, commitment_2, commitment_3]`.
+    /// There are 4 commitments total; commitment_0 is for the recipient and uses shared-secret-derived salt.
+    pub sender_commitment_salts: [Fr254; 3],
     /// The public keys of the owners of the old commitments that will be nullified.
     pub public_keys: [TEAffine<BabyJubjub>; 4],
-    pub recipient_public_key: TEAffine<BabyJubjub>,
     pub root_key: Fr254,
     pub ephemeral_key: Fr254,
     pub withdraw_address: Fr254,
     pub secret_preimages: [[Fr254; 3]; 4],
+    pub party_a_public_key: TEAffine<BabyJubjub>,
+    pub party_b_public_key: TEAffine<BabyJubjub>,
+    pub nf_token_a_id: Fr254,
+    pub value_a: Fr254,
+    pub nf_token_b_id: Fr254,
+    pub value_b: Fr254,
+    pub swap_nonce: Fr254,
+    pub deadline: Fr254,
 }
 
 impl Default for PrivateInputs {
@@ -182,20 +220,27 @@ impl Default for PrivateInputs {
         Self {
             fee_token_id: Fr254::zero(),
             nf_address: Address::ZERO,
-            value: Fr254::zero(),
-            nf_token_ids: [Fr254::zero(); 2],
             nf_slot_id: Fr254::zero(),
+            spent_nf_token_ids: [Fr254::zero(); 2],
             nullifiers_values: [Fr254::zero(); 4],
             nullifiers_salts: [Fr254::zero(); 4],
             membership_proofs: [mproof.clone(), mproof.clone(), mproof.clone(), mproof],
             commitments_values: [Fr254::zero(); 2],
-            commitments_salts: [Fr254::zero(); 3],
+            sender_commitment_salts: [Fr254::zero(); 3],
             public_keys: [TEAffine::<BabyJubjub>::default(); 4],
-            recipient_public_key: TEAffine::<BabyJubjub>::generator(),
             root_key: Fr254::zero(),
             ephemeral_key: Fr254::zero(),
             withdraw_address: Fr254::zero(),
             secret_preimages: [[Fr254::zero(); 3]; 4],
+            // === SWAP DEFAULTS (all neutral/zero) ===
+            party_a_public_key: TEAffine::<BabyJubjub>::generator(),
+            party_b_public_key: TEAffine::<BabyJubjub>::generator(),
+            nf_token_a_id: Fr254::zero(),
+            value_a: Fr254::zero(),
+            nf_token_b_id: Fr254::zero(),
+            value_b: Fr254::zero(),
+            swap_nonce: Fr254::zero(),
+            deadline: Fr254::zero(),
         }
     }
 }
@@ -216,15 +261,6 @@ impl PrivateInputs {
         self
     }
 
-    pub fn value(&mut self, value: Fr254) -> &mut Self {
-        self.value = value;
-        self
-    }
-    pub fn nf_token_ids(&mut self, token_ids: [Fr254; 2]) -> &mut Self {
-        self.nf_token_ids = token_ids;
-        self
-    }
-
     pub fn nf_slot_id(&mut self, nf_slot_id: Fr254) -> &mut Self {
         self.nf_slot_id = nf_slot_id;
         self
@@ -232,6 +268,11 @@ impl PrivateInputs {
 
     pub fn root_key(&mut self, root_key: Fr254) -> &mut Self {
         self.root_key = root_key;
+        self
+    }
+
+    pub fn spent_nf_token_ids(&mut self, token_ids: [Fr254; 2]) -> &mut Self {
+        self.spent_nf_token_ids = token_ids;
         self
     }
 
@@ -258,21 +299,13 @@ impl PrivateInputs {
         self
     }
 
-    pub fn commitments_salts(&mut self, commitments_salts: &[Fr254; 3]) -> &mut Self {
-        self.commitments_salts = *commitments_salts;
+    pub fn sender_commitment_salts(&mut self, sender_commitment_salts: &[Fr254; 3]) -> &mut Self {
+        self.sender_commitment_salts = *sender_commitment_salts;
         self
     }
 
     pub fn public_keys(&mut self, public_keys: &[TEAffine<BabyJubjub>; 4]) -> &mut Self {
         self.public_keys = *public_keys;
-        self
-    }
-
-    pub fn recipient_public_key(
-        &mut self,
-        recipient_public_key: TEAffine<BabyJubjub>,
-    ) -> &mut Self {
-        self.recipient_public_key = recipient_public_key;
         self
     }
 
@@ -293,24 +326,76 @@ impl PrivateInputs {
         self
     }
 
+    pub fn party_a_public_key(&mut self, key: TEAffine<BabyJubjub>) -> &mut Self {
+        self.party_a_public_key = key;
+        self
+    }
+
+    pub fn party_b_public_key(&mut self, key: TEAffine<BabyJubjub>) -> &mut Self {
+        self.party_b_public_key = key;
+        self
+    }
+
+    // Backward-compatible alias used by non-swap transfer/withdraw call sites.
+    pub fn recipient_public_key(&mut self, key: TEAffine<BabyJubjub>) -> &mut Self {
+        self.party_b_public_key = key;
+        self
+    }
+
+    pub fn nf_token_a_id(&mut self, token_id: Fr254) -> &mut Self {
+        self.nf_token_a_id = token_id;
+        self
+    }
+
+    pub fn value_a(&mut self, value: Fr254) -> &mut Self {
+        self.value_a = value;
+        self
+    }
+
+    pub fn nf_token_b_id(&mut self, token_id: Fr254) -> &mut Self {
+        self.nf_token_b_id = token_id;
+        self
+    }
+
+    pub fn value_b(&mut self, value: Fr254) -> &mut Self {
+        self.value_b = value;
+        self
+    }
+
+    pub fn swap_nonce(&mut self, nonce: Fr254) -> &mut Self {
+        self.swap_nonce = nonce;
+        self
+    }
+
+    pub fn deadline(&mut self, deadline: Fr254) -> &mut Self {
+        self.deadline = deadline;
+        self
+    }
+
     pub fn build(&mut self) -> Self {
         Self {
             fee_token_id: self.fee_token_id,
             nf_address: self.nf_address,
-            value: self.value,
-            nf_token_ids: self.nf_token_ids,
             nf_slot_id: self.nf_slot_id,
+            spent_nf_token_ids: self.spent_nf_token_ids,
             nullifiers_values: self.nullifiers_values,
             nullifiers_salts: self.nullifiers_salts,
             membership_proofs: self.membership_proofs.clone(),
             commitments_values: self.commitments_values,
-            commitments_salts: self.commitments_salts,
+            sender_commitment_salts: self.sender_commitment_salts,
             public_keys: self.public_keys,
-            recipient_public_key: self.recipient_public_key,
             root_key: self.root_key,
             ephemeral_key: self.ephemeral_key,
             withdraw_address: self.withdraw_address,
             secret_preimages: self.secret_preimages,
+            party_a_public_key: self.party_a_public_key,
+            party_b_public_key: self.party_b_public_key,
+            nf_token_a_id: self.nf_token_a_id,
+            value_a: self.value_a,
+            nf_token_b_id: self.nf_token_b_id,
+            value_b: self.value_b,
+            swap_nonce: self.swap_nonce,
+            deadline: self.deadline,
         }
     }
 }
@@ -321,26 +406,23 @@ pub struct PrivateInputsVar {
     pub fee_token_id: Variable,
     /// Address of the Nightfall contract
     pub nf_address: Variable,
-    /// Transaction value,
-    pub value: Variable,
-    /// nf_token_id of the transaction
-    pub nf_token_ids: [Variable; 2],
     /// Slot Id of transaction tokens,
     pub nf_slot_id: Variable,
+    /// Token ids for the two value commitments being nullified.
+    pub spent_nf_token_ids: [Variable; 2],
     /// Nullifiers values
     pub nullifiers_values: [Variable; 4],
     /// Nullifiers salts
     pub nullifiers_salts: [Variable; 4],
     /// Merkle paths
     pub membership_proofs: [MembershipProofVar; 4],
-    /// Commitments values, the values of any change
+    /// Change commitments encoded as `[token_change, fee_change]`.
     pub commitments_values: [Variable; 2],
-    /// Commitments salts
-    pub commitments_salts: [Variable; 3],
+    /// Salts for sender-owned commitments only: `[commitment_1, commitment_2, commitment_3]`.
+    /// There are 4 commitments total; commitment_0 is for the recipient and uses shared-secret-derived salt.
+    pub sender_commitment_salts: [Variable; 3],
     /// Public keys for the commitments being nullified
     pub public_keys: [PointVariable; 4],
-    /// Recipient public key
-    pub recipient_public_key: PointVariable,
     /// Root key
     pub root_key: Variable,
     /// Ephemeral key
@@ -351,6 +433,15 @@ pub struct PrivateInputsVar {
     pub withdraw_flag: BoolVar,
     /// The preimages to the secret hashes used for deposits
     pub secret_preimages: [[Variable; 3]; 4],
+    // === SWAP FIELDS ===
+    pub party_a_public_key: PointVariable,
+    pub party_b_public_key: PointVariable,
+    pub nf_token_a_id: Variable,
+    pub value_a: Variable,
+    pub nf_token_b_id: Variable,
+    pub value_b: Variable,
+    pub swap_nonce: Variable,
+    pub deadline: Variable,
 }
 
 impl PrivateInputsVar {
@@ -363,8 +454,9 @@ impl PrivateInputsVar {
         let nf_address_field =
             Fr254::from(BigUint::from_bytes_be(private_inputs.nf_address.as_slice()));
         let nf_address = circuit.create_variable(nf_address_field)?;
-        let value = circuit.create_variable(private_inputs.value)?;
-        let nf_token_ids = private_inputs.nf_token_ids
+        let nf_slot_id = circuit.create_variable(private_inputs.nf_slot_id)?;
+        let spent_nf_token_ids = private_inputs
+            .spent_nf_token_ids
             .iter()
             .map(|ntid| circuit.create_variable(*ntid))
             .collect::<Result<Vec<Variable>, CircuitError>>()?
@@ -372,7 +464,6 @@ impl PrivateInputsVar {
             .map_err(|_| {
                 CircuitError::ParameterError("Couldn't convert to fixed length array".to_string())
             })?;
-        let nf_slot_id = circuit.create_variable(private_inputs.nf_slot_id)?;
         let nullifiers_values = private_inputs
             .nullifiers_values
             .iter()
@@ -409,8 +500,8 @@ impl PrivateInputsVar {
             .map_err(|_| {
                 CircuitError::ParameterError("Couldn't convert to fixed length array".to_string())
             })?;
-        let commitments_salts = private_inputs
-            .commitments_salts
+        let sender_commitment_salts = private_inputs
+            .sender_commitment_salts
             .iter()
             .map(|cs| circuit.create_variable(*cs))
             .collect::<Result<Vec<Variable>, CircuitError>>()?
@@ -427,8 +518,6 @@ impl PrivateInputsVar {
             .map_err(|_| {
                 CircuitError::ParameterError("Couldn't convert to fixed length array".to_string())
             })?;
-        let recipient_public_key = circuit
-            .create_point_variable(&Point::<Fr254>::from(private_inputs.recipient_public_key))?;
         // The recipient_public_key should also not be in the small subgroup in the case of a transfer
         // and constrained to be the neutral point in the case of a withdraw.
         let root_key = circuit.create_variable(private_inputs.root_key)?;
@@ -478,17 +567,43 @@ impl PrivateInputsVar {
                 &[-Fr254::one(), Fr254::one()],
             )?;
         }
-        // In the case of a transfer we enforce the recipient_public_key to not be in the small subgroup.
-        // In the case of a withwraw we enforce the recipient_public_key to be neutral.
-        let neutral_check_var = circuit.is_neutral_point::<BabyJubjub>(&recipient_public_key)?;
-        // Compute [8]P by doubling 3 times.
+
+        let party_a_public_key = circuit
+            .create_point_variable(&Point::<Fr254>::from(private_inputs.party_a_public_key))?;
+        let party_b_public_key = circuit
+            .create_point_variable(&Point::<Fr254>::from(private_inputs.party_b_public_key))?;
+        let nf_token_a_id = circuit.create_variable(private_inputs.nf_token_a_id)?;
+        let value_a = circuit.create_variable(private_inputs.value_a)?;
+        let nf_token_b_id = circuit.create_variable(private_inputs.nf_token_b_id)?;
+        let value_b = circuit.create_variable(private_inputs.value_b)?;
+        let swap_nonce = circuit.create_variable(private_inputs.swap_nonce)?;
+        let deadline = circuit.create_variable(private_inputs.deadline)?;
+
+        // party_a_public_key: neutral OR not in small subgroup
+        let neutral_check_var = circuit.is_neutral_point::<BabyJubjub>(&party_a_public_key)?;
         let check_point_var = std::iter::repeat_n((), 3)
-            .try_fold(recipient_public_key, |acc, _| {
+            .try_fold(party_a_public_key, |acc, _| {
                 circuit.ecc_add::<BabyJubjub>(&acc, &acc)
             })?;
         let subgroup_check_var = circuit.is_neutral_point::<BabyJubjub>(&check_point_var)?;
-        // Finally, we enforce either the point is neutral or not in the small subgroup, depending on whether we have a transfer or withdraw.
-        // We do this by enforcing that 2 * withdraw_flag == neutral_check_var + subgroup_check_var
+        circuit.mul_add_gate(
+            &[
+                neutral_check_var.into(),
+                subgroup_check_var.into(),
+                circuit.one(),
+                subgroup_check_var.into(),
+                circuit.zero(),
+            ],
+            &[-Fr254::one(), Fr254::one()],
+        )?;
+        // party_b_public_key (ex-recipient_public_key):
+        // Transfer: not in small subgroup | Withdraw: neutral | Swap: not in small subgroup
+        let neutral_check_var = circuit.is_neutral_point::<BabyJubjub>(&party_b_public_key)?;
+        let check_point_var = std::iter::repeat_n((), 3)
+            .try_fold(party_b_public_key, |acc, _| {
+                circuit.ecc_add::<BabyJubjub>(&acc, &acc)
+            })?;
+        let subgroup_check_var = circuit.is_neutral_point::<BabyJubjub>(&check_point_var)?;
         circuit.lin_comb_gate(
             &[Fr254::from(2u8), -Fr254::one(), -Fr254::one()],
             &Fr254::zero(),
@@ -499,25 +614,30 @@ impl PrivateInputsVar {
             ],
             &circuit.zero(),
         )?;
-
         Ok(PrivateInputsVar {
             fee_token_id,
             nf_address,
-            value,
-            nf_token_ids,
             nf_slot_id,
+            spent_nf_token_ids,
             nullifiers_values,
             nullifiers_salts,
             membership_proofs,
             commitments_values,
-            commitments_salts,
+            sender_commitment_salts,
             public_keys,
-            recipient_public_key,
             root_key,
             ephemeral_key,
             withdraw_address,
             withdraw_flag,
             secret_preimages,
+            party_a_public_key,
+            party_b_public_key,
+            nf_token_a_id,
+            value_a,
+            nf_token_b_id,
+            value_b,
+            swap_nonce,
+            deadline,
         })
     }
 }

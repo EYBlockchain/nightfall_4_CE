@@ -14,13 +14,13 @@ use jf_primitives::{
     poseidon::{FieldHasher, Poseidon},
     trees::{Directions, PathElement},
 };
-use lib::{hex_conversion::HexConvertible, shared_entities::TokenType};
 use lib::{
     commitments::Commitment,
     contract_conversions::FrBn254,
     serialization::{ark_de_hex, ark_se_hex},
     shared_entities::{Preimage, WithdrawData},
 };
+use lib::{hex_conversion::HexConvertible, shared_entities::TokenType};
 use log::{debug, error, info};
 use mongodb::{
     bson::doc,

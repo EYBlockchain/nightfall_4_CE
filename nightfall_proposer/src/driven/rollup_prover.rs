@@ -49,17 +49,18 @@ use lib::{
     merkle_trees::trees::{MerkleTreeError, MutableTree, TreeMetadata},
     nf_client_proof::PublicInputs,
     plonk_prover::{get_client_proving_key, plonk_proof::PlonkProof},
-    rollup_circuit_checks::{get_configuration_path, RollupKeyGenerator},
+    rollup_circuit_checks::get_configuration_keys_path,
+    rollup_circuit_checks::RollupKeyGenerator,
     serialization::{ark_de_hex, ark_se_hex},
     shared_entities::DepositData,
     utils::load_key_from_server,
+    utils::load_key_locally,
 };
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     error::Error,
     fmt::{Display, Formatter, Result as FmtResult},
-    io::Read,
     ops::Deref,
     path::{Path, PathBuf},
     sync::{Arc, OnceLock},
@@ -145,21 +146,33 @@ fn find(path: &Path) -> Option<std::path::PathBuf> {
 pub fn get_base_grumpkin_proving_key() -> &'static Arc<MLEProvingKey<Zmorph>> {
     static PK: OnceLock<Arc<MLEProvingKey<Zmorph>>> = OnceLock::new();
     PK.get_or_init(|| {
-        // We'll try to load from the configuration directory first.
-        if let Some(key_bytes) = load_key_from_server("base_grumpkin_pk") {
-            let pk = MLEProvingKey::<Zmorph>::deserialize_compressed_unchecked(&*key_bytes)
-                .expect("Could not deserialise proving key");
-            return Arc::new(pk);
+        // We'll try to load key locally first, if it fails we will load from server.
+        if let Some(path) = get_configuration_keys_path().map(|path| path.join("base_grumpkin_pk")) {
+            if let Some(source_file) = find(&path) {
+                if let Some(key_bytes) = load_key_locally(&source_file) {
+                    let base_grumpkin_proving_key =
+                        MLEProvingKey::<Zmorph>::deserialize_compressed_unchecked(&*key_bytes)
+                            .expect("Could not deserialise base_grumpkin_proving_key");
+                    return Arc::new(base_grumpkin_proving_key);
+                }
+                warn!("Could not load base_grumpkin_proving_key from local file. Loading from server");
+            } else {
+                warn!(
+                    "Could not find local base_grumpkin_pk at {}. Loading from server",
+                    path.display()
+                );
+            }
+        } else {
+            warn!("Configuration keys path not found. Loading base_grumpkin_pk from server");
         }
-        // If that fails, we'll try to load from a local file
-        warn!("Could not load deposit proving key from server. Loading from local file");
-        let path = Path::new("./configuration/bin/base_grumpkin_pk");
-        let source_file = find(path).unwrap();
-        let pk = MLEProvingKey::<Zmorph>::deserialize_compressed_unchecked(
-            &*std::fs::read(source_file).expect("Could not read proving key"),
-        )
-        .expect("Could not deserialise proving key");
-        Arc::new(pk)
+        if let Some(key_bytes) = load_key_from_server("base_grumpkin_pk") {
+            let base_grumpkin_proving_key =
+                MLEProvingKey::<Zmorph>::deserialize_compressed_unchecked(&*key_bytes)
+                    .expect("Could not deserialise base_grumpkin_proving_key");
+            return Arc::new(base_grumpkin_proving_key);
+        }
+        // If both fail, blow up loudly (this is critical infra)
+        panic!("Failed to load base_grumpkin_proving_key from both local and server");
     })
 }
 
@@ -167,20 +180,34 @@ pub fn get_base_grumpkin_proving_key() -> &'static Arc<MLEProvingKey<Zmorph>> {
 pub fn get_base_bn254_proving_key() -> &'static Arc<ProvingKey<Kzg>> {
     static PK: OnceLock<Arc<ProvingKey<Kzg>>> = OnceLock::new();
     PK.get_or_init(|| {
-        if let Some(key_bytes) = load_key_from_server("base_bn254_pk") {
-            let pk = ProvingKey::<Kzg>::deserialize_compressed_unchecked(&*key_bytes)
-                .expect("Could not deserialise proving key");
-            return Arc::new(pk);
+        // 1) We'll try to load key locally first, if it fails we will load from server.
+        if let Some(path) = get_configuration_keys_path().map(|path| path.join("base_bn254_pk")) {
+            if let Some(source_file) = find(&path) {
+                if let Some(key_bytes) = load_key_locally(&source_file) {
+                    let base_bn254_proving_key =
+                        ProvingKey::<Kzg>::deserialize_compressed_unchecked(&*key_bytes)
+                            .expect("Could not deserialise base_bn254_proving_key");
+                    return Arc::new(base_bn254_proving_key);
+                }
+                warn!("Could not load base_bn254_proving_key from local file. Loading from server");
+            } else {
+                warn!(
+                    "Could not find local base_bn254_pk at {}. Loading from server",
+                    path.display()
+                );
+            }
+        } else {
+            warn!("Configuration keys path not found. Loading base_bn254_pk from server");
         }
-        // If that fails, we'll try to load from a local file
-        warn!("Could not load deposit proving key from server. Loading from local file");
-        let path = Path::new("./configuration/bin/base_bn254_pk");
-        let source_file = find(path).unwrap();
-        let pk = ProvingKey::<Kzg>::deserialize_compressed_unchecked(
-            &*std::fs::read(source_file).expect("Could not read proving key"),
-        )
-        .expect("Could not deserialise proving key");
-        Arc::new(pk)
+        // 2) Try server
+        if let Some(key_bytes) = load_key_from_server("base_bn254_pk") {
+            let base_bn254_proving_key =
+                ProvingKey::<Kzg>::deserialize_compressed_unchecked(&*key_bytes)
+                    .expect("Could not deserialise base_bn254_proving_key");
+            return Arc::new(base_bn254_proving_key);
+        }
+        // If both fail, blow up loudly (this is critical infra)
+        panic!("Failed to load base_bn254_proving_key from both local and server");
     })
 }
 
@@ -188,22 +215,36 @@ pub fn get_base_bn254_proving_key() -> &'static Arc<ProvingKey<Kzg>> {
 pub fn get_decider_proving_key() -> &'static Arc<PlonkProvingKey<Bn254>> {
     static PK: OnceLock<Arc<PlonkProvingKey<Bn254>>> = OnceLock::new();
     PK.get_or_init(|| {
-        /* Downloading from servers takes too longs, generate it yourself and save it, the read it from local */
-        // if let Some(key_bytes) = load_key_from_server("decider_pk") {
-        //     let pk = PlonkProvingKey::<Bn254>::deserialize_compressed_unchecked(&*key_bytes)
-        //         .expect("Could not deserialise proving key");
-        //     return Arc::new(pk);
-        // }
-        let path = Path::new("./configuration/bin/decider_pk");
-        let source_file = find(path).unwrap();
-        let mut file = std::fs::File::open(source_file).unwrap();
-        let file_metadata = file.metadata().unwrap();
-        let size = file_metadata.len();
-        let mut buf = vec![0u8; size as usize];
-        file.read_exact(&mut buf).unwrap();
-        let pk = PlonkProvingKey::<Bn254>::deserialize_compressed_unchecked(buf.as_slice())
-            .expect("Could not deserialise proving key");
-        Arc::new(pk)
+        // 1) We'll try to load key locally first, if it fails we will load from server.
+        if let Some(path) = get_configuration_keys_path().map(|path| path.join("decider_pk")) {
+            if let Some(source_file) = find(&path) {
+                if let Some(bytes) = load_key_locally(&source_file) {
+                    if let Ok(pk) =
+                        PlonkProvingKey::<Bn254>::deserialize_compressed_unchecked(bytes.as_ref())
+                    {
+                        return Arc::new(pk);
+                    } else {
+                        warn!("Failed to deserialize local decider_pk, trying server");
+                    }
+                } else {
+                    warn!("Could not read local decider_proving_key, trying server");
+                }
+            } else {
+                warn!("Could not locate decider_pk locally at {}, trying server", path.display());
+            }
+        } else {
+            warn!("Configuration keys path not found. Loading decider_pk from server");
+        }
+
+        // 2) Try server
+        if let Some(key_bytes) = load_key_from_server("decider_pk") {
+            let pk = PlonkProvingKey::<Bn254>::deserialize_compressed_unchecked(key_bytes.as_ref())
+                .expect("Could not deserialise decider_pk from server");
+            return Arc::new(pk);
+        }
+
+        // 3) If both fail, blow up loudly (this is critical infra)
+        panic!("Failed to load decider proving key from both local file and server");
     })
 }
 
@@ -288,9 +329,8 @@ impl RecursiveProver for RollupProver {
 
         GRUMPKIN_MERGE_PKS
             .get_or_init(|| {
-                let config_path = get_configuration_path()
-                    .expect("Configuration path not found")
-                    .join("bin");
+                let config_path =
+                    get_configuration_keys_path().expect("Configuration keys path not found");
 
                 let mut pks = Vec::new();
                 let mut i = 0;
@@ -320,9 +360,8 @@ impl RecursiveProver for RollupProver {
 
         BN254_MERGE_PKS
             .get_or_init(|| {
-                let config_path = get_configuration_path()
-                    .expect("Configuration path not found")
-                    .join("bin");
+                let config_path = get_configuration_keys_path()
+                    .expect("Configuration keys path not found");
 
                 let mut pks = Vec::new();
                 let mut i = 0;
@@ -352,14 +391,37 @@ impl RecursiveProver for RollupProver {
     }
 
     fn get_decider_vk() -> PlonkVerifyingKey<Bn254> {
-        let path = get_configuration_path()
-            .expect("Configuration path not found")
-            .join("bin/decider_vk");
-        let source_file = find(&path).unwrap();
-        PlonkVerifyingKey::<Bn254>::deserialize_compressed_unchecked(
-            &*std::fs::read(source_file).expect("Could not read verifying key"),
-        )
-        .expect("Could not deserialise verifying key")
+        let path = get_configuration_keys_path()
+            .expect("Configuration keys path not found")
+            .join("decider_vk");
+        // 1) Try local file first (mirrors get_decider_proving_key pattern).
+        if let Some(source_file) = find(&path) {
+            if let Some(bytes) = load_key_locally(&source_file) {
+                if let Ok(vk) =
+                    PlonkVerifyingKey::<Bn254>::deserialize_compressed_unchecked(bytes.as_ref())
+                {
+                    return vk;
+                }
+                warn!("Failed to deserialize local decider_vk, trying server");
+            } else {
+                warn!("Could not read local decider_vk, trying server");
+            }
+        } else {
+            warn!("Could not locate decider_vk locally, trying server");
+        }
+
+        // 2) Try configuration server.
+        if let Some(bytes) = load_key_from_server("decider_vk") {
+            if let Ok(vk) =
+                PlonkVerifyingKey::<Bn254>::deserialize_compressed_unchecked(bytes.as_ref())
+            {
+                return vk;
+            }
+            warn!("Failed to deserialize decider_vk from server");
+        }
+
+        // 3) Nothing worked — abort loudly.
+        panic!("Failed to load decider_vk from both local filesystem and configuration server");
     }
 
     fn store_base_grumpkin_pk(pk: MLEProvingKey<Zmorph>) -> Option<()> {

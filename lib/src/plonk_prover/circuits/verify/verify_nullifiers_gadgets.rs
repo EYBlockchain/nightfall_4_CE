@@ -72,9 +72,9 @@ where
             secret_preimages[0][2],
             deposit_domain,
         ])?;
-        let neutral_point = self.is_neutral_point::<P>(&public_keys[0])?;
+        let neutral_point_1 = self.is_neutral_point::<P>(&public_keys[0])?;
         let key_to_use_1 =
-            self.conditional_select(neutral_point, nullifiers_key, deposit_nullifier_key_1)?;
+            self.conditional_select(neutral_point_1, nullifiers_key, deposit_nullifier_key_1)?;
         let nullifier_1 = self.poseidon_hash(&[key_to_use_1, commitment_hash_1])?;
 
         // Check if the nullifier is equal to the public transaction nullifier hash, or input commitment value is zero
@@ -85,10 +85,8 @@ where
         // Finally we check if the salt is from a secret preimage
         let secret_hash = self.poseidon_hash(&secret_preimages[0])?;
 
-        let neutral_point = self.is_neutral_point::<P>(&public_keys[0])?;
-
         let salt_to_enforce =
-            self.conditional_select(neutral_point, old_commitment_salts[0], secret_hash)?;
+            self.conditional_select(neutral_point_1, old_commitment_salts[0], secret_hash)?;
         self.enforce_equal(salt_to_enforce, old_commitment_salts[0])?;
 
         // Check the second nullifier, nullify extra Withdrawn/Transferred token
@@ -128,10 +126,8 @@ where
         // Finally we check if the salt is from a secret preimage
         let secret_hash = self.poseidon_hash(&secret_preimages[1])?;
 
-        let neutral_point = self.is_neutral_point::<P>(&public_keys[1])?;
-
         let salt_to_enforce =
-            self.conditional_select(neutral_point, old_commitment_salts[1], secret_hash)?;
+            self.conditional_select(neutral_point_2, old_commitment_salts[1], secret_hash)?;
         let salt_to_enforce = self.conditional_select(is_zero, salt_to_enforce, self.zero())?;
         self.enforce_equal(salt_to_enforce, old_commitment_salts[1])?;
 
@@ -173,10 +169,8 @@ where
         // Finally we check if the salt is from a secret preimage
         let secret_hash = self.poseidon_hash(&secret_preimages[2])?;
 
-        let neutral_point = self.is_neutral_point::<P>(&public_keys[2])?;
-
         let salt_to_enforce =
-            self.conditional_select(neutral_point, old_commitment_salts[2], secret_hash)?;
+            self.conditional_select(neutral_point_3, old_commitment_salts[2], secret_hash)?;
         let salt_to_enforce = self.conditional_select(is_zero, salt_to_enforce, self.zero())?;
         self.enforce_equal(salt_to_enforce, old_commitment_salts[2])?;
 
@@ -218,10 +212,8 @@ where
         // Finally we check if the salt is from a secret preimage
         let secret_hash = self.poseidon_hash(&secret_preimages[3])?;
 
-        let neutral_point = self.is_neutral_point::<P>(&public_keys[3])?;
-
         let salt_to_enforce =
-            self.conditional_select(neutral_point, old_commitment_salts[3], secret_hash)?;
+            self.conditional_select(neutral_point_4, old_commitment_salts[3], secret_hash)?;
         let salt_to_enforce = self.conditional_select(is_zero, salt_to_enforce, self.zero())?;
         self.enforce_equal(salt_to_enforce, old_commitment_salts[3])?;
 

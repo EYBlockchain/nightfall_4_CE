@@ -204,39 +204,43 @@ impl<P: Proof + Send + Sync> SmartTrigger<P> {
 
     async fn break_pause(&self) -> bool {
         let db = self.db;
-    
+
         // Total number of deposit *requests*
-        let deposit_count = match <mongodb::Client as TransactionsDB<P>>::count_mempool_deposits(db).await {
-            Ok(count) => {
-                debug!("Mempool deposits: {count}");
-                count
-            }
-            Err(e) => {
-                error!("Error counting deposits: {e:?}");
-                0
-            }
-        };
-    
+        let deposit_count =
+            match <mongodb::Client as TransactionsDB<P>>::count_mempool_deposits(db).await {
+                Ok(count) => {
+                    debug!("Mempool deposits: {count}");
+                    count
+                }
+                Err(e) => {
+                    error!("Error counting deposits: {e:?}");
+                    0
+                }
+            };
+
         // Total number of client transactions
-        let client_tx_count = match <mongodb::Client as TransactionsDB<P>>::count_mempool_client_transactions(db).await {
-            Ok(count) => {
-                debug!("Mempool client transactions: {count}");
-                count
-            }
-            Err(e) => {
-                error!("Error counting client transactions: {e:?}");
-                0
-            }
-        };
-    
+        let client_tx_count =
+            match <mongodb::Client as TransactionsDB<P>>::count_mempool_client_transactions(db)
+                .await
+            {
+                Ok(count) => {
+                    debug!("Mempool client transactions: {count}");
+                    count
+                }
+                Err(e) => {
+                    error!("Error counting client transactions: {e:?}");
+                    0
+                }
+            };
+
         // Number of *full* deposit groups we can form right now (each group = 4 deposits = 1 tx)
         let full_deposit_groups = deposit_count / 4; // integer division = floor
-        let deposit_remainder   = deposit_count % 4; // optional, for logging/debugging
-    
+        let deposit_remainder = deposit_count % 4; // optional, for logging/debugging
+
         debug!(
             "Full deposit groups: {full_deposit_groups}, remainder deposits: {deposit_remainder}"
         );
-    
+
         let block_size: u64 = match get_block_size() {
             Ok(size) => size as u64,
             Err(e) => {
@@ -244,7 +248,7 @@ impl<P: Proof + Send + Sync> SmartTrigger<P> {
                 64
             }
         };
-    
+
         // We can fully fill a block only if we have at least `block_size` *usable* tx slots:
         //   - each full deposit group uses 1 slot
         //   - each client tx uses 1 slot

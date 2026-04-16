@@ -5,10 +5,10 @@ use std::env;
 
 pub fn init_logging(log_level: &str, app_only: bool) {
     log_panics::init(); // this ensures that panics are logged
-    
+
     // Check if RUST_LOG is set - if so, use it to allow fine-grained control
     let use_rust_log = env::var("RUST_LOG").is_ok();
-    
+
     if use_rust_log {
         // Use RUST_LOG environment variable for fine-grained control
         Builder::from_env(env_logger::Env::default())

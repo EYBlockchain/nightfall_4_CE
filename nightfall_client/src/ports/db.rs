@@ -1,5 +1,5 @@
 use crate::domain::entities::{CommitmentStatus, Request, RequestStatus};
-use alloy::{primitives::TxHash};
+use alloy::primitives::TxHash;
 use ark_bn254::Fr as Fr254;
 use async_trait::async_trait;
 use futures::Future;
@@ -27,8 +27,15 @@ where
     async fn store_commitments(&self, commitment_entries: &[V], dup_key_check: bool) -> Option<()>;
     async fn delete_commitments(&self, commitment_ids: Vec<K>) -> Option<()>;
     async fn get_all_commitments(&self) -> Result<Vec<(K, V)>, mongodb::error::Error>;
-    async fn get_commitments_by_token_type(&self, token_type: &str) -> Result<Vec<(K, V)>, mongodb::error::Error>;
-    async fn get_commitments_by_token_type_and_nf_token_id(&self, token_type: &str, nf_token_id: Fr254) -> Result<Vec<(K, V)>, mongodb::error::Error>;
+    async fn get_commitments_by_token_type(
+        &self,
+        token_type: &str,
+    ) -> Result<Vec<(K, V)>, mongodb::error::Error>;
+    async fn get_commitments_by_token_type_and_nf_token_id(
+        &self,
+        token_type: &str,
+        nf_token_id: Fr254,
+    ) -> Result<Vec<(K, V)>, mongodb::error::Error>;
     async fn get_commitment(&self, k: &K) -> Option<V>;
     async fn get_balance(&self, k: &K) -> Option<Fr254>;
     async fn reserve_commitments_atomic(

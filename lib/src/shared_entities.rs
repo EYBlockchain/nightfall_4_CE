@@ -1,10 +1,10 @@
 use crate::{
     commitments::{Commitment, Nullifiable},
     contract_conversions::{Addr, FrBn254, Uint256},
+    error::ConversionError,
     nf_client_proof::{Proof, PublicInputs},
     secret_hash::SecretHash,
     serialization::{ark_de_hex, ark_se_hex},
-    error::ConversionError
 };
 use alloy::primitives::Address;
 use ark_bn254::Fr as Fr254;
@@ -12,6 +12,7 @@ use ark_ec::twisted_edwards::Affine as TEAffine;
 use ark_ff::PrimeField;
 use ark_serialize::SerializationError;
 use ark_std::UniformRand;
+use ark_std::Zero;
 use jf_primitives::poseidon::{FieldHasher, Poseidon, PoseidonError};
 use log::{error, warn};
 use nf_curves::ed_on_bn254::BabyJubjub as BabyJubJub;
@@ -115,6 +116,10 @@ pub struct OnChainTransaction {
     pub nullifiers: [Fr254; 4],
     // public data (public inputs) associated with this transaction.
     pub public_data: CompressedSecrets,
+    #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
+    pub swap_link: Fr254,
+    #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
+    pub deadline: Fr254,
 }
 /// Converts the NF_4 smart contract representation of an on-chain transaction (i.e. a transaction that is
 /// rolled up into a block), into a form more sutiable for manipulation in Rust.
@@ -139,6 +144,10 @@ impl From<Nightfall::OnChainTransaction> for OnChainTransaction {
                     .0
             }),
             public_data: ntx.public_data.into(),
+            // NOTE: swap_link & deadline not yet emitted by smart contract.
+            // They are defaulted to zero for backward compatibility.
+            swap_link: Fr254::zero(),
+            deadline: Fr254::zero(),
         }
     }
 }
@@ -164,6 +173,8 @@ impl<P> From<&ClientTransaction<P>> for OnChainTransaction {
             commitments: client_transaction.commitments,
             nullifiers: client_transaction.nullifiers,
             public_data: client_transaction.compressed_secrets,
+            swap_link: client_transaction.swap_link,
+            deadline: client_transaction.deadline,
         }
     }
 }
@@ -177,6 +188,8 @@ impl From<&PublicInputs> for OnChainTransaction {
             public_data: CompressedSecrets {
                 cipher_text: p.compressed_secrets,
             },
+            swap_link: p.swap_link,
+            deadline: p.deadline,
         }
     }
 }
@@ -214,7 +227,7 @@ impl From<u8> for TokenType {
             3 => TokenType::ERC3525,
             4 => TokenType::FeeToken,
             _ => {
-               warn!("Received unsupported token type value: {value}, defaulting to ERC20");
+                warn!("Received unsupported token type value: {value}, defaulting to ERC20");
                 TokenType::ERC20
             }
         }
@@ -245,6 +258,24 @@ pub struct ClientTransaction<P> {
     #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
     pub nullifiers: [Fr254; 4],
     pub compressed_secrets: CompressedSecrets,
+    #[serde(
+        serialize_with = "ark_se_hex",
+        deserialize_with = "ark_de_hex",
+        default
+    )]
+    pub swap_link: Fr254, // ← SWAP_LINK
+    #[serde(
+        serialize_with = "ark_se_hex",
+        deserialize_with = "ark_de_hex",
+        default
+    )]
+    pub deadline: Fr254, // ← DEADLINE
+    #[serde(
+        serialize_with = "ark_se_hex",
+        deserialize_with = "ark_de_hex",
+        default
+    )]
+    pub swap_side: Fr254, // ← SWAP_SIDE (is_party_a)
     pub proof: P,
 }
 
@@ -269,6 +300,9 @@ impl<P: Proof + Debug + Serialize + Clone> From<&ClientTransaction<P>> for Publi
             nullifiers: tx.nullifiers,
             compressed_secrets: tx.compressed_secrets.cipher_text,
             roots: tx.historic_commitment_roots,
+            swap_link: tx.swap_link,
+            deadline: tx.deadline,
+            swap_side: tx.swap_side,
         }
     }
 }

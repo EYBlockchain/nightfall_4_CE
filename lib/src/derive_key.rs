@@ -37,10 +37,10 @@ use std::{error::Error, fmt};
 
 /// Prefix for hashes for zkp private ket and nullifier
 /// PRIVATE_KEY_PREFIX = keccak256('zkpPrivateKey') % BN128_GROUP_ORDER
-const PRIVATE_KEY_PREFIX: &str =
+pub(crate) const PRIVATE_KEY_PREFIX: &str =
     "2708019456231621178814538244712057499818649907582893776052749473028258908910";
 /// PRIVATE_KEY_PREFIX = keccak256('nullifierKey') % BN128_GROUP_ORDER
-const NULLIFIER_PREFIX: &str =
+pub(crate) const NULLIFIER_PREFIX: &str =
     "7805187439118198468809896822299973897593108379494079213870562208229492109015";
 
 #[derive(Debug)]

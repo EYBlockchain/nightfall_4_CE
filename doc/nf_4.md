@@ -66,8 +66,6 @@ Once validation is complete, the user can intitiate three types of transaction v
 
 3. Withdraw: This is a special case of a Transfer but, rather than output commitments being created, suffienct funds are de-escrowed for the recipient to withdraw the amount they are being paid from the Nightfall contract.
 
-*Note that all of these transactions expect a `X-Request-ID` header to be provided in UUID v4 format, and will fail with a bad request if this is not provided. The value of this header will be reported in log messages and returned with the response.*
-
 The API for these requests is described in detail later on.
 
 `proposer`s also require a certificate. Once validated, they have to register with the RoundRobin smart contract, via the ProposerManager interface. The `proposer`s take turns in a round-robin (other patterns are possible by replacing the contract that implements ProposerManager) to make Layer 2 blocks. The proposers receive transactions, either via their `transaction` endpoint directly from a `client` or, in the case of deposit transactions, from the Nightfall contract. Once a `proposer` has sufficient `client` transations to create a Layer 2 block (64 transactions, currently, but any power of 4 is acceptable) and it is the active `proposer` in the round-robin, it will compute a rollup-proof which, when validated on-chain simultaneously proves all of the client transaction proofs. When incorporating a deposit transaction, the proposer also computes the deposit proof. This is because the Layer 2 block containing the deposit needs to be known to compute the proof, preventing the `client` from computing it in advance.
@@ -787,8 +785,9 @@ This endpoint will rotate the proposers if the current `proposer` has been activ
 POST /v1/register
 
 ```sh
-curl -i --request POST 'http://localhost:3000/v1/register' \
-    --json '{ "http://example.com" }'
+curl -i -X POST http://localhost:3001/v1/register \
+  -H "Content-Type: application/json" \
+  -d '"http://example.com"'
 ```
 
 Returns: on success `200 OK`

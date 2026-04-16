@@ -38,11 +38,6 @@ pub fn get_block_assembly_status_route(
 
 pub async fn handle_get_block_assembly_status() -> Result<impl warp::Reply, warp::Rejection> {
     let status = get_block_assembly_status().await.read().await.is_running();
-    let response = if status {
-        "Reunning"
-    } else {
-        "Paused"
-    };
+    let response = if status { "Reunning" } else { "Paused" };
     Ok(warp::reply::json(&response))
 }
-

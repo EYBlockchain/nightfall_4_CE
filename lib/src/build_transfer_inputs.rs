@@ -10,7 +10,7 @@ use crate::{
 use alloy::primitives::{hex, keccak256};
 use ark_bn254::Fr as Fr254;
 use ark_ec::twisted_edwards::Affine as TEAffine;
-use ark_std::{rand::Rng, UniformRand};
+use ark_std::{rand::Rng, UniformRand, Zero};
 use jf_primitives::{
     poseidon::Poseidon,
     trees::{Directions, MembershipProof, PathElement, TreeHasher},
@@ -170,11 +170,15 @@ pub fn build_valid_transfer_inputs(rng: &mut impl Rng) -> (PublicInputs, Private
     let public_inputs = PublicInputs::new().fee(fee).roots(&roots).build();
 
     let private_inputs = PrivateInputs::new()
-        .value(value)
-        .nf_token_ids([nf_token_id, nf_token_id])
+        .value_a(value)
+        .spent_nf_token_ids([nf_token_id, nf_token_id])
+        .nf_token_a_id(nf_token_id)
         .nf_slot_id(nf_slot_id)
         .ephemeral_key(ephemeral_key)
-        .recipient_public_key(recipient_public_key)
+        .party_a_public_key(keys.zkp_public_key) // caller = party A
+        .party_b_public_key(recipient_public_key) // recipient = party B
+        .nf_token_b_id(Fr254::zero()) // no counterparty token
+        .value_b(Fr254::zero()) // no counterparty value
         .nullifiers_values(&[
             nullified_one.get_value(),
             nullified_two.get_value(),
@@ -188,7 +192,7 @@ pub fn build_valid_transfer_inputs(rng: &mut impl Rng) -> (PublicInputs, Private
             nullified_four.get_salt(),
         ])
         .commitments_values(&[value_change, fee_change])
-        .commitments_salts(&new_salts)
+        .sender_commitment_salts(&new_salts)
         .membership_proofs(&mem_proofs)
         .secret_preimages(&[
             nullified_one.get_secret_preimage().to_array(),

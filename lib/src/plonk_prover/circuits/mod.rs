@@ -1,8 +1,6 @@
 pub mod kemdem_gadgets;
-
 pub mod unified_circuit;
 pub mod verify;
-
 use ark_bn254::Fr as Fr254;
 use ark_ff::MontFp;
 

@@ -266,11 +266,15 @@ fn build_valid_transfer_inputs() -> CircuitTestInfo {
     let private_inputs = PrivateInputs::new()
         .fee_token_id(fee_token_id)
         .nf_address(nf_address_h160)
-        .value(value)
-        .nf_token_id(nf_token_id)
+        .value_a(value)
+        .spent_nf_token_ids([nf_token_id, nf_token_id])
+        .nf_token_a_id(nf_token_id)
         .nf_slot_id(nf_slot_id)
         .ephemeral_key(ephemeral_key)
-        .recipient_public_key(recipient_public_key)
+        .party_a_public_key(keys.zkp_public_key)
+        .party_b_public_key(recipient_public_key)
+        .nf_token_b_id(Fr254::zero())
+        .value_b(Fr254::zero())
         .nullifiers_values(&[
             nullified_one.get_value(),
             nullified_two.get_value(),
@@ -284,7 +288,7 @@ fn build_valid_transfer_inputs() -> CircuitTestInfo {
             nullified_four.get_salt(),
         ])
         .commitments_values(&[value_change, fee_change])
-        .commitments_salts(&new_salts)
+        .sender_commitment_salts(&new_salts)
         .membership_proofs(&mem_proofs)
         .secret_preimages(&[
             nullified_one.get_secret_preimage().to_array(),
@@ -399,12 +403,7 @@ fn benchmark_unified_circuit(c: &mut Criterion) {
             .unwrap();
         })
     });
-    let mut inputs = Vec::new();
-    inputs.push(circuit_test_info.public_inputs.fee);
-    inputs.extend_from_slice(&circuit_test_info.public_inputs.roots);
-    inputs.extend_from_slice(&circuit_test_info.public_inputs.commitments);
-    inputs.extend_from_slice(&circuit_test_info.public_inputs.nullifiers);
-    inputs.extend_from_slice(&circuit_test_info.public_inputs.compressed_secrets);
+    let inputs = Vec::from(&circuit_test_info.public_inputs);
     let start = Instant::now();
     FFTPlonk::<UnivariateKzgPCS<Bn254>>::verify::<StandardTranscript>(
         &vk, &inputs, &proof, None, true,

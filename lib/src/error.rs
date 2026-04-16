@@ -242,6 +242,7 @@ pub enum NightfallContractError {
     ConversionError(ConversionError),
     TransactionError,
     EscrowError(String),
+    DeEscrowError(String),
     ContractVerificationError(String),
     PoseidonError(PoseidonError),
     BlockNotFound(u64),
@@ -250,6 +251,8 @@ pub enum NightfallContractError {
     TransactionNotFound(alloy::primitives::TxHash),
     AbiDecodeError(String),
     DecodedCallError(String),
+    X509Error(String),
+    BlockProposalError(String),
 }
 
 impl Display for NightfallContractError {
@@ -267,6 +270,7 @@ impl Display for NightfallContractError {
                 write!(f, "Did not receive a transaction receipt")
             }
             NightfallContractError::EscrowError(s) => write!(f, "Escrow Funds Error: {s}"),
+            NightfallContractError::DeEscrowError(s) => write!(f, "De-Escrow Funds Error: {s}"),
             NightfallContractError::ContractVerificationError(s) => {
                 write!(f, "Contract Verification Error: {s}")
             }
@@ -288,6 +292,12 @@ impl Display for NightfallContractError {
             }
             NightfallContractError::DecodedCallError(s) => {
                 write!(f, "Decoded call error: {s}")
+            }
+            NightfallContractError::X509Error(s) => {
+                write!(f, "X509 error: {s}")
+            }
+            NightfallContractError::BlockProposalError(s) => {
+                write!(f, "Block proposal error: {s}")
             }
         }
     }

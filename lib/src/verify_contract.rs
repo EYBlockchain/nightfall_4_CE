@@ -3,14 +3,18 @@ use alloy::{
     providers::Provider,
 };
 
-use configuration::addresses::Addresses;
+use configuration::{
+    addresses::{validate_config_url, Addresses, AddressesError},
+    settings::Settings,
+};
+use eyre::eyre;
+use log::debug;
 use nightfall_bindings::artifacts::{Nightfall, RoundRobin, X509};
 use nightfall_bindings::artifacts::{
     Nightfall::NightfallInstance, RoundRobin::RoundRobinInstance, X509::X509Instance,
 };
 use serde::Deserialize;
 use std::path::PathBuf;
-use log::{debug};
 
 #[derive(Deserialize)]
 struct ContractHashes {
@@ -20,17 +24,35 @@ struct ContractHashes {
 }
 
 /// Load deployed contract hashes from file written by deployer
-fn load_deployed_hashes() -> eyre::Result<([u8; 32], [u8; 32], [u8; 32])> {
+pub async fn load_deployed_hashes() -> eyre::Result<([u8; 32], [u8; 32], [u8; 32])> {
     let hashes_path = PathBuf::from("/app/configuration/toml/contract_hashes.toml");
 
-    if !hashes_path.exists() {
-        eyre::bail!(
-            "Contract hashes file not found. Deployer must run first to generate {:?}",
-            hashes_path
-        );
-    }
+    let settings = Settings::new().map_err(|_| AddressesError::Settings)?;
+    let content = if hashes_path.exists() {
+        std::fs::read_to_string(&hashes_path)?
+    } else {
+        // Fallback to remote configuration server
+        let base = validate_config_url(&settings.configuration_url)
+            .map_err(|e| eyre!("Invalid or untrusted configuration URL: {}", e))?;
 
-    let content = std::fs::read_to_string(&hashes_path)?;
+        let url = base
+            .join("configuration/toml/contract_hashes.toml")
+            .map_err(|e| eyre!("Could not build contract hashes URL: {}", e))?;
+
+        let response = reqwest::get(url.clone())
+            .await
+            .map_err(|e| eyre!("Failed to fetch contract hashes from {}: {}", url, e))?;
+
+        if !response.status().is_success() {
+            return Err(eyre!(
+                "Configuration server returned error {} for {}",
+                response.status(),
+                url
+            ));
+        }
+
+        response.text().await?
+    };
     let hashes: ContractHashes = toml::from_str(&content)?;
 
     let nightfall = hex::decode(&hashes.nightfall_hash)
@@ -182,7 +204,7 @@ impl<P: Provider + Clone> VerifiedContracts<P> {
         addresses: &Addresses,
     ) -> eyre::Result<Self> {
         // Load the expected hashes from the file written by deployer
-        let (nightfall_hash, round_robin_hash, x509_hash) = load_deployed_hashes()?;
+        let (nightfall_hash, round_robin_hash, x509_hash) = load_deployed_hashes().await?;
 
         // Verify each contract's deployed implementation
         verify_impl_hash(&provider, addresses.nightfall, &nightfall_hash, "Nightfall").await?;

@@ -51,6 +51,10 @@ pub struct MockAddresses {
     pub erc3525: Address,
 }
 
+fn default_mock_addresses() -> MockAddresses {
+    TestSettings::retrieve_mock_addresses()
+}
+
 #[derive(serde::Deserialize)]
 pub struct TestSettings {
     pub key_request: KeyRequest,
@@ -83,6 +87,8 @@ pub struct TestSettings {
     pub erc1155_transfer_2_nft: TransactionDetails,
     pub erc1155_withdraw_1: TransactionDetails,
     pub erc1155_withdraw_2_nft: TransactionDetails,
+    #[serde(default = "default_mock_addresses")]
+    pub mock_addresses: MockAddresses,
 }
 impl TestSettings {
     pub fn new() -> Result<Self, String> {

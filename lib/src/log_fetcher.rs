@@ -194,12 +194,17 @@ pub async fn get_logs_paginated<P: Provider>(
     // Rate limiting: calculate per-call delay if rpc_rate_limit is configured
     let rpc_rate_limit = get_rpc_rate_limit();
     let delay_between_calls = if rpc_rate_limit > 0 {
-        Some(std::time::Duration::from_secs_f64(1.0 / rpc_rate_limit as f64))
+        Some(std::time::Duration::from_secs_f64(
+            1.0 / rpc_rate_limit as f64,
+        ))
     } else {
         None
     };
     if let Some(delay) = delay_between_calls {
-        info!("RPC rate limit: {rpc_rate_limit} calls/sec (delay: {}ms per call)", delay.as_millis());
+        info!(
+            "RPC rate limit: {rpc_rate_limit} calls/sec (delay: {}ms per call)",
+            delay.as_millis()
+        );
     }
     let mut last_call_time = std::time::Instant::now();
 

@@ -11,7 +11,10 @@ use ark_std::{
     rand::{self, Rng},
     test_rng, UniformRand,
 };
-use configuration::{addresses::get_addresses, settings::{Settings, get_settings}};
+use configuration::{
+    addresses::get_addresses,
+    settings::{get_settings, Settings},
+};
 
 use hex::ToHex;
 use jf_primitives::{
@@ -36,7 +39,7 @@ use lib::{
     secret_hash::SecretHash,
     shared_entities::{DepositSecret, Preimage, Salt},
 };
-use log::{debug, info};
+use log::{debug, info, warn};
 use nf_curves::ed_on_bn254::{BabyJubjub as BabyJubJub, Fr as BJJScalar};
 use nightfall_client::{
     domain::{
@@ -770,6 +773,60 @@ pub async fn wait_on_chain(
     Ok(())
 }
 
+/// Wait until each withdraw nullifier appears in the client DB as spent.
+pub async fn wait_for_withdraws_on_chain(
+    withdraws: &[DeEscrowDataReq],
+    client_url: &str,
+) -> Result<(), TestError> {
+    info!("Waiting for withdraw nullifiers to appear on-chain");
+    let client = reqwest::Client::new();
+    let commitments_url = Url::parse(client_url)
+        .map_err(|e| TestError::new(e.to_string()))?
+        .join("v1/commitments")
+        .map_err(|e| TestError::new(e.to_string()))?;
+    let mut confirmed = HashSet::new();
+    while confirmed.len() < withdraws.len() {
+        let commitments = client
+            .get(commitments_url.clone())
+            .header(REQUEST_ID, Uuid::new_v4().to_string())
+            .send()
+            .await
+            .map_err(|e| TestError::new(e.to_string()))?
+            .error_for_status()
+            .map_err(|e| TestError::new(e.to_string()))?
+            .json::<Vec<CommitmentEntry>>()
+            .await
+            .map_err(|e| TestError::new(e.to_string()))?;
+
+        for withdraw in withdraws {
+            if confirmed.contains(&withdraw.withdraw_fund_salt) {
+                continue;
+            }
+            let withdraw_nullifier = Fr254::from_hex_string(&withdraw.withdraw_fund_salt)
+                .map_err(|e| TestError::new(e.to_string()))?;
+
+            if commitments.iter().any(|commitment| {
+                commitment.nullifier == withdraw_nullifier
+                    && commitment.status == CommitmentStatus::Spent
+            }) {
+                debug!(
+                    "Withdraw nullifier {} is on-chain",
+                    withdraw.withdraw_fund_salt
+                );
+                confirmed.insert(withdraw.withdraw_fund_salt.clone());
+            }
+        }
+        warn!(
+            "Waiting for withdraw nullifiers. Current confirmed: {}, expected: {}",
+            confirmed.len(),
+            withdraws.len()
+        );
+        time::sleep(time::Duration::from_secs(5)).await;
+    }
+    info!("Withdraw nullifiers are now on-chain");
+    Ok(())
+}
+
 /// Function to submit a request to de-escrow funds after a withdraw
 pub async fn de_escrow_request(req: &DeEscrowDataReq, client_url: &str) -> Result<bool, TestError> {
     let client = reqwest::Client::new();
@@ -1246,8 +1303,8 @@ pub fn build_valid_transfer_inputs(rng: &mut impl Rng) -> (PublicInputs, Private
 
     let private_inputs = PrivateInputs::new()
         .nf_address(nf_address)
-        .value(value)
-        .nf_token_id(nf_token_id)
+        .value_a(value)
+        .nf_token_a_id(nf_token_id)
         .nf_slot_id(nf_slot_id)
         .ephemeral_key(ephemeral_key)
         .recipient_public_key(recipient_public_key)
@@ -1264,7 +1321,7 @@ pub fn build_valid_transfer_inputs(rng: &mut impl Rng) -> (PublicInputs, Private
             nullified_four.get_salt(),
         ])
         .commitments_values(&[value_change, fee_change])
-        .commitments_salts(&new_salts)
+        .sender_commitment_salts(&new_salts)
         .membership_proofs(&mem_proofs)
         .secret_preimages(&[
             nullified_one.get_secret_preimage().to_array(),
