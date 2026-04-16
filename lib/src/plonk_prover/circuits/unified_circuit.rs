@@ -231,7 +231,7 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
         // OWNERSHIP VERIFICATION (for all: transfer, withdraw, swap)
         for i in 0..4 {
             let is_neutral = self.is_neutral_point::<BabyJubjub>(&public_keys[i])?;
-            let is_zero_value = self.is_zero(nullifiers_values[i])?;
+            let is_zero_value = self.is_zero(nullifiers_salts[i])?;
 
             let x_matches = self.is_equal(zkp_pub_key.get_x(), public_keys[i].get_x())?;
             let y_matches = self.is_equal(zkp_pub_key.get_y(), public_keys[i].get_y())?;

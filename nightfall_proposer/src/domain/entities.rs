@@ -29,6 +29,13 @@ pub struct Block {
     pub rollup_proof: Vec<u8>,
 }
 
+#[derive(Debug, Clone)]
+pub struct PendingBlock<P> {
+    pub block: Block,
+    pub selected_deposits: Vec<Vec<DepositDatawithFee>>,
+    pub selected_client_transactions: Vec<ClientTransactionWithMetaData<P>>,
+}
+
 /// Struct used to represent deposit data, used in making deposit proofs by the proposer.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq)]
 pub struct DepositDatawithFee {

@@ -54,7 +54,9 @@ pub fn get_deposit_proving_key() -> &'static Arc<ProvingKey<UnivariateKzgPCS<Bn2
     static PK: OnceLock<Arc<ProvingKey<UnivariateKzgPCS<Bn254>>>> = OnceLock::new();
     PK.get_or_init(|| {
         // We'll try to load from the configuration directory first.
-        if let Some(path) = get_configuration_keys_path().map(|path| path.join("deposit_proving_key")) {
+        if let Some(path) =
+            get_configuration_keys_path().map(|path| path.join("deposit_proving_key"))
+        {
             if let Some(source_file) = find_file_with_path(&path) {
                 if let Some(key_bytes) = load_key_locally(&source_file) {
                     let deposit_proving_key =

@@ -69,12 +69,10 @@ impl ProvingEngine<PlonkProof> for PlonkProvingEngine {
         {
             use jf_relation::Circuit;
             let pi = circuit.public_input()?;
-             circuit
-                .check_circuit_satisfiability(&pi)
-                .map_err(|e| {
-                    error!("Circuit is not satisfied before recursive_prove: {e:?}");
-                    e
-                })?;
+            circuit.check_circuit_satisfiability(&pi).map_err(|e| {
+                error!("Circuit is not satisfied before recursive_prove: {e:?}");
+                e
+            })?;
         }
         debug!("Retrieving proving and verifying keys");
         let pk: &'static Arc<ProvingKey<UnivariateKzgPCS<Bn254>>> = get_client_proving_key();

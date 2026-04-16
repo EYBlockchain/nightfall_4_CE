@@ -1,8 +1,9 @@
 use crate::{
+    domain::entities::PendingBlock,
     drivers::blockchain::nightfall_event_listener::get_synchronisation_status,
     initialisation::{get_block_assembly_trigger, get_blockchain_client_connection},
     ports::{contracts::NightfallContract, proving::RecursiveProvingEngine},
-    services::assemble_block::assemble_block,
+    services::assemble_block::{assemble_block, cleanup_selected_transactions},
 };
 use alloy::{
     primitives::{Address, TxHash, U64},
@@ -198,6 +199,28 @@ async fn check_l1_finality(
     }
 }
 
+async fn propose_and_cleanup_pending_block<P, N>(
+    pending_block: PendingBlock<P>,
+) -> Result<(), BlockAssemblyError>
+where
+    P: Proof,
+    N: NightfallContract,
+{
+    N::propose_block(pending_block.block.clone())
+        .await
+        .map_err(|e| BlockAssemblyError::ContractError(e.to_string()))?;
+
+    let db = crate::initialisation::get_db_connection().await;
+    cleanup_selected_transactions::<P>(
+        db,
+        &pending_block.selected_deposits,
+        &pending_block.selected_client_transactions,
+    )
+    .await?;
+
+    Ok(())
+}
+
 // once called this function will trigger the block assembly process whenever
 // certain conditions are met
 // Any errors that propogate back up to here will cause a panic.
@@ -253,7 +276,7 @@ where
     );
 
     // Shared queue for blocks waiting for finality confirmation
-    let pending_blocks = Arc::new(Mutex::new(Vec::new()));
+    let pending_blocks = Arc::new(Mutex::new(Vec::<PendingBlock<P>>::new()));
     let confirmations_required = U64::from(12);
     let finality_check_interval = Duration::from_secs(5);
 
@@ -344,10 +367,21 @@ where
                             "Finality checker: current proposer turn {onchain_start_block} already finalized, proposing {} pending blocks",
                             drained_for_same_turn.len()
                         );
-                        for block in drained_for_same_turn {
-                            if let Err(e) = N::propose_block(block).await {
+                        let mut failed_blocks = Vec::new();
+                        for pending_block in drained_for_same_turn {
+                            if let Err(e) =
+                                propose_and_cleanup_pending_block::<P, N>(pending_block.clone())
+                                    .await
+                            {
                                 error!("Finality checker: propose_block failed: {e}");
+                                failed_blocks.push(pending_block);
+                                continue;
                             }
+                        }
+
+                        if !failed_blocks.is_empty() {
+                            let mut guard = pending_blocks.lock().await;
+                            guard.extend(failed_blocks);
                         }
                     }
 
@@ -432,10 +466,21 @@ where
                                 "Finality checker: finalized & canonical rotation, proposing {} pending blocks",
                                 drained_after_finality.len()
                             );
-                            for block in drained_after_finality {
-                                if let Err(e) = N::propose_block(block).await {
+                            let mut failed_blocks = Vec::new();
+                            for pending_block in drained_after_finality {
+                                if let Err(e) =
+                                    propose_and_cleanup_pending_block::<P, N>(pending_block.clone())
+                                        .await
+                                {
                                     error!("Finality checker: propose_block failed: {e}");
+                                    failed_blocks.push(pending_block);
+                                    continue;
                                 }
+                            }
+
+                            if !failed_blocks.is_empty() {
+                                let mut guard = pending_blocks.lock().await;
+                                guard.extend(failed_blocks);
                             }
                         }
                     }
@@ -531,7 +576,7 @@ where
         }
         debug!("Triggered block assembly");
         let block_result = assemble_block::<P, R>().await;
-        let block = match block_result {
+        let pending_block = match block_result {
             Ok(block) => block,
             Err(e) => match e {
                 BlockAssemblyError::InsufficientTransactions => continue,
@@ -544,7 +589,7 @@ where
         // Add to pending blocks queue
         {
             let mut blocks = pending_blocks.lock().await;
-            blocks.push(block);
+            blocks.push(pending_block);
             info!("Added block to queue ({} pending)", blocks.len());
         }
     }

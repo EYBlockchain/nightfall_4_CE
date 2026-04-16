@@ -186,7 +186,7 @@ impl Mocks {
             proof: Self::get_mock_proof(),
         }
     }
-    
+
     pub fn get_mock_proof() -> MockProof {
         MockProof {
             a: vec![1, 2, 3],

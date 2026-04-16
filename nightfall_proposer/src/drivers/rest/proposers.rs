@@ -56,13 +56,10 @@ async fn handle_rotate_proposer() -> Result<impl Reply, warp::Rejection> {
             warn!("Failed to generate nonce during proposer rotation: {e}");
             warp::reject::custom(ProposerRejection::FailedToRotateProposer)
         })?;
-    let gas_price = blockchain_client
-        .get_gas_price()
-        .await
-        .map_err(|e| {
-            warn!("Failed to generate gas_price during proposer rotation: {e}");
-            warp::reject::custom(ProposerRejection::FailedToRotateProposer)
-        })?;
+    let gas_price = blockchain_client.get_gas_price().await.map_err(|e| {
+        warn!("Failed to generate gas_price during proposer rotation: {e}");
+        warp::reject::custom(ProposerRejection::FailedToRotateProposer)
+    })?;
     let max_fee_per_gas = gas_price * 2;
     let max_priority_fee_per_gas = gas_price;
     let gas_limit = 5000000u64;

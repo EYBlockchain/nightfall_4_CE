@@ -1,8 +1,7 @@
 use crate::{
-    domain::entities::{Block, ClientTransactionWithMetaData, DepositDatawithFee},
-    driven::db::mongo_db::{StoredBlock, DB, PROPOSED_BLOCKS_COLLECTION},
+    domain::entities::{Block, ClientTransactionWithMetaData, DepositDatawithFee, PendingBlock},
     drivers::blockchain::block_assembly::BlockAssemblyError,
-    initialisation::{get_blockchain_client_connection, get_db_connection},
+    initialisation::get_db_connection,
     ports::{
         db::{BlockStorageDB, TransactionsDB},
         proving::RecursiveProvingEngine,
@@ -10,10 +9,8 @@ use crate::{
 };
 use ark_bn254::Fr as Fr254;
 use ark_std::{collections::HashSet, Zero};
-use bson::doc;
 use jf_primitives::poseidon::{FieldHasher, Poseidon};
 use lib::{
-    blockchain_client::BlockchainClientConnection,
     hex_conversion::HexConvertible,
     nf_client_proof::{Proof, PublicInputs},
     shared_entities::DepositData,
@@ -39,96 +36,6 @@ pub(crate) fn transactions_to_include_in_block<K, V>(
     // If we have more than block_size transactions, we'll only include the block_size - DepositDatas most valuable transactions
     mempool_transactions.unwrap_or_default()
 }
-/// assemble_block is the main function that is called by the proposer to create a new block,
-/// it fetches the necessary data from the database and the contract, then assembles the block
-pub(crate) async fn assemble_block<P, R>() -> Result<Block, BlockAssemblyError>
-where
-    P: Proof,
-    R: RecursiveProvingEngine<P> + Send + Sync + 'static,
-{
-    info!("Starting block assembly process");
-    // initialise included_depositinfos_group, selected_client_transactions
-    let included_depositinfos_group;
-    let selected_client_transactions;
-    {
-        info!("Getting DB connection");
-        let db = get_db_connection().await;
-        info!("Preparing block data");
-        let block_size = get_block_size()?;
-        let result = prepare_block_data::<P>(db, block_size).await;
-        match &result {
-            Ok(_) => info!("Block data prepared successfully"),
-            Err(e) => warn!("Failed to prepare block data: {e:?}"),
-        }
-        (included_depositinfos_group, selected_client_transactions) = result?;
-    }
-
-    // Convert DepositInfo into DepositData while maintaining nested structure
-    // included_depositinfos_group has extra fee than DepositData, so we need to remove the fee
-    let included_deposits: Vec<Vec<DepositData>> = included_depositinfos_group
-        .iter()
-        .map(|group| group.iter().map(|deposit| deposit.deposit_data).collect())
-        .collect();
-    let real_deposit_number = included_deposits
-        .iter()
-        .flat_map(|group| group.iter())
-        .filter(|deposit| **deposit != DepositData::default())
-        .count();
-    let (withdraw_count, transfer_count) =
-        selected_client_transactions
-            .iter()
-            .fold((0, 0), |(withdraws, transfers), tx| {
-                let commitments_0_is_zero = tx.client_transaction.commitments[0].is_zero();
-                let nullifiers_0_is_nonzero = !tx.client_transaction.nullifiers[0].is_zero();
-
-                if commitments_0_is_zero && nullifiers_0_is_nonzero {
-                    (withdraws + 1, transfers)
-                } else {
-                    (withdraws, transfers + 1)
-                }
-            });
-
-    info!(
-        "This block has {real_deposit_number} deposit(s), {transfer_count} transfer(s), and {withdraw_count} withdrawal(s)"
-    );
-
-    let block = make_block::<P, R>(included_deposits, selected_client_transactions).await?;
-    // save this block to Store block db
-    let db = get_db_connection().await;
-    let current_block_number = db
-        .database(DB)
-        .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
-        .count_documents(doc! {})
-        .await
-        .expect("Failed to count documents");
-    let our_address = get_blockchain_client_connection()
-        .await
-        .read()
-        .await
-        .get_address();
-
-    let store_block = StoredBlock {
-        layer2_block_number: current_block_number,
-        commitments: block
-            .transactions
-            .iter()
-            .flat_map(|ntx| {
-                ntx.commitments
-                    .iter()
-                    .map(|c| c.to_hex_string())
-                    .collect::<Vec<_>>()
-            })
-            .collect(),
-        proposer_address: our_address,
-    };
-    db.database(DB)
-        .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
-        .insert_one(store_block.clone())
-        .await
-        .expect("Failed to insert block into database");
-    Ok(block)
-}
-
 // this is where we compute the on chain block it's called by make_block
 // which spawns it out as a separate thread
 #[allow(dead_code)]
@@ -361,15 +268,79 @@ where
         .iter()
         .filter_map(|(_, client_tx, _)| client_tx.clone()) // Extract client transactions
         .collect();
-
-    // 9. Delete used deposits in mempool
-    <mongodb::Client as TransactionsDB<P>>::remove_mempool_deposits(db, used_deposits_info.clone())
-        .await;
-
-    // 10. Clear selected client transactions from mempool
-    db.set_in_mempool(&selected_client_transactions, false)
-        .await;
     Ok((used_deposits_info, selected_client_transactions))
+}
+
+pub(crate) async fn cleanup_selected_transactions<P>(
+    db: &mongodb::Client,
+    selected_deposits: &[Vec<DepositDatawithFee>],
+    selected_client_transactions: &[ClientTransactionWithMetaData<P>],
+) -> Result<(), BlockAssemblyError>
+where
+    P: Proof,
+{
+    <mongodb::Client as TransactionsDB<P>>::remove_mempool_deposits(db, selected_deposits.to_vec())
+        .await;
+
+    db.set_in_mempool(selected_client_transactions, false).await;
+    Ok(())
+}
+
+pub(crate) async fn assemble_block<P, R>() -> Result<PendingBlock<P>, BlockAssemblyError>
+where
+    P: Proof + Send + Sync + 'static,
+    R: RecursiveProvingEngine<P> + Send + Sync + 'static,
+{
+    info!("Starting block assembly process");
+    let included_depositinfos_group;
+    let selected_client_transactions;
+    {
+        info!("Getting DB connection");
+        let db = get_db_connection().await;
+        info!("Preparing block data");
+        let block_size = get_block_size()?;
+        let result = prepare_block_data::<P>(db, block_size).await;
+        match &result {
+            Ok(_) => info!("Block data prepared successfully"),
+            Err(e) => warn!("Failed to prepare block data: {e:?}"),
+        }
+        (included_depositinfos_group, selected_client_transactions) = result?;
+    }
+
+    let included_deposits: Vec<Vec<DepositData>> = included_depositinfos_group
+        .iter()
+        .map(|group| group.iter().map(|deposit| deposit.deposit_data).collect())
+        .collect();
+    let real_deposit_number = included_deposits
+        .iter()
+        .flat_map(|group| group.iter())
+        .filter(|deposit| **deposit != DepositData::default())
+        .count();
+    let (withdraw_count, transfer_count) =
+        selected_client_transactions
+            .iter()
+            .fold((0, 0), |(withdraws, transfers), tx| {
+                let commitments_0_is_zero = tx.client_transaction.commitments[0].is_zero();
+                let nullifiers_0_is_nonzero = !tx.client_transaction.nullifiers[0].is_zero();
+
+                if commitments_0_is_zero && nullifiers_0_is_nonzero {
+                    (withdraws + 1, transfers)
+                } else {
+                    (withdraws, transfers + 1)
+                }
+            });
+
+    info!(
+        "This block has {real_deposit_number} deposit(s), {transfer_count} transfer(s), and {withdraw_count} withdrawal(s)"
+    );
+
+    let block = make_block::<P, R>(included_deposits, selected_client_transactions.clone()).await?;
+
+    Ok(PendingBlock {
+        block,
+        selected_deposits: included_depositinfos_group,
+        selected_client_transactions,
+    })
 }
 
 #[cfg(test)]
@@ -467,14 +438,29 @@ mod tests {
             "Incorrect number of client transactions included"
         );
 
-        // **3. Check that the remaining 2 deposits are stored back in the mempool**
+        // Selection should not mutate the mempool. Cleanup happens only after successful L1 submission.
         let remaining_deposits =
             { <mongodb::Client as TransactionsDB<PlonkProof>>::get_mempool_deposits(&db).await };
         assert!(
             remaining_deposits
                 .as_ref()
-                .is_none_or(|deposits| deposits.is_empty()),
-            "Remaining deposits are not empty"
+                .is_some_and(|deposits| deposits.len() == 240),
+            "Deposit mempool should remain unchanged until cleanup"
+        );
+        let remaining_client_transactions = {
+            let mempool_client_transactions: Option<
+                Vec<(Vec<u32>, ClientTransactionWithMetaData<PlonkProof>)>,
+            > = db.get_all_mempool_client_transactions().await;
+
+            transactions_to_include_in_block(mempool_client_transactions)
+                .into_iter()
+                .map(|(_, v)| v)
+                .collect::<Vec<ClientTransactionWithMetaData<PlonkProof>>>()
+        };
+        assert_eq!(
+            remaining_client_transactions.len(),
+            4,
+            "Client transaction mempool should remain unchanged until cleanup"
         );
     }
 
@@ -533,14 +519,9 @@ mod tests {
 
         let remaining_deposits =
             { <mongodb::Client as TransactionsDB<PlonkProof>>::get_mempool_deposits(&db).await };
-        // fee in the remaining deposit should be 1
         let remain_deposits_fee: Vec<Fr254> =
             remaining_deposits.unwrap().iter().map(|d| d.fee).collect();
-        assert_eq!(
-            remain_deposits_fee,
-            vec![Fr254::from(1)],
-            "Remaining deposit fees do not match expected values"
-        );
+        assert_eq!(remain_deposits_fee.len(), 257);
     }
 
     #[tokio::test]
@@ -610,10 +591,10 @@ mod tests {
             .collect();
         actual_remaining_client_fees.sort_by_key(|&fee| Reverse(fee));
 
-        let expected_remaining_client_fees: Vec<Fr254> = (1..=10).rev().map(Fr254::from).collect();
+        let expected_remaining_client_fees: Vec<Fr254> = (1..=74).rev().map(Fr254::from).collect();
         assert_eq!(
             actual_remaining_client_fees, expected_remaining_client_fees,
-            "Remaining client transaction fees do not match expected values"
+            "Client transaction mempool should remain unchanged until cleanup"
         );
     }
 
@@ -711,8 +692,8 @@ mod tests {
                 .collect()
         };
         assert!(
-            actual_fees_deposit_remainning.is_empty(),
-            "Remaining deposit fees should be empty"
+            actual_fees_deposit_remainning.len() == 4,
+            "Deposit mempool should remain unchanged until cleanup"
         );
 
         let remaining_client = {
@@ -725,14 +706,15 @@ mod tests {
                 .map(|(_, v)| v)
                 .collect::<Vec<ClientTransactionWithMetaData<PlonkProof>>>()
         };
-        let remaining_client_fees: Vec<Fr254> = remaining_client
+        let mut remaining_client_fees: Vec<Fr254> = remaining_client
             .iter()
             .map(|d| d.client_transaction.fee)
             .collect();
+        remaining_client_fees.sort_by_key(|&fee| Reverse(fee));
+        let expected_remaining_client_fees: Vec<Fr254> = (1..=64).rev().map(Fr254::from).collect();
         assert_eq!(
-            remaining_client_fees,
-            vec![Fr254::from(1)],
-            "Remaining client transaction fees do not match expected values"
+            remaining_client_fees, expected_remaining_client_fees,
+            "Client transaction mempool should remain unchanged until cleanup"
         );
     }
 }
