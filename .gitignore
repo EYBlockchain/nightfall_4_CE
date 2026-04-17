@@ -10,7 +10,6 @@
 **/*.rs.bk
 
 .DS_Store
-.env
 .vscode
 **/config/local.*
 soljson*
