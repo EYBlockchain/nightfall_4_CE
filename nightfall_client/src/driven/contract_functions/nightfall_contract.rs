@@ -23,7 +23,7 @@ use lib::{
     shared_entities::{DepositSecret, TokenType, WithdrawData},
     verify_contract::VerifiedContracts,
 };
-use log::{debug, info};
+use tracing::{debug, info};
 use nightfall_bindings::artifacts::{Nightfall, IERC3525};
 use num::BigUint;
 

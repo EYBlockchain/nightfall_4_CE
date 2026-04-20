@@ -14,7 +14,7 @@ use lib::{
     hex_conversion::HexConvertible,
     shared_entities::{Preimage, TokenType},
 };
-use log::{debug, trace};
+use tracing::{debug, trace};
 use mongodb::options::FindOneAndUpdateOptions;
 use mongodb::{Client, Database};
 use nf_curves::ed_on_bn254::BJJTEAffine as JubJub;

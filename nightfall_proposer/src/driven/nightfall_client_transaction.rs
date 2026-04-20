@@ -11,7 +11,7 @@ use lib::{
     nf_client_proof::{Proof, ProvingEngine, PublicInputs},
     shared_entities::{ClientTransaction, OnChainTransaction},
 };
-use log::{error, info};
+use tracing::{error, info};
 use std::{
     error::Error,
     fmt::{Debug, Display, Formatter},

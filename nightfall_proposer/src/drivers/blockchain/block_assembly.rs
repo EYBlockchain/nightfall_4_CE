@@ -20,7 +20,7 @@ use lib::{
     nf_client_proof::Proof,
     verify_contract::VerifiedContracts,
 };
-use log::{debug, error, info, warn};
+use tracing::{debug, error, info, warn};
 use nightfall_bindings::artifacts::RoundRobin;
 use std::{
     error::Error,

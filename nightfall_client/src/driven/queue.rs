@@ -17,7 +17,7 @@ use lib::{
     nf_client_proof::{Proof, ProvingEngine},
     shared_entities::SynchronisationPhase::Desynchronized,
 };
-use log::{debug, error, info, warn};
+use tracing::{debug, error, info, warn};
 use std::{collections::VecDeque, time::Duration};
 use tokio::{
     sync::{OnceCell, RwLock},

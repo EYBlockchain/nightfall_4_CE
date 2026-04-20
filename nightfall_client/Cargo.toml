@@ -47,17 +47,18 @@ serde_with = "2.3.3"
 config = "0.13.4"
 configuration = { path = "../configuration" }
 nightfall_bindings = { path = "../nightfall_bindings" }
-log = "0.4.27"
 nf-curves = { git = "https://git@github.com/EYBlockchain/nightfish_CE.git" }
 reqwest = "0.11.27"
 url = "2.5.4"
 rustc-hex = "2.1.0"
 uint = "0.9.5"
 lazy_static = "1.5.0"
+prometheus = "0.14"
 testcontainers = { version = "0.24.0", features = ["blocking"] }
 lib = { path = "../lib" }
 uuid = { version = "1.16.0", features = ["v4"] }
 ark-crypto-primitives = { version = "0.4", features = ["sponge"] }
+thiserror = "2"
 
 [dev-dependencies]
 criterion = { version = "0.4", features = ["html_reports"] }

@@ -1,49 +1,45 @@
-use env_logger::Builder;
-use log::LevelFilter;
-use log_panics;
 use std::env;
+use tracing_subscriber::EnvFilter;
 
 pub fn init_logging(log_level: &str, app_only: bool) {
-    log_panics::init(); // this ensures that panics are logged
-
     // Check if RUST_LOG is set - if so, use it to allow fine-grained control
     let use_rust_log = env::var("RUST_LOG").is_ok();
 
-    if use_rust_log {
+    let base_filter = if use_rust_log {
         // Use RUST_LOG environment variable for fine-grained control
-        Builder::from_env(env_logger::Env::default())
-            .filter_module("alloy_provider", LevelFilter::Error)
-            .filter_module("warp", LevelFilter::Warn)
-            .filter_module("hyper", LevelFilter::Warn)
-            .filter_module("tungstenite", LevelFilter::Warn)
-            .init();
+        EnvFilter::from_default_env()
     } else if app_only {
         match log_level {
-            "debug" => Builder::new()
-                .filter_level(LevelFilter::Debug)
-                .filter_module("alloy_provider", LevelFilter::Error)
-                .filter_module("warp", LevelFilter::Warn)
-                .filter_module("hyper", LevelFilter::Warn)
-                .filter_module("tungstenite", LevelFilter::Warn)
-                .init(),
-            "info" => Builder::new()
-                .filter_level(LevelFilter::Info)
-                .filter_module("alloy_provider", LevelFilter::Error)
-                .filter_module("warp", LevelFilter::Warn)
-                .filter_module("hyper", LevelFilter::Warn)
-                .filter_module("tungstenite", LevelFilter::Warn)
-                .init(),
-            "warn" => Builder::new().filter_level(LevelFilter::Warn).init(),
-            "error" => Builder::new().filter_level(LevelFilter::Error).init(),
-            _ => Builder::new().filter_level(LevelFilter::Info).init(),
-        };
+            "debug" => EnvFilter::new("debug"),
+            "info" => EnvFilter::new("info"),
+            "warn" => EnvFilter::new("warn"),
+            "error" => EnvFilter::new("error"),
+            _ => EnvFilter::new("info"),
+        }
     } else {
         match log_level {
-            "debug" => Builder::new().filter_level(LevelFilter::Debug).init(),
-            "info" => Builder::new().filter_level(LevelFilter::Info).init(),
-            "warn" => Builder::new().filter_level(LevelFilter::Warn).init(),
-            "error" => Builder::new().filter_level(LevelFilter::Error).init(),
-            _ => Builder::new().filter_level(LevelFilter::Info).init(),
-        };
+            "debug" => EnvFilter::new("debug"),
+            "info" => EnvFilter::new("info"),
+            "warn" => EnvFilter::new("warn"),
+            "error" => EnvFilter::new("error"),
+            _ => EnvFilter::new("info"),
+        }
     };
+
+    // Apply module-level overrides when using RUST_LOG or app_only mode
+    let filter = if use_rust_log || app_only {
+        base_filter
+            .add_directive("alloy_provider=error".parse().unwrap())
+            .add_directive("warp=warn".parse().unwrap())
+            .add_directive("hyper=warn".parse().unwrap())
+            .add_directive("tungstenite=warn".parse().unwrap())
+    } else {
+        base_filter
+    };
+
+    tracing_subscriber::fmt().with_env_filter(filter).init();
+
+    std::panic::set_hook(Box::new(|panic_info| {
+        tracing::error!("{}", panic_info);
+    }));
 }

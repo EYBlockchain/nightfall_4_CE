@@ -21,7 +21,7 @@ use lib::{
     shared_entities::{Preimage, WithdrawData},
 };
 use lib::{hex_conversion::HexConvertible, shared_entities::TokenType};
-use log::{debug, error, info};
+use tracing::{debug, error, info};
 use mongodb::{
     bson::doc,
     error::{ErrorKind, WriteFailure::WriteError},
@@ -431,12 +431,20 @@ impl RequestCommitmentMappingDB for Client {
 impl CommitmentDB<Fr254, CommitmentEntry> for Client {
     async fn get_all_commitments(
         &self,
+        limit: Option<u64>,
+        offset: Option<u64>,
     ) -> Result<Vec<(Fr254, CommitmentEntry)>, mongodb::error::Error> {
-        let mut cursor = self
+        let mut find = self
             .database(DB)
             .collection::<CommitmentEntry>("commitments")
-            .find(doc! {})
-            .await?;
+            .find(doc! {});
+        if let Some(offset) = offset {
+            find = find.skip(offset);
+        }
+        if let Some(limit) = limit {
+            find = find.limit(limit.min(i64::MAX as u64) as i64);
+        }
+        let mut cursor = find.await?;
         let mut result: Vec<(Fr254, CommitmentEntry)> = Vec::new();
         while cursor.advance().await? {
             let v = cursor.deserialize_current()?;
@@ -553,7 +561,7 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
         let k_string = k.to_hex_string();
         debug!("Getting commitment with key: {k_string}");
         let commitment_1 = self
-            .get_all_commitments()
+            .get_all_commitments(None, None)
             .await
             .expect("Database error")
             .into_iter()

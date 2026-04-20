@@ -21,6 +21,8 @@ pub mod block_assembly;
 pub mod block_data;
 pub mod client_transactions;
 pub mod proposers;
+pub mod metrics;
+pub mod readiness;
 pub mod synchronisation;
 
 pub fn routes<P, E>() -> impl Filter<Extract = (impl warp::Reply,)> + Clone
@@ -29,6 +31,7 @@ where
     E: ProvingEngine<P> + Sync + Send + 'static,
 {
     health_route()
+        .or(readiness::readiness_check())
         .or(client_transaction::<P, E>())
         .or(rotate_proposer())
         .or(get_block_data())
@@ -40,6 +43,7 @@ where
         .or(synchronisation())
         .or(pause_block_assembly())
         .or(resume_block_assembly())
+        .or(metrics::metrics())
         .recover(handle_rejection)
 }
 

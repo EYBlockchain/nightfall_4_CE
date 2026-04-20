@@ -1,7 +1,7 @@
 use crate::ports::contracts::NightfallContract;
 use ::nightfall_bindings::artifacts::Nightfall;
 use lib::{client_models::DeEscrowDataReq, shared_entities::WithdrawData as NFWithdrawData};
-use log::{debug, error};
+use tracing::{debug, error};
 use reqwest::StatusCode;
 use warp::{reject, Reply};
 

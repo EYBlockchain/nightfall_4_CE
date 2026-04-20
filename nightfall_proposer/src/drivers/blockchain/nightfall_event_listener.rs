@@ -22,7 +22,7 @@ use lib::{
     nf_client_proof::{Proof, ProvingEngine},
     shared_entities::{SynchronisationPhase::Desynchronized, SynchronisationStatus},
 };
-use log::{debug, warn};
+use tracing::{debug, warn};
 use mongodb::Client as MongoClient;
 use nightfall_bindings::artifacts::Nightfall;
 use std::time::Duration;

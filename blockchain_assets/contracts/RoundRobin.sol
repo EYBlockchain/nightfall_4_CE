@@ -52,6 +52,11 @@ contract RoundRobin is ProposerManager, Certified, UUPSUpgradeable {
     // number of blocks to wait before finalizing a rotation
     uint public constant FINALIZATION_BLOCKS = 64;
 
+    /// @notice Hard cap on the number of proposers that can be registered at the same time.
+    /// @dev Prevents gas DoS via unbounded iteration in on-chain loops such as
+    ///      `get_proposers()` and `rotate_proposer()`, which traverse the full linked list.
+    uint256 public constant MAX_PROPOSERS = 100;
+
     Nightfall private nightfall;
 
     // ------------------------------------------------------------------------
@@ -179,6 +184,7 @@ contract RoundRobin is ProposerManager, Certified, UUPSUpgradeable {
     function add_proposer(
         string calldata proposer_url
     ) external payable override onlyCertified {
+        require(proposer_count < MAX_PROPOSERS, "Maximum proposer count reached");
         // Enforce cooldown only if they have previously exited
         if (last_exit_block[msg.sender] != 0) {
             require(

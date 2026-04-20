@@ -5,7 +5,7 @@ use lib::{
     blockchain_client::BlockchainClientConnection, error::ProposerError,
     verify_contract::VerifiedContracts,
 };
-use log::{info, warn};
+use tracing::{info, warn};
 /// APIs for managing proposers
 use warp::{hyper::StatusCode, path, reply::Reply, Filter};
 

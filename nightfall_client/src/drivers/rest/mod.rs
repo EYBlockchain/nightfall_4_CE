@@ -4,7 +4,7 @@ use lib::{
     health_check::health_route, nf_client_proof::Proof,
     validate_certificate::certification_validation_request, validate_keys::keys_validation_request,
 };
-use log::error;
+use tracing::error;
 use proposers::get_proposers;
 use reqwest::StatusCode;
 use std::fmt::Debug;
@@ -34,7 +34,9 @@ mod keys;
 pub mod proposers;
 mod request_status;
 mod synchronisation;
+pub mod metrics;
 mod token_info;
+pub mod readiness;
 pub mod withdraw;
 
 pub fn routes<P, N>() -> impl Filter<Extract = (impl warp::Reply,)> + Clone
@@ -43,6 +45,7 @@ where
     N: NightfallContract,
 {
     health_route()
+        .or(readiness::readiness_check())
         .or(deposit_request::<P>())
         .or(transfer_request::<P>())
         .or(withdraw_request::<P>())
@@ -61,6 +64,7 @@ where
         .or(get_queue_length())
         .or(get_token_info::<N>())
         .or(get_l1_balance())
+        .or(metrics::metrics())
         .recover(handle_rejection)
 }
 

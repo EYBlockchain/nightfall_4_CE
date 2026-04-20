@@ -1,5 +1,5 @@
 use configuration::{logging::init_logging, settings::Settings};
-use log::{info, warn};
+use tracing::{info, warn};
 use nightfall_deployer::deployment::deploy_contracts;
 
 #[tokio::main]

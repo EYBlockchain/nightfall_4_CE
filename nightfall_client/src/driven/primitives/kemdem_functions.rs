@@ -3,7 +3,7 @@ use ark_ff::{BigInteger, One, PrimeField, Zero};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use jf_primitives::poseidon::{FieldHasher, Poseidon, PoseidonError};
 use lib::plonk_prover::circuits::DOMAIN_SHARED_SALT;
-use log::error;
+use tracing::error;
 use nf_curves::ed_on_bn254::{BabyJubjub, Fq as Fr254, Fr as BJJScalar};
 
 use super::*;

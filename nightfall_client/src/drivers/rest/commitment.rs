@@ -1,3 +1,4 @@
+use serde::Deserialize;
 use warp::{hyper::StatusCode, path, reply, Filter, Reply};
 
 use crate::driven::db::mongo::CommitmentEntry;
@@ -6,6 +7,18 @@ use crate::ports::db::CommitmentDB;
 use ark_bn254::Fr as Fr254;
 use ark_ff::{BigInteger, One, PrimeField, Zero};
 use lib::{hex_conversion::HexConvertible, shared_entities::TokenType};
+
+#[derive(Debug, Deserialize)]
+struct PaginationParams {
+    #[serde(default = "default_limit")]
+    limit: u64,
+    #[serde(default)]
+    offset: u64,
+}
+
+fn default_limit() -> u64 {
+    100
+}
 
 /// GET request for a specific commitment by key
 pub fn get_commitment(
@@ -29,18 +42,21 @@ pub async fn handle_get_commitment(key: String) -> Result<impl Reply, warp::Reje
     }
 }
 
-/// GET request for all commitments
+/// GET request for all commitments with optional pagination query params (limit, offset)
 pub fn get_all_commitments(
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     path!("v1" / "commitments")
         .and(warp::get())
+        .and(warp::query::<PaginationParams>())
         .and_then(handle_get_all_commitments)
 }
 
-pub async fn handle_get_all_commitments() -> Result<impl Reply, warp::Rejection> {
+pub async fn handle_get_all_commitments(
+    params: PaginationParams,
+) -> Result<impl Reply, warp::Rejection> {
     let commitment_db = get_db_connection().await;
     let res = commitment_db
-        .get_all_commitments()
+        .get_all_commitments(Some(params.limit), Some(params.offset))
         .await
         .map_err(|_| warp::reject::custom(crate::domain::error::ClientRejection::DatabaseError))?;
     let values: Vec<CommitmentEntry> = res.into_iter().map(|c| c.1).collect();

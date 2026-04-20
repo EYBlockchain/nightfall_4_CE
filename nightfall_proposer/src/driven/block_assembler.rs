@@ -16,7 +16,7 @@ use lib::{
     shared_entities::OnChainTransaction,
     utils::get_block_size,
 };
-use log::{debug, error, warn};
+use tracing::{debug, error, warn};
 use std::marker::PhantomData;
 use tokio::{
     sync::RwLock,

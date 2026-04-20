@@ -1,6 +1,6 @@
 use crate::test::validate_certificate_with_server;
 use lib::models::CertificateReq;
-use log::info;
+use tracing::info;
 use std::fs;
 use url::Url;
 

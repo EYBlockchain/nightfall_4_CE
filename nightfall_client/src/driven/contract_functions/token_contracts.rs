@@ -12,7 +12,7 @@ use lib::{
     error::BlockchainClientConnectionError,
     initialisation::get_blockchain_client_connection,
 };
-use log::debug;
+use tracing::debug;
 use nightfall_bindings::artifacts::{IERC1155, IERC20, IERC3525, IERC721};
 
 impl TokenContract for IERC20::IERC20Calls {

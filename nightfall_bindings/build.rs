@@ -1,4 +1,4 @@
-use log::info;
+use tracing::info;
 use std::{env, os::unix::process::ExitStatusExt, path::Path, path::PathBuf, process::Command};
 
 fn main() {

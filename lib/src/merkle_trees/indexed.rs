@@ -11,7 +11,7 @@ use jf_primitives::{
         Directions, MembershipProof, PathElement,
     },
 };
-use log::{debug, error};
+use tracing::{debug, error};
 use mongodb::bson::doc;
 
 use std::convert::TryFrom; // already in prelude, but explicit is fine

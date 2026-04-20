@@ -26,7 +26,11 @@ where
     async fn store_commitment(&self, commitment_entry: V) -> Option<()>;
     async fn store_commitments(&self, commitment_entries: &[V], dup_key_check: bool) -> Option<()>;
     async fn delete_commitments(&self, commitment_ids: Vec<K>) -> Option<()>;
-    async fn get_all_commitments(&self) -> Result<Vec<(K, V)>, mongodb::error::Error>;
+    async fn get_all_commitments(
+        &self,
+        limit: Option<u64>,
+        offset: Option<u64>,
+    ) -> Result<Vec<(K, V)>, mongodb::error::Error>;
     async fn get_commitments_by_token_type(
         &self,
         token_type: &str,

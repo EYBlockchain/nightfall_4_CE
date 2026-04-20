@@ -11,6 +11,6 @@ nightfall_test = { path = "../nightfall_test" }
 reqwest = { version = "0.12.15", features = ["json"] }
 tokio = { version = "1.45.0", features = ["full"] }
 configuration = { path = "../configuration" }
-log = "0.4.27"
+tracing = "0.1"
 nightfall_client = { path = "../nightfall_client" }
 nightfall_bindings = {path = "../nightfall_bindings"}

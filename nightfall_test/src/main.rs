@@ -1,5 +1,5 @@
 use configuration::{logging::init_logging, settings::Settings};
-use log::{error, info};
+use tracing::{error, info};
 use nightfall_test::{
     run_tests::run_tests,
     webhook::{poll_queue, run_webhook_server},

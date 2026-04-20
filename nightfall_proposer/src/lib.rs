@@ -19,7 +19,7 @@ use lib::{
     rollup_circuit_checks::{find_file_with_path, get_configuration_keys_path},
     utils::{load_key_from_server, load_key_locally},
 };
-use log::warn;
+use tracing::warn;
 use std::{
     collections::HashMap,
     sync::{Arc, OnceLock, RwLock},

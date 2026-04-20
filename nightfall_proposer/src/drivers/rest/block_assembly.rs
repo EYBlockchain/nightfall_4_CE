@@ -1,4 +1,4 @@
-use log::debug;
+use tracing::debug;
 
 use warp::{path, Filter};
 

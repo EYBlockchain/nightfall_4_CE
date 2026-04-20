@@ -14,7 +14,7 @@ use jf_primitives::{
     poseidon::{Poseidon, PoseidonParams},
     trees::{CircuitInsertionInfo, Directions, MembershipProof, PathElement, TreeHasher},
 };
-use log::debug;
+use tracing::debug;
 use mongodb::{
     bson::{doc, to_bson},
     options::{UpdateOneModel, WriteModel},

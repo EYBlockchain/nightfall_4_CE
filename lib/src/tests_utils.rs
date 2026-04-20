@@ -1,4 +1,4 @@
-use log::{info, warn};
+use tracing::{info, warn};
 use mongodb::bson::doc;
 use std::time::Duration;
 use testcontainers::{

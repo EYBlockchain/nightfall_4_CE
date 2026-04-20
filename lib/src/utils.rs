@@ -5,7 +5,7 @@ use ark_std::path::PathBuf;
 /// A module containing uncategorised functions used by more than one component
 use configuration::settings::get_settings;
 use futures::StreamExt;
-use log::{debug, info, warn};
+use tracing::{debug, info, warn};
 use serde::ser::StdError;
 use std::{fmt, time::Duration};
 use tokio::{runtime::Handle, task::block_in_place};

@@ -42,7 +42,7 @@ use jf_plonk::{
     },
 };
 use jf_primitives::{pcs::prelude::UnivariateKzgPCS, rescue::sponge::RescueCRHF};
-use log::{debug, error, info};
+use tracing::{debug, error, info};
 use nightfall_bindings::artifacts::{RollupProofVerifier, VKHashProvider};
 use reqwest::{Client, StatusCode};
 use sha3::{Digest, Keccak256};

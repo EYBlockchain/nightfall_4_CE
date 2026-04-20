@@ -28,7 +28,7 @@ use lib::{
     shared_entities::DepositData,
     shared_entities::OnChainTransaction,
 };
-use log::{debug, error, info, warn};
+use tracing::{debug, error, info, warn};
 use mongodb::Client;
 use nightfall_bindings::artifacts::Nightfall;
 use serde::Serialize;

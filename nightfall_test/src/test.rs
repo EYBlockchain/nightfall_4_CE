@@ -39,7 +39,7 @@ use lib::{
     secret_hash::SecretHash,
     shared_entities::{DepositSecret, Preimage, Salt},
 };
-use log::{debug, info, warn};
+use tracing::{debug, info, warn};
 use nf_curves::ed_on_bn254::{BabyJubjub as BabyJubJub, Fr as BJJScalar};
 use nightfall_client::{
     domain::{

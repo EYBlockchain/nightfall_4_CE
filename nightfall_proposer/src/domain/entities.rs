@@ -5,7 +5,7 @@ use lib::{
     shared_entities::DepositData,
     shared_entities::{ClientTransaction, OnChainTransaction},
 };
-use log::error;
+use tracing::error;
 use serde::{Deserialize, Serialize};
 use sha3::{Digest, Keccak256};
 use std::fmt::Debug;

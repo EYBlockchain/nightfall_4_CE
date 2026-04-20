@@ -1,5 +1,5 @@
 use configuration::settings::get_settings;
-use log::{debug, warn};
+use tracing::{debug, warn};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 /// Set up a warp server to listen for webhooks from the Nightfall client.

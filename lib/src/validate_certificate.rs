@@ -12,7 +12,7 @@ use alloy::{
 };
 use configuration::{addresses::get_addresses, settings::get_settings};
 use futures::stream::TryStreamExt;
-use log::{debug, error, trace, warn};
+use tracing::{debug, error, trace, warn};
 use nightfall_bindings::artifacts::X509;
 use openssl::{
     asn1::Asn1Time,

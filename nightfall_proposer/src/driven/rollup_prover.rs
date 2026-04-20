@@ -40,7 +40,7 @@ use jf_primitives::{
     rescue::sponge::RescueCRHF,
 };
 use jf_relation::{errors::CircuitError, PlonkCircuit, Variable};
-use log::{debug, warn};
+use tracing::{debug, warn};
 use mongodb::{bson::doc, Client};
 
 use lib::{
