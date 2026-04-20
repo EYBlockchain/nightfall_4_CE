@@ -171,7 +171,7 @@ impl Mocks {
     pub fn get_transaction() -> ClientTransaction<MockProof> {
         ClientTransaction::<MockProof> {
             fee: Fr254::from(2), // fee cannot be zero as we need to incentivize the proposer
-            historic_commitment_roots: Default::default(),
+            historic_commitment_root: Default::default(),
             commitments: [
                 Self::get_preimage().hash().unwrap(),
                 Fr254::zero(),

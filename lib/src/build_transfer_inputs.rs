@@ -18,37 +18,66 @@ use jf_primitives::{
 use nf_curves::ed_on_bn254::{BabyJubjub as BabyJubJub, Fr as BJJScalar};
 use num_bigint::BigUint;
 
-fn generate_random_path(leaf_value: Fr254, rng: &mut impl Rng) -> (MembershipProof<Fr254>, Fr254) {
-    let mut root = leaf_value;
+fn generate_random_paths_with_shared_root(
+    leaf_values: [Fr254; 4],
+    rng: &mut impl Rng,
+) -> ([MembershipProof<Fr254>; 4], Fr254) {
     let poseidon = Poseidon::<Fr254>::new();
-    let leaf_index = u32::rand(rng);
-    let mut path_elements = Vec::<PathElement<Fr254>>::new();
-    for i in 0..32 {
-        let dir = leaf_index >> i & 1;
-        let value = Fr254::rand(rng);
-        if dir == 0 {
-            root = poseidon.tree_hash(&[root, value]).unwrap();
-            path_elements.push(PathElement {
-                direction: Directions::HashWithThisNodeOnRight,
-                value,
-            })
-        } else {
-            root = poseidon.tree_hash(&[value, root]).unwrap();
-            path_elements.push(PathElement {
-                direction: Directions::HashWithThisNodeOnLeft,
-                value,
-            })
+    let leaf_indices = [0usize, 1usize, 2usize, 3usize];
+    let mut proofs: [MembershipProof<Fr254>; 4] = std::array::from_fn(|i| MembershipProof {
+        node_value: leaf_values[i],
+        sibling_path: Vec::with_capacity(32),
+        leaf_index: leaf_indices[i],
+    });
+    let mut current_nodes = std::collections::BTreeMap::from([
+        (leaf_indices[0], leaf_values[0]),
+        (leaf_indices[1], leaf_values[1]),
+        (leaf_indices[2], leaf_values[2]),
+        (leaf_indices[3], leaf_values[3]),
+    ]);
+
+    for level in 0..32 {
+        for i in 0..4 {
+            let idx = leaf_indices[i] >> level;
+            let sibling_idx = idx ^ 1;
+            let sibling_value = *current_nodes
+                .entry(sibling_idx)
+                .or_insert_with(|| Fr254::rand(rng));
+            let direction = if idx & 1 == 0 {
+                Directions::HashWithThisNodeOnRight
+            } else {
+                Directions::HashWithThisNodeOnLeft
+            };
+            proofs[i].sibling_path.push(PathElement {
+                direction,
+                value: sibling_value,
+            });
         }
+
+        let mut next_nodes = std::collections::BTreeMap::new();
+        let mut pairs_done = std::collections::BTreeSet::new();
+        let keys: Vec<usize> = current_nodes.keys().copied().collect();
+        for idx in keys {
+            let pair_base = idx & !1;
+            if !pairs_done.insert(pair_base) {
+                continue;
+            }
+            let left = *current_nodes
+                .get(&pair_base)
+                .expect("Left child should exist when building parent");
+            let right = *current_nodes
+                .get(&(pair_base + 1))
+                .expect("Right child should exist when building parent");
+            let parent = poseidon.tree_hash(&[left, right]).unwrap();
+            next_nodes.insert(pair_base >> 1, parent);
+        }
+        current_nodes = next_nodes;
     }
 
-    (
-        MembershipProof {
-            node_value: leaf_value,
-            sibling_path: path_elements,
-            leaf_index: leaf_index as usize,
-        },
-        root,
-    )
+    let root = *current_nodes
+        .get(&0)
+        .expect("Root should exist after building shared Merkle paths");
+    (proofs, root)
 }
 
 // Creates a random 96 bit element of Fr254
@@ -149,16 +178,8 @@ pub fn build_valid_transfer_inputs(rng: &mut impl Rng) -> (PublicInputs, Private
         nullified_three,
         nullified_four,
     ];
-    let mut membership_proofs = vec![];
-    let mut roots = vec![];
-    for nullifier in spend_commitments.iter() {
-        let (membership_proof, root) = generate_random_path(nullifier.hash().unwrap(), rng);
-        membership_proofs.push(membership_proof);
-        roots.push(root);
-    }
-
-    let mem_proofs: [MembershipProof<Fr254>; 4] = membership_proofs.try_into().unwrap();
-    let roots: [Fr254; 4] = roots.try_into().unwrap();
+    let spend_commitment_hashes = spend_commitments.map(|commitment| commitment.hash().unwrap());
+    let (mem_proofs, root) = generate_random_paths_with_shared_root(spend_commitment_hashes, rng);
 
     // Work out what the change values will be
     let value_change = nullified_value_one + nullified_value_two - value;
@@ -167,7 +188,7 @@ pub fn build_valid_transfer_inputs(rng: &mut impl Rng) -> (PublicInputs, Private
     // Salts for new commitments
     let new_salts = [Salt::new_transfer_salt().get_salt(); 3];
 
-    let public_inputs = PublicInputs::new().fee(fee).roots(&roots).build();
+    let public_inputs = PublicInputs::new().fee(fee).root(root).build();
 
     let private_inputs = PrivateInputs::new()
         .value_a(value)

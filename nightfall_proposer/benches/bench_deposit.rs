@@ -84,7 +84,7 @@ fn benchmark_deposit_circuit(c: &mut Criterion) {
     });
     let mut inputs = Vec::new();
     inputs.push(public_input.fee);
-    inputs.extend_from_slice(&public_input.roots);
+    inputs.push(public_input.root);
     inputs.extend_from_slice(&public_input.commitments);
     inputs.extend_from_slice(&public_input.nullifiers);
     inputs.extend_from_slice(&public_input.compressed_secrets);

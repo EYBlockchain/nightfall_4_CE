@@ -43,7 +43,7 @@ where
 #[derive(Debug, Clone, Copy)]
 pub struct PublicInputs {
     pub fee: Fr254,
-    pub roots: [Fr254; 4],
+    pub root: Fr254,
     pub commitments: [Fr254; 4],
     pub nullifiers: [Fr254; 4],
     pub compressed_secrets: [Fr254; 5],
@@ -56,7 +56,7 @@ impl Default for PublicInputs {
     fn default() -> Self {
         Self {
             fee: Fr254::zero(),
-            roots: [Fr254::zero(); 4],
+            root: Fr254::zero(),
             commitments: [Fr254::zero(); 4],
             nullifiers: [Fr254::zero(); 4],
             compressed_secrets: [Fr254::zero(); 5],
@@ -92,8 +92,8 @@ impl PublicInputs {
         self
     }
 
-    pub fn roots(&mut self, roots: &[Fr254; 4]) -> &mut Self {
-        self.roots = *roots;
+    pub fn root(&mut self, root: Fr254) -> &mut Self {
+        self.root = root;
         self
     }
 
@@ -116,7 +116,7 @@ impl PublicInputs {
     pub fn build(&mut self) -> Self {
         Self {
             fee: self.fee,
-            roots: self.roots,
+            root: self.root,
             commitments: self.commitments,
             nullifiers: self.nullifiers,
             compressed_secrets: self.compressed_secrets,
@@ -141,8 +141,8 @@ impl From<&PublicInputs> for Vec<Fr254> {
             &[Fr254::from_le_bytes_mod_order(init_bytes.as_slice())],
             &[Fr254::one()],
             &[value.fee],
-            &[Fr254::from(value.roots.len() as u8)],
-            value.roots.as_slice(),
+            &[Fr254::one()],
+            &[value.root],
             &[Fr254::from(value.commitments.len() as u8)],
             value.commitments.as_slice(),
             &[Fr254::from(value.nullifiers.len() as u8)],

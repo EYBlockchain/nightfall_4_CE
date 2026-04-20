@@ -635,29 +635,21 @@ impl RecursiveProvingEngine<PlonkProof> for RollupProver {
         let mut root_m_proof_len = 0;
         for pi in public_inputs.iter() {
             let mut m_proofs = Vec::<Fr254>::new();
-            for root in pi.roots.iter() {
-                if !root_proofs.contains_key(root) {
-                    let proof = <Client as HistoricRootTree<Fr254>>::get_membership_proof(
-                        db,
-                        Some(root),
-                        None,
-                    )
-                    .await?;
-                    let mut proof_vec = Vec::<Fr254>::from(proof);
-                    root_m_proof_len = proof_vec.len();
-                    proof_vec.push(current_historic_root);
-                    root_proofs.insert(*root, proof_vec.clone());
-                    m_proofs.extend(proof_vec.iter());
-                } else {
-                    let proof_vec =
-                        root_proofs
-                            .get(root)
-                            .ok_or(RollupProofError::ParameterError(
-                                "Error retrieving Historic root Membership proof from temporary DB"
-                                    .to_string(),
-                            ))?;
-                    m_proofs.extend(proof_vec.iter());
-                }
+            let root = pi.root;
+            if let Some(proof_vec) = root_proofs.get(&root).cloned() {
+                m_proofs.extend(proof_vec.iter());
+            } else {
+                let proof = <Client as HistoricRootTree<Fr254>>::get_membership_proof(
+                    db,
+                    Some(&root),
+                    None,
+                )
+                .await?;
+                let mut proof_vec = Vec::<Fr254>::from(proof);
+                root_m_proof_len = proof_vec.len();
+                proof_vec.push(current_historic_root);
+                root_proofs.insert(root, proof_vec.clone());
+                m_proofs.extend(proof_vec.iter());
             }
             root_membership_proofs.push(m_proofs);
         }
@@ -739,7 +731,7 @@ impl RecursiveProvingEngine<PlonkProof> for RollupProver {
                         commitment_info_len,
                         nullifier_info_len,
                     ],
-                    [pis[0].roots, pis[1].roots].concat(),
+                    vec![pis[0].root, pis[1].root],
                     root_m_proof_chunk[0]
                         .iter()
                         .chain(root_m_proof_chunk[1].iter())
@@ -752,7 +744,7 @@ impl RecursiveProvingEngine<PlonkProof> for RollupProver {
                         commitment_info_len,
                         nullifier_info_len,
                     ],
-                    [pis[2].roots, pis[3].roots].concat(),
+                    vec![pis[2].root, pis[3].root],
                     root_m_proof_chunk[2]
                         .iter()
                         .chain(root_m_proof_chunk[3].iter())
@@ -933,9 +925,8 @@ mod tests {
 
         let mut m_proof_vec = Vec::<Fr254>::from(m_proof);
         let root_proof_len_field = Fr254::from(m_proof_vec.len() as u64);
-        m_proof_vec.push(public_inputs.roots[0]);
-        let root_m_proofs_inner = vec![m_proof_vec.clone(); 4].concat();
-        let root_membership_proofs = vec![root_m_proofs_inner.clone(); 64];
+        m_proof_vec.push(public_inputs.root);
+        let root_membership_proofs = vec![m_proof_vec.clone(); 64];
 
         let extra_base_info = izip!(
             public_input_vec.chunks(4),
@@ -957,7 +948,7 @@ mod tests {
                         commitment_info_len,
                         nullifier_info_len,
                     ],
-                    [pis[0].roots, pis[1].roots].concat(),
+                    vec![pis[0].root, pis[1].root],
                     root_m_proof_chunk[0]
                         .iter()
                         .chain(root_m_proof_chunk[1].iter())
@@ -970,7 +961,7 @@ mod tests {
                         commitment_info_len,
                         nullifier_info_len,
                     ],
-                    [pis[2].roots, pis[3].roots].concat(),
+                    vec![pis[2].root, pis[3].root],
                     root_m_proof_chunk[2]
                         .iter()
                         .chain(root_m_proof_chunk[3].iter())

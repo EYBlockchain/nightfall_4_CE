@@ -133,7 +133,7 @@ impl DepositCircuitGadget<Fr254> for PlonkCircuit<Fr254> {
         // We set the relevant variables to be public here in the order:
         // hash initialisation (domain tag, version)
         // fee
-        // roots
+        // root
         // commitments
         // nullifiers
         // compressed_secrets
@@ -158,20 +158,12 @@ impl DepositCircuitGadget<Fr254> for PlonkCircuit<Fr254> {
         let _ = self.create_public_variable(Fr254::zero())?;
         let fee = Fr254::zero();
 
-        let roots_len_sep = self.create_constant_variable(Fr254::from(4u8))?;
+        let roots_len_sep = self.create_constant_variable(Fr254::from(1u8))?;
         self.set_variable_public(roots_len_sep)?;
-        let roots: [Fr254; 4] = (0..4)
-            .map(|_| {
-                let root = self.create_public_variable(Fr254::zero())?;
-                self.witness(root)
-            })
-            .collect::<Result<Vec<Fr254>, CircuitError>>()?
-            .try_into()
-            .map_err(|_| {
-                CircuitError::ParameterError(
-                    "Could not convert roots to fixed length array".to_string(),
-                )
-            })?;
+        let root = {
+            let root = self.create_public_variable(Fr254::zero())?;
+            self.witness(root)?
+        };
 
         let comms_len_sep = self.create_constant_variable(Fr254::from(4u8))?;
         self.set_variable_public(comms_len_sep)?;
@@ -240,7 +232,7 @@ impl DepositCircuitGadget<Fr254> for PlonkCircuit<Fr254> {
 
         Ok(PublicInputs::new()
             .fee(fee)
-            .roots(&roots)
+            .root(root)
             .commitments(&commitments)
             .nullifiers(&nullifiers)
             .compressed_secrets(&compressed_secrets)
