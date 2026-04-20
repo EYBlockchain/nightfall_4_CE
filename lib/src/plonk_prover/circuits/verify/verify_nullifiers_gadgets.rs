@@ -29,7 +29,7 @@ where
         nf_slot_id: Variable,
         nullifiers_key: Variable,
         public_keys: &[PointVariable; 4],
-        roots: &[Variable; 4],
+        root: Variable,
         old_commitment_values: &[Variable; 4],
         old_commitment_salts: &[Variable; 4],
         membership_proofs: &[MembershipProofVar],
@@ -49,7 +49,7 @@ where
         nf_slot_id: Variable,
         nullifiers_key: Variable,
         public_keys: &[PointVariable; 4],
-        roots: &[Variable; 4],
+        root: Variable,
         old_commitment_values: &[Variable; 4],
         old_commitment_salts: &[Variable; 4],
         membership_proofs: &[MembershipProofVar],
@@ -80,7 +80,7 @@ where
         // Check if the nullifier is equal to the public transaction nullifier hash, or input commitment value is zero
         // Check if the Merkle root is equal to the supplied one.
         let calc_root = membership_proofs[0].calculate_new_root(self, &commitment_hash_1)?;
-        self.enforce_equal(calc_root, roots[0])?;
+        self.enforce_equal(calc_root, root)?;
 
         // Finally we check if the salt is from a secret preimage
         let secret_hash = self.poseidon_hash(&secret_preimages[0])?;
@@ -90,7 +90,7 @@ where
         self.enforce_equal(salt_to_enforce, old_commitment_salts[0])?;
 
         // Check the second nullifier, nullify extra Withdrawn/Transferred token
-        let is_zero = self.is_zero(old_commitment_values[1])?;
+        let is_zero = self.is_zero(old_commitment_salts[1])?;
 
         let commitment_hash_2 = self.poseidon_hash(&[
             nf_token_id,
@@ -116,7 +116,8 @@ where
         // Check if the Merkle root is equal to the supplied one.
 
         let calc_root = membership_proofs[1].calculate_new_root(self, &commitment_hash_2)?;
-        let root_is_equal = self.is_equal(calc_root, roots[1])?;
+        let expected_root = self.conditional_select(is_zero, root, self.zero())?;
+        let root_is_equal = self.is_equal(calc_root, expected_root)?;
 
         // If commitment value is zero nullifier will directly be considered valid.
         let is_valid = self.conditional_select(is_zero, root_is_equal.into(), self.one())?;
@@ -132,7 +133,7 @@ where
         self.enforce_equal(salt_to_enforce, old_commitment_salts[1])?;
 
         // Check the third nullifier, nullify fee token used to pay
-        let is_zero = self.is_zero(old_commitment_values[2])?;
+        let is_zero = self.is_zero(old_commitment_salts[2])?;
 
         let commitment_hash_3 = self.poseidon_hash(&[
             fee_token_id,
@@ -158,8 +159,8 @@ where
         // Check if the nullifier is equal to the public transaction nullifier hash, or input commitment value is zero
         // Check if the Merkle root is equal to the supplied one.
         let calc_root = membership_proofs[2].calculate_new_root(self, &commitment_hash_3)?;
-
-        let root_is_equal = self.is_equal(calc_root, roots[2])?;
+        let expected_root = self.conditional_select(is_zero, root, self.zero())?;
+        let root_is_equal = self.is_equal(calc_root, expected_root)?;
 
         // If commitment value is zero nullifier will directly be considered valid.
         let is_valid = self.conditional_select(is_zero, root_is_equal.into(), self.one())?;
@@ -175,7 +176,7 @@ where
         self.enforce_equal(salt_to_enforce, old_commitment_salts[2])?;
 
         // Check the third nullifier
-        let is_zero = self.is_zero(old_commitment_values[3])?;
+        let is_zero = self.is_zero(old_commitment_salts[3])?;
 
         let commitment_hash_4 = self.poseidon_hash(&[
             fee_token_id,
@@ -201,8 +202,8 @@ where
         // Check if the nullifier is equal to the public transaction nullifier hash, or input commitment value is zero
         // Check if the Merkle root is equal to the supplied one.
         let calc_root = membership_proofs[3].calculate_new_root(self, &commitment_hash_4)?;
-
-        let root_is_equal = self.is_equal(calc_root, roots[3])?;
+        let expected_root = self.conditional_select(is_zero, root, self.zero())?;
+        let root_is_equal = self.is_equal(calc_root, expected_root)?;
 
         // If commitment value is zero nullifier will directly be considered valid.
         let is_valid = self.conditional_select(is_zero, root_is_equal.into(), self.one())?;

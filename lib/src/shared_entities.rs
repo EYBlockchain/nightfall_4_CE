@@ -252,7 +252,7 @@ pub struct ClientTransaction<P> {
     #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
     pub fee: Fr254,
     #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
-    pub historic_commitment_roots: [Fr254; 4],
+    pub historic_commitment_root: Fr254,
     #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
     pub commitments: [Fr254; 4],
     #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
@@ -299,7 +299,7 @@ impl<P: Proof + Debug + Serialize + Clone> From<&ClientTransaction<P>> for Publi
             commitments: tx.commitments,
             nullifiers: tx.nullifiers,
             compressed_secrets: tx.compressed_secrets.cipher_text,
-            roots: tx.historic_commitment_roots,
+            root: tx.historic_commitment_root,
             swap_link: tx.swap_link,
             deadline: tx.deadline,
             swap_side: tx.swap_side,

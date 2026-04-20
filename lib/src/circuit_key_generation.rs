@@ -138,9 +138,8 @@ pub fn generate_rollup_keys_for_production(
 
     let mut m_proof_vec = Vec::<Fr254>::from(m_proof);
     let root_proof_len_field = Fr254::from(m_proof_vec.len() as u64);
-    m_proof_vec.push(deposit_public_inputs.roots[0]);
-    let root_m_proofs_inner = vec![m_proof_vec.clone(); 4].concat();
-    let root_membership_proofs = vec![root_m_proofs_inner.clone(); block_size];
+    m_proof_vec.push(deposit_public_inputs.root);
+    let root_membership_proofs = vec![m_proof_vec.clone(); block_size];
 
     let extra_base_info = izip!(
         public_input_vec.chunks(4),
@@ -162,7 +161,7 @@ pub fn generate_rollup_keys_for_production(
                     commitment_info_len,
                     nullifier_info_len,
                 ],
-                [pis[0].roots, pis[1].roots].concat(),
+                vec![pis[0].root, pis[1].root],
                 root_m_proof_chunk[0]
                     .iter()
                     .chain(root_m_proof_chunk[1].iter())
@@ -175,7 +174,7 @@ pub fn generate_rollup_keys_for_production(
                     commitment_info_len,
                     nullifier_info_len,
                 ],
-                [pis[2].roots, pis[3].roots].concat(),
+                vec![pis[2].root, pis[3].root],
                 root_m_proof_chunk[2]
                     .iter()
                     .chain(root_m_proof_chunk[3].iter())

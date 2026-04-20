@@ -138,11 +138,12 @@ where
     info!("{id} {} transaction submitted", operation.operation_type);
     let mut operation_result_json = serde_json::to_value(&operation_result)
         .expect("Failed to serialize operation_result to JSON");
+    if let Some(field) = operation_result_json.get_mut("historic_commitment_root") {
+        *field = serde_json::to_value(operation_result.historic_commitment_root.to_hex_string())
+            .unwrap();
+    }
+
     for (key, items) in [
-        (
-            "historic_commitment_roots",
-            &mut operation_result.historic_commitment_roots,
-        ),
         ("commitments", &mut operation_result.commitments),
         ("nullifiers", &mut operation_result.nullifiers),
     ] {

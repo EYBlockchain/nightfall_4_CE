@@ -88,17 +88,19 @@ where
     // have computed and stored it when the commitment was added to the tree (and hopefully updated
     //it since as the Merkle tree root is updated so that we obfuscate which block it was deposited in).
     debug!("{id} Finding membership proofs for spend commitments");
-    let (membership_proofs, roots) = {
+    let (membership_proofs, root) = {
         let mut proofs = vec![];
-        let mut roots = vec![];
+        let mut selected_root = Fr254::zero();
         let db = get_db_connection().await;
-        for commitment in spend_commitments.iter() {
+        for (i, commitment) in spend_commitments.iter().enumerate() {
             // ignore zero commitments here because they won't be in our commitment database. We check
             // for zero commitments by checking the preimage has default token id. We have already adjusted
             // the salt to be random so we can't use that.
             if commitment.get_nf_token_id() == Fr254::zero() {
                 proofs.push(MembershipProof::default());
-                roots.push(Fr254::zero());
+                if i == 0 {
+                    selected_root = Fr254::zero();
+                }
                 continue;
             }
             let commitment_hash = commitment.hash().map_err(|_| "Could not hash preimage")?;
@@ -116,27 +118,26 @@ where
                 .get_membership_proof(Some(&commitment_hash), None)
                 .await
                 .map_err(|_| "Could not get membership proof")?;
-            let root = <mongodb::Client as CommitmentTree<Fr254>>::get_root(db)
+            let proof_root = <mongodb::Client as CommitmentTree<Fr254>>::get_root(db)
                 .await
                 .map_err(|_| "Could not get root")?;
             // check that the proof is valid (we may remove this check later if we need more speed)
             let hasher = Poseidon::new();
             membership_proof
-                .verify(&root, &hasher)
+                .verify(&proof_root, &hasher)
                 .map_err(|_| "Membership proof failed")?;
             proofs.push(membership_proof);
-            roots.push(root);
+            if i == 0 {
+                selected_root = proof_root;
+            }
             // while we're at it, we should store the spend commitments nullifier hash. Then, when we see that nullifier
             // on the blockchain, we can mark the commitment as nullified so we don't try to spend it again.
         }
-        (proofs, roots)
+        (proofs, selected_root)
     };
     let fixed_proofs: [MembershipProof<Fr254>; 4] = membership_proofs
         .try_into()
         .map_err(|_| "Could not convert membership proofs to fixed length array")?;
-    let fixed_roots: [Fr254; 4] = roots
-        .try_into()
-        .map_err(|_| "Could not convert roots into fixed length array")?;
     let keys = ZKPKeys::new(root_key)
         .map_err(|_| "Transaction could not be completed due to an invalid root key.")?;
     // Construct Private Inputs [ Commitment value, salt, recipient public_key];
@@ -146,7 +147,7 @@ where
     let (mut public_inputs, mut private_inputs) = (
         PublicInputs::new()
             .fee(new_commitments[2].get_value())
-            .roots(&fixed_roots)
+            .root(root)
             .build(),
         PrivateInputs::new()
             .nf_address(nf_address)
@@ -188,7 +189,7 @@ where
     match wrapped_proof {
         Ok(proof) => Ok(ClientTransaction {
             fee: public_inputs.fee,
-            historic_commitment_roots: public_inputs.roots,
+            historic_commitment_root: public_inputs.root,
             commitments: public_inputs.commitments,
             nullifiers: public_inputs.nullifiers,
             compressed_secrets: CompressedSecrets {

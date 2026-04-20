@@ -18,7 +18,7 @@ use jf_primitives::circuit::poseidon::PoseidonHashGadget;
 use jf_relation::{
     errors::CircuitError,
     gadgets::ecc::{Point, PointVariable},
-    Circuit, PlonkCircuit, Variable,
+    Circuit, PlonkCircuit,
 };
 use nf_curves::ed_on_bn254::Fr as BJJScalar;
 use nf_curves::ed_on_bn254::{BabyJubjub, Fq as Fr254};
@@ -50,15 +50,7 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
         // Nullifiers[2]: nullify fee token
         // Nullifiers[3]: nullify extra fee token (placeholder, can be zero)
         let fee = self.create_variable(public_inputs.fee)?;
-        let roots = public_inputs
-            .roots
-            .iter()
-            .map(|root| self.create_variable(*root))
-            .collect::<Result<Vec<Variable>, CircuitError>>()?
-            .try_into()
-            .map_err(|_| {
-                CircuitError::ParameterError("Couldn't convert to fixed length array".to_string())
-            })?;
+        let root = self.create_variable(public_inputs.root)?;
 
         let PrivateInputsVar {
             fee_token_id,
@@ -352,7 +344,7 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
             nf_slot_id,
             nullifier_key,
             &public_keys,
-            &roots,
+            root,
             &nullifiers_values,
             &nullifiers_salts,
             &membership_proofs,
@@ -393,7 +385,7 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
         // We set the relevant variables to be public here in the order:
         // hash initialisation (domain tag, version)
         // fee
-        // roots
+        // root
         // commitments
         // nullifiers
         // compressed_secrets
@@ -411,21 +403,10 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
         self.set_variable_public(fee)?;
         let fee = self.witness(fee)?;
 
-        let roots_len_sep = self.create_constant_variable(Fr254::from(4u8))?;
-        self.set_variable_public(roots_len_sep)?;
-        let roots: [Fr254; 4] = roots
-            .iter()
-            .map(|&root| {
-                self.set_variable_public(root)?;
-                self.witness(root)
-            })
-            .collect::<Result<Vec<Fr254>, CircuitError>>()?
-            .try_into()
-            .map_err(|_| {
-                CircuitError::ParameterError(
-                    "Could not convert roots to fixed length array".to_string(),
-                )
-            })?;
+        let root_len_sep = self.create_constant_variable(Fr254::from(1u8))?;
+        self.set_variable_public(root_len_sep)?;
+        self.set_variable_public(root)?;
+        let root = self.witness(root)?;
 
         let comms_len_sep = self.create_constant_variable(Fr254::from(4u8))?;
         self.set_variable_public(comms_len_sep)?;
@@ -503,7 +484,7 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
         Ok((
             PublicInputs::new()
                 .fee(fee)
-                .roots(&roots)
+                .root(root)
                 .commitments(&commitments)
                 .nullifiers(&nullifiers)
                 .compressed_secrets(&compressed_secrets)
@@ -516,7 +497,7 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
     }
 }
 
-/// This function takes mutable references to the public_input (only need fee and roots values)
+/// This function takes mutable references to the public_input (only need fee and root values)
 /// and private inputs and returns a PlonkCircuit
 /// It will modify public_input and fill correct values for the rest of public_input
 pub fn unified_circuit_builder(

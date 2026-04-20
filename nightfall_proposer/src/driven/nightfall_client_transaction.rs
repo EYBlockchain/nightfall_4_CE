@@ -115,20 +115,20 @@ where
     // If they are, they should be in our database of historic roots because that gets populated from
     // blockproposed events, which are proven correct.
     // We won't do this if we aren't nullifying anything, i.e. it's a deposit transaction
-    for (i, historic_commitment_root) in client_transaction
-        .historic_commitment_roots
+    if client_transaction
+        .nullifiers
         .iter()
-        .enumerate()
+        .any(|nullifier| !nullifier.is_zero())
+        && !db
+            .is_historic_root(&client_transaction.historic_commitment_root)
+            .await
+            .expect("Database error looking up historic root")
     {
-        if !client_transaction.nullifiers[i].is_zero()
-            && !db
-                .is_historic_root(historic_commitment_root)
-                .await
-                .expect("Database error looking up historic root")
-        {
-            error!("Historic commitment root not found in database: {historic_commitment_root}");
-            return Err(ClientTransactionError::CommitmentRootUnknown);
-        }
+        error!(
+            "Historic commitment root not found in database: {}",
+            client_transaction.historic_commitment_root
+        );
+        return Err(ClientTransactionError::CommitmentRootUnknown);
     }
 
     // 4) check that the nullifiers are not used. Zero nulifiers are ignored.
@@ -145,7 +145,7 @@ where
         block_l2: None,
         in_mempool: true,
         hash: hash.to_vec(),
-        historic_roots: client_transaction.historic_commitment_roots.to_vec(),
+        historic_roots: vec![client_transaction.historic_commitment_root],
     };
 
     // 6) Validate that the first nullifier is not zero (we must nullify the first spent commitment)
