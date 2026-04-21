@@ -506,6 +506,7 @@ curl -i \
   --data-raw '{
     "ercAddress": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
     "tokenId": "0x00",
+    "tokenType": "0",
     "recipientData": {
       "values": ["0x01"],
       "recipientCompressedZkpPublicKeys": ["0572aa70f4e62bcb8f53a28a1c259bd6d3538818afcccc0d8598486973ec2f2a"]
@@ -525,8 +526,9 @@ The components of the JSON object have the following meaning:
 
 - ercAddress: The Ethereum address of the ERC20|721|1155|3525 contract that we are using as a source of funds to move into Layer 2.
 - tokenId: The token ID of the token, for a 721|1155|3525 contract. It should be set to "0x00" for an ERC20 contract.
+- tokenType: The type of token being transacted: 0 => ERC20, 1 => ERC1155, 2 => ERC721, 3 => ERC3525. This field defaults to ERC20 for backwards compatibility, but should be provided explicitly for NFT and semi-fungible transfers.
 - recipientData: information about the owner(s) of the commitment(s) that will be created.
-- recipientData.values: values of the commitments for ERC20 tokens
+- recipientData.values: values of the commitments for the transfer. For ERC20 and fungible ERC1155 transfers this should be greater than zero. For ERC721 and non-fungible ERC1155 transfers, use "0x00".
 - recipientData.recipientCompressedZkpPublic: The ZKP public keys of the recipients. This acts as their Layer 2 addresses. See the section on key derivation for more details.
 - fee: The amount that will be paid to the `proposer` which processes this transaction.
 
@@ -594,6 +596,30 @@ Returns all the commitment entries in the database. Use with care!
 
 ***
 
+GET /v1/commitments/token_type/:token_type
+
+```sh
+curl -i 'http://localhost:3000/v1/commitments/token_type/ERC20'
+```
+
+Returns: on success `200 OK` with a JSON array of CommitmentEntry objects filtered by token type. Returns `400 BAD REQUEST` if `:token_type` is not a supported Nightfall token type.
+
+Use this endpoint to inspect only the commitments matching a given asset class such as `ERC20`, `ERC721`, `ERC1155`, or `ERC3525`.
+
+***
+
+GET /v1/commitments/max_transferable_amount/:token_type/:nf_token_id
+
+```sh
+curl -i 'http://localhost:3000/v1/commitments/max_transferable_amount/ERC20/0x1234abcd...'
+```
+
+Returns: on success `200 OK` with the maximum transferable amount encoded as a big-endian hex string. Returns `400 BAD REQUEST` if either `:token_type` or `:nf_token_id` is invalid.
+
+For fungible assets this value is computed from the two largest available commitments for that token. For ERC721 it returns `01` when at least one matching commitment exists, otherwise `00`.
+
+***
+
 GET /v1/health
 
 ```sh
@@ -618,6 +644,18 @@ This is to obtain a list of proposers from their on-chain registrations. The Pro
 
 ***
 
+GET /v1/synchronisation
+
+```sh
+curl -i 'http://localhost:3000/v1/synchronisation'
+```
+
+Returns: on success `200 OK` with a JSON object describing whether the client is synchronised with the chain. Returns `503 SERVICE UNAVAILABLE` if the synchronisation status cannot be determined.
+
+The response contains the current synchronisation phase, for example `Synchronized`, `Desynchronized`, or `AheadOfChain`.
+
+***
+
 POST /v1/deriveKey
 
 ```sh
@@ -628,6 +666,20 @@ curl -i --request POST 'http://localhost:3000/v1/deriveKey' \
 Returns: on success `200 OK` and a JSON encoded hex string encoding the spending key in compressed and big-endian form.
 
 This is a convenience function for generating a set of ZKP keys. They are generated from the input path and mnemonic using the BIP32 protocol.
+
+***
+
+POST /v1/keys_validation
+
+```sh
+curl -i --request POST 'http://localhost:3000/v1/keys_validation' \
+    --header 'Content-Type: application/json' \
+    --json '{ "configuration_url": "http://configuration:80", "concurrency": 2 }'
+```
+
+Returns: on success `200 OK` with a JSON report covering downloaded key hashes, regenerated key hashes, and the on-chain decider verification key comparison. Returns `400 BAD REQUEST` when the JSON body is malformed or required fields are missing.
+
+Use this endpoint to verify that the proving and verification keys served by the configuration service and published on-chain are consistent with locally regenerated keys.
 
 ***
 
@@ -685,6 +737,18 @@ Note that internal failures of the client will cause the request state to be unr
 
 ***
 
+GET /v1/queue
+
+```sh
+curl -i 'http://localhost:3000/v1/queue'
+```
+
+Returns: on success `200 OK` with a JSON encoded integer representing the current number of transaction requests waiting in the client queue.
+
+This is useful for operational monitoring when the client is receiving deposit, transfer, and withdraw requests concurrently.
+
+***
+
 GET /v1/token/:nf_token_id
 
 ```sh
@@ -704,6 +768,7 @@ This endpoint allows you to retrieve detailed information about a token using it
 - `200 OK`: Returns a JSON object with token information, derived from the `TokenData` struct:
     - `erc_address`: The ERC contract address for the token, as a hex string.
     - `token_id`: The token ID (for ERC721/1155/3525), as a hex string.
+    - `token_type`: The token standard as a string such as `ERC20`, `ERC721`, `ERC1155`, or `ERC3525`.
 - `400 BAD REQUEST`: Returned if the provided token ID is not a valid field element.
 - `404 NOT FOUND`: Returned if no token exists for the given ID.
 
@@ -712,7 +777,8 @@ This endpoint allows you to retrieve detailed information about a token using it
 ```json
 {
   "erc_address": "0x6fcb6af7f7947f8480c36e8ffca0c66f6f2be32b",
-  "token_id": "0x00"
+  "token_id": "0x00",
+  "token_type": "ERC20"
 }
 ```
 
@@ -732,8 +798,8 @@ POST /v1/certification
 ```sh
 curl -i --request POST 'http://localhost:3001/v1/certification' \
     --header 'Content-Type: multipart/form-data' \
-    --form 'file=@blockchain_assets/test_contracts/X509/_certificates/user/user-2.der' \
-    --form 'file=@blockchain_assets/test_contracts/X509/_certificates/user/user-2.priv_key'
+    --form 'certificate=@blockchain_assets/test_contracts/X509/_certificates/user/user-2.der' \
+    --form 'priv_key=@blockchain_assets/test_contracts/X509/_certificates/user/user-2.priv_key'
 ```
 
 Returns: `StatusCode: Accepted` on success.
@@ -749,6 +815,18 @@ curl -i 'http://localhost:3001/v1/blockdata'
 ```
 
 Returns: on success `200 OK` with a body containing the current Layer 2 block number.
+
+***
+
+GET /v1/synchronisation
+
+```sh
+curl -i 'http://localhost:3001/v1/synchronisation'
+```
+
+Returns: on success `200 OK` with a body containing either `"Synchronised"` or `"Not synchronised"`.
+
+This endpoint reports whether the proposer believes it is currently synchronised with the blockchain and ready to assemble blocks from an up-to-date view of the Layer 2 state.
 
 ***
 
@@ -770,15 +848,61 @@ This is just a health-check, useful for finding out if the application is runnin
 
 ***
 
-GET v1/rotate
+### GET /v1/rotate
+
+Rotates the active proposer if it has exceeded its allowed proposal window.
+
+The rotation is permitted only when the current `proposer` has been active for more
+than `ROTATION_BLOCKS` Layer 1 blocks, as configured in `RoundRobin.sol`.
 
 ```sh
 curl -i 'http://localhost:3001/v1/rotate'
 ```
 
-Returns: on success `200 OK` if the active `proposer` was rotated, `423 LOCKED` if proposer rotation was not allowed by the smart contract.
+**Responses**
 
-This endpoint will rotate the proposers if the current `proposer` has been active for more than the number of Layer 1 blocks that a `proposer` is allowed to propose for (ROTATION_BlOCKS). This value is set in the construction of RoundRobin.sol.
+| Status | Condition |
+|--------|-----------|
+| `200 OK` | Rotation succeeded |
+| `423 Locked` | Rotation rejected by the smart contract because the proposer is still within its allowed window |
+
+**Response body**: empty
+
+***
+
+GET /v1/pause
+
+```sh
+curl -i 'http://localhost:3001/v1/pause'
+```
+
+Returns: on success `200 OK`.
+
+This endpoint pauses proposer block assembly. Incoming client transactions may still be received, but the proposer will stop assembling new Layer 2 blocks until block assembly is resumed.
+
+***
+
+GET /v1/resume
+
+```sh
+curl -i 'http://localhost:3001/v1/resume'
+```
+
+Returns: on success `200 OK`.
+
+This endpoint resumes proposer block assembly after a previous pause.
+
+***
+
+GET /v1/status
+
+```sh
+curl -i 'http://localhost:3001/v1/status'
+```
+
+Returns: on success `200 OK` with a JSON string body containing either `"Running"` or `"Paused"`.
+
+This endpoint reports whether block assembly is currently active inside the proposer.
 
 ***
 
@@ -792,14 +916,14 @@ curl -i -X POST http://localhost:3001/v1/register \
 
 Returns: on success `200 OK`
 
-Adds (registers) a new proposer. The URL, at which clients can reach the proposer, should be provided.
+Adds (registers) a new proposer. The request body must be a JSON string containing the absolute proposer URL, and the URL must use the `http` or `https` scheme. Invalid, empty, or malformed JSON bodies return `400 BAD REQUEST`.
 
 ***
 
 GET /v1/deregister
 
 ```sh
-curl -i 'http://localhost:3000/v1/deregister'
+curl -i 'http://localhost:3001/v1/deregister'
 ```
 
 Returns: on success `200 OK`
@@ -811,13 +935,14 @@ Removes (de-registers) a proposer. Only the proposer itself can successfully cal
 POST /v1/withdraw
 
 ```sh
-curl -i --request POST 'http://localhost:3000/v1/withdraw' \
-    --json '{ "amount": 20 }'
+curl -i --request POST 'http://localhost:3001/v1/withdraw' \
+    --header 'Content-Type: application/json' \
+    --data '20'
 ```
 
 Returns: on success `200 OK`
 
-Withdraws the stake of a de-registered proposer, actually, the amount withdrawn can be up to the amount of the stake. This can only be called by the de-registered proposer, otherwise the withdraw will fail.
+Withdraws the stake of a de-registered proposer, actually, the amount withdrawn can be up to the amount of the stake. This can only be called by the de-registered proposer, otherwise the withdraw will fail. The request body must be a positive JSON integer amount. Zero or malformed JSON bodies return `400 BAD REQUEST`.
 
 ***
 

@@ -38,6 +38,51 @@ pub fn get_block_assembly_status_route(
 
 pub async fn handle_get_block_assembly_status() -> Result<impl warp::Reply, warp::Rejection> {
     let status = get_block_assembly_status().await.read().await.is_running();
-    let response = if status { "Reunning" } else { "Paused" };
+    let response = if status { "Running" } else { "Paused" };
     Ok(warp::reply::json(&response))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use warp::http::StatusCode;
+
+    #[tokio::test]
+    async fn test_pause_resume_and_status_routes() {
+        get_block_assembly_status().await.write().await.resume();
+
+        let pause_res = warp::test::request()
+            .method("GET")
+            .path("/v1/pause")
+            .reply(&pause_block_assembly())
+            .await;
+        assert_eq!(pause_res.status(), StatusCode::OK);
+
+        let paused_status = warp::test::request()
+            .method("GET")
+            .path("/v1/status")
+            .reply(&get_block_assembly_status_route())
+            .await;
+        assert_eq!(paused_status.status(), StatusCode::OK);
+        let paused_body =
+            serde_json::from_slice::<String>(paused_status.body()).expect("status JSON");
+        assert_eq!(paused_body, "Paused");
+
+        let resume_res = warp::test::request()
+            .method("GET")
+            .path("/v1/resume")
+            .reply(&resume_block_assembly())
+            .await;
+        assert_eq!(resume_res.status(), StatusCode::OK);
+
+        let running_status = warp::test::request()
+            .method("GET")
+            .path("/v1/status")
+            .reply(&get_block_assembly_status_route())
+            .await;
+        assert_eq!(running_status.status(), StatusCode::OK);
+        let running_body =
+            serde_json::from_slice::<String>(running_status.body()).expect("status JSON");
+        assert_eq!(running_body, "Running");
+    }
 }

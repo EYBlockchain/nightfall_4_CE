@@ -1552,4 +1552,32 @@ mod tests {
         std::fs::remove_dir_all(&temp_dir)
             .unwrap_or_else(|e| panic!("Failed to cleanup test directory: {e:?}"));
     }
+
+    #[tokio::test]
+    async fn test_keys_validation_route_rejects_missing_configuration_url() {
+        let filter = keys_validation_request();
+        let res = warp::test::request()
+            .method("POST")
+            .path("/v1/keys_validation")
+            .header("content-type", "application/json")
+            .body(r#"{"concurrency":2}"#)
+            .reply(&filter)
+            .await;
+
+        assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn test_keys_validation_route_rejects_malformed_json() {
+        let filter = keys_validation_request();
+        let res = warp::test::request()
+            .method("POST")
+            .path("/v1/keys_validation")
+            .header("content-type", "application/json")
+            .body(r#"{"configuration_url":"http://configuration:80","concurrency":"oops"}"#)
+            .reply(&filter)
+            .await;
+
+        assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+    }
 }

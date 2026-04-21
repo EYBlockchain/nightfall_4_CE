@@ -1106,6 +1106,7 @@ fn create_nf3_transfer_request(
     Ok(NF3TransferRequest {
         erc_address: token_type.address(),
         token_id,
+        token_type: token_type.to_string(),
         recipient_data: NF3RecipientData {
             values: vec![value],
             recipient_compressed_zkp_public_keys: vec![recipient_zkp_key],

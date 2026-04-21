@@ -348,6 +348,11 @@ fn prompt_nf3_transfer_request(
         .with_initial_value("0x00")
         .prompt()
         .expect("Failed to get Token ID");
+    let token_type_name = Text::new("Enter Token Type (ERC20, ERC721, ERC1155, ERC3525):")
+        .with_initial_value("ERC20")
+        .prompt()
+        .expect("Failed to get Token Type");
+    let token_type = token_type_name_to_number_string(&token_type_name);
     let value = Text::new("Enter Value:")
         .with_initial_value("0x01")
         .prompt()
@@ -365,6 +370,7 @@ fn prompt_nf3_transfer_request(
     NF3TransferRequest {
         erc_address,
         token_id,
+        token_type,
         recipient_data: NF3RecipientData {
             values: vec![value],
             recipient_compressed_zkp_public_keys: vec![recipient_key],

@@ -19,6 +19,8 @@ use lib::{
     plonk_prover::{get_client_proving_key, plonk_proof::PlonkProof},
     shared_entities::DepositData,
 };
+#[cfg(feature = "parallel")]
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::collections::HashMap;
 
 use log::debug;

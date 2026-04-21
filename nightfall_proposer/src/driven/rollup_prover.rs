@@ -56,6 +56,8 @@ use lib::{
     utils::load_key_from_server,
     utils::load_key_locally,
 };
+#[cfg(feature = "parallel")]
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,

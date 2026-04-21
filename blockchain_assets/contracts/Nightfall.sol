@@ -432,13 +432,13 @@ contract Nightfall is
         uint256 secretHash,
         TokenType token_type
     ) external payable virtual onlyCertified nonReentrant {
-        uint256 nfTokenId = sha256_and_shift(abi.encode(ercAddress, tokenId));
+        uint256 nfTokenId = sha256_and_shift(abi.encode(ercAddress, 0, tokenId));
         tokenIdMapping[nfTokenId] = TokenIdValue(ercAddress, tokenId, token_type);
 
         uint256 nfSlotId = (token_type == TokenType.ERC3525)
             ? uint256(
                 keccak256(
-                    abi.encode(ercAddress, IERC3525(ercAddress).slotOf(tokenId))
+                    abi.encode(ercAddress, 1, IERC3525(ercAddress).slotOf(tokenId))
                 )
             ) >> 4
             : nfTokenId;

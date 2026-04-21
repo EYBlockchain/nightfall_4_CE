@@ -526,4 +526,54 @@ mod tests {
         .expect("Failed to verify signature");
         assert!(is_valid, "Signature verification failed");
     }
+
+    #[tokio::test]
+    async fn test_certification_route_rejects_missing_priv_key_field() {
+        let boundary = "x-boundary";
+        let body = format!(
+            "--{boundary}\r\nContent-Disposition: form-data; name=\"certificate\"; filename=\"cert.der\"\r\nContent-Type: application/octet-stream\r\n\r\nabc\r\n--{boundary}--\r\n"
+        );
+
+        let filter = certification_validation_request();
+        let res = warp::test::request()
+            .method("POST")
+            .path("/v1/certification")
+            .header(
+                "content-type",
+                format!("multipart/form-data; boundary={boundary}"),
+            )
+            .body(body)
+            .reply(&filter)
+            .await;
+
+        assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+        let body = serde_json::from_slice::<serde_json::Value>(res.body()).unwrap();
+        assert_eq!(body["code"], "bad_request");
+        assert_eq!(body["message"], "Missing 'priv_key' field or empty file");
+    }
+
+    #[tokio::test]
+    async fn test_certification_route_rejects_unexpected_form_field() {
+        let boundary = "x-boundary";
+        let body = format!(
+            "--{boundary}\r\nContent-Disposition: form-data; name=\"unexpected\"; filename=\"file.bin\"\r\nContent-Type: application/octet-stream\r\n\r\nabc\r\n--{boundary}--\r\n"
+        );
+
+        let filter = certification_validation_request();
+        let res = warp::test::request()
+            .method("POST")
+            .path("/v1/certification")
+            .header(
+                "content-type",
+                format!("multipart/form-data; boundary={boundary}"),
+            )
+            .body(body)
+            .reply(&filter)
+            .await;
+
+        assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+        let body = serde_json::from_slice::<serde_json::Value>(res.body()).unwrap();
+        assert_eq!(body["code"], "bad_request");
+        assert_eq!(body["message"], "Unexpected form field");
+    }
 }

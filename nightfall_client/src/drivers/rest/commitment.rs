@@ -58,6 +58,8 @@ pub fn get_commitments_by_token_type(
 pub async fn handle_get_commitments_by_token_type(
     token_type: String,
 ) -> Result<impl Reply, warp::Rejection> {
+    TokenType::parse_token_type(&token_type)
+        .map_err(|_| warp::reject::custom(crate::domain::error::ClientRejection::InvalidTokenType))?;
     let commitment_db = get_db_connection().await;
     let res = commitment_db
         .get_commitments_by_token_type(&token_type)
@@ -80,16 +82,16 @@ pub async fn handle_get_max_transferable_amount_by_token_type(
     token_type: String,
     nf_token_id: String,
 ) -> Result<impl Reply, warp::Rejection> {
-    let commitment_db = get_db_connection().await;
+    let parsed_token_type = TokenType::parse_token_type(&token_type).map_err(|_| {
+        warp::reject::custom(crate::domain::error::ClientRejection::InvalidTokenType)
+    })?;
     let nf_token_id = Fr254::from_hex_string(&nf_token_id)
         .map_err(|_| warp::reject::custom(crate::domain::error::ClientRejection::InvalidTokenId))?;
+    let commitment_db = get_db_connection().await;
     let res = commitment_db
         .get_commitments_by_token_type_and_nf_token_id(&token_type, nf_token_id)
         .await
         .map_err(|_| warp::reject::custom(crate::domain::error::ClientRejection::DatabaseError))?;
-    let token_type = TokenType::parse_token_type(&token_type).map_err(|_| {
-        warp::reject::custom(crate::domain::error::ClientRejection::InvalidTokenType)
-    })?;
 
     let max_transferable_value = |entries: &[(Fr254, CommitmentEntry)]| -> Fr254 {
         let mut values = entries
@@ -104,7 +106,7 @@ pub async fn handle_get_max_transferable_amount_by_token_type(
         }
     };
 
-    match token_type {
+    match parsed_token_type {
         TokenType::ERC20 | TokenType::ERC1155 | TokenType::ERC3525 | TokenType::FeeToken => {
             // For fungible standards, the maximum transferable amount is the sum of the two highest commitments.
             let max_transferable = max_transferable_value(&res);

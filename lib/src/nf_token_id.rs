@@ -48,9 +48,9 @@ fn to_nf_id_from_str_with_domain(
 
     let mut input_bytes = Vec::new();
     input_bytes.extend_from_slice(&erc_vec);
-    input_bytes.extend_from_slice(&id_vec);
     input_bytes.extend_from_slice(&domain_bytes(domain));
-
+    input_bytes.extend_from_slice(&id_vec);
+   
     Ok(shifted_sha256_hash(&input_bytes))
 }
 
@@ -109,7 +109,7 @@ pub fn to_nf_slot_id_from_str(
     erc_address: &str,
     slot_id: &str,
 ) -> Result<Fr254, ConversionError> {
-    to_nf_id_from_str_with_domain(erc_address, slot_id, NF_SLOT_ID_DOMAIN)
+    to_nf_id_from_str_with_domain(erc_address, slot_id, NF_TOKEN_ID_DOMAIN)
 }
 
 pub fn to_nf_token_id_from_fr254(erc_address: Fr254, token_id: Fr254) -> Fr254 {

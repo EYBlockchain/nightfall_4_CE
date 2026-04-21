@@ -92,9 +92,15 @@ pub struct NF3TransferRequest {
     pub erc_address: String,
     #[serde(rename = "tokenId")]
     pub token_id: String,
+    #[serde(rename = "tokenType", default = "default_transfer_token_type")]
+    pub token_type: String,
     #[serde(rename = "recipientData")]
     pub recipient_data: NF3RecipientData,
     pub fee: String,
+}
+
+fn default_transfer_token_type() -> String {
+    "00".to_string()
 }
 
 /// structure representing an NF_3 withdraw request to provide a simpler,
