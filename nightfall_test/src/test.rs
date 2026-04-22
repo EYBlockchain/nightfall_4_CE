@@ -1838,6 +1838,16 @@ mod tests {
     }
 }
 
+/// Compute the proposer tx_hash (Vec<u32>) from a webhook transaction JSON Value.
+/// The proposer derives the hash as Keccak256(serde_json::to_vec(&client_transaction)).
+/// The webhook response is (client_transaction_json, tx_receipt); this takes just the
+/// first element.
+pub fn tx_hash_from_transaction_value(tx_json: &Value) -> Vec<u32> {
+    let encoding = serde_json::to_vec(tx_json).expect("tx_json should be serializable");
+    let hash = keccak256(&encoding);
+    hash.iter().map(|&b| b as u32).collect()
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Transfer Receipt helpers
 // ─────────────────────────────────────────────────────────────────────────────
