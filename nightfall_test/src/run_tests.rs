@@ -785,6 +785,8 @@ pub async fn run_tests(
     ));
     debug!("transaction_erc721_transfer has been created");
 
+    // This ERC3525 transfer will use both token_id 7 and 8 as they have slot.
+
     transaction_ids.push(create_nf3_transfer_transaction(
         zkp_key2.clone(),
         &http_client,
@@ -794,14 +796,6 @@ pub async fn run_tests(
     ));
     debug!("transaction_erc3525_transfer_1 has been created");
 
-    transaction_ids.push(create_nf3_transfer_transaction(
-        zkp_key2.clone(),
-        &http_client,
-        url.clone(),
-        TokenType::ERC3525,
-        test_settings.erc3525_transfer_2,
-    ));
-    debug!("transaction_erc3525_transfer_2 has been created");
 
     transaction_ids.push(create_nf3_transfer_transaction(
         zkp_key2.clone(),

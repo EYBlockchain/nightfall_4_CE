@@ -1,6 +1,6 @@
 //! Implementation of the [`NightfallContract`] trait from `ports/contracts.rs`.
 use crate::{domain::entities::TokenData, ports::contracts::NightfallContract};
-use alloy::primitives::{keccak256, Address, B256, I256, U256};
+use alloy::primitives::{keccak256, Address, B256, I256};
 use alloy::rpc::types::Filter;
 use alloy::{
     consensus::Transaction,
@@ -144,11 +144,10 @@ impl NightfallContract for Nightfall::NightfallCalls {
         if slot_id == solidity_token_id.0 {
             let nf_slot_id = nf_token_id;
             Ok([nf_token_id, nf_slot_id])
-        } else {    
+        } else {
             let slot_id_token = slot_id.tokenize();
-            let domain_token = U256::from(1u64).tokenize();
             let nf_slot_id_biguint =
-                BigUint::from_bytes_be(keccak256(encode(&(erc_token, domain_token, slot_id_token))).as_slice())
+                BigUint::from_bytes_be(keccak256(encode(&(erc_token, slot_id_token))).as_slice())
                     >> 4;
             let nf_slot_id = Fr254::from(nf_slot_id_biguint);
             Ok([nf_token_id, nf_slot_id])
