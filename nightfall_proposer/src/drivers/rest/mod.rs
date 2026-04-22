@@ -4,6 +4,7 @@ use crate::drivers::rest::{
     client_transactions::{cancel_swap_request, client_transaction},
     proposers::rotate_proposer,
     synchronisation::synchronisation,
+    transfer_receipts::{create_transfer_receipt, get_transfer_receipt, get_transfer_receipt_status},
 };
 use block_assembly::{
     get_block_assembly_status_route, pause_block_assembly, resume_block_assembly,
@@ -27,6 +28,7 @@ pub mod block_data;
 pub mod client_transactions;
 pub mod proposers;
 pub mod synchronisation;
+pub mod transfer_receipts;
 
 pub fn routes<P, E>() -> impl Filter<Extract = (impl warp::Reply,)> + Clone
 where
@@ -47,6 +49,9 @@ where
         .or(pause_block_assembly())
         .or(resume_block_assembly())
         .or(get_block_assembly_status_route())
+        .or(get_transfer_receipt_status::<P>())
+        .or(get_transfer_receipt::<P>())
+        .or(create_transfer_receipt::<P>())
         .recover(handle_rejection)
 }
 
