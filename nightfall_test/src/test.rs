@@ -43,12 +43,14 @@ use lib::{
 use log::{debug, info, warn};
 use mongodb::bson::doc;
 use nf_curves::ed_on_bn254::{BabyJubjub as BabyJubJub, Fr as BJJScalar};
+use nf_curves::ed_on_bn254::{BabyJubjub, GENERATOR_X, GENERATOR_Y};
 use nightfall_client::{
     domain::{
         entities::{CommitmentStatus, TokenData},
         notifications::NotificationPayload,
     },
     driven::db::mongo::CommitmentEntry,
+    driven::primitives::kemdem_functions::{receipt_kemdem_decrypt, receipt_kemdem_encrypt, ReceiptDecryptOutput},
 };
 use nightfall_proposer::driven::db::mongo_db::{StoredBlock, DB, PROPOSED_BLOCKS_COLLECTION};
 use num_bigint::BigUint;
@@ -1834,4 +1836,213 @@ mod tests {
             "Replayed transaction not found in block after reorg with replay"
         );
     }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Transfer Receipt helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Context returned by `generate_realistic_receipt_ciphertext`.
+pub struct ReceiptCiphertextContext {
+    /// 576-char lowercase hex-encoded [Fr254; 9] ciphertext.
+    pub ciphertext_hex: String,
+    /// Recipient private key needed to decrypt.
+    pub recipient_private_key: BJJScalar,
+    /// Original 7-element plaintext array.
+    pub plain_text: [Fr254; 7],
+}
+
+/// Generate a realistic receipt ciphertext using the receipt KEM-DEM path.
+///
+/// Returns the hex ciphertext and the secrets needed for receiver-side
+/// round-trip verification.
+pub fn generate_realistic_receipt_ciphertext() -> ReceiptCiphertextContext {
+    use ark_ff::UniformRand;
+    use ark_serialize::CanonicalSerialize;
+    let rng = &mut ark_std::test_rng();
+
+    let recipient_private_key = BJJScalar::rand(rng);
+    let ephemeral_private_key = BJJScalar::rand(rng);
+    let public_point = TEAffine::<BabyJubjub>::new(GENERATOR_X, GENERATOR_Y);
+    let recipient_public_key: TEAffine<BabyJubjub> =
+        (public_point * recipient_private_key).into();
+
+    let plain_text: [Fr254; 7] = [
+        Fr254::rand(rng), // nf_token_id
+        Fr254::rand(rng), // nf_slot_id
+        Fr254::rand(rng), // value
+        Fr254::rand(rng), // sender_public_key_x
+        Fr254::rand(rng), // sender_public_key_y
+        Fr254::rand(rng), // erc_address
+        Fr254::rand(rng), // token_id
+    ];
+
+    let cipher_text = receipt_kemdem_encrypt(
+        ephemeral_private_key,
+        recipient_public_key,
+        &plain_text,
+        public_point,
+    )
+    .expect("receipt_kemdem_encrypt should not fail");
+
+    // Serialize 9 × Fr254 into 9 × 32 = 288 bytes, then hex-encode.
+    let mut bytes = Vec::with_capacity(288);
+    for elem in &cipher_text {
+        elem.serialize_compressed(&mut bytes)
+            .expect("Fr254 serialize_compressed should not fail");
+    }
+    assert_eq!(bytes.len(), 288);
+    let ciphertext_hex = hex::encode(&bytes);
+    assert_eq!(ciphertext_hex.len(), 576);
+
+    ReceiptCiphertextContext {
+        ciphertext_hex,
+        recipient_private_key,
+        plain_text,
+    }
+}
+
+/// Deserialize a 576-char hex ciphertext back into [Fr254; 9] and decrypt it.
+pub fn decrypt_receipt_ciphertext(
+    ciphertext_hex: &str,
+    recipient_private_key: BJJScalar,
+) -> Result<ReceiptDecryptOutput, String> {
+    use ark_serialize::CanonicalDeserialize;
+    let bytes = hex::decode(ciphertext_hex).map_err(|e| e.to_string())?;
+    if bytes.len() != 288 {
+        return Err(format!("expected 288 bytes, got {}", bytes.len()));
+    }
+    let mut cipher_arr = [Fr254::default(); 9];
+    for (i, chunk) in bytes.chunks(32).enumerate() {
+        cipher_arr[i] = Fr254::deserialize_compressed(chunk).map_err(|e| e.to_string())?;
+    }
+    receipt_kemdem_decrypt(recipient_private_key, &cipher_arr).map_err(|e| format!("{e:?}"))
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Receipt API helpers (raw HTTP + parsed)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Raw POST /v1/transfer-receipts — returns the reqwest Response.
+pub async fn raw_create_transfer_receipt(
+    client: &reqwest::Client,
+    proposer_url: &Url,
+    tx_hash: &[u32],
+    ciphertext: &str,
+    version: Option<u8>,
+) -> Result<reqwest::Response, TestError> {
+    let url = proposer_url
+        .join("v1/transfer-receipts")
+        .map_err(|e| TestError::new(e.to_string()))?;
+    let mut body = serde_json::json!({
+        "tx_hash": tx_hash,
+        "ciphertext": ciphertext,
+    });
+    if let Some(v) = version {
+        body["version"] = serde_json::json!(v);
+    }
+    client
+        .post(url)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| TestError::new(e.to_string()))
+}
+
+/// Parsed POST — returns (receipt_id, status) on 2xx, or Err with status code string.
+pub async fn create_transfer_receipt(
+    client: &reqwest::Client,
+    proposer_url: &Url,
+    tx_hash: &[u32],
+    ciphertext: &str,
+    version: Option<u8>,
+) -> Result<(String, String), TestError> {
+    let resp = raw_create_transfer_receipt(client, proposer_url, tx_hash, ciphertext, version)
+        .await?;
+    if !resp.status().is_success() {
+        return Err(TestError::new(format!("HTTP {}", resp.status().as_u16())));
+    }
+    let body: Value = resp
+        .json()
+        .await
+        .map_err(|e| TestError::new(e.to_string()))?;
+    let receipt_id = body["receipt_id"]
+        .as_str()
+        .ok_or_else(|| TestError::new("missing receipt_id".to_string()))?
+        .to_string();
+    let status = body["status"]
+        .as_str()
+        .ok_or_else(|| TestError::new("missing status".to_string()))?
+        .to_string();
+    Ok((receipt_id, status))
+}
+
+/// Raw GET /v1/transfer-receipts/{id}
+pub async fn raw_get_transfer_receipt(
+    client: &reqwest::Client,
+    proposer_url: &Url,
+    receipt_id: &str,
+) -> Result<reqwest::Response, TestError> {
+    let url = proposer_url
+        .join(&format!("v1/transfer-receipts/{receipt_id}"))
+        .map_err(|e| TestError::new(e.to_string()))?;
+    client
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| TestError::new(e.to_string()))
+}
+
+/// Parsed GET resolve — returns the full body Value on 2xx.
+pub async fn get_transfer_receipt(
+    client: &reqwest::Client,
+    proposer_url: &Url,
+    receipt_id: &str,
+) -> Result<Value, TestError> {
+    let resp = raw_get_transfer_receipt(client, proposer_url, receipt_id).await?;
+    if !resp.status().is_success() {
+        return Err(TestError::new(format!("HTTP {}", resp.status().as_u16())));
+    }
+    resp.json().await.map_err(|e| TestError::new(e.to_string()))
+}
+
+/// Raw GET /v1/transfer-receipts/{id}/status
+pub async fn raw_get_transfer_receipt_status(
+    client: &reqwest::Client,
+    proposer_url: &Url,
+    receipt_id: &str,
+) -> Result<reqwest::Response, TestError> {
+    let url = proposer_url
+        .join(&format!("v1/transfer-receipts/{receipt_id}/status"))
+        .map_err(|e| TestError::new(e.to_string()))?;
+    client
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| TestError::new(e.to_string()))
+}
+
+/// Parsed GET status — returns (receipt_id, status) on 2xx.
+pub async fn get_transfer_receipt_status(
+    client: &reqwest::Client,
+    proposer_url: &Url,
+    receipt_id: &str,
+) -> Result<(String, String), TestError> {
+    let resp = raw_get_transfer_receipt_status(client, proposer_url, receipt_id).await?;
+    if !resp.status().is_success() {
+        return Err(TestError::new(format!("HTTP {}", resp.status().as_u16())));
+    }
+    let body: Value = resp
+        .json()
+        .await
+        .map_err(|e| TestError::new(e.to_string()))?;
+    let receipt_id_out = body["receipt_id"]
+        .as_str()
+        .ok_or_else(|| TestError::new("missing receipt_id".to_string()))?
+        .to_string();
+    let status = body["status"]
+        .as_str()
+        .ok_or_else(|| TestError::new("missing status".to_string()))?
+        .to_string();
+    Ok((receipt_id_out, status))
 }
