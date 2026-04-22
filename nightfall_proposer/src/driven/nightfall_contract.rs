@@ -81,7 +81,13 @@ impl NightfallContract for Nightfall::NightfallCalls {
             "The L2 block was sent to L1. Received receipt for submitted block with hash: {}, gas used was: {}",
             receipt.transaction_hash, receipt.gas_used
         );
-        Ok(())
+        if receipt.status() {
+            Ok(())
+        } else {
+            Err(NightfallContractError::BlockProposalError(
+                "Block proposal transaction reverted".to_string(),
+            ))
+        }
     }
 
     async fn get_current_layer2_blocknumber() -> Result<I256, NightfallContractError> {

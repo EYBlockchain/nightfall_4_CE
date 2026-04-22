@@ -1,6 +1,8 @@
 use crate::{
-    domain::entities::{ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot},
-    ports::db::{BlockStorageDB, HistoricRootsDB, TransactionsDB},
+    domain::entities::{
+        ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot, PendingBlock,
+    },
+    ports::db::{BlockStorageDB, HistoricRootsDB, PendingBlockDB, TransactionsDB},
 };
 use alloy::primitives::Address;
 use ark_bn254::Fr as Fr254;
@@ -10,7 +12,7 @@ use lib::{
     error::ConversionError, hex_conversion::HexConvertible, nf_client_proof::Proof,
     shared_entities::ClientTransaction,
 };
-use mongodb::bson::doc;
+use mongodb::bson::{doc, Document};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -18,6 +20,37 @@ pub const DB: &str = "nightfall";
 const COLLECTION: &str = "ClientTransactions";
 const DEPOSIT_COLLECTION: &str = "Deposits";
 pub const PROPOSED_BLOCKS_COLLECTION: &str = "ProposedBlocks";
+const PENDING_BLOCKS_COLLECTION: &str = "PendingBlocks";
+
+fn deposit_filter(deposit: &DepositDatawithFee) -> Document {
+    doc! {
+        "deposit_data.secret_hash": deposit.deposit_data.secret_hash.to_hex_string(),
+        "deposit_data.nf_slot_id": deposit.deposit_data.nf_slot_id.to_hex_string(),
+    }
+}
+
+fn deposit_filters(deposits: &[DepositDatawithFee]) -> Vec<Document> {
+    deposits.iter().map(deposit_filter).collect()
+}
+
+fn available_client_transactions_filter() -> Document {
+    doc! {
+        "in_mempool": true,
+        "$or": [
+            { "reserved": false },
+            { "reserved": { "$exists": false } }
+        ]
+    }
+}
+
+fn available_deposits_filter() -> Document {
+    doc! {
+        "$or": [
+            { "reserved": false },
+            { "reserved": { "$exists": false } }
+        ]
+    }
+}
 
 #[async_trait::async_trait]
 impl<'a, P> TransactionsDB<'a, P> for mongodb::Client
@@ -66,7 +99,7 @@ where
     async fn get_all_mempool_client_transactions(
         &self,
     ) -> Option<Vec<(Vec<u32>, ClientTransactionWithMetaData<P>)>> {
-        let filter = doc! {"in_mempool": true};
+        let filter = available_client_transactions_filter();
         let mut cursor: mongodb::Cursor<ClientTransactionWithMetaData<P>> = self
             .database(DB)
             .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
@@ -87,7 +120,7 @@ where
     // Count client_transaction in the mempool
     // This is used to determine if we need to assemble a block
     async fn count_mempool_client_transactions(&self) -> Result<u64, mongodb::error::Error> {
-        let filter = doc! { "in_mempool": true };
+        let filter = available_client_transactions_filter();
         self.database(DB)
             .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
             .count_documents(filter)
@@ -99,9 +132,45 @@ where
         txs: &[ClientTransactionWithMetaData<P>],
         in_mempool: bool,
     ) -> Option<u64> {
-        let k: Vec<_> = txs.iter().map(|t| &t.hash).collect();
-        let filter = doc! {"hash": { "$in": k }};
-        let update = doc! {"$set": { "in_mempool": in_mempool }};
+        let k: Vec<_> = txs.iter().map(|t| t.hash.clone()).collect();
+        <mongodb::Client as TransactionsDB<'_, P>>::set_client_transactions_in_mempool_by_hashes(
+            self, &k, in_mempool,
+        )
+        .await
+    }
+
+    async fn set_client_transactions_in_mempool_by_hashes(
+        &self,
+        transaction_hashes: &[Vec<u32>],
+        in_mempool: bool,
+    ) -> Option<u64> {
+        if transaction_hashes.is_empty() {
+            return Some(0);
+        }
+        let filter = doc! {"hash": { "$in": transaction_hashes }};
+        let update = doc! {"$set": { "in_mempool": in_mempool, "reserved": false }};
+        let result = self
+            .database(DB)
+            .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
+            .update_many(filter, update)
+            .await
+            .expect("Database error"); // we can't really proceed at this point
+        Some(result.modified_count)
+    }
+
+    async fn set_client_transactions_reserved(
+        &self,
+        transaction_hashes: &[Vec<u32>],
+        reserved: bool,
+    ) -> Option<u64> {
+        if transaction_hashes.is_empty() {
+            return Some(0);
+        }
+        let filter = doc! {
+            "hash": { "$in": transaction_hashes },
+            "in_mempool": true
+        };
+        let update = doc! {"$set": { "reserved": reserved }};
         let result = self
             .database(DB)
             .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
@@ -129,11 +198,9 @@ where
     }
 
     async fn find_deposit(&self, v: &DepositDatawithFee) -> Option<DepositDatawithFee> {
-        // we'll compute the hash of the transaction and then look it up in the database
-        let hash = v.hash().ok()?;
-        let filter = doc! {"hash": hash};
+        let filter = deposit_filter(v);
         self.database(DB)
-            .collection::<DepositDatawithFee>(COLLECTION)
+            .collection::<DepositDatawithFee>(DEPOSIT_COLLECTION)
             .find_one(filter)
             .await
             .expect("Database error") // we can't really proceed at this point
@@ -160,7 +227,7 @@ where
         let collection = self
             .database(DB)
             .collection::<DepositDatawithFee>(DEPOSIT_COLLECTION);
-        let mut cursor = collection.find(doc! {}).await.ok()?;
+        let mut cursor = collection.find(available_deposits_filter()).await.ok()?;
 
         let mut result: Vec<DepositDatawithFee> = Vec::new();
         while cursor.advance().await.ok()? {
@@ -178,7 +245,7 @@ where
     async fn count_mempool_deposits(&self) -> Result<u64, mongodb::error::Error> {
         self.database(DB)
             .collection::<DepositDatawithFee>(DEPOSIT_COLLECTION)
-            .count_documents(doc! {})
+            .count_documents(available_deposits_filter())
             .await
     }
 
@@ -196,22 +263,36 @@ where
             .database(DB)
             .collection::<DepositDatawithFee>(DEPOSIT_COLLECTION);
 
-        // Fetch all documents in the collection
-        let delete_conditions: Vec<_> = used_deposits
-            .iter()
-            .map(|d| {
-                doc! {
-                    "deposit_data.secret_hash": d.deposit_data.secret_hash.to_hex_string(),
-                    "deposit_data.nf_slot_id": d.deposit_data.nf_slot_id.to_hex_string(),
-                }
-            })
-            .collect();
+        let delete_conditions = deposit_filters(&used_deposits);
         let filter = doc! {
             "$or": delete_conditions
         };
         // Delete matching documents
         let result = collection.delete_many(filter).await.ok()?;
         Some(result.deleted_count)
+    }
+
+    async fn set_mempool_deposits_reserved(
+        &self,
+        deposits: Vec<Vec<DepositDatawithFee>>,
+        reserved: bool,
+    ) -> Option<u64> {
+        let deposits: Vec<DepositDatawithFee> = deposits.into_iter().flatten().collect();
+        if deposits.is_empty() {
+            return Some(0);
+        }
+
+        let filter = doc! {
+            "$or": deposit_filters(&deposits)
+        };
+        let update = doc! {"$set": { "reserved": reserved }};
+        let result = self
+            .database(DB)
+            .collection::<DepositDatawithFee>(DEPOSIT_COLLECTION)
+            .update_many(filter, update)
+            .await
+            .ok()?;
+        Some(result.modified_count)
     }
 
     // Remove all deposits from the mempool
@@ -371,6 +452,49 @@ impl BlockStorageDB for mongodb::Client {
         let filter = doc! { "layer2_block_number": block_number as i64 };
         self.database(DB)
             .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
+            .delete_one(filter)
+            .await
+            .ok()?;
+        Some(())
+    }
+}
+
+#[async_trait::async_trait]
+impl PendingBlockDB for mongodb::Client {
+    async fn store_pending_block(&self, pending_block: &PendingBlock) -> Option<()> {
+        let filter = doc! { "layer2_block_number": pending_block.layer2_block_number as i64 };
+        self.database(DB)
+            .collection::<PendingBlock>(PENDING_BLOCKS_COLLECTION)
+            .replace_one(filter, pending_block)
+            .upsert(true)
+            .await
+            .ok()?;
+        Some(())
+    }
+
+    async fn get_pending_block(&self, block_number: u64) -> Option<PendingBlock> {
+        let filter = doc! { "layer2_block_number": block_number as i64 };
+        self.database(DB)
+            .collection::<PendingBlock>(PENDING_BLOCKS_COLLECTION)
+            .find_one(filter)
+            .await
+            .ok()?
+    }
+
+    async fn get_all_pending_blocks(&self) -> Option<Vec<PendingBlock>> {
+        let cursor = self
+            .database(DB)
+            .collection::<PendingBlock>(PENDING_BLOCKS_COLLECTION)
+            .find(doc! {})
+            .await
+            .ok()?;
+        cursor.try_collect().await.ok()
+    }
+
+    async fn delete_pending_block(&self, block_number: u64) -> Option<()> {
+        let filter = doc! { "layer2_block_number": block_number as i64 };
+        self.database(DB)
+            .collection::<PendingBlock>(PENDING_BLOCKS_COLLECTION)
             .delete_one(filter)
             .await
             .ok()?;

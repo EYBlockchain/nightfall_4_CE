@@ -29,11 +29,12 @@ pub struct Block {
     pub rollup_proof: Vec<u8>,
 }
 
-#[derive(Debug, Clone)]
-pub struct PendingBlock<P> {
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct PendingBlock {
+    pub layer2_block_number: u64,
     pub block: Block,
     pub selected_deposits: Vec<Vec<DepositDatawithFee>>,
-    pub selected_client_transactions: Vec<ClientTransactionWithMetaData<P>>,
+    pub selected_client_transaction_hashes: Vec<Vec<u32>>,
 }
 
 /// Struct used to represent deposit data, used in making deposit proofs by the proposer.
@@ -44,6 +45,8 @@ pub struct DepositDatawithFee {
     pub fee: Fr254,
     /// deposit data
     pub deposit_data: DepositData,
+    #[serde(default)]
+    pub reserved: bool,
 }
 
 impl DepositDatawithFee {
@@ -69,6 +72,8 @@ pub struct ClientTransactionWithMetaData<P> {
     pub client_transaction: ClientTransaction<P>,
     pub block_l2: Option<u64>,
     pub in_mempool: bool,
+    #[serde(default)]
+    pub reserved: bool,
     pub hash: Vec<u32>,
     #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
     pub historic_roots: Vec<Fr254>,
