@@ -67,6 +67,11 @@ where
 async fn handle_rejection(err: Rejection) -> Result<impl Reply, std::convert::Infallible> {
     if err.is_not_found() {
         Ok(reply::with_status("NOT_FOUND", StatusCode::NOT_FOUND))
+    } else if err
+        .find::<warp::filters::body::BodyDeserializeError>()
+        .is_some()
+    {
+        Ok(reply::with_status("BAD_REQUEST", StatusCode::BAD_REQUEST))
     } else if let Some(e) = err.find::<crate::domain::error::ClientRejection>() {
         use crate::domain::error::ClientRejection::*;
         match e {
@@ -119,5 +124,366 @@ async fn handle_rejection(err: Rejection) -> Result<impl Reply, std::convert::In
             "INTERNAL_SERVER_ERROR",
             StatusCode::INTERNAL_SERVER_ERROR,
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        domain::entities::TokenData,
+        driven::queue::get_queue,
+        ports::contracts::NightfallContract,
+    };
+    use alloy::primitives::{Address, I256};
+    use ark_bn254::Fr as Fr254;
+    use ark_ff::BigInteger256;
+    use lib::{
+        error::NightfallContractError,
+        plonk_prover::plonk_proof::PlonkProof,
+        shared_entities::{DepositSecret, TokenType, WithdrawData},
+    };
+    use nightfall_bindings::artifacts::Nightfall;
+    use serde_json::Value;
+
+    struct MockNightfall;
+    struct MockNightfallSyncError;
+
+    impl NightfallContract for MockNightfall {
+        async fn escrow_funds(
+            _token_erc_address: Fr254,
+            _value: Fr254,
+            _token_id: BigInteger256,
+            _fee: Fr254,
+            _deposit_fee: Fr254,
+            _secret_preimage: DepositSecret,
+            _token_type: TokenType,
+        ) -> Result<[Fr254; 2], NightfallContractError> {
+            panic!("escrow_funds should not be called in these route tests")
+        }
+
+        fn get_address() -> Fr254 {
+            Fr254::from(1u64)
+        }
+
+        async fn de_escrow_funds(
+            _withdraw_data: WithdrawData,
+            _token_type: TokenType,
+        ) -> Result<(), NightfallContractError> {
+            panic!("de_escrow_funds should not be called in these route tests")
+        }
+
+        async fn withdraw_available(
+            _withdraw_data: WithdrawData,
+        ) -> Result<bool, NightfallContractError> {
+            panic!("withdraw_available should not be called in these route tests")
+        }
+
+        async fn get_current_layer2_blocknumber() -> Result<I256, NightfallContractError> {
+            panic!("get_current_layer2_blocknumber should not be called in these route tests")
+        }
+
+        async fn get_token_info(nf_token_id: Fr254) -> Result<TokenData, NightfallContractError> {
+            if nf_token_id == Fr254::from(1u64) {
+                Ok(TokenData {
+                    erc_address: Fr254::from(2u64),
+                    token_id: BigInteger256::from(3u64),
+                    token_type: TokenType::ERC20,
+                })
+            } else {
+                Err(NightfallContractError::ProviderError(
+                    "token not found".to_string(),
+                ))
+            }
+        }
+
+        async fn get_layer2_block_by_number(
+            _block_number: I256,
+        ) -> Result<(Address, Nightfall::Block), NightfallContractError> {
+            panic!("get_layer2_block_by_number should not be called in these route tests")
+        }
+    }
+
+    impl NightfallContract for MockNightfallSyncError {
+        async fn escrow_funds(
+            _token_erc_address: Fr254,
+            _value: Fr254,
+            _token_id: BigInteger256,
+            _fee: Fr254,
+            _deposit_fee: Fr254,
+            _secret_preimage: DepositSecret,
+            _token_type: TokenType,
+        ) -> Result<[Fr254; 2], NightfallContractError> {
+            panic!("escrow_funds should not be called in these route tests")
+        }
+
+        fn get_address() -> Fr254 {
+            Fr254::from(1u64)
+        }
+
+        async fn de_escrow_funds(
+            _withdraw_data: WithdrawData,
+            _token_type: TokenType,
+        ) -> Result<(), NightfallContractError> {
+            panic!("de_escrow_funds should not be called in these route tests")
+        }
+
+        async fn withdraw_available(
+            _withdraw_data: WithdrawData,
+        ) -> Result<bool, NightfallContractError> {
+            panic!("withdraw_available should not be called in these route tests")
+        }
+
+        async fn get_current_layer2_blocknumber() -> Result<I256, NightfallContractError> {
+            Err(NightfallContractError::ProviderError(
+                "sync unavailable".to_string(),
+            ))
+        }
+
+        async fn get_token_info(_nf_token_id: Fr254) -> Result<TokenData, NightfallContractError> {
+            panic!("get_token_info should not be called in these route tests")
+        }
+
+        async fn get_layer2_block_by_number(
+            _block_number: I256,
+        ) -> Result<(Address, Nightfall::Block), NightfallContractError> {
+            panic!("get_layer2_block_by_number should not be called in these route tests")
+        }
+    }
+
+    #[tokio::test]
+    async fn test_request_status_invalid_uuid_returns_bad_request() {
+        let filter = routes::<PlonkProof, MockNightfall>();
+        let res = warp::test::request()
+            .method("GET")
+            .path("/v1/request/not-a-uuid")
+            .reply(&filter)
+            .await;
+
+        assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(std::str::from_utf8(res.body()).unwrap(), "Invalid request id");
+    }
+
+    #[tokio::test]
+    async fn test_queue_length_returns_zero_for_empty_queue() {
+        get_queue().await.write().await.clear();
+
+        let filter = routes::<PlonkProof, MockNightfall>();
+        let res = warp::test::request()
+            .method("GET")
+            .path("/v1/queue")
+            .reply(&filter)
+            .await;
+
+        assert_eq!(res.status(), StatusCode::OK);
+        let body = serde_json::from_slice::<usize>(res.body()).expect("body should be JSON");
+        assert_eq!(body, 0);
+    }
+
+    #[tokio::test]
+    async fn test_commitment_lookup_invalid_key_returns_bad_request() {
+        let filter = routes::<PlonkProof, MockNightfall>();
+        let res = warp::test::request()
+            .method("GET")
+            .path("/v1/commitment/not-hex")
+            .reply(&filter)
+            .await;
+
+        assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(
+            std::str::from_utf8(res.body()).unwrap(),
+            "Invalid commitment key"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_balance_invalid_token_id_returns_bad_request() {
+        let filter = routes::<PlonkProof, MockNightfall>();
+        let res = warp::test::request()
+            .method("GET")
+            .path("/v1/balance/not-an-address/not-a-token")
+            .reply(&filter)
+            .await;
+
+        assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(std::str::from_utf8(res.body()).unwrap(), "Invalid token id");
+    }
+
+    #[tokio::test]
+    async fn test_token_info_invalid_query_returns_bad_request() {
+        let filter = routes::<PlonkProof, MockNightfall>();
+        let res = warp::test::request()
+            .method("GET")
+            .path("/v1/token/not-hex")
+            .reply(&filter)
+            .await;
+
+        assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(std::str::from_utf8(res.body()).unwrap(), "Invalid token id");
+    }
+
+    #[tokio::test]
+    async fn test_token_info_unknown_token_returns_not_found() {
+        let filter = routes::<PlonkProof, MockNightfall>();
+        let res = warp::test::request()
+            .method("GET")
+            .path("/v1/token/02")
+            .reply(&filter)
+            .await;
+
+        assert_eq!(res.status(), StatusCode::NOT_FOUND);
+        assert_eq!(std::str::from_utf8(res.body()).unwrap(), "No such token");
+    }
+
+    #[tokio::test]
+    async fn test_token_info_known_token_returns_ok() {
+        let filter = routes::<PlonkProof, MockNightfall>();
+        let res = warp::test::request()
+            .method("GET")
+            .path("/v1/token/01")
+            .reply(&filter)
+            .await;
+
+        assert_eq!(res.status(), StatusCode::OK);
+        let body = serde_json::from_slice::<Value>(res.body()).expect("body should be JSON");
+        assert_eq!(body["token_type"], "ERC20");
+        assert_eq!(
+            body["erc_address"],
+            "0000000000000000000000000000000000000000000000000000000000000002"
+        );
+        assert_eq!(
+            body["token_id"],
+            "0000000000000000000000000000000000000000000000000000000000000003"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_commitments_by_token_type_invalid_token_type_returns_bad_request() {
+        let filter = routes::<PlonkProof, MockNightfall>();
+        let res = warp::test::request()
+            .method("GET")
+            .path("/v1/commitments/token_type/not-a-type")
+            .reply(&filter)
+            .await;
+
+        assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(std::str::from_utf8(res.body()).unwrap(), "Invalid Token Type");
+    }
+
+    #[tokio::test]
+    async fn test_max_transferable_invalid_token_id_returns_bad_request() {
+        let filter = routes::<PlonkProof, MockNightfall>();
+        let res = warp::test::request()
+            .method("GET")
+            .path("/v1/commitments/max_transferable_amount/ERC20/not-hex")
+            .reply(&filter)
+            .await;
+
+        assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(std::str::from_utf8(res.body()).unwrap(), "Invalid token id");
+    }
+
+    #[tokio::test]
+    async fn test_max_transferable_invalid_token_type_returns_bad_request() {
+        let filter = routes::<PlonkProof, MockNightfall>();
+        let res = warp::test::request()
+            .method("GET")
+            .path("/v1/commitments/max_transferable_amount/not-a-type/01")
+            .reply(&filter)
+            .await;
+
+        assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(std::str::from_utf8(res.body()).unwrap(), "Invalid Token Type");
+    }
+
+    #[tokio::test]
+    async fn test_health_route_is_wired_in_client_router() {
+        let filter = routes::<PlonkProof, MockNightfall>();
+        let res = warp::test::request()
+            .method("GET")
+            .path("/v1/health")
+            .reply(&filter)
+            .await;
+
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(std::str::from_utf8(res.body()).unwrap(), "Healthy");
+    }
+
+    #[tokio::test]
+    async fn test_certification_route_is_wired_in_client_router() {
+        let boundary = "x-boundary";
+        let body = format!(
+            "--{boundary}\r\nContent-Disposition: form-data; name=\"certificate\"; filename=\"cert.der\"\r\nContent-Type: application/octet-stream\r\n\r\nabc\r\n--{boundary}--\r\n"
+        );
+        let filter = routes::<PlonkProof, MockNightfall>();
+        let res = warp::test::request()
+            .method("POST")
+            .path("/v1/certification")
+            .header(
+                "content-type",
+                format!("multipart/form-data; boundary={boundary}"),
+            )
+            .body(body)
+            .reply(&filter)
+            .await;
+
+        assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+        let body = serde_json::from_slice::<Value>(res.body()).unwrap();
+        assert_eq!(body["message"], "Missing 'priv_key' field or empty file");
+    }
+
+    #[tokio::test]
+    async fn test_keys_validation_route_is_wired_in_client_router() {
+        let filter = routes::<PlonkProof, MockNightfall>();
+        let res = warp::test::request()
+            .method("POST")
+            .path("/v1/keys_validation")
+            .header("content-type", "application/json")
+            .body(r#"{"concurrency":2}"#)
+            .reply(&filter)
+            .await;
+
+        assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(std::str::from_utf8(res.body()).unwrap(), "BAD_REQUEST");
+    }
+
+    #[tokio::test]
+    async fn test_synchronisation_route_is_wired_in_client_router() {
+        let filter = routes::<PlonkProof, MockNightfallSyncError>();
+        let res = warp::test::request()
+            .method("GET")
+            .path("/v1/synchronisation")
+            .reply(&filter)
+            .await;
+
+        assert_eq!(res.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(
+            std::str::from_utf8(res.body()).unwrap(),
+            "Synchronisation service unavailable"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_handle_rejection_maps_request_not_found_to_not_found() {
+        let response = handle_rejection(warp::reject::custom(
+            crate::domain::error::ClientRejection::RequestNotFound,
+        ))
+        .await
+        .unwrap()
+        .into_response();
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn test_handle_rejection_maps_proposer_error_to_service_unavailable() {
+        let response = handle_rejection(warp::reject::custom(
+            crate::domain::error::ClientRejection::ProposerError,
+        ))
+        .await
+        .unwrap()
+        .into_response();
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
     }
 }
