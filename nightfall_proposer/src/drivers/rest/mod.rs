@@ -101,6 +101,22 @@ async fn handle_rejection(err: Rejection) -> Result<impl Reply, std::convert::In
                 "Provider error",
                 warp::http::StatusCode::SERVICE_UNAVAILABLE,
             )),
+            ProposerRejection::TransferReceiptCreationFailed => Ok(reply::with_status(
+                "Transfer receipt creation failed",
+                warp::http::StatusCode::BAD_REQUEST,
+            )),
+            ProposerRejection::TransferReceiptNotFound => Ok(reply::with_status(
+                "Transfer receipt not found",
+                warp::http::StatusCode::NOT_FOUND,
+            )),
+            ProposerRejection::TransferReceiptTxNotFound => Ok(reply::with_status(
+                "Transfer receipt transaction not found",
+                warp::http::StatusCode::BAD_REQUEST,
+            )),
+            ProposerRejection::TransferReceiptConflict => Ok(reply::with_status(
+                "Transfer receipt conflict",
+                warp::http::StatusCode::CONFLICT,
+            )),
         }
     } else {
         Ok(reply::with_status(

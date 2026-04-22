@@ -1,8 +1,6 @@
 use crate::{
-    domain::entities::{
-        ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot, TxLifecycle,
-    },
-    ports::db::{BlockStorageDB, HistoricRootsDB, TransactionsDB},
+    domain::entities::{ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot, TransferReceipt, TransferReceiptStatus},
+    ports::db::{BlockStorageDB, HistoricRootsDB, TransactionsDB, TransferReceiptDB, TransferReceiptStoreError},
 };
 use alloy::primitives::Address;
 use ark_bn254::Fr as Fr254;
@@ -97,6 +95,7 @@ pub const DB: &str = "nightfall";
 const COLLECTION: &str = "ClientTransactions";
 const DEPOSIT_COLLECTION: &str = "Deposits";
 pub const PROPOSED_BLOCKS_COLLECTION: &str = "ProposedBlocks";
+const TRANSFER_RECEIPTS_COLLECTION: &str = "TransferReceipts";
 
 #[async_trait::async_trait]
 impl<'a, P> TransactionsDB<'a, P> for mongodb::Client
@@ -577,10 +576,104 @@ impl BlockStorageDB for mongodb::Client {
     }
 }
 
+/// Creates unique indexes on `receipt_id` and `tx_hash_hex` in the TransferReceipts collection.
+/// Must be called once at proposer startup.
+pub async fn ensure_transfer_receipt_indexes(client: &mongodb::Client) {
+    use mongodb::IndexModel;
+    use mongodb::options::IndexOptions;
+
+    let collection = client
+        .database(DB)
+        .collection::<TransferReceipt>(TRANSFER_RECEIPTS_COLLECTION);
+
+    let receipt_id_index = IndexModel::builder()
+        .keys(doc! { "receipt_id": 1 })
+        .options(IndexOptions::builder().unique(true).build())
+        .build();
+
+    let tx_hash_hex_index = IndexModel::builder()
+        .keys(doc! { "tx_hash_hex": 1 })
+        .options(IndexOptions::builder().unique(true).build())
+        .build();
+
+    let _ = collection.create_index(receipt_id_index).await;
+    let _ = collection.create_index(tx_hash_hex_index).await;
+}
+
+#[async_trait::async_trait]
+impl TransferReceiptDB for mongodb::Client {
+    async fn store_transfer_receipt(
+        &self,
+        receipt: TransferReceipt,
+    ) -> Result<(), TransferReceiptStoreError> {
+        let result = self
+            .database(DB)
+            .collection::<TransferReceipt>(TRANSFER_RECEIPTS_COLLECTION)
+            .insert_one(receipt)
+            .await;
+
+        match result {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                // MongoDB duplicate key error code is 11000.
+                let is_dup = e.to_string().contains("11000")
+                    || e.to_string().contains("E11000")
+                    || matches!(
+                        *e.kind,
+                        mongodb::error::ErrorKind::Write(
+                            mongodb::error::WriteFailure::WriteError(ref we)
+                        ) if we.code == 11000
+                    );
+                if is_dup {
+                    Err(TransferReceiptStoreError::DuplicateKey)
+                } else {
+                    Err(TransferReceiptStoreError::Other(e.to_string()))
+                }
+            }
+        }
+    }
+
+    async fn get_transfer_receipt(&self, receipt_id: &str) -> Option<TransferReceipt> {
+        let filter = doc! { "receipt_id": receipt_id };
+        self.database(DB)
+            .collection::<TransferReceipt>(TRANSFER_RECEIPTS_COLLECTION)
+            .find_one(filter)
+            .await
+            .ok()?
+    }
+
+    async fn get_transfer_receipt_by_tx_hash(&self, tx_hash_hex: &str) -> Option<TransferReceipt> {
+        let filter = doc! { "tx_hash_hex": tx_hash_hex };
+        self.database(DB)
+            .collection::<TransferReceipt>(TRANSFER_RECEIPTS_COLLECTION)
+            .find_one(filter)
+            .await
+            .ok()?
+    }
+
+    async fn set_transfer_receipt_status(
+        &self,
+        receipt_id: &str,
+        status: TransferReceiptStatus,
+        updated_at_unix: i64,
+    ) -> Option<()> {
+        let status_str = serde_json::to_string(&status).ok()?;
+        // serde_json produces a quoted string like `"pending"` — strip quotes for bson.
+        let status_bson = status_str.trim_matches('"');
+        let filter = doc! { "receipt_id": receipt_id };
+        let update = doc! { "$set": { "status": status_bson, "updated_at_unix": updated_at_unix } };
+        self.database(DB)
+            .collection::<TransferReceipt>(TRANSFER_RECEIPTS_COLLECTION)
+            .update_one(filter, update)
+            .await
+            .ok()?;
+        Some(())
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
-    use ark_bn254::Fr as Fr254;
     use ark_std::UniformRand;
 
     #[test]

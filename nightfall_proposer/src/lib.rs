@@ -89,6 +89,9 @@ pub mod initialisation {
                 )
                 .await
                 .expect("Couldn't insert zero leaf into the historic root tree");
+
+                crate::driven::db::mongo_db::ensure_transfer_receipt_indexes(&client).await;
+
                 client
             })
             .await

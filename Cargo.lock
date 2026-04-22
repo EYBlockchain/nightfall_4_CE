@@ -5692,6 +5692,7 @@ dependencies = [
  "nf-curves",
  "nightfall_bindings",
  "num-bigint",
+ "rand 0.8.5",
  "rayon",
  "serde",
  "serde_bytes",

@@ -154,6 +154,25 @@ where
             historic_roots: helper.historic_roots,
         })
     }
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TransferReceiptStatus {
+    Created,
+    Pending,
+    IncludedL2,
+    Failed,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TransferReceipt {
+    pub receipt_id: String,
+    pub tx_hash: Vec<u32>,
+    pub tx_hash_hex: String,
+    pub ciphertext: String,
+    pub version: u8,
+    pub status: TransferReceiptStatus,
+    pub created_at_unix: i64,
+    pub updated_at_unix: i64,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
