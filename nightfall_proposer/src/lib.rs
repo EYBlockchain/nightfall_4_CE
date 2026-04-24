@@ -4,25 +4,17 @@ pub mod drivers;
 pub mod ports;
 pub mod services;
 
-use ark_bn254::{Bn254, Fr as Fr254};
-use ark_serialize::CanonicalDeserialize;
-use jf_plonk::nightfall::ipa_structs::ProvingKey;
+use ark_bn254::Fr as Fr254;
 use jf_primitives::{
-    pcs::prelude::UnivariateKzgPCS,
     poseidon::Poseidon,
     trees::{
         imt::{IndexedMerkleTree, LeafDBEntry},
         timber::Timber,
     },
 };
-use lib::{
-    rollup_circuit_checks::{find_file_with_path, get_configuration_keys_path},
-    utils::{load_key_from_server, load_key_locally},
-};
-use log::warn;
 use std::{
     collections::HashMap,
-    sync::{Arc, OnceLock, RwLock},
+    sync::{OnceLock, RwLock},
 };
 type AppendOnlyTree = Timber<Fr254, Poseidon<Fr254>>;
 

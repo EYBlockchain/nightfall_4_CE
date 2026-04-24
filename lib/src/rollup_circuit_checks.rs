@@ -75,29 +75,6 @@ pub fn get_client_proving_key_locally() -> Result<ProvingKey<UnivariateKzgPCS<Bn
         .map_err(|e| anyhow::anyhow!("Could not deserialize proving key: {e}"))
 }
 
-/// Function that retrieves the deposit proving key from a local file.
-pub fn get_deposit_proving_key_locally() -> Result<ProvingKey<UnivariateKzgPCS<Bn254>>> {
-    let deposit_pk_path = get_configuration_keys_path()
-        .expect("Configuration keys path not found")
-        .join("deposit_proving_key");
-    let source_file = find_file_with_path(&deposit_pk_path).with_context(|| {
-        format!(
-            "Could not find deposit proving key file at path: {}",
-            deposit_pk_path.display()
-        )
-    })?;
-
-    let key_bytes = std::fs::read(&source_file).with_context(|| {
-        format!(
-            "Could not read deposit proving key from file: {}",
-            source_file.display()
-        )
-    })?;
-
-    ProvingKey::<UnivariateKzgPCS<Bn254>>::deserialize_compressed(&*key_bytes)
-        .map_err(|e| anyhow::anyhow!("Could not deserialize deposit proving key: {e}"))
-}
-
 /// Function that searches for a file starting from the current working directory and moving up the directory tree.
 pub fn find_file_with_path(path: &Path) -> Option<std::path::PathBuf> {
     if path.is_absolute() {
@@ -550,10 +527,7 @@ impl RecursiveProver for RollupKeyGenerator {
             .unwrap_or_else(|e| panic!("Failed to load client proving key: {e:#}"))
             .vk
             .clone();
-        let deposit_vk = get_deposit_proving_key_locally()
-            .unwrap_or_else(|e| panic!("Failed to load deposit proving key: {e:#}"))
-            .vk
-            .clone();
+        let deposit_vk = client_vk.clone();
         vec![client_vk, deposit_vk]
     }
 

@@ -21,7 +21,7 @@ use lib::{
     nf_client_proof::{PrivateInputs, Proof, ProvingEngine, PublicInputs},
     secret_hash::SecretHash,
     shared_entities::{
-        ClientTransaction, CompressedSecrets, DepositSecret, Preimage, Salt, TokenType,
+        ClientTransaction, CompressedSecrets, DepositData, DepositSecret, Preimage, Salt, TokenType,
     },
 };
 use log::{debug, error, info, warn};
@@ -181,6 +181,7 @@ where
                 secret_preimages[2].to_array(),
                 secret_preimages[3].to_array(),
             ])
+            .deposit_data(&[DepositData::default(); 4])
             .build(),
     );
     info!("{id} Generating proof");

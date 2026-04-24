@@ -1,6 +1,7 @@
 use super::verify::verify_duplicates_gadgets::VerifyDuplicatesCircuit;
 use super::DOMAIN_SHARED_SALT;
 use crate::{
+    deposit_witness::DepositDataVar,
     derive_key::{NULLIFIER_PREFIX, PRIVATE_KEY_PREFIX},
     nf_client_proof::{PrivateInputs, PrivateInputsVar, PublicInputs},
     plonk_prover::circuits::verify::{
@@ -15,6 +16,7 @@ use ark_ff::{One, PrimeField, Zero};
 use jf_plonk::errors::PlonkError;
 use jf_primitives::circuit::poseidon::sponge::{PoseidonStateVar, SpongePoseidonHashGadget};
 use jf_primitives::circuit::poseidon::PoseidonHashGadget;
+use jf_primitives::circuit::sha256::Sha256HashGadget;
 use jf_relation::{
     errors::CircuitError,
     gadgets::ecc::{Point, PointVariable},
@@ -23,6 +25,20 @@ use jf_relation::{
 use nf_curves::ed_on_bn254::Fr as BJJScalar;
 use nf_curves::ed_on_bn254::{BabyJubjub, Fq as Fr254};
 use num_bigint::BigUint;
+
+fn deposit_witness_vars_from_private_inputs(
+    deposit_token_ids: &[jf_relation::Variable; 4],
+    deposit_slot_ids: &[jf_relation::Variable; 4],
+    deposit_values: &[jf_relation::Variable; 4],
+    deposit_secret_hashes: &[jf_relation::Variable; 4],
+) -> [DepositDataVar; 4] {
+    std::array::from_fn(|i| DepositDataVar {
+        nf_token_id: deposit_token_ids[i],
+        nf_slot_id: deposit_slot_ids[i],
+        value: deposit_values[i],
+        secret_hash: deposit_secret_hashes[i],
+    })
+}
 
 /// This trait is used to construct a circuit to verify the integrity of transfer, withdraw and swap operations
 pub trait UnifiedCircuit {
@@ -67,6 +83,10 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
             withdraw_address,
             withdraw_flag,
             secret_preimages,
+            deposit_token_ids,
+            deposit_slot_ids,
+            deposit_values,
+            deposit_secret_hashes,
             party_a_public_key,
             party_b_public_key,
             nf_token_a_id,
@@ -135,6 +155,19 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
 
         let swap_nonce_is_zero = self.is_zero(swap_nonce)?;
         let is_swap = self.logic_neg(swap_nonce_is_zero)?;
+        let deposit_data_vars = deposit_witness_vars_from_private_inputs(
+            &deposit_token_ids,
+            &deposit_slot_ids,
+            &deposit_values,
+            &deposit_secret_hashes,
+        );
+        // Deposit mode is determined by the absence of a first spend commitment.
+        // We key this off the first nullifier salt rather than the first value:
+        // NFT-style transfers can legitimately carry value=0, but their first
+        // spend salt is still non-zero. Default-padded deposit blocks have no
+        // spend commitments at all, so the salt remains zero.
+        let is_deposit = self.is_zero(nullifiers_salts[0])?;
+
         // ROLE DETECTION & DERIVED VALUES
         // Determines caller's role and derives value, nf_token_id,
         // and recipient_public_key from swap parameters.
@@ -153,7 +186,9 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
         self.mul_gate(swap_nonce_is_zero.into(), nf_token_b_id, self.zero())?;
         self.mul_gate(swap_nonce_is_zero.into(), value_b, self.zero())?;
         let not_party_a = self.logic_neg(is_party_a)?;
-        let invalid_non_swap_party_a = self.logic_and(swap_nonce_is_zero, not_party_a)?;
+        let is_non_deposit = self.logic_neg(is_deposit)?;
+        let non_swap_and_non_deposit = self.logic_and(swap_nonce_is_zero, is_non_deposit)?;
+        let invalid_non_swap_party_a = self.logic_and(non_swap_and_non_deposit, not_party_a)?;
         self.enforce_false(invalid_non_swap_party_a.into())?;
 
         // Swap-specific: derive from role
@@ -336,6 +371,21 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
             &sender_commitment_salts,
             withdraw_flag,
         )?;
+        let deposit_commitment_flags = deposit_data_vars
+            .iter()
+            .map(|deposit| deposit.is_real(self))
+            .collect::<Result<Vec<_>, CircuitError>>()?;
+        let deposit_commitments: [jf_relation::Variable; 4] = deposit_data_vars
+            .iter()
+            .zip(deposit_commitment_flags.iter())
+            .map(|(deposit, &flag)| deposit.to_commitment(self, flag))
+            .collect::<Result<Vec<_>, CircuitError>>()?
+            .try_into()
+            .map_err(|_| {
+                CircuitError::ParameterError(
+                    "Could not convert deposit commitments to fixed length array".to_string(),
+                )
+            })?;
 
         // Calculate nullifiers
         let nullifiers = self.verify_nullifiers::<BabyJubjub>(
@@ -364,6 +414,18 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
             withdraw_address,
             withdraw_flag,
         )?;
+        let mut deposit_lookup_vars = Vec::<(
+            jf_relation::Variable,
+            jf_relation::Variable,
+            jf_relation::Variable,
+        )>::new();
+        let mut deposit_public_data = deposit_data_vars
+            .iter()
+            .zip(deposit_commitment_flags.iter())
+            .map(|(deposit, &flag)| deposit.sha256_and_shift(self, &mut deposit_lookup_vars, flag))
+            .collect::<Result<Vec<_>, CircuitError>>()?;
+        deposit_public_data.push(self.zero());
+        self.finalize_for_sha256_hash(&mut deposit_lookup_vars)?;
 
         // If withdrawing, the recipient public key should be the neutral point
         let is_neutral = self.is_neutral_point::<BabyJubjub>(&recipient_public_key)?;
@@ -400,21 +462,26 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
 
         let fee_len_sep = self.create_constant_variable(Fr254::from(1u8))?;
         self.set_variable_public(fee_len_sep)?;
-        self.set_variable_public(fee)?;
-        let fee = self.witness(fee)?;
+        let final_fee = self.conditional_select(is_deposit, fee, self.zero())?;
+        self.set_variable_public(final_fee)?;
+        let fee = self.witness(final_fee)?;
 
         let root_len_sep = self.create_constant_variable(Fr254::from(1u8))?;
         self.set_variable_public(root_len_sep)?;
-        self.set_variable_public(root)?;
-        let root = self.witness(root)?;
+        let final_root = self.conditional_select(is_deposit, root, self.zero())?;
+        self.set_variable_public(final_root)?;
+        let root = self.witness(final_root)?;
 
         let comms_len_sep = self.create_constant_variable(Fr254::from(4u8))?;
         self.set_variable_public(comms_len_sep)?;
         let commitments: [Fr254; 4] = commitments
             .iter()
-            .map(|&commitment| {
-                self.set_variable_public(commitment)?;
-                self.witness(commitment)
+            .zip(deposit_commitments.iter())
+            .map(|(&commitment, &deposit_commitment)| {
+                let final_commitment =
+                    self.conditional_select(is_deposit, commitment, deposit_commitment)?;
+                self.set_variable_public(final_commitment)?;
+                self.witness(final_commitment)
             })
             .collect::<Result<Vec<Fr254>, CircuitError>>()?
             .try_into()
@@ -429,8 +496,10 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
         let nullifiers: [Fr254; 4] = nullifiers
             .iter()
             .map(|&nullifier| {
-                self.set_variable_public(nullifier)?;
-                self.witness(nullifier)
+                let final_nullifier =
+                    self.conditional_select(is_deposit, nullifier, self.zero())?;
+                self.set_variable_public(final_nullifier)?;
+                self.witness(final_nullifier)
             })
             .collect::<Result<Vec<Fr254>, CircuitError>>()?
             .try_into()
@@ -444,9 +513,11 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
         self.set_variable_public(comp_secs_len_sep)?;
         let compressed_secrets: [Fr254; 5] = public_data
             .iter()
-            .map(|&pd| {
-                self.set_variable_public(pd)?;
-                self.witness(pd)
+            .zip(deposit_public_data.iter())
+            .map(|(&pd, &deposit_pd)| {
+                let final_public_data = self.conditional_select(is_deposit, pd, deposit_pd)?;
+                self.set_variable_public(final_public_data)?;
+                self.witness(final_public_data)
             })
             .collect::<Result<Vec<Fr254>, CircuitError>>()?
             .try_into()
@@ -459,6 +530,7 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
         // === Swap link ===
         let swap_link_len_sep = self.create_constant_variable(Fr254::from(1u8))?;
         self.set_variable_public(swap_link_len_sep)?;
+        let final_swap_link = self.conditional_select(is_deposit, final_swap_link, self.zero())?;
         self.set_variable_public(final_swap_link)?;
         let swap_link_out = self.witness(final_swap_link)?;
 
@@ -466,6 +538,7 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
         let deadline_len_sep = self.create_constant_variable(Fr254::from(1u8))?;
         self.set_variable_public(deadline_len_sep)?;
         let final_deadline = self.conditional_select(is_swap, self.zero(), deadline)?;
+        let final_deadline = self.conditional_select(is_deposit, final_deadline, self.zero())?;
         self.set_variable_public(final_deadline)?;
         let deadline_out = self.witness(final_deadline)?;
 
@@ -477,6 +550,7 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
         let swap_side_len_sep = self.create_constant_variable(Fr254::from(1u8))?;
         self.set_variable_public(swap_side_len_sep)?;
         let final_side = self.conditional_select(is_swap, self.zero(), is_party_a.into())?;
+        let final_side = self.conditional_select(is_deposit, final_side, self.zero())?;
         self.set_variable_public(final_side)?;
         let swap_side_out = self.witness(final_side)?;
 

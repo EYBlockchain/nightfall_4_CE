@@ -136,7 +136,7 @@ fn validate_asset_constraints(
         TokenType::ERC1155 => {
             if value.is_zero() && token_id == BigInteger256::zero() {
                 return Err(
-                    "ERC1155 operations require either value > 0 or tokenId > 0".to_string(),
+                    "ERC1155 operations require either value > 0 or tokenId > 0".to_string()
                 );
             }
             Ok(())
@@ -328,7 +328,10 @@ async fn queue_request(
 
 fn queue_full_response(request_id: String) -> warp::reply::Response {
     reply::with_header(
-        reply::with_status(json(&"Queue is full".to_string()), StatusCode::SERVICE_UNAVAILABLE),
+        reply::with_status(
+            json(&"Queue is full".to_string()),
+            StatusCode::SERVICE_UNAVAILABLE,
+        ),
         "X-Request-ID",
         request_id,
     )
@@ -1159,7 +1162,7 @@ mod tests {
     };
     use nf_curves::ed_on_bn254::BabyJubjub;
     use nf_curves::ed_on_bn254::Fq;
-    use serde_json::{Value, json};
+    use serde_json::{json, Value};
 
     fn sample_deposit_request() -> NF3DepositRequest {
         NF3DepositRequest {
@@ -1398,7 +1401,10 @@ mod tests {
 
         assert_eq!(res.status(), StatusCode::BAD_REQUEST);
         let body = serde_json::from_slice::<Value>(res.body()).expect("body should be JSON");
-        assert_eq!(body, json!({ "error": "ERC20 operations require tokenId to be 0" }));
+        assert_eq!(
+            body,
+            json!({ "error": "ERC20 operations require tokenId to be 0" })
+        );
     }
 
     #[tokio::test]
@@ -1458,7 +1464,10 @@ mod tests {
 
         assert_eq!(res.status(), StatusCode::BAD_REQUEST);
         let body = serde_json::from_slice::<Value>(res.body()).expect("body should be JSON");
-        assert_eq!(body, json!({ "error": "Invalid value: Invalid hex format" }));
+        assert_eq!(
+            body,
+            json!({ "error": "Invalid value: Invalid hex format" })
+        );
     }
 
     #[tokio::test]

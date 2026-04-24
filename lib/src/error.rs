@@ -197,6 +197,33 @@ impl From<PoseidonError> for ConversionError {
     }
 }
 
+#[derive(Debug)]
+pub enum UnifiedProofError {
+    ProvingError(PlonkError),
+}
+
+impl Error for UnifiedProofError {}
+
+impl Display for UnifiedProofError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            UnifiedProofError::ProvingError(e) => write!(f, "UnifiedProofError: {e}"),
+        }
+    }
+}
+
+impl From<PlonkError> for UnifiedProofError {
+    fn from(e: PlonkError) -> Self {
+        UnifiedProofError::ProvingError(e)
+    }
+}
+
+impl From<CircuitError> for UnifiedProofError {
+    fn from(e: CircuitError) -> Self {
+        UnifiedProofError::ProvingError(PlonkError::from(e))
+    }
+}
+
 /// Error type used by the Event Listener, that listens for blockchain events and processes them.
 #[derive(Debug)]
 pub enum EventHandlerError {

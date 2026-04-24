@@ -131,9 +131,7 @@ async fn handle_rejection(err: Rejection) -> Result<impl Reply, std::convert::In
 mod tests {
     use super::*;
     use crate::{
-        domain::entities::TokenData,
-        driven::queue::get_queue,
-        ports::contracts::NightfallContract,
+        domain::entities::TokenData, driven::queue::get_queue, ports::contracts::NightfallContract,
     };
     use alloy::primitives::{Address, I256};
     use ark_bn254::Fr as Fr254;
@@ -261,7 +259,10 @@ mod tests {
             .await;
 
         assert_eq!(res.status(), StatusCode::BAD_REQUEST);
-        assert_eq!(std::str::from_utf8(res.body()).unwrap(), "Invalid request id");
+        assert_eq!(
+            std::str::from_utf8(res.body()).unwrap(),
+            "Invalid request id"
+        );
     }
 
     #[tokio::test]
@@ -367,7 +368,10 @@ mod tests {
             .await;
 
         assert_eq!(res.status(), StatusCode::BAD_REQUEST);
-        assert_eq!(std::str::from_utf8(res.body()).unwrap(), "Invalid Token Type");
+        assert_eq!(
+            std::str::from_utf8(res.body()).unwrap(),
+            "Invalid Token Type"
+        );
     }
 
     #[tokio::test]
@@ -393,7 +397,10 @@ mod tests {
             .await;
 
         assert_eq!(res.status(), StatusCode::BAD_REQUEST);
-        assert_eq!(std::str::from_utf8(res.body()).unwrap(), "Invalid Token Type");
+        assert_eq!(
+            std::str::from_utf8(res.body()).unwrap(),
+            "Invalid Token Type"
+        );
     }
 
     #[tokio::test]

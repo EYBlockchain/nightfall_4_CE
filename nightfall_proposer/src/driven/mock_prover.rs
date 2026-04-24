@@ -5,15 +5,11 @@ use itertools::{izip, Itertools};
 use jf_plonk::{
     errors::PlonkError,
     nightfall::ipa_structs::VerifyingKey,
-    nightfall::FFTPlonk,
-    proof_system::{RecursiveOutput, UniversalRecursiveSNARK},
+    proof_system::RecursiveOutput,
     recursion::circuits::Kzg,
-    transcript::RescueTranscript,
 };
-use jf_primitives::{pcs::prelude::UnivariateKzgPCS, rescue::sponge::RescueCRHF};
 use jf_utils::fr_to_fq;
 use lib::{
-    deposit_circuit::deposit_circuit_builder,
     merkle_trees::trees::{MerkleTreeError, MutableTree, TreeMetadata},
     nf_client_proof::PublicInputs,
     plonk_prover::{get_client_proving_key, plonk_proof::PlonkProof},
@@ -29,13 +25,12 @@ use mongodb::{bson::doc, Client};
 use super::rollup_prover::RollupProofError;
 use crate::{
     domain::entities::ClientTransactionWithMetaData,
-    driven::rollup_prover::Bn254Output,
-    get_deposit_proving_key,
+    driven::{rollup_prover::Bn254Output, unified_deposit_prover::create_unified_deposit_proof},
     initialisation::get_db_connection,
     ports::proving::RecursiveProvingEngine,
     ports::trees::{CommitmentTree, HistoricRootTree, NullifierTree},
 };
-use ark_bn254::{Bn254, Fq as Fq254, Fr as Fr254};
+use ark_bn254::{Fq as Fq254, Fr as Fr254};
 use ark_std::Zero;
 pub struct MockProver;
 
@@ -53,7 +48,6 @@ impl RecursiveProvingEngine<PlonkProof> for MockProver {
             .iter()
             .fold(Fr254::zero(), |acc, tx| acc + tx.client_transaction.fee);
         // We retrieve both types of proving keys
-        let deposit_pk = get_deposit_proving_key();
         let client_pk = get_client_proving_key();
 
         // First lets get all the public inputs from the deposit transactions and the client transactions
@@ -63,7 +57,7 @@ impl RecursiveProvingEngine<PlonkProof> for MockProver {
         ) = cfg_iter!(deposit_transactions)
             .map(|(proof, pi)| {
                 let output = RecursiveOutput::try_from(proof.clone())?;
-                Result::<_, PlonkError>::Ok((output, deposit_pk.vk.clone(), *pi))
+                Result::<_, PlonkError>::Ok((output, client_pk.vk.clone(), *pi))
             })
             .chain(cfg_iter!(transactions).map(|tx| {
                 let output = RecursiveOutput::try_from(tx.client_transaction.proof.clone())?;
@@ -256,18 +250,6 @@ impl RecursiveProvingEngine<PlonkProof> for MockProver {
         deposit_data: &[DepositData; 4],
         public_inputs: &mut PublicInputs,
     ) -> Result<PlonkProof, Self::Error> {
-        let mut circuit =
-            deposit_circuit_builder(deposit_data, public_inputs).map_err(PlonkError::from)?;
-        circuit
-            .finalize_for_recursive_arithmetization::<RescueCRHF<Fq254>>()
-            .map_err(PlonkError::from)?;
-        let pk = get_deposit_proving_key();
-
-        let output = FFTPlonk::<UnivariateKzgPCS<Bn254>>::recursive_prove::<
-            _,
-            _,
-            RescueTranscript<Fr254>,
-        >(&mut ark_std::rand::thread_rng(), &circuit, pk, None, true)?;
-        Ok(PlonkProof::from_recursive_output(output, &pk.vk))
+        create_unified_deposit_proof(deposit_data, public_inputs).map_err(Self::Error::from)
     }
 }

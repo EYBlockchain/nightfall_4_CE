@@ -18,6 +18,8 @@ use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 
+use crate::shared_entities::DepositData;
+
 pub trait Proof:
     Serialize + Debug + Clone + Sync + Send + 'static + for<'a> Deserialize<'a> + Unpin
 {
@@ -70,6 +72,10 @@ impl Default for PublicInputs {
 impl PublicInputs {
     pub fn new() -> Self {
         Default::default()
+    }
+
+    pub fn for_deposit() -> Self {
+        Self::new().fee(Fr254::zero()).root(Fr254::zero()).build()
     }
 
     pub fn fee(&mut self, fee: Fr254) -> &mut Self {
@@ -191,6 +197,8 @@ pub struct PrivateInputs {
     pub ephemeral_key: Fr254,
     pub withdraw_address: Fr254,
     pub secret_preimages: [[Fr254; 3]; 4],
+    /// Deposit witness carried by the unified circuit, populated only for deposit mode.
+    pub deposit_data: [DepositData; 4],
     pub party_a_public_key: TEAffine<BabyJubjub>,
     pub party_b_public_key: TEAffine<BabyJubjub>,
     pub nf_token_a_id: Fr254,
@@ -229,6 +237,7 @@ impl Default for PrivateInputs {
             ephemeral_key: Fr254::zero(),
             withdraw_address: Fr254::zero(),
             secret_preimages: [[Fr254::zero(); 3]; 4],
+            deposit_data: [DepositData::default(); 4],
             // === SWAP DEFAULTS (all neutral/zero) ===
             party_a_public_key: TEAffine::<BabyJubjub>::generator(),
             party_b_public_key: TEAffine::<BabyJubjub>::generator(),
@@ -246,6 +255,12 @@ impl Default for PrivateInputs {
 impl PrivateInputs {
     pub fn new() -> Self {
         Default::default()
+    }
+
+    pub fn for_deposit(deposit_data: &[DepositData; 4]) -> Self {
+        let mut private_inputs = Self::new();
+        private_inputs.deposit_data = *deposit_data;
+        private_inputs
     }
 
     pub fn fee_token_id(&mut self, fee_token_id: Fr254) -> &mut Self {
@@ -318,6 +333,11 @@ impl PrivateInputs {
         self
     }
 
+    pub fn deposit_data(&mut self, deposit_data: &[DepositData; 4]) -> &mut Self {
+        self.deposit_data = *deposit_data;
+        self
+    }
+
     pub fn party_a_public_key(&mut self, key: TEAffine<BabyJubjub>) -> &mut Self {
         self.party_a_public_key = key;
         self
@@ -379,6 +399,7 @@ impl PrivateInputs {
             ephemeral_key: self.ephemeral_key,
             withdraw_address: self.withdraw_address,
             secret_preimages: self.secret_preimages,
+            deposit_data: self.deposit_data,
             party_a_public_key: self.party_a_public_key,
             party_b_public_key: self.party_b_public_key,
             nf_token_a_id: self.nf_token_a_id,
@@ -422,6 +443,11 @@ pub struct PrivateInputsVar {
     pub withdraw_flag: BoolVar,
     /// The preimages to the secret hashes used for deposits
     pub secret_preimages: [[Variable; 3]; 4],
+    /// Deposit witness fields carried for future unified deposit support.
+    pub deposit_token_ids: [Variable; 4],
+    pub deposit_slot_ids: [Variable; 4],
+    pub deposit_values: [Variable; 4],
+    pub deposit_secret_hashes: [Variable; 4],
     // === SWAP FIELDS ===
     pub party_a_public_key: PointVariable,
     pub party_b_public_key: PointVariable,
@@ -525,6 +551,42 @@ impl PrivateInputsVar {
             .map_err(|_| {
                 CircuitError::ParameterError("Couldn't convert to fixed length array".to_string())
             })?;
+        let deposit_token_ids = private_inputs
+            .deposit_data
+            .iter()
+            .map(|deposit| circuit.create_variable(deposit.nf_token_id))
+            .collect::<Result<Vec<Variable>, CircuitError>>()?
+            .try_into()
+            .map_err(|_| {
+                CircuitError::ParameterError("Couldn't convert to fixed length array".to_string())
+            })?;
+        let deposit_slot_ids = private_inputs
+            .deposit_data
+            .iter()
+            .map(|deposit| circuit.create_variable(deposit.nf_slot_id))
+            .collect::<Result<Vec<Variable>, CircuitError>>()?
+            .try_into()
+            .map_err(|_| {
+                CircuitError::ParameterError("Couldn't convert to fixed length array".to_string())
+            })?;
+        let deposit_values = private_inputs
+            .deposit_data
+            .iter()
+            .map(|deposit| circuit.create_variable(deposit.value))
+            .collect::<Result<Vec<Variable>, CircuitError>>()?
+            .try_into()
+            .map_err(|_| {
+                CircuitError::ParameterError("Couldn't convert to fixed length array".to_string())
+            })?;
+        let deposit_secret_hashes = private_inputs
+            .deposit_data
+            .iter()
+            .map(|deposit| circuit.create_variable(deposit.secret_hash))
+            .collect::<Result<Vec<Variable>, CircuitError>>()?
+            .try_into()
+            .map_err(|_| {
+                CircuitError::ParameterError("Couldn't convert to fixed length array".to_string())
+            })?;
 
         // We enforce all the public keys to be either neutral or not in the small subgroup.
         // To ensure they're not in the small subgroup we check that [8]P != O.
@@ -609,6 +671,10 @@ impl PrivateInputsVar {
             withdraw_address,
             withdraw_flag,
             secret_preimages,
+            deposit_token_ids,
+            deposit_slot_ids,
+            deposit_values,
+            deposit_secret_hashes,
             party_a_public_key,
             party_b_public_key,
             nf_token_a_id,

@@ -5,7 +5,7 @@ use crate::{
     nf_client_proof::{PrivateInputs, PublicInputs},
     nf_token_id::to_nf_token_id_from_str,
     secret_hash::SecretHash,
-    shared_entities::{DepositSecret, Preimage, Salt},
+    shared_entities::{DepositData, DepositSecret, Preimage, Salt},
 };
 use alloy::primitives::{hex, keccak256};
 use ark_bn254::Fr as Fr254;
@@ -220,6 +220,7 @@ pub fn build_valid_transfer_inputs(rng: &mut impl Rng) -> (PublicInputs, Private
             nullified_three.get_secret_preimage().to_array(),
             nullified_four.get_secret_preimage().to_array(),
         ])
+        .deposit_data(&[DepositData::default(); 4])
         .root_key(keys.root_key)
         .public_keys(&[
             nullified_one.get_public_key(),

@@ -3,7 +3,9 @@ use crate::drivers::rest::{
     block_data::get_block_data, client_transactions::client_transaction,
     proposers::rotate_proposer, synchronisation::synchronisation,
 };
-use block_assembly::{get_block_assembly_status_route, pause_block_assembly, resume_block_assembly};
+use block_assembly::{
+    get_block_assembly_status_route, pause_block_assembly, resume_block_assembly,
+};
 use lib::{
     health_check::health_route,
     nf_client_proof::{Proof, ProvingEngine},
@@ -201,12 +203,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_handle_rejection_maps_add_failure_to_bad_request() {
-        let response = handle_rejection(warp::reject::custom(
-            ProposerRejection::FailedToAddProposer,
-        ))
-        .await
-        .unwrap()
-        .into_response();
+        let response =
+            handle_rejection(warp::reject::custom(ProposerRejection::FailedToAddProposer))
+                .await
+                .unwrap()
+                .into_response();
 
         assert_eq!(response.status(), warp::http::StatusCode::BAD_REQUEST);
     }

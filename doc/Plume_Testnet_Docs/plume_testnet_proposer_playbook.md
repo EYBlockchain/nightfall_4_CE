@@ -56,7 +56,6 @@ where you need to it for following keys
 ```bash
 base_bn254_pk    
 decider_pk  
-deposit_proving_key  
 merge_grumpkin_pk
 proving_key
 base_grumpkin_pk 

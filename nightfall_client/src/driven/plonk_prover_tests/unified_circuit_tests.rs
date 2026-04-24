@@ -11,7 +11,7 @@ mod tests {
     use ark_bn254::Bn254;
     use ark_crypto_primitives::sponge::{CryptographicSponge, FieldBasedCryptographicSponge};
     use ark_ec::{twisted_edwards::Affine, AffineRepr, CurveGroup};
-    use ark_ff::{One, PrimeField, Zero};
+    use ark_ff::{BigInteger, One, PrimeField, Zero};
     use ark_std::{rand::rngs::StdRng, UniformRand};
     use jf_plonk::{
         nightfall::{ipa_structs::VerificationKeyId, FFTPlonk},
@@ -29,7 +29,6 @@ mod tests {
     use jf_relation::{Arithmetization, Circuit};
     use lib::{
         commitments::Commitment,
-        deposit_circuit::deposit_circuit_builder,
         derive_key::ZKPKeys,
         hex_conversion::HexConvertible,
         nf_client_proof::{PrivateInputs, PublicInputs},
@@ -41,6 +40,7 @@ mod tests {
     use nf_curves::ed_on_bn254::{BabyJubjub, Fq as Fr254, Fr as BJJScalar};
     use num_bigint::BigUint;
     use rand::Rng;
+    use sha2::{Digest, Sha256};
     /// Struct use for handling information in circuit testing
     struct CircuitTestInfo {
         public_inputs: PublicInputs,
@@ -379,7 +379,8 @@ mod tests {
             nullified_three,
             nullified_four,
         ];
-        let spend_commitment_hashes = spend_commitments.map(|commitment| commitment.hash().unwrap());
+        let spend_commitment_hashes =
+            spend_commitments.map(|commitment| commitment.hash().unwrap());
         let (mem_proofs, root) =
             generate_random_paths_with_shared_root(spend_commitment_hashes, &mut rng);
 
@@ -424,6 +425,7 @@ mod tests {
                 nullified_three.get_secret_preimage().to_array(),
                 nullified_four.get_secret_preimage().to_array(),
             ])
+            .deposit_data(&[DepositData::default(); 4])
             .root_key(keys.root_key)
             .public_keys(&[
                 nullified_one.get_public_key(),
@@ -531,6 +533,181 @@ mod tests {
 
     fn build_valid_transfer_inputs() -> CircuitTestInfo {
         build_transfer_inputs(true)
+    }
+
+    fn build_zero_value_transfer_inputs() -> CircuitTestInfo {
+        let mut rng = jf_utils::test_rng();
+
+        let erc_address: [u8; 20] = rng.gen();
+        let erc_address_string = format!("0x{}", hex::encode(erc_address));
+        let token_id_fr = Fr254::rand(&mut rng);
+        let token_id_string = Fr254::to_hex_string(&token_id_fr);
+
+        let nf_token_id = to_nf_token_id_from_str(&erc_address_string, &token_id_string).unwrap();
+        let nf_slot_id = nf_token_id;
+
+        let mut bytes = rand::thread_rng();
+        let nf_address_h160 = Address::new(bytes.gen());
+        let nf_address_field = Fr254::from(BigUint::from_bytes_be(nf_address_h160.as_slice()));
+        let nf_address_token = nf_address_h160.tokenize();
+        let u256_zero = U256::ZERO.tokenize();
+        let fee_token_id_biguint =
+            BigUint::from_bytes_be(keccak256(encode(&(nf_address_token, u256_zero))).as_slice())
+                >> 4;
+        let fee_token_id = Fr254::from(fee_token_id_biguint);
+
+        let value = Fr254::zero();
+        let fee = rand_96_bit(&mut rng);
+        let nullified_value_one = Fr254::zero();
+        let _nullified_value_two = Fr254::zero();
+        let nullified_fee_one = fee + Fr254::from(1u64);
+        let _nullified_fee_two = Fr254::zero();
+
+        let root_key = Fr254::rand(&mut rng);
+        let keys = ZKPKeys::new(root_key).unwrap();
+        let recipient_public_key = Affine::<BabyJubjub>::rand(&mut rng);
+        let ephemeral_key = BJJScalar::rand(&mut rng);
+
+        let nullified_one = Preimage::new(
+            nullified_value_one,
+            nf_token_id,
+            nf_slot_id,
+            keys.zkp_public_key,
+            Salt::new_transfer_salt(),
+        );
+        let nullified_two = Preimage::default();
+        let nullified_three = Preimage::new(
+            nullified_fee_one,
+            fee_token_id,
+            fee_token_id,
+            keys.zkp_public_key,
+            Salt::new_transfer_salt(),
+        );
+        let nullified_four = Preimage::default();
+
+        let spend_commitments = [
+            nullified_one,
+            nullified_two,
+            nullified_three,
+            nullified_four,
+        ];
+        let spend_commitment_hashes =
+            spend_commitments.map(|commitment| commitment.hash().unwrap());
+        let (mem_proofs, root) =
+            generate_random_paths_with_shared_root(spend_commitment_hashes, &mut rng);
+
+        let value_change = Fr254::zero();
+        let fee_change = nullified_fee_one - fee;
+        let new_salts = [Salt::new_transfer_salt().get_salt(); 3];
+
+        let public_inputs = PublicInputs::new().fee(fee).root(root).build();
+
+        let private_inputs = PrivateInputs::new()
+            .fee_token_id(fee_token_id)
+            .nf_address(nf_address_h160)
+            .value_a(value)
+            .nf_token_a_id(nf_token_id)
+            .nf_slot_id(nf_slot_id)
+            .ephemeral_key(ephemeral_key)
+            .party_a_public_key(keys.zkp_public_key)
+            .party_b_public_key(recipient_public_key)
+            .nf_token_b_id(Fr254::zero())
+            .value_b(Fr254::zero())
+            .nullifiers_values(&[
+                nullified_one.get_value(),
+                nullified_two.get_value(),
+                nullified_three.get_value(),
+                nullified_four.get_value(),
+            ])
+            .nullifiers_salts(&[
+                nullified_one.get_salt(),
+                nullified_two.get_salt(),
+                nullified_three.get_salt(),
+                nullified_four.get_salt(),
+            ])
+            .commitments_values(&[value_change, fee_change])
+            .sender_commitment_salts(&new_salts)
+            .membership_proofs(&mem_proofs)
+            .secret_preimages(&[
+                nullified_one.get_secret_preimage().to_array(),
+                nullified_two.get_secret_preimage().to_array(),
+                nullified_three.get_secret_preimage().to_array(),
+                nullified_four.get_secret_preimage().to_array(),
+            ])
+            .deposit_data(&[DepositData::default(); 4])
+            .root_key(keys.root_key)
+            .public_keys(&[
+                nullified_one.get_public_key(),
+                nullified_two.get_public_key(),
+                nullified_three.get_public_key(),
+                nullified_four.get_public_key(),
+            ])
+            .build();
+
+        let shared_secret = (recipient_public_key * ephemeral_key).into_affine();
+        let contract_nf_address =
+            Affine::<BabyJubjub>::new_unchecked(Fr254::zero(), nf_address_field);
+        let poseidon = Poseidon::<Fr254>::new();
+        let shared_salt_hash = poseidon
+            .hash(&[shared_secret.x, shared_secret.y, DOMAIN_SHARED_SALT])
+            .unwrap();
+        let shared_salt = Salt::Transfer(shared_salt_hash);
+
+        let preimage_one = Preimage::new(
+            value,
+            nf_token_id,
+            nf_slot_id,
+            recipient_public_key,
+            shared_salt,
+        );
+        let preimage_three = Preimage::new(
+            fee,
+            fee_token_id,
+            fee_token_id,
+            contract_nf_address,
+            Salt::Transfer(new_salts[1]),
+        );
+        let preimage_four = Preimage::new(
+            fee_change,
+            fee_token_id,
+            fee_token_id,
+            keys.zkp_public_key,
+            Salt::Transfer(new_salts[2]),
+        );
+
+        let expected_commitments = [
+            preimage_one.hash().unwrap(),
+            Fr254::zero(),
+            preimage_three.hash().unwrap(),
+            preimage_four.hash().unwrap(),
+        ];
+        let expected_nullifiers = [
+            poseidon
+                .hash(&[keys.nullifier_key, nullified_one.hash().unwrap()])
+                .unwrap(),
+            Fr254::zero(),
+            poseidon
+                .hash(&[keys.nullifier_key, nullified_three.hash().unwrap()])
+                .unwrap(),
+            Fr254::zero(),
+        ];
+        let expected_compressed_secrets: [Fr254; 5] = kemdem_encrypt::<false>(
+            ephemeral_key,
+            recipient_public_key,
+            &[nf_token_id, nf_slot_id, value],
+            Affine::<BabyJubjub>::generator(),
+        )
+        .unwrap()
+        .try_into()
+        .unwrap();
+
+        CircuitTestInfo::new(
+            public_inputs,
+            private_inputs,
+            expected_commitments,
+            expected_nullifiers,
+            expected_compressed_secrets,
+        )
     }
 
     fn build_withdraw_inputs(valid: bool) -> CircuitTestInfo {
@@ -649,7 +826,8 @@ mod tests {
             nullified_three,
             nullified_four,
         ];
-        let spend_commitment_hashes = spend_commitments.map(|commitment| commitment.hash().unwrap());
+        let spend_commitment_hashes =
+            spend_commitments.map(|commitment| commitment.hash().unwrap());
         let (mem_proofs, root) =
             generate_random_paths_with_shared_root(spend_commitment_hashes, &mut rng);
 
@@ -694,6 +872,7 @@ mod tests {
                 nullified_three.get_secret_preimage().to_array(),
                 nullified_four.get_secret_preimage().to_array(),
             ])
+            .deposit_data(&[DepositData::default(); 4])
             .root_key(keys.root_key)
             .public_keys(&[
                 nullified_one.get_public_key(),
@@ -903,7 +1082,8 @@ mod tests {
             nullified_three,
             nullified_four,
         ];
-        let spend_commitment_hashes = spend_commitments.map(|commitment| commitment.hash().unwrap());
+        let spend_commitment_hashes =
+            spend_commitments.map(|commitment| commitment.hash().unwrap());
         let (mem_proofs, root) =
             generate_random_paths_with_shared_root(spend_commitment_hashes, &mut rng);
 
@@ -949,6 +1129,7 @@ mod tests {
                 nullified_three.get_secret_preimage().to_array(),
                 nullified_four.get_secret_preimage().to_array(),
             ])
+            .deposit_data(&[DepositData::default(); 4])
             .root_key(keys.root_key)
             .public_keys(&[
                 nullified_one.get_public_key(),
@@ -1188,7 +1369,8 @@ mod tests {
             nullified_three,
             nullified_four,
         ];
-        let spend_commitment_hashes = spend_commitments.map(|commitment| commitment.hash().unwrap());
+        let spend_commitment_hashes =
+            spend_commitments.map(|commitment| commitment.hash().unwrap());
         let (mem_proofs, root) =
             generate_random_paths_with_shared_root(spend_commitment_hashes, &mut rng);
 
@@ -1233,6 +1415,7 @@ mod tests {
                 nullified_three.get_secret_preimage().to_array(),
                 nullified_four.get_secret_preimage().to_array(),
             ])
+            .deposit_data(&[DepositData::default(); 4])
             .root_key(keys_b.root_key)
             .public_keys(&[
                 nullified_one.get_public_key(),
@@ -1452,8 +1635,10 @@ mod tests {
             nullified_three,
             nullified_four,
         ];
-        let spend_commitment_hashes = spend_commitments.map(|commitment| commitment.hash().unwrap());
-        let (mem_proofs, root) = generate_random_paths_with_shared_root(spend_commitment_hashes, rng);
+        let spend_commitment_hashes =
+            spend_commitments.map(|commitment| commitment.hash().unwrap());
+        let (mem_proofs, root) =
+            generate_random_paths_with_shared_root(spend_commitment_hashes, rng);
 
         let new_salts = [Salt::new_transfer_salt().get_salt(); 3];
         let ephemeral_key = BJJScalar::rand(rng);
@@ -1638,21 +1823,15 @@ mod tests {
             DepositData::default(),
             DepositData::default(),
         ];
-        let mut deposit_public_inputs = PublicInputs::default();
-        let deposit_circuit = deposit_circuit_builder(&deposit_data, &mut deposit_public_inputs)
-            .expect("deposit circuit should build");
-        deposit_circuit
-            .check_circuit_satisfiability(Vec::from(&deposit_public_inputs).as_slice())
-            .expect("deposit circuit should be satisfiable");
-
-        let deposit_commitment = deposit_public_inputs.commitments[0];
+        let deposit_commitment = expected_deposit_public_inputs(&deposit_data).commitments[0];
         let leaf_values = [
             deposit_commitment,
             info.private_inputs.membership_proofs[1].node_value,
             info.private_inputs.membership_proofs[2].node_value,
             info.private_inputs.membership_proofs[3].node_value,
         ];
-        let (membership_proofs, root) = generate_random_paths_with_shared_root(leaf_values, &mut rng);
+        let (membership_proofs, root) =
+            generate_random_paths_with_shared_root(leaf_values, &mut rng);
 
         info.private_inputs.public_keys[0] = Affine::<BabyJubjub>::zero();
         info.private_inputs.nullifiers_values[0] = deposit_data[0].value;
@@ -1660,6 +1839,129 @@ mod tests {
         info.private_inputs.secret_preimages[0] = deposit_secret.to_array();
         info.private_inputs.membership_proofs = membership_proofs;
         info.public_inputs.root = root;
+    }
+
+    fn build_unified_deposit_inputs(
+        deposit_data: [DepositData; 4],
+    ) -> (PublicInputs, PrivateInputs) {
+        (
+            PublicInputs::for_deposit(),
+            PrivateInputs::for_deposit(&deposit_data),
+        )
+    }
+
+    fn expected_deposit_commitment(deposit_data: &DepositData) -> Fr254 {
+        if deposit_data.value.is_zero() || deposit_data.nf_token_id.is_zero() {
+            return Fr254::zero();
+        }
+
+        Poseidon::<Fr254>::new()
+            .hash(&[
+                deposit_data.nf_token_id,
+                deposit_data.nf_slot_id,
+                deposit_data.value,
+                Fr254::zero(),
+                Fr254::one(),
+                deposit_data.secret_hash,
+            ])
+            .expect("deposit commitment hash")
+    }
+
+    fn expected_deposit_compressed_secret(deposit_data: &DepositData) -> Fr254 {
+        if deposit_data.value.is_zero() || deposit_data.nf_token_id.is_zero() {
+            return Fr254::zero();
+        }
+
+        let field_bytes = [
+            deposit_data.nf_token_id.into_bigint().to_bytes_be(),
+            deposit_data.nf_slot_id.into_bigint().to_bytes_be(),
+            deposit_data.value.into_bigint().to_bytes_be(),
+            deposit_data.secret_hash.into_bigint().to_bytes_be(),
+        ]
+        .concat();
+
+        let mut hasher = Sha256::new();
+        hasher.update(field_bytes);
+        let full_hash_bytes = hasher.finalize();
+        let compressed_hash = BigUint::from_bytes_be(&full_hash_bytes) >> 4;
+        Fr254::from(compressed_hash)
+    }
+
+    fn expected_deposit_public_inputs(deposit_data: &[DepositData; 4]) -> PublicInputs {
+        let commitments = deposit_data.map(|entry| expected_deposit_commitment(&entry));
+        let mut compressed_secrets = [Fr254::zero(); 5];
+        compressed_secrets[..4]
+            .copy_from_slice(&deposit_data.map(|entry| expected_deposit_compressed_secret(&entry)));
+
+        PublicInputs {
+            fee: Fr254::zero(),
+            root: Fr254::zero(),
+            commitments,
+            nullifiers: [Fr254::zero(); 4],
+            compressed_secrets,
+            swap_link: Fr254::zero(),
+            deadline: Fr254::zero(),
+            swap_side: Fr254::zero(),
+        }
+    }
+
+    fn assert_unified_deposit_matches_expected(deposit_data: [DepositData; 4]) {
+        let expected_public_inputs = expected_deposit_public_inputs(&deposit_data);
+
+        let (mut unified_public_inputs, mut private_inputs) =
+            build_unified_deposit_inputs(deposit_data);
+        let unified_circuit =
+            unified_circuit_builder(&mut unified_public_inputs, &mut private_inputs)
+                .expect("unified deposit circuit should build");
+        unified_circuit
+            .check_circuit_satisfiability(Vec::from(&unified_public_inputs).as_slice())
+            .expect("unified deposit circuit should be satisfiable");
+
+        assert_eq!(unified_public_inputs.fee, expected_public_inputs.fee);
+        assert_eq!(unified_public_inputs.root, expected_public_inputs.root);
+        assert_eq!(
+            unified_public_inputs.commitments,
+            expected_public_inputs.commitments
+        );
+        assert_eq!(
+            unified_public_inputs.nullifiers,
+            expected_public_inputs.nullifiers
+        );
+        assert_eq!(
+            unified_public_inputs.compressed_secrets,
+            expected_public_inputs.compressed_secrets
+        );
+        assert_eq!(
+            unified_public_inputs.swap_link,
+            expected_public_inputs.swap_link
+        );
+        assert_eq!(
+            unified_public_inputs.deadline,
+            expected_public_inputs.deadline
+        );
+        assert_eq!(
+            unified_public_inputs.swap_side,
+            expected_public_inputs.swap_side
+        );
+    }
+
+    fn assert_rejected_unified_deposit(
+        mut public_inputs: PublicInputs,
+        mut private_inputs: PrivateInputs,
+    ) {
+        match unified_circuit_builder(&mut public_inputs, &mut private_inputs) {
+            Ok(circuit) => {
+                assert!(
+                    circuit
+                        .check_circuit_satisfiability(Vec::from(&public_inputs).as_slice())
+                        .is_err(),
+                    "invalid deposit inputs should not satisfy the unified circuit"
+                );
+            }
+            Err(_) => {
+                // Invalid deposit inputs can be rejected during circuit construction.
+            }
+        }
     }
 
     #[test]
@@ -1756,9 +2058,7 @@ mod tests {
             .unwrap();
 
             assert!(circuit
-                .check_circuit_satisfiability(
-                    Vec::from(&incorrect_root.public_inputs).as_slice(),
-                )
+                .check_circuit_satisfiability(Vec::from(&incorrect_root.public_inputs).as_slice(),)
                 .is_err());
 
             // If the wirthdraw address is non-zero we should fail
@@ -1791,6 +2091,172 @@ mod tests {
                 .check_circuit_satisfiability(Vec::from(&incorrect_value.public_inputs).as_slice(),)
                 .is_err());
         }
+    }
+
+    #[test]
+    fn test_zero_value_transfer_keeps_nullifiers_non_zero() {
+        let mut circuit_test_info = build_zero_value_transfer_inputs();
+        let circuit = unified_circuit_builder(
+            &mut circuit_test_info.public_inputs,
+            &mut circuit_test_info.private_inputs,
+        )
+        .unwrap();
+
+        circuit
+            .check_circuit_satisfiability(Vec::from(&circuit_test_info.public_inputs).as_slice())
+            .unwrap();
+
+        assert_eq!(
+            circuit_test_info.public_inputs.nullifiers,
+            circuit_test_info.expected_nullifiers
+        );
+        assert_ne!(circuit_test_info.public_inputs.nullifiers[0], Fr254::zero());
+    }
+
+    #[test]
+    fn test_unified_deposit_with_one_real_entry() {
+        let mut rng = jf_utils::test_rng();
+        let deposit_secret = DepositSecret::new(
+            Fr254::rand(&mut rng),
+            Fr254::rand(&mut rng),
+            Fr254::rand(&mut rng),
+        );
+        let deposit_data = [
+            DepositData {
+                nf_token_id: Fr254::from(11u64),
+                nf_slot_id: Fr254::from(22u64),
+                value: Fr254::from(33u64),
+                secret_hash: deposit_secret.hash().expect("deposit secret hash"),
+            },
+            DepositData::default(),
+            DepositData::default(),
+            DepositData::default(),
+        ];
+        let (mut public_inputs, mut private_inputs) = build_unified_deposit_inputs(deposit_data);
+        let circuit = unified_circuit_builder(&mut public_inputs, &mut private_inputs)
+            .expect("unified deposit circuit should build");
+        circuit
+            .check_circuit_satisfiability(Vec::from(&public_inputs).as_slice())
+            .expect("unified deposit circuit should be satisfiable");
+    }
+
+    #[test]
+    fn test_unified_deposit_with_all_default_entries() {
+        let deposit_data = [DepositData::default(); 4];
+        let (mut public_inputs, mut private_inputs) = build_unified_deposit_inputs(deposit_data);
+        let circuit = unified_circuit_builder(&mut public_inputs, &mut private_inputs)
+            .expect("default unified deposit circuit should build");
+        circuit
+            .check_circuit_satisfiability(Vec::from(&public_inputs).as_slice())
+            .expect("default unified deposit circuit should be satisfiable");
+    }
+
+    #[test]
+    fn test_unified_deposit_matches_expected_outputs_with_one_real_entry() {
+        let mut rng = jf_utils::test_rng();
+        let deposit_secret = DepositSecret::new(
+            Fr254::rand(&mut rng),
+            Fr254::rand(&mut rng),
+            Fr254::rand(&mut rng),
+        );
+        let deposit_data = [
+            DepositData {
+                nf_token_id: Fr254::from(101u64),
+                nf_slot_id: Fr254::from(202u64),
+                value: Fr254::from(303u64),
+                secret_hash: deposit_secret.hash().expect("deposit secret hash"),
+            },
+            DepositData::default(),
+            DepositData::default(),
+            DepositData::default(),
+        ];
+        assert_unified_deposit_matches_expected(deposit_data);
+    }
+
+    #[test]
+    fn test_unified_deposit_matches_expected_outputs_with_full_batch() {
+        let mut rng = jf_utils::test_rng();
+        let deposit_data = std::array::from_fn(|i| {
+            let deposit_secret = DepositSecret::new(
+                Fr254::rand(&mut rng),
+                Fr254::rand(&mut rng),
+                Fr254::rand(&mut rng),
+            );
+            DepositData {
+                nf_token_id: Fr254::from((i + 1) as u64),
+                nf_slot_id: Fr254::from((i + 11) as u64),
+                value: Fr254::from((i as u64 + 1) * 100u64),
+                secret_hash: deposit_secret.hash().expect("deposit secret hash"),
+            }
+        });
+        assert_unified_deposit_matches_expected(deposit_data);
+    }
+
+    #[test]
+    fn test_unified_deposit_matches_expected_outputs_with_all_default_entries() {
+        assert_unified_deposit_matches_expected([DepositData::default(); 4]);
+    }
+
+    #[test]
+    fn test_unified_deposit_rejects_tampered_public_outputs() {
+        let mut rng = jf_utils::test_rng();
+        let deposit_secret = DepositSecret::new(
+            Fr254::rand(&mut rng),
+            Fr254::rand(&mut rng),
+            Fr254::rand(&mut rng),
+        );
+        let deposit_data = [
+            DepositData {
+                nf_token_id: Fr254::from(77u64),
+                nf_slot_id: Fr254::from(88u64),
+                value: Fr254::from(99u64),
+                secret_hash: deposit_secret.hash().expect("deposit secret hash"),
+            },
+            DepositData::default(),
+            DepositData::default(),
+            DepositData::default(),
+        ];
+        let (mut public_inputs, mut private_inputs) = build_unified_deposit_inputs(deposit_data);
+        let circuit = unified_circuit_builder(&mut public_inputs, &mut private_inputs)
+            .expect("unified deposit circuit should build");
+        circuit
+            .check_circuit_satisfiability(Vec::from(&public_inputs).as_slice())
+            .expect("unified deposit circuit should be satisfiable");
+
+        let mut tampered_fee = public_inputs;
+        tampered_fee.fee += Fr254::one();
+        assert!(
+            circuit
+                .check_circuit_satisfiability(Vec::from(&tampered_fee).as_slice())
+                .is_err(),
+            "tampered deposit fee should be rejected"
+        );
+
+        let mut tampered_root = public_inputs;
+        tampered_root.root += Fr254::one();
+        assert!(
+            circuit
+                .check_circuit_satisfiability(Vec::from(&tampered_root).as_slice())
+                .is_err(),
+            "tampered deposit root should be rejected"
+        );
+
+        let mut tampered_swap_link = public_inputs;
+        tampered_swap_link.swap_link += Fr254::one();
+        assert!(
+            circuit
+                .check_circuit_satisfiability(Vec::from(&tampered_swap_link).as_slice())
+                .is_err(),
+            "tampered deposit swap_link should be rejected"
+        );
+    }
+
+    #[test]
+    fn test_unified_deposit_rejects_non_zero_first_nullifier_salt() {
+        let deposit_data = [DepositData::default(); 4];
+        let (public_inputs, mut private_inputs) = build_unified_deposit_inputs(deposit_data);
+        private_inputs.nullifiers_salts[0] = Fr254::one();
+        assert_rejected_unified_deposit(public_inputs, private_inputs);
     }
 
     #[test]
@@ -1886,9 +2352,7 @@ mod tests {
             .unwrap();
 
             assert!(circuit
-                .check_circuit_satisfiability(
-                    Vec::from(&incorrect_root.public_inputs).as_slice(),
-                )
+                .check_circuit_satisfiability(Vec::from(&incorrect_root.public_inputs).as_slice(),)
                 .is_err());
 
             // If the wirthdraw address is zero we should fail

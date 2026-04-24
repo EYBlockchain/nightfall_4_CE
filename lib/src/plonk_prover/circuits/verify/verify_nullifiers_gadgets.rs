@@ -56,6 +56,7 @@ where
         secret_preimages: &[[Variable; 3]; 4],
     ) -> Result<[Variable; 4], jf_relation::errors::CircuitError> {
         // Check the first nullifier, nullify Withdrawn/Transferred token
+        let is_zero = self.is_zero(old_commitment_salts[0])?;
         let commitment_hash_1 = self.poseidon_hash(&[
             nf_token_id,
             nf_slot_id,
@@ -80,13 +81,18 @@ where
         // Check if the nullifier is equal to the public transaction nullifier hash, or input commitment value is zero
         // Check if the Merkle root is equal to the supplied one.
         let calc_root = membership_proofs[0].calculate_new_root(self, &commitment_hash_1)?;
-        self.enforce_equal(calc_root, root)?;
+        let expected_root = self.conditional_select(is_zero, root, self.zero())?;
+        let root_is_equal = self.is_equal(calc_root, expected_root)?;
+        let is_valid = self.conditional_select(is_zero, root_is_equal.into(), self.one())?;
+        self.enforce_true(is_valid)?;
+        let nullifier_1_out = self.conditional_select(is_zero, nullifier_1, self.zero())?;
 
         // Finally we check if the salt is from a secret preimage
         let secret_hash = self.poseidon_hash(&secret_preimages[0])?;
 
         let salt_to_enforce =
             self.conditional_select(neutral_point_1, old_commitment_salts[0], secret_hash)?;
+        let salt_to_enforce = self.conditional_select(is_zero, salt_to_enforce, self.zero())?;
         self.enforce_equal(salt_to_enforce, old_commitment_salts[0])?;
 
         // Check the second nullifier, nullify extra Withdrawn/Transferred token
@@ -219,7 +225,7 @@ where
         self.enforce_equal(salt_to_enforce, old_commitment_salts[3])?;
 
         Ok([
-            nullifier_1,
+            nullifier_1_out,
             nullifier_2_out,
             nullifier_3_out,
             nullifier_4_out,
