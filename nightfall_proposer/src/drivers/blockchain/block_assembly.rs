@@ -550,8 +550,8 @@ where
 
         if current_proposer_after_trigger != our_address {
             info!(
-        "Proposer has changed after trigger. Skipping block assembly. New proposer is: {current_proposer_after_trigger:?}"
-    );
+                "Proposer has changed after trigger. Skipping block assembly. New proposer is: {current_proposer_after_trigger:?}"
+            );
             continue;
         }
         // Step 4: check if we're synchronised.

@@ -6,9 +6,9 @@ use lib::{
     shared_entities::{ClientTransaction, OnChainTransaction},
 };
 use log::error;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 use sha3::{Digest, Keccak256};
-use std::fmt::Debug;
+use std::{fmt, fmt::Debug};
 
 /// A Block struct representing NF block
 /// NOTE: This is not finalised yet, we may need to change fields to this struct
@@ -157,17 +157,105 @@ where
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TransferReceiptStatus {
-    Created,
     Pending,
     IncludedL2,
     Failed,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct TxHashBytes([u8; 32]);
+
+impl TxHashBytes {
+    pub fn from_u32_slice(bytes: &[u32]) -> Option<Self> {
+        if bytes.len() != 32 || bytes.iter().any(|&byte| byte > u8::MAX as u32) {
+            return None;
+        }
+
+        let mut tx_hash = [0u8; 32];
+        for (target, source) in tx_hash.iter_mut().zip(bytes.iter()) {
+            *target = *source as u8;
+        }
+        Some(Self(tx_hash))
+    }
+
+    pub fn as_hex(&self) -> String {
+        hex::encode(self.0)
+    }
+
+    pub fn as_u32_vec(&self) -> Vec<u32> {
+        self.0.iter().map(|&byte| byte as u32).collect()
+    }
+}
+
+impl Serialize for TxHashBytes {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.as_hex())
+    }
+}
+
+impl<'de> Deserialize<'de> for TxHashBytes {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct TxHashBytesVisitor;
+
+        impl<'de> de::Visitor<'de> for TxHashBytesVisitor {
+            type Value = TxHashBytes;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("a 64-character hex string or 32 byte values")
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                if value.len() != 64 || value.chars().any(|c| !c.is_ascii_hexdigit()) {
+                    return Err(E::custom("tx_hash must be a 64-character hex string"));
+                }
+
+                let decoded = hex::decode(value).map_err(E::custom)?;
+                let bytes: [u8; 32] = decoded
+                    .try_into()
+                    .map_err(|_| E::custom("tx_hash must decode to 32 bytes"))?;
+                Ok(TxHashBytes(bytes))
+            }
+
+            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: de::SeqAccess<'de>,
+            {
+                let mut bytes = [0u8; 32];
+                for (index, target) in bytes.iter_mut().enumerate() {
+                    let Some(byte) = seq.next_element::<u32>()? else {
+                        return Err(de::Error::invalid_length(index, &self));
+                    };
+                    if byte > u8::MAX as u32 {
+                        return Err(de::Error::custom("tx_hash byte value exceeds 255"));
+                    }
+                    *target = byte as u8;
+                }
+
+                if seq.next_element::<u32>()?.is_some() {
+                    return Err(de::Error::custom("tx_hash must contain exactly 32 bytes"));
+                }
+
+                Ok(TxHashBytes(bytes))
+            }
+        }
+
+        deserializer.deserialize_any(TxHashBytesVisitor)
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TransferReceipt {
     pub receipt_id: String,
-    pub tx_hash: Vec<u32>,
-    pub tx_hash_hex: String,
+    pub tx_hash: TxHashBytes,
     pub ciphertext: String,
     pub version: u8,
     pub status: TransferReceiptStatus,

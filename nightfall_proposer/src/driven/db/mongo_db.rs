@@ -1,6 +1,12 @@
 use crate::{
-    domain::entities::{ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot, TransferReceipt, TransferReceiptStatus},
-    ports::db::{BlockStorageDB, HistoricRootsDB, TransactionsDB, TransferReceiptDB, TransferReceiptStoreError},
+    domain::entities::{
+        ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot, TransferReceipt,
+        TransferReceiptStatus, TxHashBytes,
+    },
+    ports::db::{
+        BlockStorageDB, HistoricRootsDB, TransactionsDB, TransferReceiptDB,
+        TransferReceiptStoreError,
+    },
 };
 use alloy::primitives::Address;
 use ark_bn254::Fr as Fr254;
@@ -576,9 +582,11 @@ impl BlockStorageDB for mongodb::Client {
     }
 }
 
-/// Creates unique indexes on `receipt_id` and `tx_hash_hex` in the TransferReceipts collection.
+/// Creates unique indexes on `receipt_id` and `tx_hash` in the TransferReceipts collection.
 /// Must be called once at proposer startup.
-pub async fn ensure_transfer_receipt_indexes(client: &mongodb::Client) {
+pub async fn ensure_transfer_receipt_indexes(
+    client: &mongodb::Client,
+) -> Result<(), mongodb::error::Error> {
     use mongodb::IndexModel;
     use mongodb::options::IndexOptions;
 
@@ -592,12 +600,13 @@ pub async fn ensure_transfer_receipt_indexes(client: &mongodb::Client) {
         .build();
 
     let tx_hash_hex_index = IndexModel::builder()
-        .keys(doc! { "tx_hash_hex": 1 })
+        .keys(doc! { "tx_hash": 1 })
         .options(IndexOptions::builder().unique(true).build())
         .build();
 
-    let _ = collection.create_index(receipt_id_index).await;
-    let _ = collection.create_index(tx_hash_hex_index).await;
+    collection.create_index(receipt_id_index).await?;
+    collection.create_index(tx_hash_hex_index).await?;
+    Ok(())
 }
 
 #[async_trait::async_trait]
@@ -616,14 +625,12 @@ impl TransferReceiptDB for mongodb::Client {
             Ok(_) => Ok(()),
             Err(e) => {
                 // MongoDB duplicate key error code is 11000.
-                let is_dup = e.to_string().contains("11000")
-                    || e.to_string().contains("E11000")
-                    || matches!(
-                        *e.kind,
-                        mongodb::error::ErrorKind::Write(
-                            mongodb::error::WriteFailure::WriteError(ref we)
-                        ) if we.code == 11000
-                    );
+                let is_dup = matches!(
+                    *e.kind,
+                    mongodb::error::ErrorKind::Write(
+                        mongodb::error::WriteFailure::WriteError(ref we)
+                    ) if we.code == 11000
+                );
                 if is_dup {
                     Err(TransferReceiptStoreError::DuplicateKey)
                 } else {
@@ -642,8 +649,11 @@ impl TransferReceiptDB for mongodb::Client {
             .ok()?
     }
 
-    async fn get_transfer_receipt_by_tx_hash(&self, tx_hash_hex: &str) -> Option<TransferReceipt> {
-        let filter = doc! { "tx_hash_hex": tx_hash_hex };
+    async fn get_transfer_receipt_by_tx_hash(
+        &self,
+        tx_hash: &TxHashBytes,
+    ) -> Option<TransferReceipt> {
+        let filter = doc! { "tx_hash": tx_hash.as_hex() };
         self.database(DB)
             .collection::<TransferReceipt>(TRANSFER_RECEIPTS_COLLECTION)
             .find_one(filter)
@@ -657,11 +667,13 @@ impl TransferReceiptDB for mongodb::Client {
         status: TransferReceiptStatus,
         updated_at_unix: i64,
     ) -> Option<()> {
-        let status_str = serde_json::to_string(&status).ok()?;
-        // serde_json produces a quoted string like `"pending"` — strip quotes for bson.
-        let status_bson = status_str.trim_matches('"');
         let filter = doc! { "receipt_id": receipt_id };
-        let update = doc! { "$set": { "status": status_bson, "updated_at_unix": updated_at_unix } };
+        let update = doc! {
+            "$set": {
+                "status": mongodb::bson::to_bson(&status).ok()?,
+                "updated_at_unix": updated_at_unix,
+            }
+        };
         self.database(DB)
             .collection::<TransferReceipt>(TRANSFER_RECEIPTS_COLLECTION)
             .update_one(filter, update)

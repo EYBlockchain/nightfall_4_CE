@@ -2,8 +2,7 @@ use ark_ec::twisted_edwards::Affine as TEAffine;
 use ark_ff::{BigInteger, One, PrimeField, Zero};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use jf_primitives::poseidon::{FieldHasher, Poseidon, PoseidonError};
-use lib::plonk_prover::circuits::DOMAIN_SHARED_SALT;
-use lib::plonk_prover::circuits::{DOMAIN_RECEIPT_DEM, DOMAIN_RECEIPT_KEM};
+use lib::plonk_prover::circuits::{DOMAIN_RECEIPT_DEM, DOMAIN_RECEIPT_KEM, DOMAIN_SHARED_SALT};
 use log::error;
 use nf_curves::ed_on_bn254::{BabyJubjub, Fq as Fr254, Fr as BJJScalar};
 
@@ -82,11 +81,18 @@ pub fn kemdem_decrypt(
     recipient_private_key: BJJScalar,
     cipher_text: &[Fr254],
 ) -> Result<Vec<Fr254>, PoseidonError> {
+    if cipher_text.len() < 5 || !is_valid_epk_sign_flag(&cipher_text[4]) {
+        return Err(PoseidonError::InvalidInputs);
+    }
+
     // First we decompress the epk
     let mut point_bytes = cipher_text[3].into_bigint().to_bytes_le();
+    if point_bytes.len() != 32 {
+        return Err(PoseidonError::InvalidInputs);
+    }
     let flag = cipher_text[4].into_bigint().to_bytes_le()[0] << 7;
-    // We can hard index into point_bytes because we know it is 32 bytes long.
-    point_bytes[31] += flag;
+    // The BabyJubjub compressed point encoding is exactly 32 bytes with the x-sign bit stored in the high bit.
+    point_bytes[31] |= flag;
 
     let epk = TEAffine::<BabyJubjub>::deserialize_compressed(&*point_bytes)
         .map_err(|_| PoseidonError::InvalidInputs)?;
@@ -115,8 +121,7 @@ pub fn kemdem_decrypt(
     Ok(plain_text)
 }
 
-/// Output struct for receipt KEM-DEM decryption.
-/// Contains all 7 plaintext fields plus the shared salt.
+#[derive(Debug, PartialEq)]
 pub struct ReceiptDecryptOutput {
     pub nf_token_id: Fr254,
     pub nf_slot_id: Fr254,
@@ -144,16 +149,13 @@ pub fn receipt_kemdem_encrypt(
     plain_text: &[Fr254; 7],
     public_point: TEAffine<BabyJubjub>,
 ) -> Result<[Fr254; 9], PoseidonError> {
-    let shared_secret: TEAffine<BabyJubjub> =
-        (recipient_public_key * ephemeral_private_key).into();
+    let shared_secret: TEAffine<BabyJubjub> = (recipient_public_key * ephemeral_private_key).into();
     let poseidon = Poseidon::<Fr254>::new();
 
-    let ephemeral_public_key: TEAffine<BabyJubjub> =
-        (public_point * ephemeral_private_key).into();
+    let ephemeral_public_key: TEAffine<BabyJubjub> = (public_point * ephemeral_private_key).into();
 
     // Derive encryption key using receipt-specific KEM domain separator.
-    let encryption_key =
-        poseidon.hash(&[shared_secret.x, shared_secret.y, DOMAIN_RECEIPT_KEM])?;
+    let encryption_key = poseidon.hash(&[shared_secret.x, shared_secret.y, DOMAIN_RECEIPT_KEM])?;
 
     // Encrypt all 7 plaintext fields using receipt-specific DEM domain separator.
     let mut cipher_text = [Fr254::zero(); 9];
@@ -183,10 +185,18 @@ pub fn receipt_kemdem_decrypt(
     recipient_private_key: BJJScalar,
     cipher_text: &[Fr254; 9],
 ) -> Result<ReceiptDecryptOutput, PoseidonError> {
+    if !is_valid_epk_sign_flag(&cipher_text[8]) {
+        return Err(PoseidonError::InvalidInputs);
+    }
+
     // Reconstruct the ephemeral public key from cipher_text[7] (epk.y) and [8] (flag).
     let mut point_bytes = cipher_text[7].into_bigint().to_bytes_le();
+    if point_bytes.len() != 32 {
+        return Err(PoseidonError::InvalidInputs);
+    }
     let flag = cipher_text[8].into_bigint().to_bytes_le()[0] << 7;
-    point_bytes[31] += flag;
+    // The BabyJubjub compressed point encoding is exactly 32 bytes with the x-sign bit stored in the high bit.
+    point_bytes[31] |= flag;
 
     let epk = TEAffine::<BabyJubjub>::deserialize_compressed(&*point_bytes)
         .map_err(|_| PoseidonError::InvalidInputs)?;
@@ -194,8 +204,7 @@ pub fn receipt_kemdem_decrypt(
     // Compute shared secret and derive decryption key.
     let shared_secret: TEAffine<BabyJubjub> = (epk * recipient_private_key).into();
     let poseidon = Poseidon::<Fr254>::new();
-    let decryption_key =
-        poseidon.hash(&[shared_secret.x, shared_secret.y, DOMAIN_RECEIPT_KEM])?;
+    let decryption_key = poseidon.hash(&[shared_secret.x, shared_secret.y, DOMAIN_RECEIPT_KEM])?;
 
     // Decrypt the 7 plaintext fields.
     let mut plain = [Fr254::zero(); 7];
@@ -206,8 +215,7 @@ pub fn receipt_kemdem_decrypt(
     }
 
     // Derive shared salt with the standard domain separator.
-    let shared_salt =
-        poseidon.hash(&[shared_secret.x, shared_secret.y, DOMAIN_SHARED_SALT])?;
+    let shared_salt = poseidon.hash(&[shared_secret.x, shared_secret.y, DOMAIN_SHARED_SALT])?;
 
     Ok(ReceiptDecryptOutput {
         nf_token_id: plain[0],
@@ -219,6 +227,10 @@ pub fn receipt_kemdem_decrypt(
         token_id: plain[6],
         shared_salt,
     })
+}
+
+fn is_valid_epk_sign_flag(flag: &Fr254) -> bool {
+    *flag == Fr254::zero() || *flag == Fr254::one()
 }
 
 #[cfg(test)]
@@ -294,6 +306,20 @@ mod tests {
         .unwrap();
 
         assert_eq!(&plain_text, &cipher_text[..3]);
+    }
+
+    #[test]
+    fn compute_receipt_domain_constants() {
+        use sha2::{Digest, Sha256};
+
+        let kem_digest = Sha256::digest("Nightfall|ReceiptKEM".as_bytes());
+        let dem_digest = Sha256::digest("Nightfall|ReceiptDEM".as_bytes());
+
+        let expected_kem = Fr254::from_le_bytes_mod_order(&kem_digest);
+        let expected_dem = Fr254::from_le_bytes_mod_order(&dem_digest);
+
+        assert_eq!(expected_kem, DOMAIN_RECEIPT_KEM);
+        assert_eq!(expected_dem, DOMAIN_RECEIPT_DEM);
     }
 
     #[test]
@@ -394,9 +420,9 @@ mod tests {
 
         // Domain separation: the first 3 ciphertext elements must differ
         // even though the plaintext and ephemeral key are the same.
-        assert_ne!(proto_ct[0], receipt_ct[0], "Receipt ct[0] must differ from protocol ct[0]");
-        assert_ne!(proto_ct[1], receipt_ct[1], "Receipt ct[1] must differ from protocol ct[1]");
-        assert_ne!(proto_ct[2], receipt_ct[2], "Receipt ct[2] must differ from protocol ct[2]");
+        assert_ne!(proto_ct[0], receipt_ct[0]);
+        assert_ne!(proto_ct[1], receipt_ct[1]);
+        assert_ne!(proto_ct[2], receipt_ct[2]);
     }
 
     #[test]
@@ -433,7 +459,7 @@ mod tests {
     }
 
     #[test]
-    fn test_receipt_kemdem_ciphertext_size() {
+    fn test_receipt_kemdem_rejects_invalid_sign_flag() {
         let rng = &mut test_rng();
         let recipient_private_key = BJJScalar::rand(rng);
         let ephemeral_private_key = BJJScalar::rand(rng);
@@ -451,27 +477,21 @@ mod tests {
             Fr254::rand(rng),
         ];
 
-        let cipher_text = receipt_kemdem_encrypt(
+        let mut cipher_text = receipt_kemdem_encrypt(
             ephemeral_private_key,
             recipient_public_key,
             &plain_text,
             public_point,
         )
         .unwrap();
+        cipher_text[8] = Fr254::from(2u64);
 
-        // Must be exactly 9 field elements (7 encrypted + 2 epk components).
-        assert_eq!(cipher_text.len(), 9);
+        assert!(receipt_kemdem_decrypt(recipient_private_key, &cipher_text).is_err());
+    }
 
-        // Each Fr254 is 32 bytes → 9 * 32 = 288 bytes → 576 hex chars.
-        use ark_serialize::CanonicalSerialize;
-        let total_bytes: usize = cipher_text
-            .iter()
-            .map(|f| {
-                let mut buf = vec![];
-                f.serialize_compressed(&mut buf).unwrap();
-                buf.len()
-            })
-            .sum();
-        assert_eq!(total_bytes, 288);
+    #[test]
+    fn test_receipt_ciphertext_size() {
+        assert_eq!(9 * 32, 288);
+        assert_eq!(288 * 2, 576);
     }
 }

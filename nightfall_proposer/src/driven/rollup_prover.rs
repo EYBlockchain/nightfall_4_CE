@@ -16,37 +16,45 @@ use ark_ff::{BigInteger, PrimeField};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize, SerializationError};
 use ark_std::cfg_iter;
 use hex::FromHex;
-use itertools::{izip, Itertools};
+use itertools::{Itertools, izip};
 use jf_plonk::{
     errors::PlonkError,
     nightfall::{
+        FFTPlonk,
         accumulation::accumulation_structs::AtomicInstance,
         ipa_structs::{ProvingKey, VerifyingKey},
         mle::mle_structs::MLEProvingKey,
-        FFTPlonk,
     },
     proof_system::{
+        RecursiveOutput, UniversalRecursiveSNARK,
         structs::{ProvingKey as PlonkProvingKey, VerifyingKey as PlonkVerifyingKey},
-        RecursiveOutput,
     },
     recursion::{
-        circuits::{Kzg, Zmorph},
         RecursiveProof, RecursiveProver,
+        circuits::{Kzg, Zmorph},
     },
     transcript::RescueTranscript,
 };
+<<<<<<< HEAD
 use jf_primitives::pcs::prelude::expected_sha256_for_label;
 use jf_relation::{errors::CircuitError, PlonkCircuit, Variable};
+=======
+use jf_primitives::{
+    pcs::prelude::{UnivariateKzgPCS, expected_sha256_for_label},
+    rescue::sponge::RescueCRHF,
+};
+use jf_relation::{PlonkCircuit, Variable, errors::CircuitError};
+>>>>>>> 54128986 (feat: refactor transfer receipt handling and improve test coverage)
 use log::{debug, warn};
-use mongodb::{bson::doc, Client};
+use mongodb::{Client, bson::doc};
 
 use lib::{
     error::{ConversionError, UnifiedProofError},
     merkle_trees::trees::{MerkleTreeError, MutableTree, TreeMetadata},
     nf_client_proof::PublicInputs,
     plonk_prover::{get_client_proving_key, plonk_proof::PlonkProof},
-    rollup_circuit_checks::get_configuration_keys_path,
     rollup_circuit_checks::RollupKeyGenerator,
+    rollup_circuit_checks::get_configuration_keys_path,
     serialization::{ark_de_hex, ark_se_hex},
     shared_entities::DepositData,
     utils::load_key_from_server,
@@ -505,15 +513,18 @@ impl From<RecursiveProof> for RollupProof {
             accumulators,
             pi,
         } = proof;
-        let [AtomicInstance {
-            comm: comm_1,
-            opening_proof: op_1,
-            ..
-        }, AtomicInstance {
-            comm: comm_2,
-            opening_proof: op_2,
-            ..
-        }] = accumulators;
+        let [
+            AtomicInstance {
+                comm: comm_1,
+                opening_proof: op_1,
+                ..
+            },
+            AtomicInstance {
+                comm: comm_2,
+                opening_proof: op_2,
+                ..
+            },
+        ] = accumulators;
 
         RollupProof {
             fee_sum: pi[0],
@@ -844,9 +855,9 @@ mod tests {
         poseidon::Poseidon,
         rescue::sponge::RescueCRHF,
         trees::{
+            MembershipProof,
             imt::{IndexedMerkleTree, LeafDBEntry},
             timber::Timber,
-            MembershipProof,
         },
     };
     use jf_relation::{Arithmetization, Circuit};

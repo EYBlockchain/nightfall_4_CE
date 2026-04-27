@@ -67,10 +67,16 @@ impl std::fmt::Display for ProposerRejection {
             ProposerRejection::FailedToRemoveProposer => write!(f, "Failed to remove proposer"),
             ProposerRejection::FailedToWithdrawStake => write!(f, "Failed to withdraw stake"),
             ProposerRejection::ProviderError => write!(f, "Provider error"),
-            ProposerRejection::TransferReceiptCreationFailed => write!(f, "Transfer receipt creation failed"),
+            ProposerRejection::TransferReceiptCreationFailed => {
+                write!(f, "Transfer receipt creation failed")
+            }
             ProposerRejection::TransferReceiptNotFound => write!(f, "Transfer receipt not found"),
-            ProposerRejection::TransferReceiptTxNotFound => write!(f, "Transfer receipt transaction not found"),
-            ProposerRejection::TransferReceiptConflict => write!(f, "Transfer receipt conflict"),
+            ProposerRejection::TransferReceiptTxNotFound => {
+                write!(f, "Transfer receipt transaction not found")
+            }
+            ProposerRejection::TransferReceiptConflict => {
+                write!(f, "Transfer receipt already exists for this transaction")
+            }
         }
     }
 }

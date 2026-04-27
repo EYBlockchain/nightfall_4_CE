@@ -13,7 +13,7 @@ use crate::{
     },
     services::selected_transactions::reconcile_orphaned_selected_transactions,
 };
-use alloy::primitives::{TxHash, I256};
+use alloy::primitives::{I256, TxHash};
 use alloy::{consensus::Transaction, sol_types::SolInterface};
 use ark_bn254::Fr as Fr254;
 use ark_ff::BigInteger;

@@ -1,19 +1,20 @@
 use alloy::{
-    primitives::{keccak256, Address, B256, I256},
     rpc::types::{Filter, TransactionReceipt},
+    primitives::{Address, B256, I256, keccak256},
     signers::local::PrivateKeySigner as LocalWallet,
 };
 use ark_bn254::Fr as Fr254;
 use ark_ec::twisted_edwards::Affine as TEAffine;
 use ark_ff::{BigInteger, PrimeField, Zero};
 use ark_std::{
+    UniformRand,
     collections::HashMap,
     rand::{self, Rng},
-    test_rng, UniformRand,
+    test_rng,
 };
 use configuration::{
     addresses::get_addresses,
-    settings::{get_settings, Settings},
+    settings::{Settings, get_settings},
 };
 use futures::TryStreamExt;
 
@@ -38,7 +39,7 @@ use lib::{
     nf_client_proof::{PrivateInputs, ProvingEngine, PublicInputs},
     plonk_prover::plonk_proof::{PlonkProof, PlonkProvingEngine},
     secret_hash::SecretHash,
-    shared_entities::{DepositSecret, Preimage, Salt},
+    shared_entities::{ClientTransaction, DepositSecret, Preimage, Salt},
 };
 use log::{debug, info, warn};
 use mongodb::bson::doc;
@@ -50,14 +51,15 @@ use nightfall_client::{
         notifications::NotificationPayload,
     },
     driven::db::mongo::CommitmentEntry,
-    driven::primitives::kemdem_functions::{receipt_kemdem_decrypt, receipt_kemdem_encrypt, ReceiptDecryptOutput},
+    driven::primitives::kemdem_functions::receipt_kemdem_encrypt,
 };
 use nightfall_proposer::driven::db::mongo_db::{StoredBlock, DB, PROPOSED_BLOCKS_COLLECTION};
 use num_bigint::BigUint;
 use reqwest::{
-    multipart::{Form, Part},
     StatusCode,
+    multipart::{Form, Part},
 };
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::{
@@ -72,7 +74,7 @@ use tokio::{sync::Mutex, time};
 use url::Url;
 use uuid::Uuid;
 
-use crate::{test_settings::TestSettings, TestError};
+use crate::{TestError, test_settings::TestSettings};
 
 const REQUEST_ID: &str = "X-Request-ID";
 
@@ -480,11 +482,7 @@ pub async fn verify_deposit_commitments_nf_token_id(
             let s = actual_token_id
                 .trim_start_matches("0x")
                 .trim_start_matches('0');
-            if s.is_empty() {
-                "0"
-            } else {
-                s
-            }
+            if s.is_empty() { "0" } else { s }
         }
         .to_lowercase();
 
@@ -498,11 +496,7 @@ pub async fn verify_deposit_commitments_nf_token_id(
                 let s = expected_token_id
                     .trim_start_matches("0x")
                     .trim_start_matches('0');
-                if s.is_empty() {
-                    "0"
-                } else {
-                    s
-                }
+                if s.is_empty() { "0" } else { s }
             }
             .to_lowercase();
 
@@ -516,10 +510,7 @@ pub async fn verify_deposit_commitments_nf_token_id(
         assert!(
             match_found,
             "No matching expected token data found for UUID: {}\nActual ERC: {}\nActual TokenID: {}\nExpected entries: {:?}",
-            entry.uuid,
-            actual_erc_clean,
-            actual_token_id_clean,
-            expected_entries
+            entry.uuid, actual_erc_clean, actual_token_id_clean, expected_entries
         );
     }
 
@@ -577,12 +568,12 @@ pub fn forge_command(command: &[&str]) {
                 );
             } else {
                 panic!(
-                "Command 'forge {:?}' executed with failing error code: {:?}\nStandard Output: {}\nStandard Error: {}",
-                command,
-                o.status.signal(),
-                String::from_utf8_lossy(&o.stdout),
-                String::from_utf8_lossy(&o.stderr)
-            );
+                    "Command 'forge {:?}' executed with failing error code: {:?}\nStandard Output: {}\nStandard Error: {}",
+                    command,
+                    o.status.signal(),
+                    String::from_utf8_lossy(&o.stdout),
+                    String::from_utf8_lossy(&o.stderr)
+                );
             }
         }
         Err(e) => {
@@ -1454,7 +1445,7 @@ pub fn build_valid_transfer_inputs(rng: &mut impl Rng) -> (PublicInputs, Private
     let nf_token_id = Fr254::from(nf_token_id);
 
     // Retrieve the fee token ID and nightfall address
-    let nf_address = Address::from(rand::thread_rng().gen::<[u8; 20]>());
+    let nf_address = Address::from(rand::thread_rng().r#gen::<[u8; 20]>());
     // generate a 'random' fee token ID (we just use the keccak hash of 1)
     let fee_token_id = Fr254::from(BigUint::from_bytes_be(keccak256([1]).as_slice()) >> 4);
 
@@ -1705,10 +1696,12 @@ mod tests {
             .unwrap()
             .unwrap();
 
-        assert!(block
-            .transactions
-            .hashes()
-            .any(|t| t.0 == tx_receipt.transaction_hash));
+        assert!(
+            block
+                .transactions
+                .hashes()
+                .any(|t| t.0 == tx_receipt.transaction_hash)
+        );
 
         // Check the balances transferred after the transaction
         let new_balance2: U256 = provider.get_balance(to).await.unwrap();
@@ -1735,10 +1728,12 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        assert!(!block
-            .transactions
-            .hashes()
-            .any(|t| t.0 == tx_receipt.transaction_hash));
+        assert!(
+            !block
+                .transactions
+                .hashes()
+                .any(|t| t.0 == tx_receipt.transaction_hash)
+        );
     }
 
     #[tokio::test]
@@ -1788,10 +1783,12 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        assert!(block
-            .transactions
-            .hashes()
-            .any(|t| t.0 == tx_receipt.transaction_hash));
+        assert!(
+            block
+                .transactions
+                .hashes()
+                .any(|t| t.0 == tx_receipt.transaction_hash)
+        );
 
         // Check the balances transferred after the transaction
         let new_balance2 = provider.get_balance(to).await.unwrap();
@@ -1838,44 +1835,153 @@ mod tests {
     }
 }
 
-/// Compute the proposer tx_hash (Vec<u32>) from a webhook transaction JSON Value.
-/// The proposer derives the hash as Keccak256(serde_json::to_vec(&client_transaction)).
-/// The webhook response is (client_transaction_json, tx_receipt); this takes just the
-/// first element.
-pub fn tx_hash_from_transaction_value(tx_json: &Value) -> Vec<u32> {
-    let encoding = serde_json::to_vec(tx_json).expect("tx_json should be serializable");
-    let hash = keccak256(&encoding);
-    hash.iter().map(|&b| b as u32).collect()
+pub fn compute_tx_hash_from_response(response_json: &Value) -> Result<Vec<u32>, TestError> {
+    let normalized = normalize_transaction_response_json(response_json.clone())?;
+    let normalized_text =
+        serde_json::to_string(&normalized).map_err(|e| TestError::new(e.to_string()))?;
+    let client_transaction: ClientTransaction<PlonkProof> =
+        serde_json::from_str(&normalized_text).map_err(|e| TestError::new(e.to_string()))?;
+    client_transaction
+        .hash()
+        .map_err(|e| TestError::new(e.to_string()))
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Transfer Receipt helpers
-// ─────────────────────────────────────────────────────────────────────────────
+pub fn compute_tx_hash_from_raw_response(response_text: &str) -> Result<Vec<u32>, TestError> {
+    let (response_json, _): (Value, Value) =
+        serde_json::from_str(response_text).map_err(|e| TestError::new(e.to_string()))?;
+    compute_tx_hash_from_response(&response_json)
+}
 
-/// Context returned by `generate_realistic_receipt_ciphertext`.
+fn normalize_transaction_response_json(mut response_json: Value) -> Result<Value, TestError> {
+    normalize_hex_array_field(&mut response_json, "commitments")?;
+    normalize_hex_array_field(&mut response_json, "nullifiers")?;
+
+    if let Some(compressed_secrets) = response_json.get_mut("compressed_secrets") {
+        normalize_hex_array_field(compressed_secrets, "cipher_text")?;
+    }
+
+    Ok(response_json)
+}
+
+/// Converts webhook hex-array fields into the concatenated hex-string shape used by
+/// `ClientTransaction::hash`. The webhook presents array values in display order, while the
+/// proposer-stored transaction hashes these fields in reverse order.
+fn normalize_hex_array_field(parent: &mut Value, field_name: &str) -> Result<(), TestError> {
+    let Some(field) = parent.get_mut(field_name) else {
+        return Ok(());
+    };
+
+    let Some(items) = field.as_array() else {
+        return Ok(());
+    };
+
+    let joined = items
+        .iter()
+        .rev()
+        .map(|item| {
+            item.as_str().ok_or_else(|| {
+                TestError::new(format!(
+                    "{field_name} should contain only hex-string elements"
+                ))
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?
+        .join("");
+
+    *field = Value::String(joined);
+    Ok(())
+}
+
+#[cfg(test)]
+mod tx_hash_normalization_tests {
+    use super::*;
+
+    #[test]
+    fn normalize_hex_array_field_reverses_and_joins_values() {
+        let mut value = serde_json::json!({
+            "commitments": ["aa", "bb", "cc"],
+        });
+
+        normalize_hex_array_field(&mut value, "commitments").unwrap();
+
+        assert_eq!(value["commitments"], Value::String("ccbbaa".to_string()));
+    }
+
+    #[test]
+    fn normalize_transaction_response_json_handles_nested_cipher_text() {
+        let value = serde_json::json!({
+            "commitments": ["01", "02"],
+            "nullifiers": ["03", "04"],
+            "compressed_secrets": {
+                "cipher_text": ["05", "06"]
+            }
+        });
+
+        let normalized = normalize_transaction_response_json(value).unwrap();
+
+        assert_eq!(normalized["commitments"], Value::String("0201".to_string()));
+        assert_eq!(normalized["nullifiers"], Value::String("0403".to_string()));
+        assert_eq!(
+            normalized["compressed_secrets"]["cipher_text"],
+            Value::String("0605".to_string())
+        );
+    }
+
+    #[test]
+    fn normalize_hex_array_field_rejects_non_string_elements() {
+        let mut value = serde_json::json!({
+            "commitments": ["aa", 1],
+        });
+
+        assert!(normalize_hex_array_field(&mut value, "commitments").is_err());
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct CreateTransferReceiptRequest {
+    pub tx_hash: Vec<u32>,
+    pub ciphertext: String,
+    pub version: Option<u8>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateTransferReceiptResponse {
+    pub receipt_id: String,
+    pub status: String,
+    pub link_path: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TransferReceiptResponse {
+    pub receipt_id: String,
+    pub tx_hash: String,
+    pub ciphertext: String,
+    pub version: u8,
+    pub status: String,
+    pub created_at_unix: i64,
+    pub updated_at_unix: i64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TransferReceiptStatusResponse {
+    pub receipt_id: String,
+    pub status: String,
+}
+
 pub struct ReceiptCiphertextContext {
-    /// 576-char lowercase hex-encoded [Fr254; 9] ciphertext.
     pub ciphertext_hex: String,
-    /// Recipient private key needed to decrypt.
     pub recipient_private_key: BJJScalar,
-    /// Original 7-element plaintext array.
     pub plain_text: [Fr254; 7],
 }
 
-/// Generate a realistic receipt ciphertext using the receipt KEM-DEM path.
-///
-/// Returns the hex ciphertext and the secrets needed for receiver-side
-/// round-trip verification.
 pub fn generate_realistic_receipt_ciphertext() -> ReceiptCiphertextContext {
     use ark_ff::UniformRand;
-    use ark_serialize::CanonicalSerialize;
-    let rng = &mut ark_std::test_rng();
+    let rng = &mut ark_std::rand::thread_rng();
 
     let recipient_private_key = BJJScalar::rand(rng);
     let ephemeral_private_key = BJJScalar::rand(rng);
     let public_point = TEAffine::<BabyJubjub>::new(GENERATOR_X, GENERATOR_Y);
-    let recipient_public_key: TEAffine<BabyJubjub> =
-        (public_point * recipient_private_key).into();
+    let recipient_public_key: TEAffine<BabyJubjub> = (public_point * recipient_private_key).into();
 
     let plain_text: [Fr254; 7] = [
         Fr254::rand(rng), // nf_token_id
@@ -1895,11 +2001,9 @@ pub fn generate_realistic_receipt_ciphertext() -> ReceiptCiphertextContext {
     )
     .expect("receipt_kemdem_encrypt should not fail");
 
-    // Serialize 9 × Fr254 into 9 × 32 = 288 bytes, then hex-encode.
     let mut bytes = Vec::with_capacity(288);
     for elem in &cipher_text {
-        elem.serialize_compressed(&mut bytes)
-            .expect("Fr254 serialize_compressed should not fail");
+        bytes.extend_from_slice(&elem.into_bigint().to_bytes_le());
     }
     assert_eq!(bytes.len(), 288);
     let ciphertext_hex = hex::encode(&bytes);
@@ -1912,147 +2016,125 @@ pub fn generate_realistic_receipt_ciphertext() -> ReceiptCiphertextContext {
     }
 }
 
-/// Deserialize a 576-char hex ciphertext back into [Fr254; 9] and decrypt it.
-pub fn decrypt_receipt_ciphertext(
-    ciphertext_hex: &str,
-    recipient_private_key: BJJScalar,
-) -> Result<ReceiptDecryptOutput, String> {
-    use ark_serialize::CanonicalDeserialize;
-    let bytes = hex::decode(ciphertext_hex).map_err(|e| e.to_string())?;
-    if bytes.len() != 288 {
-        return Err(format!("expected 288 bytes, got {}", bytes.len()));
-    }
-    let mut cipher_arr = [Fr254::default(); 9];
-    for (i, chunk) in bytes.chunks(32).enumerate() {
-        cipher_arr[i] = Fr254::deserialize_compressed(chunk).map_err(|e| e.to_string())?;
-    }
-    receipt_kemdem_decrypt(recipient_private_key, &cipher_arr).map_err(|e| format!("{e:?}"))
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Receipt API helpers (raw HTTP + parsed)
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// Raw POST /v1/transfer-receipts — returns the reqwest Response.
-pub async fn raw_create_transfer_receipt(
+pub async fn create_transfer_receipt_raw(
     client: &reqwest::Client,
     proposer_url: &Url,
     tx_hash: &[u32],
     ciphertext: &str,
     version: Option<u8>,
-) -> Result<reqwest::Response, TestError> {
+) -> Result<(u16, String), TestError> {
     let url = proposer_url
         .join("v1/transfer-receipts")
         .map_err(|e| TestError::new(e.to_string()))?;
-    let mut body = serde_json::json!({
-        "tx_hash": tx_hash,
-        "ciphertext": ciphertext,
-    });
-    if let Some(v) = version {
-        body["version"] = serde_json::json!(v);
-    }
-    client
+    let request = CreateTransferReceiptRequest {
+        tx_hash: tx_hash.to_vec(),
+        ciphertext: ciphertext.to_string(),
+        version,
+    };
+    let response = client
         .post(url)
-        .json(&body)
+        .json(&request)
         .send()
         .await
-        .map_err(|e| TestError::new(e.to_string()))
+        .map_err(|e| TestError::new(e.to_string()))?;
+    let status = response.status().as_u16();
+    let body_text = response
+        .text()
+        .await
+        .map_err(|e| TestError::new(e.to_string()))?;
+    if !(200..300).contains(&status) {
+        return Err(TestError::new(format!("HTTP {status}: {body_text}")));
+    }
+    Ok((status, body_text))
 }
 
-/// Parsed POST — returns (receipt_id, status) on 2xx, or Err with status code string.
 pub async fn create_transfer_receipt(
     client: &reqwest::Client,
     proposer_url: &Url,
     tx_hash: &[u32],
     ciphertext: &str,
     version: Option<u8>,
-) -> Result<(String, String), TestError> {
-    let resp = raw_create_transfer_receipt(client, proposer_url, tx_hash, ciphertext, version)
-        .await?;
-    if !resp.status().is_success() {
-        return Err(TestError::new(format!("HTTP {}", resp.status().as_u16())));
-    }
-    let body: Value = resp
-        .json()
-        .await
-        .map_err(|e| TestError::new(e.to_string()))?;
-    let receipt_id = body["receipt_id"]
-        .as_str()
-        .ok_or_else(|| TestError::new("missing receipt_id".to_string()))?
-        .to_string();
-    let status = body["status"]
-        .as_str()
-        .ok_or_else(|| TestError::new("missing status".to_string()))?
-        .to_string();
-    Ok((receipt_id, status))
+) -> Result<CreateTransferReceiptResponse, TestError> {
+    let (_, body_text) =
+        create_transfer_receipt_raw(client, proposer_url, tx_hash, ciphertext, version).await?;
+    serde_json::from_str(&body_text).map_err(|e| TestError::new(e.to_string()))
 }
 
-/// Raw GET /v1/transfer-receipts/{id}
-pub async fn raw_get_transfer_receipt(
+pub async fn create_transfer_receipt_full(
+    client: &reqwest::Client,
+    proposer_url: &Url,
+    tx_hash: &[u32],
+    ciphertext: &str,
+    version: Option<u8>,
+) -> Result<(u16, CreateTransferReceiptResponse), TestError> {
+    let (status, body_text) =
+        create_transfer_receipt_raw(client, proposer_url, tx_hash, ciphertext, version).await?;
+    let response = serde_json::from_str(&body_text).map_err(|e| TestError::new(e.to_string()))?;
+    Ok((status, response))
+}
+
+pub async fn resolve_transfer_receipt_raw(
     client: &reqwest::Client,
     proposer_url: &Url,
     receipt_id: &str,
-) -> Result<reqwest::Response, TestError> {
+) -> Result<(u16, String), TestError> {
     let url = proposer_url
         .join(&format!("v1/transfer-receipts/{receipt_id}"))
         .map_err(|e| TestError::new(e.to_string()))?;
-    client
+    let response = client
         .get(url)
         .send()
         .await
-        .map_err(|e| TestError::new(e.to_string()))
-}
-
-/// Parsed GET resolve — returns the full body Value on 2xx.
-pub async fn get_transfer_receipt(
-    client: &reqwest::Client,
-    proposer_url: &Url,
-    receipt_id: &str,
-) -> Result<Value, TestError> {
-    let resp = raw_get_transfer_receipt(client, proposer_url, receipt_id).await?;
-    if !resp.status().is_success() {
-        return Err(TestError::new(format!("HTTP {}", resp.status().as_u16())));
+        .map_err(|e| TestError::new(e.to_string()))?;
+    let status = response.status().as_u16();
+    let body_text = response
+        .text()
+        .await
+        .map_err(|e| TestError::new(e.to_string()))?;
+    if !(200..300).contains(&status) {
+        return Err(TestError::new(format!("HTTP {status}: {body_text}")));
     }
-    resp.json().await.map_err(|e| TestError::new(e.to_string()))
+    Ok((status, body_text))
 }
 
-/// Raw GET /v1/transfer-receipts/{id}/status
-pub async fn raw_get_transfer_receipt_status(
+pub async fn resolve_transfer_receipt(
     client: &reqwest::Client,
     proposer_url: &Url,
     receipt_id: &str,
-) -> Result<reqwest::Response, TestError> {
+) -> Result<TransferReceiptResponse, TestError> {
+    let (_, body_text) = resolve_transfer_receipt_raw(client, proposer_url, receipt_id).await?;
+    serde_json::from_str(&body_text).map_err(|e| TestError::new(e.to_string()))
+}
+
+pub async fn get_transfer_receipt_status_raw(
+    client: &reqwest::Client,
+    proposer_url: &Url,
+    receipt_id: &str,
+) -> Result<(u16, String), TestError> {
     let url = proposer_url
         .join(&format!("v1/transfer-receipts/{receipt_id}/status"))
         .map_err(|e| TestError::new(e.to_string()))?;
-    client
+    let response = client
         .get(url)
         .send()
         .await
-        .map_err(|e| TestError::new(e.to_string()))
+        .map_err(|e| TestError::new(e.to_string()))?;
+    let status = response.status().as_u16();
+    let body_text = response
+        .text()
+        .await
+        .map_err(|e| TestError::new(e.to_string()))?;
+    if !(200..300).contains(&status) {
+        return Err(TestError::new(format!("HTTP {status}: {body_text}")));
+    }
+    Ok((status, body_text))
 }
 
-/// Parsed GET status — returns (receipt_id, status) on 2xx.
 pub async fn get_transfer_receipt_status(
     client: &reqwest::Client,
     proposer_url: &Url,
     receipt_id: &str,
-) -> Result<(String, String), TestError> {
-    let resp = raw_get_transfer_receipt_status(client, proposer_url, receipt_id).await?;
-    if !resp.status().is_success() {
-        return Err(TestError::new(format!("HTTP {}", resp.status().as_u16())));
-    }
-    let body: Value = resp
-        .json()
-        .await
-        .map_err(|e| TestError::new(e.to_string()))?;
-    let receipt_id_out = body["receipt_id"]
-        .as_str()
-        .ok_or_else(|| TestError::new("missing receipt_id".to_string()))?
-        .to_string();
-    let status = body["status"]
-        .as_str()
-        .ok_or_else(|| TestError::new("missing status".to_string()))?
-        .to_string();
-    Ok((receipt_id_out, status))
+) -> Result<TransferReceiptStatusResponse, TestError> {
+    let (_, body_text) = get_transfer_receipt_status_raw(client, proposer_url, receipt_id).await?;
+    serde_json::from_str(&body_text).map_err(|e| TestError::new(e.to_string()))
 }

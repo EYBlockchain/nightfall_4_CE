@@ -1,6 +1,6 @@
 use crate::{
     domain::entities::{Block, ClientTransactionWithMetaData, DepositDatawithFee},
-    driven::db::mongo_db::{StoredBlock, DB, PROPOSED_BLOCKS_COLLECTION},
+    driven::db::mongo_db::{DB, PROPOSED_BLOCKS_COLLECTION, StoredBlock},
     drivers::blockchain::block_assembly::BlockAssemblyError,
     initialisation::{get_blockchain_client_connection, get_db_connection},
     ports::{
@@ -10,7 +10,8 @@ use crate::{
     services::selected_transactions::reconcile_orphaned_selected_transactions,
 };
 use ark_bn254::Fr as Fr254;
-use ark_std::{collections::HashSet, Zero};
+use ark_std::{Zero, collections::HashSet};
+use bson::doc;
 use jf_primitives::poseidon::{FieldHasher, Poseidon};
 use lib::{
     blockchain_client::BlockchainClientConnection,

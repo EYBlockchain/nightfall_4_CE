@@ -1,8 +1,7 @@
 /// Module for querying block data
 use warp::{
-    path,
+    Filter, path,
     reply::{self, Reply},
-    Filter,
 };
 
 use crate::domain::error::ProposerRejection;

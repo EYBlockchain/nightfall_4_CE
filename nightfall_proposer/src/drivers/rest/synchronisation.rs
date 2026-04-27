@@ -1,13 +1,12 @@
 use warp::{
-    path,
+    Filter, path,
     reply::{self, Reply},
-    Filter,
 };
 
 use crate::drivers::blockchain::nightfall_event_listener::get_synchronisation_status;
 
-pub fn synchronisation(
-) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
+pub fn synchronisation()
+-> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     path!("v1" / "synchronisation")
         .and(warp::get())
         .and_then(handle_synchronisation)

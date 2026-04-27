@@ -1,9 +1,12 @@
 //! Contains code for a mocked prover for use when working without a large machine to run a full proposer.
 
 use ark_std::cfg_iter;
-use itertools::{izip, Itertools};
+use itertools::{Itertools, izip};
 use jf_plonk::{
-    errors::PlonkError, nightfall::ipa_structs::VerifyingKey, proof_system::RecursiveOutput,
+    errors::PlonkError,
+    nightfall::FFTPlonk,
+    nightfall::ipa_structs::VerifyingKey,
+    proof_system::{RecursiveOutput, UniversalRecursiveSNARK},
     recursion::circuits::Kzg,
 };
 use jf_utils::fr_to_fq;
@@ -18,7 +21,7 @@ use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::collections::HashMap;
 
 use log::debug;
-use mongodb::{bson::doc, Client};
+use mongodb::{Client, bson::doc};
 
 use super::rollup_prover::RollupProofError;
 use crate::{

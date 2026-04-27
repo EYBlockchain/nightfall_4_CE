@@ -4,7 +4,9 @@ use crate::drivers::rest::{
     client_transactions::{cancel_swap_request, client_transaction},
     proposers::rotate_proposer,
     synchronisation::synchronisation,
-    transfer_receipts::{create_transfer_receipt, get_transfer_receipt, get_transfer_receipt_status},
+    transfer_receipts::{
+        create_transfer_receipt, get_transfer_receipt, get_transfer_receipt_status,
+    },
 };
 use block_assembly::{
     get_block_assembly_status_route, pause_block_assembly, resume_block_assembly,
@@ -18,9 +20,9 @@ use lib::{
 };
 use proposers::{add_proposer, remove_proposer, withdraw};
 use warp::{
+    Filter,
     reject::Rejection,
     reply::{self, Reply},
-    Filter,
 };
 
 pub mod block_assembly;
@@ -49,9 +51,9 @@ where
         .or(pause_block_assembly())
         .or(resume_block_assembly())
         .or(get_block_assembly_status_route())
+        .or(create_transfer_receipt::<P>())
         .or(get_transfer_receipt_status::<P>())
         .or(get_transfer_receipt::<P>())
-        .or(create_transfer_receipt::<P>())
         .recover(handle_rejection)
 }
 
@@ -119,7 +121,7 @@ async fn handle_rejection(err: Rejection) -> Result<impl Reply, std::convert::In
                 warp::http::StatusCode::BAD_REQUEST,
             )),
             ProposerRejection::TransferReceiptConflict => Ok(reply::with_status(
-                "Transfer receipt conflict",
+                "Transfer receipt already exists for this transaction",
                 warp::http::StatusCode::CONFLICT,
             )),
         }

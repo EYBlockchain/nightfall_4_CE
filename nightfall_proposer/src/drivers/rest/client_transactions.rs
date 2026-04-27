@@ -14,10 +14,11 @@ use lib::{
     shared_entities::ClientTransaction,
 };
 use log::{error, info};
-use warp::{hyper::StatusCode, path, Filter};
 
-pub fn client_transaction<P, E>(
-) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone
+use warp::{Filter, hyper::StatusCode, path};
+
+pub fn client_transaction<P, E>()
+-> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone
 where
     P: Proof,
     E: ProvingEngine<P>,
@@ -192,7 +193,7 @@ mod tests {
         shared_entities::{ClientTransaction, CompressedSecrets},
     };
     use serde::{Deserialize, Serialize};
-    use warp::{http::StatusCode, Filter};
+    use warp::{Filter, http::StatusCode};
 
     #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
     struct MockProof {

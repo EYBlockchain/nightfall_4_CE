@@ -41,6 +41,45 @@ pub fn get_historic_root_tree() -> &'static RwLock<AppendOnlyTree> {
     })
 }
 
+/// This function is used to retrieve the deposit proving key.
+pub fn get_deposit_proving_key() -> &'static Arc<ProvingKey<UnivariateKzgPCS<Bn254>>> {
+    static PK: OnceLock<Arc<ProvingKey<UnivariateKzgPCS<Bn254>>>> = OnceLock::new();
+    PK.get_or_init(|| {
+        // We'll try to load from the configuration directory first.
+        if let Some(path) =
+            get_configuration_keys_path().map(|path| path.join("deposit_proving_key"))
+        {
+            if let Some(source_file) = find_file_with_path(&path) {
+                if let Some(key_bytes) = load_key_locally(&source_file) {
+                    let deposit_proving_key =
+                        ProvingKey::<UnivariateKzgPCS<Bn254>>::deserialize_compressed_unchecked(
+                            &*key_bytes,
+                        )
+                        .expect("Could not deserialise deposit_proving_key");
+                    return Arc::new(deposit_proving_key);
+                }
+                warn!("Could not load deposit_proving_key from local file. Loading from server");
+            } else {
+                warn!(
+                    "Could not find local deposit_proving_key at {}. Loading from server",
+                    path.display()
+                );
+            }
+        } else {
+            warn!("Configuration keys path not found. Loading deposit_proving_key from server");
+        }
+
+        if let Some(key_bytes) = load_key_from_server("deposit_proving_key") {
+            let pk = ProvingKey::<UnivariateKzgPCS<Bn254>>::deserialize_compressed_unchecked(
+                &*key_bytes,
+            )
+            .expect("Could not deserialise proving key");
+            return Arc::new(pk);
+        }
+        panic!("Failed to load deposit_proving_key from both local and server");
+    })
+}
+
 pub mod initialisation {
 
     use super::driven::block_assembler::SmartTrigger;
@@ -90,7 +129,9 @@ pub mod initialisation {
                 .await
                 .expect("Couldn't insert zero leaf into the historic root tree");
 
-                crate::driven::db::mongo_db::ensure_transfer_receipt_indexes(&client).await;
+                crate::driven::db::mongo_db::ensure_transfer_receipt_indexes(&client)
+                    .await
+                    .expect("Could not create transfer receipt indexes");
 
                 client
             })
@@ -113,8 +154,8 @@ pub mod initialisation {
     }
 
     /// This function is used to provide a singleton trigger for block assembly across the entire application.
-    pub async fn get_block_assembly_trigger<P: Proof>(
-    ) -> &'static Arc<RwLock<dyn BlockAssemblyTrigger + Send + Sync>> {
+    pub async fn get_block_assembly_trigger<P: Proof>()
+    -> &'static Arc<RwLock<dyn BlockAssemblyTrigger + Send + Sync>> {
         static BLOCK_ASSEMBLY_TRIGGER: OnceCell<
             Arc<RwLock<dyn BlockAssemblyTrigger + Send + Sync>>,
         > = OnceCell::const_new();
