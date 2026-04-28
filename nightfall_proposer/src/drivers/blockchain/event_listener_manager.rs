@@ -6,7 +6,7 @@ use log::{info, warn};
 use tokio::{
     sync::{OnceCell, RwLock},
     task::JoinHandle,
-    time::{Duration, sleep},
+    time::{sleep, Duration},
 };
 
 // The sole place that holds the listener handle.

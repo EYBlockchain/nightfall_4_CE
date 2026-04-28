@@ -1,20 +1,19 @@
 use alloy::{
-    rpc::types::{Filter, TransactionReceipt},
-    primitives::{Address, B256, I256, keccak256},
+    primitives::{keccak256, Address, B256, I256},
+    rpc::types::Filter,
     signers::local::PrivateKeySigner as LocalWallet,
 };
 use ark_bn254::Fr as Fr254;
 use ark_ec::twisted_edwards::Affine as TEAffine;
 use ark_ff::{BigInteger, PrimeField, Zero};
 use ark_std::{
-    UniformRand,
     collections::HashMap,
     rand::{self, Rng},
-    test_rng,
+    test_rng, UniformRand,
 };
 use configuration::{
     addresses::get_addresses,
-    settings::{Settings, get_settings},
+    settings::{get_settings, Settings},
 };
 use futures::TryStreamExt;
 
@@ -56,8 +55,8 @@ use nightfall_client::{
 use nightfall_proposer::driven::db::mongo_db::{StoredBlock, DB, PROPOSED_BLOCKS_COLLECTION};
 use num_bigint::BigUint;
 use reqwest::{
-    StatusCode,
     multipart::{Form, Part},
+    StatusCode,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -74,7 +73,7 @@ use tokio::{sync::Mutex, time};
 use url::Url;
 use uuid::Uuid;
 
-use crate::{TestError, test_settings::TestSettings};
+use crate::{test_settings::TestSettings, TestError};
 
 const REQUEST_ID: &str = "X-Request-ID";
 
@@ -482,7 +481,11 @@ pub async fn verify_deposit_commitments_nf_token_id(
             let s = actual_token_id
                 .trim_start_matches("0x")
                 .trim_start_matches('0');
-            if s.is_empty() { "0" } else { s }
+            if s.is_empty() {
+                "0"
+            } else {
+                s
+            }
         }
         .to_lowercase();
 
@@ -496,7 +499,11 @@ pub async fn verify_deposit_commitments_nf_token_id(
                 let s = expected_token_id
                     .trim_start_matches("0x")
                     .trim_start_matches('0');
-                if s.is_empty() { "0" } else { s }
+                if s.is_empty() {
+                    "0"
+                } else {
+                    s
+                }
             }
             .to_lowercase();
 
@@ -1696,12 +1703,10 @@ mod tests {
             .unwrap()
             .unwrap();
 
-        assert!(
-            block
-                .transactions
-                .hashes()
-                .any(|t| t.0 == tx_receipt.transaction_hash)
-        );
+        assert!(block
+            .transactions
+            .hashes()
+            .any(|t| t.0 == tx_receipt.transaction_hash));
 
         // Check the balances transferred after the transaction
         let new_balance2: U256 = provider.get_balance(to).await.unwrap();
@@ -1728,12 +1733,10 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        assert!(
-            !block
-                .transactions
-                .hashes()
-                .any(|t| t.0 == tx_receipt.transaction_hash)
-        );
+        assert!(!block
+            .transactions
+            .hashes()
+            .any(|t| t.0 == tx_receipt.transaction_hash));
     }
 
     #[tokio::test]
@@ -1783,12 +1786,10 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        assert!(
-            block
-                .transactions
-                .hashes()
-                .any(|t| t.0 == tx_receipt.transaction_hash)
-        );
+        assert!(block
+            .transactions
+            .hashes()
+            .any(|t| t.0 == tx_receipt.transaction_hash));
 
         // Check the balances transferred after the transaction
         let new_balance2 = provider.get_balance(to).await.unwrap();

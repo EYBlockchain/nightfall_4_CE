@@ -90,7 +90,7 @@ where
     // Do a series of checks that make sure this Transaction<P> is valid, and won't cause the rollup to fail
     //
     let db = get_db_connection().await; // `db` is now &'static mongodb::Client
-    // `db` is directly usable for all database operations, including writes.
+                                        // `db` is directly usable for all database operations, including writes.
     let public_inputs = PublicInputs::from(&client_transaction);
     match E::verify(&client_transaction.proof, &public_inputs) {
         Ok(true) => {}

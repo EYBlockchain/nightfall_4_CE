@@ -14,14 +14,14 @@ use crate::{
 };
 use alloy::{
     primitives::{
-        U256,
         utils::{format_units, parse_units},
+        U256,
     },
     rpc::types::TransactionReceipt,
 };
 use ark_bn254::Fr as Fr254;
-use ark_std::{Zero, collections::HashMap};
-use configuration::settings::{Settings, get_settings};
+use ark_std::{collections::HashMap, Zero};
+use configuration::settings::{get_settings, Settings};
 use futures::future::try_join_all;
 use lib::{
     blockchain_client::BlockchainClientConnection, client_models::DeEscrowDataReq,
@@ -40,10 +40,10 @@ use uuid::Uuid;
 
 use alloy::primitives::Address;
 use alloy::providers::ProviderBuilder;
-use nightfall_bindings::artifacts::IERC20;
-use nightfall_bindings::artifacts::IERC721;
 use nightfall_bindings::artifacts::IERC1155;
+use nightfall_bindings::artifacts::IERC20;
 use nightfall_bindings::artifacts::IERC3525;
+use nightfall_bindings::artifacts::IERC721;
 use std::{str::FromStr, sync::Arc};
 
 pub async fn run_tests(
@@ -1424,12 +1424,10 @@ pub async fn run_tests(
         .expect("Receipt Test 1 failed");
         assert_eq!(create_status, 201);
         assert_eq!(create_resp.receipt_id.len(), 64);
-        assert!(
-            create_resp
-                .receipt_id
-                .chars()
-                .all(|c| c.is_ascii_hexdigit())
-        );
+        assert!(create_resp
+            .receipt_id
+            .chars()
+            .all(|c| c.is_ascii_hexdigit()));
         assert_eq!(
             create_resp.link_path,
             format!("/v1/transfer-receipts/{}", create_resp.receipt_id)
@@ -1459,10 +1457,10 @@ pub async fn run_tests(
         let ct_bytes =
             hex::decode(&resolve_resp.ciphertext).expect("Stored ciphertext must be valid hex");
         let mut cipher_text_arr = [Fr254::default(); 9];
-        for i in 0..9 {
+        for (i, slot) in cipher_text_arr.iter_mut().enumerate() {
             let start = i * 32;
             let end = start + 32;
-            cipher_text_arr[i] = Fr254::from_le_bytes_mod_order(&ct_bytes[start..end]);
+            *slot = Fr254::from_le_bytes_mod_order(&ct_bytes[start..end]);
         }
         let decrypted = receipt_kemdem_decrypt(ctx.recipient_private_key, &cipher_text_arr)
             .expect("receipt_kemdem_decrypt should succeed");
@@ -1565,7 +1563,7 @@ pub async fn run_tests(
         let err12 = create_transfer_receipt_raw(
             &http_client,
             &proposer_url,
-            &vec![1u32; 10],
+            &[1u32; 10],
             &ctx.ciphertext_hex,
             Some(1),
         )
@@ -1589,7 +1587,7 @@ pub async fn run_tests(
         let err14 = create_transfer_receipt_raw(
             &http_client,
             &proposer_url,
-            &vec![256u32; 32],
+            &[256u32; 32],
             &ctx.ciphertext_hex,
             Some(1),
         )
@@ -1682,10 +1680,10 @@ pub async fn run_tests(
             let ct_bytes_2 = hex::decode(&resolve_resp_2.ciphertext)
                 .expect("Stored ciphertext must be valid hex");
             let mut cipher_text_arr_2 = [Fr254::default(); 9];
-            for i in 0..9 {
+            for (i, slot) in cipher_text_arr_2.iter_mut().enumerate() {
                 let start = i * 32;
                 let end = start + 32;
-                cipher_text_arr_2[i] = Fr254::from_le_bytes_mod_order(&ct_bytes_2[start..end]);
+                *slot = Fr254::from_le_bytes_mod_order(&ct_bytes_2[start..end]);
             }
             let decrypted_2 =
                 receipt_kemdem_decrypt(ctx2.recipient_private_key, &cipher_text_arr_2)

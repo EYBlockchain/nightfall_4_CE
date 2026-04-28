@@ -9,7 +9,7 @@ use log::{info, warn};
 use std::future::Future;
 use url::Url;
 /// APIs for managing proposers
-use warp::{Filter, hyper::StatusCode, path, reply, reply::Reply};
+use warp::{hyper::StatusCode, path, reply, reply::Reply, Filter};
 
 /// Get request for proposer rotation
 pub fn rotate_proposer() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone

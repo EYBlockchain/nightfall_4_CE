@@ -20,9 +20,9 @@ use lib::{
 };
 use proposers::{add_proposer, remove_proposer, withdraw};
 use warp::{
-    Filter,
     reject::Rejection,
     reply::{self, Reply},
+    Filter,
 };
 
 pub mod block_assembly;

@@ -6,7 +6,7 @@ use lib::{
     shared_entities::{ClientTransaction, OnChainTransaction},
 };
 use log::error;
-use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
+use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use sha3::{Digest, Keccak256};
 use std::{fmt, fmt::Debug};
 

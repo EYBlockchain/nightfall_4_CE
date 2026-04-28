@@ -154,8 +154,8 @@ pub mod initialisation {
     }
 
     /// This function is used to provide a singleton trigger for block assembly across the entire application.
-    pub async fn get_block_assembly_trigger<P: Proof>()
-    -> &'static Arc<RwLock<dyn BlockAssemblyTrigger + Send + Sync>> {
+    pub async fn get_block_assembly_trigger<P: Proof>(
+    ) -> &'static Arc<RwLock<dyn BlockAssemblyTrigger + Send + Sync>> {
         static BLOCK_ASSEMBLY_TRIGGER: OnceCell<
             Arc<RwLock<dyn BlockAssemblyTrigger + Send + Sync>>,
         > = OnceCell::const_new();

@@ -587,8 +587,8 @@ impl BlockStorageDB for mongodb::Client {
 pub async fn ensure_transfer_receipt_indexes(
     client: &mongodb::Client,
 ) -> Result<(), mongodb::error::Error> {
-    use mongodb::IndexModel;
     use mongodb::options::IndexOptions;
+    use mongodb::IndexModel;
 
     let collection = client
         .database(DB)
