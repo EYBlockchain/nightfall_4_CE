@@ -1,5 +1,4 @@
 target
-.venv
 .github
 .vscode
 .githooks
