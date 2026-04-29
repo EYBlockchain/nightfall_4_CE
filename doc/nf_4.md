@@ -35,6 +35,7 @@
       - [Value transactions](#value-transactions)
     - [Proposer APIs](#proposer-apis)
       - [X509 Certificates for Proposer](#x509-certificates-for-proposer)
+      - [Transfer Receipts](#transfer-receipts)
   - [Test UI: Using the Menu Application](#test-ui-using-the-menu-application)
     - [1. Build the Menu Application](#1-build-the-menu-application)
     - [2. Prepare Environment Variables](#2-prepare-environment-variables)
@@ -1031,6 +1032,100 @@ This endpoint reports whether the proposer believes it is currently synchronised
 POST /v1/transaction
 
 This URL is used by clients to send a JSON encoded `ClientTransaction<P>` struct to a Proposer. It is not described in detail here because an example of the struct is very long, and the URL is only intended for accepting `client` connections.
+
+***
+
+#### Transfer Receipts
+
+Transfer receipts allow a sender to attach an encrypted, privacy-preserving receipt to any transfer transaction stored by the proposer. The proposer stores the receipt as opaque ciphertext — it never decrypts or interprets the payload. The recipient retrieves the ciphertext and decrypts it locally using their Baby JubJub private key.
+
+The v1 ciphertext is produced by a KEM-DEM scheme with receipt-specific domain separators (`DOMAIN_RECEIPT_KEM` / `DOMAIN_RECEIPT_DEM`, each derived as `Fr254::from_le_bytes_mod_order(SHA256("Nightfall|Receipt{KEM,DEM}"))`) and is exactly **576 hex characters** (9 × 32-byte BN254 field elements): 7 encrypted plaintext fields (`nf_token_id`, `nf_slot_id`, `value`, `sender_public_key_x`, `sender_public_key_y`, `erc_address`, `token_id`), followed by the ephemeral public key y-coordinate and x-sign flag.
+
+**Receipt status** is derived lazily from the underlying transaction on each read:
+- `pending` — the referenced transaction has not yet been included in a Layer 2 block.
+- `included_l2` — the transaction has been assigned a Layer 2 block number.
+
+***
+
+POST /v1/transfer-receipts
+
+```sh
+curl -i -X POST 'http://localhost:3001/v1/transfer-receipts' \
+  -H 'Content-Type: application/json' \
+  --data-raw '{
+    "tx_hash": [<32 unsigned bytes of the proposer transaction hash>],
+    "ciphertext": "<576-character hex string>",
+    "version": 1
+  }'
+```
+
+Returns:
+- `200 OK` — receipt already exists for this `tx_hash` and ciphertext/version match exactly (idempotent replay).
+- `201 Created` — receipt created successfully.
+- `400 BAD REQUEST` — malformed `tx_hash`, unsupported version, invalid ciphertext, or the referenced transaction is not found in the proposer store.
+- `409 Conflict` — a receipt for this `tx_hash` already exists with different ciphertext or version.
+
+Response body:
+
+```json
+{
+  "receipt_id": "<64-character hex string>",
+  "status": "pending",
+  "link_path": "/v1/transfer-receipts/<receipt_id>"
+}
+```
+
+Request fields:
+- `tx_hash`: The proposer-side transaction hash as an array of exactly 32 unsigned integers (each 0–255). This is the canonical hash of the `ClientTransaction` as stored by the proposer.
+- `ciphertext`: The v1 KEM-DEM ciphertext as a 576-character lowercase hex string.
+- `version`: Optional. Must be `1`. Defaults to `1` if omitted.
+
+***
+
+GET /v1/transfer-receipts/{receipt_id}
+
+```sh
+curl -i 'http://localhost:3001/v1/transfer-receipts/<receipt_id>'
+```
+
+Returns:
+- `200 OK` — receipt found; status is refreshed from transaction metadata on each call.
+- `404 NOT FOUND` — no receipt with the given ID.
+
+Response body:
+
+```json
+{
+  "receipt_id": "<64-character hex string>",
+  "tx_hash": "<64-character hex string>",
+  "ciphertext": "<576-character hex string>",
+  "version": 1,
+  "status": "pending",
+  "created_at_unix": 1700000000,
+  "updated_at_unix": 1700000000
+}
+```
+
+***
+
+GET /v1/transfer-receipts/{receipt_id}/status
+
+```sh
+curl -i 'http://localhost:3001/v1/transfer-receipts/<receipt_id>/status'
+```
+
+Returns:
+- `200 OK` — lightweight status check without the full ciphertext payload.
+- `404 NOT FOUND` — no receipt with the given ID.
+
+Response body:
+
+```json
+{
+  "receipt_id": "<64-character hex string>",
+  "status": "included_l2"
+}
+```
 
 ***
 
