@@ -1,9 +1,9 @@
 use crate::{
-    domain::entities::PendingBlock,
+    domain::entities::{PendingBlock, PendingBlockState},
     drivers::blockchain::nightfall_event_listener::get_synchronisation_status,
     initialisation::{get_block_assembly_trigger, get_blockchain_client_connection},
     ports::{
-        contracts::NightfallContract,
+        contracts::{NightfallContract, ProposeBlockOutcome},
         db::{BlockStorageDB, PendingBlockDB},
         proving::RecursiveProvingEngine,
     },
@@ -122,6 +122,11 @@ impl From<PlonkError> for BlockAssemblyError {
     }
 }
 
+enum PendingBlockQueueAction {
+    Completed,
+    Requeue(PendingBlock),
+}
+
 async fn check_l1_finality(
     client: &RootProvider,
     tx_hash_l1: TxHash,
@@ -205,17 +210,6 @@ async fn check_l1_finality(
     }
 }
 
-async fn propose_and_cleanup_pending_block<P, N>(
-    pending_block: PendingBlock,
-) -> Result<(), BlockAssemblyError>
-where
-    P: Proof,
-    N: NightfallContract,
-{
-    let db = crate::initialisation::get_db_connection().await;
-    propose_and_cleanup_pending_block_with_db::<P, N>(db, pending_block).await
-}
-
 async fn release_failed_pending_block<P>(
     db: &mongodb::Client,
     pending_block: &PendingBlock,
@@ -258,16 +252,73 @@ where
 async fn propose_and_cleanup_pending_block_with_db<P, N>(
     db: &mongodb::Client,
     pending_block: PendingBlock,
-) -> Result<(), BlockAssemblyError>
+) -> Result<PendingBlockQueueAction, BlockAssemblyError>
 where
     P: Proof,
     N: NightfallContract,
 {
-    if let Err(e) = N::propose_block(pending_block.block.clone()).await {
-        if let Err(cleanup_error) = release_failed_pending_block::<P>(db, &pending_block).await {
-            error!("Failed to release pending block after proposal failure: {cleanup_error}");
+    if pending_block.state != PendingBlockState::ReadyToPropose {
+        return Err(BlockAssemblyError::QueueError(format!(
+            "Pending block {} is not ready to propose",
+            pending_block.layer2_block_number
+        )));
+    }
+
+    let block = pending_block.block.clone().ok_or_else(|| {
+        BlockAssemblyError::QueueError(format!(
+            "Pending block {} is missing block data",
+            pending_block.layer2_block_number
+        ))
+    })?;
+
+    match N::propose_block(block).await? {
+        ProposeBlockOutcome::Submitted { tx_hash } => {
+            info!(
+                "Pending block {} proposed successfully with L1 tx {tx_hash:?}",
+                pending_block.layer2_block_number
+            );
         }
-        return Err(BlockAssemblyError::ContractError(e.to_string()));
+        ProposeBlockOutcome::NotBroadcast { reason } => {
+            if let Err(cleanup_error) = release_failed_pending_block::<P>(db, &pending_block).await
+            {
+                error!(
+                    "Failed to release pending block after pre-broadcast failure: {cleanup_error}"
+                );
+            }
+            return Err(BlockAssemblyError::ContractError(format!(
+                "Block proposal did not broadcast: {reason:?}"
+            )));
+        }
+        ProposeBlockOutcome::BroadcastUnknown { tx_hash, reason } => {
+            let mut broadcast_pending_block = pending_block;
+            broadcast_pending_block.state = PendingBlockState::BroadcastPending;
+
+            if db
+                .store_pending_block(&broadcast_pending_block)
+                .await
+                .is_none()
+            {
+                error!(
+                    "Failed to persist broadcast-pending state for block {} after ambiguous submission {tx_hash:?}",
+                    broadcast_pending_block.layer2_block_number
+                );
+            }
+
+            warn!(
+                "Pending block {} reached broadcast-unknown state for tx {tx_hash:?}: {reason:?}",
+                broadcast_pending_block.layer2_block_number
+            );
+            return Ok(PendingBlockQueueAction::Requeue(broadcast_pending_block));
+        }
+        ProposeBlockOutcome::Reverted { tx_hash } => {
+            if let Err(cleanup_error) = release_failed_pending_block::<P>(db, &pending_block).await
+            {
+                error!("Failed to release pending block after known revert: {cleanup_error}");
+            }
+            return Err(BlockAssemblyError::ContractError(format!(
+                "Block proposal transaction reverted for tx {tx_hash:?}"
+            )));
+        }
     }
 
     cleanup_selected_transactions::<P>(
@@ -287,7 +338,131 @@ where
             pending_block.layer2_block_number
         );
     }
-    Ok(())
+    Ok(PendingBlockQueueAction::Completed)
+}
+
+async fn recover_pending_blocks<P>(
+    db: &mongodb::Client,
+) -> Result<Vec<PendingBlock>, BlockAssemblyError>
+where
+    P: Proof,
+{
+    let mut recovered_pending_blocks = db.get_all_pending_blocks().await.unwrap_or_default();
+    let mut ready_pending_blocks = Vec::new();
+
+    for pending_block in recovered_pending_blocks.drain(..) {
+        match pending_block.state {
+            PendingBlockState::Reserved => {
+                if let Err(e) = release_selected_transactions::<P>(
+                    db,
+                    &pending_block.selected_deposits,
+                    &pending_block.selected_client_transaction_hashes,
+                )
+                .await
+                {
+                    warn!(
+                        "Failed to release reserved transactions for recovered block {}: {e}",
+                        pending_block.layer2_block_number
+                    );
+                }
+
+                if db
+                    .delete_pending_block(pending_block.layer2_block_number)
+                    .await
+                    .is_none()
+                {
+                    warn!(
+                        "Recovered reserved block {} could not be removed from pending storage",
+                        pending_block.layer2_block_number
+                    );
+                }
+
+                let _ = db
+                    .delete_block_by_number(pending_block.layer2_block_number)
+                    .await;
+            }
+            PendingBlockState::ReadyToPropose | PendingBlockState::BroadcastPending => {
+                ready_pending_blocks.push(pending_block)
+            }
+        }
+    }
+
+    ready_pending_blocks.sort_by_key(|pending_block| pending_block.layer2_block_number);
+    if ready_pending_blocks.len() > 1 {
+        return Err(BlockAssemblyError::QueueError(
+            "Expected at most one pending block in storage".to_string(),
+        ));
+    }
+
+    Ok(ready_pending_blocks)
+}
+
+async fn process_pending_blocks_for_proposal<P, N>(
+    pending_blocks: &Arc<Mutex<Vec<PendingBlock>>>,
+    phase: &str,
+) where
+    P: Proof,
+    N: NightfallContract,
+{
+    let drained: Vec<_> = {
+        let mut guard = pending_blocks.lock().await;
+        guard.drain(..).collect()
+    };
+
+    if drained.is_empty() {
+        return;
+    }
+
+    info!(
+        "Finality checker: {phase}, processing {} pending block(s)",
+        drained.len()
+    );
+
+    let db = crate::initialisation::get_db_connection().await;
+    let mut blocks_to_requeue = Vec::new();
+
+    for pending_block in drained {
+        match pending_block.state {
+            PendingBlockState::ReadyToPropose => {
+                match propose_and_cleanup_pending_block_with_db::<P, N>(db, pending_block.clone())
+                    .await
+                {
+                    Ok(PendingBlockQueueAction::Completed) => {}
+                    Ok(PendingBlockQueueAction::Requeue(updated_block)) => {
+                        blocks_to_requeue.push(updated_block);
+                    }
+                    Err(e) => {
+                        error!("Finality checker: propose_block failed: {e}");
+                    }
+                }
+            }
+            PendingBlockState::BroadcastPending => {
+                if db
+                    .get_pending_block(pending_block.layer2_block_number)
+                    .await
+                    .is_some()
+                {
+                    blocks_to_requeue.push(pending_block);
+                } else {
+                    info!(
+                        "Finality checker: dropping resolved broadcast-pending block {}",
+                        pending_block.layer2_block_number
+                    );
+                }
+            }
+            PendingBlockState::Reserved => {
+                warn!(
+                    "Finality checker: reserved pending block {} should not be queued; dropping it",
+                    pending_block.layer2_block_number
+                );
+            }
+        }
+    }
+
+    if !blocks_to_requeue.is_empty() {
+        let mut guard = pending_blocks.lock().await;
+        guard.extend(blocks_to_requeue);
+    }
 }
 
 // once called this function will trigger the block assembly process whenever
@@ -345,16 +520,10 @@ where
     );
 
     let db = crate::initialisation::get_db_connection().await;
-    let mut recovered_pending_blocks = db.get_all_pending_blocks().await.unwrap_or_default();
-    recovered_pending_blocks.sort_by_key(|pending_block| pending_block.layer2_block_number);
-    if recovered_pending_blocks.len() > 1 {
-        return Err(BlockAssemblyError::QueueError(
-            "Expected at most one pending block in storage".to_string(),
-        ));
-    }
+    let ready_pending_blocks = recover_pending_blocks::<P>(db).await?;
 
     // Shared queue for blocks waiting for finality confirmation
-    let pending_blocks = Arc::new(Mutex::new(recovered_pending_blocks));
+    let pending_blocks = Arc::new(Mutex::new(ready_pending_blocks));
     let confirmations_required = U64::from(12);
     let finality_check_interval = Duration::from_secs(5);
 
@@ -435,25 +604,11 @@ where
                 }
 
                 if last_finalized_turn == Some(onchain_start_block) {
-                    let drained_for_same_turn: Vec<_> = {
-                        let mut guard = pending_blocks.lock().await;
-                        guard.drain(..).collect()
-                    };
-
-                    if !drained_for_same_turn.is_empty() {
-                        info!(
-                            "Finality checker: current proposer turn {onchain_start_block} already finalized, proposing {} pending blocks",
-                            drained_for_same_turn.len()
-                        );
-                        for pending_block in drained_for_same_turn {
-                            if let Err(e) =
-                                propose_and_cleanup_pending_block::<P, N>(pending_block.clone())
-                                    .await
-                            {
-                                error!("Finality checker: propose_block failed: {e}");
-                            }
-                        }
-                    }
+                    process_pending_blocks_for_proposal::<P, N>(
+                        &pending_blocks,
+                        "current proposer turn already finalized",
+                    )
+                    .await;
 
                     tokio::time::sleep(finality_check_interval).await;
                     continue;
@@ -526,25 +681,11 @@ where
                         );
                         last_finalized_turn = Some(onchain_start_block);
 
-                        let drained_after_finality: Vec<_> = {
-                            let mut guard = pending_blocks.lock().await;
-                            guard.drain(..).collect()
-                        };
-
-                        if !drained_after_finality.is_empty() {
-                            info!(
-                                "Finality checker: finalized & canonical rotation, proposing {} pending blocks",
-                                drained_after_finality.len()
-                            );
-                            for pending_block in drained_after_finality {
-                                if let Err(e) =
-                                    propose_and_cleanup_pending_block::<P, N>(pending_block.clone())
-                                        .await
-                                {
-                                    error!("Finality checker: propose_block failed: {e}");
-                                }
-                            }
-                        }
+                        process_pending_blocks_for_proposal::<P, N>(
+                            &pending_blocks,
+                            "finalized canonical rotation",
+                        )
+                        .await;
                     }
                     Ok(false) => {
                         debug!("Finality checker: rotation tx not yet finalized: {tx_hash:?}");
@@ -626,8 +767,8 @@ where
 
         if current_proposer_after_trigger != our_address {
             info!(
-        "Proposer has changed after trigger. Skipping block assembly. New proposer is: {current_proposer_after_trigger:?}"
-    );
+                "Proposer has changed after trigger. Skipping block assembly. New proposer is: {current_proposer_after_trigger:?}"
+            );
             continue;
         }
         // Step 4: check if we're synchronised.
@@ -671,12 +812,15 @@ where
 mod tests {
     use super::*;
     use crate::{
-        domain::entities::{Block, ClientTransactionWithMetaData, DepositDatawithFee},
+        domain::entities::{
+            Block, ClientTransactionWithMetaData, DepositDatawithFee, PendingBlockState,
+        },
         driven::db::mongo_db::StoredBlock,
+        ports::contracts::{BroadcastUnknownReason, ProposeBlockOutcome},
         ports::db::{PendingBlockDB, TransactionsDB},
         services::assemble_block::reserve_selected_transactions,
     };
-    use alloy::primitives::I256;
+    use alloy::primitives::{I256, TxHash};
     use lib::{
         error::NightfallContractError,
         plonk_prover::plonk_proof::PlonkProof,
@@ -688,10 +832,30 @@ mod tests {
 
     #[async_trait::async_trait]
     impl NightfallContract for FailingContract {
-        async fn propose_block(_block: Block) -> Result<(), NightfallContractError> {
-            Err(NightfallContractError::BlockProposalError(
-                "intentional proposal failure".to_string(),
-            ))
+        async fn propose_block(
+            _block: Block,
+        ) -> Result<ProposeBlockOutcome, NightfallContractError> {
+            Ok(ProposeBlockOutcome::NotBroadcast {
+                reason: crate::ports::contracts::NotBroadcastReason::SendRawTransactionFailed,
+            })
+        }
+
+        async fn get_current_layer2_blocknumber() -> Result<I256, NightfallContractError> {
+            Ok(I256::ZERO)
+        }
+    }
+
+    struct BroadcastUnknownContract;
+
+    #[async_trait::async_trait]
+    impl NightfallContract for BroadcastUnknownContract {
+        async fn propose_block(
+            _block: Block,
+        ) -> Result<ProposeBlockOutcome, NightfallContractError> {
+            Ok(ProposeBlockOutcome::BroadcastUnknown {
+                tx_hash: TxHash::from([7u8; 32]),
+                reason: BroadcastUnknownReason::ReceiptUnavailable,
+            })
         }
 
         async fn get_current_layer2_blocknumber() -> Result<I256, NightfallContractError> {
@@ -739,9 +903,8 @@ mod tests {
         )
         .await;
 
-        let selected_client_transactions = (101..=104)
-            .map(test_client_transaction)
-            .collect::<Vec<_>>();
+        let selected_client_transactions =
+            (101..=104).map(test_client_transaction).collect::<Vec<_>>();
         for tx in &selected_client_transactions {
             db.store_transaction(tx.clone()).await.unwrap();
         }
@@ -760,7 +923,8 @@ mod tests {
 
         let pending_block = PendingBlock {
             layer2_block_number: 0,
-            block: Block::default(),
+            state: PendingBlockState::ReadyToPropose,
+            block: Some(Block::default()),
             selected_deposits: selected_deposits.clone(),
             selected_client_transaction_hashes: selected_client_transaction_hashes.clone(),
         };
@@ -773,14 +937,16 @@ mod tests {
         .await
         .unwrap();
 
-        let result =
-            propose_and_cleanup_pending_block_with_db::<PlonkProof, FailingContract>(&db, pending_block)
-                .await;
+        let result = propose_and_cleanup_pending_block_with_db::<PlonkProof, FailingContract>(
+            &db,
+            pending_block,
+        )
+        .await;
 
         assert!(matches!(
             result,
             Err(BlockAssemblyError::ContractError(message))
-                if message.contains("intentional proposal failure")
+                if message.contains("did not broadcast")
         ));
 
         let available_deposits =
@@ -802,5 +968,159 @@ mod tests {
 
         let stored_blocks = db.get_all_blocks().await.unwrap_or_default();
         assert!(stored_blocks.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_recover_reserved_pending_block_releases_mempool_and_drops_orphaned_state() {
+        let container = get_mongo().await;
+        let db = get_db_connection(&container).await;
+
+        let selected_deposits = vec![(1..=4).map(test_deposit).collect::<Vec<_>>()];
+        <mongodb::Client as TransactionsDB<PlonkProof>>::set_mempool_deposits(
+            &db,
+            selected_deposits[0].clone(),
+        )
+        .await;
+
+        let selected_client_transactions =
+            (201..=204).map(test_client_transaction).collect::<Vec<_>>();
+        for tx in &selected_client_transactions {
+            db.store_transaction(tx.clone()).await.unwrap();
+        }
+
+        let selected_client_transaction_hashes = selected_client_transactions
+            .iter()
+            .map(|tx| tx.hash.clone())
+            .collect::<Vec<_>>();
+        reserve_selected_transactions::<PlonkProof>(
+            &db,
+            &selected_deposits,
+            &selected_client_transaction_hashes,
+        )
+        .await
+        .unwrap();
+
+        let pending_block = PendingBlock {
+            layer2_block_number: 0,
+            state: PendingBlockState::Reserved,
+            block: None,
+            selected_deposits: selected_deposits.clone(),
+            selected_client_transaction_hashes: selected_client_transaction_hashes.clone(),
+        };
+        db.store_pending_block(&pending_block).await.unwrap();
+        db.store_block(&StoredBlock {
+            layer2_block_number: 0,
+            commitments: vec!["orphaned-speculative-block".to_string()],
+            proposer_address: Address::from([4u8; 20]),
+        })
+        .await
+        .unwrap();
+
+        let recovered = recover_pending_blocks::<PlonkProof>(&db).await.unwrap();
+
+        assert!(recovered.is_empty());
+
+        let available_deposits =
+            <mongodb::Client as TransactionsDB<PlonkProof>>::get_mempool_deposits(&db)
+                .await
+                .unwrap();
+        assert_eq!(available_deposits.len(), 4);
+
+        let available_client_transactions =
+            <mongodb::Client as TransactionsDB<PlonkProof>>::get_all_mempool_client_transactions(
+                &db,
+            )
+            .await
+            .unwrap_or_default();
+        assert_eq!(available_client_transactions.len(), 4);
+
+        let pending_blocks = db.get_all_pending_blocks().await.unwrap_or_default();
+        assert!(pending_blocks.is_empty());
+
+        let stored_blocks = db.get_all_blocks().await.unwrap_or_default();
+        assert!(stored_blocks.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_broadcast_unknown_keeps_pending_state_and_reserved_inputs() {
+        let container = get_mongo().await;
+        let db = get_db_connection(&container).await;
+
+        let selected_deposits = vec![(1..=4).map(test_deposit).collect::<Vec<_>>()];
+        <mongodb::Client as TransactionsDB<PlonkProof>>::set_mempool_deposits(
+            &db,
+            selected_deposits[0].clone(),
+        )
+        .await;
+
+        let selected_client_transactions =
+            (301..=304).map(test_client_transaction).collect::<Vec<_>>();
+        for tx in &selected_client_transactions {
+            db.store_transaction(tx.clone()).await.unwrap();
+        }
+
+        let selected_client_transaction_hashes = selected_client_transactions
+            .iter()
+            .map(|tx| tx.hash.clone())
+            .collect::<Vec<_>>();
+        reserve_selected_transactions::<PlonkProof>(
+            &db,
+            &selected_deposits,
+            &selected_client_transaction_hashes,
+        )
+        .await
+        .unwrap();
+
+        let pending_block = PendingBlock {
+            layer2_block_number: 0,
+            state: PendingBlockState::ReadyToPropose,
+            block: Some(Block::default()),
+            selected_deposits: selected_deposits.clone(),
+            selected_client_transaction_hashes: selected_client_transaction_hashes.clone(),
+        };
+        db.store_pending_block(&pending_block).await.unwrap();
+        db.store_block(&StoredBlock {
+            layer2_block_number: 0,
+            commitments: vec!["broadcast-unknown".to_string()],
+            proposer_address: Address::from([6u8; 20]),
+        })
+        .await
+        .unwrap();
+
+        let result = propose_and_cleanup_pending_block_with_db::<
+            PlonkProof,
+            BroadcastUnknownContract,
+        >(&db, pending_block)
+        .await
+        .unwrap();
+
+        assert!(matches!(
+            result,
+            PendingBlockQueueAction::Requeue(PendingBlock {
+                state: PendingBlockState::BroadcastPending,
+                ..
+            })
+        ));
+
+        let available_deposits =
+            <mongodb::Client as TransactionsDB<PlonkProof>>::get_mempool_deposits(&db)
+                .await
+                .unwrap_or_default();
+        assert!(available_deposits.is_empty());
+
+        let available_client_transactions =
+            <mongodb::Client as TransactionsDB<PlonkProof>>::get_all_mempool_client_transactions(
+                &db,
+            )
+            .await
+            .unwrap_or_default();
+        assert!(available_client_transactions.is_empty());
+
+        let pending_blocks = db.get_all_pending_blocks().await.unwrap_or_default();
+        assert_eq!(pending_blocks.len(), 1);
+        assert_eq!(pending_blocks[0].state, PendingBlockState::BroadcastPending);
+
+        let stored_blocks = db.get_all_blocks().await.unwrap_or_default();
+        assert_eq!(stored_blocks.len(), 1);
     }
 }

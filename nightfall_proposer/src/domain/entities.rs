@@ -30,9 +30,22 @@ pub struct Block {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum PendingBlockState {
+    Reserved,
+    ReadyToPropose,
+    BroadcastPending,
+}
+
+fn default_pending_block_state() -> PendingBlockState {
+    PendingBlockState::ReadyToPropose
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PendingBlock {
     pub layer2_block_number: u64,
-    pub block: Block,
+    #[serde(default = "default_pending_block_state")]
+    pub state: PendingBlockState,
+    pub block: Option<Block>,
     pub selected_deposits: Vec<Vec<DepositDatawithFee>>,
     pub selected_client_transaction_hashes: Vec<Vec<u32>>,
 }

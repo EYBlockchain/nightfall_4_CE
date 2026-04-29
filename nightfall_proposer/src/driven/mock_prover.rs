@@ -3,9 +3,7 @@
 use ark_std::cfg_iter;
 use itertools::{izip, Itertools};
 use jf_plonk::{
-    errors::PlonkError,
-    nightfall::ipa_structs::VerifyingKey,
-    proof_system::RecursiveOutput,
+    errors::PlonkError, nightfall::ipa_structs::VerifyingKey, proof_system::RecursiveOutput,
     recursion::circuits::Kzg,
 };
 use jf_utils::fr_to_fq;

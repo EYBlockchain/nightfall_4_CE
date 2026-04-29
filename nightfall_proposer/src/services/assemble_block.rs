@@ -1,5 +1,7 @@
 use crate::{
-    domain::entities::{Block, ClientTransactionWithMetaData, DepositDatawithFee, PendingBlock},
+    domain::entities::{
+        Block, ClientTransactionWithMetaData, DepositDatawithFee, PendingBlock, PendingBlockState,
+    },
     driven::db::mongo_db::{StoredBlock, DB, PROPOSED_BLOCKS_COLLECTION},
     drivers::blockchain::block_assembly::BlockAssemblyError,
     initialisation::{get_blockchain_client_connection, get_db_connection},
@@ -63,12 +65,45 @@ where
     let selected_client_transaction_hashes =
         selected_client_transaction_hashes(&selected_client_transactions);
 
-    reserve_selected_transactions::<P>(
+    let reserved_pending_block = PendingBlock {
+        layer2_block_number,
+        state: PendingBlockState::Reserved,
+        block: None,
+        selected_deposits: included_depositinfos_group.clone(),
+        selected_client_transaction_hashes: selected_client_transaction_hashes.clone(),
+    };
+
+    if db
+        .store_pending_block(&reserved_pending_block)
+        .await
+        .is_none()
+    {
+        return Err(BlockAssemblyError::QueueError(
+            "Failed to persist reserved pending block".to_string(),
+        ));
+    }
+
+    if let Err(e) = reserve_selected_transactions::<P>(
         db,
         &included_depositinfos_group,
         &selected_client_transaction_hashes,
     )
-    .await?;
+    .await
+    {
+        if let Err(release_error) = release_selected_transactions::<P>(
+            db,
+            &included_depositinfos_group,
+            &selected_client_transaction_hashes,
+        )
+        .await
+        {
+            error!(
+                "Failed to release selected transactions after reservation failure: {release_error}"
+            );
+        }
+        let _ = db.delete_pending_block(layer2_block_number).await;
+        return Err(e);
+    }
 
     // Convert DepositInfo into DepositData while maintaining nested structure
     // included_depositinfos_group has extra fee than DepositData, so we need to remove the fee
@@ -113,6 +148,7 @@ where
                     "Failed to release reserved transactions after proving failure: {release_error}"
                 );
             }
+            let _ = db.delete_pending_block(layer2_block_number).await;
             return Err(e);
         }
     };
@@ -130,6 +166,7 @@ where
                 "Failed to release reserved transactions after speculative block storage failed: {release_error}"
             );
         }
+        let _ = db.delete_pending_block(layer2_block_number).await;
         return Err(BlockAssemblyError::QueueError(
             "Failed to store speculative block".to_string(),
         ));
@@ -137,7 +174,8 @@ where
 
     let pending_block = PendingBlock {
         layer2_block_number,
-        block,
+        state: PendingBlockState::ReadyToPropose,
+        block: Some(block),
         selected_deposits: included_depositinfos_group,
         selected_client_transaction_hashes,
     };
@@ -155,6 +193,7 @@ where
                 "Failed to release reserved transactions after pending block storage failed: {release_error}"
             );
         }
+        let _ = db.delete_pending_block(layer2_block_number).await;
         return Err(BlockAssemblyError::QueueError(
             "Failed to persist pending block".to_string(),
         ));
@@ -472,15 +511,24 @@ where
         BlockAssemblyError::QueueError("Failed to reserve selected deposits".to_string())
     })?;
 
-    <mongodb::Client as TransactionsDB<P>>::set_client_transactions_reserved(
+    if <mongodb::Client as TransactionsDB<P>>::set_client_transactions_reserved(
         db,
         selected_client_transaction_hashes,
         true,
     )
     .await
-    .ok_or_else(|| {
-        BlockAssemblyError::QueueError("Failed to reserve selected client transactions".to_string())
-    })?;
+    .is_none()
+    {
+        let _ = <mongodb::Client as TransactionsDB<P>>::set_mempool_deposits_reserved(
+            db,
+            selected_deposits.to_vec(),
+            false,
+        )
+        .await;
+        return Err(BlockAssemblyError::QueueError(
+            "Failed to reserve selected client transactions".to_string(),
+        ));
+    }
     Ok(())
 }
 
@@ -643,7 +691,10 @@ mod tests {
         db: &mongodb::Client,
         fees: impl IntoIterator<Item = u64>,
     ) -> Vec<ClientTransactionWithMetaData<PlonkProof>> {
-        let transactions = fees.into_iter().map(test_client_transaction).collect::<Vec<_>>();
+        let transactions = fees
+            .into_iter()
+            .map(test_client_transaction)
+            .collect::<Vec<_>>();
         for tx in &transactions {
             db.store_transaction(tx.clone()).await.unwrap();
         }

@@ -1,5 +1,7 @@
 use ark_bn254::{Bn254, Fq as Fq254, Fr as Fr254};
-use jf_plonk::{nightfall::FFTPlonk, proof_system::UniversalRecursiveSNARK, transcript::RescueTranscript};
+use jf_plonk::{
+    nightfall::FFTPlonk, proof_system::UniversalRecursiveSNARK, transcript::RescueTranscript,
+};
 use jf_primitives::{pcs::prelude::UnivariateKzgPCS, rescue::sponge::RescueCRHF};
 use lib::{
     error::UnifiedProofError,
