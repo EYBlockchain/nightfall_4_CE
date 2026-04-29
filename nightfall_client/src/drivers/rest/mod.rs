@@ -276,7 +276,10 @@ mod tests {
             .await;
 
         assert_eq!(res.status(), StatusCode::BAD_REQUEST);
-        assert_eq!(std::str::from_utf8(res.body()).unwrap(), "Invalid request id");
+        assert_eq!(
+            std::str::from_utf8(res.body()).unwrap(),
+            "Invalid request id"
+        );
     }
 
     #[tokio::test]
@@ -382,7 +385,10 @@ mod tests {
             .await;
 
         assert_eq!(res.status(), StatusCode::BAD_REQUEST);
-        assert_eq!(std::str::from_utf8(res.body()).unwrap(), "Invalid Token Type");
+        assert_eq!(
+            std::str::from_utf8(res.body()).unwrap(),
+            "Invalid Token Type"
+        );
     }
 
     #[tokio::test]
@@ -408,7 +414,10 @@ mod tests {
             .await;
 
         assert_eq!(res.status(), StatusCode::BAD_REQUEST);
-        assert_eq!(std::str::from_utf8(res.body()).unwrap(), "Invalid Token Type");
+        assert_eq!(
+            std::str::from_utf8(res.body()).unwrap(),
+            "Invalid Token Type"
+        );
     }
 
     #[tokio::test]

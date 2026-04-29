@@ -5,8 +5,7 @@ use itertools::{izip, Itertools};
 use jf_plonk::{
     errors::PlonkError,
     nightfall::ipa_structs::VerifyingKey,
-    nightfall::FFTPlonk,
-    proof_system::{RecursiveOutput, UniversalRecursiveSNARK},
+    proof_system::RecursiveOutput,
     recursion::circuits::Kzg,
 };
 use jf_utils::fr_to_fq;

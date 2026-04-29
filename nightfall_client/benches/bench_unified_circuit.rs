@@ -273,7 +273,8 @@ fn build_valid_transfer_inputs() -> CircuitTestInfo {
         nullified_four,
     ];
     let spend_commitment_hashes = spend_commitments.map(|commitment| commitment.hash().unwrap());
-    let (mem_proofs, root) = generate_random_paths_with_shared_root(spend_commitment_hashes, &mut rng);
+    let (mem_proofs, root) =
+        generate_random_paths_with_shared_root(spend_commitment_hashes, &mut rng);
 
     // Work out what the change values will be
     let value_change = nullified_value_one + nullified_value_two - value;

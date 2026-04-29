@@ -27,7 +27,7 @@ use jf_plonk::{
     },
     proof_system::{
         structs::{ProvingKey as PlonkProvingKey, VerifyingKey as PlonkVerifyingKey},
-        RecursiveOutput, UniversalRecursiveSNARK,
+        RecursiveOutput,
     },
     recursion::{
         circuits::{Kzg, Zmorph},
@@ -35,10 +35,7 @@ use jf_plonk::{
     },
     transcript::RescueTranscript,
 };
-use jf_primitives::{
-    pcs::prelude::{expected_sha256_for_label, UnivariateKzgPCS},
-    rescue::sponge::RescueCRHF,
-};
+use jf_primitives::pcs::prelude::expected_sha256_for_label;
 use jf_relation::{errors::CircuitError, PlonkCircuit, Variable};
 use log::{debug, warn};
 use mongodb::{bson::doc, Client};
