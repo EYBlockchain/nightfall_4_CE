@@ -161,9 +161,7 @@ where
                         match e {
                             // we're missing blocks, so we need to re-synchronise
                             EventHandlerError::MissingBlocks(n) => {
-                                warn!(
-                                    "Missing blocks. Last contiguous block was {n}. Restarting event listener"
-                                );
+                                warn!("Missing blocks. Last contiguous block was {n}. Restarting event listener");
                                 restart_event_listener::<P, E, N>(start_block).await;
                                 return Err(EventHandlerError::StreamTerminated);
                             }
@@ -182,9 +180,7 @@ where
                 }
             }
         } else {
-            println!(
-                "Start block {start_block} is greater than latest block {latest_block}. No past events to process."
-            );
+            println!( "Start block {start_block} is greater than latest block {latest_block}. No past events to process.");
         }
     }
 
@@ -205,17 +201,15 @@ where
                 match e {
                     // we're missing blocks, so we need to re-synchronise
                     EventHandlerError::MissingBlocks(n) => {
-                        warn!(
-                            "Missing blocks. Last contiguous block was {n}. Restarting event listener"
-                        );
+                        warn!("Missing blocks. Last contiguous block was {n}. Restarting event listener");
                         restart_event_listener::<P, E, N>(start_block).await;
                         return Err(EventHandlerError::StreamTerminated);
                     }
 
                     EventHandlerError::BlockHashError(expected, found) => {
                         warn!(
-                            "Block hash mismatch: expected {expected:?}, found {found:?}. Restarting event listener"
-                        );
+                                "Block hash mismatch: expected {expected:?}, found {found:?}. Restarting event listener"
+                            );
                         restart_event_listener::<P, E, N>(start_block).await;
                         return Err(EventHandlerError::StreamTerminated);
                     }

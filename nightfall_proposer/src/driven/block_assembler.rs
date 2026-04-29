@@ -131,9 +131,11 @@ impl<P: Proof + Send + Sync> BlockAssemblyTrigger for SmartTrigger<P> {
 
             // Log status of trigger wait with dynamic information
             warn!(
-                "Not enough transactions to assemble a block yet. Elapsed: {}s, remaining: {}s, will wait for more txs or until timeout ({}s).",
-                elapsed, remaining, self.max_wait_secs
-            );
+            "Not enough transactions to assemble a block yet. Elapsed: {}s, remaining: {}s, will wait for more txs or until timeout ({}s).",
+            elapsed,
+            remaining,
+            self.max_wait_secs
+        );
 
             tokio::select! {
                 _ = interval.tick() => {

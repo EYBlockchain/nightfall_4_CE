@@ -379,8 +379,7 @@ mod tests {
             nullified_three,
             nullified_four,
         ];
-        let spend_commitment_hashes =
-            spend_commitments.map(|commitment| commitment.hash().unwrap());
+        let spend_commitment_hashes = spend_commitments.map(|commitment| commitment.hash().unwrap());
         let (mem_proofs, root) =
             generate_random_paths_with_shared_root(spend_commitment_hashes, &mut rng);
 
@@ -826,8 +825,7 @@ mod tests {
             nullified_three,
             nullified_four,
         ];
-        let spend_commitment_hashes =
-            spend_commitments.map(|commitment| commitment.hash().unwrap());
+        let spend_commitment_hashes = spend_commitments.map(|commitment| commitment.hash().unwrap());
         let (mem_proofs, root) =
             generate_random_paths_with_shared_root(spend_commitment_hashes, &mut rng);
 
@@ -1082,8 +1080,7 @@ mod tests {
             nullified_three,
             nullified_four,
         ];
-        let spend_commitment_hashes =
-            spend_commitments.map(|commitment| commitment.hash().unwrap());
+        let spend_commitment_hashes = spend_commitments.map(|commitment| commitment.hash().unwrap());
         let (mem_proofs, root) =
             generate_random_paths_with_shared_root(spend_commitment_hashes, &mut rng);
 
@@ -1369,8 +1366,7 @@ mod tests {
             nullified_three,
             nullified_four,
         ];
-        let spend_commitment_hashes =
-            spend_commitments.map(|commitment| commitment.hash().unwrap());
+        let spend_commitment_hashes = spend_commitments.map(|commitment| commitment.hash().unwrap());
         let (mem_proofs, root) =
             generate_random_paths_with_shared_root(spend_commitment_hashes, &mut rng);
 
@@ -1635,10 +1631,8 @@ mod tests {
             nullified_three,
             nullified_four,
         ];
-        let spend_commitment_hashes =
-            spend_commitments.map(|commitment| commitment.hash().unwrap());
-        let (mem_proofs, root) =
-            generate_random_paths_with_shared_root(spend_commitment_hashes, rng);
+        let spend_commitment_hashes = spend_commitments.map(|commitment| commitment.hash().unwrap());
+        let (mem_proofs, root) = generate_random_paths_with_shared_root(spend_commitment_hashes, rng);
 
         let new_salts = [Salt::new_transfer_salt().get_salt(); 3];
         let ephemeral_key = BJJScalar::rand(rng);
@@ -1830,8 +1824,7 @@ mod tests {
             info.private_inputs.membership_proofs[2].node_value,
             info.private_inputs.membership_proofs[3].node_value,
         ];
-        let (membership_proofs, root) =
-            generate_random_paths_with_shared_root(leaf_values, &mut rng);
+        let (membership_proofs, root) = generate_random_paths_with_shared_root(leaf_values, &mut rng);
 
         info.private_inputs.public_keys[0] = Affine::<BabyJubjub>::zero();
         info.private_inputs.nullifiers_values[0] = deposit_data[0].value;
@@ -2058,7 +2051,9 @@ mod tests {
             .unwrap();
 
             assert!(circuit
-                .check_circuit_satisfiability(Vec::from(&incorrect_root.public_inputs).as_slice(),)
+                .check_circuit_satisfiability(
+                    Vec::from(&incorrect_root.public_inputs).as_slice(),
+                )
                 .is_err());
 
             // If the wirthdraw address is non-zero we should fail
@@ -2352,7 +2347,9 @@ mod tests {
             .unwrap();
 
             assert!(circuit
-                .check_circuit_satisfiability(Vec::from(&incorrect_root.public_inputs).as_slice(),)
+                .check_circuit_satisfiability(
+                    Vec::from(&incorrect_root.public_inputs).as_slice(),
+                )
                 .is_err());
 
             // If the wirthdraw address is zero we should fail
