@@ -58,8 +58,9 @@ pub fn get_commitments_by_token_type(
 pub async fn handle_get_commitments_by_token_type(
     token_type: String,
 ) -> Result<impl Reply, warp::Rejection> {
-    TokenType::parse_token_type(&token_type)
-        .map_err(|_| warp::reject::custom(crate::domain::error::ClientRejection::InvalidTokenType))?;
+    TokenType::parse_token_type(&token_type).map_err(|_| {
+        warp::reject::custom(crate::domain::error::ClientRejection::InvalidTokenType)
+    })?;
     let commitment_db = get_db_connection().await;
     let res = commitment_db
         .get_commitments_by_token_type(&token_type)

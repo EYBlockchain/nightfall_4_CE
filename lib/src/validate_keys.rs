@@ -15,10 +15,9 @@ use crate::{
     build_transfer_inputs::build_valid_transfer_inputs,
     circuit_key_generation::{generate_rollup_keys_for_production, universal_setup_for_production},
     constants::MAX_KZG_DEGREE,
-    deposit_circuit::deposit_circuit_builder,
     error::KeyVerificationError,
     initialisation::get_blockchain_client_connection,
-    nf_client_proof::PublicInputs,
+    nf_client_proof::{PrivateInputs, PublicInputs},
     plonk_prover::circuits::unified_circuit::unified_circuit_builder,
     shared_entities::DepositData,
     utils::get_block_size,
@@ -431,11 +430,6 @@ fn build_key_specs(configuration_url: &str, out_dir: &Path) -> anyhow::Result<Ve
             out_path: out_dir.join("base_grumpkin_pk"),
         },
         KeySpec {
-            name: "deposit_proving_key".into(),
-            url: format!("{configuration_url}/bin/keys/deposit_proving_key"),
-            out_path: out_dir.join("deposit_proving_key"),
-        },
-        KeySpec {
             name: "proving_key".into(),
             url: format!("{configuration_url}/bin/keys/proving_key"),
             out_path: out_dir.join("proving_key"),
@@ -817,10 +811,12 @@ fn regenerate_keys_for_production() -> Result<(), warp::Rejection> {
 
     // We prepare some dummy deposit data and later rollup them to build rollup keys.
     let deposit_data = [DepositData::default(); 4];
-    let mut deposit_public_inputs = PublicInputs::new();
-    let mut deposit_circuit = deposit_circuit_builder(&deposit_data, &mut deposit_public_inputs)
-        .map_err(|e| warp::reject::custom(KeyVerificationError::from(e)))?;
-    deposit_circuit
+    let mut deposit_public_inputs = PublicInputs::for_deposit();
+    let mut deposit_private_inputs = PrivateInputs::for_deposit(&deposit_data);
+    let mut deposit_base_circuit =
+        unified_circuit_builder(&mut deposit_public_inputs, &mut deposit_private_inputs)
+            .map_err(|e| warp::reject::custom(KeyVerificationError::from(e)))?;
+    deposit_base_circuit
         .finalize_for_recursive_arithmetization::<RescueCRHF<Fq254>>()
         .map_err(|e| warp::reject::custom(KeyVerificationError::from(e)))?;
 
@@ -844,50 +840,12 @@ fn regenerate_keys_for_production() -> Result<(), warp::Rejection> {
             "Error preprocessing unified circuit",
         ))
     })?;
-    let (deposit_pk, _) = FFTPlonk::<UnivariateKzgPCS<Bn254>>::preprocess(
-        &kzg_srs,
-        Some(VerificationKeyId::Deposit),
-        &deposit_circuit,
-        true,
-    )
-    .map_err(|e| {
-        error!("Failed to preprocess deposit circuit: {e}");
-        warp::reject::custom(KeyVerificationError::new(
-            "Error preprocessing deposit circuit",
-        ))
-    })?;
-
-    let deposit_pk_path = path.join("bin/keys/deposit_proving_key");
     let pk_path = path.join("bin/keys/proving_key");
 
-    let mut deposit_file = File::create(deposit_pk_path.clone()).map_err(|e| {
-        error!("Failed to create deposit proving key file: {e}");
-        warp::reject::custom(KeyVerificationError::new(
-            "Error creating deposit proving key file",
-        ))
-    })?;
     let mut unified_file = File::create(pk_path.clone()).map_err(|e| {
         error!("Failed to create proving key file: {e}");
         warp::reject::custom(KeyVerificationError::new("Error creating proving key file"))
     })?;
-    let mut deposit_compressed_bytes = Vec::new();
-    deposit_pk
-        .serialize_compressed(&mut deposit_compressed_bytes)
-        .map_err(|e| {
-            error!("Failed to serialize deposit proving key: {e}");
-            warp::reject::custom(KeyVerificationError::new(
-                "Error serializing deposit proving key",
-            ))
-        })?;
-    deposit_file
-        .write_all(&deposit_compressed_bytes)
-        .map_err(|e| {
-            error!("Failed to write deposit_compressed_bytes to file: {e}");
-            warp::reject::custom(KeyVerificationError::new(
-                "Error writing deposit_compressed_bytes to file",
-            ))
-        })?;
-
     let mut unified_compressed_bytes = Vec::new();
     unified_pk
         .serialize_compressed(&mut unified_compressed_bytes)
@@ -906,14 +864,18 @@ fn regenerate_keys_for_production() -> Result<(), warp::Rejection> {
             ))
         })?;
 
-    generate_rollup_keys_for_production(deposit_circuit, deposit_pk_path, &kzg_srs).map_err(
-        |e| {
-            error!("Failed to generate rollup keys for production: {e}");
-            warp::reject::custom(KeyVerificationError::new(
-                "Error generating rollup keys for production",
-            ))
-        },
-    )?;
+    generate_rollup_keys_for_production(
+        deposit_base_circuit,
+        deposit_public_inputs,
+        pk_path,
+        &kzg_srs,
+    )
+    .map_err(|e| {
+        error!("Failed to generate rollup keys for production: {e}");
+        warp::reject::custom(KeyVerificationError::new(
+            "Error generating rollup keys for production",
+        ))
+    })?;
 
     Ok(())
 }
@@ -997,7 +959,6 @@ mod tests {
             "base_grumpkin_pk".to_string(),
             "base_bn254_pk".to_string(),
             "decider_pk".to_string(),
-            "deposit_proving_key".to_string(),
             "proving_key".to_string(),
         ];
         // Add merge_bn254_pk_0 .. merge_bn254_pk_{bn254_count-1}
@@ -1200,18 +1161,6 @@ mod tests {
             .unwrap_or_else(|e| panic!("Failed to build key specs: {e:?}"));
 
         // Should contain client keys with correct URLs and paths
-        let deposit_proving_key = specs
-            .iter()
-            .find(|s| s.name == "deposit_proving_key")
-            .unwrap_or_else(|| panic!("Should have deposit_proving_key in specs: {specs:?}"));
-        assert_eq!(
-            deposit_proving_key.url,
-            format!("{config_url}/bin/keys/deposit_proving_key")
-        );
-        assert_eq!(
-            deposit_proving_key.out_path,
-            out_dir.join("deposit_proving_key")
-        );
         let proving_key = specs
             .iter()
             .find(|s| s.name == "proving_key")

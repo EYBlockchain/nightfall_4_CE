@@ -53,7 +53,10 @@ mod tests {
             .reply(&filter)
             .await;
         assert_eq!(synchronised.status(), StatusCode::OK);
-        assert_eq!(std::str::from_utf8(synchronised.body()).unwrap(), "Synchronised");
+        assert_eq!(
+            std::str::from_utf8(synchronised.body()).unwrap(),
+            "Synchronised"
+        );
 
         get_synchronisation_status()
             .await

@@ -11,7 +11,6 @@ COPY --from=foundry /usr/local/bin/forge ./forge
 COPY --exclude=configuration/bin/*  . .
 RUN mkdir -p configuration/bin/keys
 COPY configuration/bin/keys/proving_key configuration/bin/keys/proving_key
-COPY configuration/bin/keys/deposit_proving_key configuration/bin/keys/deposit_proving_key
 ENV PATH=/app:$PATH
 RUN --mount=type=cache,id=cargo-registry-v4,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,id=cargo-git-v4,target=/usr/local/cargo/git,sharing=locked \

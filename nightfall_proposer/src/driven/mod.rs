@@ -6,3 +6,4 @@ pub mod nightfall_client_transaction;
 pub mod nightfall_contract;
 pub mod nightfall_event;
 pub mod rollup_prover;
+pub mod unified_deposit_prover;

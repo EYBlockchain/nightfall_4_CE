@@ -20,9 +20,8 @@ pub fn get_token_info<N: NightfallContract>(
 async fn handle_get_token_info<N: NightfallContract>(
     nf_token_id: String,
 ) -> Result<impl Reply, warp::Rejection> {
-    let nf_token_id = Fr254::from_hex_string(&nf_token_id).map_err(|_| {
-        warp::reject::custom(crate::domain::error::ClientRejection::InvalidTokenId)
-    })?;
+    let nf_token_id = Fr254::from_hex_string(&nf_token_id)
+        .map_err(|_| warp::reject::custom(crate::domain::error::ClientRejection::InvalidTokenId))?;
     let token_info = N::get_token_info(nf_token_id)
         .await
         .map_err(|_| warp::reject::custom(crate::domain::error::ClientRejection::NoSuchToken))?;

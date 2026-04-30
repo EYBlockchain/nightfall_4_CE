@@ -54,11 +54,6 @@ sha2 = { version = "0.10.9", default-features = false }
 [dev-dependencies]
 criterion = { version = "0.4", features = ["html_reports"] }
 
-[[bench]]
-name = "bench_deposit"
-harness = false
-
 [features]
 parallel = ["ark-std/parallel", "ark-ff/parallel", "ark-poly/parallel", "ark-ec/parallel"]
-
 

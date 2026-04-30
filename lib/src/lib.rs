@@ -5,7 +5,7 @@ pub mod client_models;
 pub mod commitments;
 pub mod constants;
 pub mod contract_conversions;
-pub mod deposit_circuit;
+pub mod deposit_witness;
 pub mod derive_key;
 pub mod error;
 pub mod health_check;

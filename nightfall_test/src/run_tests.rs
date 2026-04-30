@@ -796,7 +796,6 @@ pub async fn run_tests(
     ));
     debug!("transaction_erc3525_transfer_1 has been created");
 
-
     transaction_ids.push(create_nf3_transfer_transaction(
         zkp_key2.clone(),
         &http_client,

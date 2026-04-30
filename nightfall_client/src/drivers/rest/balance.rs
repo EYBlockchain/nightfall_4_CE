@@ -4,8 +4,9 @@ use crate::{
 use alloy::primitives::U256;
 use ark_ff::{BigInteger, PrimeField};
 use lib::{
-    blockchain_client::BlockchainClientConnection, get_fee_token_id, hex_conversion::HexConvertible,
-    initialisation::get_blockchain_client_connection, nf_token_id::to_nf_token_id_from_str,
+    blockchain_client::BlockchainClientConnection, get_fee_token_id,
+    hex_conversion::HexConvertible, initialisation::get_blockchain_client_connection,
+    nf_token_id::to_nf_token_id_from_str,
 };
 use std::future::Future;
 use warp::{http::StatusCode, path, reply::Reply, Filter};
@@ -91,7 +92,9 @@ where
     }
 }
 
-async fn handle_get_fee_balance_with<F, Fut>(fetch_balance: F) -> Result<impl Reply, warp::Rejection>
+async fn handle_get_fee_balance_with<F, Fut>(
+    fetch_balance: F,
+) -> Result<impl Reply, warp::Rejection>
 where
     F: FnOnce() -> Fut,
     Fut: Future<Output = Option<ark_bn254::Fr>>,
@@ -164,10 +167,7 @@ mod tests {
         let body = to_bytes(response.into_body()).await.unwrap();
 
         assert_eq!(status, StatusCode::NOT_FOUND);
-        assert_eq!(
-            std::str::from_utf8(&body).unwrap(),
-            "No such token"
-        );
+        assert_eq!(std::str::from_utf8(&body).unwrap(), "No such token");
     }
 
     #[tokio::test]

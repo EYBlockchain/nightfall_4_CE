@@ -3,9 +3,9 @@ use crate::{
     derive_key::ZKPKeys,
     hex_conversion::HexConvertible,
     nf_client_proof::{PrivateInputs, PublicInputs},
-    nf_token_id::to_nf_token_id_from_str,
+    nf_token_id::{to_nf_slot_id_from_str, to_nf_token_id_from_str},
     secret_hash::SecretHash,
-    shared_entities::{DepositSecret, Preimage, Salt},
+    shared_entities::{DepositData, DepositSecret, Preimage, Salt},
 };
 use alloy::primitives::{hex, keccak256};
 use ark_bn254::Fr as Fr254;
@@ -93,7 +93,7 @@ pub fn build_valid_transfer_inputs(rng: &mut impl Rng) -> (PublicInputs, Private
     let token_id_string = Fr254::to_hex_string(&token_id_fr);
 
     let nf_token_id = to_nf_token_id_from_str(&erc_address_string, &token_id_string).unwrap();
-    let nf_slot_id = nf_token_id;
+    let nf_slot_id = to_nf_slot_id_from_str(&erc_address_string, &token_id_string).unwrap();
 
     // generate a 'random' fee token ID (we just use the keccak hash of 1)
     let fee_token_id = Fr254::from(BigUint::from_bytes_be(keccak256([1]).as_slice()) >> 4);
@@ -221,6 +221,7 @@ pub fn build_valid_transfer_inputs(rng: &mut impl Rng) -> (PublicInputs, Private
             nullified_three.get_secret_preimage().to_array(),
             nullified_four.get_secret_preimage().to_array(),
         ])
+        .deposit_data(&[DepositData::default(); 4])
         .root_key(keys.root_key)
         .public_keys(&[
             nullified_one.get_public_key(),

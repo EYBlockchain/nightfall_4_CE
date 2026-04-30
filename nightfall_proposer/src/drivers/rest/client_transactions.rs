@@ -65,12 +65,12 @@ mod tests {
     use super::*;
     use crate::drivers::rest::handle_rejection;
     use alloy::primitives::Bytes;
+    use ark_bn254::Fr as Fr254;
     use ark_serialize::SerializationError;
     use lib::{
         nf_client_proof::ProvingEngine,
         shared_entities::{ClientTransaction, CompressedSecrets},
     };
-    use ark_bn254::Fr as Fr254;
     use serde::{Deserialize, Serialize};
     use warp::{http::StatusCode, Filter};
 

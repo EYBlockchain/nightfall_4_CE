@@ -1,13 +1,8 @@
 //! Implementation of the [`NightfallContract`] trait from `ports/contracts.rs`.
 use crate::{domain::entities::TokenData, ports::contracts::NightfallContract};
-use alloy::primitives::{keccak256, Address, B256, I256, U256};
+use alloy::primitives::{Address, B256, I256, keccak256};
 use alloy::rpc::types::Filter;
-use alloy::{
-    consensus::Transaction,
-    dyn_abi::abi::encode,
-    providers::Provider,
-    sol_types::{SolInterface, SolValue},
-};
+use alloy::{consensus::Transaction, providers::Provider, sol_types::SolInterface};
 use ark_bn254::Fr as Fr254;
 use ark_ff::BigInteger256;
 use ark_std::Zero;
@@ -18,14 +13,13 @@ use lib::{
     error::NightfallContractError,
     initialisation::get_blockchain_client_connection,
     log_fetcher::get_logs_paginated,
-    nf_token_id::to_nf_token_id_from_solidity,
+    nf_token_id::{to_nf_slot_id_from_solidity, to_nf_token_id_from_solidity},
     secret_hash::SecretHash,
     shared_entities::{DepositSecret, TokenType, WithdrawData},
     verify_contract::VerifiedContracts,
 };
 use log::{debug, info};
-use nightfall_bindings::artifacts::{Nightfall, IERC3525};
-use num::BigUint;
+use nightfall_bindings::artifacts::{IERC3525, Nightfall};
 
 impl NightfallContract for Nightfall::NightfallCalls {
     async fn escrow_funds(
@@ -138,21 +132,11 @@ impl NightfallContract for Nightfall::NightfallCalls {
         };
 
         // We calculate the the nf_token_id and nf_slot_id here
-        let erc_token = solidity_token_address.0.tokenize();
         let nf_token_id =
             to_nf_token_id_from_solidity(solidity_token_address.0, solidity_token_id.0);
-        if slot_id == solidity_token_id.0 {
-            let nf_slot_id = nf_token_id;
-            Ok([nf_token_id, nf_slot_id])
-        } else {    
-            let slot_id_token = slot_id.tokenize();
-            let domain_token = U256::from(1u64).tokenize();
-            let nf_slot_id_biguint =
-                BigUint::from_bytes_be(keccak256(encode(&(erc_token, domain_token, slot_id_token))).as_slice())
-                    >> 4;
-            let nf_slot_id = Fr254::from(nf_slot_id_biguint);
-            Ok([nf_token_id, nf_slot_id])
-        }
+        let nf_slot_id =
+            to_nf_slot_id_from_solidity(solidity_token_address.0, solidity_token_id.0, slot_id);
+        Ok([nf_token_id, nf_slot_id])
     }
 
     fn get_address() -> Fr254 {

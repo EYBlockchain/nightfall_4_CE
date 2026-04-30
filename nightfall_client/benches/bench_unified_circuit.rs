@@ -24,10 +24,10 @@ use lib::{
     derive_key::ZKPKeys,
     hex_conversion::HexConvertible,
     nf_client_proof::{PrivateInputs, PublicInputs},
-    nf_token_id::to_nf_token_id_from_str,
+    nf_token_id::{to_nf_slot_id_from_str, to_nf_token_id_from_str},
     plonk_prover::circuits::unified_circuit::unified_circuit_builder,
     secret_hash::SecretHash,
-    shared_entities::{DepositSecret, Preimage, Salt},
+    shared_entities::{DepositData, DepositSecret, Preimage, Salt},
 };
 use nf_curves::ed_on_bn254::{BabyJubjub, Fq as Fr254, Fr as BJJScalar};
 use nightfall_client::driven::primitives::kemdem_functions::kemdem_encrypt;
@@ -187,7 +187,7 @@ fn build_valid_transfer_inputs() -> CircuitTestInfo {
     let token_id_string = Fr254::to_hex_string(&token_id_fr);
 
     let nf_token_id = to_nf_token_id_from_str(&erc_address_string, &token_id_string).unwrap();
-    let nf_slot_id = nf_token_id;
+    let nf_slot_id = to_nf_slot_id_from_str(&erc_address_string, &token_id_string).unwrap();
 
     let token_id = Fr254::from_hex_string(&token_id_string).unwrap();
 
@@ -273,7 +273,8 @@ fn build_valid_transfer_inputs() -> CircuitTestInfo {
         nullified_four,
     ];
     let spend_commitment_hashes = spend_commitments.map(|commitment| commitment.hash().unwrap());
-    let (mem_proofs, root) = generate_random_paths_with_shared_root(spend_commitment_hashes, &mut rng);
+    let (mem_proofs, root) =
+        generate_random_paths_with_shared_root(spend_commitment_hashes, &mut rng);
 
     // Work out what the change values will be
     let value_change = nullified_value_one + nullified_value_two - value;
@@ -317,6 +318,7 @@ fn build_valid_transfer_inputs() -> CircuitTestInfo {
             nullified_three.get_secret_preimage().to_array(),
             nullified_four.get_secret_preimage().to_array(),
         ])
+        .deposit_data(&[DepositData::default(); 4])
         .root_key(keys.root_key)
         .public_keys(&[
             nullified_one.get_public_key(),

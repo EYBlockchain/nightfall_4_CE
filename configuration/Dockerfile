@@ -14,11 +14,9 @@ COPY ./configuration/nginx.conf /etc/nginx/conf.d/default.conf
 
 # Copy static files (if any go into /var/www/html/bin)
 COPY ./configuration/bin/keys/proving_key /var/www/html/
-COPY ./configuration/bin/keys/deposit_proving_key /var/www/html/
 
 RUN chown -R nginx:nginx /var/www/html \     
     && chmod -R 755 /var/www/html  
 
 CMD ["nginx", "-g", "daemon off;"]
-
 
