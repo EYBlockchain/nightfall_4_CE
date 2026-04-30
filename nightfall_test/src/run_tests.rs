@@ -96,7 +96,7 @@ pub async fn run_tests(
         .join("v1/deriveKey")
         .unwrap();
     let key_request = test_settings.key_request;
-    let zkp_key1 = get_key(url, &key_request).await.unwrap();
+    let zkp_key = get_key(url, &key_request).await.unwrap();
     let url = Url::parse("http://client2:3000")
         .unwrap()
         .join("v1/deriveKey")
@@ -849,7 +849,7 @@ pub async fn run_tests(
         .join("v1/transfer")
         .unwrap();
     let same_slot_erc3525_transfer_id = create_nf3_transfer_transaction(
-        zkp_key1.clone(),
+        zkp_key.clone(),
         &http_client,
         client2_transfer_url.clone(),
         TokenType::ERC3525,
