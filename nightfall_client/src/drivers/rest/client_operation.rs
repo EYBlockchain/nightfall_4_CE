@@ -15,6 +15,7 @@ use crate::{
 };
 use alloy::rpc::types::TransactionReceipt;
 use ark_bn254::Fr as Fr254;
+use ark_ec::twisted_edwards::Affine as TEAffine;
 use configuration::addresses::get_addresses;
 use futures::future::join_all;
 use lib::{
@@ -28,6 +29,7 @@ use lib::{
     shared_entities::{ClientTransaction, Preimage},
 };
 use log::{debug, error, info, warn};
+use nf_curves::ed_on_bn254::BabyJubjub;
 use nf_curves::ed_on_bn254::Fr as BJJScalar;
 use nightfall_bindings::artifacts::ProposerManager;
 use reqwest::{Client, Error as ReqwestError};
@@ -37,6 +39,17 @@ use tokio::time::sleep;
 use url::Url;
 use warp::hyper::StatusCode;
 
+pub struct SwapParams {
+    pub party_a_public_key: TEAffine<BabyJubjub>,
+    pub party_b_public_key: TEAffine<BabyJubjub>,
+    pub token_a_id: Fr254,
+    pub value_a: Fr254,
+    pub token_b_id: Fr254,
+    pub value_b: Fr254,
+    pub swap_nonce: Fr254,
+    pub deadline: Fr254,
+}
+
 #[allow(clippy::too_many_arguments)]
 pub async fn handle_client_operation<P, E, N>(
     operation: Operation,
@@ -45,6 +58,7 @@ pub async fn handle_client_operation<P, E, N>(
     ephemeral_private_key: BJJScalar,
     recipient_address: Fr254,
     secret_preimages: [impl SecretHash; 4],
+    swap_params: Option<SwapParams>,
     id: &str,
 ) -> Result<NotificationPayload, TransactionHandlerError>
 where
@@ -116,16 +130,39 @@ where
     // spend_commitments[2] is the first fee spend commitment
     // spend_commitments[3] is the second fee spend commitment
 
-    let mut operation_result: ClientTransaction<P> = client_operation::<P, E>(
-        &spend_commitments,
-        &new_commitments,
-        root_key,
-        ephemeral_private_key,
-        recipient_address,
-        &secret_preimages,
-        id,
-    )
-    .await
+    let mut operation_result: ClientTransaction<P> = match swap_params {
+        Some(params) => {
+            crate::services::client_operation::swap_operation::<P, E>(
+                &spend_commitments,
+                &new_commitments,
+                root_key,
+                ephemeral_private_key,
+                &secret_preimages,
+                params.party_a_public_key,
+                params.party_b_public_key,
+                params.token_a_id,
+                params.value_a,
+                params.token_b_id,
+                params.value_b,
+                params.swap_nonce,
+                params.deadline,
+                id,
+            )
+            .await
+        }
+        None => {
+            client_operation::<P, E>(
+                &spend_commitments,
+                &new_commitments,
+                root_key,
+                ephemeral_private_key,
+                recipient_address,
+                &secret_preimages,
+                id,
+            )
+            .await
+        }
+    }
     .map_err(|e| {
         error!("{id} {e}");
         TransactionHandlerError::CustomError(e.to_string())

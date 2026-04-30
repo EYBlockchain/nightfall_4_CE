@@ -5,7 +5,7 @@ use crate::{
     services::assemble_block::assemble_block,
 };
 use alloy::{
-    primitives::{Address, TxHash, U64},
+    primitives::{Address, TxHash, I256, U64},
     providers::{Provider, RootProvider},
     rpc::types::{BlockId, BlockNumberOrTag},
     sol_types::SolEvent,
@@ -530,7 +530,13 @@ where
             continue;
         }
         debug!("Triggered block assembly");
-        let block_result = assemble_block::<P, R>().await;
+        if current_block_number < I256::ZERO {
+            error!(
+                "Block assembly aborted: contract returned negative current block number {current_block_number}"
+            );
+            continue;
+        }
+        let block_result = assemble_block::<P, R>(current_block_number.as_u64()).await;
         let block = match block_result {
             Ok(block) => block,
             Err(e) => match e {

@@ -8,6 +8,7 @@ use crate::{
         notifier::webhook_notifier::WebhookNotifier,
         primitives::kemdem_functions::kemdem_decrypt,
     },
+    drivers::rest::client_nf_3::SwapChildRequestArgs,
     drivers::rest::withdraw::handle_de_escrow,
     get_zkp_keys,
     initialisation::get_db_connection,
@@ -358,23 +359,37 @@ async fn process_propose_block_event<N: NightfallContract>(
                     .await;
                 if let Some(request) = db.get_request(&request_id).await {
                     if let Some(child_args_json) = request.child_request_args {
-                        match serde_json::from_str::<DeEscrowDataReq>(&child_args_json) {
-                            Ok(de_escrow_req) => {
-                                match handle_de_escrow(de_escrow_req).await {
-                                    Ok(_) => {
-                                        debug!("{request_id} De-escrow operation completed successfully");
-                                        db.clear_request_child_args(&request_id).await;
-                                    }
-                                    Err(e) => {
-                                        error!("{request_id} De-escrow operation failed: {e:?}");
-                                    }
+                        if let Ok(de_escrow_req) =
+                            serde_json::from_str::<DeEscrowDataReq>(&child_args_json)
+                        {
+                            match handle_de_escrow(de_escrow_req).await {
+                                Ok(_) => {
+                                    debug!(
+                                        "{request_id} De-escrow operation completed successfully"
+                                    );
+                                    db.clear_request_child_args(&request_id).await;
+                                }
+                                Err(e) => {
+                                    error!("{request_id} De-escrow operation failed: {e:?}");
                                 }
                             }
-                            Err(e) => {
+                        } else if let Ok(swap_args) =
+                            serde_json::from_str::<SwapChildRequestArgs>(&child_args_json)
+                        {
+                            if swap_args.deadline.is_some() {
+                                debug!(
+                                    "{request_id} Clearing swap child_request_args after confirmation"
+                                );
+                                db.clear_request_child_args(&request_id).await;
+                            } else {
                                 error!(
-                                    "{request_id} Failed to deserialize child_request_args: {e}"
+                                    "{request_id} Swap child_request_args missing deadline; refusing to clear ambiguous metadata"
                                 );
                             }
+                        } else {
+                            error!(
+                                "{request_id} Failed to deserialize child_request_args as de-escrow or swap metadata"
+                            );
                         }
                     }
                 }

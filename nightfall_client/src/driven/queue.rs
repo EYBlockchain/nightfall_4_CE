@@ -1,5 +1,5 @@
 use crate::{
-    domain::entities::RequestStatus,
+    domain::entities::{should_overwrite_request_status_with_failed, RequestStatus},
     driven::notifier::webhook_notifier::WebhookNotifier,
     drivers::{
         blockchain::{
@@ -13,7 +13,7 @@ use crate::{
 };
 use configuration::settings::get_settings;
 use lib::{
-    client_models::{NF3DepositRequest, NF3TransferRequest, NF3WithdrawRequest},
+    client_models::{NF3DepositRequest, NF3SwapRequest, NF3TransferRequest, NF3WithdrawRequest},
     nf_client_proof::{Proof, ProvingEngine},
     shared_entities::SynchronisationPhase::Desynchronized,
 };
@@ -23,6 +23,7 @@ use tokio::{
     sync::{OnceCell, RwLock},
     time::sleep,
 };
+
 /// This module implements a queue of received requests. Requests can be added to the queue
 /// asynchronously but are executed with a concurrency of 1.
 pub struct QueuedRequest {
@@ -33,6 +34,7 @@ pub enum TransactionRequest {
     Deposit(NF3DepositRequest),
     Transfer(NF3TransferRequest),
     Withdraw(NF3WithdrawRequest),
+    Swap(NF3SwapRequest),
 }
 
 /// This function is used to provide a singleton request queue across the entire application.
@@ -103,14 +105,51 @@ where
                 Err(e) => {
                     // Handle the error here
                     let db = get_db_connection().await;
-                    let _ = db
-                        .update_request(&request.uuid, RequestStatus::Failed)
-                        .await;
+                    let existing_request = db.get_request(&request.uuid).await;
+                    if should_overwrite_request_status_with_failed(existing_request.as_ref()) {
+                        let _ = db
+                            .update_request(&request.uuid, RequestStatus::Failed)
+                            .await;
+                    }
                     warn!("{} Error processing request: {:?}", request.uuid, e);
                 }
             }
         }
         // If the queue is empty, wait a bit then try again
         sleep(Duration::from_secs(1)).await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domain::entities::Request;
+
+    fn make_request(status: RequestStatus) -> Request {
+        Request {
+            status,
+            uuid: "test-request".to_string(),
+            child_request_args: None,
+        }
+    }
+
+    #[test]
+    fn should_overwrite_request_status_with_failed_only_for_queued_or_processing_requests() {
+        assert!(should_overwrite_request_status_with_failed(None));
+        assert!(should_overwrite_request_status_with_failed(Some(
+            &make_request(RequestStatus::Queued)
+        )));
+        assert!(should_overwrite_request_status_with_failed(Some(
+            &make_request(RequestStatus::Processing)
+        )));
+        assert!(!should_overwrite_request_status_with_failed(Some(
+            &make_request(RequestStatus::ProposerUnreachable)
+        )));
+        assert!(!should_overwrite_request_status_with_failed(Some(
+            &make_request(RequestStatus::Failed)
+        )));
+        assert!(!should_overwrite_request_status_with_failed(Some(
+            &make_request(RequestStatus::Submitted)
+        )));
     }
 }

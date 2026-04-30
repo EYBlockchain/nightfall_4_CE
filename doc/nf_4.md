@@ -534,6 +534,64 @@ The components of the JSON object have the following meaning:
 
 ***
 
+POST /v1/swap
+
+```sh
+curl -i \
+  -H 'Content-Type: application/json' \
+  -X POST 'http://localhost:3000/v1/swap' \
+  --data-raw '{
+    "partyA": {
+      "ercAddress": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+      "tokenId": "0x00",
+      "tokenType": "0x00",
+      "value": "0x0a",
+      "publicKey": "0572aa70f4e62bcb8f53a28a1c259bd6d3538818afcccc0d8598486973ec2f2a"
+    },
+    "partyB": {
+      "ercAddress": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
+      "tokenId": "0x00",
+      "tokenType": "0x00",
+      "value": "0x05",
+      "publicKey": "1a3b5c7d9e0f2a4b6c8d0e1f3a5b7c9d0e2f4a6b8c0d1e3f5a7b9c0d2e4f6a8"
+    },
+    "swapNonce": "0x01",
+    "deadline": "0x1000",
+    "fee": "0x00"
+  }'
+
+```
+Returns: `202 Accepted` on success, `503 Service Unavailable` if the transaction queue is full (set at 1000)
+
+Webhook returns: TransactionEvent object with a `uuid` field containing the `X-Request-ID` value from the corresponding transaction and a `response` field containing a json array that contains: the Client Transaction object and; the transaction receipt if the swap transaction was placed on chain, otherwise (the normal situation) "null".
+
+This call allows two parties to atomically exchange different token types. Both parties must submit the same request with identical parameters, including the exact same `partyA`/`partyB` ordering. The client detects the caller's role automatically from their ZKP key. Each party's transaction will nullify their own input commitments and create an output commitment for the counterparty. The swap is atomic: either both sides settle or neither does.
+
+**Important:** If the `partyA`/`partyB` ordering is reversed between the two parties, the computed `swap_link` will differ and the proposer will not match the two transactions. This results in pairing failure, not a security issue.
+
+The proposer matches two swap transactions by their `swap_link` (a hash of all swap parameters computed inside the circuit) and includes them in the same block. If the `deadline` has passed (i.e. the current L2 block number exceeds the deadline), the swap is rejected.
+
+The components of the JSON object have the following meaning:
+
+- `partyA`: The swap initiator's token details and identity.
+  - `ercAddress`: The Ethereum address of the ERC20|721|1155|3525 contract for party A's token.
+  - `tokenId`: The token ID of the token, for a 721|1155|3525 contract. It should be set to `"0x00"` for an ERC20 contract.
+  - `tokenType` (optional): The token type. `"0x00"` for ERC20 (default), `"0x01"` for ERC1155, `"0x02"` for ERC721, `"0x03"` for ERC3525.
+  - `value`: The amount party A is offering in the swap.
+  - `publicKey`: The compressed ZKP public key of party A. See the section on key derivation for more details.
+- `partyB`: The counterparty's token details and identity.
+  - `ercAddress`: The Ethereum address of the ERC20|721|1155|3525 contract for party B's token.
+  - `tokenId`: The token ID of the token, for a 721|1155|3525 contract. It should be set to `"0x00"` for an ERC20 contract.
+  - `tokenType` (optional): The token type. `"0x00"` for ERC20 (default), `"0x01"` for ERC1155, `"0x02"` for ERC721, `"0x03"` for ERC3525.
+  - `value`: The amount party B is offering in the swap.
+  - `publicKey`: The compressed ZKP public key of party B. See the section on key derivation for more details.
+- `swapNonce`: A unique nonce to identify this swap. Must be non-zero and fit within 64 bits.
+- `deadline`: The L2 block number after which the swap expires. Must be non-zero and fit within 64 bits. Deadline expiry is enforced by the proposer against the current L2 block number.
+- `fee`: The amount that will be paid to the `proposer` which processes this transaction. Must fit within 96 bits.
+- `partyA.value`, `partyB.value`: must each fit within 96 bits.
+
+***
+
 POST /v1/withdraw
 
 ```sh

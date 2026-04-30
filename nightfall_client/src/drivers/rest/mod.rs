@@ -15,7 +15,7 @@ use warp::{
 };
 
 use self::{
-    client_nf_3::{deposit_request, transfer_request, withdraw_request},
+    client_nf_3::{deposit_request, swap_request, transfer_request, withdraw_request},
     commitment::{
         get_all_commitments, get_commitment, get_commitments_by_token_type,
         get_max_transferable_amount_by_token_type,
@@ -46,6 +46,7 @@ where
         .or(deposit_request::<P>())
         .or(transfer_request::<P>())
         .or(withdraw_request::<P>())
+        .or(swap_request::<P>())
         .or(get_commitment())
         .or(get_all_commitments())
         .or(get_commitments_by_token_type())
@@ -57,7 +58,7 @@ where
         .or(get_balance())
         .or(get_fee_balance())
         .or(synchronisation::<N>())
-        .or(get_request_status())
+        .or(get_request_status::<N>())
         .or(get_queue_length())
         .or(get_token_info::<N>())
         .or(get_l1_balance())
