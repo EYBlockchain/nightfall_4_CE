@@ -154,6 +154,8 @@ where
             historic_roots: helper.historic_roots,
         })
     }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TransferReceiptStatus {
