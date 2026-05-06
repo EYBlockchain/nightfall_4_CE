@@ -1,6 +1,6 @@
 use alloy::{
     primitives::{keccak256, Address, B256, I256},
-    rpc::types::Filter,
+    rpc::types::{Filter, TransactionReceipt},
     signers::local::PrivateKeySigner as LocalWallet,
 };
 use ark_bn254::Fr as Fr254;

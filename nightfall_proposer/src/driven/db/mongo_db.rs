@@ -1,7 +1,7 @@
 use crate::{
     domain::entities::{
         ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot, TransferReceipt,
-        TransferReceiptStatus, TxHashBytes,
+        TransferReceiptStatus, TxHashBytes, TxLifecycle,
     },
     ports::db::{
         BlockStorageDB, HistoricRootsDB, TransactionsDB, TransferReceiptDB,

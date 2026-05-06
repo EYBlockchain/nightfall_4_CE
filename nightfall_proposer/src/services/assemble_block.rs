@@ -11,7 +11,6 @@ use crate::{
 };
 use ark_bn254::Fr as Fr254;
 use ark_std::{collections::HashSet, Zero};
-use bson::doc;
 use jf_primitives::poseidon::{FieldHasher, Poseidon};
 use lib::{
     blockchain_client::BlockchainClientConnection,

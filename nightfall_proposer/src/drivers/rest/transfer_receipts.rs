@@ -107,7 +107,7 @@ async fn handle_create_transfer_receipt<P: Proof>(
         .ok_or_else(|| warp::reject::custom(ProposerRejection::TransferReceiptTxNotFound))?;
 
     let now = unix_now() as i64;
-    let status = derive_status(tx_meta.block_l2);
+    let status = derive_status(tx_meta.lifecycle.block_l2());
     let receipt_id = generate_receipt_id();
     let receipt = TransferReceipt {
         receipt_id: receipt_id.clone(),
@@ -210,7 +210,7 @@ async fn refresh_status<P: Proof>(db: &mongodb::Client, receipt: &mut TransferRe
     if let Some(tx_meta) =
         <mongodb::Client as TransactionsDB<P>>::get_transaction(db, &tx_hash).await
     {
-        let status = derive_status(tx_meta.block_l2);
+        let status = derive_status(tx_meta.lifecycle.block_l2());
         if status != receipt.status {
             let updated_at_unix = unix_now() as i64;
             if db
