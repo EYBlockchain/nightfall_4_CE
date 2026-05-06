@@ -11,13 +11,32 @@ use alloy::{
 use async_trait::async_trait;
 use azure_identity;
 use azure_security_keyvault::{prelude::*, KeyClient};
-use base64::prelude::*;
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use configuration::settings::{WalletRole, WalletTypeConfig};
 use k256::ecdsa::{RecoveryId, Signature as K256Signature, VerifyingKey};
 use k256::EncodedPoint;
 use log::{debug, info};
 use std::sync::Arc;
 use url::Url;
+
+pub(crate) fn validate_azure_vault_url(
+    vault_url: &str,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let url = Url::parse(vault_url)?;
+
+    // Refuse non-HTTPS endpoints
+    if url.scheme() != "https" {
+        return Err("Vault URL must use HTTPS".into());
+    }
+
+    // Enforce vault_url allow-list (*.vault.azure.net)
+    let host = url.host_str().ok_or("Invalid host")?;
+    if !host.ends_with(".vault.azure.net") {
+        return Err("Vault URL must be *.vault.azure.net".into());
+    }
+
+    Ok(())
+}
 
 #[derive(Clone, Debug)]
 pub enum WalletType {
@@ -79,7 +98,7 @@ impl AzureWallet {
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         info!(" Creating Azure Wallet");
 
-        Self::validate_vault_url(vault_url)?;
+        validate_azure_vault_url(vault_url)?;
         // Create credential and KeyClient to communicate with Azure
         let credential = azure_identity::create_credential()?;
         let key_client = KeyClient::new(vault_url, credential)?;
@@ -102,27 +121,6 @@ impl AzureWallet {
         })
     }
 
-    /// Validates Azure Key Vault URL to prevent security vulnerabilities
-    ///
-    /// Added strict vault_url validation (HTTPS + *.vault.azure.net allow-list)
-    /// to prevent token exfiltration or key substitution attacks.
-    fn validate_vault_url(vault_url: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let url = Url::parse(vault_url)?;
-
-        // Refuse non-HTTPS endpoints
-        if url.scheme() != "https" {
-            return Err("Vault URL must use HTTPS".into());
-        }
-
-        // Enforce vault_url allow-list (*.vault.azure.net)
-        let host = url.host_str().ok_or("Invalid host")?;
-        if !host.ends_with(".vault.azure.net") {
-            return Err("Vault URL must be *.vault.azure.net".into());
-        }
-
-        Ok(())
-    }
-
     /// Sign a message hash using the Azure Key Vault key
     /// ---------------------------------------------------
     /// The private key never leaves the HSM. The signature returned is Ethereum-compatible.
@@ -131,8 +129,8 @@ impl AzureWallet {
         message_hash: &[u8; 32],
     ) -> Result<Signature, Box<dyn std::error::Error + Send + Sync>> {
         info!(" Signing with Azure Key Vault");
-        // Encode message hash in Base64 (required by Azure
-        let digest_base64 = BASE64_STANDARD.encode(message_hash);
+        // Encode the digest in JWA-style base64url before sending it to Key Vault.
+        let digest_base64 = URL_SAFE_NO_PAD.encode(message_hash);
 
         // Request signature from Azure Key Vault
         let sign_result = self

@@ -5,6 +5,7 @@ use crate::{
     initialisation::get_blockchain_client_connection_for_role,
     models::bad_request,
     verify_contract::VerifiedContracts,
+    wallets::validate_azure_vault_url,
 };
 use alloy::{
     primitives::{Address, U256},
@@ -92,6 +93,7 @@ pub struct AzureRsaCertificateSigner {
 
 impl AzureRsaCertificateSigner {
     pub fn new(vault_url: &str, key_name: &str) -> CertificateSignerResult<Self> {
+        validate_azure_vault_url(vault_url)?;
         let credential = azure_identity::create_credential()?;
         let key_client = KeyClient::new(vault_url, credential)?;
 
