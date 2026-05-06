@@ -456,22 +456,25 @@ async fn process_propose_block_event<N: NightfallContract>(
             let nullifier = test_preimage
                 .nullifier_hash(&nullifier_key)
                 .map_err(|_| EventHandlerError::HashError)?;
-            let token_type = N::get_token_info(decrypt[0])
-                .await
-                .map_err(|_| {
-                    EventHandlerError::IOError("Could not retrieve token type".to_string())
-                })?
-                .token_type;
-            let commitment_entry = CommitmentEntry::new(
+            let token_info = N::get_token_info(decrypt[0]).await.map_err(|_| {
+                EventHandlerError::IOError("Could not retrieve token info".to_string())
+            })?;
+            let slot_info = N::get_slot_info(decrypt[1]).await.map_err(|_| {
+                EventHandlerError::IOError("Could not retrieve slot info".to_string())
+            })?;
+
+            let mut commitment_entry = CommitmentEntry::new(
                 test_preimage,
                 nullifier,
                 CommitmentStatus::Unspent,
-                token_type,
+                token_info.token_type,
                 Some(transaction_hash),
                 Some(filter.layer2_block_number)
                     .filter(|&b| b >= I256::ZERO)
                     .and_then(|b| i64::try_from(b).ok()),
             );
+            commitment_entry.native_token_id = Some(token_info.token_id.to_hex_string());
+            commitment_entry.native_slot_id = Some(slot_info.slot_id.to_hex_string());
             commitment_entries.push(commitment_entry);
         }
     }

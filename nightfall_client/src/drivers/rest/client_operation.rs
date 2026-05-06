@@ -108,14 +108,14 @@ where
                 && commitment.get_preimage() != Preimage::default()
             {
                 let nf_token_id = commitment.get_nf_token_id();
-                let token_type = N::get_token_info(nf_token_id)
+                let token_info = N::get_token_info(nf_token_id)
                     .await
-                    .map_err(|e| TransactionHandlerError::CustomError(e.to_string()))?
-                    .token_type;
+                    .map_err(|e| TransactionHandlerError::CustomError(e.to_string()))?;
+                let token_type = token_info.token_type;
                 let nullifier = commitment
                     .nullifier_hash(&nullifier_key)
                     .expect("Nullifiers must be hashable");
-                let commitment_entry = CommitmentEntry::new(
+                let mut commitment_entry = CommitmentEntry::new(
                     commitment.get_preimage(),
                     nullifier,
                     CommitmentStatus::PendingCreation,
@@ -123,6 +123,18 @@ where
                     None,
                     None,
                 );
+
+                commitment_entry.native_token_id = Some(token_info.token_id.to_hex_string());
+                match N::get_slot_info(commitment.get_nf_slot_id()).await {
+                    Ok(slot_info) => {
+                        commitment_entry.native_slot_id = Some(slot_info.slot_id.to_hex_string());
+                    }
+                    Err(e) => {
+                        warn!(
+                            "{id} Could not enrich commitment with native slot metadata: {e}"
+                        );
+                    }
+                }
                 commitment_entries.push(commitment_entry);
             }
         }

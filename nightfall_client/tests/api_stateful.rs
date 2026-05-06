@@ -12,7 +12,7 @@ use lib::{
 use mongodb::bson::doc;
 use nightfall_bindings::artifacts::Nightfall;
 use nightfall_client::{
-    domain::entities::{CommitmentStatus, RequestStatus, TokenData},
+    domain::entities::{CommitmentStatus, RequestStatus, SlotData, TokenData},
     driven::db::mongo::{CommitmentEntry, DB},
     drivers::rest::routes,
     initialisation::get_db_connection,
@@ -62,6 +62,10 @@ impl NightfallContract for MockNightfall {
 
     async fn get_token_info(_nf_token_id: Fr254) -> Result<TokenData, NightfallContractError> {
         panic!("get_token_info should not be called in api_stateful test")
+    }
+
+    async fn get_slot_info(_nf_slot_id: Fr254) -> Result<SlotData, NightfallContractError> {
+        panic!("get_slot_info should not be called in api_stateful test")
     }
 
     async fn get_layer2_block_by_number(

@@ -1,5 +1,8 @@
 //! Implementation of the [`NightfallContract`] trait from `ports/contracts.rs`.
-use crate::{domain::entities::TokenData, ports::contracts::NightfallContract};
+use crate::{
+    domain::entities::{SlotData, TokenData},
+    ports::contracts::NightfallContract,
+};
 use alloy::primitives::{keccak256, Address, B256, I256};
 use alloy::rpc::types::Filter;
 use alloy::{
@@ -343,6 +346,45 @@ impl NightfallContract for Nightfall::NightfallCalls {
             token_type: TokenType::from(token_info.tokenType),
         })
     }
+
+    async fn get_slot_info(nf_slot_id: Fr254) -> Result<SlotData, NightfallContractError> {
+        let blockchain_client = get_blockchain_client_connection()
+            .await
+            .read()
+            .await
+            .get_client();
+        let signer = get_blockchain_client_connection()
+            .await
+            .read()
+            .await
+            .get_signer();
+        let client = blockchain_client.root();
+        let verified =
+            VerifiedContracts::resolve_and_verify_contract(client.clone(), get_addresses())
+                .await
+                .map_err(|e| {
+                    NightfallContractError::ContractVerificationError(format!(
+                        "Contract verification failed during get_slot_info: {e}"
+                    ))
+                })?;
+        let nightfall = verified.nightfall;
+
+        let slot_info = nightfall
+            .getSlotInfo(Uint256::from(nf_slot_id).0)
+            .from(signer.address())
+            .call()
+            .await
+            .map_err(|e| {
+                NightfallContractError::EscrowError(format!("Error getting slot info: {e}"))
+            })?;
+
+        Ok(SlotData {
+            erc_address: FrBn254::from(slot_info.ercAddress).into(),
+            slot_id: BigInteger256::from(Uint256(slot_info.slotId)),
+            token_type: TokenType::from(slot_info.tokenType),
+        })
+    }
+
     // given a layer 2 block number, return the layer 2 block and the sender address
     async fn get_layer2_block_by_number(
         block_number: I256,

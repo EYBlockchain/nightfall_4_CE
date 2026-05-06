@@ -137,7 +137,9 @@ async fn handle_rejection(err: Rejection) -> Result<impl Reply, std::convert::In
 mod tests {
     use super::*;
     use crate::{
-        domain::entities::TokenData, driven::queue::get_queue, ports::contracts::NightfallContract,
+        domain::entities::{SlotData, TokenData},
+        driven::queue::get_queue,
+        ports::contracts::NightfallContract,
     };
     use alloy::primitives::{Address, I256};
     use ark_bn254::Fr as Fr254;
@@ -201,6 +203,10 @@ mod tests {
             }
         }
 
+        async fn get_slot_info(_nf_slot_id: Fr254) -> Result<SlotData, NightfallContractError> {
+            panic!("get_slot_info should not be called in these route tests")
+        }
+
         async fn get_layer2_block_by_number(
             _block_number: I256,
         ) -> Result<(Address, Nightfall::Block), NightfallContractError> {
@@ -246,6 +252,10 @@ mod tests {
 
         async fn get_token_info(_nf_token_id: Fr254) -> Result<TokenData, NightfallContractError> {
             panic!("get_token_info should not be called in these route tests")
+        }
+
+        async fn get_slot_info(_nf_slot_id: Fr254) -> Result<SlotData, NightfallContractError> {
+            panic!("get_slot_info should not be called in these route tests")
         }
 
         async fn get_layer2_block_by_number(
