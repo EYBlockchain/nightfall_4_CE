@@ -13,7 +13,7 @@ use alloy::{
 use async_trait::async_trait;
 use azure_identity;
 use azure_security_keyvault::{prelude::*, KeyClient};
-use base64::prelude::*;
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use configuration::{
     addresses::get_addresses,
     settings::{get_settings, WalletRole, X509SignerTypeConfig},
@@ -112,7 +112,7 @@ impl CertificateSigner for AzureRsaCertificateSigner {
     ) -> CertificateSignerResult<Vec<u8>> {
         let preimage = build_certificate_possession_preimage(address, verifying_contract, chain_id);
         let digest = sha256(&preimage);
-        let digest_base64 = BASE64_STANDARD.encode(digest);
+        let digest_base64 = URL_SAFE_NO_PAD.encode(digest);
 
         let sign_result = self
             .key_client
@@ -301,6 +301,21 @@ pub async fn handle_certificate_validation(
             return Ok(warp::reply::with_status(body, StatusCode::ACCEPTED));
         }
     };
+
+    if x509_signer_type == X509SignerTypeConfig::Azure {
+        if let Err(e) = verify_signature_matches_certificate(
+            &certificate_req.certificate,
+            &requestor_address,
+            &ethereum_address_signature,
+            &x509_addr,
+            chain_id,
+        ) {
+            warn!("Certificate/signature mismatch before on-chain validation: {e}");
+            return Ok(bad_request(
+                "Certificate does not match the configured signer",
+            ));
+        }
+    }
 
     // 4) ENROLL (state-changing): write the binding on-chain and await receipt.
     // We want one API that validates AND enrolls, so we do the write:
@@ -622,6 +637,44 @@ fn prevalidate_certificate(cert_der: &[u8]) -> Result<(), CertificateVerificatio
     Ok(())
 }
 
+fn verify_signature_matches_certificate(
+    cert_der: &[u8],
+    address: &Address,
+    signature: &[u8],
+    verifying_contract: &Address,
+    chain_id: u64,
+) -> Result<(), CertificateVerificationError> {
+    let cert = OpensslX509::from_der(cert_der).map_err(|e| {
+        error!("X.509 parse error while verifying certificate/signature match: {e}");
+        prevalidation_error("Invalid X.509 certificate (DER parsing failed)")
+    })?;
+
+    let pubkey = cert.public_key().map_err(|e| {
+        error!("Failed to extract public key from certificate: {e}");
+        prevalidation_error("Cannot extract public key from certificate")
+    })?;
+
+    let is_valid = verify_ethereum_address_signature(
+        &pubkey,
+        address,
+        signature,
+        verifying_contract,
+        chain_id,
+    )
+    .map_err(|e| {
+        error!("Failed to verify signature with certificate public key: {e}");
+        prevalidation_error("Failed to verify signature with certificate public key")
+    })?;
+
+    if !is_valid {
+        return Err(prevalidation_error(
+            "Certificate public key does not match configured signer",
+        ));
+    }
+
+    Ok(())
+}
+
 #[allow(dead_code)]
 fn verify_ethereum_address_signature(
     pkey: &PKey<openssl::pkey::Public>,
@@ -699,7 +752,7 @@ mod tests {
             "--{boundary}\r\nContent-Disposition: form-data; name=\"certificate\"; filename=\"cert.der\"\r\nContent-Type: application/octet-stream\r\n\r\nabc\r\n--{boundary}--\r\n"
         );
 
-        let filter = certification_validation_request();
+        let filter = certification_validation_request(WalletRole::Client);
         let res = warp::test::request()
             .method("POST")
             .path("/v1/certification")
@@ -724,7 +777,7 @@ mod tests {
             "--{boundary}\r\nContent-Disposition: form-data; name=\"unexpected\"; filename=\"file.bin\"\r\nContent-Type: application/octet-stream\r\n\r\nabc\r\n--{boundary}--\r\n"
         );
 
-        let filter = certification_validation_request();
+        let filter = certification_validation_request(WalletRole::Client);
         let res = warp::test::request()
             .method("POST")
             .path("/v1/certification")
