@@ -309,16 +309,9 @@ impl NightfallContract for Nightfall::NightfallCalls {
     }
 
     async fn get_slot_info(nf_slot_id: Fr254) -> Result<SlotData, NightfallContractError> {
-        let blockchain_client = get_blockchain_client_connection()
-            .await
-            .read()
-            .await
-            .get_client();
-        let signer = get_blockchain_client_connection()
-            .await
-            .read()
-            .await
-            .get_signer();
+        let read_connection = get_blockchain_client_connection().await.read().await;
+        let blockchain_client = read_connection.get_client();
+        let caller = read_connection.get_address();
         let client = blockchain_client.root();
         let verified =
             VerifiedContracts::resolve_and_verify_contract(client.clone(), get_addresses())
@@ -332,7 +325,7 @@ impl NightfallContract for Nightfall::NightfallCalls {
 
         let slot_info = nightfall
             .getSlotInfo(Uint256::from(nf_slot_id).0)
-            .from(signer.address())
+            .from(caller)
             .call()
             .await
             .map_err(|e| {
