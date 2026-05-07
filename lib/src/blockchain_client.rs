@@ -3,9 +3,9 @@ use crate::wallets::WalletType;
 use alloy::primitives::{Address, U256};
 use alloy::providers::Provider;
 use alloy::pubsub::PubSubConnect;
-use alloy::signers::local::PrivateKeySigner;
 use alloy::signers::Signer;
 use async_trait::async_trait;
+use configuration::settings::WalletRole;
 use serde::Deserialize;
 use std::{marker::Sync, sync::Arc};
 use url::Url;
@@ -30,15 +30,14 @@ pub trait BlockchainClientConnection: Clone + Send + Sync {
 
     fn get_wallet_type(&self) -> &WalletType;
 
-    fn get_signer(&self) -> Arc<PrivateKeySigner>
-    where
-        Self: Sized;
-
     async fn new(url: Url, wallet: Self::W) -> Result<Self, BlockchainClientConnectionError>
     where
         Self: Sized;
 
-    async fn try_from_settings(settings: &Self::S) -> Result<Self, BlockchainClientConnectionError>
+    async fn try_from_settings(
+        settings: &Self::S,
+        role: WalletRole,
+    ) -> Result<Self, BlockchainClientConnectionError>
     where
         Self: Sized;
 }

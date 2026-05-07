@@ -8,6 +8,7 @@ use crate::drivers::rest::{
 use block_assembly::{
     get_block_assembly_status_route, pause_block_assembly, resume_block_assembly,
 };
+use configuration::settings::WalletRole;
 use lib::{
     health_check::health_route,
     nf_client_proof::{Proof, ProvingEngine},
@@ -40,7 +41,7 @@ where
         .or(add_proposer())
         .or(remove_proposer())
         .or(withdraw())
-        .or(certification_validation_request())
+        .or(certification_validation_request(WalletRole::Proposer))
         .or(keys_validation_request())
         .or(synchronisation())
         .or(pause_block_assembly())
