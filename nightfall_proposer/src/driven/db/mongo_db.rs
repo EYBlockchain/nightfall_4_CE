@@ -585,6 +585,20 @@ impl BlockStorageDB for mongodb::Client {
             .ok()?;
         Some(())
     }
+
+    async fn delete_block_by_number_with_session(
+        &self,
+        block_number: u64,
+        session: &mut mongodb::ClientSession,
+    ) -> Result<(), mongodb::error::Error> {
+        let filter = doc! { "layer2_block_number": block_number as i64 };
+        self.database(DB)
+            .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
+            .delete_one(filter)
+            .session(&mut *session)
+            .await?;
+        Ok(())
+    }
 }
 
 #[async_trait::async_trait]
@@ -619,6 +633,18 @@ impl SyncStateDB for mongodb::Client {
             .find_one(doc! { "_id": SyncState::DOCUMENT_ID })
             .await
             .ok()?
+    }
+
+    async fn delete_sync_state_with_session(
+        &self,
+        session: &mut mongodb::ClientSession,
+    ) -> Result<(), mongodb::error::Error> {
+        self.database(DB)
+            .collection::<SyncState>(SYNC_STATE_COLLECTION)
+            .delete_one(doc! { "_id": SyncState::DOCUMENT_ID })
+            .session(&mut *session)
+            .await?;
+        Ok(())
     }
 }
 

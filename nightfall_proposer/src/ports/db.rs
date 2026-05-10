@@ -26,6 +26,15 @@ pub trait BlockStorageDB {
     async fn get_block_by_number(&self, block_number: u64) -> Option<StoredBlock>;
     async fn get_all_blocks(&self) -> Option<Vec<StoredBlock>>;
     async fn delete_block_by_number(&self, block_number: u64) -> Option<()>;
+    async fn delete_block_by_number_with_session(
+        &self,
+        block_number: u64,
+        _session: &mut mongodb::ClientSession,
+    ) -> Result<(), mongodb::error::Error> {
+        self.delete_block_by_number(block_number)
+            .await
+            .ok_or_else(|| mongodb::error::Error::custom("Could not delete proposed block"))
+    }
 }
 
 #[async_trait::async_trait]
@@ -37,6 +46,13 @@ pub trait SyncStateDB {
     ) -> Result<(), mongodb::error::Error>;
 
     async fn get_sync_state(&self) -> Option<SyncState>;
+
+    async fn delete_sync_state_with_session(
+        &self,
+        _session: &mut mongodb::ClientSession,
+    ) -> Result<(), mongodb::error::Error> {
+        Ok(())
+    }
 }
 /// Used to store transactions that are on chain. Can be queried to see if a nullifier or commitment is on chain.
 #[async_trait::async_trait]

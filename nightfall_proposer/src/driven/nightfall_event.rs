@@ -261,8 +261,32 @@ where
                     "Block hash mismatch. Expected {current_block_stored_hash}, got {block_store_pending_hash} in layer 2 block {layer_2_block_number_in_event}"
                 );
 
-                // Delete the invalid block and clear sync status
-                db.delete_block_by_number(expected_block_number_u64).await;
+                let db_for_cleanup = db.clone();
+                let block_number_for_cleanup = expected_block_number_u64;
+                let mut session = db.start_session().await.map_err(|_| {
+                    EventHandlerError::IOError(
+                        "Could not start MongoDB session for mismatch cleanup".to_string(),
+                    )
+                })?;
+
+                session
+                    .start_transaction()
+                    .and_run2(async move |session| {
+                        db_for_cleanup
+                            .delete_block_by_number_with_session(block_number_for_cleanup, session)
+                            .await?;
+                        db_for_cleanup
+                            .delete_sync_state_with_session(session)
+                            .await?;
+                        Ok::<(), mongodb::error::Error>(())
+                    })
+                    .await
+                    .map_err(|e| {
+                        EventHandlerError::IOError(format!(
+                            "Could not clean up mismatched proposer block state: {e}"
+                        ))
+                    })?;
+
                 sync_status.clear_synchronised();
 
                 return Err(EventHandlerError::BlockHashError(
