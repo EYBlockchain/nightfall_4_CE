@@ -281,7 +281,7 @@ services:
       - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
       - AZURE_TENANT_ID=${AZURE_TENANT_ID}
       - NF4_NIGHTFALL_PROPOSER__URL=http://proposer2:3000
-      - NF4_NIGHTFALL_PROPOSER__DB_URL=mongodb://nf4_db_proposer2:27017
+      - NF4_NIGHTFALL_PROPOSER__DB_URL=mongodb://nf4_db_proposer2:27017/?replicaSet=nf4-rs-proposer2&directConnection=true
 
   db_client:
     container_name: nf4_db_client
@@ -336,6 +336,7 @@ services:
 
   db_proposer:
     container_name: nf4_db_proposer
+    hostname: nf4_db_proposer
     stop_grace_period: 3s
     profiles:
       - proposer
@@ -348,12 +349,16 @@ services:
     ports:
       - "27018:27017"    
     healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017 --quiet || exit 1
+      test:
+        [
+          "CMD-SHELL",
+          "echo 'try { rs.status(); } catch (e) { rs.initiate({_id: \"nf4-rs-proposer\", members: [{ _id: 0, host: \"nf4_db_proposer:27017\" }]}); } const hello = db.hello(); if (!(hello.isWritablePrimary || hello.ismaster)) { quit(1); }' | mongosh localhost:27017 --quiet || exit 1",
+        ]
       interval: 10s
       timeout: 90s
       retries: 10
       start_period: 0s
-    command: mongod --quiet --logpath /dev/null 
+    command: mongod --replSet nf4-rs-proposer --bind_ip_all --quiet --logpath /dev/null
     networks:
       - nightfall_network
   #  volumes:
@@ -363,6 +368,7 @@ services:
 
   db_proposer2:
     container_name: nf4_db_proposer2
+    hostname: nf4_db_proposer2
     stop_grace_period: 3s
     profiles:
       - sync_test
@@ -370,12 +376,16 @@ services:
     ports:
       - "27019:27017"    
     healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017 --quiet || exit 1
+      test:
+        [
+          "CMD-SHELL",
+          "echo 'try { rs.status(); } catch (e) { rs.initiate({_id: \"nf4-rs-proposer2\", members: [{ _id: 0, host: \"nf4_db_proposer2:27017\" }]}); } const hello = db.hello(); if (!(hello.isWritablePrimary || hello.ismaster)) { quit(1); }' | mongosh localhost:27017 --quiet || exit 1",
+        ]
       interval: 10s
       timeout: 90s
       retries: 10
       start_period: 0s
-    command: mongod --quiet --logpath /dev/null 
+    command: mongod --replSet nf4-rs-proposer2 --bind_ip_all --quiet --logpath /dev/null
     networks:
       - nightfall_network
     environment:
