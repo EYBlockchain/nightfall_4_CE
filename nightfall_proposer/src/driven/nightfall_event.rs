@@ -1,5 +1,6 @@
 use crate::{
     domain::entities::DepositDatawithFee,
+    domain::entities::{L1Ref, SyncState},
     driven::{
         db::mongo_db::StoredBlock, nightfall_client_transaction::process_deposit_transaction,
     },
@@ -7,13 +8,14 @@ use crate::{
     initialisation::{get_blockchain_client_connection, get_db_connection},
     ports::{
         contracts::NightfallContract,
-        db::BlockStorageDB,
+        db::{BlockStorageDB, SyncStateDB},
         events::EventHandler,
         trees::{CommitmentTree, HistoricRootTree, NullifierTree},
     },
     services::selected_transactions::reconcile_orphaned_selected_transactions,
 };
 use alloy::primitives::{TxHash, I256};
+use alloy::rpc::types::Log;
 use alloy::{consensus::Transaction, sol_types::SolInterface};
 use ark_bn254::Fr as Fr254;
 use ark_ff::BigInteger;
@@ -81,12 +83,16 @@ where
     E: ProvingEngine<P>,
     N: NightfallContract,
 {
-    async fn handle_event(&self, tx_hash: TxHash) -> Result<(), EventHandlerError> {
+    async fn handle_event(&self, log: Log) -> Result<(), EventHandlerError> {
         // we'll split out individual events here in case that's useful later
+        let tx_hash = log.transaction_hash.ok_or_else(|| {
+            EventHandlerError::IOError("Event log missing transaction_hash".to_string())
+        })?;
         debug!("Handling event {self:?} for transaction {tx_hash:?}");
         match &self {
             Nightfall::NightfallEvents::BlockProposed(filter) => {
-                process_nightfall_calldata::<P, E, N>(tx_hash, filter.layer2_block_number).await?
+                process_nightfall_calldata::<P, E, N>(tx_hash, filter.layer2_block_number, &log)
+                    .await?
             }
             Nightfall::NightfallEvents::DepositEscrowed(filter) => {
                 info!("Received DepositEscrowed event");
@@ -118,6 +124,7 @@ where
 pub async fn process_nightfall_calldata<P, E, N>(
     transaction_hash: TxHash,
     block_number: I256,
+    log: &Log,
 ) -> Result<(), EventHandlerError>
 where
     P: Proof + Send + Serialize + Clone + Debug + Sync,
@@ -140,7 +147,8 @@ where
             .map_err(|_| EventHandlerError::InvalidCalldata)?;
         if let Nightfall::NightfallCalls::propose_block(decode) = decoded {
             // OK to use unwrap because the smart contract has to provide a block number
-            process_propose_block_event::<P, N>(decode, transaction_hash, block_number).await?;
+            process_propose_block_event::<P, N>(decode, transaction_hash, block_number, log)
+                .await?;
         }
     } else {
         panic!("Transaction not found when looking up calldata");
@@ -152,6 +160,7 @@ async fn process_propose_block_event<P, N>(
     decode: Nightfall::propose_blockCall,
     transaction_hash: TxHash,
     layer_2_block_number_in_event: I256,
+    log: &Log,
 ) -> Result<(), EventHandlerError>
 where
     P: Proof,
@@ -326,11 +335,23 @@ where
     let historic_root: Fr254 = FrBn254::try_from(blk.commitments_root)
         .map_err(|_| EventHandlerError::IOError("Could not convert to Fr254".to_string()))?
         .into();
+    let sync_state_l1_ref = L1Ref {
+        block_number: log.block_number.ok_or_else(|| {
+            EventHandlerError::IOError("BlockProposed log missing block_number".to_string())
+        })?,
+        tx_hash: log.transaction_hash.ok_or_else(|| {
+            EventHandlerError::IOError("BlockProposed log missing transaction_hash".to_string())
+        })?,
+        log_index: log.log_index.ok_or_else(|| {
+            EventHandlerError::IOError("BlockProposed log missing log_index".to_string())
+        })?,
+    };
     let db_for_transaction = db.clone();
     let commitments_for_transaction = commitments.clone();
     let nullifiers_for_transaction = nullifiers.clone();
     let block_for_transaction = store_block_pending.clone();
     let historic_root_for_transaction = historic_root;
+    let sync_state_l1_ref_for_transaction = sync_state_l1_ref.clone();
     let should_refresh_local_trees_for_transaction = should_refresh_local_trees;
 
     let mut session = db
@@ -387,6 +408,17 @@ where
 
             db_for_transaction
                 .store_block_with_session(&block_for_transaction, session)
+                .await?;
+
+            let sync_state = SyncState::new(
+                block_for_transaction.layer2_block_number,
+                block_for_transaction.hash().to_hex_string(),
+                sync_state_l1_ref_for_transaction.clone(),
+                mongodb::bson::DateTime::now(),
+            );
+
+            db_for_transaction
+                .update_sync_state_with_session(&sync_state, session)
                 .await?;
 
             Ok::<Fr254, mongodb::error::Error>(commitment_root)

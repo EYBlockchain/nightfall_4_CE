@@ -1,3 +1,4 @@
+use alloy::primitives::TxHash;
 use ark_bn254::Fr as Fr254;
 use ark_serialize::SerializationError;
 use lib::{
@@ -6,6 +7,7 @@ use lib::{
     shared_entities::{ClientTransaction, OnChainTransaction},
 };
 use log::error;
+use mongodb::bson::DateTime;
 use serde::{Deserialize, Deserializer, Serialize};
 use sha3::{Digest, Keccak256};
 use std::fmt::Debug;
@@ -39,6 +41,45 @@ pub struct DepositDatawithFee {
     pub fee: Fr254,
     /// deposit data
     pub deposit_data: DepositData,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct L1Ref {
+    pub block_number: u64,
+    pub tx_hash: TxHash,
+    pub log_index: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SyncState {
+    #[serde(rename = "_id")]
+    pub id: String,
+    pub last_applied_l2_block: u64,
+    pub fingerprint: String,
+    pub l1_ref: L1Ref,
+    pub schema_version: u32,
+    pub updated_at: DateTime,
+}
+
+impl SyncState {
+    pub const DOCUMENT_ID: &'static str = "proposer";
+    pub const SCHEMA_VERSION: u32 = 1;
+
+    pub fn new(
+        last_applied_l2_block: u64,
+        fingerprint: String,
+        l1_ref: L1Ref,
+        updated_at: DateTime,
+    ) -> Self {
+        Self {
+            id: Self::DOCUMENT_ID.to_string(),
+            last_applied_l2_block,
+            fingerprint,
+            l1_ref,
+            schema_version: Self::SCHEMA_VERSION,
+            updated_at,
+        }
+    }
 }
 
 impl DepositDatawithFee {

@@ -1,8 +1,8 @@
 use crate::{
     domain::entities::{
-        ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot, TxLifecycle,
+        ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot, SyncState, TxLifecycle,
     },
-    ports::db::{BlockStorageDB, HistoricRootsDB, TransactionsDB},
+    ports::db::{BlockStorageDB, HistoricRootsDB, SyncStateDB, TransactionsDB},
 };
 use alloy::primitives::Address;
 use ark_bn254::Fr as Fr254;
@@ -97,6 +97,7 @@ pub const DB: &str = "nightfall";
 const COLLECTION: &str = "ClientTransactions";
 const DEPOSIT_COLLECTION: &str = "Deposits";
 pub const PROPOSED_BLOCKS_COLLECTION: &str = "ProposedBlocks";
+pub const SYNC_STATE_COLLECTION: &str = "sync_state";
 
 #[async_trait::async_trait]
 impl<'a, P> TransactionsDB<'a, P> for mongodb::Client
@@ -586,9 +587,45 @@ impl BlockStorageDB for mongodb::Client {
     }
 }
 
+#[async_trait::async_trait]
+impl SyncStateDB for mongodb::Client {
+    async fn update_sync_state_with_session(
+        &self,
+        state: &SyncState,
+        session: &mut mongodb::ClientSession,
+    ) -> Result<(), mongodb::error::Error> {
+        let filter = doc! { "_id": SyncState::DOCUMENT_ID };
+        let collection = self
+            .database(DB)
+            .collection::<SyncState>(SYNC_STATE_COLLECTION);
+        let result = collection
+            .replace_one(filter, state)
+            .upsert(true)
+            .session(&mut *session)
+            .await?;
+
+        if result.matched_count == 0 && result.upserted_id.is_none() {
+            return Err(mongodb::error::Error::custom(
+                "Failed to upsert proposer sync_state",
+            ));
+        }
+
+        Ok(())
+    }
+
+    async fn get_sync_state(&self) -> Option<SyncState> {
+        self.database(DB)
+            .collection::<SyncState>(SYNC_STATE_COLLECTION)
+            .find_one(doc! { "_id": SyncState::DOCUMENT_ID })
+            .await
+            .ok()?
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::domain::entities::L1Ref;
     use ark_bn254::Fr as Fr254;
     use ark_std::UniformRand;
 
@@ -651,5 +688,49 @@ mod test {
         let historic_root_entry = HistoricRootEntry::from(&historic_root);
         let historic_root_2 = HistoricRoot::try_from(historic_root_entry).unwrap();
         assert_eq!(historic_root, historic_root_2);
+    }
+
+    #[tokio::test]
+    async fn sync_state_round_trips() {
+        let container = lib::tests_utils::get_mongo().await;
+        let client = lib::tests_utils::get_db_connection(&container).await;
+        let mut session = client.start_session().await.unwrap();
+
+        let sync_state = SyncState::new(
+            42,
+            Fr254::from(42u64).to_hex_string(),
+            L1Ref {
+                block_number: 100,
+                tx_hash: alloy::primitives::TxHash::from([7u8; 32]),
+                log_index: 3,
+            },
+            mongodb::bson::DateTime::now(),
+        );
+
+        session
+            .start_transaction()
+            .and_run2(async |session| {
+                client
+                    .update_sync_state_with_session(&sync_state, session)
+                    .await?;
+                Ok::<(), mongodb::error::Error>(())
+            })
+            .await
+            .unwrap();
+
+        let stored = client
+            .get_sync_state()
+            .await
+            .expect("sync_state should exist");
+        assert_eq!(stored.id, SyncState::DOCUMENT_ID);
+        assert_eq!(stored.last_applied_l2_block, 42);
+        assert_eq!(stored.fingerprint, Fr254::from(42u64).to_hex_string());
+        assert_eq!(stored.l1_ref.block_number, 100);
+        assert_eq!(
+            stored.l1_ref.tx_hash,
+            alloy::primitives::TxHash::from([7u8; 32])
+        );
+        assert_eq!(stored.l1_ref.log_index, 3);
+        assert_eq!(stored.schema_version, SyncState::SCHEMA_VERSION);
     }
 }

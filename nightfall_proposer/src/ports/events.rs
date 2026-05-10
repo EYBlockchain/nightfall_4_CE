@@ -1,4 +1,4 @@
-use alloy::primitives::TxHash;
+use alloy::rpc::types::Log;
 use lib::{
     error::EventHandlerError,
     nf_client_proof::{Proof, ProvingEngine},
@@ -14,5 +14,5 @@ where
     E: ProvingEngine<P>,
     N: NightfallContract,
 {
-    async fn handle_event(&self, transaction_hash: TxHash) -> Result<(), EventHandlerError>;
+    async fn handle_event(&self, log: Log) -> Result<(), EventHandlerError>;
 }

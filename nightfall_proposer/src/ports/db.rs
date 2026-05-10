@@ -1,5 +1,7 @@
 use crate::{
-    domain::entities::{ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot},
+    domain::entities::{
+        ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot, SyncState,
+    },
     driven::db::mongo_db::StoredBlock,
 };
 use ark_bn254::Fr as Fr254;
@@ -24,6 +26,17 @@ pub trait BlockStorageDB {
     async fn get_block_by_number(&self, block_number: u64) -> Option<StoredBlock>;
     async fn get_all_blocks(&self) -> Option<Vec<StoredBlock>>;
     async fn delete_block_by_number(&self, block_number: u64) -> Option<()>;
+}
+
+#[async_trait::async_trait]
+pub trait SyncStateDB {
+    async fn update_sync_state_with_session(
+        &self,
+        state: &SyncState,
+        session: &mut mongodb::ClientSession,
+    ) -> Result<(), mongodb::error::Error>;
+
+    async fn get_sync_state(&self) -> Option<SyncState>;
 }
 /// Used to store transactions that are on chain. Can be queried to see if a nullifier or commitment is on chain.
 #[async_trait::async_trait]
