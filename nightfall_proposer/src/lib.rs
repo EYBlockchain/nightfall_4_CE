@@ -45,21 +45,245 @@ pub mod initialisation {
 
     use super::driven::block_assembler::SmartTrigger;
     use crate::{
+        domain::entities::SyncState,
         driven::block_assembler::BlockAssemblyStatus,
+        driven::db::mongo_db::StoredBlock,
+        driven::nightfall_event::get_expected_layer2_blocknumber,
+        drivers::blockchain::nightfall_event_listener::get_synchronisation_status,
         ports::{
             block_assembly_trigger::BlockAssemblyTrigger,
+            contracts::NightfallContract,
+            db::{BlockStorageDB, SyncStateDB},
             trees::{CommitmentTree, HistoricRootTree, NullifierTree},
         },
     };
+    use alloy::primitives::I256;
     use ark_bn254::Fr as Fr254;
+    use ark_ff::Zero;
     use ark_std::sync::Arc;
     use configuration::settings::{get_settings, WalletRole};
     use lib::{
         blockchain_client::BlockchainClientConnection, nf_client_proof::Proof,
         wallets::LocalWsClient,
     };
+    use lib::{hex_conversion::HexConvertible, merkle_trees::trees::MutableTree};
+    use log::{info, warn};
     use mongodb::Client;
     use tokio::sync::{OnceCell, RwLock};
+
+    async fn ensure_commitment_tree_initialized(client: &Client) {
+        if <mongodb::Client as CommitmentTree<Fr254>>::get_root(client)
+            .await
+            .is_ok()
+        {
+            return;
+        }
+
+        <mongodb::Client as CommitmentTree<Fr254>>::new_commitment_tree(client, 29, 3)
+            .await
+            .expect("Could not create commitment tree");
+    }
+
+    async fn ensure_nullifier_tree_initialized(client: &Client) {
+        if <mongodb::Client as MutableTree<Fr254>>::get_root(
+            client,
+            <mongodb::Client as NullifierTree<Fr254>>::TREE_NAME,
+        )
+        .await
+        .is_ok()
+        {
+            return;
+        }
+
+        <mongodb::Client as NullifierTree<Fr254>>::new_nullifier_tree(client, 29, 3)
+            .await
+            .expect("Could not create nullifier tree");
+    }
+
+    async fn ensure_historic_root_tree_initialized(client: &Client) {
+        let zero_leaf = Fr254::from(0u8);
+        let root = match <mongodb::Client as MutableTree<Fr254>>::get_root(
+            client,
+            <mongodb::Client as HistoricRootTree<Fr254>>::TREE_NAME,
+        )
+        .await
+        {
+            Ok(root) => root,
+            Err(_) => {
+                <mongodb::Client as HistoricRootTree<Fr254>>::new_historic_root_tree(client, 32)
+                    .await
+                    .expect("Could not create historic root tree");
+                Fr254::zero()
+            }
+        };
+
+        let has_zero_leaf =
+            <mongodb::Client as HistoricRootTree<Fr254>>::is_historic_root(client, &zero_leaf)
+                .await
+                .expect("Could not query historic root tree");
+
+        if has_zero_leaf {
+            return;
+        }
+
+        if !root.is_zero() {
+            panic!("Historic root tree exists without zero leaf in a non-empty state");
+        }
+
+        <Client as HistoricRootTree<Fr254>>::append_historic_commitment_root(
+            client, &zero_leaf, true,
+        )
+        .await
+        .expect("Couldn't insert zero leaf into the historic root tree");
+    }
+
+    async fn ensure_proposer_db_initialized(client: &Client) {
+        ensure_commitment_tree_initialized(client).await;
+        ensure_historic_root_tree_initialized(client).await;
+        ensure_nullifier_tree_initialized(client).await;
+    }
+
+    fn missing_stored_block_error(last_applied_l2_block: u64) -> String {
+        format!(
+            "Proposer startup aborted: sync_state references L2 block {last_applied_l2_block}, \
+             but StoredBlock at height {last_applied_l2_block} is missing. Local proposer state \
+             is inconsistent. Manual intervention is required before restart."
+        )
+    }
+
+    fn fingerprint_mismatch_error(
+        last_applied_l2_block: u64,
+        stored_fingerprint: &str,
+        sync_state_fingerprint: &str,
+    ) -> String {
+        format!(
+            "Proposer startup aborted: sync_state references L2 block {last_applied_l2_block}, \
+             but StoredBlock fingerprint ({stored_fingerprint}) does not match sync_state \
+             fingerprint ({sync_state_fingerprint}). Local proposer state is inconsistent. \
+             Manual intervention is required before restart."
+        )
+    }
+
+    fn unsupported_sync_state_schema_error(schema_version: u32) -> String {
+        format!(
+            "Proposer startup aborted: sync_state uses unsupported schema version \
+             {schema_version}. Manual intervention is required before restart."
+        )
+    }
+
+    fn ahead_of_chain_error(next_expected_block: u64, onchain_next_block: u64) -> String {
+        format!(
+            "Proposer startup aborted: local proposer state expects next L2 block \
+             {next_expected_block}, but chain reports {onchain_next_block}. Local state is ahead \
+             of chain. This may indicate an L1 reorg, chain rollback, or dev chain reset. \
+             Manual recovery is required before restart."
+        )
+    }
+
+    fn validate_sync_state_against_block(
+        sync_state: &SyncState,
+        stored_block: &StoredBlock,
+    ) -> Result<(), String> {
+        let stored_fingerprint = stored_block.hash().to_hex_string();
+        if stored_fingerprint != sync_state.fingerprint {
+            return Err(fingerprint_mismatch_error(
+                sync_state.last_applied_l2_block,
+                &stored_fingerprint,
+                &sync_state.fingerprint,
+            ));
+        }
+
+        if sync_state.schema_version != SyncState::SCHEMA_VERSION {
+            return Err(unsupported_sync_state_schema_error(
+                sync_state.schema_version,
+            ));
+        }
+
+        Ok(())
+    }
+
+    pub async fn bootstrap_proposer_startup_state<N>() -> Result<(), String>
+    where
+        N: NightfallContract,
+    {
+        let db = get_db_connection().await;
+        let onchain_next_block_i256 = N::get_current_layer2_blocknumber()
+            .await
+            .map_err(|e| format!("Could not fetch current L2 block number: {e}"))?;
+
+        if onchain_next_block_i256 < I256::ZERO {
+            return Err(format!(
+                "Nightfall returned negative current L2 block number {onchain_next_block_i256}"
+            ));
+        }
+
+        let onchain_next_block: u64 = onchain_next_block_i256
+            .try_into()
+            .map_err(|_| "Current L2 block number does not fit into u64".to_string())?;
+
+        let mut expected_block_number = get_expected_layer2_blocknumber().await.write().await;
+        let mut sync_status = get_synchronisation_status().await.write().await;
+
+        match db.get_sync_state().await {
+            Some(sync_state) => {
+                let stored_block = db
+                    .get_block_by_number(sync_state.last_applied_l2_block)
+                    .await
+                    .ok_or_else(|| missing_stored_block_error(sync_state.last_applied_l2_block))?;
+
+                validate_sync_state_against_block(&sync_state, &stored_block)?;
+
+                let next_expected_block = sync_state
+                    .last_applied_l2_block
+                    .checked_add(1)
+                    .ok_or_else(|| {
+                        "last_applied_l2_block overflowed when computing next expected block"
+                            .to_string()
+                    })?;
+
+                if next_expected_block > onchain_next_block {
+                    return Err(ahead_of_chain_error(
+                        next_expected_block,
+                        onchain_next_block,
+                    ));
+                }
+
+                *expected_block_number = I256::try_from(next_expected_block).map_err(|_| {
+                    "Next expected L2 block number does not fit into I256".to_string()
+                })?;
+
+                if next_expected_block == onchain_next_block {
+                    sync_status.set_synchronised();
+                    info!(
+                        "Recovered proposer state at L2 tip {} from sync_state",
+                        sync_state.last_applied_l2_block
+                    );
+                } else {
+                    sync_status.clear_synchronised();
+                    info!(
+                        "Recovered proposer state at L2 block {}, behind chain tip {}",
+                        sync_state.last_applied_l2_block,
+                        onchain_next_block.saturating_sub(1)
+                    );
+                }
+            }
+            None => {
+                *expected_block_number = I256::ZERO;
+                if onchain_next_block == 0 {
+                    sync_status.set_synchronised();
+                    info!("No proposer sync_state found and chain is at genesis; starting fresh");
+                } else {
+                    sync_status.clear_synchronised();
+                    warn!(
+                        "No proposer sync_state found while chain is already at L2 block {}; replay is required",
+                        onchain_next_block.saturating_sub(1)
+                    );
+                }
+            }
+        }
+
+        Ok(())
+    }
 
     /// This function is used to provide a singleton database connection across the entire application.
     pub async fn get_db_connection() -> &'static Client {
@@ -71,24 +295,7 @@ pub mod initialisation {
                 let client = Client::with_uri_str(uri)
                     .await
                     .expect("Could not create database connection");
-                // it's not enough just to connect to a database, we need to initialise some trees in it
-                <mongodb::Client as CommitmentTree<Fr254>>::new_commitment_tree(&client, 29, 3)
-                    .await
-                    .expect("Could not create commitment tree");
-                <mongodb::Client as HistoricRootTree<Fr254>>::new_historic_root_tree(&client, 32)
-                    .await
-                    .expect("Could not create historic root tree");
-                <mongodb::Client as NullifierTree<Fr254>>::new_nullifier_tree(&client, 29, 3)
-                    .await
-                    .expect("Could not create historic root tree");
-
-                <Client as HistoricRootTree<Fr254>>::append_historic_commitment_root(
-                    &client,
-                    &Fr254::from(0u8),
-                    true,
-                )
-                .await
-                .expect("Couldn't insert zero leaf into the historic root tree");
+                ensure_proposer_db_initialized(&client).await;
                 client
             })
             .await
