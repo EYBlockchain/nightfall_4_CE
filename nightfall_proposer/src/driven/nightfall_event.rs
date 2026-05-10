@@ -23,7 +23,6 @@ use lib::{
     error::EventHandlerError,
     get_fee_token_id,
     hex_conversion::HexConvertible,
-    merkle_trees::trees::IndexedTree,
     nf_client_proof::{Proof, ProvingEngine},
     nf_token_id::to_nf_token_id_from_solidity,
     shared_entities::DepositData,
@@ -38,6 +37,15 @@ use std::{
     fmt::{Debug, Display},
 };
 use tokio::sync::{OnceCell, RwLock};
+
+fn merkle_tree_error_to_mongo(
+    error: lib::merkle_trees::trees::MerkleTreeError<mongodb::error::Error>,
+) -> mongodb::error::Error {
+    match error {
+        lib::merkle_trees::trees::MerkleTreeError::DatabaseError(db_error) => db_error,
+        other => mongodb::error::Error::custom(other.to_string()),
+    }
+}
 // Define a mutable lazy static to hold the layer 2 blocknumber. We need this to
 // check if we're still in sync, but putting it in the context would mean passing it around too much
 pub async fn get_expected_layer2_blocknumber() -> &'static RwLock<I256> {
@@ -291,60 +299,105 @@ where
         .map_err(|_| {
             EventHandlerError::IOError("Could not retrieve commitment root".to_string())
         })?;
-    if our_address != sender_address
+    let should_refresh_local_trees = our_address != sender_address
         || !sync_status.is_synchronised()
-        || commitment_root.0.is_zero()
-    {
-        let commitments = &blk
-            .transactions
+        || commitment_root.0.is_zero();
+    let commitments = if should_refresh_local_trees {
+        blk.transactions
             .iter()
             .flat_map(|transaction| &transaction.commitments)
             .map(|u| FrBn254::try_from(*u).map(|f| f.into()))
             .collect::<Result<Vec<Fr254>, _>>()
-            .expect("Could not convert commitments to U256");
-        debug!(
-            "Adding {} commitments to commitment tree",
-            commitments.len()
-        );
-        <Client as CommitmentTree<Fr254>>::append_sub_trees(db, commitments, true)
-            .await
-            .map_err(|_| EventHandlerError::IOError("Could not store commitments".to_string()))?;
-        // and do the same with the nullifier tree
-        let nullifiers = blk
-            .transactions
+            .expect("Could not convert commitments to U256")
+    } else {
+        Vec::new()
+    };
+    let nullifiers = if should_refresh_local_trees {
+        blk.transactions
             .iter()
             .flat_map(|transaction| &transaction.nullifiers)
             .map(|u| FrBn254::try_from(*u).map(|f| f.into()))
             .collect::<Result<Vec<Fr254>, _>>()
-            .expect("Could not convert nullifiers to U256");
-        debug!(
-            "Adding {} nullifiers to indexed Timber tree",
-            nullifiers.len()
-        );
-        <Client as IndexedTree<Fr254>>::insert_leaves(
-            db,
-            &nullifiers,
-            <Client as NullifierTree<Fr254>>::TREE_NAME,
-        )
-        .await
-        .map_err(|_| EventHandlerError::IOError("Could not store nullifiers".to_string()))?;
-    }
-    // and next,the commitments root (historic_root) is stored in the historic root tree
+            .expect("Could not convert nullifiers to U256")
+    } else {
+        Vec::new()
+    };
+
     let historic_root: Fr254 = FrBn254::try_from(blk.commitments_root)
         .map_err(|_| EventHandlerError::IOError("Could not convert to Fr254".to_string()))?
         .into();
+    let db_for_transaction = db.clone();
+    let commitments_for_transaction = commitments.clone();
+    let nullifiers_for_transaction = nullifiers.clone();
+    let block_for_transaction = store_block_pending.clone();
+    let historic_root_for_transaction = historic_root;
+    let should_refresh_local_trees_for_transaction = should_refresh_local_trees;
 
-    db.append_historic_commitment_root(&historic_root, true)
+    let mut session = db
+        .start_session()
         .await
-        .map_err(|_| EventHandlerError::IOError("Could not store historic root".to_string()))?;
-    debug!("Stored new commitments tree root in historic root timber tree: {historic_root}");
+        .map_err(|_| EventHandlerError::IOError("Could not start MongoDB session".to_string()))?;
+    let commitment_root = session
+        .start_transaction()
+        .and_run2(async move |session| {
+            if should_refresh_local_trees_for_transaction {
+                debug!(
+                    "Adding {} commitments to commitment tree",
+                    commitments_for_transaction.len()
+                );
+                <Client as CommitmentTree<Fr254>>::append_sub_trees_with_session(
+                    &db_for_transaction,
+                    &commitments_for_transaction,
+                    true,
+                    session,
+                )
+                .await
+                .map_err(merkle_tree_error_to_mongo)?;
+                debug!(
+                    "Adding {} nullifiers to indexed Timber tree",
+                    nullifiers_for_transaction.len()
+                );
+                <Client as NullifierTree<Fr254>>::insert_nullifiers_with_session(
+                    &db_for_transaction,
+                    &nullifiers_for_transaction,
+                    session,
+                )
+                .await
+                .map_err(merkle_tree_error_to_mongo)?;
+            }
 
-    // it's worth checking that the historic root agrees with what's in the commitment tree
-    let commitment_root = <Client as CommitmentTree<Fr254>>::get_root(db)
+            db_for_transaction
+                .append_historic_commitment_root_with_session(
+                    &historic_root_for_transaction,
+                    true,
+                    session,
+                )
+                .await
+                .map_err(merkle_tree_error_to_mongo)?;
+            debug!(
+                "Stored new commitments tree root in historic root timber tree: {historic_root_for_transaction}"
+            );
+
+            let commitment_root = <Client as CommitmentTree<Fr254>>::get_root_with_session(
+                &db_for_transaction,
+                session,
+            )
+            .await
+            .map_err(merkle_tree_error_to_mongo)?;
+
+            db_for_transaction
+                .store_block_with_session(&block_for_transaction, session)
+                .await?;
+
+            Ok::<Fr254, mongodb::error::Error>(commitment_root)
+        })
         .await
-        .map_err(|_| {
-            EventHandlerError::IOError("Could not retrieve commitment root".to_string())
+        .map_err(|e| {
+            EventHandlerError::IOError(format!(
+                "Could not apply proposer block transaction: {e}"
+            ))
         })?;
+
     if commitment_root != historic_root {
         error!(
             "Historic root does not match commitment tree root. Historic root: {historic_root}, Commitment tree root: {commitment_root}"
@@ -364,10 +417,6 @@ where
         debug!("Synchronised with blockchain");
         sync_status.set_synchronised();
     }
-
-    // store the block in the db
-    // if db doesn't have the block, it will be stored
-    db.store_block(&store_block_pending).await;
 
     let reconciliation_block_number = current_block_number_in_contract
         .try_into()

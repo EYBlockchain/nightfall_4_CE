@@ -12,6 +12,15 @@ use serde::{Deserialize, Serialize};
 #[async_trait::async_trait]
 pub trait BlockStorageDB {
     async fn store_block(&self, block: &StoredBlock) -> Option<()>;
+    async fn store_block_with_session(
+        &self,
+        block: &StoredBlock,
+        _session: &mut mongodb::ClientSession,
+    ) -> Result<(), mongodb::error::Error> {
+        self.store_block(block)
+            .await
+            .ok_or_else(|| mongodb::error::Error::custom("Could not store proposed block"))
+    }
     async fn get_block_by_number(&self, block_number: u64) -> Option<StoredBlock>;
     async fn get_all_blocks(&self) -> Option<Vec<StoredBlock>>;
     async fn delete_block_by_number(&self, block_number: u64) -> Option<()>;

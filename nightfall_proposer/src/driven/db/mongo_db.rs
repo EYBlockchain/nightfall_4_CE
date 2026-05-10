@@ -521,31 +521,40 @@ impl StoredBlock {
 #[async_trait::async_trait]
 impl BlockStorageDB for mongodb::Client {
     async fn store_block(&self, block: &StoredBlock) -> Option<()> {
-        // check if the block already exists
         let filter = doc! { "layer2_block_number": block.layer2_block_number as i64 };
-        let existing_block = self
+        let collection = self
             .database(DB)
-            .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
-            .find_one(filter.clone())
-            .await
-            .ok()?;
+            .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION);
+        let existing_block = collection.find_one(filter.clone()).await.ok()?;
         if existing_block.is_some() {
-            // if the block already exists, we need to update it
             let update = doc! { "$set": { "commitments": block.commitments.clone() } };
-            self.database(DB)
-                .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
-                .update_one(filter, update)
-                .await
-                .ok()?;
+            collection.update_one(filter, update).await.ok()?;
             return Some(());
         }
-        // if the block doesn't exist, we need to insert it
-        self.database(DB)
-            .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
-            .insert_one(block)
-            .await
-            .ok()?;
+        collection.insert_one(block).await.ok()?;
         Some(())
+    }
+
+    async fn store_block_with_session(
+        &self,
+        block: &StoredBlock,
+        session: &mut mongodb::ClientSession,
+    ) -> Result<(), mongodb::error::Error> {
+        let filter = doc! { "layer2_block_number": block.layer2_block_number as i64 };
+        let collection = self
+            .database(DB)
+            .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION);
+        let result = collection
+            .replace_one(filter, block)
+            .upsert(true)
+            .session(&mut *session)
+            .await?;
+        if result.matched_count == 0 && result.upserted_id.is_none() {
+            return Err(mongodb::error::Error::custom(
+                "Failed to upsert proposed block",
+            ));
+        }
+        Ok(())
     }
 
     async fn get_block_by_number(&self, block_number: u64) -> Option<StoredBlock> {

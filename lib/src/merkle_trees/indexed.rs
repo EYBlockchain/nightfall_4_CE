@@ -12,7 +12,7 @@ use jf_primitives::{
     },
 };
 use log::{debug, error};
-use mongodb::bson::doc;
+use mongodb::{bson::doc, ClientSession};
 
 use std::convert::TryFrom; // already in prelude, but explicit is fine
 
@@ -146,16 +146,37 @@ where
         inner_leaf_values: &[F],
         tree_id: &str,
     ) -> Result<F, <Self as MutableTree<F>>::Error> {
+        self.insert_leaves_with_session(inner_leaf_values, tree_id, None)
+            .await
+    }
+
+    async fn insert_leaves_with_session(
+        &self,
+        inner_leaf_values: &[F],
+        tree_id: &str,
+        mut session: Option<&mut ClientSession>,
+    ) -> Result<F, <Self as MutableTree<F>>::Error> {
         // if we're given an empty list of leaves then we should return the current root
         if inner_leaf_values.is_empty() {
-            return <Self as MutableTree<F>>::get_root(self, tree_id).await;
+            return <Self as MutableTree<F>>::get_root_with_session(
+                self,
+                tree_id,
+                session.as_deref_mut(),
+            )
+            .await;
         }
         // check that the leaves are not already in the tree
         //skip the zero leaves
         for leaf in inner_leaf_values {
-            if <Self as IndexedLeaves<F>>::get_leaf(self, Some(*leaf), None, tree_id)
-                .await?
-                .is_some()
+            if <Self as IndexedLeaves<F>>::get_leaf_with_session(
+                self,
+                Some(*leaf),
+                None,
+                tree_id,
+                session.as_deref_mut(),
+            )
+            .await?
+            .is_some()
                 && (!leaf.is_zero())
             {
                 error!("Leaf already exists {leaf:?}");
@@ -164,38 +185,58 @@ where
         }
         let hasher = <Self as MutableTree<F>>::TreeHasher::new();
         // find the low nullifiers for the leaves but do it asynchronously
-        let low_nullifiers_getters = inner_leaf_values
-            .iter()
-            .map(|leaf| <Self as IndexedLeaves<F>>::get_low_leaf(self, leaf, tree_id))
-            .collect::<Vec<_>>();
-        let mut low_nullifiers = join_all(low_nullifiers_getters)
-            .await
-            .into_iter()
-            .collect::<Result<Vec<Option<_>>, _>>()?
-            .iter()
-            .filter_map(|opt| opt.map(|indexed_leaf| indexed_leaf.value))
-            .collect::<Vec<F>>();
+        let mut low_nullifiers = if session.is_some() {
+            let mut values = Vec::with_capacity(inner_leaf_values.len());
+            for leaf in inner_leaf_values {
+                let low_leaf = <Self as IndexedLeaves<F>>::get_low_leaf_with_session(
+                    self,
+                    leaf,
+                    tree_id,
+                    session.as_deref_mut(),
+                )
+                .await?;
+                if let Some(indexed_leaf) = low_leaf {
+                    values.push(indexed_leaf.value);
+                }
+            }
+            values
+        } else {
+            let low_nullifiers_getters = inner_leaf_values
+                .iter()
+                .map(|leaf| <Self as IndexedLeaves<F>>::get_low_leaf(self, leaf, tree_id))
+                .collect::<Vec<_>>();
+            join_all(low_nullifiers_getters)
+                .await
+                .into_iter()
+                .collect::<Result<Vec<Option<_>>, _>>()?
+                .iter()
+                .filter_map(|opt| opt.map(|indexed_leaf| indexed_leaf.value))
+                .collect::<Vec<F>>()
+        };
         low_nullifiers.sort();
         low_nullifiers.dedup();
 
         let collection_name = format!("{}_{}", tree_id, "metadata");
         let db = self.database(<Self as MutableTree<F>>::MUT_DB_NAME);
         let collection = db.collection::<TreeMetadata<F>>(&collection_name);
-        let metadata = collection
-            .find_one(doc! {})
-            .await
-            .map_err(MerkleTreeError::DatabaseError)?
-            .ok_or(MerkleTreeError::ItemNotFound)?;
+        let metadata = if let Some(session) = session.as_deref_mut() {
+            collection.find_one(doc! {}).session(session).await
+        } else {
+            collection.find_one(doc! {}).await
+        }
+        .map_err(MerkleTreeError::DatabaseError)?
+        .ok_or(MerkleTreeError::ItemNotFound)?;
         let mut insert_index = metadata.sub_tree_count as u32 * (1u32 << metadata.sub_tree_height);
         // We cannot store the leaves concurrently because the index gets updated each time we store one and we'll have
         // a data race. We could probably do something clever with a mutex but it's easier to just store them sequentially.
         for inner_leaf in inner_leaf_values.iter() {
             if !inner_leaf.is_zero() {
-                let res = <Self as IndexedLeaves<F>>::store_leaf(
+                let res = <Self as IndexedLeaves<F>>::store_leaf_with_session(
                     self,
                     *inner_leaf,
                     Some(insert_index.into()),
                     tree_id,
+                    session.as_deref_mut(),
                 )
                 .await?;
                 if res.is_none() {
@@ -209,23 +250,43 @@ where
         }
 
         // add the leaves to the tree
-        let indexed_leaves_getters = inner_leaf_values
-            .iter()
-            .map(|leaf| <Self as IndexedLeaves<F>>::get_leaf(self, Some(*leaf), None, tree_id))
-            .collect::<Vec<_>>();
-        let indexed_leaves = join_all(indexed_leaves_getters)
-            .await
-            .into_iter()
-            .collect::<Result<Vec<Option<IndexedLeaf<F>>>, <Self as MutableTree<F>>::Error>>()?
-            .into_iter()
-            .enumerate()
-            .map(|(index, opt)| {
-                opt.ok_or(MerkleTreeError::Error(format!(
+        let indexed_leaves = if session.is_some() {
+            let mut leaves = Vec::with_capacity(inner_leaf_values.len());
+            for (index, leaf) in inner_leaf_values.iter().enumerate() {
+                let indexed_leaf = <Self as IndexedLeaves<F>>::get_leaf_with_session(
+                    self,
+                    Some(*leaf),
+                    None,
+                    tree_id,
+                    session.as_deref_mut(),
+                )
+                .await?
+                .ok_or(MerkleTreeError::Error(format!(
                     "failed to get IndexedLeaf struct with value {}",
                     inner_leaf_values[index]
-                )))
-            })
-            .collect::<Result<Vec<IndexedLeaf<F>>, _>>()?;
+                )))?;
+                leaves.push(indexed_leaf);
+            }
+            leaves
+        } else {
+            let indexed_leaves_getters = inner_leaf_values
+                .iter()
+                .map(|leaf| <Self as IndexedLeaves<F>>::get_leaf(self, Some(*leaf), None, tree_id))
+                .collect::<Vec<_>>();
+            join_all(indexed_leaves_getters)
+                .await
+                .into_iter()
+                .collect::<Result<Vec<Option<IndexedLeaf<F>>>, <Self as MutableTree<F>>::Error>>()?
+                .into_iter()
+                .enumerate()
+                .map(|(index, opt)| {
+                    opt.ok_or(MerkleTreeError::Error(format!(
+                        "failed to get IndexedLeaf struct with value {}",
+                        inner_leaf_values[index]
+                    )))
+                })
+                .collect::<Result<Vec<IndexedLeaf<F>>, _>>()?
+        };
         let leaf_values = indexed_leaves
             .into_iter()
             .map(|indexed_leaf| {
@@ -242,39 +303,72 @@ where
             })
             .collect::<Result<Vec<F>, _>>()?;
 
-        <Self as MutableTree<F>>::append_sub_trees(self, &leaf_values, true, tree_id).await?;
+        <Self as MutableTree<F>>::append_sub_trees_with_session(
+            self,
+            &leaf_values,
+            true,
+            tree_id,
+            session.as_deref_mut(),
+        )
+        .await?;
 
-        let update_info_getters = low_nullifiers
-            .iter()
-            .map(|value| <Self as IndexedLeaves<F>>::get_leaf(self, Some(*value), None, tree_id))
-            .collect::<Vec<_>>();
-        let update_info = join_all(update_info_getters)
-            .await
-            .into_iter()
-            .collect::<Result<Option<Vec<IndexedLeaf<F>>>, _>>()?
-            .ok_or(MerkleTreeError::ItemNotFound)?
-            .into_iter()
-            .map(|leaf| {
+        let update_info = if session.is_some() {
+            let mut info = Vec::with_capacity(low_nullifiers.len());
+            for value in &low_nullifiers {
+                let leaf = <Self as IndexedLeaves<F>>::get_leaf_with_session(
+                    self,
+                    Some(*value),
+                    None,
+                    tree_id,
+                    session.as_deref_mut(),
+                )
+                .await?
+                .ok_or(MerkleTreeError::ItemNotFound)?;
                 let leaf_value: F = leaf.value;
                 let leaf_next_index = F::from(leaf.next_index);
                 let leaf_next_value: F = leaf.next_value;
-                Ok((
+                info.push((
                     hasher.hash(&[leaf_value, leaf_next_index, leaf_next_value])?,
                     leaf._id as usize,
-                ))
-            })
-            .collect::<Result<Vec<(F, usize)>, MerkleTreeError<mongodb::error::Error>>>()?;
+                ));
+            }
+            info
+        } else {
+            let update_info_getters = low_nullifiers
+                .iter()
+                .map(|value| {
+                    <Self as IndexedLeaves<F>>::get_leaf(self, Some(*value), None, tree_id)
+                })
+                .collect::<Vec<_>>();
+            join_all(update_info_getters)
+                .await
+                .into_iter()
+                .collect::<Result<Option<Vec<IndexedLeaf<F>>>, _>>()?
+                .ok_or(MerkleTreeError::ItemNotFound)?
+                .into_iter()
+                .map(|leaf| {
+                    let leaf_value: F = leaf.value;
+                    let leaf_next_index = F::from(leaf.next_index);
+                    let leaf_next_value: F = leaf.next_value;
+                    Ok((
+                        hasher.hash(&[leaf_value, leaf_next_index, leaf_next_value])?,
+                        leaf._id as usize,
+                    ))
+                })
+                .collect::<Result<Vec<(F, usize)>, MerkleTreeError<mongodb::error::Error>>>()?
+        };
 
         let mut root = F::zero();
         for info in update_info.into_iter() {
             let leaf_value = info.0;
             let ln_index = info.1 as u64;
-            root = <Self as MutableTree<F>>::update_sub_tree(
+            root = <Self as MutableTree<F>>::update_sub_tree_with_session(
                 self,
                 ln_index,
                 &[leaf_value],
                 true,
                 tree_id,
+                session.as_deref_mut(),
             )
             .await?;
         }
@@ -514,8 +608,23 @@ impl<F: PrimeField + PoseidonParams> IndexedLeaves<F> for mongodb::Client {
         index: Option<u64>,
         tree_id: &str,
     ) -> Result<Option<()>, Self::Error> {
+        self.store_leaf_with_session(leaf, index, tree_id, None)
+            .await
+    }
+
+    async fn store_leaf_with_session(
+        &self,
+        leaf: F,
+        index: Option<u64>,
+        tree_id: &str,
+        mut session: Option<&mut ClientSession>,
+    ) -> Result<Option<()>, Self::Error> {
         // If the new leaf is already in the db then we shouldn't store it.
-        if self.get_leaf(Some(leaf), None, tree_id).await?.is_some() {
+        if self
+            .get_leaf_with_session(Some(leaf), None, tree_id, session.as_deref_mut())
+            .await?
+            .is_some()
+        {
             debug!("Leaf already exists {}", leaf.to_string_rep());
             return Err(MerkleTreeError::LeafExists);
         }
@@ -523,7 +632,10 @@ impl<F: PrimeField + PoseidonParams> IndexedLeaves<F> for mongodb::Client {
         let db = self.database(<Self as IndexedLeaves<F>>::DB);
         let collection = db.collection::<IndexedLeaf<F>>(&collection_name);
         // If the new leaf is not in the db then we should update the next value of its low nullifier.
-        let low_leaf = if let Some(low_leaf) = self.get_low_leaf(&leaf, tree_id).await? {
+        let low_leaf = if let Some(low_leaf) = self
+            .get_low_leaf_with_session(&leaf, tree_id, session.as_deref_mut())
+            .await?
+        {
             low_leaf
         } else {
             debug!("Could not find low leaf for leaf {}", leaf.to_string_rep());
@@ -536,10 +648,12 @@ impl<F: PrimeField + PoseidonParams> IndexedLeaves<F> for mongodb::Client {
         } else {
             // if the index is not provided then we search for the maximum index in the db. If there are no
             // maximal leaves in the db then we set the index to 1. Then we add 1 to the result.
-            collection
-                .count_documents(doc! {})
-                .await
-                .map_err(MerkleTreeError::DatabaseError)?
+            if let Some(session) = session.as_deref_mut() {
+                collection.count_documents(doc! {}).session(session).await
+            } else {
+                collection.count_documents(doc! {}).await
+            }
+            .map_err(MerkleTreeError::DatabaseError)?
         };
         // Create a new leaf entry
         let entry = IndexedLeaf::<F> {
@@ -557,20 +671,37 @@ impl<F: PrimeField + PoseidonParams> IndexedLeaves<F> for mongodb::Client {
         let bson_index = u64_to_i64_checked(index)?;
         let bson_next_index = u64_to_i64_checked(low_leaf.next_index)?;
 
-        let updates_result = collection
-            .update_one(
-                doc! { "_id": bson_index },
-                doc! {
-                    "$set": {
-                        "value": padded_leaf,
-                        "next_index": bson_next_index,
-                        "next_value": padded_next_value,
-                    }
-                },
-            )
-            .upsert(true)
-            .await
-            .map_err(MerkleTreeError::DatabaseError)?;
+        let updates_result = if let Some(session) = session.as_deref_mut() {
+            collection
+                .update_one(
+                    doc! { "_id": bson_index },
+                    doc! {
+                        "$set": {
+                            "value": padded_leaf,
+                            "next_index": bson_next_index,
+                            "next_value": padded_next_value,
+                        }
+                    },
+                )
+                .upsert(true)
+                .session(session)
+                .await
+        } else {
+            collection
+                .update_one(
+                    doc! { "_id": bson_index },
+                    doc! {
+                        "$set": {
+                            "value": padded_leaf,
+                            "next_index": bson_next_index,
+                            "next_value": padded_next_value,
+                        }
+                    },
+                )
+                .upsert(true)
+                .await
+        }
+        .map_err(MerkleTreeError::DatabaseError)?;
 
         if updates_result.matched_count == 0 && updates_result.upserted_id.is_none() {
             return Err(MerkleTreeError::Error(
@@ -578,7 +709,7 @@ impl<F: PrimeField + PoseidonParams> IndexedLeaves<F> for mongodb::Client {
             ));
         }
         let low_leaf_value: F = low_leaf.value;
-        self.update_leaf(low_leaf_value, index, leaf, tree_id)
+        self.update_leaf_with_session(low_leaf_value, index, leaf, tree_id, session.as_deref_mut())
             .await?;
         Ok(Some(()))
     }
@@ -588,6 +719,17 @@ impl<F: PrimeField + PoseidonParams> IndexedLeaves<F> for mongodb::Client {
         value: Option<F>,
         next_value: Option<F>,
         tree_id: &str,
+    ) -> Result<Option<IndexedLeaf<F>>, Self::Error> {
+        self.get_leaf_with_session(value, next_value, tree_id, None)
+            .await
+    }
+
+    async fn get_leaf_with_session(
+        &self,
+        value: Option<F>,
+        next_value: Option<F>,
+        tree_id: &str,
+        mut session: Option<&mut ClientSession>,
     ) -> Result<Option<IndexedLeaf<F>>, Self::Error> {
         let collection_name = format!("{}_{}", tree_id, "indexed_leaves");
         let db = self.database(<Self as IndexedLeaves<F>>::DB);
@@ -618,10 +760,12 @@ impl<F: PrimeField + PoseidonParams> IndexedLeaves<F> for mongodb::Client {
             _ => doc! {},
         };
 
-        collection
-            .find_one(query)
-            .await
-            .map_err(MerkleTreeError::DatabaseError)
+        if let Some(session) = session.as_deref_mut() {
+            collection.find_one(query).session(session).await
+        } else {
+            collection.find_one(query).await
+        }
+        .map_err(MerkleTreeError::DatabaseError)
     }
 
     async fn get_low_leaf(
@@ -629,25 +773,56 @@ impl<F: PrimeField + PoseidonParams> IndexedLeaves<F> for mongodb::Client {
         leaf_value: &F,
         tree_id: &str,
     ) -> Result<Option<IndexedLeaf<F>>, Self::Error> {
+        self.get_low_leaf_with_session(leaf_value, tree_id, None)
+            .await
+    }
+
+    async fn get_low_leaf_with_session(
+        &self,
+        leaf_value: &F,
+        tree_id: &str,
+        mut session: Option<&mut ClientSession>,
+    ) -> Result<Option<IndexedLeaf<F>>, Self::Error> {
         let collection_name = format!("{}_{}", tree_id, "indexed_leaves");
         let db = self.database(<Self as IndexedLeaves<F>>::DB);
         let collection = db.collection::<IndexedLeaf<F>>(&collection_name);
         let padded_hex = fr_to_bson_padded(leaf_value)?;
-        let mut cursor = collection
-            .find(doc! {"value": {"$lt": padded_hex}})
-            .sort(doc! {"value": -1})
-            .limit(1)
-            .await
-            .map_err(MerkleTreeError::DatabaseError)?;
+        if let Some(session) = session.as_deref_mut() {
+            let mut cursor = collection
+                .find(doc! {"value": {"$lt": padded_hex}})
+                .sort(doc! {"value": -1})
+                .limit(1)
+                .session(&mut *session)
+                .await
+                .map_err(MerkleTreeError::DatabaseError)?;
 
-        if let Some(result) = cursor
-            .try_next()
-            .await
-            .map_err(MerkleTreeError::DatabaseError)?
-        {
-            Ok(Some(result))
+            if let Some(result) = cursor
+                .next(session)
+                .await
+                .transpose()
+                .map_err(MerkleTreeError::DatabaseError)?
+            {
+                Ok(Some(result))
+            } else {
+                Ok(None)
+            }
         } else {
-            Ok(None)
+            let mut cursor = collection
+                .find(doc! {"value": {"$lt": padded_hex}})
+                .sort(doc! {"value": -1})
+                .limit(1)
+                .await
+                .map_err(MerkleTreeError::DatabaseError)?;
+
+            if let Some(result) = cursor
+                .try_next()
+                .await
+                .map_err(MerkleTreeError::DatabaseError)?
+            {
+                Ok(Some(result))
+            } else {
+                Ok(None)
+            }
         }
     }
 
@@ -658,6 +833,18 @@ impl<F: PrimeField + PoseidonParams> IndexedLeaves<F> for mongodb::Client {
         new_next_value: F,
         tree_id: &str,
     ) -> Result<(), Self::Error> {
+        self.update_leaf_with_session(leaf, new_next_index, new_next_value, tree_id, None)
+            .await
+    }
+
+    async fn update_leaf_with_session(
+        &self,
+        leaf: F,
+        new_next_index: u64,
+        new_next_value: F,
+        tree_id: &str,
+        mut session: Option<&mut ClientSession>,
+    ) -> Result<(), Self::Error> {
         let collection_name = format!("{}_{}", tree_id, "indexed_leaves");
         let db = self.database(<Self as IndexedLeaves<F>>::DB);
         let collection = db.collection::<IndexedLeaf<F>>(&collection_name);
@@ -667,10 +854,12 @@ impl<F: PrimeField + PoseidonParams> IndexedLeaves<F> for mongodb::Client {
         let bson_next_index = u64_to_i64_checked(new_next_index)?;
         let update =
             doc! {"$set": {"next_index": bson_next_index, "next_value": padded_next_value}};
-        let result = collection
-            .update_one(query, update)
-            .await
-            .map_err(MerkleTreeError::DatabaseError)?;
+        let result = if let Some(session) = session.as_deref_mut() {
+            collection.update_one(query, update).session(session).await
+        } else {
+            collection.update_one(query, update).await
+        }
+        .map_err(MerkleTreeError::DatabaseError)?;
         if result.matched_count == 0 && result.upserted_id.is_none() {
             return Err(MerkleTreeError::Error(
                 "Failed to update or upsert the node in the database".to_string(),

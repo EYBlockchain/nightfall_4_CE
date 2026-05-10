@@ -7,7 +7,7 @@ use configuration::settings::get_settings;
 use jf_primitives::{poseidon::PoseidonParams, trees::MembershipProof};
 use lib::merkle_trees::trees::{IndexedTree, MerkleTreeError, MutableTree};
 use log::debug;
-use mongodb::Client;
+use mongodb::{Client, ClientSession};
 
 /// Trait defining the functionality of a commitment tree.
 #[async_trait::async_trait]
@@ -24,6 +24,23 @@ where
         let (result, _) =
             <Self as MutableTree<F>>::append_sub_trees(self, leaves, update_tree, Self::TREE_NAME)
                 .await?;
+        Ok(result)
+    }
+    /// Add leaves into the tree using the provided MongoDB session.
+    async fn append_sub_trees_with_session(
+        &self,
+        leaves: &[F],
+        update_tree: bool,
+        session: &mut ClientSession,
+    ) -> Result<F, Self::Error> {
+        let (result, _) = <Self as MutableTree<F>>::append_sub_trees_with_session(
+            self,
+            leaves,
+            update_tree,
+            Self::TREE_NAME,
+            Some(session),
+        )
+        .await?;
         Ok(result)
     }
     /// Inserts leaves into the tree and returns information allowing us to verify in a circuit.
@@ -43,6 +60,10 @@ where
     }
     /// get the root of the tree
     async fn get_root(&self) -> Result<F, Self::Error>;
+    /// get the root of the tree using the provided MongoDB session
+    async fn get_root_with_session(&self, session: &mut ClientSession) -> Result<F, Self::Error> {
+        <Self as MutableTree<F>>::get_root_with_session(self, Self::TREE_NAME, Some(session)).await
+    }
     /// reset the tree
     async fn reset_tree(&self) -> Result<(), Self::Error>
     where
@@ -96,6 +117,20 @@ where
         nullifiers: &[F],
     ) -> Result<F, <Self as MutableTree<F>>::Error> {
         <Self as IndexedTree<F>>::insert_leaves(self, nullifiers, Self::TREE_NAME).await
+    }
+    /// inserts new nullifiers into the tree using the provided MongoDB session.
+    async fn insert_nullifiers_with_session(
+        &self,
+        nullifiers: &[F],
+        session: &mut ClientSession,
+    ) -> Result<F, <Self as MutableTree<F>>::Error> {
+        <Self as IndexedTree<F>>::insert_leaves_with_session(
+            self,
+            nullifiers,
+            Self::TREE_NAME,
+            Some(session),
+        )
+        .await
     }
     /// gets a non-inclusion proof for a nullifier in the tree.
     async fn get_non_membership_proof(
@@ -175,6 +210,23 @@ where
             &[*historic_commitment_root],
             update_tree,
             Self::TREE_NAME,
+        )
+        .await?;
+        Ok(result)
+    }
+    /// Add a historic root using the provided MongoDB session.
+    async fn append_historic_commitment_root_with_session(
+        &self,
+        historic_commitment_root: &F,
+        update_tree: bool,
+        session: &mut ClientSession,
+    ) -> Result<F, Self::Error> {
+        let (result, _) = <Self as MutableTree<F>>::append_sub_trees_with_session(
+            self,
+            &[*historic_commitment_root],
+            update_tree,
+            Self::TREE_NAME,
+            Some(session),
         )
         .await?;
         Ok(result)
