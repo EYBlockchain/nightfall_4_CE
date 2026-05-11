@@ -7,7 +7,7 @@ use lib::{
     nf_token_id::to_nf_token_id_from_str,
     plonk_prover::plonk_proof::PlonkProof,
     shared_entities::{Preimage, TokenType, WithdrawData},
-    tests_utils::{get_db_connection_uri, get_mongo},
+    tests_utils::{get_db_connection as get_test_db_connection, get_db_connection_uri, get_mongo},
 };
 use mongodb::bson::doc;
 use nightfall_bindings::artifacts::Nightfall;
@@ -77,6 +77,7 @@ impl NightfallContract for MockNightfall {
 
 async fn setup_test_db() -> ContainerAsync<GenericImage> {
     let container = get_mongo().await;
+    let _ = get_test_db_connection(&container).await;
     let host = container.get_host().await.expect("mongo host");
     let port = container
         .get_host_port_ipv4(27017)
