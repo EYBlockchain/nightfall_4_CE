@@ -71,6 +71,17 @@ pub mod initialisation {
     use mongodb::Client;
     use tokio::sync::{OnceCell, RwLock};
 
+    async fn get_listener_start_block() -> &'static RwLock<usize> {
+        static LISTENER_START_BLOCK: OnceCell<RwLock<usize>> = OnceCell::const_new();
+        LISTENER_START_BLOCK
+            .get_or_init(|| async { RwLock::new(get_settings().genesis_block) })
+            .await
+    }
+
+    pub async fn get_runtime_listener_start_block() -> usize {
+        *get_listener_start_block().await.read().await
+    }
+
     async fn ensure_commitment_tree_initialized(client: &Client) {
         if <mongodb::Client as CommitmentTree<Fr254>>::get_root(client)
             .await
@@ -223,6 +234,9 @@ pub mod initialisation {
 
         let mut expected_block_number = get_expected_layer2_blocknumber().await.write().await;
         let mut sync_status = get_synchronisation_status().await.write().await;
+        let mut listener_start_block = get_listener_start_block().await.write().await;
+
+        *listener_start_block = get_settings().genesis_block;
 
         match db.get_sync_state().await {
             Some(sync_state) => {
@@ -252,18 +266,29 @@ pub mod initialisation {
                     "Next expected L2 block number does not fit into I256".to_string()
                 })?;
 
+                let sync_state_l1_block_number: usize =
+                    sync_state.l1_ref.block_number.try_into().map_err(|_| {
+                        format!(
+                            "sync_state L1 block number {} does not fit into usize",
+                            sync_state.l1_ref.block_number
+                        )
+                    })?;
+                *listener_start_block = sync_state_l1_block_number;
+
                 if next_expected_block == onchain_next_block {
                     sync_status.set_synchronised();
                     info!(
-                        "Recovered proposer state at L2 tip {} from sync_state",
-                        sync_state.last_applied_l2_block
+                        "Recovered proposer state at L2 tip {} from sync_state; listener will resume from L1 block {} to safely skip already applied events if replayed",
+                        sync_state.last_applied_l2_block,
+                        sync_state.l1_ref.block_number
                     );
                 } else {
                     sync_status.clear_synchronised();
                     info!(
-                        "Recovered proposer state at L2 block {}, behind chain tip {}",
+                        "Recovered proposer state at L2 block {}, behind chain tip {}; listener replay will start from L1 block {}",
                         sync_state.last_applied_l2_block,
-                        onchain_next_block.saturating_sub(1)
+                        onchain_next_block.saturating_sub(1),
+                        sync_state.l1_ref.block_number
                     );
                 }
             }

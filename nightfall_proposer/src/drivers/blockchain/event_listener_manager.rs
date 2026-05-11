@@ -1,4 +1,5 @@
 use crate::drivers::blockchain::nightfall_event_listener::start_event_listener;
+use crate::initialisation::get_runtime_listener_start_block;
 use crate::ports::contracts::NightfallContract;
 use configuration::settings::get_settings;
 use lib::nf_client_proof::{Proof, ProvingEngine};
@@ -24,11 +25,12 @@ where
     N: NightfallContract,
 {
     let s = get_settings();
-    let genesis = s.genesis_block;
+    let start_block = get_runtime_listener_start_block().await;
     let max_attempts = s.nightfall_client.max_event_listener_attempts.unwrap_or(10);
 
     tokio::spawn(async move {
-        let _ = start_event_listener::<P, E, N>(genesis, max_attempts).await; // discard Result
+        let _ = start_event_listener::<P, E, N>(start_block, max_attempts).await;
+        // discard Result
     })
 }
 
