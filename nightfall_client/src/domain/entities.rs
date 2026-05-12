@@ -220,6 +220,15 @@ pub struct TokenData {
     pub token_id: BigInteger256,
     pub token_type: TokenType,
 }
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct SlotData {
+    #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
+    pub erc_address: Fr254,
+    #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
+    pub slot_id: BigInteger256,
+    pub token_type: TokenType,
+}
 pub struct ERCAddress;
 impl ERCAddress {
     #[allow(dead_code)]

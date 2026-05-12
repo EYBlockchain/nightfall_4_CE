@@ -39,11 +39,7 @@ impl TokenContract for IERC20::IERC20Calls {
         let provider = read.get_client();
         let client = provider.root();
         let caller = read.get_address();
-        let signer = get_blockchain_client_connection()
-            .await
-            .read()
-            .await
-            .get_signer();
+        let wallet = read.get_wallet_type().clone();
 
         let nonce = client.get_transaction_count(caller).await.map_err(|e| {
             BlockchainClientConnectionError::ProviderError(format!(
@@ -65,8 +61,8 @@ impl TokenContract for IERC20::IERC20Calls {
             .gas(gas_limit)
             .max_fee_per_gas(max_fee_per_gas)
             .max_priority_fee_per_gas(max_priority_fee_per_gas)
-            .chain_id(get_settings().network.chain_id) // Linea testnet chain ID
-            .build_raw_transaction((*signer).clone())
+            .chain_id(get_settings().network.chain_id)
+            .build_raw_transaction(wallet)
             .await
             .map_err(|e| {
                 BlockchainClientConnectionError::ProviderError(format!(
@@ -127,11 +123,7 @@ impl TokenContract for IERC721::IERC721Calls {
         let provider = read.get_client();
         let client = provider.root();
         let caller = read.get_address();
-        let signer = get_blockchain_client_connection()
-            .await
-            .read()
-            .await
-            .get_signer();
+        let wallet = read.get_wallet_type().clone();
 
         let nonce = client.get_transaction_count(caller).await.map_err(|e| {
             BlockchainClientConnectionError::ProviderError(format!(
@@ -152,8 +144,8 @@ impl TokenContract for IERC721::IERC721Calls {
             .gas(gas_limit)
             .max_fee_per_gas(max_fee_per_gas)
             .max_priority_fee_per_gas(max_priority_fee_per_gas)
-            .chain_id(get_settings().network.chain_id) // Linea testnet chain ID
-            .build_raw_transaction((*signer).clone())
+            .chain_id(get_settings().network.chain_id)
+            .build_raw_transaction(wallet)
             .await
             .map_err(|e| {
                 BlockchainClientConnectionError::ProviderError(format!("Contract error: {e}"))
@@ -210,11 +202,7 @@ impl TokenContract for IERC1155::IERC1155Calls {
         let provider = read.get_client();
         let client = provider.root();
         let caller = read.get_address();
-        let signer = get_blockchain_client_connection()
-            .await
-            .read()
-            .await
-            .get_signer();
+        let wallet = read.get_wallet_type().clone();
 
         let erc1155 = IERC1155::new(solidity_erc_address.0, client.clone());
 
@@ -237,8 +225,8 @@ impl TokenContract for IERC1155::IERC1155Calls {
             .gas(gas_limit)
             .max_fee_per_gas(max_fee_per_gas)
             .max_priority_fee_per_gas(max_priority_fee_per_gas)
-            .chain_id(get_settings().network.chain_id) // Linea testnet chain ID
-            .build_raw_transaction((*signer).clone())
+            .chain_id(get_settings().network.chain_id)
+            .build_raw_transaction(wallet)
             .await
             .map_err(|e| {
                 BlockchainClientConnectionError::ProviderError(format!(
@@ -292,11 +280,7 @@ impl TokenContract for IERC3525::IERC3525Calls {
         let provider = read.get_client();
         let client = provider.root();
         let caller = read.get_address();
-        let signer = get_blockchain_client_connection()
-            .await
-            .read()
-            .await
-            .get_signer();
+        let wallet = read.get_wallet_type().clone();
 
         debug!("ERC3525 caller: {caller:?}");
         // NOTE: IERC3525 has overloaded approve functions in many implementations.
@@ -322,8 +306,8 @@ impl TokenContract for IERC3525::IERC3525Calls {
             .gas(gas_limit)
             .max_fee_per_gas(max_fee_per_gas)
             .max_priority_fee_per_gas(max_priority_fee_per_gas)
-            .chain_id(get_settings().network.chain_id) // Linea testnet chain ID
-            .build_raw_transaction((*signer).clone())
+            .chain_id(get_settings().network.chain_id)
+            .build_raw_transaction(wallet)
             .await
             .map_err(|e| {
                 BlockchainClientConnectionError::ProviderError(format!(
