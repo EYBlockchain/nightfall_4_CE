@@ -220,6 +220,11 @@ async fn refresh_status<P: Proof>(db: &mongodb::Client, receipt: &mut TransferRe
             {
                 receipt.status = status;
                 receipt.updated_at_unix = updated_at_unix;
+            } else {
+                log::warn!(
+                    "Failed to persist receipt status refresh for id={}",
+                    receipt.receipt_id
+                );
             }
         }
     }

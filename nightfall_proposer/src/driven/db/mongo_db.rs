@@ -642,11 +642,18 @@ impl TransferReceiptDB for mongodb::Client {
 
     async fn get_transfer_receipt(&self, receipt_id: &str) -> Option<TransferReceipt> {
         let filter = doc! { "receipt_id": receipt_id };
-        self.database(DB)
+        match self
+            .database(DB)
             .collection::<TransferReceipt>(TRANSFER_RECEIPTS_COLLECTION)
             .find_one(filter)
             .await
-            .ok()?
+        {
+            Ok(result) => result,
+            Err(e) => {
+                log::warn!("Failed to query transfer receipt by id={receipt_id}: {e}");
+                None
+            }
+        }
     }
 
     async fn get_transfer_receipt_by_tx_hash(
@@ -654,11 +661,18 @@ impl TransferReceiptDB for mongodb::Client {
         tx_hash: &TxHashBytes,
     ) -> Option<TransferReceipt> {
         let filter = doc! { "tx_hash": tx_hash.as_hex() };
-        self.database(DB)
+        match self
+            .database(DB)
             .collection::<TransferReceipt>(TRANSFER_RECEIPTS_COLLECTION)
             .find_one(filter)
             .await
-            .ok()?
+        {
+            Ok(result) => result,
+            Err(e) => {
+                log::warn!("Failed to query transfer receipt by tx_hash={}: {e}", tx_hash.as_hex());
+                None
+            }
+        }
     }
 
     async fn set_transfer_receipt_status(
@@ -668,18 +682,31 @@ impl TransferReceiptDB for mongodb::Client {
         updated_at_unix: i64,
     ) -> Option<()> {
         let filter = doc! { "receipt_id": receipt_id };
+        let status_bson = match mongodb::bson::to_bson(&status) {
+            Ok(b) => b,
+            Err(e) => {
+                log::warn!("Failed to serialize receipt status for id={receipt_id}: {e}");
+                return None;
+            }
+        };
         let update = doc! {
             "$set": {
-                "status": mongodb::bson::to_bson(&status).ok()?,
+                "status": status_bson,
                 "updated_at_unix": updated_at_unix,
             }
         };
-        self.database(DB)
+        match self
+            .database(DB)
             .collection::<TransferReceipt>(TRANSFER_RECEIPTS_COLLECTION)
             .update_one(filter, update)
             .await
-            .ok()?;
-        Some(())
+        {
+            Ok(_) => Some(()),
+            Err(e) => {
+                log::warn!("Failed to update transfer receipt status for id={receipt_id}: {e}");
+                None
+            }
+        }
     }
 }
 
