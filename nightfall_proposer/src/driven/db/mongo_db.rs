@@ -669,7 +669,10 @@ impl TransferReceiptDB for mongodb::Client {
         {
             Ok(result) => result,
             Err(e) => {
-                log::warn!("Failed to query transfer receipt by tx_hash={}: {e}", tx_hash.as_hex());
+                log::warn!(
+                    "Failed to query transfer receipt by tx_hash={}: {e}",
+                    tx_hash.as_hex()
+                );
                 None
             }
         }
