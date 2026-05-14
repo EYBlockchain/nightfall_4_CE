@@ -67,24 +67,28 @@ pub mod initialisation {
             OnceCell::const_new();
 
         match role {
-            WalletRole::Client => CLIENT_BLOCKCHAIN_CLIENT_CONNECTION
-                .get_or_init(|| async {
-                    RwLock::new(
-                        LocalWsClient::try_from_settings(get_settings(), WalletRole::Client)
-                            .await
-                            .expect("Could not create blockchain client connection"),
-                    )
-                })
-                .await,
-            WalletRole::Proposer => PROPOSER_BLOCKCHAIN_CLIENT_CONNECTION
-                .get_or_init(|| async {
-                    RwLock::new(
-                        LocalWsClient::try_from_settings(get_settings(), WalletRole::Proposer)
-                            .await
-                            .expect("Could not create proposer blockchain client connection"),
-                    )
-                })
-                .await,
+            WalletRole::Client => {
+                CLIENT_BLOCKCHAIN_CLIENT_CONNECTION
+                    .get_or_init(|| async {
+                        RwLock::new(
+                            LocalWsClient::try_from_settings(get_settings(), WalletRole::Client)
+                                .await
+                                .expect("Could not create blockchain client connection"),
+                        )
+                    })
+                    .await
+            }
+            WalletRole::Proposer => {
+                PROPOSER_BLOCKCHAIN_CLIENT_CONNECTION
+                    .get_or_init(|| async {
+                        RwLock::new(
+                            LocalWsClient::try_from_settings(get_settings(), WalletRole::Proposer)
+                                .await
+                                .expect("Could not create proposer blockchain client connection"),
+                        )
+                    })
+                    .await
+            }
         }
     }
 }

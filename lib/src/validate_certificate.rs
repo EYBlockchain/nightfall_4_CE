@@ -25,9 +25,9 @@ use nightfall_bindings::artifacts::X509;
 use openssl::{
     asn1::Asn1Time,
     hash::MessageDigest,
-    sha::sha256,
     pkey::{Id as PKeyId, PKey},
     rsa::{Padding, Rsa},
+    sha::sha256,
     sign::{RsaPssSaltlen, Signer as opensslSigner, Verifier},
     x509::X509 as OpensslX509,
 };
@@ -230,9 +230,7 @@ pub async fn handle_certificate_validation(
             &x509_addr,
             chain_id,
         ),
-        X509SignerTypeConfig::Azure => {
-            prevalidate_certificate(&certificate_req.certificate)
-        }
+        X509SignerTypeConfig::Azure => prevalidate_certificate(&certificate_req.certificate),
     };
 
     if let Err(e) = prevalidation_result {
@@ -265,7 +263,9 @@ pub async fn handle_certificate_validation(
     // 3) Build signature over the requester address
     let certificate_signer: Box<dyn CertificateSigner> = match x509_signer_type {
         X509SignerTypeConfig::Local => {
-            debug!("Signing ethereum address {requestor_address} with local certificate private key");
+            debug!(
+                "Signing ethereum address {requestor_address} with local certificate private key"
+            );
             Box::new(LocalCertificateSigner::new(
                 certificate_req.certificate_private_key.clone(),
             ))
@@ -461,11 +461,11 @@ fn build_certificate_possession_preimage(
     let mut preimage =
         Vec::with_capacity(PREFIX.len() + 20 + SEP_CHAIN.len() + 8 + SEP_ADDR.len() + 20);
     preimage.extend_from_slice(PREFIX);
-    preimage.extend_from_slice(verifying_contract.as_bytes());// 20 bytes
+    preimage.extend_from_slice(verifying_contract.as_bytes()); // 20 bytes
     preimage.extend_from_slice(SEP_CHAIN);
-    preimage.extend_from_slice(&chain_id.to_be_bytes());// 8 bytes, big-endian
+    preimage.extend_from_slice(&chain_id.to_be_bytes()); // 8 bytes, big-endian
     preimage.extend_from_slice(SEP_ADDR);
-    preimage.extend_from_slice(address.as_bytes());// 20 bytes
+    preimage.extend_from_slice(address.as_bytes()); // 20 bytes
     preimage
 }
 
@@ -499,7 +499,8 @@ pub fn sign_ethereum_address(
     chain_id: u64,
 ) -> Result<Vec<u8>, Box<dyn Error>> {
     let preimage = build_certificate_possession_preimage(address, verifying_contract, chain_id);
-    sign_certificate_possession_preimage(der_private_key, &preimage).map_err(|e| e as Box<dyn Error>)
+    sign_certificate_possession_preimage(der_private_key, &preimage)
+        .map_err(|e| e as Box<dyn Error>)
 }
 
 // Convenience alias so we do not keep constructing Box<dyn Error> in the handler
