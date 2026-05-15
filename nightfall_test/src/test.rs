@@ -1949,7 +1949,6 @@ pub struct CreateTransferReceiptRequest {
 pub struct CreateTransferReceiptResponse {
     pub receipt_id: String,
     pub status: String,
-    pub link_path: String,
 }
 
 #[derive(Debug, Deserialize)]

@@ -888,10 +888,6 @@ pub async fn run_tests(
             .receipt_id
             .chars()
             .all(|c| c.is_ascii_hexdigit()));
-        assert_eq!(
-            create_resp.link_path,
-            format!("/v1/transfer-receipts/{}", create_resp.receipt_id)
-        );
         // Transaction is already on-chain at this point, so status is included_l2
         assert_eq!(create_resp.status, "included_l2");
 

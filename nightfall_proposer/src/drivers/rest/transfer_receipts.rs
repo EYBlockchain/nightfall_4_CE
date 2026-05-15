@@ -39,7 +39,6 @@ pub struct CreateTransferReceiptRequest {
 pub struct CreateTransferReceiptResponse {
     pub receipt_id: String,
     pub status: TransferReceiptStatus,
-    pub link_path: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -90,7 +89,6 @@ async fn handle_create_transfer_receipt<P: Proof>(
         let response = CreateTransferReceiptResponse {
             receipt_id: existing.receipt_id.clone(),
             status: existing.status,
-            link_path: format!("/v1/transfer-receipts/{}", existing.receipt_id),
         };
 
         return Ok(warp::reply::with_status(
@@ -124,7 +122,6 @@ async fn handle_create_transfer_receipt<P: Proof>(
             let response = CreateTransferReceiptResponse {
                 receipt_id: receipt_id.clone(),
                 status,
-                link_path: format!("/v1/transfer-receipts/{receipt_id}"),
             };
 
             Ok(warp::reply::with_status(
@@ -143,7 +140,6 @@ async fn handle_create_transfer_receipt<P: Proof>(
                 let response = CreateTransferReceiptResponse {
                     receipt_id: existing.receipt_id.clone(),
                     status: existing.status,
-                    link_path: format!("/v1/transfer-receipts/{}", existing.receipt_id),
                 };
 
                 return Ok(warp::reply::with_status(
