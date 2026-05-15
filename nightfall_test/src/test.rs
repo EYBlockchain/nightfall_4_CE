@@ -2139,3 +2139,51 @@ pub async fn get_transfer_receipt_status(
     let (_, body_text) = get_transfer_receipt_status_raw(client, proposer_url, receipt_id).await?;
     serde_json::from_str(&body_text).map_err(|e| TestError::new(e.to_string()))
 }
+
+/// Retrieves the canonical proposer `tx_hash` for a submitted request by polling
+/// `GET /v1/request/{uuid}` on the nightfall client. This mirrors how a wallet app
+/// would obtain the tx_hash needed for receipt creation.
+///
+/// The request must already be in `Submitted` (or later) status for `tx_hash` to be present.
+pub async fn get_tx_hash_from_request_status(
+    client: &reqwest::Client,
+    client_base_url: &Url,
+    request_uuid: &str,
+) -> Result<Vec<u32>, TestError> {
+    let url = client_base_url
+        .join(&format!("v1/request/{request_uuid}"))
+        .map_err(|e| TestError::new(e.to_string()))?;
+
+    let resp = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| TestError::new(format!("request status fetch failed: {e}")))?;
+
+    if !resp.status().is_success() {
+        return Err(TestError::new(format!(
+            "request status returned {}",
+            resp.status()
+        )));
+    }
+
+    let body: Value = resp
+        .json()
+        .await
+        .map_err(|e| TestError::new(format!("request status body parse failed: {e}")))?;
+
+    let tx_hash_hex = body
+        .get("tx_hash")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| {
+            TestError::new(format!(
+                "tx_hash not present in request status response: {body}"
+            ))
+        })?;
+
+    // Decode hex string into Vec<u32> (each byte as a u32), matching the
+    // shape expected by the proposer receipt API.
+    let bytes = hex::decode(tx_hash_hex)
+        .map_err(|e| TestError::new(format!("tx_hash hex decode failed: {e}")))?;
+    Ok(bytes.iter().map(|&b| b as u32).collect())
+}

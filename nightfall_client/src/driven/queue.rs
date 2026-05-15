@@ -130,6 +130,7 @@ mod tests {
             status,
             uuid: "test-request".to_string(),
             child_request_args: None,
+            tx_hash: None,
         }
     }
 

@@ -166,6 +166,7 @@ impl RequestDB for Client {
             uuid: request_id.to_string(),
             status,
             child_request_args: None,
+            tx_hash: None,
         };
         let result = self
             .database(DB)
@@ -244,6 +245,21 @@ impl RequestDB for Client {
             return None;
         }
         debug!("{request_id} Successfully cleared child_request_args");
+        Some(())
+    }
+
+    async fn set_request_tx_hash(&self, request_id: &str, tx_hash: &str) -> Option<()> {
+        let filter = doc! { "uuid": request_id };
+        let update = doc! { "$set": { "tx_hash": tx_hash } };
+        let result = self
+            .database(DB)
+            .collection::<Request>("requests")
+            .update_one(filter, update)
+            .await;
+        if let Err(e) = result {
+            error!("{request_id} Got an error setting tx_hash: {e}");
+            return None;
+        }
         Some(())
     }
 }

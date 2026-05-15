@@ -254,7 +254,7 @@ where
     E: ProvingEngine<P> + Send + Sync,
     N: NightfallContract,
 {
-    Ok(submit_client_operation::<P, E, N>(
+    let submitted = submit_client_operation::<P, E, N>(
         operation,
         spend_commitments,
         new_commitments,
@@ -264,8 +264,17 @@ where
         swap_params,
         id,
     )
-    .await?
-    .payload)
+    .await?;
+
+    // Persist the canonical proposer tx_hash on the request record so the
+    // wallet can retrieve it via GET /v1/request/{uuid} without needing a webhook.
+    if let Ok(hash_bytes) = submitted.transaction.hash() {
+        let tx_hash_hex: String = hash_bytes.iter().map(|b| format!("{:02x}", b)).collect();
+        let db = crate::initialisation::get_db_connection().await;
+        let _ = db.set_request_tx_hash(id, &tx_hash_hex).await;
+    }
+
+    Ok(submitted.payload)
 }
 
 /// Only retry on network issues or timeouts

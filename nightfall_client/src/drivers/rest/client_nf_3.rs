@@ -2328,6 +2328,7 @@ mod tests {
             status: RequestStatus::Submitted,
             uuid: request_id.to_string(),
             child_request_args,
+            tx_hash: None,
         }
     }
 
@@ -3773,6 +3774,7 @@ mod tests {
             status: RequestStatus::Processing,
             uuid: request_id.to_string(),
             child_request_args: Some(child_args),
+            tx_hash: None,
         })
         .await;
 
@@ -3800,6 +3802,7 @@ mod tests {
             status: RequestStatus::Expired,
             uuid: request_id.to_string(),
             child_request_args: None,
+            tx_hash: None,
         })
         .await;
 
@@ -3838,6 +3841,7 @@ mod tests {
             status: RequestStatus::Expired,
             uuid: request_id.to_string(),
             child_request_args: Some(child_args),
+            tx_hash: None,
         })
         .await;
         db.push_commitment(mock_commitment(
@@ -3960,6 +3964,7 @@ mod tests {
             status: RequestStatus::Expired,
             uuid: request_id.to_string(),
             child_request_args: Some(child_args),
+            tx_hash: None,
         })
         .await;
 
@@ -4009,6 +4014,7 @@ mod tests {
             status: RequestStatus::Expired,
             uuid: request_id.to_string(),
             child_request_args: Some(child_args),
+            tx_hash: None,
         })
         .await;
         db.push_commitment(mock_commitment(commitment_id, CommitmentStatus::Unspent))

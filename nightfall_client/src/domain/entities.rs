@@ -23,6 +23,10 @@ pub struct Request {
     pub uuid: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub child_request_args: Option<String>,
+    /// The canonical proposer transaction hash (hex-encoded, 64 chars).
+    /// Populated after the transaction is successfully submitted to the proposer.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub tx_hash: Option<String>,
 }
 
 /// Struct to represent the realtionship between request and commitment

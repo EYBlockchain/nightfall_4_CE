@@ -1,10 +1,11 @@
 use crate::{
     test::{
-        self, compute_tx_hash_from_raw_response, create_nf3_deposit_transaction,
+        self, create_nf3_deposit_transaction,
         create_nf3_swap_request, create_nf3_transfer_transaction, create_nf3_withdraw_transaction,
         create_transfer_receipt_full, create_transfer_receipt_raw,
         generate_realistic_receipt_ciphertext, get_key, get_recipient_address,
-        get_transfer_receipt_status, get_transfer_receipt_status_raw, resolve_transfer_receipt,
+        get_transfer_receipt_status, get_transfer_receipt_status_raw,
+        get_tx_hash_from_request_status, resolve_transfer_receipt,
         resolve_transfer_receipt_raw, set_anvil_mining_interval,
         submit_swap_pair_and_assert_paired, verify_deposit_commitments_nf_token_id,
         wait_for_all_responses, wait_for_withdraws_on_chain, wait_on_chain, TokenType,
@@ -857,12 +858,19 @@ pub async fn run_tests(
         use nightfall_client::driven::primitives::kemdem_functions::receipt_kemdem_decrypt;
 
         let proposer_url = Url::parse(&settings.nightfall_proposer.url).unwrap();
+        let client_base_url = Url::parse(&settings.nightfall_client.url).unwrap();
         let ctx = generate_realistic_receipt_ciphertext();
         assert_eq!(ctx.ciphertext_hex.len(), 576);
         info!("Generated realistic receipt ciphertext (576 hex chars) via receipt_kemdem_encrypt");
 
-        let tx_hash = compute_tx_hash_from_raw_response(&transaction_responses[0].1)
-            .expect("first transaction should produce a proposer tx_hash");
+        // Obtain tx_hash via the client request status API — mirrors the wallet flow.
+        let tx_hash = get_tx_hash_from_request_status(
+            &http_client,
+            &client_base_url,
+            &transaction_ids[0].to_string(),
+        )
+        .await
+        .expect("first transaction should have tx_hash in request status");
 
         info!("Receipt Test 1: Create receipt — happy path");
         let (create_status, create_resp) = create_transfer_receipt_full(
@@ -1111,8 +1119,13 @@ pub async fn run_tests(
 
         info!("Receipt Test 20: Create receipt for second valid tx_hash");
         if transactions.len() > 1 {
-            let tx_hash_2 = compute_tx_hash_from_raw_response(&transaction_responses[1].1)
-                .expect("second transaction should produce a proposer tx_hash");
+            let tx_hash_2 = get_tx_hash_from_request_status(
+                &http_client,
+                &client_base_url,
+                &transaction_ids[1].to_string(),
+            )
+            .await
+            .expect("second transaction should have tx_hash in request status");
             let ctx2 = generate_realistic_receipt_ciphertext();
             let (create_status_2, create_resp_2) = create_transfer_receipt_full(
                 &http_client,
