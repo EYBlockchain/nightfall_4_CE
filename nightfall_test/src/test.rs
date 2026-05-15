@@ -1940,7 +1940,7 @@ mod tx_hash_normalization_tests {
 
 #[derive(Debug, Serialize)]
 pub struct CreateTransferReceiptRequest {
-    pub tx_hash: Vec<u32>,
+    pub tx_hash: String,
     pub ciphertext: String,
     pub version: Option<u8>,
 }
@@ -2020,7 +2020,7 @@ pub fn generate_realistic_receipt_ciphertext() -> ReceiptCiphertextContext {
 pub async fn create_transfer_receipt_raw(
     client: &reqwest::Client,
     proposer_url: &Url,
-    tx_hash: &[u32],
+    tx_hash: &str,
     ciphertext: &str,
     version: Option<u8>,
 ) -> Result<(u16, String), TestError> {
@@ -2028,7 +2028,7 @@ pub async fn create_transfer_receipt_raw(
         .join("v1/transfer-receipts")
         .map_err(|e| TestError::new(e.to_string()))?;
     let request = CreateTransferReceiptRequest {
-        tx_hash: tx_hash.to_vec(),
+        tx_hash: tx_hash.to_string(),
         ciphertext: ciphertext.to_string(),
         version,
     };
@@ -2052,7 +2052,7 @@ pub async fn create_transfer_receipt_raw(
 pub async fn create_transfer_receipt(
     client: &reqwest::Client,
     proposer_url: &Url,
-    tx_hash: &[u32],
+    tx_hash: &str,
     ciphertext: &str,
     version: Option<u8>,
 ) -> Result<CreateTransferReceiptResponse, TestError> {
@@ -2064,7 +2064,7 @@ pub async fn create_transfer_receipt(
 pub async fn create_transfer_receipt_full(
     client: &reqwest::Client,
     proposer_url: &Url,
-    tx_hash: &[u32],
+    tx_hash: &str,
     ciphertext: &str,
     version: Option<u8>,
 ) -> Result<(u16, CreateTransferReceiptResponse), TestError> {
@@ -2144,12 +2144,12 @@ pub async fn get_transfer_receipt_status(
 /// `GET /v1/request/{uuid}` on the nightfall client. This mirrors how a wallet app
 /// would obtain the tx_hash needed for receipt creation.
 ///
-/// The request must already be in `Submitted` (or later) status for `tx_hash` to be present.
+/// Returns the 64-character hex string directly — pass it straight to the receipt API.
 pub async fn get_tx_hash_from_request_status(
     client: &reqwest::Client,
     client_base_url: &Url,
     request_uuid: &str,
-) -> Result<Vec<u32>, TestError> {
+) -> Result<String, TestError> {
     let url = client_base_url
         .join(&format!("v1/request/{request_uuid}"))
         .map_err(|e| TestError::new(e.to_string()))?;
@@ -2183,7 +2183,7 @@ pub async fn get_tx_hash_from_request_status(
 
     // Decode hex string into Vec<u32> (each byte as a u32), matching the
     // shape expected by the proposer receipt API.
-    let bytes = hex::decode(tx_hash_hex)
+    let _bytes = hex::decode(tx_hash_hex)
         .map_err(|e| TestError::new(format!("tx_hash hex decode failed: {e}")))?;
-    Ok(bytes.iter().map(|&b| b as u32).collect())
+    Ok(tx_hash_hex.to_string())
 }

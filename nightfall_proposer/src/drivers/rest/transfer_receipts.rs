@@ -30,7 +30,7 @@ impl ReceiptValidationError {
 
 #[derive(Debug, Deserialize)]
 pub struct CreateTransferReceiptRequest {
-    pub tx_hash: Vec<u32>,
+    pub tx_hash: String,
     pub ciphertext: String,
     pub version: Option<u8>,
 }
@@ -76,7 +76,7 @@ pub fn get_transfer_receipt<P: Proof>(
 async fn handle_create_transfer_receipt<P: Proof>(
     request: CreateTransferReceiptRequest,
 ) -> Result<impl Reply, Rejection> {
-    let tx_hash = validate_tx_hash(&request.tx_hash).map_err(|e| e.into_rejection())?;
+    let tx_hash = validate_tx_hash(request.tx_hash.trim()).map_err(|e| e.into_rejection())?;
     let version = request.version.unwrap_or(SUPPORTED_VERSION);
     let db = get_db_connection().await;
 
@@ -260,8 +260,8 @@ fn generate_receipt_id() -> String {
     hex::encode(bytes)
 }
 
-fn validate_tx_hash(tx_hash: &[u32]) -> Result<TxHashBytes, ReceiptValidationError> {
-    TxHashBytes::from_u32_slice(tx_hash).ok_or(ReceiptValidationError::InvalidTxHash)
+fn validate_tx_hash(tx_hash: &str) -> Result<TxHashBytes, ReceiptValidationError> {
+    TxHashBytes::from_hex(tx_hash).ok_or(ReceiptValidationError::InvalidTxHash)
 }
 
 fn validate_new_receipt_fields(

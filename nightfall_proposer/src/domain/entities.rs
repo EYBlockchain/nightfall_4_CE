@@ -180,6 +180,15 @@ impl TxHashBytes {
         Some(Self(tx_hash))
     }
 
+    pub fn from_hex(hex_str: &str) -> Option<Self> {
+        if hex_str.len() != 64 || !hex_str.chars().all(|c| c.is_ascii_hexdigit()) {
+            return None;
+        }
+        let bytes = hex::decode(hex_str).ok()?;
+        let arr: [u8; 32] = bytes.try_into().ok()?;
+        Some(Self(arr))
+    }
+
     pub fn as_hex(&self) -> String {
         hex::encode(self.0)
     }

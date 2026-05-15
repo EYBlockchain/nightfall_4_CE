@@ -902,13 +902,7 @@ pub async fn run_tests(
                 .expect("Receipt Test 2 failed");
         assert_eq!(resolve_resp.receipt_id, create_resp.receipt_id);
         assert_eq!(resolve_resp.ciphertext, ctx.ciphertext_hex);
-        assert_eq!(
-            resolve_resp.tx_hash,
-            tx_hash
-                .iter()
-                .map(|b| format!("{b:02x}"))
-                .collect::<String>()
-        );
+        assert_eq!(resolve_resp.tx_hash, tx_hash);
         assert_eq!(resolve_resp.version, 1);
         assert!(resolve_resp.created_at_unix > 0);
         assert!(resolve_resp.updated_at_unix > 0);
@@ -983,7 +977,7 @@ pub async fn run_tests(
         info!("Mismatched version correctly rejected with 409");
 
         info!("Receipt Test 7: Create with unknown tx_hash");
-        let unknown_tx_hash: Vec<u32> = (0u32..32).collect();
+        let unknown_tx_hash: String = "00".repeat(32);
         let err7 = create_transfer_receipt_raw(
             &http_client,
             &proposer_url,
@@ -1024,7 +1018,7 @@ pub async fn run_tests(
         let err12 = create_transfer_receipt_raw(
             &http_client,
             &proposer_url,
-            &[1u32; 10],
+            "abcd1234",
             &ctx.ciphertext_hex,
             Some(1),
         )
@@ -1036,7 +1030,7 @@ pub async fn run_tests(
         let err13 = create_transfer_receipt_raw(
             &http_client,
             &proposer_url,
-            &[],
+            "",
             &ctx.ciphertext_hex,
             Some(1),
         )
@@ -1044,16 +1038,16 @@ pub async fn run_tests(
         .expect_err("empty tx_hash must fail");
         assert!(err13.to_string().contains("400"));
 
-        info!("Receipt Test 14: Input validation — tx_hash values > 255");
+        info!("Receipt Test 14: Input validation — non-hex tx_hash");
         let err14 = create_transfer_receipt_raw(
             &http_client,
             &proposer_url,
-            &[256u32; 32],
+            &"zz".repeat(32),
             &ctx.ciphertext_hex,
             Some(1),
         )
         .await
-        .expect_err("out-of-range tx_hash must fail");
+        .expect_err("non-hex tx_hash must fail");
         assert!(err14.to_string().contains("400"));
 
         info!("Receipt Test 15: Input validation — short ciphertext");
@@ -1105,7 +1099,7 @@ pub async fn run_tests(
         assert!(err18.to_string().contains("400"));
 
         info!("Receipt Test 19: Input validation — unsupported version");
-        let fresh_tx_hash_for_version: Vec<u32> = (0u32..32).map(|i| i.wrapping_add(99)).collect();
+        let fresh_tx_hash_for_version = "ff".repeat(32);
         let err19 = create_transfer_receipt_raw(
             &http_client,
             &proposer_url,
