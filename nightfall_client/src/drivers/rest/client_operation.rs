@@ -130,9 +130,7 @@ where
                         commitment_entry.native_slot_id = Some(slot_info.slot_id.to_hex_string());
                     }
                     Err(e) => {
-                        warn!(
-                            "{id} Could not enrich commitment with native slot metadata: {e}"
-                        );
+                        warn!("{id} Could not enrich commitment with native slot metadata: {e}");
                     }
                 }
                 commitment_entries.push(commitment_entry);
