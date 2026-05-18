@@ -10,6 +10,9 @@ use tokio::io::AsyncReadExt;
 use url::Host;
 
 const TEST_MONGO_REPLICA_SET_NAME: &str = "rs0";
+const TEST_MONGO_PORT: u16 = 27017;
+const TEST_MONGO_PORT_RETRY_ATTEMPTS: usize = 30;
+const TEST_MONGO_PING_RETRY_ATTEMPTS: usize = 30;
 
 pub fn get_db_connection_uri(host: Host, port: u16) -> String {
     format!(
@@ -23,7 +26,7 @@ fn get_direct_db_connection_uri(host: &Host, port: u16) -> String {
 
 pub async fn get_mongo() -> ContainerAsync<GenericImage> {
     let mongo_image = GenericImage::new("mongo", "8.0")
-        .with_exposed_port(27017.tcp())
+        .with_exposed_port(TEST_MONGO_PORT.tcp())
         .with_wait_for(WaitFor::message_on_stdout("Waiting for connections"))
         .with_entrypoint("mongod")
         .with_cmd(["--replSet", TEST_MONGO_REPLICA_SET_NAME, "--bind_ip_all"])
@@ -37,13 +40,13 @@ pub async fn get_db_connection(container: &ContainerAsync<GenericImage>) -> mong
 
     let host = container.get_host().await.unwrap();
     let mut port = None;
-    for _ in 0..10 {
-        match container.get_host_port_ipv4(27017).await {
+    for _ in 0..TEST_MONGO_PORT_RETRY_ATTEMPTS {
+        match container.get_host_port_ipv4(TEST_MONGO_PORT.tcp()).await {
             Ok(mapped) => {
                 port = Some(mapped);
                 break;
             }
-            Err(ipv4_error) => match container.get_host_port_ipv6(27017).await {
+            Err(ipv4_error) => match container.get_host_port_ipv6(TEST_MONGO_PORT.tcp()).await {
                 Ok(mapped) => {
                     port = Some(mapped);
                     break;
@@ -57,7 +60,12 @@ pub async fn get_db_connection(container: &ContainerAsync<GenericImage>) -> mong
             },
         }
     }
-    let port = port.expect("Mongo testcontainer did not expose port 27017");
+    let port = port.unwrap_or_else(|| {
+        panic!(
+            "Mongo testcontainer did not expose TCP port {} after {} attempts",
+            TEST_MONGO_PORT, TEST_MONGO_PORT_RETRY_ATTEMPTS
+        )
+    });
     let direct_uri = get_direct_db_connection_uri(&host, port);
     let rs_uri = get_db_connection_uri(host, port);
 
@@ -79,8 +87,11 @@ pub async fn get_db_connection(container: &ContainerAsync<GenericImage>) -> mong
         }
 
         attempts += 1;
-        if attempts >= 10 {
-            panic!(" MongoDB not ready after 10 attempts");
+        if attempts >= TEST_MONGO_PING_RETRY_ATTEMPTS {
+            panic!(
+                "MongoDB not ready after {} ping attempts on {}",
+                TEST_MONGO_PING_RETRY_ATTEMPTS, direct_uri
+            );
         }
         sleep(Duration::from_secs(1)).await;
     }
