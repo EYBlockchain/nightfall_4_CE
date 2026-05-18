@@ -687,6 +687,36 @@ pub async fn swap_proposer_shadow_into_live(
     Ok(journal)
 }
 
+pub async fn cleanup_after_proposer_shadow_swap(
+    client: &mongodb::Client,
+) -> Result<(), SnapshotError> {
+    let journal = client
+        .get_restore_journal()
+        .await
+        .ok_or(SnapshotError::MissingRestoreJournal)?;
+
+    if journal.phase != RestoreJournalPhase::SwapComplete {
+        return Err(SnapshotError::UnexpectedRestoreJournalPhase {
+            expected: "swap_complete".to_string(),
+            actual: format!("{:?}", journal.phase),
+        });
+    }
+
+    let database = client.database(DB);
+    let ordered = restore_collections_in_swap_order(&journal.collections);
+
+    for collection in &ordered {
+        drop_collection_if_exists(&database, &collection.backup).await?;
+    }
+
+    for collection in &ordered {
+        drop_collection_if_exists(&database, &collection.shadow).await?;
+    }
+
+    client.delete_restore_journal().await?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -1034,6 +1064,164 @@ mod test {
             !shadow_sync_state_exists,
             "shadow sync_state should have been renamed away"
         );
+
+        fs::remove_dir_all(snapshot_root)
+            .await
+            .expect("cleanup snapshot directory");
+    }
+
+    #[tokio::test]
+    async fn cleanup_after_shadow_swap_returns_to_idle_and_keeps_live_restored_state() {
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+
+        <mongodb::Client as CommitmentTree<Fr254>>::new_commitment_tree(&client, 29, 3)
+            .await
+            .expect("create commitment tree");
+        <mongodb::Client as HistoricRootTree<Fr254>>::new_historic_root_tree(&client, 32)
+            .await
+            .expect("create historic root tree");
+        <mongodb::Client as HistoricRootTree<Fr254>>::append_historic_commitment_root(
+            &client,
+            &Fr254::zero(),
+            true,
+        )
+        .await
+        .expect("append zero historic root");
+        <mongodb::Client as NullifierTree<Fr254>>::new_nullifier_tree(&client, 29, 3)
+            .await
+            .expect("create nullifier tree");
+
+        let snapshot_block = StoredBlock {
+            layer2_block_number: 10,
+            commitments: vec!["0xbeef".to_string()],
+            proposer_address: Address::from([6u8; 20]),
+        };
+        client
+            .store_block(&snapshot_block)
+            .await
+            .expect("store snapshot block");
+
+        let snapshot_sync_state = SyncState::new(
+            snapshot_block.layer2_block_number,
+            snapshot_block.hash().to_string(),
+            L1Ref {
+                block_number: 1112,
+                tx_hash: TxHash::from([6u8; 32]),
+                log_index: 6,
+            },
+            mongodb::bson::DateTime::now(),
+        );
+
+        let mut session = client.start_session().await.expect("start session");
+        session
+            .start_transaction()
+            .and_run2(async |session| {
+                client
+                    .update_sync_state_with_session(&snapshot_sync_state, session)
+                    .await?;
+                Ok::<(), mongodb::error::Error>(())
+            })
+            .await
+            .expect("write snapshot sync_state");
+
+        let snapshot_root = std::env::temp_dir().join(format!(
+            "nf4-proposer-shadow-cleanup-test-{}",
+            mongodb::bson::DateTime::now().timestamp_millis()
+        ));
+
+        let manifest = create_proposer_snapshot(&client, &snapshot_root)
+            .await
+            .expect("create snapshot");
+        let snapshot_dir = snapshot_root.join(&manifest.snapshot_id);
+
+        let newer_live_block = StoredBlock {
+            layer2_block_number: 11,
+            commitments: vec!["0xcafe".to_string()],
+            proposer_address: Address::from([7u8; 20]),
+        };
+        client
+            .store_block(&newer_live_block)
+            .await
+            .expect("store newer live block");
+
+        let newer_live_sync_state = SyncState::new(
+            newer_live_block.layer2_block_number,
+            newer_live_block.hash().to_string(),
+            L1Ref {
+                block_number: 1314,
+                tx_hash: TxHash::from([5u8; 32]),
+                log_index: 7,
+            },
+            mongodb::bson::DateTime::now(),
+        );
+        let mut session = client.start_session().await.expect("start session");
+        session
+            .start_transaction()
+            .and_run2(async |session| {
+                client
+                    .update_sync_state_with_session(&newer_live_sync_state, session)
+                    .await?;
+                Ok::<(), mongodb::error::Error>(())
+            })
+            .await
+            .expect("write newer live sync_state");
+
+        load_proposer_snapshot_into_shadow(&client, &snapshot_dir)
+            .await
+            .expect("load snapshot into shadow");
+        swap_proposer_shadow_into_live(&client)
+            .await
+            .expect("swap shadow into live");
+        cleanup_after_proposer_shadow_swap(&client)
+            .await
+            .expect("cleanup after swap");
+
+        assert_eq!(
+            client.get_restore_journal().await,
+            None,
+            "cleanup should return the restore flow to idle"
+        );
+
+        let collection_names = client
+            .database(DB)
+            .list_collection_names()
+            .await
+            .expect("list collections");
+        for collection in manifest.collections {
+            assert!(
+                !collection_names
+                    .iter()
+                    .any(|name| name == &backup_collection_name(&collection.collection_name)),
+                "backup collection should be removed for {}",
+                collection.collection_name
+            );
+            assert!(
+                !collection_names
+                    .iter()
+                    .any(|name| name == &shadow_collection_name(&collection.collection_name)),
+                "shadow collection should be removed for {}",
+                collection.collection_name
+            );
+        }
+
+        let live_sync_state = client
+            .get_sync_state()
+            .await
+            .expect("live sync_state should still exist");
+        assert_eq!(live_sync_state.last_applied_l2_block, 10);
+        assert_eq!(
+            live_sync_state.fingerprint,
+            snapshot_block.hash().to_string()
+        );
+
+        let live_blocks_count = client
+            .database(DB)
+            .collection::<Document>(PROPOSED_BLOCKS_COLLECTION)
+            .count_documents(mongodb::bson::doc! {})
+            .await
+            .expect("count live proposed blocks");
+        assert_eq!(live_blocks_count, 1);
 
         fs::remove_dir_all(snapshot_root)
             .await
