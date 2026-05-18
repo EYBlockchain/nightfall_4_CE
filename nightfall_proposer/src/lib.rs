@@ -47,7 +47,7 @@ pub mod initialisation {
     use crate::{
         domain::entities::SyncState,
         driven::block_assembler::BlockAssemblyStatus,
-        driven::db::mongo_db::StoredBlock,
+        driven::db::{mongo_db::StoredBlock, snapshot::recover_from_restore_journal},
         driven::nightfall_event::get_expected_layer2_blocknumber,
         drivers::blockchain::nightfall_event_listener::get_synchronisation_status,
         ports::{
@@ -218,6 +218,10 @@ pub mod initialisation {
         N: NightfallContract,
     {
         let db = get_db_connection().await;
+        recover_from_restore_journal(db)
+            .await
+            .map_err(|e| format!("Proposer restore recovery failed before bootstrap: {e}"))?;
+
         let onchain_next_block_i256 = N::get_current_layer2_blocknumber()
             .await
             .map_err(|e| format!("Could not fetch current L2 block number: {e}"))?;
