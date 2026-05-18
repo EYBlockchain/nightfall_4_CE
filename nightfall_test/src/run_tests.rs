@@ -944,6 +944,8 @@ pub async fn run_tests(
         .expect("Receipt Test 4 failed");
         assert_eq!(idempotent_status, 200);
         assert_eq!(idempotent_resp.receipt_id, create_resp.receipt_id);
+        // Replayed create must return refreshed status, not stale stored value
+        assert_eq!(idempotent_resp.status, "included_l2");
 
         info!("Receipt Test 5: Conflict on mismatched ciphertext");
         let mismatch_ctx = generate_realistic_receipt_ciphertext();

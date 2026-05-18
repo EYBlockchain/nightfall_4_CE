@@ -79,12 +79,14 @@ async fn handle_create_transfer_receipt<P: Proof>(
     let version = request.version.unwrap_or(SUPPORTED_VERSION);
     let db = get_db_connection().await;
 
-    if let Some(existing) = db.get_transfer_receipt_by_tx_hash(&tx_hash).await {
+    if let Some(mut existing) = db.get_transfer_receipt_by_tx_hash(&tx_hash).await {
         if existing.ciphertext != request.ciphertext || existing.version != version {
             return Err(warp::reject::custom(
                 ProposerRejection::TransferReceiptConflict,
             ));
         }
+
+        refresh_status::<P>(db, &mut existing).await;
 
         let response = CreateTransferReceiptResponse {
             receipt_id: existing.receipt_id.clone(),
@@ -130,12 +132,14 @@ async fn handle_create_transfer_receipt<P: Proof>(
             ))
         }
         Err(TransferReceiptStoreError::DuplicateKey) => {
-            if let Some(existing) = db.get_transfer_receipt_by_tx_hash(&tx_hash).await {
+            if let Some(mut existing) = db.get_transfer_receipt_by_tx_hash(&tx_hash).await {
                 if existing.ciphertext != request.ciphertext || existing.version != version {
                     return Err(warp::reject::custom(
                         ProposerRejection::TransferReceiptConflict,
                     ));
                 }
+
+                refresh_status::<P>(db, &mut existing).await;
 
                 let response = CreateTransferReceiptResponse {
                     receipt_id: existing.receipt_id.clone(),
