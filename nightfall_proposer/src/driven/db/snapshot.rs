@@ -4,7 +4,7 @@ use crate::{
         RestoreJournalStep, SnapshotCollectionManifest, SyncState,
     },
     driven::db::mongo_db::{DB, PROPOSED_BLOCKS_COLLECTION, SYNC_STATE_COLLECTION},
-    ports::db::RestoreJournalDB,
+    ports::db::{RestoreJournalDB, SyncStateDB},
     ports::trees::{CommitmentTree, HistoricRootTree, NullifierTree},
 };
 use ark_bn254::Fr as Fr254;
@@ -385,6 +385,61 @@ async fn load_snapshot_manifest(
     Ok(manifest)
 }
 
+pub async fn find_latest_valid_proposer_snapshot(
+    snapshot_root_dir: &Path,
+    max_last_applied_l2_block: u64,
+) -> Result<Option<(PathBuf, ProposerSnapshotManifest)>, SnapshotError> {
+    if !fs::try_exists(snapshot_root_dir).await? {
+        return Ok(None);
+    }
+
+    let mut entries = fs::read_dir(snapshot_root_dir).await?;
+    let mut candidates = Vec::new();
+
+    while let Some(entry) = entries.next_entry().await? {
+        let file_type = entry.file_type().await?;
+        if !file_type.is_dir() {
+            continue;
+        }
+
+        let snapshot_dir = entry.path();
+        let manifest = match load_snapshot_manifest(&snapshot_dir).await {
+            Ok(manifest) => manifest,
+            Err(error) => {
+                warn!(
+                    "Skipping proposer snapshot at {}: could not load manifest: {error}",
+                    snapshot_dir.display()
+                );
+                continue;
+            }
+        };
+
+        if manifest.last_applied_l2_block > max_last_applied_l2_block {
+            continue;
+        }
+
+        if let Err(error) = validate_snapshot_files(&snapshot_dir, &manifest).await {
+            warn!(
+                "Skipping proposer snapshot at {}: validation failed: {error}",
+                snapshot_dir.display()
+            );
+            continue;
+        }
+
+        candidates.push((snapshot_dir, manifest));
+    }
+
+    candidates.sort_by(|left, right| {
+        right
+            .1
+            .last_applied_l2_block
+            .cmp(&left.1.last_applied_l2_block)
+            .then_with(|| right.1.snapshot_id.cmp(&left.1.snapshot_id))
+    });
+
+    Ok(candidates.into_iter().next())
+}
+
 async fn validate_snapshot_files(
     snapshot_dir: &Path,
     manifest: &ProposerSnapshotManifest,
@@ -728,6 +783,20 @@ pub async fn load_proposer_snapshot_into_shadow(
     Ok(journal)
 }
 
+pub async fn restore_proposer_snapshot(
+    client: &mongodb::Client,
+    snapshot_dir: &Path,
+) -> Result<SyncState, SnapshotError> {
+    load_proposer_snapshot_into_shadow(client, snapshot_dir).await?;
+    swap_proposer_shadow_into_live(client).await?;
+    cleanup_after_proposer_shadow_swap(client).await?;
+
+    client
+        .get_sync_state()
+        .await
+        .ok_or(SnapshotError::MissingSyncState)
+}
+
 pub async fn swap_proposer_shadow_into_live(
     client: &mongodb::Client,
 ) -> Result<RestoreJournal, SnapshotError> {
@@ -836,6 +905,41 @@ mod test {
     use ark_ff::Zero;
     use lib::tests_utils::{get_db_connection, get_mongo};
 
+    async fn persist_sync_state(client: &mongodb::Client, sync_state: &SyncState) {
+        let mut session = client.start_session().await.expect("start session");
+        let client = client.clone();
+        let sync_state = sync_state.clone();
+        session
+            .start_transaction()
+            .and_run2(async move |session| {
+                client
+                    .update_sync_state_with_session(&sync_state, session)
+                    .await?;
+                Ok::<(), mongodb::error::Error>(())
+            })
+            .await
+            .expect("write sync_state");
+    }
+
+    async fn initialize_snapshot_test_trees(client: &mongodb::Client) {
+        <mongodb::Client as CommitmentTree<Fr254>>::new_commitment_tree(client, 29, 3)
+            .await
+            .expect("create commitment tree");
+        <mongodb::Client as HistoricRootTree<Fr254>>::new_historic_root_tree(client, 32)
+            .await
+            .expect("create historic root tree");
+        <mongodb::Client as HistoricRootTree<Fr254>>::append_historic_commitment_root(
+            client,
+            &Fr254::zero(),
+            true,
+        )
+        .await
+        .expect("append zero historic root");
+        <mongodb::Client as NullifierTree<Fr254>>::new_nullifier_tree(client, 29, 3)
+            .await
+            .expect("create nullifier tree");
+    }
+
     #[tokio::test]
     async fn recover_from_restore_journal_is_noop_when_idle() {
         let container = get_mongo().await;
@@ -909,22 +1013,7 @@ mod test {
         let container = get_mongo().await;
         let client = get_db_connection(&container).await;
 
-        <mongodb::Client as CommitmentTree<Fr254>>::new_commitment_tree(&client, 29, 3)
-            .await
-            .expect("create commitment tree");
-        <mongodb::Client as HistoricRootTree<Fr254>>::new_historic_root_tree(&client, 32)
-            .await
-            .expect("create historic root tree");
-        <mongodb::Client as HistoricRootTree<Fr254>>::append_historic_commitment_root(
-            &client,
-            &Fr254::zero(),
-            true,
-        )
-        .await
-        .expect("append zero historic root");
-        <mongodb::Client as NullifierTree<Fr254>>::new_nullifier_tree(&client, 29, 3)
-            .await
-            .expect("create nullifier tree");
+        initialize_snapshot_test_trees(&client).await;
 
         let stored_block = StoredBlock {
             layer2_block_number: 7,
@@ -947,17 +1036,7 @@ mod test {
             mongodb::bson::DateTime::now(),
         );
 
-        let mut session = client.start_session().await.expect("start session");
-        session
-            .start_transaction()
-            .and_run2(async |session| {
-                client
-                    .update_sync_state_with_session(&sync_state, session)
-                    .await?;
-                Ok::<(), mongodb::error::Error>(())
-            })
-            .await
-            .expect("write sync_state");
+        persist_sync_state(&client, &sync_state).await;
 
         let snapshot_root = std::env::temp_dir().join(format!(
             "nf4-proposer-snapshot-test-{}",
@@ -978,6 +1057,95 @@ mod test {
             .collections
             .iter()
             .any(|collection| collection.collection_name == SYNC_STATE_COLLECTION));
+
+        fs::remove_dir_all(snapshot_root)
+            .await
+            .expect("cleanup snapshot directory");
+    }
+
+    #[tokio::test]
+    async fn find_latest_valid_proposer_snapshot_prefers_highest_restorable_block() {
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+        initialize_snapshot_test_trees(&client).await;
+
+        let first_block = StoredBlock {
+            layer2_block_number: 4,
+            commitments: vec!["0xaaa".to_string()],
+            proposer_address: Address::from([4u8; 20]),
+        };
+        client
+            .store_block(&first_block)
+            .await
+            .expect("store first block");
+        persist_sync_state(
+            &client,
+            &SyncState::new(
+                first_block.layer2_block_number,
+                first_block.hash().to_string(),
+                L1Ref {
+                    block_number: 100,
+                    tx_hash: TxHash::from([4u8; 32]),
+                    log_index: 0,
+                },
+                mongodb::bson::DateTime::now(),
+            ),
+        )
+        .await;
+
+        let snapshot_root = std::env::temp_dir().join(format!(
+            "nf4-proposer-discovery-test-{}",
+            mongodb::bson::DateTime::now().timestamp_millis()
+        ));
+        let first_manifest = create_proposer_snapshot(&client, &snapshot_root)
+            .await
+            .expect("create first snapshot");
+
+        let second_block = StoredBlock {
+            layer2_block_number: 7,
+            commitments: vec!["0xbbb".to_string()],
+            proposer_address: Address::from([7u8; 20]),
+        };
+        client
+            .store_block(&second_block)
+            .await
+            .expect("store second block");
+        persist_sync_state(
+            &client,
+            &SyncState::new(
+                second_block.layer2_block_number,
+                second_block.hash().to_string(),
+                L1Ref {
+                    block_number: 200,
+                    tx_hash: TxHash::from([7u8; 32]),
+                    log_index: 0,
+                },
+                mongodb::bson::DateTime::now(),
+            ),
+        )
+        .await;
+        let second_manifest = create_proposer_snapshot(&client, &snapshot_root)
+            .await
+            .expect("create second snapshot");
+
+        let (selected_dir, selected_manifest) =
+            find_latest_valid_proposer_snapshot(&snapshot_root, 4)
+                .await
+                .expect("discover snapshot")
+                .expect("snapshot should exist");
+        assert_eq!(selected_manifest.last_applied_l2_block, 4);
+        assert_eq!(selected_manifest.snapshot_id, first_manifest.snapshot_id);
+        assert_eq!(
+            selected_dir,
+            snapshot_root.join(&first_manifest.snapshot_id)
+        );
+
+        let (_, selected_manifest) = find_latest_valid_proposer_snapshot(&snapshot_root, 7)
+            .await
+            .expect("discover snapshot")
+            .expect("snapshot should exist");
+        assert_eq!(selected_manifest.last_applied_l2_block, 7);
+        assert_eq!(selected_manifest.snapshot_id, second_manifest.snapshot_id);
 
         fs::remove_dir_all(snapshot_root)
             .await

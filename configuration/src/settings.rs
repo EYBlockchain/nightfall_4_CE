@@ -104,6 +104,8 @@ pub struct ProposerConfig {
     pub block_assembly_initial_interval_secs: u64,
     pub max_event_listener_attempts: Option<u32>,
     pub block_size: u64,
+    #[serde(default = "default_proposer_snapshot_root_dir")]
+    pub snapshot_root_dir: String,
 }
 
 #[derive(Debug, Deserialize, Default, Serialize)]
@@ -162,6 +164,10 @@ fn default_max_key_download_bytes() -> u64 {
 
 fn default_rpc_rate_limit() -> u32 {
     0 // 0 = unlimited
+}
+
+fn default_proposer_snapshot_root_dir() -> String {
+    "./data/proposer_snapshots".to_string()
 }
 
 #[derive(Debug, Deserialize, Serialize, Default)]

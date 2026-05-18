@@ -82,6 +82,10 @@ pub mod initialisation {
         *get_listener_start_block().await.read().await
     }
 
+    pub async fn set_runtime_listener_start_block(start_block: usize) {
+        *get_listener_start_block().await.write().await = start_block;
+    }
+
     async fn ensure_commitment_tree_initialized(client: &Client) {
         if <mongodb::Client as CommitmentTree<Fr254>>::get_root(client)
             .await
