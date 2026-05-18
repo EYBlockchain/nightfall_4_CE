@@ -169,6 +169,7 @@ services:
         target: /app/configuration/toml
         read_only: true
       - ./configuration/bin/keys:/app/configuration/bin/keys:ro
+      - ./data/proposer_snapshots:/app/data/proposer_snapshots
     depends_on:
       db_proposer:
         condition: service_healthy
@@ -217,6 +218,8 @@ services:
       start_period: 0s
     networks:
       - nightfall_network
+    volumes:
+      - ./data/proposer_snapshots:/app/data/proposer_snapshots
     depends_on:
       db_proposer:
         condition: service_healthy
@@ -256,6 +259,7 @@ services:
         target: /app/configuration/toml
         read_only: true
       - ./configuration/bin/keys:/app/configuration/bin/keys:ro
+      - ./data/proposer_snapshots:/app/data/proposer_snapshots
     depends_on:
       db_proposer2:
         condition: service_healthy
