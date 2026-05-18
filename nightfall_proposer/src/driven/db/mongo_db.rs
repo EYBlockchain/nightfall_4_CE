@@ -1,8 +1,9 @@
 use crate::{
     domain::entities::{
-        ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot, SyncState, TxLifecycle,
+        ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot, RestoreJournal, SyncState,
+        TxLifecycle,
     },
-    ports::db::{BlockStorageDB, HistoricRootsDB, SyncStateDB, TransactionsDB},
+    ports::db::{BlockStorageDB, HistoricRootsDB, RestoreJournalDB, SyncStateDB, TransactionsDB},
 };
 use alloy::primitives::Address;
 use ark_bn254::Fr as Fr254;
@@ -98,6 +99,7 @@ const COLLECTION: &str = "ClientTransactions";
 const DEPOSIT_COLLECTION: &str = "Deposits";
 pub const PROPOSED_BLOCKS_COLLECTION: &str = "ProposedBlocks";
 pub const SYNC_STATE_COLLECTION: &str = "sync_state";
+pub const RESTORE_JOURNAL_COLLECTION: &str = "restore_journal";
 
 #[async_trait::async_trait]
 impl<'a, P> TransactionsDB<'a, P> for mongodb::Client
@@ -648,10 +650,51 @@ impl SyncStateDB for mongodb::Client {
     }
 }
 
+#[async_trait::async_trait]
+impl RestoreJournalDB for mongodb::Client {
+    async fn upsert_restore_journal(
+        &self,
+        journal: &RestoreJournal,
+    ) -> Result<(), mongodb::error::Error> {
+        let result = self
+            .database(DB)
+            .collection::<RestoreJournal>(RESTORE_JOURNAL_COLLECTION)
+            .replace_one(doc! { "_id": RestoreJournal::DOCUMENT_ID }, journal)
+            .upsert(true)
+            .await?;
+
+        if result.matched_count == 0 && result.upserted_id.is_none() {
+            return Err(mongodb::error::Error::custom(
+                "Failed to upsert proposer restore_journal",
+            ));
+        }
+
+        Ok(())
+    }
+
+    async fn get_restore_journal(&self) -> Option<RestoreJournal> {
+        self.database(DB)
+            .collection::<RestoreJournal>(RESTORE_JOURNAL_COLLECTION)
+            .find_one(doc! { "_id": RestoreJournal::DOCUMENT_ID })
+            .await
+            .ok()?
+    }
+
+    async fn delete_restore_journal(&self) -> Result<(), mongodb::error::Error> {
+        self.database(DB)
+            .collection::<RestoreJournal>(RESTORE_JOURNAL_COLLECTION)
+            .delete_one(doc! { "_id": RestoreJournal::DOCUMENT_ID })
+            .await?;
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::domain::entities::L1Ref;
+    use crate::domain::entities::{
+        L1Ref, RestoreJournalCollection, RestoreJournalPhase, RestoreJournalStep,
+    };
     use ark_bn254::Fr as Fr254;
     use ark_std::UniformRand;
 
@@ -758,5 +801,234 @@ mod test {
         );
         assert_eq!(stored.l1_ref.log_index, 3);
         assert_eq!(stored.schema_version, SyncState::SCHEMA_VERSION);
+    }
+
+    async fn seed_rename_spike_collection(
+        client: &mongodb::Client,
+        collection_name: &str,
+        value: i32,
+    ) {
+        client
+            .database(DB)
+            .collection::<Document>(collection_name)
+            .insert_one(doc! { "_id": value, "value": value })
+            .await
+            .unwrap();
+    }
+
+    async fn rename_collection_in_transaction(
+        session: &mut mongodb::ClientSession,
+        from: &str,
+        to: &str,
+    ) -> Result<(), mongodb::error::Error> {
+        session
+            .client()
+            .database("admin")
+            .run_command(doc! {
+                "renameCollection": format!("{DB}.{from}"),
+                "to": format!("{DB}.{to}"),
+                "dropTarget": true,
+            })
+            .session(&mut *session)
+            .await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn rename_collection_transaction_commits_both_swaps_together() {
+        let container = lib::tests_utils::get_mongo().await;
+        let client = lib::tests_utils::get_db_connection(&container).await;
+
+        seed_rename_spike_collection(&client, "rename_spike_source_a", 1).await;
+        seed_rename_spike_collection(&client, "rename_spike_source_b", 2).await;
+        seed_rename_spike_collection(&client, "rename_spike_target_a", 101).await;
+        seed_rename_spike_collection(&client, "rename_spike_target_b", 102).await;
+
+        let mut session = client.start_session().await.unwrap();
+        session
+            .start_transaction()
+            .and_run2(async |session| {
+                rename_collection_in_transaction(
+                    session,
+                    "rename_spike_source_a",
+                    "rename_spike_target_a",
+                )
+                .await?;
+                rename_collection_in_transaction(
+                    session,
+                    "rename_spike_source_b",
+                    "rename_spike_target_b",
+                )
+                .await?;
+                Ok::<(), mongodb::error::Error>(())
+            })
+            .await
+            .unwrap();
+
+        let collection_names = client.database(DB).list_collection_names().await.unwrap();
+        assert!(
+            !collection_names.contains(&"rename_spike_source_a".to_string()),
+            "source A should be gone after committed rename"
+        );
+        assert!(
+            !collection_names.contains(&"rename_spike_source_b".to_string()),
+            "source B should be gone after committed rename"
+        );
+        assert!(
+            collection_names.contains(&"rename_spike_target_a".to_string()),
+            "target A should exist after committed rename"
+        );
+        assert!(
+            collection_names.contains(&"rename_spike_target_b".to_string()),
+            "target B should exist after committed rename"
+        );
+
+        let target_a = client
+            .database(DB)
+            .collection::<Document>("rename_spike_target_a")
+            .find_one(doc! {})
+            .await
+            .unwrap()
+            .unwrap();
+        let target_b = client
+            .database(DB)
+            .collection::<Document>("rename_spike_target_b")
+            .find_one(doc! {})
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(target_a.get_i32("value"), Ok(1));
+        assert_eq!(target_b.get_i32("value"), Ok(2));
+    }
+
+    #[tokio::test]
+    async fn rename_collection_transaction_rolls_back_after_first_rename() {
+        let container = lib::tests_utils::get_mongo().await;
+        let client = lib::tests_utils::get_db_connection(&container).await;
+
+        seed_rename_spike_collection(&client, "rename_spike_rollback_source_a", 11).await;
+        seed_rename_spike_collection(&client, "rename_spike_rollback_source_b", 12).await;
+        seed_rename_spike_collection(&client, "rename_spike_rollback_target_a", 111).await;
+        seed_rename_spike_collection(&client, "rename_spike_rollback_target_b", 112).await;
+
+        let mut session = client.start_session().await.unwrap();
+        let result = session
+            .start_transaction()
+            .and_run2(async |session| {
+                rename_collection_in_transaction(
+                    session,
+                    "rename_spike_rollback_source_a",
+                    "rename_spike_rollback_target_a",
+                )
+                .await?;
+                Err::<(), mongodb::error::Error>(mongodb::error::Error::custom(
+                    "intentional rollback after first rename",
+                ))
+            })
+            .await;
+
+        assert!(result.is_err(), "transaction should fail intentionally");
+
+        let collection_names = client.database(DB).list_collection_names().await.unwrap();
+        assert!(
+            collection_names.contains(&"rename_spike_rollback_source_a".to_string()),
+            "source A should still exist after rollback"
+        );
+        assert!(
+            collection_names.contains(&"rename_spike_rollback_source_b".to_string()),
+            "source B should still exist after rollback"
+        );
+
+        let source_a = client
+            .database(DB)
+            .collection::<Document>("rename_spike_rollback_source_a")
+            .find_one(doc! {})
+            .await
+            .unwrap()
+            .unwrap();
+        let target_a = client
+            .database(DB)
+            .collection::<Document>("rename_spike_rollback_target_a")
+            .find_one(doc! {})
+            .await
+            .unwrap()
+            .unwrap();
+        let target_b = client
+            .database(DB)
+            .collection::<Document>("rename_spike_rollback_target_b")
+            .find_one(doc! {})
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(source_a.get_i32("value"), Ok(11));
+        assert_eq!(target_a.get_i32("value"), Ok(111));
+        assert_eq!(target_b.get_i32("value"), Ok(112));
+    }
+
+    #[tokio::test]
+    async fn restore_journal_round_trips() {
+        let container = lib::tests_utils::get_mongo().await;
+        let client = lib::tests_utils::get_db_connection(&container).await;
+
+        let now = mongodb::bson::DateTime::now();
+        let journal = RestoreJournal::new_loading_shadow(
+            "proposer-l2-42-123456789".to_string(),
+            "/tmp/proposer-l2-42-123456789".to_string(),
+            "deadbeef".to_string(),
+            vec![
+                RestoreJournalCollection {
+                    live: "Commitments_nodes".to_string(),
+                    shadow: "restore_shadow__Commitments_nodes".to_string(),
+                    backup: "restore_backup__Commitments_nodes".to_string(),
+                },
+                RestoreJournalCollection {
+                    live: "sync_state".to_string(),
+                    shadow: "restore_shadow__sync_state".to_string(),
+                    backup: "restore_backup__sync_state".to_string(),
+                },
+            ],
+            now,
+        );
+
+        client.upsert_restore_journal(&journal).await.unwrap();
+
+        let stored = client
+            .get_restore_journal()
+            .await
+            .expect("restore_journal should exist");
+        assert_eq!(stored.id, RestoreJournal::DOCUMENT_ID);
+        assert_eq!(stored.schema_version, RestoreJournal::SCHEMA_VERSION);
+        assert_eq!(stored.snapshot_id, "proposer-l2-42-123456789");
+        assert_eq!(stored.snapshot_dir, "/tmp/proposer-l2-42-123456789");
+        assert_eq!(stored.manifest_overall_sha256, "deadbeef");
+        assert_eq!(stored.phase, RestoreJournalPhase::LoadingShadow);
+        assert_eq!(stored.current_index, None);
+        assert_eq!(stored.current_step, None);
+        assert_eq!(stored.collections.len(), 2);
+        assert_eq!(stored.started_at, now);
+        assert_eq!(stored.updated_at, now);
+
+        let mut updated = stored.clone();
+        updated.phase = RestoreJournalPhase::SwapInProgress;
+        updated.current_index = Some(1);
+        updated.current_step = Some(RestoreJournalStep::BackupCreated);
+        updated.updated_at = mongodb::bson::DateTime::now();
+        client.upsert_restore_journal(&updated).await.unwrap();
+
+        let stored_updated = client
+            .get_restore_journal()
+            .await
+            .expect("restore_journal should still exist");
+        assert_eq!(stored_updated.phase, RestoreJournalPhase::SwapInProgress);
+        assert_eq!(stored_updated.current_index, Some(1));
+        assert_eq!(
+            stored_updated.current_step,
+            Some(RestoreJournalStep::BackupCreated)
+        );
+
+        client.delete_restore_journal().await.unwrap();
+        assert_eq!(client.get_restore_journal().await, None);
     }
 }

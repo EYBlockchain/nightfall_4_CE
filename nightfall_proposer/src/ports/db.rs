@@ -1,6 +1,6 @@
 use crate::{
     domain::entities::{
-        ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot, SyncState,
+        ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot, RestoreJournal, SyncState,
     },
     driven::db::mongo_db::StoredBlock,
 };
@@ -53,6 +53,18 @@ pub trait SyncStateDB {
     ) -> Result<(), mongodb::error::Error> {
         Ok(())
     }
+}
+
+#[async_trait::async_trait]
+pub trait RestoreJournalDB {
+    async fn upsert_restore_journal(
+        &self,
+        journal: &RestoreJournal,
+    ) -> Result<(), mongodb::error::Error>;
+
+    async fn get_restore_journal(&self) -> Option<RestoreJournal>;
+
+    async fn delete_restore_journal(&self) -> Result<(), mongodb::error::Error>;
 }
 /// Used to store transactions that are on chain. Can be queried to see if a nullifier or commitment is on chain.
 #[async_trait::async_trait]

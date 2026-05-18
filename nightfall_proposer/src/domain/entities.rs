@@ -82,6 +82,120 @@ impl SyncState {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SnapshotCollectionManifest {
+    pub collection_name: String,
+    pub file_name: String,
+    pub document_count: u64,
+    pub sha256: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ProposerSnapshotManifest {
+    pub snapshot_id: String,
+    pub schema_version: u32,
+    pub created_at: DateTime,
+    pub storage_format: String,
+    pub database: String,
+    pub last_applied_l2_block: u64,
+    pub fingerprint: String,
+    pub l1_ref: L1Ref,
+    pub collections: Vec<SnapshotCollectionManifest>,
+    pub overall_sha256: String,
+}
+
+impl ProposerSnapshotManifest {
+    pub const SCHEMA_VERSION: u32 = 1;
+    pub const STORAGE_FORMAT: &'static str = "mongo-relaxed-extjsonl-v1";
+
+    pub fn new(
+        snapshot_id: String,
+        created_at: DateTime,
+        database: String,
+        sync_state: &SyncState,
+        collections: Vec<SnapshotCollectionManifest>,
+        overall_sha256: String,
+    ) -> Self {
+        Self {
+            snapshot_id,
+            schema_version: Self::SCHEMA_VERSION,
+            created_at,
+            storage_format: Self::STORAGE_FORMAT.to_string(),
+            database,
+            last_applied_l2_block: sync_state.last_applied_l2_block,
+            fingerprint: sync_state.fingerprint.clone(),
+            l1_ref: sync_state.l1_ref.clone(),
+            collections,
+            overall_sha256,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum RestoreJournalPhase {
+    LoadingShadow,
+    SwapInProgress,
+    SwapComplete,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum RestoreJournalStep {
+    BackupPending,
+    BackupCreated,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RestoreJournalCollection {
+    pub live: String,
+    pub shadow: String,
+    pub backup: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RestoreJournal {
+    #[serde(rename = "_id")]
+    pub id: String,
+    pub schema_version: u32,
+    pub snapshot_id: String,
+    pub snapshot_dir: String,
+    pub manifest_overall_sha256: String,
+    pub phase: RestoreJournalPhase,
+    pub current_index: Option<u32>,
+    pub current_step: Option<RestoreJournalStep>,
+    pub collections: Vec<RestoreJournalCollection>,
+    pub started_at: DateTime,
+    pub updated_at: DateTime,
+}
+
+impl RestoreJournal {
+    pub const DOCUMENT_ID: &'static str = "proposer";
+    pub const SCHEMA_VERSION: u32 = 1;
+
+    pub fn new_loading_shadow(
+        snapshot_id: String,
+        snapshot_dir: String,
+        manifest_overall_sha256: String,
+        collections: Vec<RestoreJournalCollection>,
+        now: DateTime,
+    ) -> Self {
+        Self {
+            id: Self::DOCUMENT_ID.to_string(),
+            schema_version: Self::SCHEMA_VERSION,
+            snapshot_id,
+            snapshot_dir,
+            manifest_overall_sha256,
+            phase: RestoreJournalPhase::LoadingShadow,
+            current_index: None,
+            current_step: None,
+            collections,
+            started_at: now,
+            updated_at: now,
+        }
+    }
+}
+
 impl DepositDatawithFee {
     #[allow(dead_code)]
     pub fn hash(&self) -> Result<Vec<u32>, SerializationError> {
