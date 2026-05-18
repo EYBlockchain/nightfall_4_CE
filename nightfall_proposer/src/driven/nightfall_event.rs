@@ -11,6 +11,7 @@ use crate::{
         events::EventHandler,
         trees::{CommitmentTree, HistoricRootTree, NullifierTree},
     },
+    services::selected_transactions::reconcile_orphaned_selected_transactions,
 };
 use alloy::primitives::{TxHash, I256};
 use alloy::{consensus::Transaction, sol_types::SolInterface};
@@ -131,7 +132,7 @@ where
             .map_err(|_| EventHandlerError::InvalidCalldata)?;
         if let Nightfall::NightfallCalls::propose_block(decode) = decoded {
             // OK to use unwrap because the smart contract has to provide a block number
-            process_propose_block_event::<N>(decode, transaction_hash, block_number).await?;
+            process_propose_block_event::<P, N>(decode, transaction_hash, block_number).await?;
         }
     } else {
         panic!("Transaction not found when looking up calldata");
@@ -139,11 +140,15 @@ where
     Ok(())
 }
 
-async fn process_propose_block_event<N: NightfallContract>(
+async fn process_propose_block_event<P, N>(
     decode: Nightfall::propose_blockCall,
     transaction_hash: TxHash,
     layer_2_block_number_in_event: I256,
-) -> Result<(), EventHandlerError> {
+) -> Result<(), EventHandlerError>
+where
+    P: Proof,
+    N: NightfallContract,
+{
     let our_address = get_blockchain_client_connection()
         .await
         .read()
@@ -189,6 +194,7 @@ async fn process_propose_block_event<N: NightfallContract>(
 
     // check and update the sychronisation status
     let mut sync_status = get_synchronisation_status().await.write().await;
+    let was_synchronised = sync_status.is_synchronised();
     // The first thing to do is to make sure that we've not missed any blocks.
     // If we have, then we'll need to resynchronise with the blockchain.
     let mut expected_onchain_block_number = get_expected_layer2_blocknumber().await.write().await;
@@ -362,6 +368,18 @@ async fn process_propose_block_event<N: NightfallContract>(
     // store the block in the db
     // if db doesn't have the block, it will be stored
     db.store_block(&store_block_pending).await;
+
+    let reconciliation_block_number = current_block_number_in_contract
+        .try_into()
+        .unwrap_or(layer_2_block_number_in_event_u64);
+    let became_synchronised = !was_synchronised && sync_status.is_synchronised();
+    drop(sync_status);
+    drop(expected_onchain_block_number);
+
+    if became_synchronised {
+        let _ =
+            reconcile_orphaned_selected_transactions::<P>(db, reconciliation_block_number).await;
+    }
 
     Ok(())
 }

@@ -33,7 +33,7 @@ pub struct RequestCommitmentMapping {
 }
 
 /// An enum representing the possible statuses of an HTTP request
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RequestStatus {
     Queued, // This is for tx_request status associated with the X-Request-ID for a request with status: The transaction is waiting to be processed by the client.
     Submitted, // This is for tx_request status associated with the X-Request-ID for a request with status: The Client has successfully processed the transaction and handed off the result, either to the blockchain, in the case of a deposit escrow, or to a Proposer, in the case of a transfer or withdraw transaction.
@@ -218,6 +218,15 @@ pub struct TokenData {
     pub erc_address: Fr254,
     #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
     pub token_id: BigInteger256,
+    pub token_type: TokenType,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct SlotData {
+    #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
+    pub erc_address: Fr254,
+    #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
+    pub slot_id: BigInteger256,
     pub token_type: TokenType,
 }
 pub struct ERCAddress;

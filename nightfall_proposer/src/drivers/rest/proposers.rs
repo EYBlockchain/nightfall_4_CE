@@ -22,11 +22,10 @@ pub fn rotate_proposer() -> impl Filter<Extract = impl warp::Reply, Error = warp
 async fn handle_rotate_proposer() -> Result<impl Reply, warp::Rejection> {
     handle_rotate_proposer_with(|| async {
         // get a ManageProposers instance
-        let blockchain_client = get_blockchain_client_connection()
-            .await
-            .read()
-            .await
-            .get_client();
+        let read_connection = get_blockchain_client_connection().await.read().await;
+        let blockchain_client = read_connection.get_client();
+        let caller = read_connection.get_address();
+        let wallet = read_connection.get_wallet_type().clone();
         let verified =
             VerifiedContracts::resolve_and_verify_contract(blockchain_client.root(), get_addresses())
                 .await
@@ -45,15 +44,8 @@ async fn handle_rotate_proposer() -> Result<impl Reply, warp::Rejection> {
                 warn!("Failed to fetch proposer count before rotation");
             }
         }
-        // rotate the proposer
-        let signer = get_blockchain_client_connection()
-            .await
-            .read()
-            .await
-            .get_signer();
-
         let nonce = blockchain_client
-            .get_transaction_count(signer.address())
+            .get_transaction_count(caller)
             .await
             .map_err(|e| {
                 warn!("Failed to generate nonce during proposer rotation: {e}");
@@ -76,8 +68,8 @@ async fn handle_rotate_proposer() -> Result<impl Reply, warp::Rejection> {
             .gas(gas_limit)
             .max_fee_per_gas(max_fee_per_gas)
             .max_priority_fee_per_gas(max_priority_fee_per_gas)
-            .chain_id(get_settings().network.chain_id) // Linea testnet chain ID
-            .build_raw_transaction((*signer).clone())
+            .chain_id(get_settings().network.chain_id)
+            .build_raw_transaction(wallet)
             .await
             .map_err(|e| {
                 warn!("Failed to build rotate_proposer transaction: {e}");
@@ -134,7 +126,7 @@ async fn handle_add_proposer(url: String) -> Result<impl Reply, warp::Rejection>
     let read_connection = get_blockchain_client_connection().await.read().await;
     let blockchain_client = read_connection.get_client();
     let caller = read_connection.get_address();
-    let signer = read_connection.get_signer();
+    let wallet = read_connection.get_wallet_type().clone();
     let client = blockchain_client.root();
     let verified = VerifiedContracts::resolve_and_verify_contract(client, get_addresses())
         .await
@@ -166,8 +158,8 @@ async fn handle_add_proposer(url: String) -> Result<impl Reply, warp::Rejection>
         .gas(gas_limit)
         .max_fee_per_gas(max_fee_per_gas)
         .max_priority_fee_per_gas(max_priority_fee_per_gas)
-        .chain_id(get_settings().network.chain_id) // Linea testnet chain ID
-        .build_raw_transaction((*signer).clone())
+        .chain_id(get_settings().network.chain_id)
+        .build_raw_transaction(wallet)
         .await
         .map_err(|e| {
             warn!("{e}");
@@ -210,7 +202,7 @@ async fn handle_remove_proposer() -> Result<impl Reply, warp::Rejection> {
         let read_connection = get_blockchain_client_connection().await.read().await;
         let blockchain_client = read_connection.get_client();
         let signer_address = read_connection.get_address();
-        let signer = read_connection.get_signer();
+        let wallet = read_connection.get_wallet_type().clone();
         let client = blockchain_client.root();
         let verified = VerifiedContracts::resolve_and_verify_contract(client, get_addresses())
             .await
@@ -262,8 +254,8 @@ async fn handle_remove_proposer() -> Result<impl Reply, warp::Rejection> {
             .gas(gas_limit)
             .max_fee_per_gas(max_fee_per_gas)
             .max_priority_fee_per_gas(max_priority_fee_per_gas)
-            .chain_id(get_settings().network.chain_id) // Linea testnet chain ID
-            .build_raw_transaction((*signer).clone())
+            .chain_id(get_settings().network.chain_id)
+            .build_raw_transaction(wallet)
             .await
             .map_err(|e| {
                 warn!("{e}");
@@ -323,7 +315,7 @@ async fn handle_withdraw(amount: u64) -> Result<impl Reply, warp::Rejection> {
     let read_connection = get_blockchain_client_connection().await.read().await;
     let blockchain_client = read_connection.get_client();
     let caller = read_connection.get_address();
-    let signer = read_connection.get_signer();
+    let wallet = read_connection.get_wallet_type().clone();
     let verified =
         VerifiedContracts::resolve_and_verify_contract(blockchain_client.root(), get_addresses())
             .await
@@ -354,8 +346,8 @@ async fn handle_withdraw(amount: u64) -> Result<impl Reply, warp::Rejection> {
         .gas(gas_limit)
         .max_fee_per_gas(max_fee_per_gas)
         .max_priority_fee_per_gas(max_priority_fee_per_gas)
-        .chain_id(get_settings().network.chain_id) // Linea testnet chain ID
-        .build_raw_transaction((*signer).clone())
+        .chain_id(get_settings().network.chain_id)
+        .build_raw_transaction(wallet)
         .await
         .map_err(|e| {
             warn!("{e}");

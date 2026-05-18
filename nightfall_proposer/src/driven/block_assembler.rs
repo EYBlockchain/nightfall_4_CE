@@ -291,6 +291,7 @@ impl From<Block> for Nightfall::Block {
             commitments_root_root: Uint256::from(blk.commitments_root_root).into(),
             commitments_root: Uint256::from(blk.commitments_root).into(),
             nullifier_root: Uint256::from(blk.nullifiers_root).into(),
+            block_number: Uint256::from(blk.block_number).into(),
             transactions: blk
                 .transactions
                 .into_iter()
@@ -315,6 +316,10 @@ impl TryFrom<Nightfall::Block> for Block {
                 .map(OnChainTransaction::from)
                 .collect::<Vec<OnChainTransaction>>(),
             rollup_proof: nblk.rollup_proof.to_vec(),
+            block_number: nblk
+                .block_number
+                .try_into()
+                .map_err(|_| ConversionError::ParseFailed)?,
         })
     }
 }

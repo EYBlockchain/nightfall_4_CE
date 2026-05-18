@@ -1,5 +1,7 @@
 use crate::{
-    domain::entities::{ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot},
+    domain::entities::{
+        ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot, TxLifecycle,
+    },
     ports::db::{BlockStorageDB, HistoricRootsDB, TransactionsDB},
 };
 use alloy::primitives::Address;
@@ -10,9 +12,86 @@ use lib::{
     error::ConversionError, hex_conversion::HexConvertible, nf_client_proof::Proof,
     shared_entities::ClientTransaction,
 };
-use mongodb::bson::doc;
+use mongodb::bson::{doc, Bson, Document};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+
+fn lifecycle_bson(lifecycle: &TxLifecycle) -> Bson {
+    mongodb::bson::to_bson(lifecycle).expect("TxLifecycle should serialize to BSON")
+}
+
+// Temporary migration support: queries must match both the new explicit
+// lifecycle document and the legacy triplet {in_mempool, block_l2,
+// cancelled_explicitly} until existing proposer data has been backfilled.
+fn legacy_mempool_filter() -> Document {
+    doc! {
+        "lifecycle": { "$exists": false },
+        "in_mempool": true,
+        "cancelled_explicitly": { "$ne": true }
+    }
+}
+
+fn legacy_selected_filter() -> Document {
+    doc! {
+        "lifecycle": { "$exists": false },
+        "in_mempool": { "$ne": true },
+        "block_l2": { "$exists": true, "$ne": Bson::Null },
+        "cancelled_explicitly": { "$ne": true }
+    }
+}
+
+fn mempool_state_filter() -> Document {
+    doc! {
+        "$or": [
+            doc! { "lifecycle.state": "mempool" },
+            legacy_mempool_filter()
+        ]
+    }
+}
+
+fn selected_state_filter() -> Document {
+    doc! {
+        "$or": [
+            doc! { "lifecycle.state": "selected" },
+            legacy_selected_filter()
+        ]
+    }
+}
+
+fn selected_state_filter_for_block(block_l2: i64) -> Document {
+    doc! {
+        "$or": [
+            doc! {
+                "lifecycle.state": "selected",
+                "lifecycle.block_l2": Bson::Int64(block_l2)
+            },
+            doc! {
+                "lifecycle": { "$exists": false },
+                "in_mempool": { "$ne": true },
+                "block_l2": Bson::Int64(block_l2),
+                "cancelled_explicitly": { "$ne": true }
+            }
+        ]
+    }
+}
+
+fn swap_link_filter(swap_link: &Fr254) -> Document {
+    doc! {
+        "client_transaction.swap_link": swap_link.to_hex_string()
+    }
+}
+
+fn cancelled_state_filter() -> Document {
+    doc! {
+        "$or": [
+            doc! { "lifecycle.state": "cancelled" },
+            doc! {
+                "lifecycle": { "$exists": false },
+                "cancelled_explicitly": true
+            }
+        ]
+    }
+}
 
 pub const DB: &str = "nightfall";
 const COLLECTION: &str = "ClientTransactions";
@@ -50,15 +129,12 @@ where
             .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
             .find(doc! {})
             .await
-            .unwrap();
+            .ok()?;
         let mut result: Vec<(Vec<u32>, ClientTransactionWithMetaData<P>)> = Vec::new();
         while cursor.advance().await.ok()? {
             let v: ClientTransactionWithMetaData<P> = cursor.deserialize_current().ok()?;
             result.push((v.hash.clone(), v));
         }
-        if result.is_empty() {
-            return None;
-        };
         Some(result)
     }
 
@@ -66,48 +142,171 @@ where
     async fn get_all_mempool_client_transactions(
         &self,
     ) -> Option<Vec<(Vec<u32>, ClientTransactionWithMetaData<P>)>> {
-        let filter = doc! {"in_mempool": true};
+        let filter = mempool_state_filter();
         let mut cursor: mongodb::Cursor<ClientTransactionWithMetaData<P>> = self
             .database(DB)
             .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
             .find(filter)
             .await
-            .expect("Database error"); // we can't really proceed at this point
+            .ok()?; // propagate DB error as None so the caller can handle it explicitly
         let mut result: Vec<(Vec<u32>, ClientTransactionWithMetaData<P>)> = Vec::new();
         while cursor.advance().await.ok()? {
             let v: ClientTransactionWithMetaData<P> = cursor.deserialize_current().ok()?;
             result.push((v.hash.clone(), v));
         }
-        if result.is_empty() {
-            return None;
-        };
+        Some(result)
+    }
+
+    async fn get_all_selected_client_transactions(
+        &self,
+    ) -> Option<Vec<(Vec<u32>, ClientTransactionWithMetaData<P>)>> {
+        let filter = selected_state_filter();
+        let mut cursor: mongodb::Cursor<ClientTransactionWithMetaData<P>> = self
+            .database(DB)
+            .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
+            .find(filter)
+            .await
+            .ok()?;
+        let mut result: Vec<(Vec<u32>, ClientTransactionWithMetaData<P>)> = Vec::new();
+        while cursor.advance().await.ok()? {
+            let v: ClientTransactionWithMetaData<P> = cursor.deserialize_current().ok()?;
+            result.push((v.hash.clone(), v));
+        }
         Some(result)
     }
 
     // Count client_transaction in the mempool
     // This is used to determine if we need to assemble a block
     async fn count_mempool_client_transactions(&self) -> Result<u64, mongodb::error::Error> {
-        let filter = doc! { "in_mempool": true };
+        let filter = mempool_state_filter();
         self.database(DB)
             .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
             .count_documents(filter)
             .await
     }
 
-    async fn set_in_mempool(
+    async fn count_mempool_swap_transactions(
         &self,
-        txs: &[ClientTransactionWithMetaData<P>],
-        in_mempool: bool,
-    ) -> Option<u64> {
-        let k: Vec<_> = txs.iter().map(|t| &t.hash).collect();
-        let filter = doc! {"hash": { "$in": k }};
-        let update = doc! {"$set": { "in_mempool": in_mempool }};
+        swap_link: &Fr254,
+    ) -> Result<u64, mongodb::error::Error> {
+        let mut filter = swap_link_filter(swap_link);
+        filter.extend(mempool_state_filter());
+        self.database(DB)
+            .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
+            .count_documents(filter)
+            .await
+    }
+
+    async fn count_selected_swap_transactions(
+        &self,
+        swap_link: &Fr254,
+    ) -> Result<u64, mongodb::error::Error> {
+        let mut filter = swap_link_filter(swap_link);
+        filter.extend(selected_state_filter());
+        self.database(DB)
+            .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
+            .count_documents(filter)
+            .await
+    }
+
+    async fn count_cancelled_swap_transactions(
+        &self,
+        swap_link: &Fr254,
+    ) -> Result<u64, mongodb::error::Error> {
+        let mut filter = swap_link_filter(swap_link);
+        filter.extend(cancelled_state_filter());
+        self.database(DB)
+            .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
+            .count_documents(filter)
+            .await
+    }
+
+    async fn cancel_mempool_swap_transactions(&self, swap_link: &Fr254) -> Option<u64> {
+        let mut filter = swap_link_filter(swap_link);
+        filter.extend(mempool_state_filter());
+        let update = doc! {"$set": {
+            "lifecycle": lifecycle_bson(&TxLifecycle::Cancelled)
+        }};
         let result = self
             .database(DB)
             .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
             .update_many(filter, update)
             .await
-            .expect("Database error"); // we can't really proceed at this point
+            .ok()?;
+        Some(result.modified_count)
+    }
+
+    async fn mark_transactions_selected_for_block(
+        &self,
+        txs: &[ClientTransactionWithMetaData<P>],
+        block_l2: u64,
+    ) -> Option<u64> {
+        let block_l2 = i64::try_from(block_l2).ok()?;
+        let k: Vec<_> = txs.iter().map(|t| &t.hash).collect();
+        let mut filter = doc! {
+            "hash": { "$in": k }
+        };
+        filter.extend(mempool_state_filter());
+        let update = doc! {"$set": {
+            "lifecycle": lifecycle_bson(&TxLifecycle::Selected {
+                block_l2: u64::try_from(block_l2).ok()?,
+            })
+        }};
+        let result = self
+            .database(DB)
+            .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
+            .update_many(filter, update)
+            .await
+            .ok()?;
+        Some(result.modified_count)
+    }
+
+    async fn restore_transactions_to_mempool(
+        &self,
+        txs: &[ClientTransactionWithMetaData<P>],
+        block_l2: u64,
+    ) -> Option<u64> {
+        if txs.is_empty() {
+            return Some(0);
+        }
+
+        let block_l2 = i64::try_from(block_l2).ok()?;
+        let k: Vec<_> = txs.iter().map(|t| &t.hash).collect();
+        let mut filter = doc! {
+            "hash": { "$in": k }
+        };
+        filter.extend(selected_state_filter_for_block(block_l2));
+        let update = doc! {"$set": {
+            "lifecycle": lifecycle_bson(&TxLifecycle::Mempool)
+        }};
+        let result = self
+            .database(DB)
+            .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
+            .update_many(filter, update)
+            .await
+            .ok()?;
+        Some(result.modified_count)
+    }
+
+    async fn drop_transactions(&self, txs: &[ClientTransactionWithMetaData<P>]) -> Option<u64> {
+        if txs.is_empty() {
+            return Some(0);
+        }
+
+        let k: Vec<_> = txs.iter().map(|t| &t.hash).collect();
+        let mut filter = doc! {
+            "hash": { "$in": k }
+        };
+        filter.extend(mempool_state_filter());
+        let update = doc! {"$set": {
+            "lifecycle": lifecycle_bson(&TxLifecycle::Dropped)
+        }};
+        let result = self
+            .database(DB)
+            .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
+            .update_many(filter, update)
+            .await
+            .ok()?;
         Some(result.modified_count)
     }
 
@@ -117,10 +316,10 @@ where
     ) -> Option<ClientTransactionWithMetaData<P>> {
         // we'll compute the hash of the transaction and then look it up in the database
         let hash = v.hash().ok()?;
-        let filter = doc! {
-            "hash": hash,
-            "in_mempool": true
+        let mut filter = doc! {
+            "hash": hash
         };
+        filter.extend(mempool_state_filter());
         self.database(DB)
             .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
             .find_one(filter)
@@ -228,7 +427,7 @@ where
             .database(DB)
             .collection::<ClientTransactionWithMetaData<P>>(COLLECTION);
 
-        let result = collection.delete_many(doc! {}).await.ok()?;
+        let result = collection.delete_many(mempool_state_filter()).await.ok()?;
         Some(result.deleted_count)
     }
 }
@@ -383,6 +582,58 @@ mod test {
     use super::*;
     use ark_bn254::Fr as Fr254;
     use ark_std::UniformRand;
+
+    #[test]
+    fn mempool_filter_matches_new_and_legacy_shapes() {
+        let filter = mempool_state_filter();
+        let branches = filter
+            .get_array("$or")
+            .expect("mempool filter should contain transitional branches");
+
+        assert_eq!(branches.len(), 2);
+        assert_eq!(
+            branches[0]
+                .as_document()
+                .and_then(|doc| doc.get_str("lifecycle.state").ok()),
+            Some("mempool")
+        );
+        let legacy = branches[1]
+            .as_document()
+            .expect("legacy mempool branch should be a document");
+        assert_eq!(legacy.get_bool("in_mempool"), Ok(true));
+        assert_eq!(
+            legacy
+                .get_document("lifecycle")
+                .and_then(|doc| doc.get_bool("$exists")),
+            Ok(false)
+        );
+    }
+
+    #[test]
+    fn selected_filter_matches_new_and_legacy_shapes() {
+        let filter = selected_state_filter();
+        let branches = filter
+            .get_array("$or")
+            .expect("selected filter should contain transitional branches");
+
+        assert_eq!(branches.len(), 2);
+        assert_eq!(
+            branches[0]
+                .as_document()
+                .and_then(|doc| doc.get_str("lifecycle.state").ok()),
+            Some("selected")
+        );
+        let legacy = branches[1]
+            .as_document()
+            .expect("legacy selected branch should be a document");
+        assert_eq!(
+            legacy
+                .get_document("lifecycle")
+                .and_then(|doc| doc.get_bool("$exists")),
+            Ok(false)
+        );
+        assert!(legacy.get("block_l2").is_some());
+    }
 
     #[test]
     fn test_historic_root_type_conversion() {

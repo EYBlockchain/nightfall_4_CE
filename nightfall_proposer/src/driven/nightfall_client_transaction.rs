@@ -1,5 +1,5 @@
 use crate::{
-    domain::entities::{ClientTransactionWithMetaData, DepositDatawithFee},
+    domain::entities::{ClientTransactionWithMetaData, DepositDatawithFee, TxLifecycle},
     initialisation::get_db_connection,
     ports::{
         db::TransactionsDB,
@@ -142,8 +142,7 @@ where
     let _: OnChainTransaction = (&client_transaction).into();
     let client_transaction_with_metadata = ClientTransactionWithMetaData::<P> {
         client_transaction: client_transaction.clone(),
-        block_l2: None,
-        in_mempool: true,
+        lifecycle: TxLifecycle::Mempool,
         hash: hash.to_vec(),
         historic_roots: vec![client_transaction.historic_commitment_root],
     };

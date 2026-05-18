@@ -8,7 +8,6 @@ use crate::{
         notifier::webhook_notifier::WebhookNotifier,
         primitives::kemdem_functions::kemdem_decrypt,
     },
-    drivers::rest::client_nf_3::SwapChildRequestArgs,
     drivers::rest::withdraw::handle_de_escrow,
     get_zkp_keys,
     initialisation::get_db_connection,
@@ -19,6 +18,9 @@ use crate::{
         trees::CommitmentTree,
     },
     services::data_publisher::DataPublisher,
+    services::swap_expiry::{
+        reconcile_expired_swap_request, should_expire_request, SwapChildRequestArgs,
+    },
 };
 use alloy::consensus::Transaction;
 use alloy::sol_types::SolInterface;
@@ -397,6 +399,8 @@ async fn process_propose_block_event<N: NightfallContract>(
         }
     }
 
+    expire_submitted_swaps_for_block(db, filter.layer2_block_number).await;
+
     // now attempt to decrypt the compressed secrets to see which commitments (if any) we own
     let mut commitment_entries = vec![];
     for transaction in blk.transactions.iter() {
@@ -452,22 +456,25 @@ async fn process_propose_block_event<N: NightfallContract>(
             let nullifier = test_preimage
                 .nullifier_hash(&nullifier_key)
                 .map_err(|_| EventHandlerError::HashError)?;
-            let token_type = N::get_token_info(decrypt[0])
-                .await
-                .map_err(|_| {
-                    EventHandlerError::IOError("Could not retrieve token type".to_string())
-                })?
-                .token_type;
-            let commitment_entry = CommitmentEntry::new(
+            let token_info = N::get_token_info(decrypt[0]).await.map_err(|_| {
+                EventHandlerError::IOError("Could not retrieve token info".to_string())
+            })?;
+            let slot_info = N::get_slot_info(decrypt[1]).await.map_err(|_| {
+                EventHandlerError::IOError("Could not retrieve slot info".to_string())
+            })?;
+
+            let mut commitment_entry = CommitmentEntry::new(
                 test_preimage,
                 nullifier,
                 CommitmentStatus::Unspent,
-                token_type,
+                token_info.token_type,
                 Some(transaction_hash),
                 Some(filter.layer2_block_number)
                     .filter(|&b| b >= I256::ZERO)
                     .and_then(|b| i64::try_from(b).ok()),
             );
+            commitment_entry.native_token_id = Some(token_info.token_id.to_hex_string());
+            commitment_entry.native_slot_id = Some(slot_info.slot_id.to_hex_string());
             commitment_entries.push(commitment_entry);
         }
     }
@@ -524,6 +531,32 @@ async fn process_propose_block_event<N: NightfallContract>(
     // If the block is not in the database, we can store it
     db.store_block(&store_block_pending).await;
     Ok(())
+}
+
+async fn expire_submitted_swaps_for_block(db: &mongodb::Client, current_l2_block: I256) {
+    let Some(submitted_requests) = db.get_requests_by_status(RequestStatus::Submitted).await else {
+        warn!("Failed to load Submitted requests for swap expiry reconciliation");
+        return;
+    };
+
+    for request in submitted_requests {
+        if should_expire_request(&request, current_l2_block) {
+            match reconcile_expired_swap_request(db, &request).await {
+                Ok(outcome) => {
+                    debug!(
+                        "{} Reconciled expired swap during block listener update (unlocked={}, already_unlocked={})",
+                        request.uuid, outcome.unlocked, outcome.already_unlocked
+                    );
+                }
+                Err(e) => {
+                    warn!(
+                        "{} Failed to reconcile expired swap during block-based reconciliation: {e:?}",
+                        request.uuid
+                    );
+                }
+            }
+        }
+    }
 }
 
 pub async fn process_deposit_escrowed_event(

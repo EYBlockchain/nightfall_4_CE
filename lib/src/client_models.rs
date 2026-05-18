@@ -146,6 +146,36 @@ pub struct NF3SwapRequest {
     pub fee: String,
 }
 
+/// Structure representing a client request to ask proposers to best-effort cancel a swap.
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NF3CancelSwapRequest {
+    pub request_id: String,
+}
+
+/// Structure representing a client request to trustlessly settle an expired swap.
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NF3SettleExpiredSwapRequest {
+    pub request_id: String,
+}
+
+/// Structure representing a proposer-facing swap cancel request.
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProposerSwapCancelRequest {
+    pub swap_link: String,
+}
+
+/// Informative response returned by advisory swap cancel flows.
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SwapCancelResponse {
+    pub status: String,
+    pub message: String,
+    pub matched: usize,
+}
+
 /// structure representing NF_3 recipient data
 /// This is a sub-structure of the NF_3 transfer request
 #[derive(Debug, Deserialize, Serialize)]

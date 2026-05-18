@@ -165,9 +165,9 @@ pub fn to_nf_slot_id_from_solidity(
     let erc_token = solidity_token_address.0.tokenize();
     let slot_id_token = solidity_slot_id.tokenize();
     let domain_token = U256::from(u64::from(NF_SLOT_ID_DOMAIN)).tokenize();
-    let nf_slot_id_biguint =
-        BigUint::from_bytes_be(keccak256(encode(&(erc_token, domain_token, slot_id_token))).as_slice())
-            >> 4;
+    let nf_slot_id_biguint = BigUint::from_bytes_be(
+        keccak256(encode(&(erc_token, domain_token, slot_id_token))).as_slice(),
+    ) >> 4;
 
     Fr254::from(nf_slot_id_biguint)
 }
@@ -287,11 +287,8 @@ mod tests {
         let solidity_token_id = U256::from_be_slice(&token_id_bytes);
 
         let nf_token_id = to_nf_token_id_from_solidity(solidity_erc_address, solidity_token_id);
-        let nf_slot_id = to_nf_slot_id_from_solidity(
-            solidity_erc_address,
-            solidity_token_id,
-            solidity_token_id,
-        );
+        let nf_slot_id =
+            to_nf_slot_id_from_solidity(solidity_erc_address, solidity_token_id, solidity_token_id);
 
         assert_eq!(nf_token_id, nf_slot_id);
     }
@@ -308,8 +305,9 @@ mod tests {
         let slot_id_token = slot_id.tokenize();
         let domain_token = U256::from(u64::from(NF_SLOT_ID_DOMAIN)).tokenize();
         let expected = Fr254::from(
-            BigUint::from_bytes_be(keccak256(encode(&(erc_token, domain_token, slot_id_token))).as_slice())
-                >> 4,
+            BigUint::from_bytes_be(
+                keccak256(encode(&(erc_token, domain_token, slot_id_token))).as_slice(),
+            ) >> 4,
         );
 
         let nf_slot_id = to_nf_slot_id_from_solidity(solidity_erc_address, token_id, slot_id);

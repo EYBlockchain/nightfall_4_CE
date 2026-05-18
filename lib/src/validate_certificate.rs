@@ -2,15 +2,23 @@ use super::models::CertificateReq;
 use crate::{
     blockchain_client::BlockchainClientConnection,
     error::{CertificateVerificationError, NightfallContractError},
-    initialisation::get_blockchain_client_connection,
+    initialisation::get_blockchain_client_connection_for_role,
     models::bad_request,
     verify_contract::VerifiedContracts,
+    wallets::validate_azure_vault_url,
 };
 use alloy::{
     primitives::{Address, U256},
     providers::Provider,
 };
-use configuration::{addresses::get_addresses, settings::get_settings};
+use async_trait::async_trait;
+use azure_identity;
+use azure_security_keyvault::{prelude::*, KeyClient};
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+use configuration::{
+    addresses::get_addresses,
+    settings::{get_settings, WalletRole, X509SignerTypeConfig},
+};
 use futures::stream::TryStreamExt;
 use log::{debug, error, trace, warn};
 use nightfall_bindings::artifacts::X509;
@@ -19,15 +27,20 @@ use openssl::{
     hash::MessageDigest,
     pkey::{Id as PKeyId, PKey},
     rsa::{Padding, Rsa},
+    sha::sha256,
     sign::{RsaPssSaltlen, Signer as opensslSigner, Verifier},
     x509::X509 as OpensslX509,
 };
 use reqwest::StatusCode;
 use std::error::Error;
 use std::io::Read;
+use std::sync::Arc;
 use warp::{filters::multipart::FormData, path, reply::Reply, Buf, Filter};
 use x509_parser::nom::AsBytes;
 use zeroize::{Zeroize, ZeroizeOnDrop};
+
+type CertificateSignerResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
+
 #[derive(Debug)]
 pub struct X509ValidationError;
 
@@ -39,19 +52,97 @@ impl std::fmt::Display for X509ValidationError {
 
 impl std::error::Error for X509ValidationError {}
 
+#[async_trait]
+trait CertificateSigner: Send + Sync {
+    async fn sign_possession_proof(
+        &self,
+        address: &Address,
+        verifying_contract: &Address,
+        chain_id: u64,
+    ) -> CertificateSignerResult<Vec<u8>>;
+}
+
+struct LocalCertificateSigner {
+    der_private_key: Vec<u8>,
+}
+
+impl LocalCertificateSigner {
+    fn new(der_private_key: Vec<u8>) -> Self {
+        Self { der_private_key }
+    }
+}
+
+#[async_trait]
+impl CertificateSigner for LocalCertificateSigner {
+    async fn sign_possession_proof(
+        &self,
+        address: &Address,
+        verifying_contract: &Address,
+        chain_id: u64,
+    ) -> CertificateSignerResult<Vec<u8>> {
+        let preimage = build_certificate_possession_preimage(address, verifying_contract, chain_id);
+        sign_certificate_possession_preimage(&self.der_private_key, &preimage)
+    }
+}
+
+#[derive(Clone)]
+pub struct AzureRsaCertificateSigner {
+    key_client: Arc<KeyClient>,
+    key_name: String,
+}
+
+impl AzureRsaCertificateSigner {
+    pub fn new(vault_url: &str, key_name: &str) -> CertificateSignerResult<Self> {
+        validate_azure_vault_url(vault_url)?;
+        let credential = azure_identity::create_credential()?;
+        let key_client = KeyClient::new(vault_url, credential)?;
+
+        Ok(Self {
+            key_client: Arc::new(key_client),
+            key_name: key_name.to_string(),
+        })
+    }
+}
+
+#[async_trait]
+impl CertificateSigner for AzureRsaCertificateSigner {
+    async fn sign_possession_proof(
+        &self,
+        address: &Address,
+        verifying_contract: &Address,
+        chain_id: u64,
+    ) -> CertificateSignerResult<Vec<u8>> {
+        let preimage = build_certificate_possession_preimage(address, verifying_contract, chain_id);
+        let digest = sha256(&preimage);
+        let digest_base64 = URL_SAFE_NO_PAD.encode(digest);
+
+        let sign_result = self
+            .key_client
+            .sign(&self.key_name, SignatureAlgorithm::PS256, digest_base64)
+            .await?;
+
+        Ok(sign_result.signature)
+    }
+}
+
 pub fn certification_validation_request(
+    role: WalletRole,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     debug!("Received certification request");
     path!("v1" / "certification")
         .and(warp::post())
         .and(warp::multipart::form().max_length(16192))
-        .and_then(handle_certificate_validation)
+        .and_then(move |x509_data| handle_certificate_validation(x509_data, role))
 }
 
 // Middleware to validate the certificate
 pub async fn handle_certificate_validation(
     mut x509_data: FormData,
+    role: WalletRole,
 ) -> Result<impl Reply, warp::Rejection> {
+    let settings = get_settings();
+    let x509_signer_type = settings.x509_signer_type_for_role(role).clone();
+
     // Parse the certificate validation request (by FIELD NAME, not filename)
     let mut certificate_req = CertificateReq::default();
     while let Some(part_res) = x509_data.try_next().await.transpose() {
@@ -100,7 +191,9 @@ pub async fn handle_certificate_validation(
     if certificate_req.certificate.is_empty() {
         return Ok(bad_request("Missing 'certificate' field or empty file"));
     }
-    if certificate_req.certificate_private_key.is_empty() {
+    if x509_signer_type == X509SignerTypeConfig::Local
+        && certificate_req.certificate_private_key.is_empty()
+    {
         return Ok(bad_request("Missing 'priv_key' field or empty file"));
     }
 
@@ -110,7 +203,7 @@ pub async fn handle_certificate_validation(
     let prevalidation_address = {
         // We do not yet have the blockchain client, but the requestor address is
         // exactly what will be bound, so we need it here anyway.
-        let conn_guard = get_blockchain_client_connection().await;
+        let conn_guard = get_blockchain_client_connection_for_role(role).await;
         let read_conn = conn_guard.read().await;
         read_conn.get_address()
     };
@@ -118,7 +211,7 @@ pub async fn handle_certificate_validation(
     let x509_addr = get_addresses().x509;
 
     // Resolve client
-    let client = get_blockchain_client_connection()
+    let client = get_blockchain_client_connection_for_role(role)
         .await
         .read()
         .await
@@ -129,13 +222,18 @@ pub async fn handle_certificate_validation(
         warp::reject::custom(CertificateVerificationError::new("Failed to get chain ID"))
     })?;
 
-    if let Err(e) = prevalidate_certificate_and_key(
-        &certificate_req.certificate,
-        &certificate_req.certificate_private_key,
-        &prevalidation_address,
-        &x509_addr,
-        chain_id,
-    ) {
+    let prevalidation_result = match x509_signer_type {
+        X509SignerTypeConfig::Local => prevalidate_certificate_and_key(
+            &certificate_req.certificate,
+            &certificate_req.certificate_private_key,
+            &prevalidation_address,
+            &x509_addr,
+            chain_id,
+        ),
+        X509SignerTypeConfig::Azure => prevalidate_certificate(&certificate_req.certificate),
+    };
+
+    if let Err(e) = prevalidation_result {
         warn!("Client-side certificate prevalidation failed: {e}");
         return Ok(bad_request(
             "Certificate / private key prevalidation failed",
@@ -144,7 +242,7 @@ pub async fn handle_certificate_validation(
 
     // 2) Resolve address
     let blockchain_client = client.root();
-    let requestor_address = get_blockchain_client_connection()
+    let requestor_address = get_blockchain_client_connection_for_role(role)
         .await
         .read()
         .await
@@ -163,16 +261,41 @@ pub async fn handle_certificate_validation(
     let x509_instance = verified.x509;
 
     // 3) Build signature over the requester address
-    debug!("Signing ethereum address {requestor_address} with certificate private key");
-    let ethereum_address_signature = match sign_ethereum_address(
-        &certificate_req.certificate_private_key,
-        &requestor_address,
-        &x509_addr,
-        chain_id,
-    ) {
+    let certificate_signer: Box<dyn CertificateSigner> = match x509_signer_type {
+        X509SignerTypeConfig::Local => {
+            debug!(
+                "Signing ethereum address {requestor_address} with local certificate private key"
+            );
+            Box::new(LocalCertificateSigner::new(
+                certificate_req.certificate_private_key.clone(),
+            ))
+        }
+        X509SignerTypeConfig::Azure => {
+            let key_name = settings.x509_azure_key_name_for_role(role).map_err(|e| {
+                error!("Missing Azure X509 key configuration: {e}");
+                warp::reject::custom(CertificateVerificationError::new(
+                    "Failed to resolve Azure X509 signer configuration",
+                ))
+            })?;
+
+            debug!("Signing ethereum address {requestor_address} with Azure X509 key {key_name}");
+            let signer = AzureRsaCertificateSigner::new(&settings.azure_vault_url, key_name)
+                .map_err(|e| {
+                    error!("Failed to create AzureRsaCertificateSigner: {e}");
+                    warp::reject::custom(CertificateVerificationError::new(
+                        "Failed to initialize Azure X509 signer",
+                    ))
+                })?;
+            Box::new(signer)
+        }
+    };
+    let ethereum_address_signature = match certificate_signer
+        .sign_possession_proof(&requestor_address, &x509_addr, chain_id)
+        .await
+    {
         Ok(sig) => sig,
         Err(e) => {
-            error!("sign_ethereum_address failed: {e}");
+            error!("CertificateSigner::sign_possession_proof failed: {e}");
             let body = warp::reply::json(&serde_json::json!({
                 "status": "ok",
                 "certified": false
@@ -180,6 +303,21 @@ pub async fn handle_certificate_validation(
             return Ok(warp::reply::with_status(body, StatusCode::ACCEPTED));
         }
     };
+
+    if x509_signer_type == X509SignerTypeConfig::Azure {
+        if let Err(e) = verify_signature_matches_certificate(
+            &certificate_req.certificate,
+            &requestor_address,
+            &ethereum_address_signature,
+            &x509_addr,
+            chain_id,
+        ) {
+            warn!("Certificate/signature mismatch before on-chain validation: {e}");
+            return Ok(bad_request(
+                "Certificate does not match the configured signer",
+            ));
+        }
+    }
 
     // 4) ENROLL (state-changing): write the binding on-chain and await receipt.
     // We want one API that validates AND enrolls, so we do the write:
@@ -193,6 +331,7 @@ pub async fn handle_certificate_validation(
         check_only, // write path
         0,
         requestor_address,
+        role,
     )
     .await
     {
@@ -227,8 +366,12 @@ async fn validate_certificate(
     check_only: bool,
     oid_group: u32,
     sender_address: Address,
+    role: WalletRole,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let read_connection = get_blockchain_client_connection().await.read().await;
+    let read_connection = get_blockchain_client_connection_for_role(role)
+        .await
+        .read()
+        .await;
     let provider = read_connection.get_client();
     let blockchain_client = provider.root();
     let verified =
@@ -256,14 +399,11 @@ async fn validate_certificate(
         addr: sender_address,
     };
 
-    let signer = get_blockchain_client_connection()
-        .await
-        .read()
-        .await
-        .get_signer();
+    let caller = read_connection.get_address();
+    let wallet = read_connection.get_wallet_type().clone();
 
     let nonce = blockchain_client
-        .get_transaction_count(signer.address())
+        .get_transaction_count(caller)
         .await
         .map_err(|e| NightfallContractError::X509Error(format!("Transaction unsuccesful: {e}")))?;
     let gas_price = blockchain_client
@@ -281,7 +421,7 @@ async fn validate_certificate(
         .max_fee_per_gas(max_fee_per_gas)
         .max_priority_fee_per_gas(max_priority_fee_per_gas)
         .chain_id(get_settings().network.chain_id) // Linea testnet chain ID
-        .build_raw_transaction((*signer).clone())
+        .build_raw_transaction(wallet)
         .await
         .map_err(|e| {
             warn!("{e}");
@@ -307,32 +447,17 @@ struct PrivateKeyMaterial {
     key: Vec<u8>,
 }
 
-/// Sign an Ethereum address using an RSA private key
-pub fn sign_ethereum_address(
-    der_private_key: &[u8],
+fn build_certificate_possession_preimage(
     address: &Address,
     verifying_contract: &Address,
     chain_id: u64,
-) -> Result<Vec<u8>, Box<dyn Error>> {
-    // Create an RSA object from the DER-encoded private key
-    let mut key_material = PrivateKeyMaterial {
-        key: der_private_key.to_vec(),
-    };
-
-    let private_key = Rsa::private_key_from_der(&key_material.key)?;
-
-    let pkey = PKey::from_rsa(private_key)?;
-
-    let mut signer = opensslSigner::new(MessageDigest::sha256(), &pkey)?;
-    signer.set_rsa_padding(Padding::PKCS1_PSS)?;
-    signer.set_rsa_mgf1_md(MessageDigest::sha256())?;
-    signer.set_rsa_pss_saltlen(RsaPssSaltlen::DIGEST_LENGTH)?;
-
-    // Minimal domain separation: human-readable, versioned, bound to contract + chain
+) -> Vec<u8> {
+    // Minimal domain separation: human-readable, versioned, bound to contract + chain.
     // preimage = "ADDR-LINK|v1|contract:" || verifying_contract || "|chainId:" || u64_be || "|addr:" || address
     const PREFIX: &[u8] = b"ADDR-LINK|v1|contract:";
     const SEP_CHAIN: &[u8] = b"|chainId:";
     const SEP_ADDR: &[u8] = b"|addr:";
+
     let mut preimage =
         Vec::with_capacity(PREFIX.len() + 20 + SEP_CHAIN.len() + 8 + SEP_ADDR.len() + 20);
     preimage.extend_from_slice(PREFIX);
@@ -341,12 +466,41 @@ pub fn sign_ethereum_address(
     preimage.extend_from_slice(&chain_id.to_be_bytes()); // 8 bytes, big-endian
     preimage.extend_from_slice(SEP_ADDR);
     preimage.extend_from_slice(address.as_bytes()); // 20 bytes
+    preimage
+}
 
-    // Sign the address bytes
-    signer.update(&preimage)?;
+fn sign_certificate_possession_preimage(
+    der_private_key: &[u8],
+    preimage: &[u8],
+) -> CertificateSignerResult<Vec<u8>> {
+    let mut key_material = PrivateKeyMaterial {
+        key: der_private_key.to_vec(),
+    };
+
+    let private_key = Rsa::private_key_from_der(&key_material.key)?;
+    let pkey = PKey::from_rsa(private_key)?;
+
+    let mut signer = opensslSigner::new(MessageDigest::sha256(), &pkey)?;
+    signer.set_rsa_padding(Padding::PKCS1_PSS)?;
+    signer.set_rsa_mgf1_md(MessageDigest::sha256())?;
+    signer.set_rsa_pss_saltlen(RsaPssSaltlen::DIGEST_LENGTH)?;
+    signer.update(preimage)?;
+
     let signature = signer.sign_to_vec()?;
-    key_material.zeroize(); // Zeroize private key material
+    key_material.zeroize();
     Ok(signature)
+}
+
+/// Sign an Ethereum address using an RSA private key
+pub fn sign_ethereum_address(
+    der_private_key: &[u8],
+    address: &Address,
+    verifying_contract: &Address,
+    chain_id: u64,
+) -> Result<Vec<u8>, Box<dyn Error>> {
+    let preimage = build_certificate_possession_preimage(address, verifying_contract, chain_id);
+    sign_certificate_possession_preimage(der_private_key, &preimage)
+        .map_err(|e| e as Box<dyn Error>)
 }
 
 // Convenience alias so we do not keep constructing Box<dyn Error> in the handler
@@ -444,6 +598,86 @@ fn prevalidate_certificate_and_key(
     Ok(())
 }
 
+fn prevalidate_certificate(cert_der: &[u8]) -> Result<(), CertificateVerificationError> {
+    let cert = OpensslX509::from_der(cert_der).map_err(|e| {
+        error!("X.509 parse error: {e}");
+        prevalidation_error("Invalid X.509 certificate (DER parsing failed)")
+    })?;
+
+    let now = Asn1Time::days_from_now(0).map_err(|e| {
+        error!("Asn1Time::days_from_now error: {e}");
+        prevalidation_error("Internal time error while checking certificate validity")
+    })?;
+
+    if cert.not_before() > now {
+        return Err(prevalidation_error(
+            "Certificate is not yet valid (not_before is in the future)",
+        ));
+    }
+    if cert.not_after() < now {
+        return Err(prevalidation_error(
+            "Certificate has expired (not_after is in the past)",
+        ));
+    }
+
+    let pubkey = cert.public_key().map_err(|e| {
+        error!("Failed to extract public key from certificate: {e}");
+        prevalidation_error("Cannot extract public key from certificate")
+    })?;
+
+    if pubkey.id() == PKeyId::RSA {
+        let rsa_pub = pubkey.rsa().map_err(|e| {
+            error!("Failed to convert public key to RSA: {e}");
+            prevalidation_error("Invalid RSA public key inside certificate")
+        })?;
+        if rsa_pub.size() < 2048 / 8 {
+            return Err(prevalidation_error(
+                "RSA key too short (must be at least 2048 bits)",
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+fn verify_signature_matches_certificate(
+    cert_der: &[u8],
+    address: &Address,
+    signature: &[u8],
+    verifying_contract: &Address,
+    chain_id: u64,
+) -> Result<(), CertificateVerificationError> {
+    let cert = OpensslX509::from_der(cert_der).map_err(|e| {
+        error!("X.509 parse error while verifying certificate/signature match: {e}");
+        prevalidation_error("Invalid X.509 certificate (DER parsing failed)")
+    })?;
+
+    let pubkey = cert.public_key().map_err(|e| {
+        error!("Failed to extract public key from certificate: {e}");
+        prevalidation_error("Cannot extract public key from certificate")
+    })?;
+
+    let is_valid = verify_ethereum_address_signature(
+        &pubkey,
+        address,
+        signature,
+        verifying_contract,
+        chain_id,
+    )
+    .map_err(|e| {
+        error!("Failed to verify signature with certificate public key: {e}");
+        prevalidation_error("Failed to verify signature with certificate public key")
+    })?;
+
+    if !is_valid {
+        return Err(prevalidation_error(
+            "Certificate public key does not match configured signer",
+        ));
+    }
+
+    Ok(())
+}
+
 #[allow(dead_code)]
 fn verify_ethereum_address_signature(
     pkey: &PKey<openssl::pkey::Public>,
@@ -459,21 +693,8 @@ fn verify_ethereum_address_signature(
     verifier.set_rsa_mgf1_md(MessageDigest::sha256())?;
     verifier.set_rsa_pss_saltlen(RsaPssSaltlen::DIGEST_LENGTH)?;
 
-    // Minimal domain separation: human-readable, versioned, bound to contract + chain
-    // preimage = "ADDR-LINK|v1|contract:" || verifying_contract || "|chainId:" || u64_be || "|addr:" || address
-    const PREFIX: &[u8] = b"ADDR-LINK|v1|contract:";
-    const SEP_CHAIN: &[u8] = b"|chainId:";
-    const SEP_ADDR: &[u8] = b"|addr:";
-    let mut preimage =
-        Vec::with_capacity(PREFIX.len() + 20 + SEP_CHAIN.len() + 8 + SEP_ADDR.len() + 20);
-    preimage.extend_from_slice(PREFIX);
-    preimage.extend_from_slice(verifying_contract.as_bytes()); // 20 bytes
-    preimage.extend_from_slice(SEP_CHAIN);
-    preimage.extend_from_slice(&chain_id.to_be_bytes()); // 8 bytes, big-endian
-    preimage.extend_from_slice(SEP_ADDR);
-    preimage.extend_from_slice(address.as_bytes()); // 20 bytes
+    let preimage = build_certificate_possession_preimage(address, verifying_contract, chain_id);
 
-    // Verify the signature over the structured preimage
     verifier.update(&preimage)?;
 
     let result = verifier.verify(signature)?; // expects same PKCS#1 v1.5 structure
@@ -534,7 +755,7 @@ mod tests {
             "--{boundary}\r\nContent-Disposition: form-data; name=\"certificate\"; filename=\"cert.der\"\r\nContent-Type: application/octet-stream\r\n\r\nabc\r\n--{boundary}--\r\n"
         );
 
-        let filter = certification_validation_request();
+        let filter = certification_validation_request(WalletRole::Client);
         let res = warp::test::request()
             .method("POST")
             .path("/v1/certification")
@@ -559,7 +780,7 @@ mod tests {
             "--{boundary}\r\nContent-Disposition: form-data; name=\"unexpected\"; filename=\"file.bin\"\r\nContent-Type: application/octet-stream\r\n\r\nabc\r\n--{boundary}--\r\n"
         );
 
-        let filter = certification_validation_request();
+        let filter = certification_validation_request(WalletRole::Client);
         let res = warp::test::request()
             .method("POST")
             .path("/v1/certification")

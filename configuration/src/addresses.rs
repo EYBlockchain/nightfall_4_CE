@@ -505,7 +505,16 @@ mod tests {
     use serial_test::serial;
 
     #[tokio::test]
+    #[serial]
     async fn test_checksum_validation() {
+        let tmp_run_mode = std::env::var("NF4_RUN_MODE").ok();
+        let tmp_client_wallet_type = std::env::var("NF4_NIGHTFALL_CLIENT__WALLET_TYPE").ok();
+        let tmp_proposer_wallet_type = std::env::var("NF4_NIGHTFALL_PROPOSER__WALLET_TYPE").ok();
+
+        std::env::set_var("NF4_RUN_MODE", "development");
+        std::env::set_var("NF4_NIGHTFALL_CLIENT__WALLET_TYPE", "local");
+        std::env::set_var("NF4_NIGHTFALL_PROPOSER__WALLET_TYPE", "local");
+
         let settings = Settings::new().expect("Could not load settings");
         // checksummed address (valid)
         let valid_address = "0x52908400098527886E0F7030069857D2E4169EE7";
@@ -525,6 +534,19 @@ mod tests {
         };
 
         addresses.ensure_nonzero(settings.mock_prover).unwrap();
+
+        match tmp_run_mode {
+            Some(val) => std::env::set_var("NF4_RUN_MODE", val),
+            None => std::env::remove_var("NF4_RUN_MODE"),
+        }
+        match tmp_client_wallet_type {
+            Some(val) => std::env::set_var("NF4_NIGHTFALL_CLIENT__WALLET_TYPE", val),
+            None => std::env::remove_var("NF4_NIGHTFALL_CLIENT__WALLET_TYPE"),
+        }
+        match tmp_proposer_wallet_type {
+            Some(val) => std::env::set_var("NF4_NIGHTFALL_PROPOSER__WALLET_TYPE", val),
+            None => std::env::remove_var("NF4_NIGHTFALL_PROPOSER__WALLET_TYPE"),
+        }
     }
     #[tokio::test]
     #[serial]

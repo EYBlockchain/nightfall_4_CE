@@ -1,8 +1,14 @@
 use crate::{
+    domain::entities::Block,
     drivers::blockchain::nightfall_event_listener::get_synchronisation_status,
-    initialisation::{get_block_assembly_trigger, get_blockchain_client_connection},
+    initialisation::{
+        get_block_assembly_trigger, get_blockchain_client_connection, get_db_connection,
+    },
     ports::{contracts::NightfallContract, proving::RecursiveProvingEngine},
-    services::assemble_block::assemble_block,
+    services::{
+        assemble_block::assemble_block,
+        selected_transactions::restore_selected_transactions_for_failed_block,
+    },
 };
 use alloy::{
     primitives::{Address, TxHash, I256, U64},
@@ -23,6 +29,7 @@ use lib::{
 use log::{debug, error, info, warn};
 use nightfall_bindings::artifacts::RoundRobin;
 use std::{
+    collections::VecDeque,
     error::Error,
     fmt::{Debug, Display, Formatter},
     sync::Arc,
@@ -198,6 +205,57 @@ async fn check_l1_finality(
     }
 }
 
+/// Process `pending_blocks`, stamping each block with the current on-chain
+/// `layer2_block_number` immediately before submission.
+///
+/// On transient RPC failure (or out-of-range block number), the remaining
+/// blocks are left in the queue so the caller can retry on the next tick.
+/// Submission failures (`N::propose_block`) preserve the pre-existing
+/// behaviour of logging and dropping the offending block.
+async fn propose_pending_blocks<P, N>(blocks: &mut VecDeque<Block>)
+where
+    P: Proof,
+    N: NightfallContract,
+{
+    while !blocks.is_empty() {
+        let current_l2_block_number = match N::get_current_layer2_blocknumber().await {
+            Ok(block_number) => block_number,
+            Err(e) => {
+                error!(
+                    "Failed to fetch current layer2 block number before proposing block: {e}. \
+                     Leaving {} block(s) queued for retry.",
+                    blocks.len()
+                );
+                return;
+            }
+        };
+
+        let block_number: u64 = match current_l2_block_number.try_into() {
+            Ok(block_number) => block_number,
+            Err(_) => {
+                error!(
+                    "Current layer2 block number is negative or out of range: \
+                     {current_l2_block_number}. Leaving {} block(s) queued.",
+                    blocks.len()
+                );
+                return;
+            }
+        };
+
+        let mut block = blocks
+            .pop_front()
+            .expect("queue checked as non-empty above");
+        block.block_number = block_number;
+        let failed_block = block.clone();
+
+        if let Err(e) = N::propose_block(block).await {
+            error!("Failed to propose block: {e}");
+            let db = get_db_connection().await;
+            let _ = restore_selected_transactions_for_failed_block::<P>(db, &failed_block).await;
+        }
+    }
+}
+
 // once called this function will trigger the block assembly process whenever
 // certain conditions are met
 // Any errors that propogate back up to here will cause a panic.
@@ -253,7 +311,7 @@ where
     );
 
     // Shared queue for blocks waiting for finality confirmation
-    let pending_blocks = Arc::new(Mutex::new(Vec::new()));
+    let pending_blocks: Arc<Mutex<VecDeque<Block>>> = Arc::new(Mutex::new(VecDeque::new()));
     let confirmations_required = U64::from(12);
     let finality_check_interval = Duration::from_secs(5);
 
@@ -334,21 +392,13 @@ where
                 }
 
                 if last_finalized_turn == Some(onchain_start_block) {
-                    let drained_for_same_turn: Vec<_> = {
-                        let mut guard = pending_blocks.lock().await;
-                        guard.drain(..).collect()
-                    };
-
-                    if !drained_for_same_turn.is_empty() {
+                    let mut guard = pending_blocks.lock().await;
+                    if !guard.is_empty() {
                         info!(
                             "Finality checker: current proposer turn {onchain_start_block} already finalized, proposing {} pending blocks",
-                            drained_for_same_turn.len()
+                            guard.len()
                         );
-                        for block in drained_for_same_turn {
-                            if let Err(e) = N::propose_block(block).await {
-                                error!("Finality checker: propose_block failed: {e}");
-                            }
-                        }
+                        propose_pending_blocks::<P, N>(&mut guard).await;
                     }
 
                     tokio::time::sleep(finality_check_interval).await;
@@ -421,22 +471,13 @@ where
                             "ProposerRotated tx finalized: {tx_hash:?} (event block: {onchain_start_block})"
                         );
                         last_finalized_turn = Some(onchain_start_block);
-
-                        let drained_after_finality: Vec<_> = {
-                            let mut guard = pending_blocks.lock().await;
-                            guard.drain(..).collect()
-                        };
-
-                        if !drained_after_finality.is_empty() {
+                        let mut guard = pending_blocks.lock().await;
+                        if !guard.is_empty() {
                             info!(
                                 "Finality checker: finalized & canonical rotation, proposing {} pending blocks",
-                                drained_after_finality.len()
+                                guard.len()
                             );
-                            for block in drained_after_finality {
-                                if let Err(e) = N::propose_block(block).await {
-                                    error!("Finality checker: propose_block failed: {e}");
-                                }
-                            }
+                            propose_pending_blocks::<P, N>(&mut guard).await;
                         }
                     }
                     Ok(false) => {
@@ -550,7 +591,7 @@ where
         // Add to pending blocks queue
         {
             let mut blocks = pending_blocks.lock().await;
-            blocks.push(block);
+            blocks.push_back(block);
             info!("Added block to queue ({} pending)", blocks.len());
         }
     }

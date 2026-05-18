@@ -6,6 +6,8 @@ All notable changes to this repository will be documented in this file.
 
 ### Added
 - Atomic swap support across client/prover/proposer flow, including `swap_link`, `deadline`, and `swap_side`.
+- Advisory swap cancel request flow `POST /v1/swap/cancel-request`, which asks proposers to best-effort remove matching swap legs from proposer mempools without unlocking client commitments.
+- Trustless expired-swap settlement API `POST /v1/swap/settle-expired`, which unlocks locally reserved swap commitments (`PendingSpend` -> `Unspent`) only after local safety checks succeed.
 
 ### Breaking Changes
 - `ClientTransaction` serialization now includes swap metadata fields (`swap_link`, `deadline`, `swap_side`).

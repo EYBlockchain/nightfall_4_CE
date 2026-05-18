@@ -180,16 +180,52 @@ Do not confuse NF4_RUN_MODE, which selects the top-level section of `nightfall.t
 Additonally, any configuration item can also be overridden via an enviroment variable by naming an environment variable `NF4_<name of variable in nightfall.toml>`. You do not need to include the main section name: that is taken from the environment variable `NF4_RUN_MODE`. It defaults to `development` if `NF4_RUN_MODE` is not set. Some configuration variables are in sub-categories, for example under `[development.nightfall_deployer]`. Use a double __ to identify a variable within a sub-category (replacing the dot that would be used in the equivalent Rust struct). For example, the `log_level` variable in `nightfall.toml` that is under `[development]` under `[development.nightfall_deployer]` would be overridden by the environment variable `NF4_NIGHTFALL_DEPLOYER__LOG_LEVEL`, provided of course that `NF4_RUN_MODE` is set to `development` (or left unset).
 
 Finally, secret items, such as keys, do not appear in `nightfall.toml` (except for one signing key used for basic testing - which will be removed soon). Depending on the wallet type being used, keys should instead be set via environment variables, a key-store or an HSM. Test keys are currently provided via a `.env` file in the project root, using the LocalWallet type, that sets its keys as environment variables.
-NF_4 also supports the AzureWallet type, allowing keys to be securely stored in Azure Key Vault. To use this feature, you can register an NF_4 application in Azure App Registration and grant it access to the stored keys. When enabling this functionality, make sure to set the following environment variables:
-AZURE_VAULT_URL=
-DEPLOYER_SIGNING_KEY_NAME=
-PROPOSER_SIGNING_KEY_NAME=
-PROPOSER_2_SIGNING_KEY_NAME=
-CLIENT_SIGNING_KEY_NAME=
-CLIENT2_SIGNING_KEY_NAME=
-AZURE_CLIENT_ID=
-AZURE_CLIENT_SECRET=
-AZURE_TENANT_ID= .
+NF_4 also supports Azure Key Vault-backed signing. To use this feature, register an NF_4 application in Azure App Registration and grant it access to the required keys in Key Vault.
+
+For Azure-backed signing, the configuration is split by signing surface:
+
+```env
+# Ethereum L1 signing
+NF4_NIGHTFALL_CLIENT__WALLET_TYPE=azure
+CLIENT_SIGNING_KEY_NAME=<ethereum-key-name-in-vault>
+
+NF4_NIGHTFALL_PROPOSER__WALLET_TYPE=azure
+PROPOSER_SIGNING_KEY_NAME=<ethereum-key-name-in-vault>
+
+# X.509 proof-of-possession signing
+NF4_NIGHTFALL_CLIENT__X509_SIGNER_TYPE=azure
+CLIENT_X509_SIGNING_KEY_NAME=<rsa-key-name-in-vault>
+
+NF4_NIGHTFALL_PROPOSER__X509_SIGNER_TYPE=azure
+PROPOSER_X509_SIGNING_KEY_NAME=<rsa-key-name-in-vault>
+
+# Shared Azure config
+AZURE_VAULT_URL=https://<vault-name>.vault.azure.net/
+AZURE_CLIENT_ID=...
+AZURE_CLIENT_SECRET=...
+AZURE_TENANT_ID=...
+```
+
+In Azure mode, the Ethereum L1 signing key should be an EC `P-256K` / `secp256k1` key in Key Vault.
+The X.509 proof-of-possession key should be the RSA private key corresponding to the user certificate already accepted by Nightfall.
+
+### Advisory swap cancellation auth
+
+For advisory swap cancellation, both the `client` and every `proposer` must be given the same shared secret via:
+
+```sh
+NF4_SWAP_CANCEL_AUTH_TOKEN=choose-a-long-random-secret
+```
+
+This token is a transport-level mitigation for the proposer-facing `POST /v1/swap/cancel-request` endpoint. It is intended for trusted/internal deployment boundaries only. It is not proof that the caller is the owner of a swap and it must not be treated as owner-level authorization.
+
+Operational notes:
+- Set `NF4_SWAP_CANCEL_AUTH_TOKEN` on the `client` and every `proposer` that is expected to participate in advisory swap cancellation.
+- The value should be long, random, and kept out of source control.
+- The value must not be logged or copied into application diagnostics.
+- If the token is absent on the `client`, advisory cancel requests cannot be sent to proposers and the client will report `cancelRequestStatus=delivery_failed` while keeping commitments locked.
+- If the token is absent on a `proposer`, that proposer returns `503 Swap cancel unavailable` for the proposer-facing cancel endpoint.
+- If the token header is missing or wrong on a `proposer`, that proposer returns `401 Unauthorized swap cancel request`.
 
 Not all of the configuration items can be static (i.e. known at compile-time). In particular, the addresses of the deployed contracts are not known in advance. The `deployer` saves addresses by writing directly to a shared file (`/app/configuration/toml/addresses.toml`) in the Docker volume (`address_data`). The Nightfall applications read addresses at startup, first attempting to load from the local file, then falling back to HTTP GET from the `configuration` service (nginx) with retry logic if the file is unavailable. The file must include a `chain_id` field for validation. Note that the `NF4_RUN_MODE` environment variable must be set for address validation to work correctly, with private IPs allowed in development mode to support Docker networking.
 
@@ -237,6 +273,8 @@ Generate three Ethereum addresses and private keys. These should be stored in a 
 Set the environment variable `NF4_RUN_MODE=base_sepolia`. This will cause Nightfall to use the `[base_sepolia]` section of `nightfall.toml` rather than the `[development]` section.
 
 If you need to, override the `deploy_contracts` configuration item, e.g.: `NF4_CONTRACTS__DEPLOY_CONTRACTS=false` (note the double underscore, which replaces the more common 'dot' notation).
+
+If you intend to use advisory swap cancellation, also set `NF4_SWAP_CANCEL_AUTH_TOKEN` on the `client` and every `proposer` as described in [Advisory swap cancellation auth](#advisory-swap-cancellation-auth).
 
 Set `ethereum_client_url`: The url of the rpc endpoint of your layer 1 client. Alternatively, you can set this via `NF4_ETHEREUM_CLIENT_URL` in the `local.env` file.
 
@@ -589,6 +627,108 @@ The components of the JSON object have the following meaning:
 - `deadline`: The L2 block number after which the swap expires. Must be non-zero and fit within 64 bits. Deadline expiry is enforced by the proposer against the current L2 block number.
 - `fee`: The amount that will be paid to the `proposer` which processes this transaction. Must fit within 96 bits.
 - `partyA.value`, `partyB.value`: must each fit within 96 bits.
+
+***
+
+POST /v1/swap/cancel-request
+
+```sh
+curl -i \
+  -H 'Content-Type: application/json' \
+  -X POST 'http://localhost:3000/v1/swap/cancel-request' \
+  --data-raw '{
+    "requestId": "33333333-3333-3333-3333-333333333333"
+  }'
+```
+
+Returns:
+- `200 OK` when the advisory cancel request was delivered or when proposers returned an informative result such as `accepted`, `already_cancelled`, `not_found`, `too_late`, or `delivery_failed`.
+- `409 CONFLICT` when the request is not in a cancel-requestable state, or when the deadline has already passed and the client should use `settle-expired` instead.
+- `404 NOT FOUND` if `requestId` does not exist.
+- `400 BAD REQUEST` if `requestId` is not a valid UUID.
+
+Response body (200/409):
+
+```json
+{
+  "requestId": "33333333-3333-3333-3333-333333333333",
+  "cancelRequestStatus": "accepted",
+  "matched": 2,
+  "commitmentsRemainLocked": true,
+  "message": "Swap cancel request accepted by proposer(s); commitments remain locked until local trustless settlement"
+}
+```
+
+This call is advisory only. The client uses `requestId` to load the swap metadata it stored locally, translates that into the swap's `swap_link`, and then asks proposers to best-effort remove matching swap legs from proposer mempools. This can reduce the chance of inclusion before expiry, but it does not unlock anything locally.
+
+Security note:
+- The proposer response is informational only and has no safety value.
+- Commitments remain locked after `cancel-request`, even if every proposer replies `accepted`.
+- This endpoint does not modify on-chain state and does not bypass circuit or proposer validation.
+
+Proposer-facing endpoint:
+
+```sh
+curl -i \
+  -H 'Content-Type: application/json' \
+  -H 'x-nf4-swap-cancel-auth: <NF4_SWAP_CANCEL_AUTH_TOKEN>' \
+  -X POST 'http://localhost:3001/v1/swap/cancel-request' \
+  --data-raw '{
+    "swapLink": "0x1234"
+  }'
+```
+
+Response body:
+
+```json
+{
+  "status": "accepted",
+  "message": "Swap cancel request accepted; matching mempool swap legs were marked cancelled",
+  "matched": 2
+}
+```
+
+- Client API uses `requestId` because that is the client-side request identifier persisted in the local DB.
+- Proposer API uses `swapLink` because that is the proposer/mempool matching key for swap pairing.
+- The proposer response is advisory only and never authorizes commitment unlock.
+- Advisory swap cancel auth and failure modes are described in [Advisory swap cancellation auth](#advisory-swap-cancellation-auth).
+
+***
+
+POST /v1/swap/settle-expired
+
+```sh
+curl -i \
+  -H 'Content-Type: application/json' \
+  -X POST 'http://localhost:3000/v1/swap/settle-expired' \
+  --data-raw '{
+    "requestId": "33333333-3333-3333-3333-333333333333"
+  }'
+```
+
+Returns:
+- `200 OK` when one or more swap input commitments are unlocked locally, or when the swap was already fully reconciled.
+- `409 CONFLICT` when the deadline has not passed, when the client is not synchronised with L2, or when no safe local unlock can be proven.
+- `404 NOT FOUND` if `requestId` does not exist.
+- `400 BAD REQUEST` if `requestId` is not a valid UUID.
+
+Response body (200/409):
+
+```json
+{
+  "requestId": "33333333-3333-3333-3333-333333333333",
+  "unlocked": 1,
+  "skipped": 0,
+  "message": "Swap expired and commitments were unlocked locally"
+}
+```
+
+This call is the manual trustless settlement path for expired swaps. It uses the same reconciliation helper as the block listener and request-status path, but applies it immediately on demand.
+
+Security note:
+- `settle-expired` is the only manual endpoint that can unlock locally reserved swap commitments (`PendingSpend` -> `Unspent`).
+- Unlock is only allowed when the client can verify safety locally: the client must be synchronised with L2, the swap deadline must have passed, and every tracked spend commitment must still be locally verifiable as `PendingSpend` or already `Unspent`.
+- `settle-expired` does not depend on any prior `cancel-request`. An expired swap can always be settled trustlessly when the local safety checks pass.
 
 ***
 

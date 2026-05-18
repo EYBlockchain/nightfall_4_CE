@@ -2592,9 +2592,12 @@ mod tests {
                     unified_circuit_builder(&mut info.public_inputs, &mut info.private_inputs)
                         .unwrap();
 
-                assert!(circuit
-                    .check_circuit_satisfiability(Vec::from(&info.public_inputs).as_slice())
-                    .is_err(), "invalid swap case {idx} unexpectedly satisfied the circuit");
+                assert!(
+                    circuit
+                        .check_circuit_satisfiability(Vec::from(&info.public_inputs).as_slice())
+                        .is_err(),
+                    "invalid swap case {idx} unexpectedly satisfied the circuit"
+                );
             }
         }
     }

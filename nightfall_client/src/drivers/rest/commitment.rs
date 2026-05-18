@@ -6,6 +6,37 @@ use crate::ports::db::CommitmentDB;
 use ark_bn254::Fr as Fr254;
 use ark_ff::{BigInteger, One, PrimeField, Zero};
 use lib::{hex_conversion::HexConvertible, shared_entities::TokenType};
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Deserialize, Default)]
+pub struct CommitmentsQuery {
+    pub filter: Option<bool>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct FilteredCommitmentEntry {
+    #[serde(rename = "Value")]
+    pub value: String,
+    pub native_token_id: Option<String>,
+    pub native_slot_id: Option<String>,
+    #[serde(rename = "Status")]
+    pub status: crate::domain::entities::CommitmentStatus,
+    pub layer_1_transaction_hash: Option<alloy::primitives::TxHash>,
+    pub layer_2_block_number: Option<i64>,
+}
+
+impl From<CommitmentEntry> for FilteredCommitmentEntry {
+    fn from(entry: CommitmentEntry) -> Self {
+        Self {
+            value: hex::encode(entry.preimage.value.into_bigint().to_bytes_be()),
+            native_token_id: entry.native_token_id,
+            native_slot_id: entry.native_slot_id,
+            status: entry.status,
+            layer_1_transaction_hash: entry.layer_1_transaction_hash,
+            layer_2_block_number: entry.layer_2_block_number,
+        }
+    }
+}
 
 /// GET request for a specific commitment by key
 pub fn get_commitment(
@@ -52,11 +83,13 @@ pub fn get_commitments_by_token_type(
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     path!("v1" / "commitments" / "token_type" / String)
         .and(warp::get())
+        .and(warp::query::<CommitmentsQuery>())
         .and_then(handle_get_commitments_by_token_type)
 }
 
 pub async fn handle_get_commitments_by_token_type(
     token_type: String,
+    query: CommitmentsQuery,
 ) -> Result<impl Reply, warp::Rejection> {
     TokenType::parse_token_type(&token_type).map_err(|_| {
         warp::reject::custom(crate::domain::error::ClientRejection::InvalidTokenType)
@@ -66,8 +99,16 @@ pub async fn handle_get_commitments_by_token_type(
         .get_commitments_by_token_type(&token_type)
         .await
         .map_err(|_| warp::reject::custom(crate::domain::error::ClientRejection::DatabaseError))?;
-    let values: Vec<CommitmentEntry> = res.into_iter().map(|c| c.1).collect();
-    Ok(reply::with_status(reply::json(&values), StatusCode::OK))
+    if query.filter.unwrap_or(false) {
+        let values: Vec<FilteredCommitmentEntry> = res
+            .into_iter()
+            .map(|c| FilteredCommitmentEntry::from(c.1))
+            .collect();
+        Ok(reply::with_status(reply::json(&values), StatusCode::OK))
+    } else {
+        let values: Vec<CommitmentEntry> = res.into_iter().map(|c| c.1).collect();
+        Ok(reply::with_status(reply::json(&values), StatusCode::OK))
+    }
 }
 
 // get the maximum tranferable amount for a given token type, which is the sum of the two maximum value of the commitments of that token type

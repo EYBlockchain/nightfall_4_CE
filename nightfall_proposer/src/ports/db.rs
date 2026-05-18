@@ -27,11 +27,36 @@ pub trait TransactionsDB<'a, P> {
     async fn get_all_mempool_client_transactions(
         &self,
     ) -> Option<Vec<(Vec<u32>, ClientTransactionWithMetaData<P>)>>;
+    async fn get_all_selected_client_transactions(
+        &self,
+    ) -> Option<Vec<(Vec<u32>, ClientTransactionWithMetaData<P>)>>;
     async fn count_mempool_client_transactions(&self) -> Result<u64, mongodb::error::Error>;
-    async fn set_in_mempool(
+    async fn count_mempool_swap_transactions(
+        &self,
+        swap_link: &Fr254,
+    ) -> Result<u64, mongodb::error::Error>;
+    async fn count_selected_swap_transactions(
+        &self,
+        swap_link: &Fr254,
+    ) -> Result<u64, mongodb::error::Error>;
+    async fn count_cancelled_swap_transactions(
+        &self,
+        swap_link: &Fr254,
+    ) -> Result<u64, mongodb::error::Error>;
+    async fn cancel_mempool_swap_transactions(&self, swap_link: &Fr254) -> Option<u64>;
+    async fn mark_transactions_selected_for_block(
         &self,
         transactions: &[ClientTransactionWithMetaData<P>],
-        in_mempool: bool,
+        block_l2: u64,
+    ) -> Option<u64>;
+    async fn restore_transactions_to_mempool(
+        &self,
+        transactions: &[ClientTransactionWithMetaData<P>],
+        block_l2: u64,
+    ) -> Option<u64>;
+    async fn drop_transactions(
+        &self,
+        transactions: &[ClientTransactionWithMetaData<P>],
     ) -> Option<u64>;
     async fn find_transaction(
         &self,
