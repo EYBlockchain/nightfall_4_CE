@@ -18,6 +18,9 @@ use crate::{
         trees::CommitmentTree,
     },
     services::data_publisher::DataPublisher,
+    services::swap_expiry::{
+        reconcile_expired_swap_request, should_expire_request, SwapChildRequestArgs,
+    },
 };
 use alloy::consensus::Transaction;
 use alloy::sol_types::SolInterface;
@@ -358,29 +361,45 @@ async fn process_propose_block_event<N: NightfallContract>(
                     .await;
                 if let Some(request) = db.get_request(&request_id).await {
                     if let Some(child_args_json) = request.child_request_args {
-                        match serde_json::from_str::<DeEscrowDataReq>(&child_args_json) {
-                            Ok(de_escrow_req) => {
-                                match handle_de_escrow(de_escrow_req).await {
-                                    Ok(_) => {
-                                        debug!("{request_id} De-escrow operation completed successfully");
-                                        db.clear_request_child_args(&request_id).await;
-                                    }
-                                    Err(e) => {
-                                        error!("{request_id} De-escrow operation failed: {e:?}");
-                                    }
+                        if let Ok(de_escrow_req) =
+                            serde_json::from_str::<DeEscrowDataReq>(&child_args_json)
+                        {
+                            match handle_de_escrow(de_escrow_req).await {
+                                Ok(_) => {
+                                    debug!(
+                                        "{request_id} De-escrow operation completed successfully"
+                                    );
+                                    db.clear_request_child_args(&request_id).await;
+                                }
+                                Err(e) => {
+                                    error!("{request_id} De-escrow operation failed: {e:?}");
                                 }
                             }
-                            Err(e) => {
+                        } else if let Ok(swap_args) =
+                            serde_json::from_str::<SwapChildRequestArgs>(&child_args_json)
+                        {
+                            if swap_args.deadline.is_some() {
+                                debug!(
+                                    "{request_id} Clearing swap child_request_args after confirmation"
+                                );
+                                db.clear_request_child_args(&request_id).await;
+                            } else {
                                 error!(
-                                    "{request_id} Failed to deserialize child_request_args: {e}"
+                                    "{request_id} Swap child_request_args missing deadline; refusing to clear ambiguous metadata"
                                 );
                             }
+                        } else {
+                            error!(
+                                "{request_id} Failed to deserialize child_request_args as de-escrow or swap metadata"
+                            );
                         }
                     }
                 }
             }
         }
     }
+
+    expire_submitted_swaps_for_block(db, filter.layer2_block_number).await;
 
     // now attempt to decrypt the compressed secrets to see which commitments (if any) we own
     let mut commitment_entries = vec![];
@@ -437,22 +456,25 @@ async fn process_propose_block_event<N: NightfallContract>(
             let nullifier = test_preimage
                 .nullifier_hash(&nullifier_key)
                 .map_err(|_| EventHandlerError::HashError)?;
-            let token_type = N::get_token_info(decrypt[0])
-                .await
-                .map_err(|_| {
-                    EventHandlerError::IOError("Could not retrieve token type".to_string())
-                })?
-                .token_type;
-            let commitment_entry = CommitmentEntry::new(
+            let token_info = N::get_token_info(decrypt[0]).await.map_err(|_| {
+                EventHandlerError::IOError("Could not retrieve token info".to_string())
+            })?;
+            let slot_info = N::get_slot_info(decrypt[1]).await.map_err(|_| {
+                EventHandlerError::IOError("Could not retrieve slot info".to_string())
+            })?;
+
+            let mut commitment_entry = CommitmentEntry::new(
                 test_preimage,
                 nullifier,
                 CommitmentStatus::Unspent,
-                token_type,
+                token_info.token_type,
                 Some(transaction_hash),
                 Some(filter.layer2_block_number)
                     .filter(|&b| b >= I256::ZERO)
                     .and_then(|b| i64::try_from(b).ok()),
             );
+            commitment_entry.native_token_id = Some(token_info.token_id.to_hex_string());
+            commitment_entry.native_slot_id = Some(slot_info.slot_id.to_hex_string());
             commitment_entries.push(commitment_entry);
         }
     }
@@ -509,6 +531,32 @@ async fn process_propose_block_event<N: NightfallContract>(
     // If the block is not in the database, we can store it
     db.store_block(&store_block_pending).await;
     Ok(())
+}
+
+async fn expire_submitted_swaps_for_block(db: &mongodb::Client, current_l2_block: I256) {
+    let Some(submitted_requests) = db.get_requests_by_status(RequestStatus::Submitted).await else {
+        warn!("Failed to load Submitted requests for swap expiry reconciliation");
+        return;
+    };
+
+    for request in submitted_requests {
+        if should_expire_request(&request, current_l2_block) {
+            match reconcile_expired_swap_request(db, &request).await {
+                Ok(outcome) => {
+                    debug!(
+                        "{} Reconciled expired swap during block listener update (unlocked={}, already_unlocked={})",
+                        request.uuid, outcome.unlocked, outcome.already_unlocked
+                    );
+                }
+                Err(e) => {
+                    warn!(
+                        "{} Failed to reconcile expired swap during block-based reconciliation: {e:?}",
+                        request.uuid
+                    );
+                }
+            }
+        }
+    }
 }
 
 pub async fn process_deposit_escrowed_event(

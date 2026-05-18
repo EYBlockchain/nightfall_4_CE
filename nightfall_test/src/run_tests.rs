@@ -1,7 +1,8 @@
 use crate::{
     test::{
-        self, create_nf3_deposit_transaction, create_nf3_transfer_transaction,
-        create_nf3_withdraw_transaction, get_key, get_recipient_address, set_anvil_mining_interval,
+        self, create_nf3_deposit_transaction, create_nf3_swap_request,
+        create_nf3_transfer_transaction, create_nf3_withdraw_transaction, get_key,
+        get_recipient_address, set_anvil_mining_interval, submit_swap_pair_and_assert_paired,
         verify_deposit_commitments_nf_token_id, wait_for_all_responses,
         wait_for_withdraws_on_chain, wait_on_chain, TokenType,
     },
@@ -28,7 +29,8 @@ use log::{debug, info, warn};
 use nightfall_client::drivers::rest::client_nf_3::WithdrawResponse;
 use serde_json::Value;
 use test::{
-    anvil_reorg, count_spent_commitments, get_erc20_balance, get_erc721_balance, get_fee_balance,
+    anvil_reorg, count_spent_commitments, get_balance, get_erc20_balance, get_erc721_balance,
+    get_fee_balance,
 };
 use url::Url;
 use uuid::Uuid;
@@ -47,6 +49,8 @@ pub async fn run_tests(
 ) {
     let settings: Settings = Settings::new().unwrap();
     let test_settings: TestSettings = TestSettings::new().unwrap();
+    let erc3525_slot_7_token_id = test_settings.erc3525_deposit_1.token_id.clone();
+    let erc3525_slot_8_token_id = test_settings.erc3525_deposit_2.token_id.clone();
     info!("Running tests on nightall_client http:// interface");
 
     let rpc_url = "http://anvil:8545";
@@ -90,7 +94,7 @@ pub async fn run_tests(
         .join("v1/deriveKey")
         .unwrap();
     let key_request = test_settings.key_request;
-    let _zkp_key = get_key(url, &key_request).await.unwrap();
+    let zkp_key = get_key(url, &key_request).await.unwrap();
     let url = Url::parse("http://client2:3000")
         .unwrap()
         .join("v1/deriveKey")
@@ -843,6 +847,518 @@ pub async fn run_tests(
     info!("Balance of ERC20 tokens held as layer 2 commitments by client2: {balance}");
     assert_eq!(balance, 20 + client2_starting_balance);
 
+    // create swap requests (same party ordering in both legs)
+    info!("Sending ERC20 swap transactions");
+    let raw_swap_nonce = (Uuid::new_v4().as_u128() & u128::from(u64::MAX)).max(1);
+    let swap_nonce = format!("0x{raw_swap_nonce:x}");
+    let deadline = "0x1000".to_string();
+    let fee = "0x00".to_string();
+
+    let swap_request = create_nf3_swap_request(
+        zkp_key.clone(),
+        zkp_key2.clone(),
+        TokenType::ERC20,
+        "0x00".to_string(),
+        "0x01".to_string(),
+        TokenType::ERC20,
+        "0x00".to_string(),
+        "0x02".to_string(),
+        fee.clone(),
+        swap_nonce.clone(),
+        deadline.clone(),
+    );
+
+    let swap_url_client1 = Url::parse(&settings.nightfall_client.url)
+        .unwrap()
+        .join("v1/swap")
+        .unwrap();
+    let swap_url_client2 = Url::parse("http://client2:3000")
+        .unwrap()
+        .join("v1/swap")
+        .unwrap();
+
+    let swap_request_client1 = swap_request;
+    let swap_request_client2 = create_nf3_swap_request(
+        zkp_key.clone(),
+        zkp_key2.clone(),
+        TokenType::ERC20,
+        "0x00".to_string(),
+        "0x01".to_string(),
+        TokenType::ERC20,
+        "0x00".to_string(),
+        "0x02".to_string(),
+        fee,
+        swap_nonce,
+        deadline,
+    );
+    submit_swap_pair_and_assert_paired(
+        &http_client,
+        &swap_url_client1,
+        &swap_url_client2,
+        swap_request_client1,
+        swap_request_client2,
+        responses.clone(),
+        &settings.nightfall_client.url,
+        "http://client2:3000",
+        "ERC20 swap",
+    )
+    .await
+    .expect("ERC20 swap legs should pair end to end");
+    info!("ERC20 swap commitments are now on-chain");
+
+    // ERC721 swap (roundtrip): first move ERC721 to client1, then return it to client2.
+    info!("Sending ERC721 swap transactions");
+    let raw_swap_nonce = (Uuid::new_v4().as_u128() & u128::from(u64::MAX)).max(1);
+    let swap_nonce = format!("0x{raw_swap_nonce:x}");
+    let deadline = "0x1000".to_string();
+    let fee = "0x00".to_string();
+
+    let swap_request = create_nf3_swap_request(
+        zkp_key2.clone(),
+        zkp_key.clone(),
+        TokenType::ERC721,
+        test_settings.erc721_withdraw.token_id.clone(),
+        "0x00".to_string(),
+        TokenType::ERC20,
+        "0x00".to_string(),
+        "0x01".to_string(),
+        fee.clone(),
+        swap_nonce.clone(),
+        deadline.clone(),
+    );
+    let swap_request_client1 = swap_request;
+    let swap_request_client2 = create_nf3_swap_request(
+        zkp_key2.clone(),
+        zkp_key.clone(),
+        TokenType::ERC721,
+        test_settings.erc721_withdraw.token_id.clone(),
+        "0x00".to_string(),
+        TokenType::ERC20,
+        "0x00".to_string(),
+        "0x01".to_string(),
+        fee,
+        swap_nonce,
+        deadline,
+    );
+    submit_swap_pair_and_assert_paired(
+        &http_client,
+        &swap_url_client1,
+        &swap_url_client2,
+        swap_request_client1,
+        swap_request_client2,
+        responses.clone(),
+        &settings.nightfall_client.url,
+        "http://client2:3000",
+        "ERC721 outbound swap",
+    )
+    .await
+    .expect("ERC721 outbound swap legs should pair end to end");
+
+    let raw_swap_nonce = (Uuid::new_v4().as_u128() & u128::from(u64::MAX)).max(1);
+    let swap_nonce = format!("0x{raw_swap_nonce:x}");
+    let deadline = "0x1000".to_string();
+    let fee = "0x00".to_string();
+
+    let swap_request = create_nf3_swap_request(
+        zkp_key.clone(),
+        zkp_key2.clone(),
+        TokenType::ERC721,
+        test_settings.erc721_withdraw.token_id.clone(),
+        "0x00".to_string(),
+        TokenType::ERC20,
+        "0x00".to_string(),
+        "0x01".to_string(),
+        fee.clone(),
+        swap_nonce.clone(),
+        deadline.clone(),
+    );
+    let swap_request_client1 = swap_request;
+    let swap_request_client2 = create_nf3_swap_request(
+        zkp_key.clone(),
+        zkp_key2.clone(),
+        TokenType::ERC721,
+        test_settings.erc721_withdraw.token_id.clone(),
+        "0x00".to_string(),
+        TokenType::ERC20,
+        "0x00".to_string(),
+        "0x01".to_string(),
+        fee,
+        swap_nonce,
+        deadline,
+    );
+    submit_swap_pair_and_assert_paired(
+        &http_client,
+        &swap_url_client1,
+        &swap_url_client2,
+        swap_request_client1,
+        swap_request_client2,
+        responses.clone(),
+        &settings.nightfall_client.url,
+        "http://client2:3000",
+        "ERC721 return swap",
+    )
+    .await
+    .expect("ERC721 return swap legs should pair end to end");
+    info!("ERC721 swap commitments are now on-chain");
+
+    // ERC3525 swap scenarios:
+    // 1. ERC3525<->ERC3525 (slot 7 vs slot 8)
+    // 2. ERC3525<->ERC3525 reverse (slot 8 vs slot 7)
+    // 3. ERC3525<->ERC20 roundtrip
+    let parse_balance_hex = |balance_hex: &str| {
+        i64::from_str_radix(balance_hex.trim_start_matches("0x"), 16)
+            .expect("Balance should be valid hex")
+    };
+
+    let client1_balance_url = Url::parse(&settings.nightfall_client.url)
+        .unwrap()
+        .join("v1/balance/")
+        .unwrap();
+    let client2_balance_url = Url::parse("http://client2:3000")
+        .unwrap()
+        .join("v1/balance/")
+        .unwrap();
+
+    let client1_erc3525_slot7_before = parse_balance_hex(
+        &get_balance(
+            &http_client,
+            client1_balance_url.clone(),
+            TokenType::ERC3525,
+            erc3525_slot_7_token_id.clone(),
+        )
+        .await
+        .expect("Failed to read client1 ERC3525 slot7 balance"),
+    );
+    let client1_erc3525_slot8_before = parse_balance_hex(
+        &get_balance(
+            &http_client,
+            client1_balance_url.clone(),
+            TokenType::ERC3525,
+            erc3525_slot_8_token_id.clone(),
+        )
+        .await
+        .expect("Failed to read client1 ERC3525 slot8 balance"),
+    );
+    let client2_erc3525_slot7_before = parse_balance_hex(
+        &get_balance(
+            &http_client,
+            client2_balance_url.clone(),
+            TokenType::ERC3525,
+            erc3525_slot_7_token_id.clone(),
+        )
+        .await
+        .expect("Failed to read client2 ERC3525 slot7 balance"),
+    );
+    let client2_erc3525_slot8_before = parse_balance_hex(
+        &get_balance(
+            &http_client,
+            client2_balance_url.clone(),
+            TokenType::ERC3525,
+            erc3525_slot_8_token_id.clone(),
+        )
+        .await
+        .expect("Failed to read client2 ERC3525 slot8 balance"),
+    );
+    let client1_erc20_before = get_erc20_balance(
+        &http_client,
+        Url::parse(&settings.nightfall_client.url).unwrap(),
+    )
+    .await;
+    let client2_erc20_before =
+        get_erc20_balance(&http_client, Url::parse("http://client2:3000").unwrap()).await;
+
+    info!("Sending ERC3525<->ERC3525 swap transactions (slot7 vs slot8)");
+    let raw_swap_nonce = (Uuid::new_v4().as_u128() & u128::from(u64::MAX)).max(1);
+    let swap_nonce = format!("0x{raw_swap_nonce:x}");
+    let deadline = "0x1000".to_string();
+    let fee = "0x00".to_string();
+
+    let swap_request = create_nf3_swap_request(
+        zkp_key.clone(),
+        zkp_key2.clone(),
+        TokenType::ERC3525,
+        erc3525_slot_7_token_id.clone(),
+        "0x01".to_string(),
+        TokenType::ERC3525,
+        erc3525_slot_8_token_id.clone(),
+        "0x01".to_string(),
+        fee.clone(),
+        swap_nonce.clone(),
+        deadline.clone(),
+    );
+    let swap_request_client1 = swap_request;
+    let swap_request_client2 = create_nf3_swap_request(
+        zkp_key.clone(),
+        zkp_key2.clone(),
+        TokenType::ERC3525,
+        erc3525_slot_7_token_id.clone(),
+        "0x01".to_string(),
+        TokenType::ERC3525,
+        erc3525_slot_8_token_id.clone(),
+        "0x01".to_string(),
+        fee,
+        swap_nonce,
+        deadline,
+    );
+    submit_swap_pair_and_assert_paired(
+        &http_client,
+        &swap_url_client1,
+        &swap_url_client2,
+        swap_request_client1,
+        swap_request_client2,
+        responses.clone(),
+        &settings.nightfall_client.url,
+        "http://client2:3000",
+        "ERC3525 slot7/slot8 swap",
+    )
+    .await
+    .expect("ERC3525 slot7/slot8 swap legs should pair end to end");
+
+    info!("Sending ERC3525<->ERC3525 reverse swap transactions (slot8 vs slot7)");
+    let raw_swap_nonce = (Uuid::new_v4().as_u128() & u128::from(u64::MAX)).max(1);
+    let swap_nonce = format!("0x{raw_swap_nonce:x}");
+    let deadline = "0x1000".to_string();
+    let fee = "0x00".to_string();
+
+    let swap_request = create_nf3_swap_request(
+        zkp_key.clone(),
+        zkp_key2.clone(),
+        TokenType::ERC3525,
+        erc3525_slot_8_token_id.clone(),
+        "0x01".to_string(),
+        TokenType::ERC3525,
+        erc3525_slot_7_token_id.clone(),
+        "0x01".to_string(),
+        fee.clone(),
+        swap_nonce.clone(),
+        deadline.clone(),
+    );
+    let swap_request_client1 = swap_request;
+    let swap_request_client2 = create_nf3_swap_request(
+        zkp_key.clone(),
+        zkp_key2.clone(),
+        TokenType::ERC3525,
+        erc3525_slot_8_token_id.clone(),
+        "0x01".to_string(),
+        TokenType::ERC3525,
+        erc3525_slot_7_token_id.clone(),
+        "0x01".to_string(),
+        fee,
+        swap_nonce,
+        deadline,
+    );
+    submit_swap_pair_and_assert_paired(
+        &http_client,
+        &swap_url_client1,
+        &swap_url_client2,
+        swap_request_client1,
+        swap_request_client2,
+        responses.clone(),
+        &settings.nightfall_client.url,
+        "http://client2:3000",
+        "ERC3525 slot8/slot7 reverse swap",
+    )
+    .await
+    .expect("ERC3525 slot8/slot7 reverse swap legs should pair end to end");
+
+    info!("Sending ERC3525<->ERC20 swap transactions (roundtrip)");
+    let raw_swap_nonce = (Uuid::new_v4().as_u128() & u128::from(u64::MAX)).max(1);
+    let swap_nonce = format!("0x{raw_swap_nonce:x}");
+    let deadline = "0x1000".to_string();
+    let fee = "0x00".to_string();
+
+    let swap_request = create_nf3_swap_request(
+        zkp_key.clone(),
+        zkp_key2.clone(),
+        TokenType::ERC3525,
+        erc3525_slot_7_token_id.clone(),
+        "0x01".to_string(),
+        TokenType::ERC20,
+        "0x00".to_string(),
+        "0x01".to_string(),
+        fee.clone(),
+        swap_nonce.clone(),
+        deadline.clone(),
+    );
+    let swap_request_client1 = swap_request;
+    let swap_request_client2 = create_nf3_swap_request(
+        zkp_key.clone(),
+        zkp_key2.clone(),
+        TokenType::ERC3525,
+        erc3525_slot_7_token_id.clone(),
+        "0x01".to_string(),
+        TokenType::ERC20,
+        "0x00".to_string(),
+        "0x01".to_string(),
+        fee,
+        swap_nonce,
+        deadline,
+    );
+    submit_swap_pair_and_assert_paired(
+        &http_client,
+        &swap_url_client1,
+        &swap_url_client2,
+        swap_request_client1,
+        swap_request_client2,
+        responses.clone(),
+        &settings.nightfall_client.url,
+        "http://client2:3000",
+        "ERC3525/ERC20 outbound swap",
+    )
+    .await
+    .expect("ERC3525/ERC20 outbound swap legs should pair end to end");
+
+    let raw_swap_nonce = (Uuid::new_v4().as_u128() & u128::from(u64::MAX)).max(1);
+    let swap_nonce = format!("0x{raw_swap_nonce:x}");
+    let deadline = "0x1000".to_string();
+    let fee = "0x00".to_string();
+
+    let swap_request = create_nf3_swap_request(
+        zkp_key2.clone(),
+        zkp_key.clone(),
+        TokenType::ERC3525,
+        erc3525_slot_7_token_id.clone(),
+        "0x01".to_string(),
+        TokenType::ERC20,
+        "0x00".to_string(),
+        "0x01".to_string(),
+        fee.clone(),
+        swap_nonce.clone(),
+        deadline.clone(),
+    );
+    let swap_request_client1 = swap_request;
+    let swap_request_client2 = create_nf3_swap_request(
+        zkp_key2.clone(),
+        zkp_key.clone(),
+        TokenType::ERC3525,
+        erc3525_slot_7_token_id.clone(),
+        "0x01".to_string(),
+        TokenType::ERC20,
+        "0x00".to_string(),
+        "0x01".to_string(),
+        fee,
+        swap_nonce,
+        deadline,
+    );
+    submit_swap_pair_and_assert_paired(
+        &http_client,
+        &swap_url_client1,
+        &swap_url_client2,
+        swap_request_client1,
+        swap_request_client2,
+        responses.clone(),
+        &settings.nightfall_client.url,
+        "http://client2:3000",
+        "ERC3525/ERC20 return swap",
+    )
+    .await
+    .expect("ERC3525/ERC20 return swap legs should pair end to end");
+    info!("ERC3525 swap commitments are now on-chain");
+
+    // Ensure all added ERC3525 scenarios preserve final balances expected by later withdraw checks.
+    let client1_erc3525_slot7_after = parse_balance_hex(
+        &get_balance(
+            &http_client,
+            client1_balance_url.clone(),
+            TokenType::ERC3525,
+            erc3525_slot_7_token_id.clone(),
+        )
+        .await
+        .expect("Failed to read client1 ERC3525 slot7 balance after swaps"),
+    );
+    let client1_erc3525_slot8_after = parse_balance_hex(
+        &get_balance(
+            &http_client,
+            client1_balance_url.clone(),
+            TokenType::ERC3525,
+            erc3525_slot_8_token_id.clone(),
+        )
+        .await
+        .expect("Failed to read client1 ERC3525 slot8 balance after swaps"),
+    );
+    let client2_erc3525_slot7_after = parse_balance_hex(
+        &get_balance(
+            &http_client,
+            client2_balance_url.clone(),
+            TokenType::ERC3525,
+            erc3525_slot_7_token_id.clone(),
+        )
+        .await
+        .expect("Failed to read client2 ERC3525 slot7 balance after swaps"),
+    );
+    let client2_erc3525_slot8_after = parse_balance_hex(
+        &get_balance(
+            &http_client,
+            client2_balance_url.clone(),
+            TokenType::ERC3525,
+            erc3525_slot_8_token_id.clone(),
+        )
+        .await
+        .expect("Failed to read client2 ERC3525 slot8 balance after swaps"),
+    );
+    let client1_erc20_after = get_erc20_balance(
+        &http_client,
+        Url::parse(&settings.nightfall_client.url).unwrap(),
+    )
+    .await;
+    let client2_erc20_after =
+        get_erc20_balance(&http_client, Url::parse("http://client2:3000").unwrap()).await;
+
+    assert_eq!(client1_erc3525_slot7_after, client1_erc3525_slot7_before);
+    assert_eq!(client1_erc3525_slot8_after, client1_erc3525_slot8_before);
+    assert_eq!(client2_erc3525_slot7_after, client2_erc3525_slot7_before);
+    assert_eq!(client2_erc3525_slot8_after, client2_erc3525_slot8_before);
+    assert_eq!(client1_erc20_after, client1_erc20_before);
+    assert_eq!(client2_erc20_after, client2_erc20_before);
+
+    // ERC1155 swap.
+    info!("Sending ERC1155 swap transactions");
+    let raw_swap_nonce = (Uuid::new_v4().as_u128() & u128::from(u64::MAX)).max(1);
+    let swap_nonce = format!("0x{raw_swap_nonce:x}");
+    let deadline = "0x1000".to_string();
+    let fee = "0x00".to_string();
+
+    let swap_request = create_nf3_swap_request(
+        zkp_key.clone(),
+        zkp_key2.clone(),
+        TokenType::ERC1155,
+        test_settings.erc1155_withdraw_1.token_id.clone(),
+        "0x01".to_string(),
+        TokenType::ERC20,
+        "0x00".to_string(),
+        "0x01".to_string(),
+        fee.clone(),
+        swap_nonce.clone(),
+        deadline.clone(),
+    );
+    let swap_request_client1 = swap_request;
+    let swap_request_client2 = create_nf3_swap_request(
+        zkp_key.clone(),
+        zkp_key2.clone(),
+        TokenType::ERC1155,
+        test_settings.erc1155_withdraw_1.token_id.clone(),
+        "0x01".to_string(),
+        TokenType::ERC20,
+        "0x00".to_string(),
+        "0x01".to_string(),
+        fee,
+        swap_nonce,
+        deadline,
+    );
+    submit_swap_pair_and_assert_paired(
+        &http_client,
+        &swap_url_client1,
+        &swap_url_client2,
+        swap_request_client1,
+        swap_request_client2,
+        responses.clone(),
+        &settings.nightfall_client.url,
+        "http://client2:3000",
+        "ERC1155 swap",
+    )
+    .await
+    .expect("ERC1155 swap legs should pair end to end");
+    info!("ERC1155 swap commitments are now on-chain");
     let my_balance = erc20_contract
         .balanceOf(recipient_addr)
         .call()
@@ -971,7 +1487,7 @@ pub async fn run_tests(
     //check the balance of the ERC20 tokens after the withdraws
     let balance = get_erc20_balance(&http_client, client2_url.clone()).await;
     info!("Balance of ERC20 tokens held as layer 2 commitments by client2: {balance}");
-    assert_eq!(balance, 17 + client2_starting_balance);
+    assert_eq!(balance, 15 + client2_starting_balance);
 
     // withdraw the other token types
     let mut withdraw_data = vec![];

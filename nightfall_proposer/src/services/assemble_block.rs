@@ -2,18 +2,18 @@ use crate::{
     domain::entities::{
         Block, ClientTransactionWithMetaData, DepositDatawithFee, PendingBlock, PendingBlockState,
     },
-    driven::db::mongo_db::{StoredBlock, DB, PROPOSED_BLOCKS_COLLECTION},
+    driven::db::mongo_db::StoredBlock,
     drivers::blockchain::block_assembly::BlockAssemblyError,
     initialisation::{get_blockchain_client_connection, get_db_connection},
     ports::{
         db::{BlockStorageDB, PendingBlockDB, TransactionsDB},
         proving::RecursiveProvingEngine,
     },
+    services::selected_transactions::reconcile_orphaned_selected_transactions,
 };
 use alloy::primitives::Address;
 use ark_bn254::Fr as Fr254;
 use ark_std::{collections::HashSet, Zero};
-use bson::doc;
 use jf_primitives::poseidon::{FieldHasher, Poseidon};
 use lib::{
     blockchain_client::BlockchainClientConnection,
@@ -29,9 +29,148 @@ use tokio::time::Instant;
 // Define a type alias for better readability
 type ALLTransactionData<P> = (
     Option<Vec<DepositDatawithFee>>,
-    Option<ClientTransactionWithMetaData<P>>,
+    Option<Vec<ClientTransactionWithMetaData<P>>>,
     Fr254,
+    usize,
 );
+
+type SwapPair<P> = (
+    ClientTransactionWithMetaData<P>,
+    ClientTransactionWithMetaData<P>,
+);
+
+struct GroupedSwapTransactions<P> {
+    normal_transactions: Vec<ClientTransactionWithMetaData<P>>,
+    matched_swap_pairs: Vec<SwapPair<P>>,
+    expired_swaps: Vec<ClientTransactionWithMetaData<P>>,
+    unmatched_swap_count: usize,
+}
+
+fn group_valid_swap_pairs<P>(
+    pending_client_transactions: Vec<ClientTransactionWithMetaData<P>>,
+    current_block_number: u64,
+) -> GroupedSwapTransactions<P>
+where
+    P: Proof,
+{
+    let (swap_transactions, normal_transactions): (Vec<_>, Vec<_>) = pending_client_transactions
+        .into_iter()
+        .partition(|tx| !tx.client_transaction.swap_link.is_zero());
+
+    let mut swap_groups: std::collections::HashMap<String, Vec<ClientTransactionWithMetaData<P>>> =
+        std::collections::HashMap::new();
+
+    for tx in swap_transactions {
+        let swap_link_hex = tx.client_transaction.swap_link.to_hex_string();
+        swap_groups.entry(swap_link_hex).or_default().push(tx);
+    }
+
+    let mut matched_swap_pairs: Vec<SwapPair<P>> = Vec::new();
+    let mut expired_swaps: Vec<ClientTransactionWithMetaData<P>> = Vec::new();
+    let mut unmatched_swap_count = 0;
+
+    for (_swap_link, txs) in swap_groups {
+        let mut by_deadline: std::collections::HashMap<
+            String,
+            Vec<ClientTransactionWithMetaData<P>>,
+        > = std::collections::HashMap::new();
+        for tx in txs {
+            let deadline_hex = tx.client_transaction.deadline.to_hex_string();
+            by_deadline.entry(deadline_hex).or_default().push(tx);
+        }
+
+        for (_deadline_key, mut same_deadline_txs) in by_deadline {
+            let deadline = same_deadline_txs
+                .first()
+                .map(|tx| tx.client_transaction.deadline)
+                .unwrap_or_else(Fr254::zero);
+
+            if deadline.is_zero() || deadline < Fr254::from(current_block_number) {
+                warn!("Swap deadline expired or invalid, skipping group");
+                expired_swaps.append(&mut same_deadline_txs);
+                continue;
+            }
+
+            let mut party_a_legs: Vec<ClientTransactionWithMetaData<P>> = Vec::new();
+            let mut party_b_legs: Vec<ClientTransactionWithMetaData<P>> = Vec::new();
+            for tx in same_deadline_txs.drain(..) {
+                if tx.client_transaction.swap_side == Fr254::from(1u64) {
+                    party_a_legs.push(tx);
+                } else if tx.client_transaction.swap_side.is_zero() {
+                    party_b_legs.push(tx);
+                } else {
+                    warn!("Invalid swap_side (expected 0 or 1), keeping transaction unmatched");
+                    unmatched_swap_count += 1;
+                }
+            }
+
+            while !party_a_legs.is_empty() && !party_b_legs.is_empty() {
+                let tx_a = party_a_legs.pop().expect("len checked");
+                let tx_b = party_b_legs.pop().expect("len checked");
+                matched_swap_pairs.push((tx_a, tx_b));
+            }
+
+            unmatched_swap_count += party_a_legs.len() + party_b_legs.len();
+        }
+    }
+
+    GroupedSwapTransactions {
+        normal_transactions,
+        matched_swap_pairs,
+        expired_swaps,
+        unmatched_swap_count,
+    }
+}
+
+fn place_swap_pairs_on_siblings<P>(
+    deposit_count: usize,
+    selected_transactions: &[ALLTransactionData<P>],
+) -> Vec<ClientTransactionWithMetaData<P>>
+where
+    P: Proof,
+{
+    let mut swap_pairs: Vec<SwapPair<P>> = Vec::new();
+    let mut normal_txs: Vec<ClientTransactionWithMetaData<P>> = Vec::new();
+
+    for (_, client_txs, _, slots) in selected_transactions {
+        if let Some(txs) = client_txs {
+            if *slots == 2 && txs.len() == 2 {
+                swap_pairs.push((txs[0].clone(), txs[1].clone()));
+            } else {
+                normal_txs.extend(txs.clone());
+            }
+        }
+    }
+
+    let mut reordered: Vec<ClientTransactionWithMetaData<P>> = Vec::new();
+    let mut normal_iter = normal_txs.into_iter();
+    let mut global_idx = deposit_count;
+
+    for pair in swap_pairs {
+        while global_idx % 2 != 0 {
+            if let Some(normal) = normal_iter.next() {
+                reordered.push(normal);
+                global_idx += 1;
+            } else {
+                info!(
+                    "Skipping remaining swap pairs because global index {global_idx} is odd and no normal transactions are available for alignment"
+                );
+                break;
+            }
+        }
+
+        if global_idx % 2 != 0 {
+            break;
+        }
+
+        reordered.push(pair.0);
+        reordered.push(pair.1);
+        global_idx += 2;
+    }
+
+    reordered.extend(normal_iter);
+    reordered
+}
 
 pub(crate) fn transactions_to_include_in_block<K, V>(
     mempool_transactions: Option<Vec<(K, V)>>,
@@ -42,7 +181,6 @@ pub(crate) fn transactions_to_include_in_block<K, V>(
     // If we have more than block_size transactions, we'll only include the block_size - DepositDatas most valuable transactions
     mempool_transactions.unwrap_or_default()
 }
-
 async fn assemble_block_with_context<P, R>(
     db: &mongodb::Client,
     block_size: usize,
@@ -53,15 +191,13 @@ where
     P: Proof,
     R: RecursiveProvingEngine<P> + Send + Sync + 'static,
 {
-    let result = prepare_block_data::<P>(db, block_size).await;
+    let result = prepare_block_data::<P>(db, block_size, layer2_block_number).await;
     match &result {
         Ok(_) => info!("Block data prepared successfully"),
         Err(e) => warn!("Failed to prepare block data: {e:?}"),
     }
 
-    let included_depositinfos_group;
-    let selected_client_transactions;
-    (included_depositinfos_group, selected_client_transactions) = result?;
+    let (included_depositinfos_group, selected_client_transactions) = result?;
     let selected_client_transaction_hashes =
         selected_client_transaction_hashes(&selected_client_transactions);
 
@@ -86,7 +222,8 @@ where
     if let Err(e) = reserve_selected_transactions::<P>(
         db,
         &included_depositinfos_group,
-        &selected_client_transaction_hashes,
+        &selected_client_transactions,
+        layer2_block_number,
     )
     .await
     {
@@ -116,25 +253,31 @@ where
         .flat_map(|group| group.iter())
         .filter(|deposit| **deposit != DepositData::default())
         .count();
-    let (withdraw_count, transfer_count) =
+    let (withdraw_count, transfer_count, swap_count) =
         selected_client_transactions
             .iter()
-            .fold((0, 0), |(withdraws, transfers), tx| {
+            .fold((0, 0, 0), |(withdraws, transfers, swaps), tx| {
                 let commitments_0_is_zero = tx.client_transaction.commitments[0].is_zero();
                 let nullifiers_0_is_nonzero = !tx.client_transaction.nullifiers[0].is_zero();
+                let is_swap = !tx.client_transaction.swap_link.is_zero();
 
-                if commitments_0_is_zero && nullifiers_0_is_nonzero {
-                    (withdraws + 1, transfers)
+                if is_swap {
+                    (withdraws, transfers, swaps + 1)
+                } else if commitments_0_is_zero && nullifiers_0_is_nonzero {
+                    (withdraws + 1, transfers, swaps)
                 } else {
-                    (withdraws, transfers + 1)
+                    (withdraws, transfers + 1, swaps)
                 }
             });
 
     info!(
-        "This block has {real_deposit_number} deposit(s), {transfer_count} transfer(s), and {withdraw_count} withdrawal(s)"
+        "This block has {real_deposit_number} deposit(s), {transfer_count} transfer(s), \
+        {withdraw_count} withdrawal(s), and {swap_count} swap transaction(s) ({} pair(s))",
+        swap_count / 2
     );
 
-    let block = match make_block::<P, R>(included_deposits, selected_client_transactions).await {
+    let mut block = match make_block::<P, R>(included_deposits, selected_client_transactions).await
+    {
         Ok(block) => block,
         Err(e) => {
             if let Err(release_error) = release_selected_transactions::<P>(
@@ -152,6 +295,7 @@ where
             return Err(e);
         }
     };
+    block.block_number = layer2_block_number;
 
     let store_block = make_stored_block(&block, layer2_block_number, proposer_address);
     if db.store_block(&store_block).await.is_none() {
@@ -204,28 +348,25 @@ where
 
 /// assemble_block is the main function that is called by the proposer to create a new block,
 /// it fetches the necessary data from the database and the contract, then assembles the block
-pub(crate) async fn assemble_block<P, R>() -> Result<PendingBlock, BlockAssemblyError>
+pub(crate) async fn assemble_block<P, R>(
+    current_l2_block_number: u64,
+) -> Result<PendingBlock, BlockAssemblyError>
 where
     P: Proof,
     R: RecursiveProvingEngine<P> + Send + Sync + 'static,
 {
     info!("Starting block assembly process");
+    info!("Getting DB connection");
     let db = get_db_connection().await;
     info!("Preparing block data");
     let block_size = get_block_size()?;
-    let current_block_number = db
-        .database(DB)
-        .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
-        .count_documents(doc! {})
-        .await
-        .expect("Failed to count documents");
     let our_address = get_blockchain_client_connection()
         .await
         .read()
         .await
         .get_address();
 
-    assemble_block_with_context::<P, R>(db, block_size, current_block_number, our_address).await
+    assemble_block_with_context::<P, R>(db, block_size, current_l2_block_number, our_address).await
 }
 
 // this is where we compute the on chain block it's called by make_block
@@ -314,6 +455,7 @@ where
 pub(crate) async fn prepare_block_data<P>(
     db: &mongodb::Client,
     block_size: usize,
+    current_block_number: u64,
 ) -> Result<
     (
         Vec<Vec<DepositDatawithFee>>,
@@ -324,6 +466,8 @@ pub(crate) async fn prepare_block_data<P>(
 where
     P: Proof,
 {
+    let _ = reconcile_orphaned_selected_transactions::<P>(db, current_block_number).await;
+
     // 1. Fetch unused deposits from mempool
     let stored_deposits_in_mempool: Option<Vec<DepositDatawithFee>> =
         <mongodb::Client as TransactionsDB<P>>::get_mempool_deposits(db).await;
@@ -332,7 +476,7 @@ where
 
     info!("Found {} deposits in mempool", all_deposits.len());
 
-    // 4. Get client transactions from mempool
+    // 2. Get client transactions from mempool
     let current_client_transaction_meta_in_mempool = {
         let mempool_client_transactions: Option<Vec<(Vec<u32>, ClientTransactionWithMetaData<P>)>> =
             db.get_all_mempool_client_transactions().await;
@@ -393,13 +537,24 @@ where
     }
 
     if !stale_client_transactions.is_empty() {
-        let _ = db.set_in_mempool(&stale_client_transactions, false).await;
+        let _ = db.drop_transactions(&stale_client_transactions).await;
     }
 
     // 4. Check if there are any pending deposits or client transactions
     if pending_deposits.is_empty() && pending_client_transactions.is_empty() {
         warn!("No transactions pending");
         return Err(BlockAssemblyError::InsufficientTransactions);
+    }
+
+    let GroupedSwapTransactions {
+        normal_transactions,
+        matched_swap_pairs,
+        expired_swaps,
+        unmatched_swap_count,
+    } = group_valid_swap_pairs(pending_client_transactions, current_block_number);
+
+    if unmatched_swap_count != 0 {
+        info!("Keeping {unmatched_swap_count} unmatched non-expired swap leg(s) in mempool");
     }
 
     // Step 5. Sort and prioritize transactions
@@ -432,35 +587,75 @@ where
     // 5.2. Push grouped deposits as full transactions
     for deposit_group in deposit_groups.iter() {
         let total_fee = deposit_group.iter().map(|d| d.fee).sum(); // Sum fees of 4 deposits
-        all_transactions.push((Some(deposit_group.clone()), None, total_fee));
+        all_transactions.push((Some(deposit_group.clone()), None, total_fee, 1));
     }
 
-    // 5.3. Push client transactions (1:1 mapping)
-    for client_tx in pending_client_transactions.iter() {
+    // 5.3. Push normal client transactions (1 slot each)
+    for client_tx in normal_transactions.iter() {
         all_transactions.push((
             None,
-            Some(client_tx.clone()),
+            Some(vec![client_tx.clone()]),
             client_tx.client_transaction.fee,
+            1,
+        ));
+    }
+    // 5.3b. Push matched swap pairs (2 slots each, combined fee)
+    for (tx_a, tx_b) in matched_swap_pairs.iter() {
+        let combined_fee = tx_a.client_transaction.fee + tx_b.client_transaction.fee;
+        all_transactions.push((
+            None,
+            Some(vec![tx_a.clone(), tx_b.clone()]),
+            combined_fee,
+            2,
         ));
     }
     // 5.4. Sort transactions by total fee (descending)
-    all_transactions.sort_by_key(|(_, _, fee)| Reverse(*fee));
+    // 5.4. Sort transactions by fee-per-slot (descending)
+    // Compare fee_a/slots_a vs fee_b/slots_b using cross-multiplication
+    // to avoid division: fee_a * slots_b > fee_b * slots_a
+    all_transactions.sort_by(|a, b| {
+        let fee_a = a.2;
+        let slots_a = Fr254::from(a.3 as u64);
+        let fee_b = b.2;
+        let slots_b = Fr254::from(b.3 as u64);
+
+        // fee_b * slots_a vs fee_a * slots_b (reversed for descending)
+        let lhs = fee_b * slots_a;
+        let rhs = fee_a * slots_b;
+        lhs.cmp(&rhs)
+    });
 
     // 6. Select top block_size transactions
-    let selected_transactions: Vec<ALLTransactionData<P>> =
-        all_transactions.into_iter().take(block_size).collect();
+    let mut selected_transactions: Vec<ALLTransactionData<P>> = Vec::new();
+    let mut slots_used = 0;
+    for tx in all_transactions {
+        let slots = tx.3;
+        if slots_used + slots <= block_size {
+            slots_used += slots;
+            selected_transactions.push(tx);
+        }
+    }
 
     // 7. Separate used deposits and client transactions
     let used_deposits_info: Vec<Vec<DepositDatawithFee>> = selected_transactions
         .iter()
-        .filter_map(|(deposit, _, _)| deposit.clone()) // Ensure cloning deposit groups properly
+        .filter_map(|(deposit, _, _, _)| deposit.clone())
         .collect();
 
-    let selected_client_transactions: Vec<ClientTransactionWithMetaData<P>> = selected_transactions
-        .iter()
-        .filter_map(|(_, client_tx, _)| client_tx.clone()) // Extract client transactions
-        .collect();
-    Ok((used_deposits_info, selected_client_transactions))
+    let deposit_count = used_deposits_info.len();
+    let reordered = place_swap_pairs_on_siblings(deposit_count, &selected_transactions);
+
+    // Clear expired swaps from mempool; selected inputs are reserved after this function returns.
+    if !expired_swaps.is_empty() {
+        db.drop_transactions(&expired_swaps).await;
+    }
+
+    if used_deposits_info.is_empty() && reordered.is_empty() {
+        warn!("No selectable transactions remain after swap filtering");
+        return Err(BlockAssemblyError::InsufficientTransactions);
+    }
+
+    Ok((used_deposits_info, reordered))
 }
 
 fn selected_client_transaction_hashes<P>(
@@ -496,7 +691,8 @@ fn make_stored_block(
 pub(crate) async fn reserve_selected_transactions<P>(
     db: &mongodb::Client,
     selected_deposits: &[Vec<DepositDatawithFee>],
-    selected_client_transaction_hashes: &[Vec<u32>],
+    selected_client_transactions: &[ClientTransactionWithMetaData<P>],
+    layer2_block_number: u64,
 ) -> Result<(), BlockAssemblyError>
 where
     P: Proof,
@@ -511,24 +707,30 @@ where
         BlockAssemblyError::QueueError("Failed to reserve selected deposits".to_string())
     })?;
 
-    if <mongodb::Client as TransactionsDB<P>>::set_client_transactions_reserved(
-        db,
-        selected_client_transaction_hashes,
-        true,
-    )
-    .await
-    .is_none()
-    {
-        let _ = <mongodb::Client as TransactionsDB<P>>::set_mempool_deposits_reserved(
+    let modified = db
+        .mark_transactions_selected_for_block(selected_client_transactions, layer2_block_number)
+        .await
+        .ok_or_else(|| {
+            BlockAssemblyError::QueueError(
+                "Failed to reserve selected client transactions".to_string(),
+            )
+        })?;
+
+    if modified != selected_client_transactions.len() as u64 {
+        let selected_client_transaction_hashes =
+            selected_client_transaction_hashes(selected_client_transactions);
+        let _ = release_selected_transactions::<P>(
             db,
-            selected_deposits.to_vec(),
-            false,
+            selected_deposits,
+            &selected_client_transaction_hashes,
         )
         .await;
-        return Err(BlockAssemblyError::QueueError(
-            "Failed to reserve selected client transactions".to_string(),
-        ));
+        return Err(BlockAssemblyError::QueueError(format!(
+            "Reserved {modified} of {} selected client transactions",
+            selected_client_transactions.len()
+        )));
     }
+
     Ok(())
 }
 
@@ -550,10 +752,10 @@ where
         BlockAssemblyError::QueueError("Failed to release reserved deposits".to_string())
     })?;
 
-    <mongodb::Client as TransactionsDB<P>>::set_client_transactions_reserved(
+    <mongodb::Client as TransactionsDB<P>>::set_client_transactions_in_mempool_by_hashes(
         db,
         selected_client_transaction_hashes,
-        false,
+        true,
     )
     .await
     .ok_or_else(|| {
@@ -591,9 +793,12 @@ where
     })?;
     Ok(())
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::entities::TxLifecycle;
+    use crate::driven::db::mongo_db::{DB, PROPOSED_BLOCKS_COLLECTION};
     use ark_bn254::Fq as Fq254;
     use lib::{
         nf_client_proof::PublicInputs,
@@ -666,9 +871,7 @@ mod tests {
                 proof: PlonkProof::default(),
                 ..Default::default()
             },
-            block_l2: None,
-            in_mempool: true,
-            reserved: false,
+            lifecycle: TxLifecycle::Mempool,
             hash: vec![fee as u32],
             historic_roots: vec![Fr254::from(123)],
         }
@@ -739,9 +942,7 @@ mod tests {
                         proof: PlonkProof::default(),
                         ..Default::default()
                     },
-                    block_l2: None,
-                    in_mempool: true,
-                    reserved: false,
+                    lifecycle: TxLifecycle::Mempool,
                     hash: vec![i as u32],
                     historic_roots: vec![Fr254::from(123)],
                 })
@@ -752,7 +953,7 @@ mod tests {
             }
         }
 
-        let result = { prepare_block_data::<PlonkProof>(&db, block_size).await };
+        let result = prepare_block_data::<PlonkProof>(&db, block_size, 0).await;
 
         assert!(result.is_ok(), "prepare_block_data failed");
         let (included_deposits, selected_client_transactions) = result.unwrap();
@@ -791,7 +992,7 @@ mod tests {
             "Incorrect number of client transactions included"
         );
 
-        // Selection should not mutate the mempool. Cleanup happens only after successful L1 submission.
+        // Selection should not mutate the mempool. Cleanup happens after proposal/reconciliation.
         let remaining_deposits =
             { <mongodb::Client as TransactionsDB<PlonkProof>>::get_mempool_deposits(&db).await };
         assert!(
@@ -845,7 +1046,7 @@ mod tests {
                 .await;
         }
 
-        let result = { prepare_block_data::<PlonkProof>(&db, block_size).await };
+        let result = prepare_block_data::<PlonkProof>(&db, block_size, 0).await;
 
         assert!(result.is_ok(), "Should succeed with only on-chain deposits");
         let (included_deposits, selected_client_transactions) = result.unwrap();
@@ -875,7 +1076,11 @@ mod tests {
             { <mongodb::Client as TransactionsDB<PlonkProof>>::get_mempool_deposits(&db).await };
         let remain_deposits_fee: Vec<Fr254> =
             remaining_deposits.unwrap().iter().map(|d| d.fee).collect();
-        assert_eq!(remain_deposits_fee.len(), 257);
+        assert_eq!(
+            remain_deposits_fee.len(),
+            257,
+            "Deposit mempool should remain unchanged until cleanup"
+        );
     }
 
     #[tokio::test]
@@ -897,9 +1102,7 @@ mod tests {
                         proof: PlonkProof::default(),
                         ..Default::default()
                     },
-                    block_l2: None,
-                    in_mempool: true,
-                    reserved: false,
+                    lifecycle: TxLifecycle::Mempool,
                     hash: vec![i as u32],
                     historic_roots: vec![Fr254::from(123)],
                 })
@@ -910,7 +1113,7 @@ mod tests {
             }
         }
 
-        let result = { prepare_block_data::<PlonkProof>(&db, block_size).await };
+        let result = prepare_block_data::<PlonkProof>(&db, block_size, 0).await;
 
         assert!(result.is_ok(), "Should succeed with only on-chain deposits");
         let (included_deposits, selected_client_transactions) = result.unwrap();
@@ -992,9 +1195,7 @@ mod tests {
                         proof: PlonkProof::default(),
                         ..Default::default()
                     },
-                    block_l2: None,
-                    in_mempool: true,
-                    reserved: false,
+                    lifecycle: TxLifecycle::Mempool,
                     hash: vec![i as u32],
                     historic_roots: vec![Fr254::from(123)],
                 })
@@ -1005,7 +1206,7 @@ mod tests {
             }
         }
 
-        let result = { prepare_block_data::<PlonkProof>(&db, block_size).await };
+        let result = prepare_block_data::<PlonkProof>(&db, block_size, 0).await;
 
         assert!(
             result.is_ok(),
@@ -1048,8 +1249,9 @@ mod tests {
                 .map(|deposit| deposit.fee) // Extracting only the fees
                 .collect()
         };
-        assert!(
-            actual_fees_deposit_remainning.len() == 4,
+        assert_eq!(
+            actual_fees_deposit_remainning.len(),
+            4,
             "Deposit mempool should remain unchanged until cleanup"
         );
 
@@ -1171,5 +1373,826 @@ mod tests {
 
         let pending_blocks = db.get_all_pending_blocks().await.unwrap_or_default();
         assert_eq!(pending_blocks.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_prepare_block_data_with_swaps() {
+        let container = get_mongo().await;
+        let db = get_db_connection(&container).await;
+        let block_size = 4;
+
+        let normal_tx = ClientTransactionWithMetaData {
+            client_transaction: lib::shared_entities::ClientTransaction {
+                fee: Fr254::from(10u64),
+                proof: PlonkProof::default(),
+                ..Default::default()
+            },
+            lifecycle: TxLifecycle::Mempool,
+            hash: vec![1],
+            historic_roots: vec![],
+        };
+
+        let swap_txs: Vec<ClientTransactionWithMetaData<PlonkProof>> = vec![
+            ClientTransactionWithMetaData {
+                client_transaction: lib::shared_entities::ClientTransaction {
+                    fee: Fr254::from(20u64),
+                    swap_link: Fr254::from(1u64),
+                    deadline: Fr254::from(1000u64),
+                    swap_side: Fr254::from(1u64),
+                    proof: PlonkProof::default(),
+                    ..Default::default()
+                },
+                lifecycle: TxLifecycle::Mempool,
+                hash: vec![2],
+                historic_roots: vec![],
+            },
+            ClientTransactionWithMetaData {
+                client_transaction: lib::shared_entities::ClientTransaction {
+                    fee: Fr254::from(20u64),
+                    swap_link: Fr254::from(1u64),
+                    deadline: Fr254::from(1000u64),
+                    swap_side: Fr254::zero(),
+                    proof: PlonkProof::default(),
+                    ..Default::default()
+                },
+                lifecycle: TxLifecycle::Mempool,
+                hash: vec![3],
+                historic_roots: vec![],
+            },
+        ];
+
+        for tx in std::iter::once(normal_tx).chain(swap_txs.into_iter()) {
+            db.store_transaction(tx).await.unwrap();
+        }
+
+        let result = prepare_block_data::<PlonkProof>(&db, block_size, 0).await;
+        assert!(result.is_ok());
+        let (_, selected) = result.unwrap();
+
+        assert_eq!(selected.len(), 3); // 2 swap + 1 normal
+
+        // Swap pair should be consecutive
+        let swap_idx = selected
+            .iter()
+            .position(|tx| !tx.client_transaction.swap_link.is_zero())
+            .unwrap();
+        assert_eq!(
+            selected[swap_idx].client_transaction.swap_link,
+            selected[swap_idx + 1].client_transaction.swap_link,
+        );
+        // Swap pair (fee/slot=25) ranked above normal (fee/slot=10)
+        assert!(swap_idx < selected.len() - 1);
+    }
+
+    #[tokio::test]
+    async fn test_prepare_block_data_swap_excluded_when_block_full() {
+        // block_size = 2, swap pair needs 2 slots
+        // 3 normal txs: fee = 50, 40, 30
+        // 1 swap pair: fee = 10 + 10 = 20, fee/slot = 10
+        // Ranking: normal(50), normal(40), normal(30), swap(10/slot)
+        // Block takes normal(50) + normal(40) = 2 slots, swap stays in mempool
+        let container = get_mongo().await;
+        let db = get_db_connection(&container).await;
+        let block_size = 2;
+
+        let normal_txs: Vec<ClientTransactionWithMetaData<PlonkProof>> = [50u64, 40, 30]
+            .iter()
+            .enumerate()
+            .map(|(i, &fee)| ClientTransactionWithMetaData {
+                client_transaction: lib::shared_entities::ClientTransaction {
+                    fee: Fr254::from(fee),
+                    proof: PlonkProof::default(),
+                    ..Default::default()
+                },
+                lifecycle: TxLifecycle::Mempool,
+                hash: vec![i as u32 + 1],
+                historic_roots: vec![],
+            })
+            .collect();
+
+        let swap_txs: Vec<ClientTransactionWithMetaData<PlonkProof>> = (0..2)
+            .map(|i| ClientTransactionWithMetaData {
+                client_transaction: lib::shared_entities::ClientTransaction {
+                    fee: Fr254::from(10u64),
+                    swap_link: Fr254::from(42u64),
+                    deadline: Fr254::from(1000u64),
+                    swap_side: Fr254::from((i % 2) as u64),
+                    proof: PlonkProof::default(),
+                    ..Default::default()
+                },
+                lifecycle: TxLifecycle::Mempool,
+                hash: vec![10 + i as u32],
+                historic_roots: vec![],
+            })
+            .collect();
+
+        for tx in normal_txs.into_iter().chain(swap_txs.into_iter()) {
+            db.store_transaction(tx).await.unwrap();
+        }
+
+        let result = prepare_block_data::<PlonkProof>(&db, block_size, 0).await;
+        assert!(result.is_ok());
+        let (_, selected) = result.unwrap();
+
+        assert_eq!(selected.len(), 2);
+        let swap_count = selected
+            .iter()
+            .filter(|tx| !tx.client_transaction.swap_link.is_zero())
+            .count();
+        assert_eq!(
+            swap_count, 0,
+            "Swap pair should be excluded when block full"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_prepare_block_data_swap_expired_deadline() {
+        // Swap pair with deadline = 0 (expired), should be ignored
+        let container = get_mongo().await;
+        let db = get_db_connection(&container).await;
+        let block_size = 4;
+
+        // Insert a block so current_block_number = 1
+        db.database(DB)
+            .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
+            .insert_one(StoredBlock {
+                layer2_block_number: 0,
+                commitments: vec![],
+                proposer_address: alloy::primitives::Address::ZERO,
+            })
+            .await
+            .unwrap();
+
+        let swap_txs: Vec<ClientTransactionWithMetaData<PlonkProof>> = (0..2)
+            .map(|i| ClientTransactionWithMetaData {
+                client_transaction: lib::shared_entities::ClientTransaction {
+                    fee: Fr254::from(100u64),
+                    swap_link: Fr254::from(55u64),
+                    deadline: Fr254::from(0u64), // expired
+                    swap_side: Fr254::from((i % 2) as u64),
+                    proof: PlonkProof::default(),
+                    ..Default::default()
+                },
+                lifecycle: TxLifecycle::Mempool,
+                hash: vec![i as u32 + 1],
+                historic_roots: vec![],
+            })
+            .collect();
+
+        for tx in swap_txs {
+            db.store_transaction(tx).await.unwrap();
+        }
+
+        let result = prepare_block_data::<PlonkProof>(&db, block_size, 1).await;
+        assert!(matches!(
+            result,
+            Err(BlockAssemblyError::InsufficientTransactions)
+        ));
+
+        // Expired swap legs must be removed from mempool.
+        let remaining_client = {
+            let mempool_client_transactions: Option<
+                Vec<(Vec<u32>, ClientTransactionWithMetaData<PlonkProof>)>,
+            > = db.get_all_mempool_client_transactions().await;
+
+            transactions_to_include_in_block(mempool_client_transactions)
+                .into_iter()
+                .map(|(_, v)| v)
+                .collect::<Vec<ClientTransactionWithMetaData<PlonkProof>>>()
+        };
+        let remaining_expired_swaps = remaining_client
+            .iter()
+            .filter(|tx| tx.client_transaction.swap_link == Fr254::from(55u64))
+            .count();
+        assert_eq!(
+            remaining_expired_swaps, 0,
+            "Expired swap legs should be removed from mempool"
+        );
+
+        let expired_swap_records = db
+            .get_all_transactions()
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .map(|(_, tx): (Vec<u32>, ClientTransactionWithMetaData<PlonkProof>)| tx)
+            .filter(|tx| tx.client_transaction.swap_link == Fr254::from(55u64))
+            .collect::<Vec<_>>();
+        assert!(expired_swap_records
+            .iter()
+            .all(|tx| tx.lifecycle == TxLifecycle::Dropped));
+    }
+
+    #[tokio::test]
+    async fn test_prepare_block_data_swap_zero_deadline_rejected_at_block_zero() {
+        let container = get_mongo().await;
+        let db = get_db_connection(&container).await;
+        let block_size = 4;
+
+        let swap_txs: Vec<ClientTransactionWithMetaData<PlonkProof>> = (0..2)
+            .map(|i| ClientTransactionWithMetaData {
+                client_transaction: lib::shared_entities::ClientTransaction {
+                    fee: Fr254::from(100u64),
+                    swap_link: Fr254::from(77u64),
+                    deadline: Fr254::zero(),
+                    swap_side: Fr254::from((i % 2) as u64),
+                    proof: PlonkProof::default(),
+                    ..Default::default()
+                },
+                lifecycle: TxLifecycle::Mempool,
+                hash: vec![20 + i as u32],
+                historic_roots: vec![],
+            })
+            .collect();
+
+        for tx in swap_txs {
+            db.store_transaction(tx).await.unwrap();
+        }
+
+        let result = prepare_block_data::<PlonkProof>(&db, block_size, 0).await;
+        assert!(matches!(
+            result,
+            Err(BlockAssemblyError::InsufficientTransactions)
+        ));
+
+        let remaining_client = {
+            let mempool_client_transactions: Option<
+                Vec<(Vec<u32>, ClientTransactionWithMetaData<PlonkProof>)>,
+            > = db.get_all_mempool_client_transactions().await;
+
+            transactions_to_include_in_block(mempool_client_transactions)
+                .into_iter()
+                .map(|(_, v)| v)
+                .collect::<Vec<ClientTransactionWithMetaData<PlonkProof>>>()
+        };
+        let remaining_zero_deadline_swaps = remaining_client
+            .iter()
+            .filter(|tx| tx.client_transaction.swap_link == Fr254::from(77u64))
+            .count();
+        assert_eq!(
+            remaining_zero_deadline_swaps, 0,
+            "Zero-deadline swap legs should be removed from mempool at block 0"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_prepare_block_data_stale_transaction_is_marked_dropped() {
+        let container = get_mongo().await;
+        let db = get_db_connection(&container).await;
+        let block_size = 4;
+        let stale_commitment = Fr254::from(1234u64);
+
+        db.store_block(&StoredBlock {
+            layer2_block_number: 0,
+            commitments: vec![stale_commitment.to_hex_string()],
+            proposer_address: alloy::primitives::Address::ZERO,
+        })
+        .await
+        .unwrap();
+
+        let stale_tx = ClientTransactionWithMetaData {
+            client_transaction: lib::shared_entities::ClientTransaction {
+                fee: Fr254::from(100u64),
+                commitments: [
+                    stale_commitment,
+                    Fr254::zero(),
+                    Fr254::zero(),
+                    Fr254::zero(),
+                ],
+                proof: PlonkProof::default(),
+                ..Default::default()
+            },
+            lifecycle: TxLifecycle::Mempool,
+            hash: vec![9, 9, 9, 9],
+            historic_roots: vec![],
+        };
+        db.store_transaction(stale_tx.clone()).await.unwrap();
+
+        let result = prepare_block_data::<PlonkProof>(&db, block_size, 1).await;
+        assert!(matches!(
+            result,
+            Err(BlockAssemblyError::InsufficientTransactions)
+        ));
+
+        let stored: ClientTransactionWithMetaData<PlonkProof> =
+            db.get_transaction(&stale_tx.hash).await.unwrap();
+        assert_eq!(stored.lifecycle, TxLifecycle::Dropped);
+    }
+
+    #[tokio::test]
+    async fn test_prepare_block_data_skips_explicitly_cancelled_transactions() {
+        let container = get_mongo().await;
+        let db = get_db_connection(&container).await;
+        let block_size = 1;
+
+        let active_tx = ClientTransactionWithMetaData {
+            client_transaction: lib::shared_entities::ClientTransaction {
+                fee: Fr254::from(10u64),
+                proof: PlonkProof::default(),
+                ..Default::default()
+            },
+            lifecycle: TxLifecycle::Mempool,
+            hash: vec![1, 1, 1],
+            historic_roots: vec![],
+        };
+        let cancelled_tx = ClientTransactionWithMetaData {
+            client_transaction: lib::shared_entities::ClientTransaction {
+                fee: Fr254::from(100u64),
+                proof: PlonkProof::default(),
+                ..Default::default()
+            },
+            lifecycle: TxLifecycle::Cancelled,
+            hash: vec![2, 2, 2],
+            historic_roots: vec![],
+        };
+
+        db.store_transaction(active_tx.clone()).await.unwrap();
+        db.store_transaction(cancelled_tx.clone()).await.unwrap();
+
+        let result = prepare_block_data::<PlonkProof>(&db, block_size, 0).await;
+        assert!(result.is_ok());
+        let (_, selected) = result.unwrap();
+
+        assert_eq!(selected.len(), 1);
+        assert_eq!(selected[0].hash, active_tx.hash);
+        assert_ne!(selected[0].hash, cancelled_tx.hash);
+    }
+
+    #[tokio::test]
+    async fn test_prepare_block_data_deposits_swaps_normals_mixed() {
+        // block_size = 8
+        // 8 deposits: fee 100 each → 2 groups of 4 = 2 slots, total_fee/slot = 400
+        // 1 swap pair: fee 50 + 50 = 100, fee/slot = 50
+        // 4 normal txs: fee = 60, 45, 30, 10
+        //
+        // Ranking: deposit_group(400), deposit_group(400), normal(60), swap(50/slot), normal(45), normal(30), normal(10)
+        // Fill 8 slots: 2 deposits + normal(60) + swap_pair(2) + normal(45) + normal(30) = 8 slots
+        // Leftover: normal(10)
+        let container = get_mongo().await;
+        let db = get_db_connection(&container).await;
+        let block_size = 8;
+
+        // 8 deposits
+        let deposits: Vec<DepositDatawithFee> = (1..=8)
+            .map(|i| DepositDatawithFee {
+                fee: Fr254::from(100u64),
+                deposit_data: DepositData {
+                    nf_token_id: Fr254::from(i as u64),
+                    nf_slot_id: Fr254::from(i as u64),
+                    value: Fr254::from(100u64),
+                    secret_hash: Fr254::from(i as u64),
+                },
+                reserved: false,
+            })
+            .collect();
+        <mongodb::Client as TransactionsDB<PlonkProof>>::set_mempool_deposits(&db, deposits).await;
+
+        // Swap pair
+        let swap_txs: Vec<ClientTransactionWithMetaData<PlonkProof>> = (0..2)
+            .map(|i| ClientTransactionWithMetaData {
+                client_transaction: lib::shared_entities::ClientTransaction {
+                    fee: Fr254::from(50u64),
+                    swap_link: Fr254::from(99u64),
+                    deadline: Fr254::from(1000u64),
+                    swap_side: Fr254::from((i % 2) as u64),
+                    proof: PlonkProof::default(),
+                    ..Default::default()
+                },
+                lifecycle: TxLifecycle::Mempool,
+                hash: vec![50 + i as u32],
+                historic_roots: vec![],
+            })
+            .collect();
+
+        // Normal txs
+        let normal_txs: Vec<ClientTransactionWithMetaData<PlonkProof>> = [60u64, 45, 30, 10]
+            .iter()
+            .enumerate()
+            .map(|(i, &fee)| ClientTransactionWithMetaData {
+                client_transaction: lib::shared_entities::ClientTransaction {
+                    fee: Fr254::from(fee),
+                    proof: PlonkProof::default(),
+                    ..Default::default()
+                },
+                lifecycle: TxLifecycle::Mempool,
+                hash: vec![70 + i as u32],
+                historic_roots: vec![],
+            })
+            .collect();
+
+        for tx in swap_txs.into_iter().chain(normal_txs.into_iter()) {
+            db.store_transaction(tx).await.unwrap();
+        }
+
+        let result = prepare_block_data::<PlonkProof>(&db, block_size, 0).await;
+        assert!(result.is_ok());
+        let (included_deposits, selected) = result.unwrap();
+
+        // 2 deposit groups
+        assert_eq!(included_deposits.len(), 2);
+
+        // Swap pair included
+        let swap_count = selected
+            .iter()
+            .filter(|tx| !tx.client_transaction.swap_link.is_zero())
+            .count();
+        assert_eq!(swap_count, 2, "Swap pair should be included");
+
+        // Swap pair should be consecutive and at sibling positions
+        let swap_idx = selected
+            .iter()
+            .position(|tx| !tx.client_transaction.swap_link.is_zero())
+            .unwrap();
+        assert_eq!(
+            selected[swap_idx].client_transaction.swap_link,
+            selected[swap_idx + 1].client_transaction.swap_link,
+        );
+        // Global index = deposit_count + swap_idx should be even
+        let global_idx = included_deposits.len() + swap_idx;
+        assert_eq!(
+            global_idx % 2,
+            0,
+            "Swap pair should start at even global index"
+        );
+
+        // Total: 2 deposit slots + 6 client slots = 8
+        assert_eq!(included_deposits.len() + selected.len(), block_size);
+    }
+
+    #[tokio::test]
+    async fn test_prepare_block_data_swap_pair_skipped_when_no_alignment_tx_available() {
+        let container = get_mongo().await;
+        let db = get_db_connection(&container).await;
+        let block_size = 3;
+
+        let deposits: Vec<DepositDatawithFee> = (1..=4)
+            .map(|i| DepositDatawithFee {
+                fee: Fr254::from(100u64),
+                deposit_data: DepositData {
+                    nf_token_id: Fr254::from(i as u64),
+                    nf_slot_id: Fr254::from(i as u64),
+                    value: Fr254::from(100u64),
+                    secret_hash: Fr254::from(i as u64),
+                },
+                reserved: false,
+            })
+            .collect();
+        <mongodb::Client as TransactionsDB<PlonkProof>>::set_mempool_deposits(&db, deposits).await;
+
+        let swap_txs: Vec<ClientTransactionWithMetaData<PlonkProof>> = (0..2)
+            .map(|i| ClientTransactionWithMetaData {
+                client_transaction: lib::shared_entities::ClientTransaction {
+                    fee: Fr254::from(50u64),
+                    swap_link: Fr254::from(199u64),
+                    deadline: Fr254::from(1000u64),
+                    swap_side: Fr254::from((i % 2) as u64),
+                    proof: PlonkProof::default(),
+                    ..Default::default()
+                },
+                lifecycle: TxLifecycle::Mempool,
+                hash: vec![600 + i as u32],
+                historic_roots: vec![],
+            })
+            .collect();
+
+        for tx in swap_txs {
+            db.store_transaction(tx).await.unwrap();
+        }
+
+        let result = prepare_block_data::<PlonkProof>(&db, block_size, 0).await;
+        assert!(result.is_ok());
+        let (included_deposits, selected) = result.unwrap();
+
+        assert_eq!(
+            included_deposits.len(),
+            1,
+            "Deposit group should still be selected"
+        );
+        assert!(
+            selected.is_empty(),
+            "Swap pair should be skipped when no alignment transaction is available"
+        );
+
+        let remaining_client = {
+            let mempool_client_transactions: Option<
+                Vec<(Vec<u32>, ClientTransactionWithMetaData<PlonkProof>)>,
+            > = db.get_all_mempool_client_transactions().await;
+
+            transactions_to_include_in_block(mempool_client_transactions)
+                .into_iter()
+                .map(|(_, v)| v)
+                .collect::<Vec<ClientTransactionWithMetaData<PlonkProof>>>()
+        };
+        let remaining_swap_legs = remaining_client
+            .iter()
+            .filter(|tx| tx.client_transaction.swap_link == Fr254::from(199u64))
+            .count();
+        assert_eq!(
+            remaining_swap_legs, 2,
+            "Misaligned swap pair should remain in mempool for a future block"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_prepare_block_data_same_side_swaps_not_paired() {
+        let container = get_mongo().await;
+        let db = get_db_connection(&container).await;
+        let block_size = 4;
+
+        // Two A-legs with same swap_link/deadline must stay unmatched.
+        let same_side_swaps: Vec<ClientTransactionWithMetaData<PlonkProof>> = (0..2)
+            .map(|i| ClientTransactionWithMetaData {
+                client_transaction: lib::shared_entities::ClientTransaction {
+                    fee: Fr254::from(20u64),
+                    swap_link: Fr254::from(777u64),
+                    deadline: Fr254::from(1000u64),
+                    swap_side: Fr254::from(1u64),
+                    proof: PlonkProof::default(),
+                    ..Default::default()
+                },
+                lifecycle: TxLifecycle::Mempool,
+                hash: vec![200 + i as u32],
+                historic_roots: vec![],
+            })
+            .collect();
+
+        for tx in same_side_swaps {
+            db.store_transaction(tx).await.unwrap();
+        }
+
+        let result = prepare_block_data::<PlonkProof>(&db, block_size, 0).await;
+        assert!(matches!(
+            result,
+            Err(BlockAssemblyError::InsufficientTransactions)
+        ));
+
+        // Same-side swap legs should remain pending in mempool for future pairing.
+        let remaining_client = {
+            let mempool_client_transactions: Option<
+                Vec<(Vec<u32>, ClientTransactionWithMetaData<PlonkProof>)>,
+            > = db.get_all_mempool_client_transactions().await;
+
+            transactions_to_include_in_block(mempool_client_transactions)
+                .into_iter()
+                .map(|(_, v)| v)
+                .collect::<Vec<ClientTransactionWithMetaData<PlonkProof>>>()
+        };
+        let remaining_same_side = remaining_client
+            .iter()
+            .filter(|tx| tx.client_transaction.swap_link == Fr254::from(777u64))
+            .count();
+        assert_eq!(
+            remaining_same_side, 2,
+            "Same-side swap legs should remain pending in mempool"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_prepare_block_data_single_orphan_swap_leg_stays_in_mempool() {
+        let container = get_mongo().await;
+        let db = get_db_connection(&container).await;
+        let block_size = 4;
+
+        db.store_transaction(ClientTransactionWithMetaData {
+            client_transaction: lib::shared_entities::ClientTransaction {
+                fee: Fr254::from(20u64),
+                swap_link: Fr254::from(778u64),
+                deadline: Fr254::from(1000u64),
+                swap_side: Fr254::from(1u64),
+                proof: PlonkProof::default(),
+                ..Default::default()
+            },
+            lifecycle: TxLifecycle::Mempool,
+            hash: vec![210],
+            historic_roots: vec![],
+        })
+        .await
+        .unwrap();
+
+        let result = prepare_block_data::<PlonkProof>(&db, block_size, 0).await;
+        assert!(matches!(
+            result,
+            Err(BlockAssemblyError::InsufficientTransactions)
+        ));
+
+        let remaining_client = {
+            let mempool_client_transactions: Option<
+                Vec<(Vec<u32>, ClientTransactionWithMetaData<PlonkProof>)>,
+            > = db.get_all_mempool_client_transactions().await;
+
+            transactions_to_include_in_block(mempool_client_transactions)
+                .into_iter()
+                .map(|(_, v)| v)
+                .collect::<Vec<ClientTransactionWithMetaData<PlonkProof>>>()
+        };
+        let remaining_orphan_swap_legs = remaining_client
+            .iter()
+            .filter(|tx| tx.client_transaction.swap_link == Fr254::from(778u64))
+            .count();
+        assert_eq!(
+            remaining_orphan_swap_legs, 1,
+            "A single orphan swap leg should remain pending in mempool"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_prepare_block_data_three_legs_one_pair_one_leftover() {
+        let container = get_mongo().await;
+        let db = get_db_connection(&container).await;
+        let block_size = 4;
+
+        // A, A, B with same swap_link/deadline => one pair selected, one left in mempool.
+        let three_legs: Vec<ClientTransactionWithMetaData<PlonkProof>> = vec![
+            ClientTransactionWithMetaData {
+                client_transaction: lib::shared_entities::ClientTransaction {
+                    fee: Fr254::from(20u64),
+                    swap_link: Fr254::from(888u64),
+                    deadline: Fr254::from(1000u64),
+                    swap_side: Fr254::from(1u64),
+                    proof: PlonkProof::default(),
+                    ..Default::default()
+                },
+                lifecycle: TxLifecycle::Mempool,
+                hash: vec![300],
+                historic_roots: vec![],
+            },
+            ClientTransactionWithMetaData {
+                client_transaction: lib::shared_entities::ClientTransaction {
+                    fee: Fr254::from(21u64),
+                    swap_link: Fr254::from(888u64),
+                    deadline: Fr254::from(1000u64),
+                    swap_side: Fr254::from(1u64),
+                    proof: PlonkProof::default(),
+                    ..Default::default()
+                },
+                lifecycle: TxLifecycle::Mempool,
+                hash: vec![301],
+                historic_roots: vec![],
+            },
+            ClientTransactionWithMetaData {
+                client_transaction: lib::shared_entities::ClientTransaction {
+                    fee: Fr254::from(22u64),
+                    swap_link: Fr254::from(888u64),
+                    deadline: Fr254::from(1000u64),
+                    swap_side: Fr254::zero(),
+                    proof: PlonkProof::default(),
+                    ..Default::default()
+                },
+                lifecycle: TxLifecycle::Mempool,
+                hash: vec![302],
+                historic_roots: vec![],
+            },
+        ];
+
+        for tx in three_legs {
+            db.store_transaction(tx).await.unwrap();
+        }
+
+        let result = prepare_block_data::<PlonkProof>(&db, block_size, 0).await;
+        assert!(result.is_ok());
+        let (_, selected) = result.unwrap();
+
+        let swap_count = selected
+            .iter()
+            .filter(|tx| !tx.client_transaction.swap_link.is_zero())
+            .count();
+        assert_eq!(swap_count, 2, "Exactly one swap pair should be selected");
+
+        // One leg must remain in mempool.
+        let remaining_client = {
+            let mempool_client_transactions: Option<
+                Vec<(Vec<u32>, ClientTransactionWithMetaData<PlonkProof>)>,
+            > = db.get_all_mempool_client_transactions().await;
+
+            transactions_to_include_in_block(mempool_client_transactions)
+                .into_iter()
+                .map(|(_, v)| v)
+                .collect::<Vec<ClientTransactionWithMetaData<PlonkProof>>>()
+        };
+        let remaining_same_swap = remaining_client
+            .iter()
+            .filter(|tx| tx.client_transaction.swap_link == Fr254::from(888u64))
+            .count();
+        assert_eq!(
+            remaining_same_swap, 1,
+            "One unmatched swap leg should remain in mempool"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_prepare_block_data_invalid_swap_side_not_paired() {
+        let container = get_mongo().await;
+        let db = get_db_connection(&container).await;
+        let block_size = 4;
+
+        // Invalid side (2) must never be paired.
+        let invalid_side_swaps: Vec<ClientTransactionWithMetaData<PlonkProof>> = vec![
+            ClientTransactionWithMetaData {
+                client_transaction: lib::shared_entities::ClientTransaction {
+                    fee: Fr254::from(20u64),
+                    swap_link: Fr254::from(999u64),
+                    deadline: Fr254::from(1000u64),
+                    swap_side: Fr254::from(2u64),
+                    proof: PlonkProof::default(),
+                    ..Default::default()
+                },
+                lifecycle: TxLifecycle::Mempool,
+                hash: vec![400],
+                historic_roots: vec![],
+            },
+            ClientTransactionWithMetaData {
+                client_transaction: lib::shared_entities::ClientTransaction {
+                    fee: Fr254::from(21u64),
+                    swap_link: Fr254::from(999u64),
+                    deadline: Fr254::from(1000u64),
+                    swap_side: Fr254::zero(),
+                    proof: PlonkProof::default(),
+                    ..Default::default()
+                },
+                lifecycle: TxLifecycle::Mempool,
+                hash: vec![401],
+                historic_roots: vec![],
+            },
+        ];
+
+        for tx in invalid_side_swaps {
+            db.store_transaction(tx).await.unwrap();
+        }
+
+        let result = prepare_block_data::<PlonkProof>(&db, block_size, 0).await;
+        assert!(matches!(
+            result,
+            Err(BlockAssemblyError::InsufficientTransactions)
+        ));
+
+        let remaining_client = {
+            let mempool_client_transactions: Option<
+                Vec<(Vec<u32>, ClientTransactionWithMetaData<PlonkProof>)>,
+            > = db.get_all_mempool_client_transactions().await;
+
+            transactions_to_include_in_block(mempool_client_transactions)
+                .into_iter()
+                .map(|(_, v)| v)
+                .collect::<Vec<ClientTransactionWithMetaData<PlonkProof>>>()
+        };
+        let remaining_invalid_side = remaining_client
+            .iter()
+            .filter(|tx| tx.client_transaction.swap_link == Fr254::from(999u64))
+            .count();
+        assert_eq!(
+            remaining_invalid_side, 2,
+            "Invalid-side swap legs should remain pending in mempool"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_prepare_block_data_swap_pair_not_selected_when_block_size_is_one() {
+        let container = get_mongo().await;
+        let db = get_db_connection(&container).await;
+        let block_size = 1;
+
+        let swap_txs: Vec<ClientTransactionWithMetaData<PlonkProof>> = (0..2)
+            .map(|i| ClientTransactionWithMetaData {
+                client_transaction: lib::shared_entities::ClientTransaction {
+                    fee: Fr254::from(100u64),
+                    swap_link: Fr254::from(123u64),
+                    deadline: Fr254::from(1000u64),
+                    swap_side: Fr254::from((i % 2) as u64),
+                    proof: PlonkProof::default(),
+                    ..Default::default()
+                },
+                lifecycle: TxLifecycle::Mempool,
+                hash: vec![500 + i as u32],
+                historic_roots: vec![],
+            })
+            .collect();
+
+        for tx in swap_txs {
+            db.store_transaction(tx).await.unwrap();
+        }
+
+        let result = prepare_block_data::<PlonkProof>(&db, block_size, 0).await;
+        assert!(matches!(
+            result,
+            Err(BlockAssemblyError::InsufficientTransactions)
+        ));
+
+        let remaining_client = {
+            let mempool_client_transactions: Option<
+                Vec<(Vec<u32>, ClientTransactionWithMetaData<PlonkProof>)>,
+            > = db.get_all_mempool_client_transactions().await;
+
+            transactions_to_include_in_block(mempool_client_transactions)
+                .into_iter()
+                .map(|(_, v)| v)
+                .collect::<Vec<ClientTransactionWithMetaData<PlonkProof>>>()
+        };
+        let remaining_swap_legs = remaining_client
+            .iter()
+            .filter(|tx| tx.client_transaction.swap_link == Fr254::from(123u64))
+            .count();
+        assert_eq!(
+            remaining_swap_legs, 2,
+            "A valid non-expired swap pair should remain in mempool if it does not fit"
+        );
     }
 }

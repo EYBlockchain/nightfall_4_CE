@@ -61,6 +61,7 @@ pub trait RecursiveProvingEngine<P: Proof> {
                 )
                 .collect::<_>(),
             rollup_proof: proof_bytes,
+            block_number: 0,
         })
     }
     /// The proving engine decides how it handles proving state transition so we make it define how it needs the

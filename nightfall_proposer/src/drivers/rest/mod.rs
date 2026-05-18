@@ -1,11 +1,14 @@
 use crate::domain::error::ProposerRejection;
 use crate::drivers::rest::{
-    block_data::get_block_data, client_transactions::client_transaction,
-    proposers::rotate_proposer, synchronisation::synchronisation,
+    block_data::get_block_data,
+    client_transactions::{cancel_swap_request, client_transaction},
+    proposers::rotate_proposer,
+    synchronisation::synchronisation,
 };
 use block_assembly::{
     get_block_assembly_status_route, pause_block_assembly, resume_block_assembly,
 };
+use configuration::settings::WalletRole;
 use lib::{
     health_check::health_route,
     nf_client_proof::{Proof, ProvingEngine},
@@ -32,12 +35,13 @@ where
 {
     health_route()
         .or(client_transaction::<P, E>())
+        .or(cancel_swap_request::<P>())
         .or(rotate_proposer())
         .or(get_block_data())
         .or(add_proposer())
         .or(remove_proposer())
         .or(withdraw())
-        .or(certification_validation_request())
+        .or(certification_validation_request(WalletRole::Proposer))
         .or(keys_validation_request())
         .or(synchronisation())
         .or(pause_block_assembly())
@@ -64,6 +68,18 @@ async fn handle_rejection(err: Rejection) -> Result<impl Reply, std::convert::In
             ProposerRejection::ClientTransactionFailed => Ok(reply::with_status(
                 "Client transaction failed",
                 warp::http::StatusCode::BAD_REQUEST,
+            )),
+            ProposerRejection::InvalidSwapCancelRequest => Ok(reply::with_status(
+                "Invalid swap cancel request",
+                warp::http::StatusCode::BAD_REQUEST,
+            )),
+            ProposerRejection::UnauthorizedSwapCancelRequest => Ok(reply::with_status(
+                "Unauthorized swap cancel request",
+                warp::http::StatusCode::UNAUTHORIZED,
+            )),
+            ProposerRejection::SwapCancelUnavailable => Ok(reply::with_status(
+                "Swap cancel unavailable",
+                warp::http::StatusCode::SERVICE_UNAVAILABLE,
             )),
             ProposerRejection::FailedToRotateProposer => Ok(reply::with_status(
                 "Failed to rotate proposer",

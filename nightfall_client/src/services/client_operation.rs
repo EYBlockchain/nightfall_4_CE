@@ -27,6 +27,70 @@ use lib::{
 use log::{debug, error, info, warn};
 use nf_curves::ed_on_bn254::{BabyJubjub as BabyJubJub, Fr as BJJScalar};
 
+const MEMBERSHIP_PROOF_SNAPSHOT_ATTEMPTS: usize = 3;
+
+async fn collect_membership_proofs_with_stable_root(
+    spend_commitments: &[impl Nullifiable; 4],
+    id: &str,
+) -> Result<(Vec<MembershipProof<Fr254>>, Fr254), &'static str> {
+    let db = get_db_connection().await;
+    let hasher = Poseidon::new();
+
+    for attempt in 1..=MEMBERSHIP_PROOF_SNAPSHOT_ATTEMPTS {
+        let target_root = <mongodb::Client as CommitmentTree<Fr254>>::get_root(db)
+            .await
+            .map_err(|_| "Could not get root")?;
+        let mut proofs = Vec::with_capacity(spend_commitments.len());
+        let mut saw_non_zero_commitment = false;
+        let mut should_retry = false;
+
+        for commitment in spend_commitments.iter() {
+            if commitment.get_nf_token_id() == Fr254::zero() {
+                proofs.push(MembershipProof::default());
+                continue;
+            }
+
+            saw_non_zero_commitment = true;
+            let commitment_hash = commitment.hash().map_err(|_| "Could not hash preimage")?;
+            debug!(
+                "{id} Looking for commitment with hash {}",
+                Fr254::to_hex_string(&commitment_hash)
+            );
+
+            if db.get_commitment(&commitment_hash).await.is_none() {
+                return Err("Could not find commitment in commitment database");
+            }
+
+            let membership_proof = db
+                .get_membership_proof(Some(&commitment_hash), None)
+                .await
+                .map_err(|_| "Could not get membership proof")?;
+
+            if membership_proof.verify(&target_root, &hasher).is_err() {
+                warn!(
+                    "{id} Commitment tree root changed while collecting membership proofs (attempt {attempt})"
+                );
+                should_retry = true;
+                break;
+            }
+
+            proofs.push(membership_proof);
+        }
+
+        if !should_retry {
+            let root = if saw_non_zero_commitment {
+                target_root
+            } else {
+                Fr254::zero()
+            };
+            return Ok((proofs, root));
+        }
+    }
+
+    error!("{id} Commitment tree root kept changing while collecting membership proofs");
+    Err("Commitment tree root changed while building membership proofs")
+}
+
 #[allow(clippy::too_many_arguments)]
 pub async fn client_operation<P, E>(
     spend_commitments: &[impl Nullifiable; 4],
@@ -88,53 +152,8 @@ where
     // have computed and stored it when the commitment was added to the tree (and hopefully updated
     //it since as the Merkle tree root is updated so that we obfuscate which block it was deposited in).
     debug!("{id} Finding membership proofs for spend commitments");
-    let (membership_proofs, root) = {
-        let mut proofs = vec![];
-        let mut selected_root = Fr254::zero();
-        let db = get_db_connection().await;
-        for (i, commitment) in spend_commitments.iter().enumerate() {
-            // ignore zero commitments here because they won't be in our commitment database. We check
-            // for zero commitments by checking the preimage has default token id. We have already adjusted
-            // the salt to be random so we can't use that.
-            if commitment.get_nf_token_id() == Fr254::zero() {
-                proofs.push(MembershipProof::default());
-                if i == 0 {
-                    selected_root = Fr254::zero();
-                }
-                continue;
-            }
-            let commitment_hash = commitment.hash().map_err(|_| "Could not hash preimage")?;
-            debug!(
-                "{id} Looking for commitment with hash {}",
-                Fr254::to_hex_string(&commitment_hash)
-            );
-            let stored = db.get_commitment(&commitment_hash).await;
-            if stored.is_none() {
-                return Err("Could not find commitment in commitment database");
-            };
-            // get a membership proof that is computed from the current root. This is more secure than using a membership proof
-            // that is computed from the root at the time the commitment was added to the tree.
-            let membership_proof = db
-                .get_membership_proof(Some(&commitment_hash), None)
-                .await
-                .map_err(|_| "Could not get membership proof")?;
-            let proof_root = <mongodb::Client as CommitmentTree<Fr254>>::get_root(db)
-                .await
-                .map_err(|_| "Could not get root")?;
-            // check that the proof is valid (we may remove this check later if we need more speed)
-            let hasher = Poseidon::new();
-            membership_proof
-                .verify(&proof_root, &hasher)
-                .map_err(|_| "Membership proof failed")?;
-            proofs.push(membership_proof);
-            if i == 0 {
-                selected_root = proof_root;
-            }
-            // while we're at it, we should store the spend commitments nullifier hash. Then, when we see that nullifier
-            // on the blockchain, we can mark the commitment as nullified so we don't try to spend it again.
-        }
-        (proofs, selected_root)
-    };
+    let (membership_proofs, root) =
+        collect_membership_proofs_with_stable_root(spend_commitments, id).await?;
     let fixed_proofs: [MembershipProof<Fr254>; 4] = membership_proofs
         .try_into()
         .map_err(|_| "Could not convert membership proofs to fixed length array")?;
@@ -208,6 +227,140 @@ where
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+pub async fn swap_operation<P, E>(
+    spend_commitments: &[impl Nullifiable; 4],
+    new_commitments: &[impl Commitment; 4],
+    root_key: Fr254,
+    ephemeral_key: BJJScalar,
+    secret_preimages: &[impl SecretHash; 4],
+    // === SWAP PARAMS ===
+    party_a_public_key: TEAffine<BabyJubJub>,
+    party_b_public_key: TEAffine<BabyJubJub>,
+    nf_token_a_id: Fr254,
+    value_a: Fr254,
+    nf_token_b_id: Fr254,
+    value_b: Fr254,
+    swap_nonce: Fr254,
+    deadline: Fr254,
+    id: &str,
+) -> Result<ClientTransaction<P>, &'static str>
+where
+    P: Proof,
+    E: ProvingEngine<P>,
+{
+    let nf_slot_id = new_commitments[0].get_nf_slot_id();
+
+    // We check that value is conserved for the tokens being transferred and fees.
+    let out_value = new_commitments[..2]
+        .iter()
+        .map(|c| c.get_value())
+        .sum::<Fr254>();
+    let in_value = spend_commitments[..2]
+        .iter()
+        .map(|c| c.get_value())
+        .sum::<Fr254>();
+    let out_fee = new_commitments[2..]
+        .iter()
+        .map(|c| c.get_value())
+        .sum::<Fr254>();
+    let in_fee = spend_commitments[2..]
+        .iter()
+        .map(|c| c.get_value())
+        .sum::<Fr254>();
+
+    let value_conserved = out_value == in_value;
+    let fee_conserved = out_fee == in_fee;
+
+    if !(value_conserved && fee_conserved) {
+        warn!("{id} Value or fee not conserved in this transaction: rejecting");
+        return Err("Value or fee not conserved in this transaction: rejecting");
+    }
+
+    // Collect the public keys from the nullified commitments
+    let public_keys: [TEAffine<BabyJubJub>; 4] = spend_commitments
+        .iter()
+        .map(|c| c.get_public_key())
+        .collect::<Vec<TEAffine<BabyJubJub>>>()
+        .try_into()
+        .map_err(|_| "Could not convert to fixed length array")?;
+
+    debug!("{id} Finding membership proofs for spend commitments");
+    let (membership_proofs, root) =
+        collect_membership_proofs_with_stable_root(spend_commitments, id).await?;
+    let fixed_proofs: [MembershipProof<Fr254>; 4] = membership_proofs
+        .try_into()
+        .map_err(|_| "Could not convert membership proofs to fixed length array")?;
+
+    let nf_address = get_addresses().nightfall();
+    let (mut public_inputs, mut private_inputs) = (
+        PublicInputs::new()
+            .fee(new_commitments[2].get_value())
+            .root(root)
+            .deadline(deadline)
+            .build(),
+        PrivateInputs::new()
+            .nf_address(nf_address)
+            .party_a_public_key(party_a_public_key)
+            .party_b_public_key(party_b_public_key)
+            .value_a(value_a)
+            .nf_token_a_id(nf_token_a_id)
+            .nf_token_b_id(nf_token_b_id)
+            .value_b(value_b)
+            .nf_slot_id(nf_slot_id)
+            .swap_nonce(swap_nonce)
+            .deadline(deadline)
+            .fee_token_id(get_fee_token_id())
+            .nullifiers_values(&spend_commitments.map(|c| c.get_value()))
+            .nullifiers_salts(&spend_commitments.map(|c| c.get_salt()))
+            .commitments_values(&[
+                new_commitments[1].get_value(),
+                new_commitments[3].get_value(),
+            ])
+            .sender_commitment_salts(&[
+                new_commitments[1].get_salt(),
+                new_commitments[2].get_salt(),
+                new_commitments[3].get_salt(),
+            ])
+            .public_keys(&public_keys)
+            .root_key(root_key)
+            .ephemeral_key(ephemeral_key)
+            .membership_proofs(&fixed_proofs)
+            .withdraw_address(Fr254::zero()) // No withdraw in swap
+            .secret_preimages(&[
+                secret_preimages[0].to_array(),
+                secret_preimages[1].to_array(),
+                secret_preimages[2].to_array(),
+                secret_preimages[3].to_array(),
+            ])
+            .build(),
+    );
+
+    info!("{id} Generating swap proof");
+    let wrapped_proof: Result<P, E::Error> = E::prove(&mut private_inputs, &mut public_inputs);
+    debug!("{id} Creating swap client transaction");
+
+    match wrapped_proof {
+        Ok(proof) => Ok(ClientTransaction {
+            fee: public_inputs.fee,
+            historic_commitment_root: public_inputs.root,
+            commitments: public_inputs.commitments,
+            nullifiers: public_inputs.nullifiers,
+            compressed_secrets: CompressedSecrets {
+                cipher_text: public_inputs.compressed_secrets,
+            },
+            swap_link: public_inputs.swap_link,
+            deadline: public_inputs.deadline,
+            swap_side: public_inputs.swap_side,
+            proof,
+        }),
+        Err(e) => {
+            error!("{id} Swap proving error {e:?}");
+            Err("Swap transaction could not be completed due to a proving error.")
+        }
+    }
+}
+
 /// This function is called when a deposit is being made. Since no proof is generated by the client in this case
 /// we only need to deal with escrowing funds.
 /// The function returns a tuple of Preimages. The first Preimage is for the value being deposited and the second
@@ -273,5 +426,72 @@ pub async fn deposit_operation<T: TokenContract, N: NightfallContract>(
                 Salt::Deposit(secret_preimage),
             )),
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use ark_bn254::Fr as Fr254;
+    use ark_crypto_primitives::sponge::{CryptographicSponge, FieldBasedCryptographicSponge};
+    use ark_ec::twisted_edwards::Affine as TEAffine;
+    use ark_ff::PrimeField;
+    use ark_std::UniformRand;
+    use ark_std::Zero;
+    use jf_primitives::poseidon::{
+        sponge::{PoseidonSponge, CRHF_RATE},
+        PoseidonPerm,
+    };
+    use jf_utils::test_rng;
+    use nf_curves::ed_on_bn254::BabyJubjub as BabyJubJub;
+
+    #[test]
+    fn test_swap_link_computation() {
+        let rng = &mut test_rng();
+
+        let party_a_pk = TEAffine::<BabyJubJub>::rand(rng);
+        let party_b_pk = TEAffine::<BabyJubJub>::rand(rng);
+        let token_a_id = Fr254::rand(rng);
+        let token_b_id = Fr254::rand(rng);
+        let value_a = Fr254::rand(rng);
+        let value_b = Fr254::rand(rng);
+        let swap_nonce = Fr254::from(u64::rand(rng));
+
+        let sponge_perm = PoseidonPerm::<Fr254>::perm().unwrap();
+        let mut sponge = PoseidonSponge::<Fr254, CRHF_RATE>::new(&sponge_perm);
+        sponge.absorb(&vec![
+            Fr254::from_le_bytes_mod_order(b"SWAP_V1"),
+            party_a_pk.x,
+            party_a_pk.y,
+            party_b_pk.x,
+            party_b_pk.y,
+            token_a_id,
+            value_a,
+            token_b_id,
+            value_b,
+            swap_nonce,
+        ]);
+        let swap_link = sponge.squeeze_native_field_elements(1)[0];
+
+        // Verify swap_link is non-zero (valid swap)
+        assert!(!swap_link.is_zero(), "Swap link should be non-zero");
+
+        // Verify determinism - same inputs = same output
+        let sponge_perm_2 = PoseidonPerm::<Fr254>::perm().unwrap();
+        let mut sponge_2 = PoseidonSponge::<Fr254, CRHF_RATE>::new(&sponge_perm_2);
+        sponge_2.absorb(&vec![
+            Fr254::from_le_bytes_mod_order(b"SWAP_V1"),
+            party_a_pk.x,
+            party_a_pk.y,
+            party_b_pk.x,
+            party_b_pk.y,
+            token_a_id,
+            value_a,
+            token_b_id,
+            value_b,
+            swap_nonce,
+        ]);
+        let swap_link_2 = sponge_2.squeeze_native_field_elements(1)[0];
+
+        assert_eq!(swap_link, swap_link_2, "Swap link should be deterministic");
     }
 }

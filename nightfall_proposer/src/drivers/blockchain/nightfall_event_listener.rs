@@ -6,6 +6,7 @@ use crate::{
         trees::{CommitmentTree, HistoricRootTree, NullifierTree},
     },
     services::process_events::process_events,
+    services::selected_transactions::reconcile_obviously_orphaned_selected_transactions,
 };
 use alloy::{
     rpc::types::Filter,
@@ -258,6 +259,12 @@ where
             "Mempool cleanup: removed {} deposits and {} client transactions.",
             removed_deposits.unwrap_or(0),
             removed_client_txs.unwrap_or(0)
+        );
+
+        let restored_selected = reconcile_obviously_orphaned_selected_transactions::<P>(db).await;
+        debug!(
+            "Selected transaction recovery after restart restored {} orphaned transaction(s).",
+            restored_selected.unwrap_or(0)
         );
     }
 

@@ -100,7 +100,7 @@ pub mod initialisation {
     };
     use ark_bn254::Fr as Fr254;
     use ark_std::sync::Arc;
-    use configuration::settings::get_settings;
+    use configuration::settings::{get_settings, WalletRole};
     use lib::{
         blockchain_client::BlockchainClientConnection, nf_client_proof::Proof,
         wallets::LocalWsClient,
@@ -148,7 +148,7 @@ pub mod initialisation {
         BLOCKCHAIN_CLIENT_CONNECTION
             .get_or_init(|| async {
                 RwLock::new(
-                    LocalWsClient::try_from_settings(get_settings())
+                    LocalWsClient::try_from_settings(get_settings(), WalletRole::Proposer)
                         .await
                         .expect("Could not create blockchain client connection"),
                 )

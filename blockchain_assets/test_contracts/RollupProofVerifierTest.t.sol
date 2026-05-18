@@ -649,7 +649,8 @@ contract RollupProofVerifierTest is Test {
             nullifier_root: 5626012003977595441102792096342856268135928990590954181023475305010363075697,
             commitments_root_root: 9685336808687621011152651517596383829693417568113234202546079283402275385696,
             transactions: transactions,
-            rollup_proof: rollupProof
+            rollup_proof: rollupProof,
+            block_number: 0
         });
 
         uint256 block_transactions_length = 64;
@@ -698,7 +699,8 @@ contract RollupProofVerifierTest is Test {
             nullifier_root: 0x2,
             commitments_root_root: 0x3,
             transactions: transactions,
-            rollup_proof: rollupProof
+            rollup_proof: rollupProof,
+            block_number: 0
         });
 
         uint256 block_transactions_length = 64;

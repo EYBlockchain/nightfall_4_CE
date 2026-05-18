@@ -5,7 +5,10 @@ use dotenv::dotenv;
 use inquire::Select;
 use inquire::Text;
 use lib::{
-    client_models::{NF3DepositRequest, NF3RecipientData, NF3TransferRequest, NF3WithdrawRequest},
+    client_models::{
+        NF3DepositRequest, NF3RecipientData, NF3SwapRequest, NF3TransferRequest,
+        NF3WithdrawRequest, SwapParty,
+    },
     derive_key::ZKPPubKey,
     hex_conversion::HexConvertible,
 };
@@ -103,6 +106,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             "Deposit" => deposit(&url, &default_erc_address).await?,
             "Transfer" => transfer(&url, &default_erc_address, &layer_2_address).await?,
             "Withdraw" => withdraw(&url, &default_erc_address, &client_address).await?,
+            "Swap" => swap(&url, &default_erc_address, &layer_2_address).await?,
             "Exit" => {
                 println!("Exiting the Nightfall Client UI.");
                 break;
@@ -149,6 +153,7 @@ fn get_actions() -> Result<String, inquire::InquireError> {
         "Deposit",
         "Transfer",
         "Withdraw",
+        "Swap",
         "Exit",
     ];
     let ans = Select::new("Choose an action:", options).prompt()?;
@@ -298,6 +303,34 @@ async fn withdraw(
     }
 }
 
+/// Prompts the user for swap parameters, constructs a swap request, and sends it to the client REST API.
+async fn swap(
+    url: &url::Url,
+    default_erc_address: &str,
+    default_public_key: &str,
+) -> Result<(), Box<dyn Error>> {
+    println!("Creating swap...");
+    let req = prompt_nf3_swap_request(default_erc_address, default_public_key);
+    let mut endpoint = url.clone();
+    endpoint.set_path("/v1/swap");
+    let client = reqwest::Client::new();
+    let uuid = uuid::Uuid::new_v4().to_string();
+    let resp = client
+        .post(endpoint.as_str())
+        .json(&req)
+        .header("X-Request-ID", &uuid)
+        .send()
+        .await
+        .expect("Failed to send swap request");
+    let status = resp.status();
+    let text = resp.text().await.expect("Failed to read response body");
+    if status.is_success() {
+        println!("{text}");
+        Ok(())
+    } else {
+        Err(format!("Swap request failed: {text}").into())
+    }
+}
 /// Prompts the user for all required deposit parameters and returns a populated `NF3DepositRequest` struct.
 fn prompt_nf3_deposit_request(default_erc_address: &str) -> NF3DepositRequest {
     let erc_address = Text::new("Enter ERC address:")
@@ -415,6 +448,82 @@ fn prompt_nf3_withdraw_request(
         token_type,
         value,
         recipient_address,
+        fee,
+    }
+}
+
+fn prompt_nf3_swap_request(default_erc_address: &str, default_public_key: &str) -> NF3SwapRequest {
+    let erc_address_a = Text::new("Enter ERC address for token A:")
+        .with_initial_value(default_erc_address)
+        .prompt()
+        .expect("Failed to get ERC address A");
+    let token_id_a = Text::new("Enter Token ID A:")
+        .with_initial_value("0x00")
+        .prompt()
+        .expect("Failed to get Token ID A");
+    let value_a = Text::new("Enter value A:")
+        .with_initial_value("0x01")
+        .prompt()
+        .expect("Failed to get value A");
+    let token_type_a_name = Text::new("Enter Token Type A (ERC20, ERC721, ERC1155, ERC3525):")
+        .with_initial_value("ERC20")
+        .prompt()
+        .expect("Failed to get Token Type A");
+    let token_type_a = token_type_name_to_number_string(&token_type_a_name);
+    let party_a_public_key = Text::new("Enter party A public key:")
+        .with_initial_value(default_public_key)
+        .prompt()
+        .expect("Failed to get party A key");
+    let erc_address_b = Text::new("Enter ERC address for token B:")
+        .with_initial_value(default_erc_address)
+        .prompt()
+        .expect("Failed to get ERC address B");
+    let token_id_b = Text::new("Enter Token ID B:")
+        .with_initial_value("0x00")
+        .prompt()
+        .expect("Failed to get Token ID B");
+    let value_b = Text::new("Enter value B:")
+        .with_initial_value("0x01")
+        .prompt()
+        .expect("Failed to get value B");
+    let token_type_b_name = Text::new("Enter Token Type B (ERC20, ERC721, ERC1155, ERC3525):")
+        .with_initial_value("ERC20")
+        .prompt()
+        .expect("Failed to get Token Type B");
+    let token_type_b = token_type_name_to_number_string(&token_type_b_name);
+    let party_b_public_key = Text::new("Enter party B public key:")
+        .with_initial_value(default_public_key)
+        .prompt()
+        .expect("Failed to get party B key");
+    let swap_nonce = Text::new("Enter swap nonce:")
+        .with_initial_value("0x01")
+        .prompt()
+        .expect("Failed to get swap nonce");
+    let deadline = Text::new("Enter deadline (block number):")
+        .with_initial_value("0x1000")
+        .prompt()
+        .expect("Failed to get deadline");
+    let fee = Text::new("Enter Fee:")
+        .with_initial_value("0x00")
+        .prompt()
+        .expect("Failed to get Fee");
+    NF3SwapRequest {
+        party_a: SwapParty {
+            erc_address: erc_address_a,
+            token_id: token_id_a,
+            token_type: token_type_a,
+            value: value_a,
+            public_key: party_a_public_key,
+        },
+        party_b: SwapParty {
+            erc_address: erc_address_b,
+            token_id: token_id_b,
+            token_type: token_type_b,
+            value: value_b,
+            public_key: party_b_public_key,
+        },
+        swap_nonce,
+        deadline,
         fee,
     }
 }

@@ -12,7 +12,7 @@ use crate::{
     },
 };
 use alloy::{
-    primitives::{Address, TxHash, U64},
+    primitives::{Address, TxHash, I256, U64},
     providers::{Provider, RootProvider},
     rpc::types::{BlockId, BlockNumberOrTag},
     sol_types::SolEvent,
@@ -271,7 +271,20 @@ where
         ))
     })?;
 
-    match N::propose_block(block).await? {
+    let proposal_outcome = match N::propose_block(block).await {
+        Ok(outcome) => outcome,
+        Err(e) => {
+            if let Err(cleanup_error) = release_failed_pending_block::<P>(db, &pending_block).await
+            {
+                error!("Failed to release pending block after proposal error: {cleanup_error}");
+            }
+            return Err(BlockAssemblyError::ContractError(format!(
+                "Block proposal failed: {e}"
+            )));
+        }
+    };
+
+    match proposal_outcome {
         ProposeBlockOutcome::Submitted { tx_hash } => {
             info!(
                 "Pending block {} proposed successfully with L1 tx {tx_hash:?}",
@@ -788,7 +801,13 @@ where
             continue;
         }
         debug!("Triggered block assembly");
-        let block_result = assemble_block::<P, R>().await;
+        if current_block_number < I256::ZERO {
+            error!(
+                "Block assembly aborted: contract returned negative current block number {current_block_number}"
+            );
+            continue;
+        }
+        let block_result = assemble_block::<P, R>(current_block_number.as_u64()).await;
         let pending_block = match block_result {
             Ok(block) => block,
             Err(e) => match e {
@@ -814,13 +833,14 @@ mod tests {
     use crate::{
         domain::entities::{
             Block, ClientTransactionWithMetaData, DepositDatawithFee, PendingBlockState,
+            TxLifecycle,
         },
         driven::db::mongo_db::StoredBlock,
         ports::contracts::{BroadcastUnknownReason, ProposeBlockOutcome},
         ports::db::{PendingBlockDB, TransactionsDB},
         services::assemble_block::reserve_selected_transactions,
     };
-    use alloy::primitives::{I256, TxHash};
+    use alloy::primitives::{TxHash, I256};
     use lib::{
         error::NightfallContractError,
         plonk_prover::plonk_proof::PlonkProof,
@@ -870,9 +890,7 @@ mod tests {
                 proof: PlonkProof::default(),
                 ..Default::default()
             },
-            block_l2: None,
-            in_mempool: true,
-            reserved: false,
+            lifecycle: TxLifecycle::Mempool,
             hash: vec![fee as u32],
             historic_roots: vec![ark_bn254::Fr::from(123u64)],
         }
@@ -916,7 +934,8 @@ mod tests {
         reserve_selected_transactions::<PlonkProof>(
             &db,
             &selected_deposits,
-            &selected_client_transaction_hashes,
+            &selected_client_transactions,
+            0,
         )
         .await
         .unwrap();
@@ -995,7 +1014,8 @@ mod tests {
         reserve_selected_transactions::<PlonkProof>(
             &db,
             &selected_deposits,
-            &selected_client_transaction_hashes,
+            &selected_client_transactions,
+            0,
         )
         .await
         .unwrap();
@@ -1066,7 +1086,8 @@ mod tests {
         reserve_selected_transactions::<PlonkProof>(
             &db,
             &selected_deposits,
-            &selected_client_transaction_hashes,
+            &selected_client_transactions,
+            0,
         )
         .await
         .unwrap();

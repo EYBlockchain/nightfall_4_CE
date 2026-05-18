@@ -190,6 +190,17 @@ impl RequestDB for Client {
             .ok()?
     }
 
+    async fn get_requests_by_status(&self, status: RequestStatus) -> Option<Vec<Request>> {
+        let filter = doc! { "status": status.to_string() };
+        let cursor = self
+            .database(DB)
+            .collection::<Request>("requests")
+            .find(filter)
+            .await
+            .ok()?;
+        cursor.try_collect().await.ok()
+    }
+
     async fn update_request(&self, request_id: &str, status: RequestStatus) -> Option<()> {
         let filter = doc! { "uuid": request_id };
         let update = doc! {"$set": { "status": status.to_string() }};
@@ -308,6 +319,10 @@ pub struct CommitmentEntry {
     )]
     pub nullifier: Fr254,
     pub token_type: TokenType, // we store token type as string for easier querying, but it should be the same as preimage.token_type
+    #[serde(default)]
+    pub native_token_id: Option<String>,
+    #[serde(default)]
+    pub native_slot_id: Option<String>,
     pub layer_1_transaction_hash: Option<TxHash>, // hash of the L1 transaction that created this commitment
     pub layer_2_block_number: Option<i64>, // block number of the L2 block that created this commitment
 }
@@ -354,6 +369,8 @@ impl CommitmentEntryDB for CommitmentEntry {
             nullifier,
             key,
             token_type,
+            native_token_id: None,
+            native_slot_id: None,
             layer_1_transaction_hash,
             layer_2_block_number,
         }

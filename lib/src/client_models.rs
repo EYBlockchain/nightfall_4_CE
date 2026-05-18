@@ -119,6 +119,63 @@ pub struct NF3WithdrawRequest {
     pub fee: String,
 }
 
+/// Structure representing a party's token details in a swap
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SwapParty {
+    pub erc_address: String,
+    pub token_id: String,
+    #[serde(default = "default_swap_token_type")]
+    pub token_type: String,
+    pub value: String,
+    pub public_key: String,
+}
+
+fn default_swap_token_type() -> String {
+    "0x00".to_string()
+}
+
+/// Structure representing an NF_3 swap request for atomic swaps
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NF3SwapRequest {
+    pub party_a: SwapParty,
+    pub party_b: SwapParty,
+    pub swap_nonce: String,
+    pub deadline: String,
+    pub fee: String,
+}
+
+/// Structure representing a client request to ask proposers to best-effort cancel a swap.
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NF3CancelSwapRequest {
+    pub request_id: String,
+}
+
+/// Structure representing a client request to trustlessly settle an expired swap.
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NF3SettleExpiredSwapRequest {
+    pub request_id: String,
+}
+
+/// Structure representing a proposer-facing swap cancel request.
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProposerSwapCancelRequest {
+    pub swap_link: String,
+}
+
+/// Informative response returned by advisory swap cancel flows.
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SwapCancelResponse {
+    pub status: String,
+    pub message: String,
+    pub matched: usize,
+}
+
 /// structure representing NF_3 recipient data
 /// This is a sub-structure of the NF_3 transfer request
 #[derive(Debug, Deserialize, Serialize)]

@@ -1,6 +1,6 @@
 //! This module contains the interface that a smart contract must work with to be classed as a Nightfall contract by a proposer.
 
-use alloy::primitives::{I256, TxHash};
+use alloy::primitives::{TxHash, I256};
 use lib::error::NightfallContractError;
 
 use crate::domain::entities::Block;

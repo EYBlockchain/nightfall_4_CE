@@ -15,10 +15,12 @@ use crate::{
 };
 use alloy::rpc::types::TransactionReceipt;
 use ark_bn254::Fr as Fr254;
-use configuration::addresses::get_addresses;
+use ark_ec::twisted_edwards::Affine as TEAffine;
+use configuration::{addresses::get_addresses, settings::get_settings};
 use futures::future::join_all;
 use lib::{
     blockchain_client::BlockchainClientConnection,
+    client_models::{ProposerSwapCancelRequest, SwapCancelResponse},
     commitments::Nullifiable,
     derive_key::ZKPKeys,
     hex_conversion::HexConvertible,
@@ -28,6 +30,7 @@ use lib::{
     shared_entities::{ClientTransaction, Preimage},
 };
 use log::{debug, error, info, warn};
+use nf_curves::ed_on_bn254::BabyJubjub;
 use nf_curves::ed_on_bn254::Fr as BJJScalar;
 use nightfall_bindings::artifacts::ProposerManager;
 use reqwest::{Client, Error as ReqwestError};
@@ -37,16 +40,40 @@ use tokio::time::sleep;
 use url::Url;
 use warp::hyper::StatusCode;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AggregatedSwapCancelResponse {
+    pub status: String,
+    pub message: String,
+    pub matched: usize,
+}
+
+pub struct SwapParams {
+    pub party_a_public_key: TEAffine<BabyJubjub>,
+    pub party_b_public_key: TEAffine<BabyJubjub>,
+    pub token_a_id: Fr254,
+    pub value_a: Fr254,
+    pub token_b_id: Fr254,
+    pub value_b: Fr254,
+    pub swap_nonce: Fr254,
+    pub deadline: Fr254,
+}
+
+pub struct SubmittedOperation<P> {
+    pub payload: NotificationPayload,
+    pub transaction: ClientTransaction<P>,
+}
+
 #[allow(clippy::too_many_arguments)]
-pub async fn handle_client_operation<P, E, N>(
+pub async fn submit_client_operation<P, E, N>(
     operation: Operation,
     spend_commitments: [impl Nullifiable; 4],
     new_commitments: [impl Nullifiable; 4],
     ephemeral_private_key: BJJScalar,
     recipient_address: Fr254,
     secret_preimages: [impl SecretHash; 4],
+    swap_params: Option<SwapParams>,
     id: &str,
-) -> Result<NotificationPayload, TransactionHandlerError>
+) -> Result<SubmittedOperation<P>, TransactionHandlerError>
 where
     P: Proof + Debug + serde::Serialize + Clone + Send + Sync,
     E: ProvingEngine<P> + Send + Sync,
@@ -81,14 +108,14 @@ where
                 && commitment.get_preimage() != Preimage::default()
             {
                 let nf_token_id = commitment.get_nf_token_id();
-                let token_type = N::get_token_info(nf_token_id)
+                let token_info = N::get_token_info(nf_token_id)
                     .await
-                    .map_err(|e| TransactionHandlerError::CustomError(e.to_string()))?
-                    .token_type;
+                    .map_err(|e| TransactionHandlerError::CustomError(e.to_string()))?;
+                let token_type = token_info.token_type;
                 let nullifier = commitment
                     .nullifier_hash(&nullifier_key)
                     .expect("Nullifiers must be hashable");
-                let commitment_entry = CommitmentEntry::new(
+                let mut commitment_entry = CommitmentEntry::new(
                     commitment.get_preimage(),
                     nullifier,
                     CommitmentStatus::PendingCreation,
@@ -96,6 +123,16 @@ where
                     None,
                     None,
                 );
+
+                commitment_entry.native_token_id = Some(token_info.token_id.to_hex_string());
+                match N::get_slot_info(commitment.get_nf_slot_id()).await {
+                    Ok(slot_info) => {
+                        commitment_entry.native_slot_id = Some(slot_info.slot_id.to_hex_string());
+                    }
+                    Err(e) => {
+                        warn!("{id} Could not enrich commitment with native slot metadata: {e}");
+                    }
+                }
                 commitment_entries.push(commitment_entry);
             }
         }
@@ -116,16 +153,39 @@ where
     // spend_commitments[2] is the first fee spend commitment
     // spend_commitments[3] is the second fee spend commitment
 
-    let mut operation_result: ClientTransaction<P> = client_operation::<P, E>(
-        &spend_commitments,
-        &new_commitments,
-        root_key,
-        ephemeral_private_key,
-        recipient_address,
-        &secret_preimages,
-        id,
-    )
-    .await
+    let mut operation_result: ClientTransaction<P> = match swap_params {
+        Some(params) => {
+            crate::services::client_operation::swap_operation::<P, E>(
+                &spend_commitments,
+                &new_commitments,
+                root_key,
+                ephemeral_private_key,
+                &secret_preimages,
+                params.party_a_public_key,
+                params.party_b_public_key,
+                params.token_a_id,
+                params.value_a,
+                params.token_b_id,
+                params.value_b,
+                params.swap_nonce,
+                params.deadline,
+                id,
+            )
+            .await
+        }
+        None => {
+            client_operation::<P, E>(
+                &spend_commitments,
+                &new_commitments,
+                root_key,
+                ephemeral_private_key,
+                recipient_address,
+                &secret_preimages,
+                id,
+            )
+            .await
+        }
+    }
     .map_err(|e| {
         error!("{id} {e}");
         TransactionHandlerError::CustomError(e.to_string())
@@ -172,7 +232,40 @@ where
 
     let uuid = serde_json::to_string(id).map_err(TransactionHandlerError::JsonConversionError)?;
 
-    Ok(NotificationPayload::TransactionEvent { response, uuid })
+    Ok(SubmittedOperation {
+        payload: NotificationPayload::TransactionEvent { response, uuid },
+        transaction: operation_result,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn handle_client_operation<P, E, N>(
+    operation: Operation,
+    spend_commitments: [impl Nullifiable; 4],
+    new_commitments: [impl Nullifiable; 4],
+    ephemeral_private_key: BJJScalar,
+    recipient_address: Fr254,
+    secret_preimages: [impl SecretHash; 4],
+    swap_params: Option<SwapParams>,
+    id: &str,
+) -> Result<NotificationPayload, TransactionHandlerError>
+where
+    P: Proof + Debug + serde::Serialize + Clone + Send + Sync,
+    E: ProvingEngine<P> + Send + Sync,
+    N: NightfallContract,
+{
+    Ok(submit_client_operation::<P, E, N>(
+        operation,
+        spend_commitments,
+        new_commitments,
+        ephemeral_private_key,
+        recipient_address,
+        secret_preimages,
+        swap_params,
+        id,
+    )
+    .await?
+    .payload)
 }
 
 /// Only retry on network issues or timeouts
@@ -257,6 +350,213 @@ async fn send_to_proposer_with_retry<P: Serialize + Sync>(
         format!("Max retries exhausted for proposer {}", proposer.url),
         true,
     ))
+}
+
+async fn send_cancel_request_with_retry(
+    client: &Client,
+    proposer: ProposerManager::Proposer,
+    cancel_request: &ProposerSwapCancelRequest,
+    swap_cancel_auth_token: &str,
+    id: &str,
+    max_retries: u32,
+    initial_backoff: Duration,
+) -> Result<SwapCancelResponse, (String, bool)> {
+    let url = match Url::parse(&proposer.url).and_then(|base| base.join("/v1/swap/cancel-request"))
+    {
+        Ok(u) => u,
+        Err(e) => {
+            warn!("Skipping proposer with invalid URL {}: {}", proposer.url, e);
+            return Err((format!("Invalid URL: {e}"), false));
+        }
+    };
+
+    for attempt in 1..=max_retries {
+        let body = serde_json::to_string(cancel_request).unwrap();
+        let resp = client
+            .post(url.clone())
+            .header("Content-Type", "application/json")
+            .header("x-nf4-swap-cancel-auth", swap_cancel_auth_token)
+            .header("Content-Length", body.len().to_string())
+            .body(body)
+            .send()
+            .await;
+        match resp {
+            Ok(response) => {
+                let status = response.status();
+                if status.is_success() {
+                    let response_body = response.text().await.unwrap_or_default();
+                    let parsed = serde_json::from_str::<SwapCancelResponse>(&response_body)
+                        .map_err(|e| {
+                            (
+                                format!("Failed to parse proposer cancel response: {e}"),
+                                false,
+                            )
+                        })?;
+                    debug!("{id} Successfully sent swap cancel request to proposer at {url}");
+                    return Ok(parsed);
+                }
+
+                let body = response.text().await.unwrap_or_default();
+                error!("{id} Error from proposer cancel endpoint: HTTP {status} — Body: {body}");
+                if matches!(
+                    status,
+                    StatusCode::BAD_GATEWAY
+                        | StatusCode::SERVICE_UNAVAILABLE
+                        | StatusCode::GATEWAY_TIMEOUT
+                ) && attempt < max_retries
+                {
+                    let backoff = initial_backoff * 2u32.pow(attempt - 1);
+                    warn!(
+                        "{id} Retrying swap cancel against proposer {} in {backoff:?}",
+                        proposer.url
+                    );
+                    sleep(backoff).await;
+                    continue;
+                }
+
+                return Err((
+                    format!("Proposer returned HTTP {status}: {body}"),
+                    matches!(
+                        status,
+                        StatusCode::BAD_GATEWAY
+                            | StatusCode::SERVICE_UNAVAILABLE
+                            | StatusCode::GATEWAY_TIMEOUT
+                    ),
+                ));
+            }
+            Err(err) => {
+                error!("{id} Network error sending cancel request to proposer {url}: {err:?}");
+                if is_retriable_error(&err) && attempt < max_retries {
+                    let backoff = initial_backoff * 2u32.pow(attempt - 1);
+                    warn!("{id} Retrying cancel-request network error in {backoff:?}");
+                    sleep(backoff).await;
+                    continue;
+                }
+                return Err((format!("Network error: {err}"), true));
+            }
+        }
+    }
+
+    Err((
+        format!("Max retries exhausted for proposer {}", proposer.url),
+        true,
+    ))
+}
+
+pub async fn request_swap_cancel(
+    swap_link: Fr254,
+    id: &str,
+) -> Result<AggregatedSwapCancelResponse, Box<dyn Error>> {
+    info!("{id} Sending swap cancel request to all proposers concurrently.");
+    const MAX_RETRIES: u32 = 3;
+    const INITIAL_BACKOFF: Duration = Duration::from_millis(500);
+
+    let cancel_request = ProposerSwapCancelRequest {
+        swap_link: swap_link.to_hex_string(),
+    };
+    let swap_cancel_auth_token = get_settings()
+        .swap_cancel_auth_token
+        .as_deref()
+        .map(str::trim)
+        .filter(|token| !token.is_empty())
+        .ok_or_else(|| {
+            std::io::Error::other(
+                "swap cancel auth is not configured; refusing to call proposer cancel endpoint",
+            )
+        })?
+        .to_string();
+    let client = Client::new();
+
+    let blockchain_client = get_blockchain_client_connection()
+        .await
+        .read()
+        .await
+        .get_client();
+    let round_robin_instance =
+        ProposerManager::new(get_addresses().round_robin, blockchain_client.root());
+    let proposers_struct: Vec<ProposerManager::Proposer> =
+        round_robin_instance.get_proposers().call().await?;
+
+    let futures: Vec<_> = proposers_struct
+        .into_iter()
+        .map(|proposer| {
+            send_cancel_request_with_retry(
+                &client,
+                proposer,
+                &cancel_request,
+                &swap_cancel_auth_token,
+                id,
+                MAX_RETRIES,
+                INITIAL_BACKOFF,
+            )
+        })
+        .collect();
+
+    let results = join_all(futures).await;
+    let mut accepted_matched = 0usize;
+    let mut already_cancelled_matched = 0usize;
+    let mut saw_too_late = false;
+    let mut saw_not_found = false;
+    let mut saw_response = false;
+
+    for result in results {
+        match result {
+            Ok(response) => {
+                saw_response = true;
+                match response.status.as_str() {
+                    "accepted" => accepted_matched += response.matched,
+                    "already_cancelled" => already_cancelled_matched += response.matched,
+                    "too_late" => saw_too_late = true,
+                    "not_found" => saw_not_found = true,
+                    other => warn!("{id} Ignoring unknown proposer cancel status {other}"),
+                }
+            }
+            Err((msg, retriable)) => {
+                if retriable {
+                    warn!("{id} Advisory cancel request could not be delivered to one proposer: {msg}");
+                } else {
+                    warn!("{id} Advisory cancel request rejected by one proposer: {msg}");
+                }
+            }
+        }
+    }
+
+    if accepted_matched > 0 {
+        Ok(AggregatedSwapCancelResponse {
+            status: "accepted".to_string(),
+            message: "Swap cancel request accepted by proposer(s); commitments remain locked until local trustless settlement".to_string(),
+            matched: accepted_matched,
+        })
+    } else if already_cancelled_matched > 0 {
+        Ok(AggregatedSwapCancelResponse {
+            status: "already_cancelled".to_string(),
+            message: "Matching proposer swap legs were already cancelled; commitments remain locked until local trustless settlement".to_string(),
+            matched: already_cancelled_matched,
+        })
+    } else if saw_too_late {
+        Ok(AggregatedSwapCancelResponse {
+            status: "too_late".to_string(),
+            message: "Swap is no longer cancellable in proposer mempool; commitments remain locked until local trustless settlement".to_string(),
+            matched: 0,
+        })
+    } else if saw_not_found {
+        Ok(AggregatedSwapCancelResponse {
+            status: "not_found".to_string(),
+            message: "No proposer reported a matching mempool swap; commitments remain locked until local trustless settlement".to_string(),
+            matched: 0,
+        })
+    } else if saw_response {
+        Ok(AggregatedSwapCancelResponse {
+            status: "not_found".to_string(),
+            message: "Proposers returned no actionable advisory cancel result; commitments remain locked until local trustless settlement".to_string(),
+            matched: 0,
+        })
+    } else {
+        Err(Box::new(std::io::Error::new(
+            std::io::ErrorKind::TimedOut,
+            format!("{id} No proposer could be reached for advisory swap cancellation."),
+        )))
+    }
 }
 
 pub async fn process_transaction_offchain<P: Serialize + Sync>(

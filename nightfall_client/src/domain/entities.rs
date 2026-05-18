@@ -33,7 +33,7 @@ pub struct RequestCommitmentMapping {
 }
 
 /// An enum representing the possible statuses of an HTTP request
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RequestStatus {
     Queued, // This is for tx_request status associated with the X-Request-ID for a request with status: The transaction is waiting to be processed by the client.
     Submitted, // This is for tx_request status associated with the X-Request-ID for a request with status: The Client has successfully processed the transaction and handed off the result, either to the blockchain, in the case of a deposit escrow, or to a Proposer, in the case of a transfer or withdraw transaction.
@@ -41,6 +41,17 @@ pub enum RequestStatus {
     Processing, // This is for tx_request status associated with the X-Request-ID for a request with status: The Client has taken the transaction out of the queue and is actively working on it, but has not yet completed the hand-off to the next stage.
     ProposerUnreachable, // This is for transfer and withdraw tx_request status when the Client was unable to reach the Proposer at the URL provided in the request.
     Confirmed, // This is for tx_request status associated with the X-Request-ID for a request with status: The life cycle of this tx is finished, aka, commitments are all onchain.
+    Expired, // This is for swap tx_request status when its deadline has passed without onchain confirmation.
+}
+
+pub fn should_overwrite_request_status_with_failed(request: Option<&Request>) -> bool {
+    match request {
+        Some(request) => matches!(
+            request.status,
+            RequestStatus::Queued | RequestStatus::Processing
+        ),
+        None => true,
+    }
 }
 
 impl Display for RequestStatus {
@@ -52,6 +63,7 @@ impl Display for RequestStatus {
             RequestStatus::Processing => write!(f, "Processing"),
             RequestStatus::ProposerUnreachable => write!(f, "ProposerUnreachable"),
             RequestStatus::Confirmed => write!(f, "Confirmed"),
+            RequestStatus::Expired => write!(f, "Expired"),
         }
     }
 }
@@ -104,6 +116,7 @@ pub enum OperationType {
     Deposit,
     Withdraw,
     Transfer,
+    Swap,
 }
 
 impl Display for OperationType {
@@ -112,6 +125,7 @@ impl Display for OperationType {
             OperationType::Deposit => write!(f, "Deposit"),
             OperationType::Withdraw => write!(f, "Withdraw"),
             OperationType::Transfer => write!(f, "Transfer"),
+            OperationType::Swap => write!(f, "Swap"),
         }
     }
 }
@@ -122,6 +136,7 @@ impl From<OperationType> for u8 {
             OperationType::Deposit => 0,
             OperationType::Withdraw => 1,
             OperationType::Transfer => 2,
+            OperationType::Swap => 3,
         }
     }
 }
@@ -132,6 +147,7 @@ impl From<u8> for OperationType {
             0 => OperationType::Deposit,
             1 => OperationType::Withdraw,
             2 => OperationType::Transfer,
+            3 => OperationType::Swap,
             _ => OperationType::Deposit,
         }
     }
@@ -202,6 +218,15 @@ pub struct TokenData {
     pub erc_address: Fr254,
     #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
     pub token_id: BigInteger256,
+    pub token_type: TokenType,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct SlotData {
+    #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
+    pub erc_address: Fr254,
+    #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
+    pub slot_id: BigInteger256,
     pub token_type: TokenType,
 }
 pub struct ERCAddress;

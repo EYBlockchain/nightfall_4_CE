@@ -1,7 +1,10 @@
 //! This module defines interfaces for different types of smart contract that NIghtfall 4 deals with.
 //! These mainly include token contracts and the "Nightfall" contract.
 
-use crate::domain::{entities::TokenData, error::TokenContractError};
+use crate::domain::{
+    entities::{SlotData, TokenData},
+    error::TokenContractError,
+};
 use alloy::primitives::{Address, I256};
 use ark_bn254::Fr as Fr254;
 use ark_ff::BigInteger256;
@@ -57,6 +60,12 @@ pub trait NightfallContract {
     fn get_token_info(
         nf_token_id: Fr254,
     ) -> impl Future<Output = Result<TokenData, NightfallContractError>> + Send;
+
+    /// Function to retrieve the ERC address and native slot_id given a Nightfall slot id.
+    fn get_slot_info(
+        nf_slot_id: Fr254,
+    ) -> impl Future<Output = Result<SlotData, NightfallContractError>> + Send;
+
     fn get_layer2_block_by_number(
         block_number: I256,
     ) -> impl Future<Output = Result<(Address, Nightfall::Block), NightfallContractError>> + Send;

@@ -12,6 +12,7 @@ use crate::{
         trees::{CommitmentTree, HistoricRootTree, NullifierTree},
     },
     services::assemble_block::{cleanup_selected_transactions, release_selected_transactions},
+    services::selected_transactions::reconcile_orphaned_selected_transactions,
 };
 use alloy::primitives::{TxHash, I256};
 use alloy::{consensus::Transaction, sol_types::SolInterface};
@@ -183,7 +184,6 @@ fn stored_block_from_pending_block(
         proposer_address,
     })
 }
-
 async fn process_propose_block_event<P, N>(
     decode: Nightfall::propose_blockCall,
     transaction_hash: TxHash,
@@ -225,6 +225,7 @@ where
 
     // check and update the sychronisation status
     let mut sync_status = get_synchronisation_status().await.write().await;
+    let was_synchronised = sync_status.is_synchronised();
     // The first thing to do is to make sure that we've not missed any blocks.
     // If we have, then we'll need to resynchronise with the blockchain.
     let mut expected_onchain_block_number = get_expected_layer2_blocknumber().await.write().await;
@@ -439,6 +440,18 @@ where
         }
 
         let _ = db.delete_pending_block(expected_block_number_u64).await;
+    }
+
+    let reconciliation_block_number = current_block_number_in_contract
+        .try_into()
+        .unwrap_or(layer_2_block_number_in_event_u64);
+    let became_synchronised = !was_synchronised && sync_status.is_synchronised();
+    drop(sync_status);
+    drop(expected_onchain_block_number);
+
+    if became_synchronised {
+        let _ =
+            reconcile_orphaned_selected_transactions::<P>(db, reconciliation_block_number).await;
     }
 
     Ok(())
