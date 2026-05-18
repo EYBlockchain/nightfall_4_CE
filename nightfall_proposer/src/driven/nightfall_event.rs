@@ -13,6 +13,7 @@ use crate::{
         trees::{CommitmentTree, HistoricRootTree, NullifierTree},
     },
     services::selected_transactions::reconcile_orphaned_selected_transactions,
+    services::snapshot_scheduler::maybe_schedule_snapshot_for_applied_block,
 };
 use alloy::primitives::{TxHash, I256};
 use alloy::rpc::types::Log;
@@ -460,6 +461,32 @@ where
         );
     } else {
         debug!("Historic root matches commitment tree root");
+    }
+
+    match get_blockchain_client_connection()
+        .await
+        .read()
+        .await
+        .get_client()
+        .get_block_number()
+        .await
+    {
+        Ok(current_l1_block) => {
+            maybe_schedule_snapshot_for_applied_block(
+                db,
+                layer_2_block_number_in_event_u64,
+                current_l1_block,
+                sync_state_l1_ref.block_number,
+            )
+            .await;
+        }
+        Err(error) => {
+            warn!(
+                "Skipping automatic proposer snapshot scheduling after L2 block {} because current L1 head could not be fetched: {}",
+                layer_2_block_number_in_event_u64,
+                error
+            );
+        }
     }
 
     // see if we need to update the synchronisation status

@@ -106,6 +106,14 @@ pub struct ProposerConfig {
     pub block_size: u64,
     #[serde(default = "default_proposer_snapshot_root_dir")]
     pub snapshot_root_dir: String,
+    #[serde(default = "default_snapshot_interval_l2_blocks")]
+    pub snapshot_interval_l2_blocks: u64,
+    #[serde(default = "default_snapshot_min_l1_confirmations")]
+    pub snapshot_min_l1_confirmations: u64,
+    #[serde(default = "default_snapshot_retention_count")]
+    pub snapshot_retention_count: u64,
+    #[serde(default = "default_snapshot_enabled")]
+    pub snapshot_enabled: bool,
 }
 
 #[derive(Debug, Deserialize, Default, Serialize)]
@@ -168,6 +176,22 @@ fn default_rpc_rate_limit() -> u32 {
 
 fn default_proposer_snapshot_root_dir() -> String {
     "./data/proposer_snapshots".to_string()
+}
+
+fn default_snapshot_interval_l2_blocks() -> u64 {
+    100
+}
+
+fn default_snapshot_min_l1_confirmations() -> u64 {
+    12
+}
+
+fn default_snapshot_retention_count() -> u64 {
+    5
+}
+
+fn default_snapshot_enabled() -> bool {
+    true
 }
 
 #[derive(Debug, Deserialize, Serialize, Default)]

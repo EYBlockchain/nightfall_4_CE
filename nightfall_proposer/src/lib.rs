@@ -56,6 +56,7 @@ pub mod initialisation {
             db::{BlockStorageDB, SyncStateDB},
             trees::{CommitmentTree, HistoricRootTree, NullifierTree},
         },
+        services::snapshot_scheduler::initialize_snapshot_scheduler_state,
     };
     use alloy::primitives::I256;
     use ark_bn254::Fr as Fr254;
@@ -225,6 +226,9 @@ pub mod initialisation {
         recover_from_restore_journal(db)
             .await
             .map_err(|e| format!("Proposer restore recovery failed before bootstrap: {e}"))?;
+        if let Err(error) = initialize_snapshot_scheduler_state().await {
+            warn!("Could not initialize proposer snapshot scheduler state: {error}");
+        }
 
         let onchain_next_block_i256 = N::get_current_layer2_blocknumber()
             .await
