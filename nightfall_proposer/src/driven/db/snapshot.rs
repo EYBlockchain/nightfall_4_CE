@@ -1,6 +1,10 @@
 use crate::{
-    domain::entities::{ProposerSnapshotManifest, SnapshotCollectionManifest, SyncState},
+    domain::entities::{
+        ProposerSnapshotManifest, RestoreJournal, RestoreJournalCollection,
+        SnapshotCollectionManifest, SyncState,
+    },
     driven::db::mongo_db::{DB, PROPOSED_BLOCKS_COLLECTION, SYNC_STATE_COLLECTION},
+    ports::db::RestoreJournalDB,
     ports::trees::{CommitmentTree, HistoricRootTree, NullifierTree},
 };
 use ark_bn254::Fr as Fr254;
@@ -16,7 +20,7 @@ use std::{
 };
 use tokio::{
     fs::{self, File},
-    io::AsyncWriteExt,
+    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
 };
 
 #[derive(Debug)]
@@ -25,6 +29,23 @@ pub enum SnapshotError {
     Mongo(mongodb::error::Error),
     SerdeJson(serde_json::Error),
     MissingSyncState,
+    UnsupportedManifestSchemaVersion(u32),
+    UnsupportedManifestStorageFormat(String),
+    MissingSnapshotFile(String),
+    CollectionChecksumMismatch {
+        collection_name: String,
+        expected: String,
+        actual: String,
+    },
+    OverallChecksumMismatch {
+        expected: String,
+        actual: String,
+    },
+    DocumentCountMismatch {
+        collection_name: String,
+        expected: u64,
+        actual: u64,
+    },
 }
 
 impl Display for SnapshotError {
@@ -38,6 +59,37 @@ impl Display for SnapshotError {
             Self::MissingSyncState => write!(
                 f,
                 "Cannot create proposer snapshot without a persisted sync_state"
+            ),
+            Self::UnsupportedManifestSchemaVersion(schema_version) => write!(
+                f,
+                "Unsupported proposer snapshot manifest schema version: {schema_version}"
+            ),
+            Self::UnsupportedManifestStorageFormat(storage_format) => write!(
+                f,
+                "Unsupported proposer snapshot storage format: {storage_format}"
+            ),
+            Self::MissingSnapshotFile(file_name) => {
+                write!(f, "Snapshot file is missing from snapshot directory: {file_name}")
+            }
+            Self::CollectionChecksumMismatch {
+                collection_name,
+                expected,
+                actual,
+            } => write!(
+                f,
+                "Snapshot collection checksum mismatch for {collection_name}: expected {expected}, got {actual}"
+            ),
+            Self::OverallChecksumMismatch { expected, actual } => write!(
+                f,
+                "Snapshot overall checksum mismatch: expected {expected}, got {actual}"
+            ),
+            Self::DocumentCountMismatch {
+                collection_name,
+                expected,
+                actual,
+            } => write!(
+                f,
+                "Snapshot document count mismatch for {collection_name}: expected {expected}, got {actual}"
             ),
         }
     }
@@ -96,6 +148,34 @@ fn proposer_snapshot_collection_names() -> Vec<String> {
     names.push(PROPOSED_BLOCKS_COLLECTION.to_string());
     names.push(SYNC_STATE_COLLECTION.to_string());
     names
+}
+
+fn shadow_collection_name(live_collection_name: &str) -> String {
+    format!("restore_shadow__{live_collection_name}")
+}
+
+fn backup_collection_name(live_collection_name: &str) -> String {
+    format!("restore_backup__{live_collection_name}")
+}
+
+fn compute_overall_checksum(collections: &[SnapshotCollectionManifest]) -> String {
+    let mut overall_checksum = Sha256::new();
+    let mut collections_for_checksum: Vec<&SnapshotCollectionManifest> =
+        collections.iter().collect();
+    collections_for_checksum
+        .sort_by(|left, right| left.collection_name.cmp(&right.collection_name));
+    for collection in collections_for_checksum {
+        overall_checksum.update(collection.collection_name.as_bytes());
+        overall_checksum.update(b"|");
+        overall_checksum.update(collection.file_name.as_bytes());
+        overall_checksum.update(b"|");
+        overall_checksum.update(collection.document_count.to_le_bytes());
+        overall_checksum.update(b"|");
+        overall_checksum.update(collection.sha256.as_bytes());
+        overall_checksum.update(b"\n");
+    }
+
+    hex::encode(overall_checksum.finalize())
 }
 
 async fn export_collection(
@@ -216,29 +296,14 @@ pub async fn create_proposer_snapshot(
     };
     let snapshot_dir = snapshot_root_dir.join(&snapshot_id);
 
-    let mut overall_checksum = Sha256::new();
-    let mut collections_for_checksum: Vec<&SnapshotCollectionManifest> =
-        collections.iter().collect();
-    collections_for_checksum
-        .sort_by(|left, right| left.collection_name.cmp(&right.collection_name));
-    for collection in collections_for_checksum {
-        overall_checksum.update(collection.collection_name.as_bytes());
-        overall_checksum.update(b"|");
-        overall_checksum.update(collection.file_name.as_bytes());
-        overall_checksum.update(b"|");
-        overall_checksum.update(collection.document_count.to_le_bytes());
-        overall_checksum.update(b"|");
-        overall_checksum.update(collection.sha256.as_bytes());
-        overall_checksum.update(b"\n");
-    }
-
+    let overall_checksum = compute_overall_checksum(&collections);
     let manifest = ProposerSnapshotManifest::new(
         snapshot_id,
         created_at,
         DB.to_string(),
         &sync_state,
         collections,
-        hex::encode(overall_checksum.finalize()),
+        overall_checksum,
     );
     let result = async {
         let manifest_path: PathBuf = temp_snapshot_dir.join("manifest.json");
@@ -257,14 +322,187 @@ pub async fn create_proposer_snapshot(
     Ok(manifest)
 }
 
+async fn load_snapshot_manifest(
+    snapshot_dir: &Path,
+) -> Result<ProposerSnapshotManifest, SnapshotError> {
+    let manifest_path = snapshot_dir.join("manifest.json");
+    let manifest_bytes = fs::read(manifest_path).await?;
+    let manifest: ProposerSnapshotManifest = serde_json::from_slice(&manifest_bytes)?;
+
+    if manifest.schema_version != ProposerSnapshotManifest::SCHEMA_VERSION {
+        return Err(SnapshotError::UnsupportedManifestSchemaVersion(
+            manifest.schema_version,
+        ));
+    }
+
+    if manifest.storage_format != ProposerSnapshotManifest::STORAGE_FORMAT {
+        return Err(SnapshotError::UnsupportedManifestStorageFormat(
+            manifest.storage_format,
+        ));
+    }
+
+    Ok(manifest)
+}
+
+async fn validate_snapshot_files(
+    snapshot_dir: &Path,
+    manifest: &ProposerSnapshotManifest,
+) -> Result<(), SnapshotError> {
+    for collection in &manifest.collections {
+        let file_path = snapshot_dir.join(&collection.file_name);
+        if !fs::try_exists(&file_path).await? {
+            return Err(SnapshotError::MissingSnapshotFile(
+                collection.file_name.clone(),
+            ));
+        }
+
+        let file = File::open(file_path).await?;
+        let mut reader = BufReader::new(file).lines();
+        let mut checksum = Sha256::new();
+        let mut document_count = 0_u64;
+
+        while let Some(line) = reader.next_line().await? {
+            checksum.update(line.as_bytes());
+            checksum.update(b"\n");
+            document_count += 1;
+        }
+
+        let actual_checksum = hex::encode(checksum.finalize());
+        if actual_checksum != collection.sha256 {
+            return Err(SnapshotError::CollectionChecksumMismatch {
+                collection_name: collection.collection_name.clone(),
+                expected: collection.sha256.clone(),
+                actual: actual_checksum,
+            });
+        }
+
+        if document_count != collection.document_count {
+            return Err(SnapshotError::DocumentCountMismatch {
+                collection_name: collection.collection_name.clone(),
+                expected: collection.document_count,
+                actual: document_count,
+            });
+        }
+    }
+
+    let overall_checksum = compute_overall_checksum(&manifest.collections);
+    if overall_checksum != manifest.overall_sha256 {
+        return Err(SnapshotError::OverallChecksumMismatch {
+            expected: manifest.overall_sha256.clone(),
+            actual: overall_checksum,
+        });
+    }
+
+    Ok(())
+}
+
+async fn import_collection_into_shadow(
+    database: &mongodb::Database,
+    snapshot_dir: &Path,
+    manifest: &SnapshotCollectionManifest,
+    shadow_collection_name: &str,
+) -> Result<(), SnapshotError> {
+    let file = File::open(snapshot_dir.join(&manifest.file_name)).await?;
+    let mut reader = BufReader::new(file).lines();
+    let shadow_collection = database.collection::<Document>(shadow_collection_name);
+
+    while let Some(line) = reader.next_line().await? {
+        let document: Document = serde_json::from_str(&line)?;
+        shadow_collection.insert_one(document).await?;
+    }
+
+    let actual_count = shadow_collection
+        .count_documents(mongodb::bson::doc! {})
+        .await?;
+    if actual_count != manifest.document_count {
+        return Err(SnapshotError::DocumentCountMismatch {
+            collection_name: manifest.collection_name.clone(),
+            expected: manifest.document_count,
+            actual: actual_count,
+        });
+    }
+
+    Ok(())
+}
+
+pub async fn load_proposer_snapshot_into_shadow(
+    client: &mongodb::Client,
+    snapshot_dir: &Path,
+) -> Result<RestoreJournal, SnapshotError> {
+    let snapshot_dir = snapshot_dir.to_path_buf();
+    let manifest = load_snapshot_manifest(&snapshot_dir).await?;
+    validate_snapshot_files(&snapshot_dir, &manifest).await?;
+
+    let database = client.database(DB);
+    let existing_collections = database.list_collection_names().await?;
+    let restore_collections: Vec<RestoreJournalCollection> = manifest
+        .collections
+        .iter()
+        .map(|collection| RestoreJournalCollection {
+            live: collection.collection_name.clone(),
+            shadow: shadow_collection_name(&collection.collection_name),
+            backup: backup_collection_name(&collection.collection_name),
+        })
+        .collect();
+
+    let now = mongodb::bson::DateTime::now();
+    let mut journal = RestoreJournal::new_loading_shadow(
+        manifest.snapshot_id.clone(),
+        snapshot_dir.to_string_lossy().to_string(),
+        manifest.overall_sha256.clone(),
+        restore_collections.clone(),
+        now,
+    );
+    client.upsert_restore_journal(&journal).await?;
+
+    for restore_collection in &restore_collections {
+        if existing_collections
+            .iter()
+            .any(|name| name == &restore_collection.shadow)
+        {
+            database
+                .collection::<Document>(&restore_collection.shadow)
+                .drop()
+                .await?;
+        }
+
+        if existing_collections
+            .iter()
+            .any(|name| name == &restore_collection.backup)
+        {
+            database
+                .collection::<Document>(&restore_collection.backup)
+                .drop()
+                .await?;
+        }
+    }
+
+    for (manifest_collection, restore_collection) in
+        manifest.collections.iter().zip(restore_collections.iter())
+    {
+        import_collection_into_shadow(
+            &database,
+            &snapshot_dir,
+            manifest_collection,
+            &restore_collection.shadow,
+        )
+        .await?;
+    }
+
+    journal.updated_at = mongodb::bson::DateTime::now();
+    client.upsert_restore_journal(&journal).await?;
+
+    Ok(journal)
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
     use crate::{
         domain::entities::{L1Ref, SyncState},
-        driven::db::mongo_db::StoredBlock,
+        driven::db::mongo_db::{StoredBlock, RESTORE_JOURNAL_COLLECTION},
         ports::{
-            db::{BlockStorageDB, SyncStateDB},
+            db::{BlockStorageDB, RestoreJournalDB, SyncStateDB},
             trees::{CommitmentTree, HistoricRootTree, NullifierTree},
         },
     };
@@ -346,6 +584,113 @@ mod test {
             .collections
             .iter()
             .any(|collection| collection.collection_name == SYNC_STATE_COLLECTION));
+
+        fs::remove_dir_all(snapshot_root)
+            .await
+            .expect("cleanup snapshot directory");
+    }
+
+    #[tokio::test]
+    async fn load_proposer_snapshot_into_shadow_populates_shadow_collections_and_journal() {
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+
+        <mongodb::Client as CommitmentTree<Fr254>>::new_commitment_tree(&client, 29, 3)
+            .await
+            .expect("create commitment tree");
+        <mongodb::Client as HistoricRootTree<Fr254>>::new_historic_root_tree(&client, 32)
+            .await
+            .expect("create historic root tree");
+        <mongodb::Client as HistoricRootTree<Fr254>>::append_historic_commitment_root(
+            &client,
+            &Fr254::zero(),
+            true,
+        )
+        .await
+        .expect("append zero historic root");
+        <mongodb::Client as NullifierTree<Fr254>>::new_nullifier_tree(&client, 29, 3)
+            .await
+            .expect("create nullifier tree");
+
+        let stored_block = StoredBlock {
+            layer2_block_number: 8,
+            commitments: vec!["0xdef".to_string()],
+            proposer_address: Address::from([4u8; 20]),
+        };
+        client
+            .store_block(&stored_block)
+            .await
+            .expect("store block");
+
+        let sync_state = SyncState::new(
+            stored_block.layer2_block_number,
+            stored_block.hash().to_string(),
+            L1Ref {
+                block_number: 5678,
+                tx_hash: TxHash::from([8u8; 32]),
+                log_index: 4,
+            },
+            mongodb::bson::DateTime::now(),
+        );
+
+        let mut session = client.start_session().await.expect("start session");
+        session
+            .start_transaction()
+            .and_run2(async |session| {
+                client
+                    .update_sync_state_with_session(&sync_state, session)
+                    .await?;
+                Ok::<(), mongodb::error::Error>(())
+            })
+            .await
+            .expect("write sync_state");
+
+        let snapshot_root = std::env::temp_dir().join(format!(
+            "nf4-proposer-shadow-load-test-{}",
+            mongodb::bson::DateTime::now().timestamp_millis()
+        ));
+
+        let manifest = create_proposer_snapshot(&client, &snapshot_root)
+            .await
+            .expect("create snapshot");
+        let snapshot_dir = snapshot_root.join(&manifest.snapshot_id);
+
+        let journal = load_proposer_snapshot_into_shadow(&client, &snapshot_dir)
+            .await
+            .expect("load snapshot into shadow");
+
+        let stored_journal = client
+            .get_restore_journal()
+            .await
+            .expect("restore_journal should exist");
+        assert_eq!(stored_journal, journal);
+        assert_eq!(
+            stored_journal.phase,
+            crate::domain::entities::RestoreJournalPhase::LoadingShadow
+        );
+
+        let restore_journal_docs = client
+            .database(DB)
+            .collection::<Document>(RESTORE_JOURNAL_COLLECTION)
+            .count_documents(mongodb::bson::doc! {})
+            .await
+            .expect("count restore_journal docs");
+        assert_eq!(restore_journal_docs, 1);
+
+        for collection in &manifest.collections {
+            let shadow_name = format!("restore_shadow__{}", collection.collection_name);
+            let shadow_count = client
+                .database(DB)
+                .collection::<Document>(&shadow_name)
+                .count_documents(mongodb::bson::doc! {})
+                .await
+                .expect("count shadow documents");
+            assert_eq!(
+                shadow_count, collection.document_count,
+                "shadow collection {} should contain the manifest document count",
+                shadow_name
+            );
+        }
 
         fs::remove_dir_all(snapshot_root)
             .await
