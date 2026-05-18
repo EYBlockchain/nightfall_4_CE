@@ -204,6 +204,8 @@ where
     let reserved_pending_block = PendingBlock {
         layer2_block_number,
         state: PendingBlockState::Reserved,
+        broadcast_tx_hash: None,
+        broadcast_receipt_checks: 0,
         block: None,
         selected_deposits: included_depositinfos_group.clone(),
         selected_client_transaction_hashes: selected_client_transaction_hashes.clone(),
@@ -319,6 +321,8 @@ where
     let pending_block = PendingBlock {
         layer2_block_number,
         state: PendingBlockState::ReadyToPropose,
+        broadcast_tx_hash: None,
+        broadcast_receipt_checks: 0,
         block: Some(block),
         selected_deposits: included_depositinfos_group,
         selected_client_transaction_hashes,
@@ -2057,7 +2061,12 @@ mod tests {
             .count();
         assert_eq!(swap_count, 2, "Exactly one swap pair should be selected");
 
-        // One leg must remain in mempool.
+        let selected_deposits: Vec<Vec<DepositDatawithFee>> = vec![];
+        reserve_selected_transactions::<PlonkProof>(&db, &selected_deposits, &selected, 0)
+            .await
+            .unwrap();
+
+        // The selected pair is no longer selectable after reservation; the unmatched leg remains.
         let remaining_client = {
             let mempool_client_transactions: Option<
                 Vec<(Vec<u32>, ClientTransactionWithMetaData<PlonkProof>)>,

@@ -38,6 +38,13 @@ pub trait NightfallContract {
     /// Proposes a block
     async fn propose_block(block: Block) -> Result<ProposeBlockOutcome, NightfallContractError>;
 
+    /// Returns the receipt status for a proposal transaction.
+    ///
+    /// `Ok(None)` means the provider currently has no receipt for the transaction.
+    async fn get_proposal_receipt_status(
+        tx_hash: TxHash,
+    ) -> Result<Option<bool>, NightfallContractError>;
+
     /// Gets the current layer 2 block number from the blockchain
     async fn get_current_layer2_blocknumber() -> Result<I256, NightfallContractError>;
 }

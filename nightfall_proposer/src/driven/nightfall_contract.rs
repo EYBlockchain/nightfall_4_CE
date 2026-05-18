@@ -7,7 +7,10 @@ use crate::{
         BroadcastUnknownReason, NightfallContract, NotBroadcastReason, ProposeBlockOutcome,
     },
 };
-use alloy::primitives::I256;
+use alloy::{
+    primitives::{TxHash, I256},
+    providers::Provider,
+};
 use configuration::{addresses::get_addresses, settings::get_settings};
 use lib::{
     blockchain_client::BlockchainClientConnection, error::NightfallContractError,
@@ -132,5 +135,22 @@ impl NightfallContract for Nightfall::NightfallCalls {
             .call()
             .await
             .map_err(|_| NightfallContractError::TransactionError)?)
+    }
+
+    async fn get_proposal_receipt_status(
+        tx_hash: TxHash,
+    ) -> Result<Option<bool>, NightfallContractError> {
+        let blockchain_client = get_blockchain_client_connection()
+            .await
+            .read()
+            .await
+            .get_client();
+        let client = blockchain_client.root();
+        let receipt = client
+            .get_transaction_receipt(tx_hash)
+            .await
+            .map_err(|e| NightfallContractError::ProviderError(e.to_string()))?;
+
+        Ok(receipt.map(|receipt| receipt.status()))
     }
 }

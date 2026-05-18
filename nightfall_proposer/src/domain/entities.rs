@@ -1,3 +1,4 @@
+use alloy::primitives::TxHash;
 use ark_bn254::Fr as Fr254;
 use ark_serialize::SerializationError;
 use lib::{
@@ -47,6 +48,10 @@ pub struct PendingBlock {
     pub layer2_block_number: u64,
     #[serde(default = "default_pending_block_state")]
     pub state: PendingBlockState,
+    #[serde(default)]
+    pub broadcast_tx_hash: Option<TxHash>,
+    #[serde(default)]
+    pub broadcast_receipt_checks: u32,
     pub block: Option<Block>,
     pub selected_deposits: Vec<Vec<DepositDatawithFee>>,
     pub selected_client_transaction_hashes: Vec<Vec<u32>>,
