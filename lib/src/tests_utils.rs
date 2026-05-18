@@ -36,7 +36,28 @@ pub async fn get_db_connection(container: &ContainerAsync<GenericImage>) -> mong
     use tokio::time::{sleep, Duration};
 
     let host = container.get_host().await.unwrap();
-    let port = container.get_host_port_ipv4(27017).await.unwrap();
+    let mut port = None;
+    for _ in 0..10 {
+        match container.get_host_port_ipv4(27017).await {
+            Ok(mapped) => {
+                port = Some(mapped);
+                break;
+            }
+            Err(ipv4_error) => match container.get_host_port_ipv6(27017).await {
+                Ok(mapped) => {
+                    port = Some(mapped);
+                    break;
+                }
+                Err(ipv6_error) => {
+                    warn!(
+                        "Mongo testcontainer port mapping not ready yet (ipv4: {ipv4_error}, ipv6: {ipv6_error}), retrying..."
+                    );
+                    sleep(Duration::from_secs(1)).await;
+                }
+            },
+        }
+    }
+    let port = port.expect("Mongo testcontainer did not expose port 27017");
     let direct_uri = get_direct_db_connection_uri(&host, port);
     let rs_uri = get_db_connection_uri(host, port);
 
