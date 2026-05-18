@@ -1,7 +1,7 @@
 use crate::{
     domain::entities::{
-        ProposerSnapshotManifest, RestoreJournal, RestoreJournalCollection,
-        SnapshotCollectionManifest, SyncState,
+        ProposerSnapshotManifest, RestoreJournal, RestoreJournalCollection, RestoreJournalPhase,
+        RestoreJournalStep, SnapshotCollectionManifest, SyncState,
     },
     driven::db::mongo_db::{DB, PROPOSED_BLOCKS_COLLECTION, SYNC_STATE_COLLECTION},
     ports::db::RestoreJournalDB,
@@ -29,9 +29,15 @@ pub enum SnapshotError {
     Mongo(mongodb::error::Error),
     SerdeJson(serde_json::Error),
     MissingSyncState,
+    MissingRestoreJournal,
     UnsupportedManifestSchemaVersion(u32),
     UnsupportedManifestStorageFormat(String),
     MissingSnapshotFile(String),
+    UnexpectedRestoreJournalPhase {
+        expected: String,
+        actual: String,
+    },
+    RestoreInvariantViolation(String),
     CollectionChecksumMismatch {
         collection_name: String,
         expected: String,
@@ -60,6 +66,9 @@ impl Display for SnapshotError {
                 f,
                 "Cannot create proposer snapshot without a persisted sync_state"
             ),
+            Self::MissingRestoreJournal => {
+                write!(f, "Cannot continue restore flow without a persisted restore_journal")
+            }
             Self::UnsupportedManifestSchemaVersion(schema_version) => write!(
                 f,
                 "Unsupported proposer snapshot manifest schema version: {schema_version}"
@@ -70,6 +79,13 @@ impl Display for SnapshotError {
             ),
             Self::MissingSnapshotFile(file_name) => {
                 write!(f, "Snapshot file is missing from snapshot directory: {file_name}")
+            }
+            Self::UnexpectedRestoreJournalPhase { expected, actual } => write!(
+                f,
+                "Unexpected restore_journal phase: expected {expected}, got {actual}"
+            ),
+            Self::RestoreInvariantViolation(message) => {
+                write!(f, "Restore invariant violated: {message}")
             }
             Self::CollectionChecksumMismatch {
                 collection_name,
@@ -156,6 +172,23 @@ fn shadow_collection_name(live_collection_name: &str) -> String {
 
 fn backup_collection_name(live_collection_name: &str) -> String {
     format!("restore_backup__{live_collection_name}")
+}
+
+fn restore_collections_in_swap_order(
+    collections: &[RestoreJournalCollection],
+) -> Vec<RestoreJournalCollection> {
+    let mut ordered = collections.to_vec();
+    ordered.sort_by(|left, right| {
+        match (
+            left.live == SYNC_STATE_COLLECTION,
+            right.live == SYNC_STATE_COLLECTION,
+        ) {
+            (false, true) => std::cmp::Ordering::Less,
+            (true, false) => std::cmp::Ordering::Greater,
+            _ => left.live.cmp(&right.live),
+        }
+    });
+    ordered
 }
 
 fn compute_overall_checksum(collections: &[SnapshotCollectionManifest]) -> String {
@@ -425,6 +458,83 @@ async fn import_collection_into_shadow(
     Ok(())
 }
 
+async fn collection_exists(
+    database: &mongodb::Database,
+    collection_name: &str,
+) -> Result<bool, SnapshotError> {
+    let names = database.list_collection_names().await?;
+    Ok(names.iter().any(|name| name == collection_name))
+}
+
+async fn rename_collection(
+    client: &mongodb::Client,
+    from: &str,
+    to: &str,
+    drop_target: bool,
+) -> Result<(), SnapshotError> {
+    client
+        .database("admin")
+        .run_command(mongodb::bson::doc! {
+            "renameCollection": format!("{DB}.{from}"),
+            "to": format!("{DB}.{to}"),
+            "dropTarget": drop_target,
+        })
+        .await?;
+    Ok(())
+}
+
+async fn drop_collection_if_exists(
+    database: &mongodb::Database,
+    collection_name: &str,
+) -> Result<(), SnapshotError> {
+    if collection_exists(database, collection_name).await? {
+        database
+            .collection::<Document>(collection_name)
+            .drop()
+            .await?;
+    }
+    Ok(())
+}
+
+async fn rollback_shadow_swap(
+    client: &mongodb::Client,
+    journal: &RestoreJournal,
+) -> Result<(), SnapshotError> {
+    let database = client.database(DB);
+    let ordered = restore_collections_in_swap_order(&journal.collections);
+    let current_index = journal.current_index.unwrap_or(0) as usize;
+
+    let mut rollback_indices: Vec<usize> = if matches!(
+        journal.current_step,
+        Some(RestoreJournalStep::BackupCreated)
+    ) {
+        (0..=current_index).collect()
+    } else {
+        (0..current_index).collect()
+    };
+    rollback_indices.reverse();
+
+    for index in rollback_indices {
+        let collection = &ordered[index];
+        if !collection_exists(&database, &collection.backup).await? {
+            return Err(SnapshotError::RestoreInvariantViolation(format!(
+                "expected backup collection {} during rollback",
+                collection.backup
+            )));
+        }
+
+        rename_collection(client, &collection.backup, &collection.live, true).await?;
+    }
+
+    for collection in &ordered {
+        drop_collection_if_exists(&database, &collection.shadow).await?;
+        drop_collection_if_exists(&database, &collection.backup).await?;
+    }
+
+    client.delete_restore_journal().await?;
+    Ok(())
+}
+
 pub async fn load_proposer_snapshot_into_shadow(
     client: &mongodb::Client,
     snapshot_dir: &Path,
@@ -495,11 +605,93 @@ pub async fn load_proposer_snapshot_into_shadow(
     Ok(journal)
 }
 
+pub async fn swap_proposer_shadow_into_live(
+    client: &mongodb::Client,
+) -> Result<RestoreJournal, SnapshotError> {
+    let mut journal = client
+        .get_restore_journal()
+        .await
+        .ok_or(SnapshotError::MissingRestoreJournal)?;
+
+    if journal.phase != RestoreJournalPhase::LoadingShadow {
+        return Err(SnapshotError::UnexpectedRestoreJournalPhase {
+            expected: "loading_shadow".to_string(),
+            actual: format!("{:?}", journal.phase),
+        });
+    }
+
+    let database = client.database(DB);
+    let ordered = restore_collections_in_swap_order(&journal.collections);
+    journal.collections = ordered.clone();
+    journal.phase = RestoreJournalPhase::SwapInProgress;
+    journal.current_index = Some(0);
+    journal.current_step = Some(RestoreJournalStep::BackupPending);
+    journal.updated_at = mongodb::bson::DateTime::now();
+    client.upsert_restore_journal(&journal).await?;
+
+    for (index, collection) in ordered.iter().enumerate() {
+        let swap_result = async {
+            if collection_exists(&database, &collection.backup).await? {
+                return Err(SnapshotError::RestoreInvariantViolation(format!(
+                    "backup collection {} already exists before swap",
+                    collection.backup
+                )));
+            }
+
+            if !collection_exists(&database, &collection.live).await? {
+                return Err(SnapshotError::RestoreInvariantViolation(format!(
+                    "live collection {} is missing before swap",
+                    collection.live
+                )));
+            }
+
+            if !collection_exists(&database, &collection.shadow).await? {
+                return Err(SnapshotError::RestoreInvariantViolation(format!(
+                    "shadow collection {} is missing before swap",
+                    collection.shadow
+                )));
+            }
+
+            rename_collection(client, &collection.live, &collection.backup, false).await?;
+
+            journal.current_index = Some(index as u32);
+            journal.current_step = Some(RestoreJournalStep::BackupCreated);
+            journal.updated_at = mongodb::bson::DateTime::now();
+            client.upsert_restore_journal(&journal).await?;
+
+            rename_collection(client, &collection.shadow, &collection.live, false).await?;
+
+            if index + 1 < ordered.len() {
+                journal.current_index = Some((index + 1) as u32);
+                journal.current_step = Some(RestoreJournalStep::BackupPending);
+                journal.updated_at = mongodb::bson::DateTime::now();
+                client.upsert_restore_journal(&journal).await?;
+            }
+
+            Ok::<(), SnapshotError>(())
+        }
+        .await;
+
+        if let Err(error) = swap_result {
+            rollback_shadow_swap(client, &journal).await?;
+            return Err(error);
+        }
+    }
+
+    journal.phase = RestoreJournalPhase::SwapComplete;
+    journal.current_index = None;
+    journal.current_step = None;
+    journal.updated_at = mongodb::bson::DateTime::now();
+    client.upsert_restore_journal(&journal).await?;
+
+    Ok(journal)
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
     use crate::{
-        domain::entities::{L1Ref, SyncState},
+        domain::entities::{L1Ref, RestoreJournalPhase, SyncState},
         driven::db::mongo_db::{StoredBlock, RESTORE_JOURNAL_COLLECTION},
         ports::{
             db::{BlockStorageDB, RestoreJournalDB, SyncStateDB},
@@ -691,6 +883,157 @@ mod test {
                 shadow_name
             );
         }
+
+        fs::remove_dir_all(snapshot_root)
+            .await
+            .expect("cleanup snapshot directory");
+    }
+
+    #[tokio::test]
+    async fn swap_proposer_shadow_into_live_marks_swap_complete_and_keeps_backups() {
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+
+        <mongodb::Client as CommitmentTree<Fr254>>::new_commitment_tree(&client, 29, 3)
+            .await
+            .expect("create commitment tree");
+        <mongodb::Client as HistoricRootTree<Fr254>>::new_historic_root_tree(&client, 32)
+            .await
+            .expect("create historic root tree");
+        <mongodb::Client as HistoricRootTree<Fr254>>::append_historic_commitment_root(
+            &client,
+            &Fr254::zero(),
+            true,
+        )
+        .await
+        .expect("append zero historic root");
+        <mongodb::Client as NullifierTree<Fr254>>::new_nullifier_tree(&client, 29, 3)
+            .await
+            .expect("create nullifier tree");
+
+        let snapshot_block = StoredBlock {
+            layer2_block_number: 8,
+            commitments: vec!["0xdef".to_string()],
+            proposer_address: Address::from([4u8; 20]),
+        };
+        client
+            .store_block(&snapshot_block)
+            .await
+            .expect("store snapshot block");
+
+        let snapshot_sync_state = SyncState::new(
+            snapshot_block.layer2_block_number,
+            snapshot_block.hash().to_string(),
+            L1Ref {
+                block_number: 5678,
+                tx_hash: TxHash::from([8u8; 32]),
+                log_index: 4,
+            },
+            mongodb::bson::DateTime::now(),
+        );
+
+        let mut session = client.start_session().await.expect("start session");
+        session
+            .start_transaction()
+            .and_run2(async |session| {
+                client
+                    .update_sync_state_with_session(&snapshot_sync_state, session)
+                    .await?;
+                Ok::<(), mongodb::error::Error>(())
+            })
+            .await
+            .expect("write snapshot sync_state");
+
+        let snapshot_root = std::env::temp_dir().join(format!(
+            "nf4-proposer-shadow-swap-test-{}",
+            mongodb::bson::DateTime::now().timestamp_millis()
+        ));
+
+        let manifest = create_proposer_snapshot(&client, &snapshot_root)
+            .await
+            .expect("create snapshot");
+        let snapshot_dir = snapshot_root.join(&manifest.snapshot_id);
+
+        let new_live_block = StoredBlock {
+            layer2_block_number: 9,
+            commitments: vec!["0x123".to_string()],
+            proposer_address: Address::from([5u8; 20]),
+        };
+        client
+            .store_block(&new_live_block)
+            .await
+            .expect("store newer live block");
+
+        let new_live_sync_state = SyncState::new(
+            new_live_block.layer2_block_number,
+            new_live_block.hash().to_string(),
+            L1Ref {
+                block_number: 91011,
+                tx_hash: TxHash::from([7u8; 32]),
+                log_index: 5,
+            },
+            mongodb::bson::DateTime::now(),
+        );
+        let mut session = client.start_session().await.expect("start session");
+        session
+            .start_transaction()
+            .and_run2(async |session| {
+                client
+                    .update_sync_state_with_session(&new_live_sync_state, session)
+                    .await?;
+                Ok::<(), mongodb::error::Error>(())
+            })
+            .await
+            .expect("write newer live sync_state");
+
+        load_proposer_snapshot_into_shadow(&client, &snapshot_dir)
+            .await
+            .expect("load snapshot into shadow");
+        let journal = swap_proposer_shadow_into_live(&client)
+            .await
+            .expect("swap shadow into live");
+
+        assert_eq!(journal.phase, RestoreJournalPhase::SwapComplete);
+        assert_eq!(journal.current_index, None);
+        assert_eq!(journal.current_step, None);
+
+        let live_sync_state = client
+            .get_sync_state()
+            .await
+            .expect("live sync_state should exist");
+        assert_eq!(live_sync_state.last_applied_l2_block, 8);
+        assert_eq!(
+            live_sync_state.fingerprint,
+            snapshot_block.hash().to_string()
+        );
+
+        let live_blocks_count = client
+            .database(DB)
+            .collection::<Document>(PROPOSED_BLOCKS_COLLECTION)
+            .count_documents(mongodb::bson::doc! {})
+            .await
+            .expect("count live proposed blocks");
+        assert_eq!(live_blocks_count, 1);
+
+        let backup_blocks_count = client
+            .database(DB)
+            .collection::<Document>(&backup_collection_name(PROPOSED_BLOCKS_COLLECTION))
+            .count_documents(mongodb::bson::doc! {})
+            .await
+            .expect("count backup proposed blocks");
+        assert_eq!(backup_blocks_count, 2);
+
+        let shadow_sync_state_exists = client
+            .database(DB)
+            .list_collection_names()
+            .await
+            .expect("list collections")
+            .iter()
+            .any(|name| name == &shadow_collection_name(SYNC_STATE_COLLECTION));
+        assert!(
+            !shadow_sync_state_exists,
+            "shadow sync_state should have been renamed away"
+        );
 
         fs::remove_dir_all(snapshot_root)
             .await
