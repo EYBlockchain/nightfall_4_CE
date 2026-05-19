@@ -281,6 +281,10 @@ where
         warn!("{id} Value or fee not conserved in this transaction: rejecting");
         return Err("Value or fee not conserved in this transaction: rejecting");
     }
+    let spent_nf_token_ids = [
+        spend_commitments[0].get_nf_token_id(),
+        spend_commitments[1].get_nf_token_id(),
+    ];
 
     // Collect the public keys from the nullified commitments
     let public_keys: [TEAffine<BabyJubJub>; 4] = spend_commitments
@@ -309,6 +313,7 @@ where
             .party_a_public_key(party_a_public_key)
             .party_b_public_key(party_b_public_key)
             .value_a(value_a)
+            .spent_nf_token_ids(spent_nf_token_ids)
             .nf_token_a_id(nf_token_a_id)
             .nf_token_b_id(nf_token_b_id)
             .value_b(value_b)

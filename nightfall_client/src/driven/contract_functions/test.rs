@@ -134,8 +134,12 @@ impl NightfallContract for Nightfall::NightfallCalls {
         // We calculate the the nf_token_id and nf_slot_id here
         let nf_token_id =
             to_nf_token_id_from_solidity(solidity_token_address.0, solidity_token_id.0);
-        let nf_slot_id =
-            to_nf_slot_id_from_solidity(solidity_token_address.0, solidity_token_id.0, slot_id);
+        let nf_slot_id = to_nf_slot_id_from_solidity(
+            solidity_token_address.0,
+            solidity_token_id.0,
+            slot_id,
+            token_type,
+        );
         Ok([nf_token_id, nf_slot_id])
     }
 

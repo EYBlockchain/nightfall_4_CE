@@ -110,9 +110,9 @@ impl NightfallContract for Nightfall::NightfallCalls {
             })?;
 
         info!("Gas used in escrow funds: {:?}", receipt.gas_used);
-        let slot_id = if let TokenType::ERC3525 = token_type {
+        let nf_slot_id = if let TokenType::ERC3525 = token_type {
             let erc_contract = IERC3525::new(solidity_token_address.0, client.clone());
-            erc_contract
+            let slot_id = erc_contract
                 .slotOf(solidity_token_id.0)
                 .call()
                 .await
@@ -120,16 +120,25 @@ impl NightfallContract for Nightfall::NightfallCalls {
                     NightfallContractError::EscrowError(
                         "Could not retrieve ERC3525 slot".to_string(),
                     )
-                })?
+                })?;
+            to_nf_slot_id_from_solidity(
+                solidity_token_address.0,
+                solidity_token_id.0,
+                slot_id,
+                token_type,
+            )
         } else {
-            solidity_token_id.0
+            to_nf_slot_id_from_solidity(
+                solidity_token_address.0,
+                solidity_token_id.0,
+                solidity_token_id.0,
+                token_type,
+            )
         };
 
         // We calculate the the nf_token_id and nf_slot_id here
         let nf_token_id =
             to_nf_token_id_from_solidity(solidity_token_address.0, solidity_token_id.0);
-        let nf_slot_id =
-            to_nf_slot_id_from_solidity(solidity_token_address.0, solidity_token_id.0, slot_id);
         Ok([nf_token_id, nf_slot_id])
     }
 
