@@ -44,6 +44,18 @@ fn snapshot_root_dir() -> PathBuf {
     PathBuf::from(&get_settings().nightfall_proposer.snapshot_root_dir)
 }
 
+async fn initialize_snapshot_scheduler_state_for_root(root: &Path) -> Result<(), SnapshotError> {
+    cleanup_orphaned_proposer_snapshot_temp_dirs(root).await?;
+    let latest_snapshot_l2_block = match find_latest_valid_proposer_snapshot(root, u64::MAX).await?
+    {
+        Some((_, manifest)) => manifest.last_applied_l2_block,
+        None => 0,
+    };
+
+    *get_last_snapshot_l2_block().await.write().await = latest_snapshot_l2_block;
+    Ok(())
+}
+
 pub fn maybe_should_snapshot(
     current_l2_block: u64,
     last_snapshot_l2_block: u64,
@@ -57,16 +69,7 @@ pub fn maybe_should_snapshot(
 }
 
 pub async fn initialize_snapshot_scheduler_state() -> Result<(), SnapshotError> {
-    let root = snapshot_root_dir();
-    cleanup_orphaned_proposer_snapshot_temp_dirs(&root).await?;
-    let latest_snapshot_l2_block =
-        match find_latest_valid_proposer_snapshot(&root, u64::MAX).await? {
-            Some((_, manifest)) => manifest.last_applied_l2_block,
-            None => 0,
-        };
-
-    *get_last_snapshot_l2_block().await.write().await = latest_snapshot_l2_block;
-    Ok(())
+    initialize_snapshot_scheduler_state_for_root(&snapshot_root_dir()).await
 }
 
 async fn prune_old_snapshots_by_manifest(
@@ -194,6 +197,15 @@ pub async fn maybe_schedule_snapshot_for_applied_block(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio::sync::{Mutex, OnceCell as TokioOnceCell};
+
+    async fn scheduler_test_lock() -> tokio::sync::MutexGuard<'static, ()> {
+        static LOCK: TokioOnceCell<Mutex<()>> = TokioOnceCell::const_new();
+        LOCK.get_or_init(|| async { Mutex::new(()) })
+            .await
+            .lock()
+            .await
+    }
     use mongodb::bson::DateTime;
 
     #[test]
@@ -205,6 +217,7 @@ mod tests {
 
     #[tokio::test]
     async fn prune_old_snapshots_keeps_only_most_recent_snapshots() {
+        let _scheduler_test_lock = scheduler_test_lock().await;
         let root = std::env::temp_dir().join(format!(
             "nf4-proposer-prune-test-{}",
             DateTime::now().timestamp_millis()
@@ -264,5 +277,71 @@ mod tests {
         );
 
         fs::remove_dir_all(root).await.expect("cleanup prune root");
+    }
+
+    #[tokio::test]
+    async fn initialize_snapshot_scheduler_state_cleans_orphan_temp_dirs_and_tracks_latest() {
+        let _scheduler_test_lock = scheduler_test_lock().await;
+        let root = std::env::temp_dir().join(format!(
+            "nf4-proposer-scheduler-init-test-{}",
+            DateTime::now().timestamp_millis()
+        ));
+        fs::create_dir_all(&root).await.expect("create root");
+
+        fs::create_dir_all(root.join(".tmp-proposer-snapshot-orphan"))
+            .await
+            .expect("create orphan temp dir");
+
+        for index in [3_u64, 9_u64] {
+            let snapshot_dir = root.join(format!("snapshot-{index}"));
+            fs::create_dir_all(&snapshot_dir)
+                .await
+                .expect("create snapshot dir");
+            let manifest = crate::domain::entities::ProposerSnapshotManifest {
+                snapshot_id: format!("snapshot-{index}"),
+                schema_version: crate::domain::entities::ProposerSnapshotManifest::SCHEMA_VERSION,
+                created_at: DateTime::now(),
+                storage_format: crate::domain::entities::ProposerSnapshotManifest::STORAGE_FORMAT
+                    .to_string(),
+                database: "proposer".to_string(),
+                last_applied_l2_block: index,
+                fingerprint: format!("fingerprint-{index}"),
+                l1_ref: crate::domain::entities::L1Ref {
+                    block_number: index,
+                    tx_hash: alloy::primitives::TxHash::from([index as u8; 32]),
+                    log_index: 0,
+                },
+                collections: Vec::new(),
+                overall_sha256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                    .to_string(),
+            };
+            fs::write(
+                snapshot_dir.join("manifest.json"),
+                serde_json::to_vec(&manifest).expect("serialize manifest"),
+            )
+            .await
+            .expect("write manifest");
+        }
+
+        initialize_snapshot_scheduler_state_for_root(&root)
+            .await
+            .expect("initialize scheduler state");
+
+        let names: Vec<String> = {
+            let mut entries = fs::read_dir(&root).await.expect("read root");
+            let mut names = Vec::new();
+            while let Some(entry) = entries.next_entry().await.expect("read entry") {
+                names.push(entry.file_name().to_string_lossy().to_string());
+            }
+            names
+        };
+        assert!(!names
+            .iter()
+            .any(|name| name.starts_with(".tmp-proposer-snapshot-")));
+        assert_eq!(*get_last_snapshot_l2_block().await.read().await, 9);
+
+        fs::remove_dir_all(root)
+            .await
+            .expect("cleanup scheduler init root");
     }
 }
