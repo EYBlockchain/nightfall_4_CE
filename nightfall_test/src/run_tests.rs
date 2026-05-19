@@ -858,22 +858,49 @@ pub async fn run_tests(
     .await
     .unwrap();
 
-    let same_slot_erc3525_transaction =
-        wait_for_all_responses(&[same_slot_erc3525_transfer_id], responses.clone())
-            .await
-            .into_iter()
-            .map(|(_, l)| {
-                serde_json::from_str::<(Value, Option<TransactionReceipt>)>(&l)
-                    .expect("Failed to parse response")
-            })
-            .map(|l| l.0)
-            .next()
-            .expect("Missing same-slot ERC3525 transfer response");
+    info!("Sending ERC3525 token 0x08 transfer from client 1 to client 2");
+    let erc3525_transfer_2_id = create_nf3_transfer_transaction(
+        zkp_key2.clone(),
+        &http_client,
+        url.clone(),
+        TokenType::ERC3525,
+        test_settings.erc3525_transfer_2,
+    )
+    .await
+    .unwrap();
+    debug!("transaction_erc3525_transfer_2 has been created");
+
+    let erc3525_transfer_transactions = wait_for_all_responses(
+        &[same_slot_erc3525_transfer_id, erc3525_transfer_2_id],
+        responses.clone(),
+    )
+    .await
+    .into_iter()
+    .map(|(id, l)| {
+        let transaction = serde_json::from_str::<(Value, Option<TransactionReceipt>)>(&l)
+            .expect("Failed to parse response")
+            .0;
+        (id, transaction)
+    })
+    .collect::<HashMap<_, _>>();
+
+    let same_slot_erc3525_transaction = erc3525_transfer_transactions
+        .get(&same_slot_erc3525_transfer_id)
+        .expect("Missing same-slot ERC3525 transfer response");
+    let erc3525_transfer_2_transaction = erc3525_transfer_transactions
+        .get(&erc3525_transfer_2_id)
+        .expect("Missing ERC3525 token 0x08 transfer response");
 
     let same_slot_erc3525_commitment = Fr254::from_hex_string(
         same_slot_erc3525_transaction["commitments"][0]
             .as_str()
             .expect("Missing same-slot ERC3525 commitment"),
+    )
+    .unwrap();
+    let erc3525_transfer_2_commitment = Fr254::from_hex_string(
+        erc3525_transfer_2_transaction["commitments"][0]
+            .as_str()
+            .expect("Missing ERC3525 token 0x08 transfer commitment"),
     )
     .unwrap();
 
@@ -884,6 +911,10 @@ pub async fn run_tests(
     .await
     .unwrap();
     info!("Same-slot ERC3525 transfer commitment is now on-chain");
+    wait_on_chain(&[erc3525_transfer_2_commitment], "http://client2:3000")
+        .await
+        .unwrap();
+    info!("ERC3525 token 0x08 transfer commitment is now on-chain for client2");
 
     //check that the new balances are as expected
     let balance = get_erc20_balance(
