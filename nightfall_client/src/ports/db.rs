@@ -18,6 +18,7 @@ pub trait RequestDB {
     async fn update_request_child_args(&self, id: &str, child_args: &str) -> Option<()>;
     async fn clear_request_child_args(&self, id: &str) -> Option<()>;
     async fn set_request_tx_hash(&self, id: &str, tx_hash: &str) -> Option<()>;
+    async fn set_request_receipt_token(&self, id: &str, receipt_token: &str) -> Option<()>;
 }
 
 #[async_trait]

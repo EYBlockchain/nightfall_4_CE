@@ -33,6 +33,7 @@ pub struct CreateTransferReceiptRequest {
     pub tx_hash: String,
     pub ciphertext: String,
     pub version: Option<u8>,
+    pub receipt_token: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -105,6 +106,16 @@ async fn handle_create_transfer_receipt<P: Proof>(
     let tx_meta = <mongodb::Client as TransactionsDB<P>>::get_transaction(db, &tx_hash_vec)
         .await
         .ok_or_else(|| warp::reject::custom(ProposerRejection::TransferReceiptTxNotFound))?;
+
+    // Verify the caller has authority to attach a receipt to this transaction.
+    let stored_token = tx_meta.receipt_token.as_deref().unwrap_or("");
+    if stored_token.is_empty()
+        || !constant_time_eq(stored_token.as_bytes(), request.receipt_token.as_bytes())
+    {
+        return Err(warp::reject::custom(
+            ProposerRejection::TransferReceiptUnauthorized,
+        ));
+    }
 
     let now = unix_now() as i64;
     let status = derive_status(tx_meta.lifecycle.block_l2());
@@ -258,6 +269,17 @@ fn generate_receipt_id() -> String {
     let mut bytes = [0u8; 32];
     OsRng.fill_bytes(&mut bytes);
     hex::encode(bytes)
+}
+
+/// Constant-time byte comparison to prevent timing side-channels on token validation.
+fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    a.iter()
+        .zip(b.iter())
+        .fold(0u8, |acc, (x, y)| acc | (x ^ y))
+        == 0
 }
 
 fn validate_tx_hash(tx_hash: &str) -> Result<TxHashBytes, ReceiptValidationError> {

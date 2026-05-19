@@ -102,6 +102,10 @@ pub struct ClientTransactionWithMetaData<P> {
     pub hash: Vec<u32>,
     #[serde(serialize_with = "ark_se_hex", deserialize_with = "ark_de_hex")]
     pub historic_roots: Vec<Fr254>,
+    /// Capability token required to create a transfer receipt for this transaction.
+    /// Generated at submission time and returned to the submitter.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub receipt_token: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -113,6 +117,8 @@ struct ClientTransactionWithMetaDataSerde<P> {
     pub in_mempool: Option<bool>,
     #[serde(default)]
     pub cancelled_explicitly: bool,
+    #[serde(default)]
+    pub receipt_token: Option<String>,
     pub hash: Vec<u32>,
     #[serde(deserialize_with = "ark_de_hex")]
     pub historic_roots: Vec<Fr254>,
@@ -152,6 +158,7 @@ where
             lifecycle,
             hash: helper.hash,
             historic_roots: helper.historic_roots,
+            receipt_token: helper.receipt_token,
         })
     }
 }
@@ -310,6 +317,7 @@ mod tests {
             lifecycle: TxLifecycle::Selected { block_l2: 7 },
             hash: vec![1, 2, 3],
             historic_roots: vec![],
+            receipt_token: None,
         };
         let mut value = to_value(&tx).expect("serialize tx");
         let map = value
@@ -337,6 +345,7 @@ mod tests {
             lifecycle: TxLifecycle::Cancelled,
             hash: vec![4, 5, 6],
             historic_roots: vec![Fr254::from(9u64)],
+            receipt_token: None,
         };
 
         let value = to_value(&tx).expect("serialize tx");

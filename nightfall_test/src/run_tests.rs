@@ -1,14 +1,14 @@
 use crate::{
     test::{
-        self, create_nf3_deposit_transaction,
-        create_nf3_swap_request, create_nf3_transfer_transaction, create_nf3_withdraw_transaction,
+        self, create_nf3_deposit_transaction, create_nf3_swap_request,
+        create_nf3_transfer_transaction, create_nf3_withdraw_transaction,
         create_transfer_receipt_full, create_transfer_receipt_raw,
         generate_realistic_receipt_ciphertext, get_key, get_recipient_address,
         get_transfer_receipt_status, get_transfer_receipt_status_raw,
-        get_tx_hash_from_request_status, resolve_transfer_receipt,
-        resolve_transfer_receipt_raw, set_anvil_mining_interval,
-        submit_swap_pair_and_assert_paired, verify_deposit_commitments_nf_token_id,
-        wait_for_all_responses, wait_for_withdraws_on_chain, wait_on_chain, TokenType,
+        get_tx_hash_from_request_status, resolve_transfer_receipt, resolve_transfer_receipt_raw,
+        set_anvil_mining_interval, submit_swap_pair_and_assert_paired,
+        verify_deposit_commitments_nf_token_id, wait_for_all_responses,
+        wait_for_withdraws_on_chain, wait_on_chain, TokenType,
     },
     test_settings::TestSettings,
     validate_certs::validate_all_certificates,
@@ -864,13 +864,19 @@ pub async fn run_tests(
         info!("Generated realistic receipt ciphertext (576 hex chars) via receipt_kemdem_encrypt");
 
         // Obtain tx_hash via the client request status API — mirrors the wallet flow.
-        let tx_hash = get_tx_hash_from_request_status(
+        let request_metadata = get_tx_hash_from_request_status(
             &http_client,
             &client_base_url,
             &transaction_ids[0].to_string(),
         )
         .await
-        .expect("first transaction should have tx_hash in request status");
+        .expect("first transaction should have tx_hash and receipt_token in request status");
+        let tx_hash = request_metadata
+            .tx_hash
+            .expect("request status tx_hash missing");
+        let receipt_token = request_metadata
+            .receipt_token
+            .expect("request status receipt_token missing");
 
         info!("Receipt Test 1: Create receipt — happy path");
         let (create_status, create_resp) = create_transfer_receipt_full(
@@ -879,6 +885,7 @@ pub async fn run_tests(
             &tx_hash,
             &ctx.ciphertext_hex,
             Some(1),
+            &receipt_token,
         )
         .await
         .expect("Receipt Test 1 failed");
@@ -939,6 +946,7 @@ pub async fn run_tests(
             &tx_hash,
             &ctx.ciphertext_hex,
             Some(1),
+            &receipt_token,
         )
         .await
         .expect("Receipt Test 4 failed");
@@ -955,6 +963,7 @@ pub async fn run_tests(
             &tx_hash,
             &mismatch_ctx.ciphertext_hex,
             Some(1),
+            &receipt_token,
         )
         .await
         .expect_err("mismatched ciphertext must fail");
@@ -968,6 +977,7 @@ pub async fn run_tests(
             &tx_hash,
             &ctx.ciphertext_hex,
             Some(99),
+            &receipt_token,
         )
         .await
         .expect_err("mismatched version must fail");
@@ -982,6 +992,7 @@ pub async fn run_tests(
             &unknown_tx_hash,
             &ctx.ciphertext_hex,
             Some(1),
+            "placeholder-receipt-token",
         )
         .await
         .expect_err("unknown tx_hash must fail");
@@ -1019,6 +1030,7 @@ pub async fn run_tests(
             "abcd1234",
             &ctx.ciphertext_hex,
             Some(1),
+            "placeholder-receipt-token",
         )
         .await
         .expect_err("short tx_hash must fail");
@@ -1031,6 +1043,7 @@ pub async fn run_tests(
             "",
             &ctx.ciphertext_hex,
             Some(1),
+            "placeholder-receipt-token",
         )
         .await
         .expect_err("empty tx_hash must fail");
@@ -1043,6 +1056,7 @@ pub async fn run_tests(
             &"zz".repeat(32),
             &ctx.ciphertext_hex,
             Some(1),
+            "placeholder-receipt-token",
         )
         .await
         .expect_err("non-hex tx_hash must fail");
@@ -1055,6 +1069,7 @@ pub async fn run_tests(
             &unknown_tx_hash,
             &"ab".repeat(100),
             Some(1),
+            "placeholder-receipt-token",
         )
         .await
         .expect_err("short ciphertext must fail");
@@ -1067,6 +1082,7 @@ pub async fn run_tests(
             &unknown_tx_hash,
             &"ab".repeat(1025),
             Some(1),
+            "placeholder-receipt-token",
         )
         .await
         .expect_err("oversized ciphertext must fail");
@@ -1079,6 +1095,7 @@ pub async fn run_tests(
             &unknown_tx_hash,
             &"zz".repeat(288),
             Some(1),
+            "placeholder-receipt-token",
         )
         .await
         .expect_err("non-hex ciphertext must fail");
@@ -1091,6 +1108,7 @@ pub async fn run_tests(
             &unknown_tx_hash,
             &"a".repeat(577),
             Some(1),
+            "placeholder-receipt-token",
         )
         .await
         .expect_err("odd ciphertext must fail");
@@ -1104,6 +1122,7 @@ pub async fn run_tests(
             &fresh_tx_hash_for_version,
             &ctx.ciphertext_hex,
             Some(2),
+            "placeholder-receipt-token",
         )
         .await
         .expect_err("unsupported version must fail");
@@ -1111,13 +1130,19 @@ pub async fn run_tests(
 
         info!("Receipt Test 20: Create receipt for second valid tx_hash");
         if transactions.len() > 1 {
-            let tx_hash_2 = get_tx_hash_from_request_status(
+            let request_metadata_2 = get_tx_hash_from_request_status(
                 &http_client,
                 &client_base_url,
                 &transaction_ids[1].to_string(),
             )
             .await
-            .expect("second transaction should have tx_hash in request status");
+            .expect("second transaction should have tx_hash and receipt_token in request status");
+            let tx_hash_2 = request_metadata_2
+                .tx_hash
+                .expect("second request status tx_hash missing");
+            let receipt_token_2 = request_metadata_2
+                .receipt_token
+                .expect("second request status receipt_token missing");
             let ctx2 = generate_realistic_receipt_ciphertext();
             let (create_status_2, create_resp_2) = create_transfer_receipt_full(
                 &http_client,
@@ -1125,6 +1150,7 @@ pub async fn run_tests(
                 &tx_hash_2,
                 &ctx2.ciphertext_hex,
                 Some(1),
+                &receipt_token_2,
             )
             .await
             .expect("second receipt create failed");

@@ -27,6 +27,9 @@ pub struct Request {
     /// Populated after the transaction is successfully submitted to the proposer.
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub tx_hash: Option<String>,
+    /// Capability token returned by the proposer for authorized transfer receipt creation.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub receipt_token: Option<String>,
 }
 
 /// Struct to represent the realtionship between request and commitment

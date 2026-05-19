@@ -167,6 +167,7 @@ impl RequestDB for Client {
             status,
             child_request_args: None,
             tx_hash: None,
+            receipt_token: None,
         };
         let result = self
             .database(DB)
@@ -258,6 +259,21 @@ impl RequestDB for Client {
             .await;
         if let Err(e) = result {
             error!("{request_id} Got an error setting tx_hash: {e}");
+            return None;
+        }
+        Some(())
+    }
+
+    async fn set_request_receipt_token(&self, request_id: &str, receipt_token: &str) -> Option<()> {
+        let filter = doc! { "uuid": request_id };
+        let update = doc! { "$set": { "receipt_token": receipt_token } };
+        let result = self
+            .database(DB)
+            .collection::<Request>("requests")
+            .update_one(filter, update)
+            .await;
+        if let Err(e) = result {
+            error!("{request_id} Got an error setting receipt_token: {e}");
             return None;
         }
         Some(())

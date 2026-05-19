@@ -124,6 +124,10 @@ async fn handle_rejection(err: Rejection) -> Result<impl Reply, std::convert::In
                 "Transfer receipt already exists for this transaction",
                 warp::http::StatusCode::CONFLICT,
             )),
+            ProposerRejection::TransferReceiptUnauthorized => Ok(reply::with_status(
+                "Invalid or missing receipt token for this transaction",
+                warp::http::StatusCode::UNAUTHORIZED,
+            )),
         }
     } else {
         Ok(reply::with_status(

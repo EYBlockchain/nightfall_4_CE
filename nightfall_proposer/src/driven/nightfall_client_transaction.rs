@@ -81,7 +81,7 @@ impl<E: ProvingEngine<P>, P: Proof> reject::Reject for ClientTransactionError<E,
 /// This function checks a client transaction that has been received from a client, either directly or via a blockchain event.
 pub async fn process_nightfall_client_transaction<P, E>(
     client_transaction: ClientTransaction<P>,
-) -> Result<(), ClientTransactionError<E, P>>
+) -> Result<String, ClientTransactionError<E, P>>
 where
     E: ProvingEngine<P>,
     P: Proof,
@@ -140,11 +140,16 @@ where
 
     // 5) Validate that we can convert the transaction into a form suitable for the nightfall contract bindings
     let _: OnChainTransaction = (&client_transaction).into();
+
+    // Generate a receipt capability token for the submitter
+    let receipt_token = generate_receipt_token();
+
     let client_transaction_with_metadata = ClientTransactionWithMetaData::<P> {
         client_transaction: client_transaction.clone(),
         lifecycle: TxLifecycle::Mempool,
         hash: hash.to_vec(),
         historic_roots: vec![client_transaction.historic_commitment_root],
+        receipt_token: Some(receipt_token.clone()),
     };
 
     // 6) Validate that the first nullifier is not zero (we must nullify the first spent commitment)
@@ -156,9 +161,17 @@ where
     info!("Client Transaction is valid, storing in database");
     let key = db.store_transaction(client_transaction_with_metadata).await;
     match key {
-        Some(_key) => Ok(()),
+        Some(_key) => Ok(receipt_token),
         None => Err(ClientTransactionError::CouldNotStoreTransaction),
     }
+}
+
+/// Generates a cryptographically random 32-byte hex token for receipt authorization.
+fn generate_receipt_token() -> String {
+    use rand::{rngs::OsRng, RngCore};
+    let mut bytes = [0u8; 32];
+    OsRng.fill_bytes(&mut bytes);
+    hex::encode(bytes)
 }
 /// This function checks a client transaction that has been received from a client, either directly or via a blockchain event.
 pub async fn process_deposit_transaction<P, E>(

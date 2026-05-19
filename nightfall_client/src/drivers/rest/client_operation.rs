@@ -34,7 +34,7 @@ use nf_curves::ed_on_bn254::BabyJubjub;
 use nf_curves::ed_on_bn254::Fr as BJJScalar;
 use nightfall_bindings::artifacts::ProposerManager;
 use reqwest::{Client, Error as ReqwestError};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{error::Error, fmt::Debug, time::Duration};
 use tokio::time::sleep;
 use url::Url;
@@ -61,6 +61,12 @@ pub struct SwapParams {
 pub struct SubmittedOperation<P> {
     pub payload: NotificationPayload,
     pub transaction: ClientTransaction<P>,
+    pub receipt_token: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ProposerTransactionAcceptedResponse {
+    receipt_token: String,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -192,7 +198,7 @@ where
     })?;
     // having done that, we can submit the nighfall transaction to proposer offchain
 
-    let tx_receipt = process_transaction_offchain(&operation_result, id)
+    let (tx_receipt, receipt_token) = process_transaction_offchain(&operation_result, id)
         .await
         .map_err(|e| TransactionHandlerError::CustomError(e.to_string()))?;
     info!("{id} {} transaction submitted", operation.operation_type);
@@ -235,6 +241,7 @@ where
     Ok(SubmittedOperation {
         payload: NotificationPayload::TransactionEvent { response, uuid },
         transaction: operation_result,
+        receipt_token,
     })
 }
 
@@ -269,9 +276,12 @@ where
     // Persist the canonical proposer tx_hash on the request record so the
     // wallet can retrieve it via GET /v1/request/{uuid} without needing a webhook.
     if let Ok(hash_bytes) = submitted.transaction.hash() {
-        let tx_hash_hex: String = hash_bytes.iter().map(|b| format!("{:02x}", b)).collect();
+        let tx_hash_hex: String = hash_bytes.iter().map(|b| format!("{b:02x}")).collect();
         let db = crate::initialisation::get_db_connection().await;
         let _ = db.set_request_tx_hash(id, &tx_hash_hex).await;
+        if let Some(receipt_token) = submitted.receipt_token.as_deref() {
+            let _ = db.set_request_receipt_token(id, receipt_token).await;
+        }
     }
 
     Ok(submitted.payload)
@@ -289,7 +299,7 @@ async fn send_to_proposer_with_retry<P: Serialize + Sync>(
     id: &str,
     max_retries: u32,
     initial_backoff: Duration,
-) -> Result<(), (String, bool)> {
+) -> Result<Option<String>, (String, bool)> {
     let url = match Url::parse(&proposer.url).and_then(|base| base.join("/v1/transaction")) {
         Ok(u) => u,
         Err(e) => {
@@ -311,8 +321,17 @@ async fn send_to_proposer_with_retry<P: Serialize + Sync>(
             Ok(response) => {
                 let status = response.status();
                 if status.is_success() {
+                    let response_body = response.text().await.unwrap_or_default();
+                    let parsed =
+                        serde_json::from_str::<ProposerTransactionAcceptedResponse>(&response_body)
+                            .map_err(|e| {
+                                (
+                                    format!("Failed to parse proposer transaction response: {e}"),
+                                    false,
+                                )
+                            })?;
                     debug!("{id} Successfully sent transaction to proposer at {url}");
-                    return Ok(());
+                    return Ok(Some(parsed.receipt_token));
                 } else {
                     let body = response.text().await.unwrap_or_default();
                     error!("{id} Error from proposer: HTTP {status} — Body: {body}");
@@ -571,7 +590,7 @@ pub async fn request_swap_cancel(
 pub async fn process_transaction_offchain<P: Serialize + Sync>(
     l2_transaction: &ClientTransaction<P>,
     id: &str,
-) -> Result<Option<TransactionReceipt>, Box<dyn Error>> {
+) -> Result<(Option<TransactionReceipt>, Option<String>), Box<dyn Error>> {
     info!("{id} Sending client transaction to all proposers concurrently.");
     const MAX_RETRIES: u32 = 3;
     const INITIAL_BACKOFF: Duration = Duration::from_millis(500);
@@ -607,11 +626,15 @@ pub async fn process_transaction_offchain<P: Serialize + Sync>(
 
     let mut any_success = false;
     let mut any_retriable_failures = false;
+    let mut receipt_token = None;
 
     for result in results {
         match result {
-            Ok(_) => {
+            Ok(token) => {
                 any_success = true;
+                if receipt_token.is_none() {
+                    receipt_token = token;
+                }
             }
             Err((msg, retriable)) => {
                 warn!("{id} Proposer error: {msg}");
@@ -624,7 +647,7 @@ pub async fn process_transaction_offchain<P: Serialize + Sync>(
 
     if any_success {
         db.update_request(id, RequestStatus::Submitted).await;
-        Ok(None)
+        Ok((None, receipt_token))
     } else if any_retriable_failures {
         db.update_request(id, RequestStatus::ProposerUnreachable)
             .await;

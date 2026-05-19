@@ -131,6 +131,7 @@ mod tests {
             uuid: "test-request".to_string(),
             child_request_args: None,
             tx_hash: None,
+            receipt_token: None,
         }
     }
 

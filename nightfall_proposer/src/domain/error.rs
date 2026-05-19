@@ -50,6 +50,7 @@ pub enum ProposerRejection {
     TransferReceiptNotFound,
     TransferReceiptTxNotFound,
     TransferReceiptConflict,
+    TransferReceiptUnauthorized,
 }
 
 impl std::fmt::Display for ProposerRejection {
@@ -76,6 +77,9 @@ impl std::fmt::Display for ProposerRejection {
             }
             ProposerRejection::TransferReceiptConflict => {
                 write!(f, "Transfer receipt already exists for this transaction")
+            }
+            ProposerRejection::TransferReceiptUnauthorized => {
+                write!(f, "Invalid or missing receipt token for this transaction")
             }
         }
     }
