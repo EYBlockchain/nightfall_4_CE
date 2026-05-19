@@ -30,12 +30,14 @@
     - [Nightfall\_4 containers](#nightfall_4-containers)
     - [Client Webhook](#client-webhook)
   - [APIs](#apis)
+    - [Transfer Receipt Workflow](#transfer-receipt-workflow)
     - [Client APIs](#client-apis)
       - [X509 Certificates for Client](#x509-certificates-for-client)
       - [Value transactions](#value-transactions)
+      - [Transfer Receipt Resolution](#transfer-receipt-resolution)
     - [Proposer APIs](#proposer-apis)
       - [X509 Certificates for Proposer](#x509-certificates-for-proposer)
-      - [Transfer Receipts](#transfer-receipts)
+      - [Transfer Receipt Submission](#transfer-receipt-submission)
   - [Test UI: Using the Menu Application](#test-ui-using-the-menu-application)
     - [1. Build the Menu Application](#1-build-the-menu-application)
     - [2. Prepare Environment Variables](#2-prepare-environment-variables)
@@ -477,6 +479,81 @@ docker compose --profile development up
 ```
 
 Don't forget to down any containers and volumes from previous tests first and wait until the `test` container has successfully exited before trying any API calls.
+
+### Transfer Receipt Workflow
+
+Transfer receipts are a cross-component wallet workflow rather than a proposer-only feature.
+
+At a high level the flow is:
+
+1. The sender submits a transfer with `POST /v1/transfer` and receives a `202 Accepted` response plus an `X-Request-ID`.
+2. Once the transfer request reaches `Submitted`, the sender wallet calls `GET /v1/request/{uuid}` on the client to obtain:
+   - the canonical proposer `tx_hash` for the transfer
+   - the `receipt_token` authorizing receipt creation for that transaction
+3. The sender wallet creates the encrypted receipt payload locally, typically in a WASM library, using the recipient's Baby JubJub public key and the receipt-specific KEM-DEM scheme.
+4. The sender submits the opaque ciphertext, together with `tx_hash` and `receipt_token`, to the proposer via `POST /v1/transfer-receipts`.
+5. The proposer stores only the ciphertext and metadata. It never decrypts or interprets the receipt payload.
+6. The sender shares the returned `receipt_id` with the intended receiver out of band.
+7. The receiver wallet retrieves the ciphertext from the proposer using `GET /v1/transfer-receipts/{receipt_id}` and decrypts it locally.
+8. The receiver wallet verifies that the decrypted receipt is intended for the local wallet before displaying it.
+
+The logical wallet payload is token-type-specific.
+
+ERC721 payload:
+
+```json
+{
+  "transfer": {
+    "senderZkpPublicKey": "0x...",
+    "ercAddress": "0x...",
+    "tokenType": "ERC721",
+    "tokenId": "0x00",
+    "receiverCommitment": "0x..."
+  }
+}
+```
+
+ERC20 payload:
+
+```json
+{
+  "transfer": {
+    "senderZkpPublicKey": "0x...",
+    "ercAddress": "0x...",
+    "tokenType": "ERC20",
+    "value": "0x01",
+    "receiverCommitment": "0x..."
+  }
+}
+```
+
+This logical payload is serialized into a 7-field plaintext before encryption:
+
+- `sender_public_key_x`
+- `sender_public_key_y`
+- `erc_address`
+- `token_type` (`0` = ERC20, `2` = ERC721)
+- `token_id_or_value`
+- `receiver_commitment`
+- reserved zero field
+
+The resulting ciphertext is version `1` and is exactly **576 hex characters** (9 × 32-byte BN254 field elements): 7 encrypted plaintext fields followed by the ephemeral public key y-coordinate and x-sign flag.
+
+**Receiver-side verification**
+
+After decrypting locally, the receiver wallet should verify that the receipt is actually meant for the local wallet before displaying it.
+
+**API endpoints used in this workflow**
+
+Client-side discovery:
+
+- `GET /v1/request/{uuid}` — returns request status and, once the transfer is `Submitted`, the canonical `tx_hash` and `receipt_token` needed for receipt creation.
+
+Proposer-side storage and retrieval:
+
+- `POST /v1/transfer-receipts` — sender submits encrypted receipt ciphertext for storage.
+- `GET /v1/transfer-receipts/{receipt_id}` — receiver fetches the full stored receipt ciphertext.
+- `GET /v1/transfer-receipts/{receipt_id}/status` — lightweight status check for the stored receipt.
 
 ### Client APIs
 
@@ -926,13 +1003,44 @@ GET /v1/request/{:uuid}
 curl -i 'http://localhost:3000/v1/request/16cf74ad-e28c-421e-a125-78bed5e1c435
 ```
 
-Returns the status of a deposit/transfer or withdraw request when provided with the `X-Request-ID` header value that was submitted with the request. The status can be one of:
+Returns the status of a deposit/transfer or withdraw request when provided with the `X-Request-ID` header value that was submitted with the request.
+
+For transfer receipts, this endpoint is the sender wallet's source of truth for the canonical proposer transaction reference. Once a transfer request has reached `Submitted`, the response may also contain:
+
+- `tx_hash`: the canonical proposer-side transaction hash as a 64-character lowercase hex string
+- `receipt_token`: the capability token required to create a transfer receipt for that transaction
+
+The status can be one of:
 
 - Queued: The transaction is waiting to be processed by the client.
 - Submitted: The Client has succesfully processed the transaction and handed off the result, either to the blockchain, in the case of a deposit escrow, or to a Proposer, in the case of a transfer or withdraw transaction.
 - Failed: The hand off to the next stage did not succeed.
 
 Note that internal failures of the client will cause the request state to be unreliable so the request status is not an alternative to error logs.
+
+Example response after a transfer has been submitted to a proposer:
+
+```json
+{
+  "status": "Submitted",
+  "uuid": "16cf74ad-e28c-421e-a125-78bed5e1c435",
+  "tx_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "receipt_token": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+}
+```
+
+***
+
+#### Transfer Receipt Resolution
+
+Receipt resolution is part of the end-to-end transfer receipt flow described in [Transfer Receipt Workflow](#transfer-receipt-workflow).
+
+The relevant receiver-facing endpoints are hosted by the proposer (`localhost:3001` in the examples):
+
+- `GET /v1/transfer-receipts/{receipt_id}`
+- `GET /v1/transfer-receipts/{receipt_id}/status`
+
+Use these endpoints to fetch the stored ciphertext by `receipt_id` and then decrypt it locally in the wallet. See the workflow section for payload semantics and receiver-side verification rules.
 
 ***
 
@@ -1035,97 +1143,25 @@ This URL is used by clients to send a JSON encoded `ClientTransaction<P>` struct
 
 ***
 
-#### Transfer Receipts
+#### Transfer Receipt Submission
 
-Transfer receipts allow a sender to attach an encrypted, privacy-preserving receipt to any transfer transaction stored by the proposer. The proposer stores the receipt as opaque ciphertext — it never decrypts or interprets the payload. The recipient retrieves the ciphertext and decrypts it locally using their Baby JubJub private key.
+Receipt submission is part of the end-to-end transfer receipt flow described in [Transfer Receipt Workflow](#transfer-receipt-workflow).
 
-The v1 ciphertext is produced by a KEM-DEM scheme with receipt-specific domain separators (`DOMAIN_RECEIPT_KEM` / `DOMAIN_RECEIPT_DEM`, each derived as `Fr254::from_le_bytes_mod_order(SHA256("Nightfall|Receipt{KEM,DEM}"))`) and is exactly **576 hex characters** (9 × 32-byte BN254 field elements): 7 encrypted plaintext fields (`nf_token_id`, `nf_slot_id`, `value`, `sender_public_key_x`, `sender_public_key_y`, `erc_address`, `token_id`), followed by the ephemeral public key y-coordinate and x-sign flag.
+The proposer-side sender endpoint is:
 
-**Receipt status** is derived lazily from the underlying transaction on each read:
-- `pending` — the referenced transaction has not yet been included in a Layer 2 block.
-- `included_l2` — the transaction has been assigned a Layer 2 block number.
+- `POST /v1/transfer-receipts`
 
-***
+This endpoint accepts the canonical `tx_hash`, the opaque receipt `ciphertext`, an optional `version` (currently `1`), and the `receipt_token` returned by `GET /v1/request/{uuid}`. On success it returns a `receipt_id`, which the sender can share with the receiver out of band.
 
-POST /v1/transfer-receipts
+Status summary:
 
-```sh
-curl -i -X POST 'http://localhost:3001/v1/transfer-receipts' \
-  -H 'Content-Type: application/json' \
-  --data-raw '{
-    "tx_hash": [<32 unsigned bytes of the proposer transaction hash>],
-    "ciphertext": "<576-character hex string>",
-    "version": 1
-  }'
-```
+- `200 OK` — idempotent replay with identical payload
+- `201 Created` — receipt stored successfully
+- `400 BAD REQUEST` — malformed request, unsupported version, invalid ciphertext, or missing transaction
+- `401 Unauthorized` — invalid or missing `receipt_token`
+- `409 Conflict` — receipt already exists for this transaction with a different payload
 
-Returns:
-- `200 OK` — receipt already exists for this `tx_hash` and ciphertext/version match exactly (idempotent replay).
-- `201 Created` — receipt created successfully.
-- `400 BAD REQUEST` — malformed `tx_hash`, unsupported version, invalid ciphertext, or the referenced transaction is not found in the proposer store.
-- `409 Conflict` — a receipt for this `tx_hash` already exists with different ciphertext or version.
-
-Response body:
-
-```json
-{
-  "receipt_id": "<64-character hex string>",
-  "status": "pending",
-  "link_path": "/v1/transfer-receipts/<receipt_id>"
-}
-```
-
-Request fields:
-- `tx_hash`: The proposer-side transaction hash as an array of exactly 32 unsigned integers (each 0–255). This is the canonical hash of the `ClientTransaction` as stored by the proposer.
-- `ciphertext`: The v1 KEM-DEM ciphertext as a 576-character lowercase hex string.
-- `version`: Optional. Must be `1`. Defaults to `1` if omitted.
-
-***
-
-GET /v1/transfer-receipts/{receipt_id}
-
-```sh
-curl -i 'http://localhost:3001/v1/transfer-receipts/<receipt_id>'
-```
-
-Returns:
-- `200 OK` — receipt found; status is refreshed from transaction metadata on each call.
-- `404 NOT FOUND` — no receipt with the given ID.
-
-Response body:
-
-```json
-{
-  "receipt_id": "<64-character hex string>",
-  "tx_hash": "<64-character hex string>",
-  "ciphertext": "<576-character hex string>",
-  "version": 1,
-  "status": "pending",
-  "created_at_unix": 1700000000,
-  "updated_at_unix": 1700000000
-}
-```
-
-***
-
-GET /v1/transfer-receipts/{receipt_id}/status
-
-```sh
-curl -i 'http://localhost:3001/v1/transfer-receipts/<receipt_id>/status'
-```
-
-Returns:
-- `200 OK` — lightweight status check without the full ciphertext payload.
-- `404 NOT FOUND` — no receipt with the given ID.
-
-Response body:
-
-```json
-{
-  "receipt_id": "<64-character hex string>",
-  "status": "included_l2"
-}
-```
+See the workflow section for the full meaning of the encrypted payload and how wallets are expected to use the returned `receipt_id`.
 
 ***
 
