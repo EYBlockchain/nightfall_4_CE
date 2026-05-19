@@ -23,6 +23,63 @@ use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
 };
 
+const TEMP_SNAPSHOT_DIR_PREFIX: &str = ".tmp-proposer-snapshot-";
+
+#[cfg(test)]
+use std::{
+    collections::HashSet,
+    sync::{Mutex, OnceLock},
+};
+
+#[cfg(test)]
+static ENABLED_FAILPOINTS: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+
+#[cfg(test)]
+fn enabled_failpoints() -> &'static Mutex<HashSet<String>> {
+    ENABLED_FAILPOINTS.get_or_init(|| Mutex::new(HashSet::new()))
+}
+
+fn maybe_crash_at_failpoint(_name: &str) {
+    #[cfg(test)]
+    {
+        if enabled_failpoints()
+            .lock()
+            .expect("failpoint lock poisoned")
+            .contains(_name)
+        {
+            panic!("simulated crash at failpoint {_name}");
+        }
+    }
+}
+
+#[cfg(test)]
+struct TestFailpointGuard {
+    name: String,
+}
+
+#[cfg(test)]
+impl TestFailpointGuard {
+    fn enable(name: &str) -> Self {
+        enabled_failpoints()
+            .lock()
+            .expect("failpoint lock poisoned")
+            .insert(name.to_string());
+        Self {
+            name: name.to_string(),
+        }
+    }
+}
+
+#[cfg(test)]
+impl Drop for TestFailpointGuard {
+    fn drop(&mut self) {
+        enabled_failpoints()
+            .lock()
+            .expect("failpoint lock poisoned")
+            .remove(&self.name);
+    }
+}
+
 #[derive(Debug)]
 pub enum SnapshotError {
     Io(std::io::Error),
@@ -219,6 +276,31 @@ fn compute_overall_checksum(collections: &[SnapshotCollectionManifest]) -> Strin
     hex::encode(overall_checksum.finalize())
 }
 
+pub async fn cleanup_orphaned_proposer_snapshot_temp_dirs(
+    snapshot_root_dir: &Path,
+) -> Result<(), SnapshotError> {
+    if !fs::try_exists(snapshot_root_dir).await? {
+        return Ok(());
+    }
+
+    let mut entries = fs::read_dir(snapshot_root_dir).await?;
+    while let Some(entry) = entries.next_entry().await? {
+        if !entry.file_type().await?.is_dir() {
+            continue;
+        }
+
+        let file_name = entry.file_name();
+        if file_name
+            .to_string_lossy()
+            .starts_with(TEMP_SNAPSHOT_DIR_PREFIX)
+        {
+            fs::remove_dir_all(entry.path()).await?;
+        }
+    }
+
+    Ok(())
+}
+
 async fn export_collection(
     database: &mongodb::Database,
     snapshot_dir: &Path,
@@ -270,9 +352,10 @@ pub async fn create_proposer_snapshot(
     let existing_collections = database.list_collection_names().await?;
     let snapshot_root_dir = snapshot_root_dir.to_path_buf();
     fs::create_dir_all(&snapshot_root_dir).await?;
+    cleanup_orphaned_proposer_snapshot_temp_dirs(&snapshot_root_dir).await?;
     let mut session = client.start_session().await?;
     let temp_snapshot_dir = snapshot_root_dir.join(format!(
-        ".tmp-proposer-snapshot-{}-{}",
+        "{TEMP_SNAPSHOT_DIR_PREFIX}{}-{}",
         mongodb::bson::DateTime::now().timestamp_millis(),
         process::id()
     ));
@@ -309,6 +392,9 @@ pub async fn create_proposer_snapshot(
                         .await
                         .map_err(snapshot_error_to_mongo)?,
                     );
+                    if collections.len() == 1 {
+                        maybe_crash_at_failpoint("snapshot_after_first_collection_exported");
+                    }
                 } else {
                     warn!(
                         "Skipping proposer snapshot collection {collection_name}: collection not found in database {DB}"
@@ -674,6 +760,7 @@ async fn complete_shadow_swap_from_journal(
                 journal.current_step = Some(RestoreJournalStep::BackupCreated);
                 journal.updated_at = mongodb::bson::DateTime::now();
                 client.upsert_restore_journal(journal).await?;
+                maybe_crash_at_failpoint("restore_after_backup_created");
 
                 rename_collection(client, &collection.shadow, &collection.live, false).await?;
             }
@@ -709,6 +796,7 @@ async fn complete_shadow_swap_from_journal(
     journal.current_step = None;
     journal.updated_at = mongodb::bson::DateTime::now();
     client.upsert_restore_journal(journal).await?;
+    maybe_crash_at_failpoint("restore_after_swap_complete");
 
     Ok(())
 }
@@ -775,6 +863,7 @@ pub async fn load_proposer_snapshot_into_shadow(
             &restore_collection.shadow,
         )
         .await?;
+        maybe_crash_at_failpoint("restore_after_first_shadow_collection_imported");
     }
 
     journal.updated_at = mongodb::bson::DateTime::now();
@@ -850,6 +939,7 @@ pub async fn cleanup_after_proposer_shadow_swap(
 
     for collection in &ordered {
         drop_collection_if_exists(&database, &collection.backup).await?;
+        maybe_crash_at_failpoint("restore_after_first_backup_cleanup");
     }
 
     for collection in &ordered {
@@ -904,6 +994,15 @@ mod test {
     use alloy::primitives::{Address, TxHash};
     use ark_ff::Zero;
     use lib::tests_utils::{get_db_connection, get_mongo};
+    use tokio::sync::{Mutex, OnceCell};
+
+    async fn snapshot_test_lock() -> tokio::sync::MutexGuard<'static, ()> {
+        static LOCK: OnceCell<Mutex<()>> = OnceCell::const_new();
+        LOCK.get_or_init(|| async { Mutex::new(()) })
+            .await
+            .lock()
+            .await
+    }
 
     async fn persist_sync_state(client: &mongodb::Client, sync_state: &SyncState) {
         let mut session = client.start_session().await.expect("start session");
@@ -942,6 +1041,7 @@ mod test {
 
     #[tokio::test]
     async fn recover_from_restore_journal_is_noop_when_idle() {
+        let _snapshot_test_lock = snapshot_test_lock().await;
         let container = get_mongo().await;
         let client = get_db_connection(&container).await;
 
@@ -954,6 +1054,7 @@ mod test {
 
     #[tokio::test]
     async fn recover_from_restore_journal_cleans_loading_shadow_leftovers() {
+        let _snapshot_test_lock = snapshot_test_lock().await;
         let container = get_mongo().await;
         let client = get_db_connection(&container).await;
         let database = client.database(DB);
@@ -1009,7 +1110,100 @@ mod test {
     }
 
     #[tokio::test]
+    async fn create_proposer_snapshot_crash_leaves_temp_dir_that_can_be_cleaned() {
+        let _snapshot_test_lock = snapshot_test_lock().await;
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+
+        initialize_snapshot_test_trees(&client).await;
+
+        let stored_block = StoredBlock {
+            layer2_block_number: 21,
+            commitments: vec!["0xcrash".to_string()],
+            proposer_address: Address::from([21u8; 20]),
+        };
+        client
+            .store_block(&stored_block)
+            .await
+            .expect("store block");
+
+        persist_sync_state(
+            &client,
+            &SyncState::new(
+                stored_block.layer2_block_number,
+                stored_block.hash().to_string(),
+                L1Ref {
+                    block_number: 2100,
+                    tx_hash: TxHash::from([21u8; 32]),
+                    log_index: 0,
+                },
+                mongodb::bson::DateTime::now(),
+            ),
+        )
+        .await;
+
+        let snapshot_root = std::env::temp_dir().join(format!(
+            "nf4-proposer-snapshot-crash-test-{}",
+            mongodb::bson::DateTime::now().timestamp_millis()
+        ));
+
+        let failpoint = TestFailpointGuard::enable("snapshot_after_first_collection_exported");
+        let crash_client = client.clone();
+        let crash_root = snapshot_root.clone();
+        let join_error =
+            tokio::spawn(async move { create_proposer_snapshot(&crash_client, &crash_root).await })
+                .await
+                .expect_err("snapshot creation should panic at failpoint");
+        assert!(join_error.is_panic());
+        drop(failpoint);
+
+        let mut temp_dirs = Vec::new();
+        let mut entries = fs::read_dir(&snapshot_root)
+            .await
+            .expect("read snapshot root");
+        while let Some(entry) = entries
+            .next_entry()
+            .await
+            .expect("read snapshot root entry")
+        {
+            if entry
+                .file_name()
+                .to_string_lossy()
+                .starts_with(TEMP_SNAPSHOT_DIR_PREFIX)
+            {
+                temp_dirs.push(entry.path());
+            }
+        }
+        assert!(
+            !temp_dirs.is_empty(),
+            "crash should leave at least one temp dir"
+        );
+
+        cleanup_orphaned_proposer_snapshot_temp_dirs(&snapshot_root)
+            .await
+            .expect("cleanup orphaned temp dirs");
+
+        let mut entries = fs::read_dir(&snapshot_root)
+            .await
+            .expect("read cleaned snapshot root");
+        while let Some(entry) = entries.next_entry().await.expect("read cleaned root entry") {
+            assert!(
+                !entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with(TEMP_SNAPSHOT_DIR_PREFIX),
+                "orphaned temp dir should have been removed"
+            );
+        }
+
+        fs::remove_dir_all(snapshot_root)
+            .await
+            .expect("cleanup snapshot directory");
+    }
+
+    #[tokio::test]
     async fn create_proposer_snapshot_writes_manifest_and_collections() {
+        let _snapshot_test_lock = snapshot_test_lock().await;
         let container = get_mongo().await;
         let client = get_db_connection(&container).await;
 
@@ -1065,6 +1259,7 @@ mod test {
 
     #[tokio::test]
     async fn find_latest_valid_proposer_snapshot_prefers_highest_restorable_block() {
+        let _snapshot_test_lock = snapshot_test_lock().await;
         let container = get_mongo().await;
         let client = get_db_connection(&container).await;
         initialize_snapshot_test_trees(&client).await;
@@ -1154,6 +1349,7 @@ mod test {
 
     #[tokio::test]
     async fn load_proposer_snapshot_into_shadow_populates_shadow_collections_and_journal() {
+        let _snapshot_test_lock = snapshot_test_lock().await;
         let container = get_mongo().await;
         let client = get_db_connection(&container).await;
 
@@ -1260,7 +1456,88 @@ mod test {
     }
 
     #[tokio::test]
+    async fn recover_from_restore_journal_cleans_real_loading_shadow_crash() {
+        let _snapshot_test_lock = snapshot_test_lock().await;
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+
+        initialize_snapshot_test_trees(&client).await;
+
+        let stored_block = StoredBlock {
+            layer2_block_number: 22,
+            commitments: vec!["0xshadow".to_string()],
+            proposer_address: Address::from([22u8; 20]),
+        };
+        client
+            .store_block(&stored_block)
+            .await
+            .expect("store block");
+
+        persist_sync_state(
+            &client,
+            &SyncState::new(
+                stored_block.layer2_block_number,
+                stored_block.hash().to_string(),
+                L1Ref {
+                    block_number: 2200,
+                    tx_hash: TxHash::from([22u8; 32]),
+                    log_index: 1,
+                },
+                mongodb::bson::DateTime::now(),
+            ),
+        )
+        .await;
+
+        let snapshot_root = std::env::temp_dir().join(format!(
+            "nf4-proposer-loading-shadow-crash-test-{}",
+            mongodb::bson::DateTime::now().timestamp_millis()
+        ));
+        let manifest = create_proposer_snapshot(&client, &snapshot_root)
+            .await
+            .expect("create snapshot");
+        let snapshot_dir = snapshot_root.join(&manifest.snapshot_id);
+
+        let failpoint =
+            TestFailpointGuard::enable("restore_after_first_shadow_collection_imported");
+        let crash_client = client.clone();
+        let crash_snapshot_dir = snapshot_dir.clone();
+        let join_error = tokio::spawn(async move {
+            load_proposer_snapshot_into_shadow(&crash_client, &crash_snapshot_dir).await
+        })
+        .await
+        .expect_err("loading shadow should panic at failpoint");
+        assert!(join_error.is_panic());
+        drop(failpoint);
+
+        let journal = client
+            .get_restore_journal()
+            .await
+            .expect("journal should exist after loading_shadow crash");
+        assert_eq!(journal.phase, RestoreJournalPhase::LoadingShadow);
+
+        recover_from_restore_journal(&client)
+            .await
+            .expect("recover should clean loading_shadow leftovers");
+
+        assert_eq!(client.get_restore_journal().await, None);
+        let names = client
+            .database(DB)
+            .list_collection_names()
+            .await
+            .expect("list collection names");
+        for collection in journal.collections {
+            assert!(!names.iter().any(|name| name == &collection.shadow));
+            assert!(!names.iter().any(|name| name == &collection.backup));
+        }
+
+        fs::remove_dir_all(snapshot_root)
+            .await
+            .expect("cleanup snapshot directory");
+    }
+
+    #[tokio::test]
     async fn swap_proposer_shadow_into_live_marks_swap_complete_and_keeps_backups() {
+        let _snapshot_test_lock = snapshot_test_lock().await;
         let container = get_mongo().await;
         let client = get_db_connection(&container).await;
 
@@ -1411,7 +1688,121 @@ mod test {
     }
 
     #[tokio::test]
+    async fn recover_from_restore_journal_resumes_real_mid_swap_crash() {
+        let _snapshot_test_lock = snapshot_test_lock().await;
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+
+        initialize_snapshot_test_trees(&client).await;
+
+        let snapshot_block = StoredBlock {
+            layer2_block_number: 23,
+            commitments: vec!["0xresume".to_string()],
+            proposer_address: Address::from([23u8; 20]),
+        };
+        client
+            .store_block(&snapshot_block)
+            .await
+            .expect("store snapshot block");
+
+        persist_sync_state(
+            &client,
+            &SyncState::new(
+                snapshot_block.layer2_block_number,
+                snapshot_block.hash().to_string(),
+                L1Ref {
+                    block_number: 2300,
+                    tx_hash: TxHash::from([23u8; 32]),
+                    log_index: 2,
+                },
+                mongodb::bson::DateTime::now(),
+            ),
+        )
+        .await;
+
+        let snapshot_root = std::env::temp_dir().join(format!(
+            "nf4-proposer-mid-swap-crash-test-{}",
+            mongodb::bson::DateTime::now().timestamp_millis()
+        ));
+        let manifest = create_proposer_snapshot(&client, &snapshot_root)
+            .await
+            .expect("create snapshot");
+        let snapshot_dir = snapshot_root.join(&manifest.snapshot_id);
+
+        let newer_live_block = StoredBlock {
+            layer2_block_number: 24,
+            commitments: vec!["0xlive".to_string()],
+            proposer_address: Address::from([24u8; 20]),
+        };
+        client
+            .store_block(&newer_live_block)
+            .await
+            .expect("store newer live block");
+        persist_sync_state(
+            &client,
+            &SyncState::new(
+                newer_live_block.layer2_block_number,
+                newer_live_block.hash().to_string(),
+                L1Ref {
+                    block_number: 2400,
+                    tx_hash: TxHash::from([24u8; 32]),
+                    log_index: 3,
+                },
+                mongodb::bson::DateTime::now(),
+            ),
+        )
+        .await;
+
+        load_proposer_snapshot_into_shadow(&client, &snapshot_dir)
+            .await
+            .expect("load snapshot into shadow");
+
+        let failpoint = TestFailpointGuard::enable("restore_after_backup_created");
+        let crash_client = client.clone();
+        let join_error =
+            tokio::spawn(async move { swap_proposer_shadow_into_live(&crash_client).await })
+                .await
+                .expect_err("swap should panic at failpoint");
+        assert!(join_error.is_panic());
+        drop(failpoint);
+
+        let journal = client
+            .get_restore_journal()
+            .await
+            .expect("journal should exist after mid-swap crash");
+        assert_eq!(journal.phase, RestoreJournalPhase::SwapInProgress);
+        assert_eq!(
+            journal.current_step,
+            Some(RestoreJournalStep::BackupCreated)
+        );
+
+        recover_from_restore_journal(&client)
+            .await
+            .expect("recover should resume swap");
+
+        let resumed = client
+            .get_restore_journal()
+            .await
+            .expect("journal should remain at swap_complete after resume");
+        assert_eq!(resumed.phase, RestoreJournalPhase::SwapComplete);
+
+        let live_sync_state = client
+            .get_sync_state()
+            .await
+            .expect("restored live sync_state should exist");
+        assert_eq!(
+            live_sync_state.last_applied_l2_block,
+            snapshot_block.layer2_block_number
+        );
+
+        fs::remove_dir_all(snapshot_root)
+            .await
+            .expect("cleanup snapshot directory");
+    }
+
+    #[tokio::test]
     async fn cleanup_after_shadow_swap_returns_to_idle_and_keeps_live_restored_state() {
+        let _snapshot_test_lock = snapshot_test_lock().await;
         let container = get_mongo().await;
         let client = get_db_connection(&container).await;
 
@@ -1570,6 +1961,7 @@ mod test {
 
     #[tokio::test]
     async fn recover_from_restore_journal_resumes_swap_in_progress() {
+        let _snapshot_test_lock = snapshot_test_lock().await;
         let container = get_mongo().await;
         let client = get_db_connection(&container).await;
 
@@ -1705,6 +2097,7 @@ mod test {
 
     #[tokio::test]
     async fn recover_from_restore_journal_completes_swap_complete_cleanup() {
+        let _snapshot_test_lock = snapshot_test_lock().await;
         let container = get_mongo().await;
         let client = get_db_connection(&container).await;
 
@@ -1812,6 +2205,119 @@ mod test {
             .expect("recover should clean swap_complete state");
 
         assert_eq!(client.get_restore_journal().await, None);
+
+        fs::remove_dir_all(snapshot_root)
+            .await
+            .expect("cleanup snapshot directory");
+    }
+
+    #[tokio::test]
+    async fn recover_from_restore_journal_cleans_real_swap_complete_crash() {
+        let _snapshot_test_lock = snapshot_test_lock().await;
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+
+        initialize_snapshot_test_trees(&client).await;
+
+        let snapshot_block = StoredBlock {
+            layer2_block_number: 25,
+            commitments: vec!["0xcleanup".to_string()],
+            proposer_address: Address::from([25u8; 20]),
+        };
+        client
+            .store_block(&snapshot_block)
+            .await
+            .expect("store snapshot block");
+
+        persist_sync_state(
+            &client,
+            &SyncState::new(
+                snapshot_block.layer2_block_number,
+                snapshot_block.hash().to_string(),
+                L1Ref {
+                    block_number: 2500,
+                    tx_hash: TxHash::from([25u8; 32]),
+                    log_index: 4,
+                },
+                mongodb::bson::DateTime::now(),
+            ),
+        )
+        .await;
+
+        let snapshot_root = std::env::temp_dir().join(format!(
+            "nf4-proposer-cleanup-crash-test-{}",
+            mongodb::bson::DateTime::now().timestamp_millis()
+        ));
+        let manifest = create_proposer_snapshot(&client, &snapshot_root)
+            .await
+            .expect("create snapshot");
+        let snapshot_dir = snapshot_root.join(&manifest.snapshot_id);
+
+        let newer_live_block = StoredBlock {
+            layer2_block_number: 26,
+            commitments: vec!["0xnewer".to_string()],
+            proposer_address: Address::from([26u8; 20]),
+        };
+        client
+            .store_block(&newer_live_block)
+            .await
+            .expect("store newer live block");
+        persist_sync_state(
+            &client,
+            &SyncState::new(
+                newer_live_block.layer2_block_number,
+                newer_live_block.hash().to_string(),
+                L1Ref {
+                    block_number: 2600,
+                    tx_hash: TxHash::from([26u8; 32]),
+                    log_index: 5,
+                },
+                mongodb::bson::DateTime::now(),
+            ),
+        )
+        .await;
+
+        load_proposer_snapshot_into_shadow(&client, &snapshot_dir)
+            .await
+            .expect("load snapshot into shadow");
+        swap_proposer_shadow_into_live(&client)
+            .await
+            .expect("swap shadow into live");
+
+        let failpoint = TestFailpointGuard::enable("restore_after_first_backup_cleanup");
+        let crash_client = client.clone();
+        let join_error =
+            tokio::spawn(async move { cleanup_after_proposer_shadow_swap(&crash_client).await })
+                .await
+                .expect_err("cleanup should panic at failpoint");
+        assert!(join_error.is_panic());
+        drop(failpoint);
+
+        recover_from_restore_journal(&client)
+            .await
+            .expect("recover should finish swap_complete cleanup");
+
+        assert_eq!(client.get_restore_journal().await, None);
+        let live_sync_state = client
+            .get_sync_state()
+            .await
+            .expect("restored live sync_state should still exist");
+        assert_eq!(
+            live_sync_state.last_applied_l2_block,
+            snapshot_block.layer2_block_number
+        );
+
+        let names = client
+            .database(DB)
+            .list_collection_names()
+            .await
+            .expect("list collection names");
+        assert!(!names
+            .iter()
+            .any(|name| name.starts_with("restore_shadow__")));
+        assert!(!names
+            .iter()
+            .any(|name| name.starts_with("restore_backup__")));
 
         fs::remove_dir_all(snapshot_root)
             .await

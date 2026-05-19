@@ -1,5 +1,6 @@
 use crate::driven::db::snapshot::{
-    create_proposer_snapshot, find_latest_valid_proposer_snapshot, SnapshotError,
+    cleanup_orphaned_proposer_snapshot_temp_dirs, create_proposer_snapshot,
+    find_latest_valid_proposer_snapshot, SnapshotError,
 };
 use configuration::settings::get_settings;
 use log::{debug, info, warn};
@@ -56,8 +57,10 @@ pub fn maybe_should_snapshot(
 }
 
 pub async fn initialize_snapshot_scheduler_state() -> Result<(), SnapshotError> {
+    let root = snapshot_root_dir();
+    cleanup_orphaned_proposer_snapshot_temp_dirs(&root).await?;
     let latest_snapshot_l2_block =
-        match find_latest_valid_proposer_snapshot(&snapshot_root_dir(), u64::MAX).await? {
+        match find_latest_valid_proposer_snapshot(&root, u64::MAX).await? {
             Some((_, manifest)) => manifest.last_applied_l2_block,
             None => 0,
         };
