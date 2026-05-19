@@ -922,14 +922,13 @@ pub async fn run_tests(
         }
         let decrypted = receipt_kemdem_decrypt(ctx.recipient_private_key, &cipher_text_arr)
             .expect("receipt_kemdem_decrypt should succeed");
-        assert_eq!(decrypted.nf_token_id, ctx.plain_text[0]);
-        assert_eq!(decrypted.nf_slot_id, ctx.plain_text[1]);
-        assert_eq!(decrypted.value, ctx.plain_text[2]);
-        assert_eq!(decrypted.sender_public_key_x, ctx.plain_text[3]);
-        assert_eq!(decrypted.sender_public_key_y, ctx.plain_text[4]);
-        assert_eq!(decrypted.erc_address, ctx.plain_text[5]);
-        assert_eq!(decrypted.token_id, ctx.plain_text[6]);
-        info!("Round-trip decrypt verified: all 7 plaintext fields recovered correctly");
+        assert_eq!(decrypted.sender_public_key_x, ctx.input.sender_public_key_x);
+        assert_eq!(decrypted.sender_public_key_y, ctx.input.sender_public_key_y);
+        assert_eq!(decrypted.erc_address, ctx.input.erc_address);
+        assert_eq!(decrypted.token_type, lib::shared_entities::TokenType::ERC20);
+        assert_eq!(decrypted.token_id_or_value, ctx.input.token_id_or_value);
+        assert_eq!(decrypted.receiver_commitment, ctx.input.receiver_commitment);
+        info!("Round-trip decrypt verified: all ERC20 plaintext fields recovered correctly");
 
         info!("Receipt Test 3: Get receipt status");
         let status_resp =
@@ -1172,8 +1171,8 @@ pub async fn run_tests(
             let decrypted_2 =
                 receipt_kemdem_decrypt(ctx2.recipient_private_key, &cipher_text_arr_2)
                     .expect("receipt_kemdem_decrypt should succeed for second receipt");
-            assert_eq!(decrypted_2.nf_token_id, ctx2.plain_text[0]);
-            assert_eq!(decrypted_2.value, ctx2.plain_text[2]);
+            assert_eq!(decrypted_2.sender_public_key_x, ctx2.input.sender_public_key_x);
+            assert_eq!(decrypted_2.token_id_or_value, ctx2.input.token_id_or_value);
             info!(
                 "Second receipt created, resolved and decrypted: id={}",
                 create_resp_2.receipt_id

@@ -50,7 +50,7 @@ use nightfall_client::{
         notifications::NotificationPayload,
     },
     driven::db::mongo::CommitmentEntry,
-    driven::primitives::kemdem_functions::receipt_kemdem_encrypt,
+    driven::primitives::kemdem_functions::{receipt_kemdem_encrypt, ReceiptEncryptInput},
 };
 use nightfall_proposer::driven::db::mongo_db::{StoredBlock, DB, PROPOSED_BLOCKS_COLLECTION};
 use num_bigint::BigUint;
@@ -1978,7 +1978,7 @@ pub struct RequestStatusReceiptMetadata {
 pub struct ReceiptCiphertextContext {
     pub ciphertext_hex: String,
     pub recipient_private_key: BJJScalar,
-    pub plain_text: [Fr254; 7],
+    pub input: ReceiptEncryptInput,
 }
 
 pub fn generate_realistic_receipt_ciphertext() -> ReceiptCiphertextContext {
@@ -1990,20 +1990,19 @@ pub fn generate_realistic_receipt_ciphertext() -> ReceiptCiphertextContext {
     let public_point = TEAffine::<BabyJubjub>::new(GENERATOR_X, GENERATOR_Y);
     let recipient_public_key: TEAffine<BabyJubjub> = (public_point * recipient_private_key).into();
 
-    let plain_text: [Fr254; 7] = [
-        Fr254::rand(rng), // nf_token_id
-        Fr254::rand(rng), // nf_slot_id
-        Fr254::rand(rng), // value
-        Fr254::rand(rng), // sender_public_key_x
-        Fr254::rand(rng), // sender_public_key_y
-        Fr254::rand(rng), // erc_address
-        Fr254::rand(rng), // token_id
-    ];
+    let input = ReceiptEncryptInput {
+        sender_public_key_x: Fr254::rand(rng),
+        sender_public_key_y: Fr254::rand(rng),
+        erc_address: Fr254::rand(rng),
+        token_type: lib::shared_entities::TokenType::ERC20,
+        token_id_or_value: Fr254::rand(rng), // value for ERC20
+        receiver_commitment: Fr254::rand(rng),
+    };
 
     let cipher_text = receipt_kemdem_encrypt(
         ephemeral_private_key,
         recipient_public_key,
-        &plain_text,
+        &input,
         public_point,
     )
     .expect("receipt_kemdem_encrypt should not fail");
@@ -2019,7 +2018,7 @@ pub fn generate_realistic_receipt_ciphertext() -> ReceiptCiphertextContext {
     ReceiptCiphertextContext {
         ciphertext_hex,
         recipient_private_key,
-        plain_text,
+        input,
     }
 }
 

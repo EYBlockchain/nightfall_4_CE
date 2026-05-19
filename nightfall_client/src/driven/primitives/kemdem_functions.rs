@@ -121,34 +121,65 @@ pub fn kemdem_decrypt(
     Ok(plain_text)
 }
 
-#[derive(Debug, PartialEq)]
-pub struct ReceiptDecryptOutput {
-    pub nf_token_id: Fr254,
-    pub nf_slot_id: Fr254,
-    pub value: Fr254,
+use lib::shared_entities::TokenType;
+
+/// Input plaintext for [`receipt_kemdem_encrypt`].
+pub struct ReceiptEncryptInput {
     pub sender_public_key_x: Fr254,
     pub sender_public_key_y: Fr254,
     pub erc_address: Fr254,
-    pub token_id: Fr254,
+    pub token_type: TokenType,
+    /// `token_id` for ERC721; `value` for ERC20.
+    pub token_id_or_value: Fr254,
+    pub receiver_commitment: Fr254,
+}
+
+/// Decrypted transfer receipt payload.
+///
+/// `token_id_or_value` holds the `token_id` when `token_type` is `ERC721`,
+/// and the `value` when `token_type` is `ERC20`.
+#[derive(Debug, PartialEq)]
+pub struct ReceiptDecryptOutput {
+    pub sender_public_key_x: Fr254,
+    pub sender_public_key_y: Fr254,
+    pub erc_address: Fr254,
+    pub token_type: TokenType,
+    pub token_id_or_value: Fr254,
+    pub receiver_commitment: Fr254,
     pub shared_salt: Fr254,
 }
 
 /// Encrypt a receipt payload using receipt-specific KEM-DEM domain separators.
 ///
-/// Produces a [Fr254; 9] ciphertext:
-///   [0..6] = 7 encrypted plaintext fields
-///   [7]    = ephemeral public key y-coordinate
-///   [8]    = sign flag for ephemeral public key x-coordinate
+/// Produces a `[Fr254; 9]` ciphertext:
+///   `[0..6]` = 7 encrypted plaintext fields
+///   `[7]`    = ephemeral public key y-coordinate
+///   `[8]`    = sign flag for ephemeral public key x-coordinate
 ///
-/// Plaintext fields (in order):
-///   nf_token_id, nf_slot_id, value,
-///   sender_public_key_x, sender_public_key_y, erc_address, token_id
+/// Plaintext field layout (indices 0–6):
+///   0: `sender_public_key_x`
+///   1: `sender_public_key_y`
+///   2: `erc_address`
+///   3: `token_type` (`0` = ERC20, `2` = ERC721)
+///   4: `token_id` (ERC721) or `value` (ERC20)
+///   5: `receiver_commitment`
+///   6: reserved (zero)
 pub fn receipt_kemdem_encrypt(
     ephemeral_private_key: BJJScalar,
     recipient_public_key: TEAffine<BabyJubjub>,
-    plain_text: &[Fr254; 7],
+    input: &ReceiptEncryptInput,
     public_point: TEAffine<BabyJubjub>,
 ) -> Result<[Fr254; 9], PoseidonError> {
+    let plain_text = [
+        input.sender_public_key_x,
+        input.sender_public_key_y,
+        input.erc_address,
+        Fr254::from(u8::from(input.token_type) as u64),
+        input.token_id_or_value,
+        input.receiver_commitment,
+        Fr254::zero(), // reserved
+    ];
+    let plain_text = &plain_text;
     let shared_secret: TEAffine<BabyJubjub> = (recipient_public_key * ephemeral_private_key).into();
     let poseidon = Poseidon::<Fr254>::new();
 
@@ -179,8 +210,10 @@ pub fn receipt_kemdem_encrypt(
 
 /// Decrypt a receipt ciphertext using receipt-specific KEM-DEM domain separators.
 ///
-/// Expects a [Fr254; 9] ciphertext as produced by `receipt_kemdem_encrypt`.
-/// Returns `ReceiptDecryptOutput` with all 7 plaintext fields and the shared salt.
+/// Expects a `[Fr254; 9]` ciphertext as produced by [`receipt_kemdem_encrypt`].
+/// Returns a [`ReceiptDecryptOutput`] struct matching the encoded token type.
+/// Returns `Err` if the sign flag is invalid or the token type is not supported by
+/// the MVP receipt payload (`ERC20` or `ERC721`).
 pub fn receipt_kemdem_decrypt(
     recipient_private_key: BJJScalar,
     cipher_text: &[Fr254; 9],
@@ -217,20 +250,31 @@ pub fn receipt_kemdem_decrypt(
     // Derive shared salt with the standard domain separator.
     let shared_salt = poseidon.hash(&[shared_secret.x, shared_secret.y, DOMAIN_SHARED_SALT])?;
 
+    // plain layout: [spk_x, spk_y, erc_address, token_type, token_id_or_value, receiver_commitment, reserved]
+    let token_type_byte = plain[3].into_bigint().to_bytes_le()[0];
+    let token_type = decode_receipt_token_type(token_type_byte)?;
+
     Ok(ReceiptDecryptOutput {
-        nf_token_id: plain[0],
-        nf_slot_id: plain[1],
-        value: plain[2],
-        sender_public_key_x: plain[3],
-        sender_public_key_y: plain[4],
-        erc_address: plain[5],
-        token_id: plain[6],
+        sender_public_key_x: plain[0],
+        sender_public_key_y: plain[1],
+        erc_address: plain[2],
+        token_type,
+        token_id_or_value: plain[4],
+        receiver_commitment: plain[5],
         shared_salt,
     })
 }
 
 fn is_valid_epk_sign_flag(flag: &Fr254) -> bool {
     *flag == Fr254::zero() || *flag == Fr254::one()
+}
+
+fn decode_receipt_token_type(token_type_byte: u8) -> Result<TokenType, PoseidonError> {
+    match token_type_byte {
+        0 => Ok(TokenType::ERC20),
+        2 => Ok(TokenType::ERC721),
+        _ => Err(PoseidonError::InvalidInputs),
+    }
 }
 
 #[cfg(test)]
@@ -323,7 +367,7 @@ mod tests {
     }
 
     #[test]
-    fn test_receipt_kemdem_round_trip() {
+    fn test_receipt_kemdem_round_trip_erc721() {
         let rng = &mut test_rng();
         let recipient_private_key = BJJScalar::rand(rng);
         let ephemeral_private_key = BJJScalar::rand(rng);
@@ -331,20 +375,19 @@ mod tests {
         let recipient_public_key: TEAffine<BabyJubjub> =
             (public_point * recipient_private_key).into();
 
-        let plain_text: [Fr254; 7] = [
-            Fr254::rand(rng), // nf_token_id
-            Fr254::rand(rng), // nf_slot_id
-            Fr254::rand(rng), // value
-            Fr254::rand(rng), // sender_public_key_x
-            Fr254::rand(rng), // sender_public_key_y
-            Fr254::rand(rng), // erc_address
-            Fr254::rand(rng), // token_id
-        ];
+        let input = ReceiptEncryptInput {
+            sender_public_key_x: Fr254::rand(rng),
+            sender_public_key_y: Fr254::rand(rng),
+            erc_address: Fr254::rand(rng),
+            token_type: TokenType::ERC721,
+            token_id_or_value: Fr254::rand(rng),
+            receiver_commitment: Fr254::rand(rng),
+        };
 
         let cipher_text = receipt_kemdem_encrypt(
             ephemeral_private_key,
             recipient_public_key,
-            &plain_text,
+            &input,
             public_point,
         )
         .unwrap();
@@ -353,13 +396,50 @@ mod tests {
 
         let out = receipt_kemdem_decrypt(recipient_private_key, &cipher_text).unwrap();
 
-        assert_eq!(out.nf_token_id, plain_text[0]);
-        assert_eq!(out.nf_slot_id, plain_text[1]);
-        assert_eq!(out.value, plain_text[2]);
-        assert_eq!(out.sender_public_key_x, plain_text[3]);
-        assert_eq!(out.sender_public_key_y, plain_text[4]);
-        assert_eq!(out.erc_address, plain_text[5]);
-        assert_eq!(out.token_id, plain_text[6]);
+        assert_eq!(out.sender_public_key_x, input.sender_public_key_x);
+        assert_eq!(out.sender_public_key_y, input.sender_public_key_y);
+        assert_eq!(out.erc_address, input.erc_address);
+        assert_eq!(out.token_type, TokenType::ERC721);
+        assert_eq!(out.token_id_or_value, input.token_id_or_value);
+        assert_eq!(out.receiver_commitment, input.receiver_commitment);
+    }
+
+    #[test]
+    fn test_receipt_kemdem_round_trip_erc20() {
+        let rng = &mut test_rng();
+        let recipient_private_key = BJJScalar::rand(rng);
+        let ephemeral_private_key = BJJScalar::rand(rng);
+        let public_point = TEAffine::<BabyJubjub>::new(GENERATOR_X, GENERATOR_Y);
+        let recipient_public_key: TEAffine<BabyJubjub> =
+            (public_point * recipient_private_key).into();
+
+        let input = ReceiptEncryptInput {
+            sender_public_key_x: Fr254::rand(rng),
+            sender_public_key_y: Fr254::rand(rng),
+            erc_address: Fr254::rand(rng),
+            token_type: TokenType::ERC20,
+            token_id_or_value: Fr254::rand(rng),
+            receiver_commitment: Fr254::rand(rng),
+        };
+
+        let cipher_text = receipt_kemdem_encrypt(
+            ephemeral_private_key,
+            recipient_public_key,
+            &input,
+            public_point,
+        )
+        .unwrap();
+
+        assert_eq!(cipher_text.len(), 9);
+
+        let out = receipt_kemdem_decrypt(recipient_private_key, &cipher_text).unwrap();
+
+        assert_eq!(out.sender_public_key_x, input.sender_public_key_x);
+        assert_eq!(out.sender_public_key_y, input.sender_public_key_y);
+        assert_eq!(out.erc_address, input.erc_address);
+        assert_eq!(out.token_type, TokenType::ERC20);
+        assert_eq!(out.token_id_or_value, input.token_id_or_value);
+        assert_eq!(out.receiver_commitment, input.receiver_commitment);
     }
 
     #[test]
@@ -400,20 +480,19 @@ mod tests {
         )
         .unwrap();
 
-        // Encrypt using receipt KEM-DEM with same first 3 fields
-        let receipt_plain = [
-            proto_plain[0],
-            proto_plain[1],
-            proto_plain[2],
-            Fr254::rand(rng),
-            Fr254::rand(rng),
-            Fr254::rand(rng),
-            Fr254::rand(rng),
-        ];
+        // Encrypt using receipt KEM-DEM — first 3 plaintext fields share values with proto_plain
+        let receipt_input = ReceiptEncryptInput {
+            sender_public_key_x: proto_plain[0],
+            sender_public_key_y: proto_plain[1],
+            erc_address: proto_plain[2],
+            token_type: TokenType::ERC721,
+            token_id_or_value: Fr254::rand(rng),
+            receiver_commitment: Fr254::rand(rng),
+        };
         let receipt_ct = receipt_kemdem_encrypt(
             ephemeral_private_key,
             recipient_public_key,
-            &receipt_plain,
+            &receipt_input,
             public_point,
         )
         .unwrap();
@@ -435,27 +514,77 @@ mod tests {
         let recipient_public_key: TEAffine<BabyJubjub> =
             (public_point * recipient_private_key).into();
 
-        let plain_text: [Fr254; 7] = [
-            Fr254::rand(rng),
-            Fr254::rand(rng),
-            Fr254::rand(rng),
-            Fr254::rand(rng),
-            Fr254::rand(rng),
-            Fr254::rand(rng),
-            Fr254::rand(rng),
-        ];
+        let input = ReceiptEncryptInput {
+            sender_public_key_x: Fr254::rand(rng),
+            sender_public_key_y: Fr254::rand(rng),
+            erc_address: Fr254::rand(rng),
+            token_type: TokenType::ERC721,
+            token_id_or_value: Fr254::rand(rng),
+            receiver_commitment: Fr254::rand(rng),
+        };
 
         let cipher_text = receipt_kemdem_encrypt(
             ephemeral_private_key,
             recipient_public_key,
-            &plain_text,
+            &input,
             public_point,
         )
         .unwrap();
 
-        // Decrypt with wrong key — should succeed syntactically but produce wrong plaintext.
-        let out = receipt_kemdem_decrypt(wrong_private_key, &cipher_text).unwrap();
-        assert_ne!(out.nf_token_id, plain_text[0]);
+        // Decrypt with wrong key. In the overwhelming majority of cases the token-type field
+        // will be invalid for the MVP receipt format and decryption should fail.
+        match receipt_kemdem_decrypt(wrong_private_key, &cipher_text) {
+            Err(PoseidonError::InvalidInputs) => {}
+            Ok(out) => assert_ne!(out.sender_public_key_x, input.sender_public_key_x),
+        }
+    }
+
+    #[test]
+    fn test_receipt_kemdem_rejects_unsupported_token_type() {
+        let rng = &mut test_rng();
+        let recipient_private_key = BJJScalar::rand(rng);
+        let ephemeral_private_key = BJJScalar::rand(rng);
+        let public_point = TEAffine::<BabyJubjub>::new(GENERATOR_X, GENERATOR_Y);
+        let recipient_public_key: TEAffine<BabyJubjub> =
+            (public_point * recipient_private_key).into();
+
+        let input = ReceiptEncryptInput {
+            sender_public_key_x: Fr254::rand(rng),
+            sender_public_key_y: Fr254::rand(rng),
+            erc_address: Fr254::rand(rng),
+            token_type: TokenType::ERC20,
+            token_id_or_value: Fr254::rand(rng),
+            receiver_commitment: Fr254::rand(rng),
+        };
+
+        let mut cipher_text = receipt_kemdem_encrypt(
+            ephemeral_private_key,
+            recipient_public_key,
+            &input,
+            public_point,
+        )
+        .unwrap();
+
+        let shared_secret: TEAffine<BabyJubjub> =
+            (recipient_public_key * ephemeral_private_key).into();
+        let poseidon = Poseidon::<Fr254>::new();
+        let encryption_key = poseidon
+            .hash(&[shared_secret.x, shared_secret.y, DOMAIN_RECEIPT_KEM])
+            .unwrap();
+        let token_type_index = 3u64;
+        let token_type_pad = poseidon
+            .hash(&[
+                encryption_key,
+                DOMAIN_RECEIPT_DEM,
+                Fr254::from(token_type_index),
+            ])
+            .unwrap();
+        cipher_text[3] = token_type_pad + Fr254::from(1u64);
+
+        assert!(matches!(
+            receipt_kemdem_decrypt(recipient_private_key, &cipher_text),
+            Err(PoseidonError::InvalidInputs)
+        ));
     }
 
     #[test]
@@ -467,20 +596,19 @@ mod tests {
         let recipient_public_key: TEAffine<BabyJubjub> =
             (public_point * recipient_private_key).into();
 
-        let plain_text: [Fr254; 7] = [
-            Fr254::rand(rng),
-            Fr254::rand(rng),
-            Fr254::rand(rng),
-            Fr254::rand(rng),
-            Fr254::rand(rng),
-            Fr254::rand(rng),
-            Fr254::rand(rng),
-        ];
+        let input = ReceiptEncryptInput {
+            sender_public_key_x: Fr254::rand(rng),
+            sender_public_key_y: Fr254::rand(rng),
+            erc_address: Fr254::rand(rng),
+            token_type: TokenType::ERC20,
+            token_id_or_value: Fr254::rand(rng),
+            receiver_commitment: Fr254::rand(rng),
+        };
 
         let mut cipher_text = receipt_kemdem_encrypt(
             ephemeral_private_key,
             recipient_public_key,
-            &plain_text,
+            &input,
             public_point,
         )
         .unwrap();
