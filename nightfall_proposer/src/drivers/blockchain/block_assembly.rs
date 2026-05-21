@@ -121,7 +121,7 @@ impl From<PlonkError> for BlockAssemblyError {
         BlockAssemblyError::ProvingError(format!("PlonkError: {e}"))
     }
 }
-
+#[allow(clippy::large_enum_variant)]
 enum PendingBlockQueueAction {
     Completed,
     Requeue(PendingBlock),
