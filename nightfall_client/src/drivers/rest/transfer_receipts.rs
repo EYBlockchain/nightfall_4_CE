@@ -131,7 +131,9 @@ async fn handle_submit_transfer_receipt(
         return Err(warp::reject::custom(ClientRejection::ReceiptUnauthorized));
     }
     if saw_validation_failed {
-        return Err(warp::reject::custom(ClientRejection::ReceiptValidationFailed));
+        return Err(warp::reject::custom(
+            ClientRejection::ReceiptValidationFailed,
+        ));
     }
     if saw_tx_not_found {
         return Err(warp::reject::custom(ClientRejection::ReceiptTxNotFound));

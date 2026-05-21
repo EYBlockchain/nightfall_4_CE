@@ -315,8 +315,9 @@ mod tests {
             &plain_text,
             public_point,
         )
-        .unwrap();
-        let decrypted = kemdem_decrypt(recipient_private_key, &cipher_text).unwrap();
+        .expect("kemdem_encrypt should succeed for transfer");
+        let decrypted = kemdem_decrypt(recipient_private_key, &cipher_text)
+            .expect("kemdem_decrypt should succeed for transfer");
         for (plain_text, decrypted_text) in plain_text.iter().zip(decrypted.iter()) {
             assert_eq!(*plain_text, *decrypted_text);
         }
@@ -328,7 +329,7 @@ mod tests {
         // Derive a shared salt from the shared secret using domain-separated Poseidon hash.
         let shared_salt = poseidon
             .hash(&[shared_secret.x, shared_secret.y, DOMAIN_SHARED_SALT])
-            .unwrap();
+            .expect("Poseidon hash should succeed for shared salt");
         assert_eq!(shared_salt, decrypted[3]);
     }
 
@@ -347,7 +348,7 @@ mod tests {
             &plain_text,
             public_point,
         )
-        .unwrap();
+        .expect("kemdem_encrypt should succeed for withdraw");
 
         assert_eq!(&plain_text, &cipher_text[..3]);
     }
@@ -390,11 +391,12 @@ mod tests {
             &input,
             public_point,
         )
-        .unwrap();
+        .expect("receipt_kemdem_encrypt should succeed for ERC721");
 
         assert_eq!(cipher_text.len(), 9);
 
-        let out = receipt_kemdem_decrypt(recipient_private_key, &cipher_text).unwrap();
+        let out = receipt_kemdem_decrypt(recipient_private_key, &cipher_text)
+            .expect("receipt_kemdem_decrypt should succeed for ERC721");
 
         assert_eq!(out.sender_public_key_x, input.sender_public_key_x);
         assert_eq!(out.sender_public_key_y, input.sender_public_key_y);
@@ -428,11 +430,12 @@ mod tests {
             &input,
             public_point,
         )
-        .unwrap();
+        .expect("receipt_kemdem_encrypt should succeed for ERC20");
 
         assert_eq!(cipher_text.len(), 9);
 
-        let out = receipt_kemdem_decrypt(recipient_private_key, &cipher_text).unwrap();
+        let out = receipt_kemdem_decrypt(recipient_private_key, &cipher_text)
+            .expect("receipt_kemdem_decrypt should succeed for ERC20");
 
         assert_eq!(out.sender_public_key_x, input.sender_public_key_x);
         assert_eq!(out.sender_public_key_y, input.sender_public_key_y);
@@ -478,7 +481,7 @@ mod tests {
             &proto_plain,
             public_point,
         )
-        .unwrap();
+        .expect("kemdem_encrypt should succeed for proto plaintext");
 
         // Encrypt using receipt KEM-DEM — first 3 plaintext fields share values with proto_plain
         let receipt_input = ReceiptEncryptInput {
@@ -495,7 +498,7 @@ mod tests {
             &receipt_input,
             public_point,
         )
-        .unwrap();
+        .expect("receipt_kemdem_encrypt should succeed for domain separation test");
 
         // Domain separation: the first 3 ciphertext elements must differ
         // even though the plaintext and ephemeral key are the same.
@@ -529,7 +532,7 @@ mod tests {
             &input,
             public_point,
         )
-        .unwrap();
+        .expect("receipt_kemdem_encrypt should succeed before testing wrong-key decryption");
 
         // Decrypt with wrong key. In the overwhelming majority of cases the token-type field
         // will be invalid for the MVP receipt format and decryption should fail.
@@ -563,14 +566,14 @@ mod tests {
             &input,
             public_point,
         )
-        .unwrap();
+        .expect("receipt_kemdem_encrypt should succeed before tampering with token type");
 
         let shared_secret: TEAffine<BabyJubjub> =
             (recipient_public_key * ephemeral_private_key).into();
         let poseidon = Poseidon::<Fr254>::new();
         let encryption_key = poseidon
             .hash(&[shared_secret.x, shared_secret.y, DOMAIN_RECEIPT_KEM])
-            .unwrap();
+            .expect("Poseidon hash should succeed for encryption key");
         let token_type_index = 3u64;
         let token_type_pad = poseidon
             .hash(&[
@@ -578,7 +581,7 @@ mod tests {
                 DOMAIN_RECEIPT_DEM,
                 Fr254::from(token_type_index),
             ])
-            .unwrap();
+            .expect("Poseidon hash should succeed for token type pad");
         cipher_text[3] = token_type_pad + Fr254::from(1u64);
 
         assert!(matches!(
@@ -611,7 +614,7 @@ mod tests {
             &input,
             public_point,
         )
-        .unwrap();
+        .expect("receipt_kemdem_encrypt should succeed before tampering with sign flag");
         cipher_text[8] = Fr254::from(2u64);
 
         assert!(receipt_kemdem_decrypt(recipient_private_key, &cipher_text).is_err());
