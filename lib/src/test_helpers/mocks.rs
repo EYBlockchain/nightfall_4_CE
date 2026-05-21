@@ -184,6 +184,7 @@ impl Mocks {
             deadline: Fr254::zero(),
             swap_side: Fr254::zero(),
             proof: Self::get_mock_proof(),
+            receipt_token: None,
         }
     }
 

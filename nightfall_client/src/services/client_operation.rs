@@ -219,6 +219,9 @@ where
             deadline: public_inputs.deadline,
             swap_side: public_inputs.swap_side,
             proof,
+            // receipt_token is set by the caller (drivers layer) after
+            // proof generation and before the transaction is sent to proposers.
+            receipt_token: None,
         }),
         Err(e) => {
             error!("{id} Proving error {e:?}");
@@ -353,6 +356,7 @@ where
             deadline: public_inputs.deadline,
             swap_side: public_inputs.swap_side,
             proof,
+            receipt_token: None,
         }),
         Err(e) => {
             error!("{id} Swap proving error {e:?}");

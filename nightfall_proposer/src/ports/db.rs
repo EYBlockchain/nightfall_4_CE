@@ -1,5 +1,8 @@
 use crate::{
-    domain::entities::{ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot},
+    domain::entities::{
+        ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot, TransferReceipt,
+        TransferReceiptStatus, TxHashBytes,
+    },
     driven::db::mongo_db::StoredBlock,
 };
 use ark_bn254::Fr as Fr254;
@@ -177,4 +180,36 @@ pub trait MerkleTreeDB<F> {
     ) -> Result<Vec<F>, Self::Error>;
     async fn new_tree(&mut self, tree_height: u32, tree_name: &str) -> Result<(), Self::Error>;
     async fn get_tree_height(&self, tree_name: &str) -> Result<u32, Self::Error>;
+}
+
+/// Error type for transfer receipt storage operations.
+#[derive(Debug)]
+pub enum TransferReceiptStoreError {
+    /// Duplicate unique key (receipt_id or tx_hash already exists).
+    DuplicateKey,
+    /// Any other storage error.
+    Other(String),
+}
+
+/// Trait for a DB that stores and retrieves transfer receipts.
+#[async_trait::async_trait]
+pub trait TransferReceiptDB {
+    async fn store_transfer_receipt(
+        &self,
+        receipt: TransferReceipt,
+    ) -> Result<(), TransferReceiptStoreError>;
+
+    async fn get_transfer_receipt(&self, receipt_id: &str) -> Option<TransferReceipt>;
+
+    async fn get_transfer_receipt_by_tx_hash(
+        &self,
+        tx_hash: &TxHashBytes,
+    ) -> Option<TransferReceipt>;
+
+    async fn set_transfer_receipt_status(
+        &self,
+        receipt_id: &str,
+        status: TransferReceiptStatus,
+        updated_at_unix: i64,
+    ) -> Option<()>;
 }
