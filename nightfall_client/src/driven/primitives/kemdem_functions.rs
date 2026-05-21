@@ -622,7 +622,36 @@ mod tests {
 
     #[test]
     fn test_receipt_ciphertext_size() {
-        assert_eq!(9 * 32, 288);
-        assert_eq!(288 * 2, 576);
+        let rng = &mut test_rng();
+        let recipient_private_key = BJJScalar::rand(rng);
+        let ephemeral_private_key = BJJScalar::rand(rng);
+        let public_point = TEAffine::<BabyJubjub>::new(GENERATOR_X, GENERATOR_Y);
+        let recipient_public_key: TEAffine<BabyJubjub> =
+            (public_point * recipient_private_key).into();
+
+        let input = ReceiptEncryptInput {
+            sender_public_key_x: Fr254::rand(rng),
+            sender_public_key_y: Fr254::rand(rng),
+            erc_address: Fr254::rand(rng),
+            token_type: TokenType::ERC20,
+            token_id_or_value: Fr254::rand(rng),
+            receiver_commitment: Fr254::rand(rng),
+        };
+
+        let cipher_text = receipt_kemdem_encrypt(
+            ephemeral_private_key,
+            recipient_public_key,
+            &input,
+            public_point,
+        )
+        .expect("receipt_kemdem_encrypt should succeed for size check");
+
+        let mut serialized_cipher_text = Vec::new();
+        cipher_text
+            .serialize_uncompressed(&mut serialized_cipher_text)
+            .expect("receipt ciphertext should serialize successfully");
+
+        assert_eq!(cipher_text.len(), 9);
+        assert_eq!(serialized_cipher_text.len(), 288);
     }
 }
