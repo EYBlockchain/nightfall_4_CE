@@ -5680,6 +5680,7 @@ dependencies = [
  "either",
  "futures",
  "hex",
+ "hmac",
  "itertools 0.10.5",
  "jf-plonk",
  "jf-primitives",

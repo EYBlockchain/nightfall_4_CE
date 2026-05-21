@@ -69,7 +69,7 @@ async fn handle_client_transaction_with<P, F, Fut>(
 where
     P: Proof,
     F: FnOnce(ClientTransaction<P>) -> Fut,
-    Fut: Future<Output = Result<String, warp::Rejection>>,
+    Fut: Future<Output = Result<Option<String>, warp::Rejection>>,
 {
     info!("Received client transaction");
     let receipt_token = process(transaction).await?;
@@ -272,6 +272,7 @@ mod tests {
             deadline: Fr254::from(0u64),
             swap_side: Fr254::from(0u64),
             proof: MockProvingEngine::default_proof(),
+            receipt_token: None,
         }
     }
 
@@ -309,7 +310,7 @@ mod tests {
             .and(warp::body::json())
             .and_then(|transaction: ClientTransaction<MockProof>| async move {
                 handle_client_transaction_with(transaction, |_tx| async {
-                    Err::<String, _>(warp::reject::custom(
+                    Err::<Option<String>, _>(warp::reject::custom(
                         ProposerRejection::ClientTransactionFailed,
                     ))
                 })

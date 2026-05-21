@@ -7,7 +7,7 @@ use std::error::Error;
 
 pub async fn process_client_transaction<P, E>(
     client_transaction: ClientTransaction<P>,
-) -> Result<String, Box<dyn Error>>
+) -> Result<Option<String>, Box<dyn Error>>
 where
     P: Proof,
     E: ProvingEngine<P>,

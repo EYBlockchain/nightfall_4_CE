@@ -463,6 +463,9 @@ pub async fn run_tests(
 
     //  Extract UUIDs and store expected token info for verification
     let transaction_ids: Vec<Uuid> = transaction_data.iter().map(|(uuid, _)| *uuid).collect();
+    // Persist one deposit UUID so the receipt tests can later assert that
+    // non-transfer requests do NOT carry a receipt_token.
+    let deposit_uuid_for_receipt_test = transaction_ids[0];
     // Build a lookup for later token validation
 
     let mut expected_token_data: HashMap<Uuid, Vec<(String, String)>> = HashMap::new();
@@ -859,6 +862,34 @@ pub async fn run_tests(
 
         let proposer_url = Url::parse(&settings.nightfall_proposer.url).unwrap();
         let client_base_url = Url::parse(&settings.nightfall_client.url).unwrap();
+
+        // ── Receipt Test 0: non-transfer requests must NOT have a receipt_token ──
+        info!("Receipt Test 0: Deposit request must not carry a receipt_token");
+        {
+            let url = client_base_url
+                .join(&format!("v1/request/{deposit_uuid_for_receipt_test}"))
+                .unwrap();
+            let resp = http_client
+                .get(url)
+                .send()
+                .await
+                .expect("GET /v1/request/{uuid} must succeed for deposit");
+            assert!(
+                resp.status().is_success(),
+                "Expected 2xx for deposit request status, got {}",
+                resp.status()
+            );
+            let body: serde_json::Value = resp
+                .json()
+                .await
+                .expect("Deposit request status body must be valid JSON");
+            assert!(
+                body.get("receipt_token").is_none_or(|v| v.is_null()),
+                "Deposit request must not carry a receipt_token, got: {body}"
+            );
+        }
+        info!("Receipt Test 0 passed: deposit request has no receipt_token");
+
         let ctx = generate_realistic_receipt_ciphertext();
         assert_eq!(ctx.ciphertext_hex.len(), 576);
         info!("Generated realistic receipt ciphertext (576 hex chars) via receipt_kemdem_encrypt");
@@ -881,7 +912,7 @@ pub async fn run_tests(
         info!("Receipt Test 1: Create receipt — happy path");
         let (create_status, create_resp) = create_transfer_receipt_full(
             &http_client,
-            &proposer_url,
+            &client_base_url,
             &tx_hash,
             &ctx.ciphertext_hex,
             Some(1),
@@ -898,7 +929,12 @@ pub async fn run_tests(
         // Transaction is already on-chain at this point, so status is included_l2
         assert_eq!(create_resp.status, "included_l2");
 
-        info!("Receipt Test 2: Resolve receipt");
+        info!(
+            "Receipt Test 2: Fan-out verification — resolve from proposer after client submission"
+        );
+        // The client POST in Test 1 fans the ciphertext out to all registered
+        // proposers.  Resolving directly from proposer_url (the downstream
+        // fan-out target) confirms the ciphertext was actually replicated there.
         let resolve_resp =
             resolve_transfer_receipt(&http_client, &proposer_url, &create_resp.receipt_id)
                 .await
@@ -941,7 +977,7 @@ pub async fn run_tests(
         info!("Receipt Test 4: Idempotent create");
         let (idempotent_status, idempotent_resp) = create_transfer_receipt_full(
             &http_client,
-            &proposer_url,
+            &client_base_url,
             &tx_hash,
             &ctx.ciphertext_hex,
             Some(1),
@@ -954,11 +990,33 @@ pub async fn run_tests(
         // Replayed create must return refreshed status, not stale stored value
         assert_eq!(idempotent_resp.status, "included_l2");
 
+        info!("Receipt Test 4b: Wrong receipt_token — fan-out returns 401");
+        // The client fans the submission out to all registered proposers.  Every
+        // proposer validates the receipt_token via constant-time HMAC comparison,
+        // so a wrong token must be rejected by all of them and the client must
+        // surface a 401 back to the caller.
+        let wrong_token = "00".repeat(32); // 64-char hex, wrong value
+        let err4b = create_transfer_receipt_raw(
+            &http_client,
+            &client_base_url,
+            &tx_hash,
+            &ctx.ciphertext_hex,
+            Some(1),
+            &wrong_token,
+        )
+        .await
+        .expect_err("wrong receipt_token must be rejected");
+        assert!(
+            err4b.to_string().contains("401"),
+            "expected 401 Unauthorized, got: {err4b}"
+        );
+        info!("Wrong receipt_token correctly rejected with 401 through fan-out path");
+
         info!("Receipt Test 5: Conflict on mismatched ciphertext");
         let mismatch_ctx = generate_realistic_receipt_ciphertext();
         let err5 = create_transfer_receipt_raw(
             &http_client,
-            &proposer_url,
+            &client_base_url,
             &tx_hash,
             &mismatch_ctx.ciphertext_hex,
             Some(1),
@@ -972,7 +1030,7 @@ pub async fn run_tests(
         info!("Receipt Test 6: Conflict on mismatched version");
         let err6 = create_transfer_receipt_raw(
             &http_client,
-            &proposer_url,
+            &client_base_url,
             &tx_hash,
             &ctx.ciphertext_hex,
             Some(99),
@@ -987,7 +1045,7 @@ pub async fn run_tests(
         let unknown_tx_hash: String = "00".repeat(32);
         let err7 = create_transfer_receipt_raw(
             &http_client,
-            &proposer_url,
+            &client_base_url,
             &unknown_tx_hash,
             &ctx.ciphertext_hex,
             Some(1),
@@ -1025,7 +1083,7 @@ pub async fn run_tests(
         info!("Receipt Test 12: Input validation — short tx_hash");
         let err12 = create_transfer_receipt_raw(
             &http_client,
-            &proposer_url,
+            &client_base_url,
             "abcd1234",
             &ctx.ciphertext_hex,
             Some(1),
@@ -1038,7 +1096,7 @@ pub async fn run_tests(
         info!("Receipt Test 13: Input validation — empty tx_hash");
         let err13 = create_transfer_receipt_raw(
             &http_client,
-            &proposer_url,
+            &client_base_url,
             "",
             &ctx.ciphertext_hex,
             Some(1),
@@ -1051,7 +1109,7 @@ pub async fn run_tests(
         info!("Receipt Test 14: Input validation — non-hex tx_hash");
         let err14 = create_transfer_receipt_raw(
             &http_client,
-            &proposer_url,
+            &client_base_url,
             &"zz".repeat(32),
             &ctx.ciphertext_hex,
             Some(1),
@@ -1064,7 +1122,7 @@ pub async fn run_tests(
         info!("Receipt Test 15: Input validation — short ciphertext");
         let err15 = create_transfer_receipt_raw(
             &http_client,
-            &proposer_url,
+            &client_base_url,
             &unknown_tx_hash,
             &"ab".repeat(100),
             Some(1),
@@ -1077,7 +1135,7 @@ pub async fn run_tests(
         info!("Receipt Test 16: Input validation — oversized ciphertext");
         let err16 = create_transfer_receipt_raw(
             &http_client,
-            &proposer_url,
+            &client_base_url,
             &unknown_tx_hash,
             &"ab".repeat(1025),
             Some(1),
@@ -1090,7 +1148,7 @@ pub async fn run_tests(
         info!("Receipt Test 17: Input validation — non-hex ciphertext");
         let err17 = create_transfer_receipt_raw(
             &http_client,
-            &proposer_url,
+            &client_base_url,
             &unknown_tx_hash,
             &"zz".repeat(288),
             Some(1),
@@ -1103,7 +1161,7 @@ pub async fn run_tests(
         info!("Receipt Test 18: Input validation — odd-length ciphertext");
         let err18 = create_transfer_receipt_raw(
             &http_client,
-            &proposer_url,
+            &client_base_url,
             &unknown_tx_hash,
             &"a".repeat(577),
             Some(1),
@@ -1117,7 +1175,7 @@ pub async fn run_tests(
         let fresh_tx_hash_for_version = "ff".repeat(32);
         let err19 = create_transfer_receipt_raw(
             &http_client,
-            &proposer_url,
+            &client_base_url,
             &fresh_tx_hash_for_version,
             &ctx.ciphertext_hex,
             Some(2),
@@ -1145,7 +1203,7 @@ pub async fn run_tests(
             let ctx2 = generate_realistic_receipt_ciphertext();
             let (create_status_2, create_resp_2) = create_transfer_receipt_full(
                 &http_client,
-                &proposer_url,
+                &client_base_url,
                 &tx_hash_2,
                 &ctx2.ciphertext_hex,
                 Some(1),
@@ -1171,7 +1229,10 @@ pub async fn run_tests(
             let decrypted_2 =
                 receipt_kemdem_decrypt(ctx2.recipient_private_key, &cipher_text_arr_2)
                     .expect("receipt_kemdem_decrypt should succeed for second receipt");
-            assert_eq!(decrypted_2.sender_public_key_x, ctx2.input.sender_public_key_x);
+            assert_eq!(
+                decrypted_2.sender_public_key_x,
+                ctx2.input.sender_public_key_x
+            );
             assert_eq!(decrypted_2.token_id_or_value, ctx2.input.token_id_or_value);
             info!(
                 "Second receipt created, resolved and decrypted: id={}",

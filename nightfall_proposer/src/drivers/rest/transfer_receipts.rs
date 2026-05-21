@@ -6,8 +6,10 @@ use crate::{
     initialisation::get_db_connection,
     ports::db::{TransactionsDB, TransferReceiptDB, TransferReceiptStoreError},
 };
+use hmac::{Hmac, Mac};
 use lib::nf_client_proof::Proof;
 use serde::{Deserialize, Serialize};
+use sha2::Sha256;
 use std::time::{SystemTime, UNIX_EPOCH};
 use warp::{path, Filter, Rejection, Reply};
 
@@ -80,6 +82,24 @@ async fn handle_create_transfer_receipt<P: Proof>(
     let version = request.version.unwrap_or(SUPPORTED_VERSION);
     let db = get_db_connection().await;
 
+    // Verify the caller has authority to attach a receipt to this transaction
+    // BEFORE any idempotent early-return.  Without this guard, a caller who
+    // knows the ciphertext can replay the endpoint with a wrong receipt_token
+    // and receive a 200 OK — bypassing auth entirely.
+    let tx_hash_vec = tx_hash.as_u32_vec();
+    let tx_meta = <mongodb::Client as TransactionsDB<P>>::get_transaction(db, &tx_hash_vec)
+        .await
+        .ok_or_else(|| warp::reject::custom(ProposerRejection::TransferReceiptTxNotFound))?;
+
+    let stored_token = tx_meta.receipt_token.as_deref().unwrap_or("");
+    if stored_token.is_empty()
+        || !constant_time_eq(stored_token.as_bytes(), request.receipt_token.as_bytes())
+    {
+        return Err(warp::reject::custom(
+            ProposerRejection::TransferReceiptUnauthorized,
+        ));
+    }
+
     if let Some(mut existing) = db.get_transfer_receipt_by_tx_hash(&tx_hash).await {
         if existing.ciphertext != request.ciphertext || existing.version != version {
             return Err(warp::reject::custom(
@@ -102,24 +122,9 @@ async fn handle_create_transfer_receipt<P: Proof>(
 
     validate_new_receipt_fields(version, &request.ciphertext).map_err(|e| e.into_rejection())?;
 
-    let tx_hash_vec = tx_hash.as_u32_vec();
-    let tx_meta = <mongodb::Client as TransactionsDB<P>>::get_transaction(db, &tx_hash_vec)
-        .await
-        .ok_or_else(|| warp::reject::custom(ProposerRejection::TransferReceiptTxNotFound))?;
-
-    // Verify the caller has authority to attach a receipt to this transaction.
-    let stored_token = tx_meta.receipt_token.as_deref().unwrap_or("");
-    if stored_token.is_empty()
-        || !constant_time_eq(stored_token.as_bytes(), request.receipt_token.as_bytes())
-    {
-        return Err(warp::reject::custom(
-            ProposerRejection::TransferReceiptUnauthorized,
-        ));
-    }
-
     let now = unix_now() as i64;
     let status = derive_status(tx_meta.lifecycle.block_l2());
-    let receipt_id = generate_receipt_id();
+    let receipt_id = derive_receipt_id(&request.receipt_token, &tx_hash);
     let receipt = TransferReceipt {
         receipt_id: receipt_id.clone(),
         tx_hash,
@@ -263,12 +268,24 @@ fn unix_now() -> u64 {
         .as_secs()
 }
 
-fn generate_receipt_id() -> String {
-    use rand::{rngs::OsRng, RngCore};
-
-    let mut bytes = [0u8; 32];
-    OsRng.fill_bytes(&mut bytes);
-    hex::encode(bytes)
+/// Derives a deterministic, unlinkable receipt ID using HMAC-SHA256.
+///
+/// `receipt_id = HMAC-SHA256(key = receipt_token, data = DOMAIN || tx_hash_hex)`
+///
+/// The same sender-generated `receipt_token` is stored by every proposer that
+/// accepted the transaction, so this derivation always produces the same 64-char
+/// hex ID on every proposer — allowing the receiver to query any of them without
+/// needing to learn which proposer was used.
+///
+/// The receipt_token is a secret known only to the sender and the proposer(s),
+/// so the receipt_id cannot be linked to any on-chain data by an outside observer.
+fn derive_receipt_id(receipt_token: &str, tx_hash: &TxHashBytes) -> String {
+    const DOMAIN: &str = "nf4:transfer-receipt:v1:";
+    let mut mac = Hmac::<Sha256>::new_from_slice(receipt_token.as_bytes())
+        .expect("HMAC accepts any key length");
+    mac.update(DOMAIN.as_bytes());
+    mac.update(tx_hash.as_hex().as_bytes());
+    hex::encode(mac.finalize().into_bytes())
 }
 
 /// Constant-time byte comparison to prevent timing side-channels on token validation.

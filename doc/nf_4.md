@@ -491,7 +491,7 @@ At a high level the flow is:
    - the canonical proposer `tx_hash` for the transfer
    - the `receipt_token` authorizing receipt creation for that transaction
 3. The sender wallet creates the encrypted receipt payload locally, typically in a WASM library, using the recipient's Baby JubJub public key and the receipt-specific KEM-DEM scheme.
-4. The sender submits the opaque ciphertext, together with `tx_hash` and `receipt_token`, to the proposer via `POST /v1/transfer-receipts`.
+4. The sender submits the opaque ciphertext, together with `tx_hash` and `receipt_token`, to the **client** via `POST /v1/transfer-receipts`. The client fans out the submission concurrently to all registered proposers, ensuring every proposer stores the same ciphertext under the same deterministic `receipt_id`.
 5. The proposer stores only the ciphertext and metadata. It never decrypts or interprets the receipt payload.
 6. The sender shares the returned `receipt_id` with the intended receiver out of band.
 7. The receiver wallet retrieves the ciphertext from the proposer using `GET /v1/transfer-receipts/{receipt_id}` and decrypts it locally.
@@ -545,13 +545,13 @@ After decrypting locally, the receiver wallet should verify that the receipt is 
 
 **API endpoints used in this workflow**
 
-Client-side discovery:
+Client-side discovery and receipt submission:
 
 - `GET /v1/request/{uuid}` — returns request status and, once the transfer is `Submitted`, the canonical `tx_hash` and `receipt_token` needed for receipt creation.
+- `POST /v1/transfer-receipts` — sender submits encrypted receipt ciphertext; the client fans it out to all registered proposers concurrently.
 
-Proposer-side storage and retrieval:
+Proposer-side retrieval:
 
-- `POST /v1/transfer-receipts` — sender submits encrypted receipt ciphertext for storage.
 - `GET /v1/transfer-receipts/{receipt_id}` — receiver fetches the full stored receipt ciphertext.
 - `GET /v1/transfer-receipts/{receipt_id}/status` — lightweight status check for the stored receipt.
 
@@ -1147,19 +1147,20 @@ This URL is used by clients to send a JSON encoded `ClientTransaction<P>` struct
 
 Receipt submission is part of the end-to-end transfer receipt flow described in [Transfer Receipt Workflow](#transfer-receipt-workflow).
 
-The proposer-side sender endpoint is:
+The sender submits the encrypted receipt payload to the **client** (not directly to a proposer):
 
-- `POST /v1/transfer-receipts`
+- `POST /v1/transfer-receipts` (client — `localhost:3000`)
 
-This endpoint accepts the canonical `tx_hash`, the opaque receipt `ciphertext`, an optional `version` (currently `1`), and the `receipt_token` returned by `GET /v1/request/{uuid}`. On success it returns a `receipt_id`, which the sender can share with the receiver out of band.
+This endpoint accepts the canonical `tx_hash`, the opaque receipt `ciphertext`, an optional `version` (currently `1`), and the `receipt_token` returned by `GET /v1/request/{uuid}`. The client fans the submission out concurrently to every registered proposer so that the ciphertext is replicated across all of them. On success it returns a `receipt_id`, which the sender can share with the receiver out of band. Because `receipt_id` is derived deterministically (`HMAC-SHA256(receipt_token, tx_hash)`), it is identical on every proposer, and the receiver can query any available proposer to retrieve the receipt.
 
 Status summary:
 
 - `200 OK` — idempotent replay with identical payload
-- `201 Created` — receipt stored successfully
-- `400 BAD REQUEST` — malformed request, unsupported version, invalid ciphertext, or missing transaction
+- `201 Created` — receipt stored successfully by at least one proposer
+- `400 BAD REQUEST` — malformed request, unsupported version, invalid ciphertext, or transaction not yet known to any proposer
 - `401 Unauthorized` — invalid or missing `receipt_token`
 - `409 Conflict` — receipt already exists for this transaction with a different payload
+- `503 Service Unavailable` — all proposers unreachable
 
 See the workflow section for the full meaning of the encrypted payload and how wallets are expected to use the returned `receipt_id`.
 

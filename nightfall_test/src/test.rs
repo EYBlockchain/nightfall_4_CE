@@ -2022,15 +2022,18 @@ pub fn generate_realistic_receipt_ciphertext() -> ReceiptCiphertextContext {
     }
 }
 
+/// Submits a transfer receipt to the **client** (`POST /v1/transfer-receipts`).
+/// The client fans out the ciphertext to every registered proposer, so the
+/// receipt becomes queryable on any proposer via `GET /v1/transfer-receipts/{id}`.
 pub async fn create_transfer_receipt_raw(
     client: &reqwest::Client,
-    proposer_url: &Url,
+    client_url: &Url,
     tx_hash: &str,
     ciphertext: &str,
     version: Option<u8>,
     receipt_token: &str,
 ) -> Result<(u16, String), TestError> {
-    let url = proposer_url
+    let url = client_url
         .join("v1/transfer-receipts")
         .map_err(|e| TestError::new(e.to_string()))?;
     let request = CreateTransferReceiptRequest {
@@ -2058,7 +2061,7 @@ pub async fn create_transfer_receipt_raw(
 
 pub async fn create_transfer_receipt(
     client: &reqwest::Client,
-    proposer_url: &Url,
+    client_url: &Url,
     tx_hash: &str,
     ciphertext: &str,
     version: Option<u8>,
@@ -2066,7 +2069,7 @@ pub async fn create_transfer_receipt(
 ) -> Result<CreateTransferReceiptResponse, TestError> {
     let (_, body_text) = create_transfer_receipt_raw(
         client,
-        proposer_url,
+        client_url,
         tx_hash,
         ciphertext,
         version,
@@ -2078,7 +2081,7 @@ pub async fn create_transfer_receipt(
 
 pub async fn create_transfer_receipt_full(
     client: &reqwest::Client,
-    proposer_url: &Url,
+    client_url: &Url,
     tx_hash: &str,
     ciphertext: &str,
     version: Option<u8>,
@@ -2086,7 +2089,7 @@ pub async fn create_transfer_receipt_full(
 ) -> Result<(u16, CreateTransferReceiptResponse), TestError> {
     let (status, body_text) = create_transfer_receipt_raw(
         client,
-        proposer_url,
+        client_url,
         tx_hash,
         ciphertext,
         version,

@@ -1,6 +1,6 @@
 use crate::{
     domain::{
-        entities::{CommitmentStatus, Operation, RequestStatus},
+        entities::{CommitmentStatus, Operation, OperationType, RequestStatus},
         error::TransactionHandlerError,
         notifications::NotificationPayload,
     },
@@ -66,7 +66,7 @@ pub struct SubmittedOperation<P> {
 
 #[derive(Debug, Deserialize)]
 struct ProposerTransactionAcceptedResponse {
-    receipt_token: String,
+    receipt_token: Option<String>,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -196,9 +196,21 @@ where
         error!("{id} {e}");
         TransactionHandlerError::CustomError(e.to_string())
     })?;
+
+    // Generate a single receipt_token for Transfer transactions before fan-out
+    // so every proposer receives and stores the same token.  This ensures that
+    // the receipt_id derived from it (HMAC of receipt_token + tx_hash) is
+    // identical on every proposer regardless of which one the receiver queries.
+    if operation.operation_type == OperationType::Transfer {
+        use rand::{rngs::OsRng, RngCore};
+        let mut bytes = [0u8; 32];
+        OsRng.fill_bytes(&mut bytes);
+        operation_result.receipt_token = Some(hex::encode(bytes));
+    }
+
     // having done that, we can submit the nighfall transaction to proposer offchain
 
-    let (tx_receipt, receipt_token) = process_transaction_offchain(&operation_result, id)
+    let (tx_receipt, _receipt_token) = process_transaction_offchain(&operation_result, id)
         .await
         .map_err(|e| TransactionHandlerError::CustomError(e.to_string()))?;
     info!("{id} {} transaction submitted", operation.operation_type);
@@ -238,10 +250,15 @@ where
 
     let uuid = serde_json::to_string(id).map_err(TransactionHandlerError::JsonConversionError)?;
 
+    // Use the locally-generated receipt_token as the authoritative value
+    // rather than the proposer-echoed one.  The proposer stores and echoes the
+    // token unchanged, so the values are always identical — but sourcing it
+    // locally removes any implicit dependency on the proposer round-trip.
+    let authoritative_receipt_token = operation_result.receipt_token.clone();
     Ok(SubmittedOperation {
         payload: NotificationPayload::TransactionEvent { response, uuid },
         transaction: operation_result,
-        receipt_token,
+        receipt_token: authoritative_receipt_token,
     })
 }
 
@@ -331,7 +348,7 @@ async fn send_to_proposer_with_retry<P: Serialize + Sync>(
                                 )
                             })?;
                     debug!("{id} Successfully sent transaction to proposer at {url}");
-                    return Ok(Some(parsed.receipt_token));
+                    return Ok(parsed.receipt_token);
                 } else {
                     let body = response.text().await.unwrap_or_default();
                     error!("{id} Error from proposer: HTTP {status} — Body: {body}");
