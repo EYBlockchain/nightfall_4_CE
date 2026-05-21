@@ -949,6 +949,7 @@ mod tests {
                     lifecycle: TxLifecycle::Mempool,
                     hash: vec![i as u32],
                     historic_roots: vec![Fr254::from(123)],
+                    receipt_token: None,
                 })
                 .collect();
 
@@ -1109,6 +1110,7 @@ mod tests {
                     lifecycle: TxLifecycle::Mempool,
                     hash: vec![i as u32],
                     historic_roots: vec![Fr254::from(123)],
+                    receipt_token: None,
                 })
                 .collect();
 
@@ -1202,6 +1204,7 @@ mod tests {
                     lifecycle: TxLifecycle::Mempool,
                     hash: vec![i as u32],
                     historic_roots: vec![Fr254::from(123)],
+                    receipt_token: None,
                 })
                 .collect();
 
@@ -1394,6 +1397,7 @@ mod tests {
             lifecycle: TxLifecycle::Mempool,
             hash: vec![1],
             historic_roots: vec![],
+            receipt_token: None,
         };
 
         let swap_txs: Vec<ClientTransactionWithMetaData<PlonkProof>> = vec![
@@ -1409,6 +1413,7 @@ mod tests {
                 lifecycle: TxLifecycle::Mempool,
                 hash: vec![2],
                 historic_roots: vec![],
+                receipt_token: None,
             },
             ClientTransactionWithMetaData {
                 client_transaction: lib::shared_entities::ClientTransaction {
@@ -1422,6 +1427,7 @@ mod tests {
                 lifecycle: TxLifecycle::Mempool,
                 hash: vec![3],
                 historic_roots: vec![],
+                receipt_token: None,
             },
         ];
 
@@ -1471,6 +1477,7 @@ mod tests {
                 lifecycle: TxLifecycle::Mempool,
                 hash: vec![i as u32 + 1],
                 historic_roots: vec![],
+                receipt_token: None,
             })
             .collect();
 
@@ -1487,6 +1494,7 @@ mod tests {
                 lifecycle: TxLifecycle::Mempool,
                 hash: vec![10 + i as u32],
                 historic_roots: vec![],
+                receipt_token: None,
             })
             .collect();
 
@@ -1540,6 +1548,7 @@ mod tests {
                 lifecycle: TxLifecycle::Mempool,
                 hash: vec![i as u32 + 1],
                 historic_roots: vec![],
+                receipt_token: None,
             })
             .collect();
 
@@ -1605,6 +1614,7 @@ mod tests {
                 lifecycle: TxLifecycle::Mempool,
                 hash: vec![20 + i as u32],
                 historic_roots: vec![],
+                receipt_token: None,
             })
             .collect();
 
@@ -1668,6 +1678,7 @@ mod tests {
             lifecycle: TxLifecycle::Mempool,
             hash: vec![9, 9, 9, 9],
             historic_roots: vec![],
+            receipt_token: None,
         };
         db.store_transaction(stale_tx.clone()).await.unwrap();
 
@@ -1697,6 +1708,7 @@ mod tests {
             lifecycle: TxLifecycle::Mempool,
             hash: vec![1, 1, 1],
             historic_roots: vec![],
+            receipt_token: None,
         };
         let cancelled_tx = ClientTransactionWithMetaData {
             client_transaction: lib::shared_entities::ClientTransaction {
@@ -1707,6 +1719,7 @@ mod tests {
             lifecycle: TxLifecycle::Cancelled,
             hash: vec![2, 2, 2],
             historic_roots: vec![],
+            receipt_token: None,
         };
 
         db.store_transaction(active_tx.clone()).await.unwrap();
@@ -1764,6 +1777,7 @@ mod tests {
                 lifecycle: TxLifecycle::Mempool,
                 hash: vec![50 + i as u32],
                 historic_roots: vec![],
+                receipt_token: None,
             })
             .collect();
 
@@ -1780,6 +1794,7 @@ mod tests {
                 lifecycle: TxLifecycle::Mempool,
                 hash: vec![70 + i as u32],
                 historic_roots: vec![],
+                receipt_token: None,
             })
             .collect();
 
@@ -1855,6 +1870,7 @@ mod tests {
                 lifecycle: TxLifecycle::Mempool,
                 hash: vec![600 + i as u32],
                 historic_roots: vec![],
+                receipt_token: None,
             })
             .collect();
 
@@ -1916,6 +1932,7 @@ mod tests {
                 lifecycle: TxLifecycle::Mempool,
                 hash: vec![200 + i as u32],
                 historic_roots: vec![],
+                receipt_token: None,
             })
             .collect();
 
@@ -1968,6 +1985,7 @@ mod tests {
             lifecycle: TxLifecycle::Mempool,
             hash: vec![210],
             historic_roots: vec![],
+            receipt_token: None,
         })
         .await
         .unwrap();
@@ -2018,6 +2036,7 @@ mod tests {
                 lifecycle: TxLifecycle::Mempool,
                 hash: vec![300],
                 historic_roots: vec![],
+                receipt_token: None,
             },
             ClientTransactionWithMetaData {
                 client_transaction: lib::shared_entities::ClientTransaction {
@@ -2031,6 +2050,7 @@ mod tests {
                 lifecycle: TxLifecycle::Mempool,
                 hash: vec![301],
                 historic_roots: vec![],
+                receipt_token: None,
             },
             ClientTransactionWithMetaData {
                 client_transaction: lib::shared_entities::ClientTransaction {
@@ -2044,6 +2064,7 @@ mod tests {
                 lifecycle: TxLifecycle::Mempool,
                 hash: vec![302],
                 historic_roots: vec![],
+                receipt_token: None,
             },
         ];
 
@@ -2107,6 +2128,7 @@ mod tests {
                 lifecycle: TxLifecycle::Mempool,
                 hash: vec![400],
                 historic_roots: vec![],
+                receipt_token: None,
             },
             ClientTransactionWithMetaData {
                 client_transaction: lib::shared_entities::ClientTransaction {
@@ -2120,6 +2142,7 @@ mod tests {
                 lifecycle: TxLifecycle::Mempool,
                 hash: vec![401],
                 historic_roots: vec![],
+                receipt_token: None,
             },
         ];
 
@@ -2172,6 +2195,7 @@ mod tests {
                 lifecycle: TxLifecycle::Mempool,
                 hash: vec![500 + i as u32],
                 historic_roots: vec![],
+                receipt_token: None,
             })
             .collect();
 

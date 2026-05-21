@@ -124,6 +124,8 @@ mod tests {
             status,
             uuid: "test-request".to_string(),
             child_request_args,
+            tx_hash: None,
+            receipt_token: None,
         }
     }
 
