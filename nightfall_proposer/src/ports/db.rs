@@ -1,9 +1,7 @@
 use crate::{
     domain::entities::{
-        
-        ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot, TransferReceipt,
-        TransferReceiptStatus, TxHashBytes,
-    , PendingBlock,
+        ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot, PendingBlock,
+        TransferReceipt, TransferReceiptStatus, TxHashBytes,
     },
     driven::db::mongo_db::StoredBlock,
 };
@@ -67,6 +65,10 @@ pub trait TransactionsDB<'a, P> {
         &self,
         transactions: &[ClientTransactionWithMetaData<P>],
         block_l2: u64,
+    ) -> Option<u64>;
+    async fn mark_transactions_included_by_hashes(
+        &self,
+        transaction_hashes: &[Vec<u32>],
     ) -> Option<u64>;
     async fn drop_transactions(
         &self,

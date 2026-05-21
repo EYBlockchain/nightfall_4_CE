@@ -92,6 +92,7 @@ impl DepositDatawithFee {
 pub enum TxLifecycle {
     Mempool,
     Selected { block_l2: u64 },
+    Included { block_l2: u64 },
     Cancelled,
     Dropped,
 }
@@ -106,6 +107,7 @@ impl TxLifecycle {
     pub fn block_l2(&self) -> Option<u64> {
         match self {
             Self::Selected { block_l2 } => Some(*block_l2),
+            Self::Included { block_l2 } => Some(*block_l2),
             _ => None,
         }
     }
@@ -116,6 +118,10 @@ impl TxLifecycle {
 
     pub fn is_selected(&self) -> bool {
         matches!(self, Self::Selected { .. })
+    }
+
+    pub fn is_included(&self) -> bool {
+        matches!(self, Self::Included { .. })
     }
 
     pub fn is_cancelled(&self) -> bool {

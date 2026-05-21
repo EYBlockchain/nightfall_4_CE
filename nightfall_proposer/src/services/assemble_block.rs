@@ -784,15 +784,14 @@ where
             )
         })?;
 
-    <mongodb::Client as TransactionsDB<P>>::set_client_transactions_in_mempool_by_hashes(
+    <mongodb::Client as TransactionsDB<P>>::mark_transactions_included_by_hashes(
         db,
         selected_client_transaction_hashes,
-        false,
     )
     .await
     .ok_or_else(|| {
         BlockAssemblyError::QueueError(
-            "Failed to remove selected client transactions from mempool".to_string(),
+            "Failed to mark selected client transactions as included".to_string(),
         )
     })?;
     Ok(())
@@ -878,6 +877,7 @@ mod tests {
             lifecycle: TxLifecycle::Mempool,
             hash: vec![fee as u32],
             historic_roots: vec![Fr254::from(123)],
+            receipt_token: None,
         }
     }
 
@@ -906,6 +906,41 @@ mod tests {
             db.store_transaction(tx.clone()).await.unwrap();
         }
         transactions
+    }
+
+    #[tokio::test]
+    async fn cleanup_selected_transactions_marks_client_transactions_included() {
+        let container = get_mongo().await;
+        let db = get_db_connection(&container).await;
+        let tx = test_client_transaction(42);
+        db.store_transaction(tx.clone()).await.unwrap();
+
+        reserve_selected_transactions::<PlonkProof>(&db, &[], std::slice::from_ref(&tx), 7)
+            .await
+            .unwrap();
+        cleanup_selected_transactions::<PlonkProof>(&db, &[], std::slice::from_ref(&tx.hash))
+            .await
+            .unwrap();
+
+        let stored: ClientTransactionWithMetaData<PlonkProof> =
+            db.get_transaction(&tx.hash).await.unwrap();
+        assert_eq!(stored.lifecycle, TxLifecycle::Included { block_l2: 7 });
+        assert_eq!(
+            <mongodb::Client as TransactionsDB<PlonkProof>>::count_mempool_client_transactions(&db)
+                .await
+                .unwrap(),
+            0,
+            "included transactions must not be selectable again"
+        );
+        assert!(
+            <mongodb::Client as TransactionsDB<PlonkProof>>::get_all_selected_client_transactions(
+                &db
+            )
+            .await
+            .unwrap_or_default()
+            .is_empty(),
+            "included transactions should not look like in-flight reservations"
+        );
     }
 
     #[tokio::test]

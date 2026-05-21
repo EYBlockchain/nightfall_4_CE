@@ -1,7 +1,7 @@
 use crate::{
     domain::entities::{
-        ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot, TransferReceipt,
-        TransferReceiptStatus, TxHashBytes, PendingBlock, TxLifecycle,
+        ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot, PendingBlock,
+        TransferReceipt, TransferReceiptStatus, TxHashBytes, TxLifecycle,
     },
     ports::db::{
         BlockStorageDB, HistoricRootsDB, PendingBlockDB, TransactionsDB, TransferReceiptDB,
@@ -57,6 +57,15 @@ fn selected_state_filter() -> Document {
     doc! {
         "$or": [
             doc! { "lifecycle.state": "selected" },
+            legacy_selected_filter()
+        ]
+    }
+}
+
+fn selected_or_included_state_filter() -> Document {
+    doc! {
+        "$or": [
+            doc! { "lifecycle.state": { "$in": ["selected", "included"] } },
             legacy_selected_filter()
         ]
     }
@@ -228,7 +237,7 @@ where
         swap_link: &Fr254,
     ) -> Result<u64, mongodb::error::Error> {
         let mut filter = swap_link_filter(swap_link);
-        filter.extend(selected_state_filter());
+        filter.extend(selected_or_included_state_filter());
         self.database(DB)
             .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
             .count_documents(filter)
@@ -339,6 +348,38 @@ where
             .await
             .ok()?;
         Some(result.modified_count)
+    }
+
+    async fn mark_transactions_included_by_hashes(
+        &self,
+        transaction_hashes: &[Vec<u32>],
+    ) -> Option<u64> {
+        if transaction_hashes.is_empty() {
+            return Some(0);
+        }
+
+        let collection = self
+            .database(DB)
+            .collection::<ClientTransactionWithMetaData<P>>(COLLECTION);
+        let mut modified = 0u64;
+
+        for hash in transaction_hashes {
+            let transaction =
+                <mongodb::Client as TransactionsDB<P>>::get_transaction(self, hash).await?;
+            let block_l2 = transaction.lifecycle.block_l2()?;
+            let block_l2_i64 = i64::try_from(block_l2).ok()?;
+
+            let mut filter = doc! { "hash": hash };
+            filter.extend(selected_state_filter_for_block(block_l2_i64));
+            let update = doc! {"$set": {
+                "lifecycle": lifecycle_bson(&TxLifecycle::Included { block_l2 })
+            }};
+
+            let result = collection.update_one(filter, update).await.ok()?;
+            modified += result.modified_count;
+        }
+
+        Some(modified)
     }
 
     async fn drop_transactions(&self, txs: &[ClientTransactionWithMetaData<P>]) -> Option<u64> {
@@ -871,6 +912,24 @@ mod test {
             Ok(false)
         );
         assert!(legacy.get("block_l2").is_some());
+    }
+
+    #[test]
+    fn selected_or_included_filter_matches_active_and_finalized_shapes() {
+        let filter = selected_or_included_state_filter();
+        let branches = filter
+            .get_array("$or")
+            .expect("selected-or-included filter should contain transitional branches");
+
+        assert_eq!(branches.len(), 2);
+        let lifecycle_state = branches[0]
+            .as_document()
+            .and_then(|doc| doc.get_document("lifecycle.state").ok())
+            .expect("new lifecycle branch should match multiple states");
+        assert_eq!(
+            lifecycle_state.get_array("$in").expect("$in states").len(),
+            2
+        );
     }
 
     #[test]

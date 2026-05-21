@@ -1082,6 +1082,7 @@ mod tests {
             lifecycle: TxLifecycle::Mempool,
             hash: vec![fee as u32],
             historic_roots: vec![ark_bn254::Fr::from(123u64)],
+            receipt_token: None,
         }
     }
 
