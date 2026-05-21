@@ -272,12 +272,37 @@ impl<'de> Deserialize<'de> for TxHashBytes {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TransferReceipt {
+    /// Deterministic unique identifier for this receipt, derived as
+    /// `HMAC-SHA256(receipt_token, tx_hash)`, hex-encoded (64 lowercase hex chars).
+    /// Identical across all proposers for the same transfer, allowing the receiver
+    /// to query any available proposer using the same `receipt_id`.
     pub receipt_id: String,
+    /// The canonical proposer-side transaction hash of the transfer this receipt is
+    /// associated with, stored as 32 raw bytes. Used as the primary lookup key when
+    /// checking for duplicate receipts on the same transaction.
     pub tx_hash: TxHashBytes,
+    /// The opaque KEM-DEM encrypted receipt payload supplied by the sender wallet,
+    /// hex-encoded. For `version = 1` this is exactly 576 hex characters
+    /// (9 × 32-byte BN254 field elements: 7 encrypted plaintext fields followed by
+    /// the ephemeral public key y-coordinate and x-sign flag). The proposer stores
+    /// this without interpreting or decrypting it.
     pub ciphertext: String,
+    /// Identifies the ciphertext format and encoding rules. Currently only `1` is
+    /// accepted, corresponding to the fixed `[Fr254; 9]` layout. Persisting the
+    /// version with each receipt allows safe format evolution in future versions
+    /// without breaking existing stored receipts, and is also used during idempotent
+    /// replay to detect conflicting re-submissions.
     pub version: u8,
+    /// Lifecycle status of the associated transfer transaction. In the current
+    /// transfer-receipt flow this is typically refreshed from live transaction state
+    /// on read and returned as `Pending` or `IncludedL2`; the enum also retains
+    /// `Failed` for compatibility with the broader receipt status model.
     pub status: TransferReceiptStatus,
+    /// Unix timestamp (seconds) when this receipt was first stored by the proposer.
     pub created_at_unix: i64,
+    /// Unix timestamp (seconds) when this receipt was last updated, for example
+    /// when `status` was refreshed after the referenced transaction was included
+    /// in a Layer 2 block.
     pub updated_at_unix: i64,
 }
 
