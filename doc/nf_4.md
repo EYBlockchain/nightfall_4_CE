@@ -543,6 +543,13 @@ The resulting ciphertext is version `1` and is exactly **576 hex characters** (9
 
 After decrypting locally, the receiver wallet should verify that the receipt is actually meant for the local wallet before displaying it.
 
+The proposer derives the stored receipt `status` from the referenced transaction lifecycle. In the current implementation this means a receipt can be returned as either `pending` or `included_l2`:
+
+- `pending`: the transaction is known to the proposer but does not yet have an L2 block assignment.
+- `included_l2`: the proposer already sees the referenced transaction as included in a Layer 2 block.
+
+This applies both when the sender first submits `POST /v1/transfer-receipts` and when the receiver later calls the proposer `GET` endpoints. In other words, `POST /v1/transfer-receipts` does **not** always return `pending`; if the transfer has already reached L2 by the time the receipt is created, the response can already be `included_l2`.
+
 **API endpoints used in this workflow**
 
 Client-side discovery and receipt submission:
@@ -1003,7 +1010,7 @@ GET /v1/request/{:uuid}
 curl -i 'http://localhost:3000/v1/request/16cf74ad-e28c-421e-a125-78bed5e1c435
 ```
 
-Returns the status of a deposit/transfer or withdraw request when provided with the `X-Request-ID` header value that was submitted with the request.
+Returns the status of a deposit, transfer, withdraw, or swap request when provided with the `X-Request-ID` header value that was submitted with the request.
 
 For transfer receipts, this endpoint is the sender wallet's source of truth for the canonical proposer transaction reference. Once a transfer request has reached `Submitted`, the response may also contain:
 
@@ -1013,8 +1020,12 @@ For transfer receipts, this endpoint is the sender wallet's source of truth for 
 The status can be one of:
 
 - Queued: The transaction is waiting to be processed by the client.
+- Processing: The client has taken the transaction out of the queue and is actively working on it.
 - Submitted: The Client has succesfully processed the transaction and handed off the result, either to the blockchain, in the case of a deposit escrow, or to a Proposer, in the case of a transfer or withdraw transaction.
 - Failed: The hand off to the next stage did not succeed.
+- ProposerUnreachable: The client could not reach a proposer for a transfer or withdraw style request.
+- Confirmed: The transaction lifecycle is complete and the relevant commitments are on-chain.
+- Expired: A swap request passed its deadline without on-chain confirmation. *(Swap only — does not apply to transfer or withdraw requests.)*
 
 Note that internal failures of the client will cause the request state to be unreliable so the request status is not an alternative to error logs.
 
@@ -1029,6 +1040,27 @@ Example response after a transfer has been submitted to a proposer:
 }
 ```
 
+Example response while the request is still being processed:
+
+```json
+{
+  "status": "Processing",
+  "uuid": "16cf74ad-e28c-421e-a125-78bed5e1c435"
+}
+```
+
+Example `400 BAD REQUEST` response:
+
+```text
+Invalid request id
+```
+
+Example `404 NOT FOUND` response:
+
+```text
+No such request
+```
+
 ***
 
 #### Transfer Receipt Resolution
@@ -1041,6 +1073,39 @@ The relevant receiver-facing endpoints are hosted by the proposer (`localhost:30
 - `GET /v1/transfer-receipts/{receipt_id}/status`
 
 Use these endpoints to fetch the stored ciphertext by `receipt_id` and then decrypt it locally in the wallet. See the workflow section for payload semantics and receiver-side verification rules.
+
+Example `GET /v1/transfer-receipts/{receipt_id}` success response (`200 OK`):
+
+```json
+{
+  "receipt_id": "5d8e9d08a0c88fbbcb2f0f4a7f9d0efb0c8a6d488ce9a3f39d95f2ce3d8d8a71",
+  "tx_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "ciphertext": "0a0b0c...<576 hex chars total>...ff",
+  "version": 1,
+  "status": "included_l2",
+  "created_at_unix": 1716200000,
+  "updated_at_unix": 1716200050
+}
+```
+
+Example `GET /v1/transfer-receipts/{receipt_id}/status` success response (`200 OK`):
+
+```json
+{
+  "receipt_id": "5d8e9d08a0c88fbbcb2f0f4a7f9d0efb0c8a6d488ce9a3f39d95f2ce3d8d8a71",
+  "status": "pending"
+}
+```
+
+Example `404 Not Found` response from the proposer for either endpoint:
+
+```text
+Transfer receipt not found
+```
+
+Notes:
+- The proposer currently validates `receipt_id` format and existence together as `404 Not Found`.
+- The receipt `status` returned by either `GET` endpoint is refreshed from the underlying transaction lifecycle before the response is sent.
 
 ***
 
@@ -1161,6 +1226,65 @@ Status summary:
 - `401 Unauthorized` — invalid or missing `receipt_token`
 - `409 Conflict` — receipt already exists for this transaction with a different payload
 - `503 Service Unavailable` — all proposers unreachable
+
+Example success response (`201 Created` while the proposer transaction is still pending):
+
+```json
+{
+  "receipt_id": "5d8e9d08a0c88fbbcb2f0f4a7f9d0efb0c8a6d488ce9a3f39d95f2ce3d8d8a71",
+  "status": "pending"
+}
+```
+
+Example success response (`201 Created` or `200 OK` when the referenced transaction is already in L2):
+
+```json
+{
+  "receipt_id": "5d8e9d08a0c88fbbcb2f0f4a7f9d0efb0c8a6d488ce9a3f39d95f2ce3d8d8a71",
+  "status": "included_l2"
+}
+```
+
+Example idempotent replay (`200 OK`):
+
+```json
+{
+  "receipt_id": "5d8e9d08a0c88fbbcb2f0f4a7f9d0efb0c8a6d488ce9a3f39d95f2ce3d8d8a71",
+  "status": "pending"
+}
+```
+
+Example `400 BAD REQUEST` responses from the client:
+
+```text
+Transaction not found on proposer
+```
+
+```text
+Transfer receipt request failed validation
+```
+
+Example `401 Unauthorized` response from the client:
+
+```text
+Invalid or missing receipt_token
+```
+
+Example `409 Conflict` response from the client:
+
+```text
+Receipt already exists with different ciphertext
+```
+
+Example `503 Service Unavailable` responses from the client:
+
+```text
+Failed to get list of Proposers
+```
+
+```text
+Receipt submission failed: no proposer accepted the receipt
+```
 
 See the workflow section for the full meaning of the encrypted payload and how wallets are expected to use the returned `receipt_id`.
 
