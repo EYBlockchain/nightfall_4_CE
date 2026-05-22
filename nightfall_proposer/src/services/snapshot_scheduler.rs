@@ -211,6 +211,11 @@ pub async fn run_snapshot_scheduler() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::entities::SnapshotCollectionManifest;
+    use crate::driven::db::mongo_db::{PROPOSED_BLOCKS_COLLECTION, SYNC_STATE_COLLECTION};
+    use crate::ports::trees::{CommitmentTree, HistoricRootTree, NullifierTree};
+    use ark_bn254::Fr as Fr254;
+    use sha2::{Digest, Sha256};
     use tokio::sync::{Mutex, OnceCell as TokioOnceCell};
 
     async fn scheduler_test_lock() -> tokio::sync::MutexGuard<'static, ()> {
@@ -229,6 +234,95 @@ mod tests {
         assert!(!maybe_should_snapshot(200, 100, 491, 480, 100, 12));
     }
 
+    fn empty_file_checksum() -> String {
+        hex::encode(Sha256::digest([]))
+    }
+
+    fn compute_test_overall_checksum(collections: &[SnapshotCollectionManifest]) -> String {
+        let mut overall_checksum = Sha256::new();
+        let mut collections_for_checksum: Vec<&SnapshotCollectionManifest> =
+            collections.iter().collect();
+        collections_for_checksum
+            .sort_by(|left, right| left.collection_name.cmp(&right.collection_name));
+        for collection in collections_for_checksum {
+            overall_checksum.update(collection.collection_name.as_bytes());
+            overall_checksum.update(b"|");
+            overall_checksum.update(collection.file_name.as_bytes());
+            overall_checksum.update(b"|");
+            overall_checksum.update(collection.document_count.to_le_bytes());
+            overall_checksum.update(b"|");
+            overall_checksum.update(collection.sha256.as_bytes());
+            overall_checksum.update(b"\n");
+        }
+
+        hex::encode(overall_checksum.finalize())
+    }
+
+    async fn write_minimal_valid_snapshot(
+        snapshot_dir: &Path,
+        snapshot_id: &str,
+        last_applied_l2_block: u64,
+    ) {
+        let required_collections = vec![
+            format!(
+                "{}_metadata",
+                <mongodb::Client as CommitmentTree<Fr254>>::TREE_NAME
+            ),
+            format!(
+                "{}_metadata",
+                <mongodb::Client as HistoricRootTree<Fr254>>::TREE_NAME
+            ),
+            format!(
+                "{}_metadata",
+                <mongodb::Client as NullifierTree<Fr254>>::TREE_NAME
+            ),
+            format!(
+                "{}_indexed_leaves",
+                <mongodb::Client as NullifierTree<Fr254>>::TREE_NAME
+            ),
+            PROPOSED_BLOCKS_COLLECTION.to_string(),
+            SYNC_STATE_COLLECTION.to_string(),
+        ];
+
+        let mut collections = Vec::new();
+        for collection_name in required_collections {
+            let file_name = format!("{collection_name}.jsonl");
+            fs::write(snapshot_dir.join(&file_name), b"")
+                .await
+                .expect("write empty snapshot collection file");
+            collections.push(SnapshotCollectionManifest {
+                collection_name,
+                file_name,
+                document_count: 0,
+                sha256: empty_file_checksum(),
+            });
+        }
+
+        let manifest = crate::domain::entities::ProposerSnapshotManifest {
+            snapshot_id: snapshot_id.to_string(),
+            schema_version: crate::domain::entities::ProposerSnapshotManifest::SCHEMA_VERSION,
+            created_at: DateTime::now(),
+            storage_format: crate::domain::entities::ProposerSnapshotManifest::STORAGE_FORMAT
+                .to_string(),
+            database: "proposer".to_string(),
+            last_applied_l2_block,
+            fingerprint: format!("fingerprint-{last_applied_l2_block}"),
+            l1_ref: crate::domain::entities::L1Ref {
+                block_number: last_applied_l2_block,
+                tx_hash: alloy::primitives::TxHash::from([last_applied_l2_block as u8; 32]),
+                log_index: 0,
+            },
+            overall_sha256: compute_test_overall_checksum(&collections),
+            collections,
+        };
+        fs::write(
+            snapshot_dir.join("manifest.json"),
+            serde_json::to_vec(&manifest).expect("serialize manifest"),
+        )
+        .await
+        .expect("write manifest");
+    }
+
     #[tokio::test]
     async fn prune_old_snapshots_keeps_only_most_recent_snapshots() {
         let _scheduler_test_lock = scheduler_test_lock().await;
@@ -243,30 +337,7 @@ mod tests {
             fs::create_dir_all(&snapshot_dir)
                 .await
                 .expect("create snapshot dir");
-            let manifest = crate::domain::entities::ProposerSnapshotManifest {
-                snapshot_id: format!("snapshot-{index}"),
-                schema_version: crate::domain::entities::ProposerSnapshotManifest::SCHEMA_VERSION,
-                created_at: DateTime::now(),
-                storage_format: crate::domain::entities::ProposerSnapshotManifest::STORAGE_FORMAT
-                    .to_string(),
-                database: "proposer".to_string(),
-                last_applied_l2_block: index,
-                fingerprint: format!("fingerprint-{index}"),
-                l1_ref: crate::domain::entities::L1Ref {
-                    block_number: index,
-                    tx_hash: alloy::primitives::TxHash::from([index as u8; 32]),
-                    log_index: 0,
-                },
-                collections: Vec::new(),
-                overall_sha256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-                    .to_string(),
-            };
-            fs::write(
-                snapshot_dir.join("manifest.json"),
-                serde_json::to_vec(&manifest).expect("serialize manifest"),
-            )
-            .await
-            .expect("write manifest");
+            write_minimal_valid_snapshot(&snapshot_dir, &format!("snapshot-{index}"), index).await;
         }
 
         prune_old_snapshots_by_manifest(&root, 5)
@@ -308,30 +379,7 @@ mod tests {
             fs::create_dir_all(&snapshot_dir)
                 .await
                 .expect("create snapshot dir");
-            let manifest = crate::domain::entities::ProposerSnapshotManifest {
-                snapshot_id: format!("snapshot-{index}"),
-                schema_version: crate::domain::entities::ProposerSnapshotManifest::SCHEMA_VERSION,
-                created_at: DateTime::now(),
-                storage_format: crate::domain::entities::ProposerSnapshotManifest::STORAGE_FORMAT
-                    .to_string(),
-                database: "proposer".to_string(),
-                last_applied_l2_block: index,
-                fingerprint: format!("fingerprint-{index}"),
-                l1_ref: crate::domain::entities::L1Ref {
-                    block_number: index,
-                    tx_hash: alloy::primitives::TxHash::from([index as u8; 32]),
-                    log_index: 0,
-                },
-                collections: Vec::new(),
-                overall_sha256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-                    .to_string(),
-            };
-            fs::write(
-                snapshot_dir.join("manifest.json"),
-                serde_json::to_vec(&manifest).expect("serialize manifest"),
-            )
-            .await
-            .expect("write manifest");
+            write_minimal_valid_snapshot(&snapshot_dir, &format!("snapshot-{index}"), index).await;
         }
 
         let invalid_snapshot_dir = root.join("snapshot-12-invalid");
@@ -401,30 +449,7 @@ mod tests {
             fs::create_dir_all(&snapshot_dir)
                 .await
                 .expect("create snapshot dir");
-            let manifest = crate::domain::entities::ProposerSnapshotManifest {
-                snapshot_id: format!("snapshot-{index}"),
-                schema_version: crate::domain::entities::ProposerSnapshotManifest::SCHEMA_VERSION,
-                created_at: DateTime::now(),
-                storage_format: crate::domain::entities::ProposerSnapshotManifest::STORAGE_FORMAT
-                    .to_string(),
-                database: "proposer".to_string(),
-                last_applied_l2_block: index,
-                fingerprint: format!("fingerprint-{index}"),
-                l1_ref: crate::domain::entities::L1Ref {
-                    block_number: index,
-                    tx_hash: alloy::primitives::TxHash::from([index as u8; 32]),
-                    log_index: 0,
-                },
-                collections: Vec::new(),
-                overall_sha256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-                    .to_string(),
-            };
-            fs::write(
-                snapshot_dir.join("manifest.json"),
-                serde_json::to_vec(&manifest).expect("serialize manifest"),
-            )
-            .await
-            .expect("write manifest");
+            write_minimal_valid_snapshot(&snapshot_dir, &format!("snapshot-{index}"), index).await;
         }
 
         initialize_snapshot_scheduler_state_for_root(&root)

@@ -102,6 +102,9 @@ pub enum SnapshotError {
     MissingRestoreJournal,
     UnsupportedManifestSchemaVersion(u32),
     UnsupportedManifestStorageFormat(String),
+    UnexpectedSnapshotCollection(String),
+    DuplicateSnapshotCollection(String),
+    InvalidSnapshotFileName(String),
     MissingSnapshotFile(String),
     UnexpectedRestoreJournalPhase {
         expected: String,
@@ -150,6 +153,18 @@ impl Display for SnapshotError {
             Self::UnsupportedManifestStorageFormat(storage_format) => write!(
                 f,
                 "Unsupported proposer snapshot storage format: {storage_format}"
+            ),
+            Self::UnexpectedSnapshotCollection(collection_name) => write!(
+                f,
+                "Snapshot manifest contains unsupported proposer collection: {collection_name}"
+            ),
+            Self::DuplicateSnapshotCollection(collection_name) => write!(
+                f,
+                "Snapshot manifest contains duplicate proposer collection entry: {collection_name}"
+            ),
+            Self::InvalidSnapshotFileName(file_name) => write!(
+                f,
+                "Snapshot manifest contains invalid collection file name: {file_name}"
             ),
             Self::MissingSnapshotFile(file_name) => {
                 write!(f, "Snapshot file is missing from snapshot directory: {file_name}")
@@ -261,6 +276,60 @@ fn required_proposer_snapshot_collection_names() -> Vec<String> {
         PROPOSED_BLOCKS_COLLECTION.to_string(),
         SYNC_STATE_COLLECTION.to_string(),
     ]
+}
+
+fn validate_snapshot_manifest_collection_set(
+    manifest: &ProposerSnapshotManifest,
+) -> Result<(), SnapshotError> {
+    let canonical = proposer_snapshot_collection_names();
+    let required = required_proposer_snapshot_collection_names();
+    let mut seen = std::collections::HashSet::new();
+    let manifest_names: std::collections::HashSet<&str> = manifest
+        .collections
+        .iter()
+        .map(|collection| collection.collection_name.as_str())
+        .collect();
+
+    for collection in &manifest.collections {
+        if !seen.insert(collection.collection_name.as_str()) {
+            return Err(SnapshotError::DuplicateSnapshotCollection(
+                collection.collection_name.clone(),
+            ));
+        }
+
+        if !canonical
+            .iter()
+            .any(|name| name == &collection.collection_name)
+        {
+            return Err(SnapshotError::UnexpectedSnapshotCollection(
+                collection.collection_name.clone(),
+            ));
+        }
+    }
+
+    for required_collection in required {
+        if !manifest_names.contains(required_collection.as_str()) {
+            return Err(SnapshotError::MissingSnapshotCollection(
+                required_collection,
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+fn validate_snapshot_file_name(file_name: &str) -> Result<(), SnapshotError> {
+    let mut components = Path::new(file_name).components();
+    match (components.next(), components.next()) {
+        (Some(std::path::Component::Normal(component)), None)
+            if !component.to_string_lossy().is_empty() =>
+        {
+            Ok(())
+        }
+        _ => Err(SnapshotError::InvalidSnapshotFileName(
+            file_name.to_string(),
+        )),
+    }
 }
 
 fn shadow_collection_name(live_collection_name: &str) -> String {
@@ -553,6 +622,8 @@ async fn load_snapshot_manifest(
         ));
     }
 
+    validate_snapshot_manifest_collection_set(&manifest)?;
+
     Ok(manifest)
 }
 
@@ -616,6 +687,7 @@ async fn validate_snapshot_files(
     manifest: &ProposerSnapshotManifest,
 ) -> Result<(), SnapshotError> {
     for collection in &manifest.collections {
+        validate_snapshot_file_name(&collection.file_name)?;
         let file_path = snapshot_dir.join(&collection.file_name);
         if !fs::try_exists(&file_path).await? {
             return Err(SnapshotError::MissingSnapshotFile(
@@ -669,6 +741,7 @@ async fn import_collection_into_shadow(
     manifest: &SnapshotCollectionManifest,
     shadow_collection_name: &str,
 ) -> Result<(), SnapshotError> {
+    validate_snapshot_file_name(&manifest.file_name)?;
     let file = File::open(snapshot_dir.join(&manifest.file_name)).await?;
     let mut reader = BufReader::new(file).lines();
     let shadow_collection = database.collection::<Document>(shadow_collection_name);
@@ -1765,6 +1838,90 @@ mod test {
             error,
             SnapshotError::UnsupportedManifestStorageFormat(ref actual)
                 if actual == "broken-format"
+        ));
+
+        fs::remove_dir_all(snapshot_root)
+            .await
+            .expect("cleanup snapshot directory");
+    }
+
+    #[tokio::test]
+    async fn load_proposer_snapshot_into_shadow_rejects_unexpected_manifest_collection() {
+        let _snapshot_test_lock = snapshot_test_lock().await;
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+        initialize_snapshot_test_trees(&client).await;
+
+        let (snapshot_root, manifest, _, _) = create_snapshot_fixture(
+            &client,
+            33,
+            "0xunexpected-collection",
+            33,
+            3300,
+            "nf4-proposer-unexpected-collection-test",
+        )
+        .await;
+        let snapshot_dir = snapshot_root.join(&manifest.snapshot_id);
+        let mut broken_manifest = read_manifest(&snapshot_dir).await;
+        broken_manifest
+            .collections
+            .push(SnapshotCollectionManifest {
+                collection_name: "TotallyUnexpectedCollection".to_string(),
+                file_name: "TotallyUnexpectedCollection.jsonl".to_string(),
+                document_count: 0,
+                sha256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                    .to_string(),
+            });
+        write_manifest(&snapshot_dir, &broken_manifest).await;
+        fs::write(snapshot_dir.join("TotallyUnexpectedCollection.jsonl"), b"")
+            .await
+            .expect("write unexpected snapshot file");
+
+        let error = load_proposer_snapshot_into_shadow(&client, &snapshot_dir)
+            .await
+            .expect_err("loading snapshot should reject unexpected manifest collection");
+        assert!(matches!(
+            error,
+            SnapshotError::UnexpectedSnapshotCollection(ref actual)
+                if actual == "TotallyUnexpectedCollection"
+        ));
+
+        fs::remove_dir_all(snapshot_root)
+            .await
+            .expect("cleanup snapshot directory");
+    }
+
+    #[tokio::test]
+    async fn load_proposer_snapshot_into_shadow_rejects_invalid_manifest_file_name() {
+        let _snapshot_test_lock = snapshot_test_lock().await;
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+        initialize_snapshot_test_trees(&client).await;
+
+        let (snapshot_root, manifest, _, _) = create_snapshot_fixture(
+            &client,
+            34,
+            "0xinvalid-file-name",
+            34,
+            3400,
+            "nf4-proposer-invalid-file-name-test",
+        )
+        .await;
+        let snapshot_dir = snapshot_root.join(&manifest.snapshot_id);
+        let mut broken_manifest = read_manifest(&snapshot_dir).await;
+        broken_manifest
+            .collections
+            .first_mut()
+            .expect("manifest should contain at least one collection")
+            .file_name = "../../outside.jsonl".to_string();
+        write_manifest(&snapshot_dir, &broken_manifest).await;
+
+        let error = load_proposer_snapshot_into_shadow(&client, &snapshot_dir)
+            .await
+            .expect_err("loading snapshot should reject invalid manifest file names");
+        assert!(matches!(
+            error,
+            SnapshotError::InvalidSnapshotFileName(ref actual) if actual == "../../outside.jsonl"
         ));
 
         fs::remove_dir_all(snapshot_root)
