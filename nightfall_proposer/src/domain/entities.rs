@@ -33,6 +33,31 @@ pub struct Block {
     pub block_number: u64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum PendingBlockState {
+    Reserved,
+    ReadyToPropose,
+    BroadcastPending,
+}
+
+fn default_pending_block_state() -> PendingBlockState {
+    PendingBlockState::ReadyToPropose
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct PendingBlock {
+    pub layer2_block_number: u64,
+    #[serde(default = "default_pending_block_state")]
+    pub state: PendingBlockState,
+    #[serde(default)]
+    pub broadcast_tx_hash: Option<TxHash>,
+    #[serde(default)]
+    pub broadcast_receipt_checks: u32,
+    pub block: Option<Block>,
+    pub selected_deposits: Vec<Vec<DepositDatawithFee>>,
+    pub selected_client_transaction_hashes: Vec<Vec<u32>>,
+}
+
 /// Struct used to represent deposit data, used in making deposit proofs by the proposer.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq)]
 pub struct DepositDatawithFee {
@@ -41,6 +66,8 @@ pub struct DepositDatawithFee {
     pub fee: Fr254,
     /// deposit data
     pub deposit_data: DepositData,
+    #[serde(default)]
+    pub reserved: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -223,6 +250,7 @@ impl DepositDatawithFee {
 pub enum TxLifecycle {
     Mempool,
     Selected { block_l2: u64 },
+    Included { block_l2: u64 },
     Cancelled,
     Dropped,
 }
@@ -237,6 +265,7 @@ impl TxLifecycle {
     pub fn block_l2(&self) -> Option<u64> {
         match self {
             Self::Selected { block_l2 } => Some(*block_l2),
+            Self::Included { block_l2 } => Some(*block_l2),
             _ => None,
         }
     }
@@ -247,6 +276,10 @@ impl TxLifecycle {
 
     pub fn is_selected(&self) -> bool {
         matches!(self, Self::Selected { .. })
+    }
+
+    pub fn is_included(&self) -> bool {
+        matches!(self, Self::Included { .. })
     }
 
     pub fn is_cancelled(&self) -> bool {

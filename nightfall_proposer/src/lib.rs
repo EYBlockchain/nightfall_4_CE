@@ -576,8 +576,14 @@ pub mod initialisation {
         impl NightfallContract for MockNightfallContract {
             async fn propose_block(
                 _block: crate::domain::entities::Block,
-            ) -> Result<(), lib::error::NightfallContractError> {
+            ) -> Result<crate::ports::contracts::ProposeBlockOutcome, lib::error::NightfallContractError> {
                 unreachable!("propose_block is not used in bootstrap tests")
+            }
+
+            async fn get_proposal_receipt_status(
+                _tx_hash: TxHash,
+            ) -> Result<Option<bool>, lib::error::NightfallContractError> {
+                unreachable!("get_proposal_receipt_status is not used in bootstrap tests")
             }
 
             async fn get_current_layer2_blocknumber(

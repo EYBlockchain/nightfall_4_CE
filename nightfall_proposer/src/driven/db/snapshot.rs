@@ -3007,6 +3007,7 @@ mod test {
                 value: Fr254::from(103u64),
                 secret_hash: Fr254::from(104u64),
             },
+            reserved: false,
         };
         <mongodb::Client as TransactionsDB<lib::plonk_prover::plonk_proof::PlonkProof>>::set_mempool_deposits(
             &client,
@@ -3097,6 +3098,7 @@ mod test {
                 value: Fr254::from(203u64),
                 secret_hash: Fr254::from(204u64),
             },
+            reserved: false,
         };
         <mongodb::Client as TransactionsDB<lib::plonk_prover::plonk_proof::PlonkProof>>::set_mempool_deposits(
             &client,

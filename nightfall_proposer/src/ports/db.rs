@@ -1,7 +1,7 @@
 use crate::{
     domain::entities::{
-        ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot, RestoreJournal, SyncState,
-        TransferReceipt, TransferReceiptStatus, TxHashBytes,
+        ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot, PendingBlock,
+        RestoreJournal, SyncState, TransferReceipt, TransferReceiptStatus, TxHashBytes,
     },
     driven::db::mongo_db::StoredBlock,
 };
@@ -67,6 +67,15 @@ pub trait RestoreJournalDB {
 
     async fn delete_restore_journal(&self) -> Result<(), mongodb::error::Error>;
 }
+
+#[async_trait::async_trait]
+pub trait PendingBlockDB {
+    async fn store_pending_block(&self, pending_block: &PendingBlock) -> Option<()>;
+    async fn get_pending_block(&self, block_number: u64) -> Option<PendingBlock>;
+    async fn get_all_pending_blocks(&self) -> Option<Vec<PendingBlock>>;
+    async fn delete_pending_block(&self, block_number: u64) -> Option<()>;
+}
+
 /// Used to store transactions that are on chain. Can be queried to see if a nullifier or commitment is on chain.
 #[async_trait::async_trait]
 pub trait TransactionsDB<'a, P> {
@@ -105,9 +114,18 @@ pub trait TransactionsDB<'a, P> {
         transactions: &[ClientTransactionWithMetaData<P>],
         block_l2: u64,
     ) -> Option<u64>;
+    async fn mark_transactions_included_by_hashes(
+        &self,
+        transaction_hashes: &[Vec<u32>],
+    ) -> Option<u64>;
     async fn drop_transactions(
         &self,
         transactions: &[ClientTransactionWithMetaData<P>],
+    ) -> Option<u64>;
+    async fn set_client_transactions_in_mempool_by_hashes(
+        &self,
+        transaction_hashes: &[Vec<u32>],
+        in_mempool: bool,
     ) -> Option<u64>;
     async fn find_transaction(
         &self,
@@ -120,6 +138,11 @@ pub trait TransactionsDB<'a, P> {
     async fn remove_mempool_deposits(
         &self,
         used_deposits: Vec<Vec<DepositDatawithFee>>,
+    ) -> Option<u64>;
+    async fn set_mempool_deposits_reserved(
+        &self,
+        deposits: Vec<Vec<DepositDatawithFee>>,
+        reserved: bool,
     ) -> Option<u64>;
     async fn remove_all_mempool_deposits(&self) -> Option<u64>;
     async fn remove_all_mempool_client_transactions(&self) -> Option<u64>;

@@ -642,7 +642,7 @@ pub async fn get_synchronisation_status() -> &'static RwLock<SynchronisationStat
 mod tests {
     use super::*;
     use crate::{
-        domain::entities::{Block, DepositDatawithFee, L1Ref, SyncState},
+        domain::entities::{Block, DepositDatawithFee, L1Ref, PendingBlock, PendingBlockState, SyncState},
         drivers::blockchain::block_assembly::{
             pending_blocks_queue_len_for_test, push_pending_block_for_test,
         },
@@ -768,8 +768,18 @@ mod tests {
     async fn recovery_entry_clears_pending_block_queue() {
         let _lock = event_listener_test_lock().await;
 
+        clear_pending_blocks_queue().await;
         get_block_assembly_status().await.write().await.resume();
-        push_pending_block_for_test(Block::default()).await;
+        push_pending_block_for_test(PendingBlock {
+            layer2_block_number: 0,
+            state: PendingBlockState::ReadyToPropose,
+            broadcast_tx_hash: None,
+            broadcast_receipt_checks: 0,
+            block: Some(Block::default()),
+            selected_deposits: Vec::new(),
+            selected_client_transaction_hashes: Vec::new(),
+        })
+        .await;
         assert_eq!(pending_blocks_queue_len_for_test().await, 1);
 
         get_synchronisation_status()
@@ -799,6 +809,7 @@ mod tests {
                 value: Fr254::from(43u64),
                 secret_hash: Fr254::from(44u64),
             },
+            reserved: false,
         };
         <mongodb::Client as TransactionsDB<MockProof>>::set_mempool_deposits(
             &client,
