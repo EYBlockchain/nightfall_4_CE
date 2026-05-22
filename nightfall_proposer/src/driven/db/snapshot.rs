@@ -408,6 +408,14 @@ pub async fn create_proposer_snapshot(
     client: &mongodb::Client,
     snapshot_root_dir: &Path,
 ) -> Result<ProposerSnapshotManifest, SnapshotError> {
+    let _maintenance_guard = acquire_proposer_state_maintenance_guard().await;
+    create_proposer_snapshot_unlocked(client, snapshot_root_dir).await
+}
+
+pub(crate) async fn create_proposer_snapshot_unlocked(
+    client: &mongodb::Client,
+    snapshot_root_dir: &Path,
+) -> Result<ProposerSnapshotManifest, SnapshotError> {
     let database = client.database(DB);
     // listCollections is not supported inside multi-document transactions.
     // We therefore discover the stable proposer collection set before opening
@@ -548,6 +556,14 @@ async fn load_snapshot_manifest(
     Ok(manifest)
 }
 
+pub(crate) async fn load_and_validate_snapshot_manifest(
+    snapshot_dir: &Path,
+) -> Result<ProposerSnapshotManifest, SnapshotError> {
+    let manifest = load_snapshot_manifest(snapshot_dir).await?;
+    validate_snapshot_files(snapshot_dir, &manifest).await?;
+    Ok(manifest)
+}
+
 pub async fn find_latest_valid_proposer_snapshot(
     snapshot_root_dir: &Path,
     max_last_applied_l2_block: u64,
@@ -566,11 +582,11 @@ pub async fn find_latest_valid_proposer_snapshot(
         }
 
         let snapshot_dir = entry.path();
-        let manifest = match load_snapshot_manifest(&snapshot_dir).await {
+        let manifest = match load_and_validate_snapshot_manifest(&snapshot_dir).await {
             Ok(manifest) => manifest,
             Err(error) => {
                 warn!(
-                    "Skipping proposer snapshot at {}: could not load manifest: {error}",
+                    "Skipping proposer snapshot at {}: validation failed: {error}",
                     snapshot_dir.display()
                 );
                 continue;
@@ -578,14 +594,6 @@ pub async fn find_latest_valid_proposer_snapshot(
         };
 
         if manifest.last_applied_l2_block > max_last_applied_l2_block {
-            continue;
-        }
-
-        if let Err(error) = validate_snapshot_files(&snapshot_dir, &manifest).await {
-            warn!(
-                "Skipping proposer snapshot at {}: validation failed: {error}",
-                snapshot_dir.display()
-            );
             continue;
         }
 
@@ -1422,6 +1430,72 @@ mod test {
             "critical restore path should wait while a snapshot-style holder still owns the lock"
         );
         drop(guard);
+    }
+
+    #[tokio::test]
+    async fn create_proposer_snapshot_waits_for_maintenance_lock_release() {
+        let _snapshot_test_lock = snapshot_test_lock().await;
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+        initialize_snapshot_test_trees(&client).await;
+
+        let stored_block = StoredBlock {
+            layer2_block_number: 1,
+            commitments: vec!["0xlock-test".to_string()],
+            proposer_address: Address::from([7; 20]),
+        };
+        client
+            .store_block(&stored_block)
+            .await
+            .expect("store block");
+        persist_sync_state(
+            &client,
+            &SyncState::new(
+                stored_block.layer2_block_number,
+                stored_block.hash().to_string(),
+                L1Ref {
+                    block_number: 100,
+                    tx_hash: TxHash::from([7; 32]),
+                    log_index: 0,
+                },
+                mongodb::bson::DateTime::now(),
+            ),
+        )
+        .await;
+
+        let snapshot_root = std::env::temp_dir().join(format!(
+            "nf4-proposer-snapshot-lock-test-{}",
+            mongodb::bson::DateTime::now().timestamp_millis()
+        ));
+
+        let guard = acquire_proposer_state_maintenance_guard().await;
+        let snapshot_client = client.clone();
+        let snapshot_root_for_task = snapshot_root.clone();
+        let handle = tokio::spawn(async move {
+            create_proposer_snapshot(&snapshot_client, &snapshot_root_for_task).await
+        });
+
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        assert!(
+            !handle.is_finished(),
+            "public snapshot API should wait for the maintenance lock rather than racing restore work"
+        );
+
+        drop(guard);
+        let manifest = handle
+            .await
+            .expect("snapshot task should join")
+            .expect("snapshot should succeed after lock release");
+        assert!(
+            fs::try_exists(snapshot_root.join(manifest.snapshot_id))
+                .await
+                .expect("check snapshot output"),
+            "snapshot directory should exist after successful snapshot creation"
+        );
+
+        fs::remove_dir_all(snapshot_root)
+            .await
+            .expect("cleanup snapshot lock root");
     }
 
     #[tokio::test]

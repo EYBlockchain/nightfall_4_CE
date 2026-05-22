@@ -7,6 +7,7 @@ use nightfall_proposer::{
     driven::{db::mongo_db::DB, mock_prover::MockProver, rollup_prover::RollupProver},
     drivers::{blockchain::block_assembly::start_block_assembly, rest::routes},
     initialisation::bootstrap_proposer_startup_state,
+    services::snapshot_scheduler::run_snapshot_scheduler,
 };
 use std::error::Error;
 
@@ -30,6 +31,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // start the event listener
     ensure_running::<P, E, N>().await;
+    let _snapshot_scheduler_task = tokio::spawn(run_snapshot_scheduler());
 
     let task_0 = if settings.mock_prover {
         info!("Using MockProver");

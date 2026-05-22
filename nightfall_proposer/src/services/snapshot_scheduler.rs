@@ -1,17 +1,22 @@
 use crate::driven::db::snapshot::{
-    cleanup_orphaned_proposer_snapshot_temp_dirs, create_proposer_snapshot,
-    find_latest_valid_proposer_snapshot, try_acquire_proposer_state_maintenance_guard,
-    SnapshotError,
+    cleanup_orphaned_proposer_snapshot_temp_dirs, create_proposer_snapshot_unlocked,
+    find_latest_valid_proposer_snapshot, load_and_validate_snapshot_manifest,
+    try_acquire_proposer_state_maintenance_guard, SnapshotError,
 };
-use crate::ports::db::RestoreJournalDB;
+use crate::initialisation::{get_blockchain_client_connection, get_db_connection};
+use crate::ports::db::{RestoreJournalDB, SyncStateDB};
 use configuration::settings::get_settings;
+use lib::blockchain_client::BlockchainClientConnection;
 use log::{debug, info, warn};
 use mongodb::Client;
 use std::path::{Path, PathBuf};
 use tokio::{
     fs,
     sync::{OnceCell, RwLock},
+    time::{sleep, Duration},
 };
+
+const SNAPSHOT_SCHEDULER_POLL_INTERVAL: Duration = Duration::from_secs(5);
 
 async fn get_last_snapshot_l2_block() -> &'static RwLock<u64> {
     static LAST_SNAPSHOT_L2_BLOCK: OnceCell<RwLock<u64>> = OnceCell::const_new();
@@ -74,29 +79,18 @@ async fn prune_old_snapshots_by_manifest(
             continue;
         }
 
-        let manifest_bytes = match fs::read(&manifest_path).await {
-            Ok(bytes) => bytes,
+        let manifest = match load_and_validate_snapshot_manifest(&path).await {
+            Ok(manifest) => manifest,
             Err(error) => {
                 warn!(
-                    "Skipping snapshot directory {} during prune: could not read manifest: {}",
+                    "Removing snapshot directory {} during prune because it is not a valid restore point: {}",
                     path.display(),
                     error
                 );
+                fs::remove_dir_all(&path).await?;
                 continue;
             }
         };
-        let manifest: crate::domain::entities::ProposerSnapshotManifest =
-            match serde_json::from_slice(&manifest_bytes) {
-                Ok(manifest) => manifest,
-                Err(error) => {
-                    warn!(
-                        "Skipping snapshot directory {} during prune: manifest is invalid JSON: {}",
-                        path.display(),
-                        error
-                    );
-                    continue;
-                }
-            };
         snapshots.push((path, manifest.last_applied_l2_block, manifest.snapshot_id));
     }
 
@@ -127,7 +121,7 @@ async fn create_snapshot_task(client: Client, snapshot_root_dir: PathBuf, retent
         return;
     }
 
-    match create_proposer_snapshot(&client, &snapshot_root_dir).await {
+    match create_proposer_snapshot_unlocked(&client, &snapshot_root_dir).await {
         Ok(manifest) => {
             *get_last_snapshot_l2_block().await.write().await = manifest.last_applied_l2_block;
 
@@ -151,23 +145,23 @@ async fn create_snapshot_task(client: Client, snapshot_root_dir: PathBuf, retent
     }
 }
 
-pub async fn maybe_schedule_snapshot_for_applied_block(
-    client: &Client,
-    current_l2_block: u64,
-    current_l1_block: u64,
-    applied_block_l1_block: u64,
-) {
+async fn maybe_schedule_snapshot_for_current_l1_head(client: &Client, current_l1_block: u64) {
     let settings = &get_settings().nightfall_proposer;
     if !settings.snapshot_enabled {
         return;
     }
 
+    let sync_state = match client.get_sync_state().await {
+        Some(sync_state) => sync_state,
+        None => return,
+    };
+
     let last_snapshot_l2_block = *get_last_snapshot_l2_block().await.read().await;
     if !maybe_should_snapshot(
-        current_l2_block,
+        sync_state.last_applied_l2_block,
         last_snapshot_l2_block,
         current_l1_block,
-        applied_block_l1_block,
+        sync_state.l1_ref.block_number,
         settings.snapshot_interval_l2_blocks,
         settings.snapshot_min_l1_confirmations,
     ) {
@@ -181,6 +175,37 @@ pub async fn maybe_schedule_snapshot_for_applied_block(
     tokio::spawn(async move {
         create_snapshot_task(client, snapshot_root_dir, retention_count).await;
     });
+}
+
+pub async fn maybe_schedule_snapshot_for_applied_block(client: &Client, current_l1_block: u64) {
+    maybe_schedule_snapshot_for_current_l1_head(client, current_l1_block).await;
+}
+
+pub async fn run_snapshot_scheduler() {
+    loop {
+        let current_l1_block = match get_blockchain_client_connection()
+            .await
+            .read()
+            .await
+            .get_client()
+            .get_block_number()
+            .await
+        {
+            Ok(current_l1_block) => current_l1_block,
+            Err(error) => {
+                debug!(
+                    "Skipping proposer snapshot scheduler poll because current L1 head could not be fetched: {}",
+                    error
+                );
+                sleep(SNAPSHOT_SCHEDULER_POLL_INTERVAL).await;
+                continue;
+            }
+        };
+
+        let db = get_db_connection().await;
+        maybe_schedule_snapshot_for_current_l1_head(db, current_l1_block).await;
+        sleep(SNAPSHOT_SCHEDULER_POLL_INTERVAL).await;
+    }
 }
 
 #[cfg(test)]
@@ -233,7 +258,8 @@ mod tests {
                     log_index: 0,
                 },
                 collections: Vec::new(),
-                overall_sha256: format!("sha-{index}"),
+                overall_sha256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                    .to_string(),
             };
             fs::write(
                 snapshot_dir.join("manifest.json"),
@@ -266,6 +292,95 @@ mod tests {
         );
 
         fs::remove_dir_all(root).await.expect("cleanup prune root");
+    }
+
+    #[tokio::test]
+    async fn prune_old_snapshots_removes_invalid_newer_snapshot_before_retention() {
+        let _scheduler_test_lock = scheduler_test_lock().await;
+        let root = std::env::temp_dir().join(format!(
+            "nf4-proposer-prune-invalid-test-{}",
+            DateTime::now().timestamp_millis()
+        ));
+        fs::create_dir_all(&root).await.expect("create root");
+
+        for index in [10_u64, 11_u64] {
+            let snapshot_dir = root.join(format!("snapshot-{index}"));
+            fs::create_dir_all(&snapshot_dir)
+                .await
+                .expect("create snapshot dir");
+            let manifest = crate::domain::entities::ProposerSnapshotManifest {
+                snapshot_id: format!("snapshot-{index}"),
+                schema_version: crate::domain::entities::ProposerSnapshotManifest::SCHEMA_VERSION,
+                created_at: DateTime::now(),
+                storage_format: crate::domain::entities::ProposerSnapshotManifest::STORAGE_FORMAT
+                    .to_string(),
+                database: "proposer".to_string(),
+                last_applied_l2_block: index,
+                fingerprint: format!("fingerprint-{index}"),
+                l1_ref: crate::domain::entities::L1Ref {
+                    block_number: index,
+                    tx_hash: alloy::primitives::TxHash::from([index as u8; 32]),
+                    log_index: 0,
+                },
+                collections: Vec::new(),
+                overall_sha256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                    .to_string(),
+            };
+            fs::write(
+                snapshot_dir.join("manifest.json"),
+                serde_json::to_vec(&manifest).expect("serialize manifest"),
+            )
+            .await
+            .expect("write manifest");
+        }
+
+        let invalid_snapshot_dir = root.join("snapshot-12-invalid");
+        fs::create_dir_all(&invalid_snapshot_dir)
+            .await
+            .expect("create invalid snapshot dir");
+        let invalid_manifest = crate::domain::entities::ProposerSnapshotManifest {
+            snapshot_id: "snapshot-12-invalid".to_string(),
+            schema_version: crate::domain::entities::ProposerSnapshotManifest::SCHEMA_VERSION,
+            created_at: DateTime::now(),
+            storage_format: crate::domain::entities::ProposerSnapshotManifest::STORAGE_FORMAT
+                .to_string(),
+            database: "proposer".to_string(),
+            last_applied_l2_block: 12,
+            fingerprint: "fingerprint-12".to_string(),
+            l1_ref: crate::domain::entities::L1Ref {
+                block_number: 12,
+                tx_hash: alloy::primitives::TxHash::from([12; 32]),
+                log_index: 0,
+            },
+            collections: Vec::new(),
+            overall_sha256: "definitely-not-the-empty-checksum".to_string(),
+        };
+        fs::write(
+            invalid_snapshot_dir.join("manifest.json"),
+            serde_json::to_vec(&invalid_manifest).expect("serialize invalid manifest"),
+        )
+        .await
+        .expect("write invalid manifest");
+
+        prune_old_snapshots_by_manifest(&root, 2)
+            .await
+            .expect("prune old snapshots");
+
+        let mut remaining = fs::read_dir(&root).await.expect("list root");
+        let mut names = Vec::new();
+        while let Some(entry) = remaining.next_entry().await.expect("read entry") {
+            names.push(entry.file_name().to_string_lossy().to_string());
+        }
+        names.sort();
+
+        assert_eq!(
+            names,
+            vec!["snapshot-10".to_string(), "snapshot-11".to_string()]
+        );
+
+        fs::remove_dir_all(root)
+            .await
+            .expect("cleanup invalid prune root");
     }
 
     #[tokio::test]

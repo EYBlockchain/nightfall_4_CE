@@ -472,13 +472,7 @@ where
         .await
     {
         Ok(current_l1_block) => {
-            maybe_schedule_snapshot_for_applied_block(
-                db,
-                layer_2_block_number_in_event_u64,
-                current_l1_block,
-                sync_state_l1_ref.block_number,
-            )
-            .await;
+            maybe_schedule_snapshot_for_applied_block(db, current_l1_block).await;
         }
         Err(error) => {
             warn!(
