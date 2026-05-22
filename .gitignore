@@ -20,3 +20,4 @@ configuration/toml
 remappings.txt
 local.env
 /data/proposer_snapshots/
+temp/

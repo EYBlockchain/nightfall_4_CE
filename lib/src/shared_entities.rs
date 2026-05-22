@@ -277,6 +277,13 @@ pub struct ClientTransaction<P> {
     )]
     pub swap_side: Fr254, // ← SWAP_SIDE (is_party_a)
     pub proof: P,
+    /// Sender-generated random token that authorises receipt creation on every
+    /// proposer this transaction is sent to. Generated once by the client before
+    /// the fan-out and included in every copy of the transaction, so all
+    /// proposers store the same token and the receipt_id derived from it is
+    /// identical everywhere.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub receipt_token: Option<String>,
 }
 
 impl<P: Proof + Debug + Serialize + Clone> ClientTransaction<P> {

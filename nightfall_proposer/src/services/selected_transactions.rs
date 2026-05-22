@@ -253,6 +253,7 @@ mod tests {
             lifecycle: TxLifecycle::Selected { block_l2 },
             hash: vec![1, 2, 3],
             historic_roots: vec![],
+            receipt_token: None,
         }
     }
 
@@ -429,6 +430,7 @@ mod tests {
             lifecycle: TxLifecycle::Cancelled,
             hash: vec![9, 9, 9],
             historic_roots: vec![],
+            receipt_token: None,
         };
         db.store_transaction(tx.clone()).await.unwrap();
 

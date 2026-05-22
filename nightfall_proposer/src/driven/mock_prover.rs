@@ -248,6 +248,14 @@ impl RecursiveProvingEngine<PlonkProof> for MockProver {
         deposit_data: &[DepositData; 4],
         public_inputs: &mut PublicInputs,
     ) -> Result<PlonkProof, Self::Error> {
+        if deposit_data
+            .iter()
+            .all(|deposit| *deposit == DepositData::default())
+        {
+            *public_inputs = PublicInputs::for_deposit();
+            return Ok(PlonkProof::default());
+        }
+
         create_unified_deposit_proof(deposit_data, public_inputs).map_err(Self::Error::from)
     }
 }
