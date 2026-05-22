@@ -17,3 +17,12 @@ const LABEL: &str = "Nightfall|SharedSalt";
  */
 pub const DOMAIN_SHARED_SALT: Fr254 =
     MontFp!("4832298308599927878911686715232824310149976768223104556783163253807065458");
+
+// Receipt-specific domain separators for KEM-DEM, cryptographically independent
+// from the on-chain protocol encryption domains (DOMAIN_KEM / DOMAIN_DEM).
+// Derived as Fr254::from_le_bytes_mod_order(SHA256("Nightfall|ReceiptKEM")) and
+// Fr254::from_le_bytes_mod_order(SHA256("Nightfall|ReceiptDEM")) respectively.
+pub const DOMAIN_RECEIPT_KEM: Fr254 =
+    MontFp!("19025930337730587240715821088551072222022822490734157016697236116220883417000");
+pub const DOMAIN_RECEIPT_DEM: Fr254 =
+    MontFp!("1348191844062849980512103790242939271876911032825841669748694060100189132234");

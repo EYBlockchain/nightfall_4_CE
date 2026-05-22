@@ -1,5 +1,8 @@
 use crate::{
-    domain::entities::{ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot},
+    domain::entities::{
+        ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot, PendingBlock,
+        TransferReceipt, TransferReceiptStatus, TxHashBytes,
+    },
     driven::db::mongo_db::StoredBlock,
 };
 use ark_bn254::Fr as Fr254;
@@ -16,6 +19,15 @@ pub trait BlockStorageDB {
     async fn get_all_blocks(&self) -> Option<Vec<StoredBlock>>;
     async fn delete_block_by_number(&self, block_number: u64) -> Option<()>;
 }
+
+#[async_trait::async_trait]
+pub trait PendingBlockDB {
+    async fn store_pending_block(&self, pending_block: &PendingBlock) -> Option<()>;
+    async fn get_pending_block(&self, block_number: u64) -> Option<PendingBlock>;
+    async fn get_all_pending_blocks(&self) -> Option<Vec<PendingBlock>>;
+    async fn delete_pending_block(&self, block_number: u64) -> Option<()>;
+}
+
 /// Used to store transactions that are on chain. Can be queried to see if a nullifier or commitment is on chain.
 #[async_trait::async_trait]
 pub trait TransactionsDB<'a, P> {
@@ -54,9 +66,18 @@ pub trait TransactionsDB<'a, P> {
         transactions: &[ClientTransactionWithMetaData<P>],
         block_l2: u64,
     ) -> Option<u64>;
+    async fn mark_transactions_included_by_hashes(
+        &self,
+        transaction_hashes: &[Vec<u32>],
+    ) -> Option<u64>;
     async fn drop_transactions(
         &self,
         transactions: &[ClientTransactionWithMetaData<P>],
+    ) -> Option<u64>;
+    async fn set_client_transactions_in_mempool_by_hashes(
+        &self,
+        transaction_hashes: &[Vec<u32>],
+        in_mempool: bool,
     ) -> Option<u64>;
     async fn find_transaction(
         &self,
@@ -69,6 +90,11 @@ pub trait TransactionsDB<'a, P> {
     async fn remove_mempool_deposits(
         &self,
         used_deposits: Vec<Vec<DepositDatawithFee>>,
+    ) -> Option<u64>;
+    async fn set_mempool_deposits_reserved(
+        &self,
+        deposits: Vec<Vec<DepositDatawithFee>>,
+        reserved: bool,
     ) -> Option<u64>;
     async fn remove_all_mempool_deposits(&self) -> Option<u64>;
     async fn remove_all_mempool_client_transactions(&self) -> Option<u64>;
@@ -177,4 +203,36 @@ pub trait MerkleTreeDB<F> {
     ) -> Result<Vec<F>, Self::Error>;
     async fn new_tree(&mut self, tree_height: u32, tree_name: &str) -> Result<(), Self::Error>;
     async fn get_tree_height(&self, tree_name: &str) -> Result<u32, Self::Error>;
+}
+
+/// Error type for transfer receipt storage operations.
+#[derive(Debug)]
+pub enum TransferReceiptStoreError {
+    /// Duplicate unique key (receipt_id or tx_hash already exists).
+    DuplicateKey,
+    /// Any other storage error.
+    Other(String),
+}
+
+/// Trait for a DB that stores and retrieves transfer receipts.
+#[async_trait::async_trait]
+pub trait TransferReceiptDB {
+    async fn store_transfer_receipt(
+        &self,
+        receipt: TransferReceipt,
+    ) -> Result<(), TransferReceiptStoreError>;
+
+    async fn get_transfer_receipt(&self, receipt_id: &str) -> Option<TransferReceipt>;
+
+    async fn get_transfer_receipt_by_tx_hash(
+        &self,
+        tx_hash: &TxHashBytes,
+    ) -> Option<TransferReceipt>;
+
+    async fn set_transfer_receipt_status(
+        &self,
+        receipt_id: &str,
+        status: TransferReceiptStatus,
+        updated_at_unix: i64,
+    ) -> Option<()>;
 }

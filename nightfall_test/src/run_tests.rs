@@ -1,8 +1,12 @@
 use crate::{
     test::{
         self, create_nf3_deposit_transaction, create_nf3_swap_request,
-        create_nf3_transfer_transaction, create_nf3_withdraw_transaction, get_key,
-        get_recipient_address, set_anvil_mining_interval, submit_swap_pair_and_assert_paired,
+        create_nf3_transfer_transaction, create_nf3_withdraw_transaction,
+        create_transfer_receipt_full, create_transfer_receipt_raw,
+        generate_realistic_receipt_ciphertext, get_key, get_recipient_address,
+        get_transfer_receipt_status, get_transfer_receipt_status_raw,
+        get_tx_hash_from_request_status, resolve_transfer_receipt, resolve_transfer_receipt_raw,
+        set_anvil_mining_interval, submit_swap_pair_and_assert_paired,
         verify_deposit_commitments_nf_token_id, wait_for_all_responses,
         wait_for_withdraws_on_chain, wait_on_chain, TokenType,
     },
@@ -476,6 +480,9 @@ pub async fn run_tests(
 
     //  Extract UUIDs and store expected token info for verification
     let transaction_ids: Vec<Uuid> = transaction_data.iter().map(|(uuid, _)| *uuid).collect();
+    // Persist one deposit UUID so the receipt tests can later assert that
+    // non-transfer requests do NOT carry a receipt_token.
+    let deposit_uuid_for_receipt_test = transaction_ids[0];
     // Build a lookup for later token validation
 
     let mut expected_token_data: HashMap<Uuid, Vec<(String, String)>> = HashMap::new();
@@ -719,14 +726,14 @@ pub async fn run_tests(
     let transaction_ids = try_join_all(transaction_ids).await.unwrap();
 
     // wait for the responses to the transfer requests to come back to the webhook server
-    let transactions = wait_for_all_responses(&transaction_ids, responses.clone())
-        .await
-        .into_iter()
-        .map(|(_, l)| {
-            serde_json::from_str::<(Value, Option<TransactionReceipt>)>(&l)
+    let transaction_responses = wait_for_all_responses(&transaction_ids, responses.clone()).await;
+    let transactions = transaction_responses
+        .iter()
+        .map(|(_, response_text)| {
+            serde_json::from_str::<(Value, Option<TransactionReceipt>)>(response_text)
                 .expect("Failed to parse response")
+                .0
         })
-        .map(|l| l.0)
         .collect::<Vec<_>>();
 
     info!("Starting chain reorg, {} blocks reorged", 200);
@@ -929,6 +936,397 @@ pub async fn run_tests(
     let balance = get_erc20_balance(&http_client, Url::parse("http://client2:3000").unwrap()).await;
     info!("Balance of ERC20 tokens held as layer 2 commitments by client2: {balance}");
     assert_eq!(balance, 20 + client2_starting_balance);
+    // ─────────────────────────────────────────────────────────────────────────
+    // Transfer Receipt Integration Tests
+    // ─────────────────────────────────────────────────────────────────────────
+    {
+        use ark_ff::PrimeField;
+        use nightfall_client::driven::primitives::kemdem_functions::receipt_kemdem_decrypt;
+
+        let proposer_url = Url::parse(&settings.nightfall_proposer.url).unwrap();
+        let client_base_url = Url::parse(&settings.nightfall_client.url).unwrap();
+
+        // ── Receipt Test 0: non-transfer requests must NOT have a receipt_token ──
+        info!("Receipt Test 0: Deposit request must not carry a receipt_token");
+        {
+            let url = client_base_url
+                .join(&format!("v1/request/{deposit_uuid_for_receipt_test}"))
+                .unwrap();
+            let resp = http_client
+                .get(url)
+                .send()
+                .await
+                .expect("GET /v1/request/{uuid} must succeed for deposit");
+            assert!(
+                resp.status().is_success(),
+                "Expected 2xx for deposit request status, got {}",
+                resp.status()
+            );
+            let body: serde_json::Value = resp
+                .json()
+                .await
+                .expect("Deposit request status body must be valid JSON");
+            assert!(
+                body.get("receipt_token").is_none_or(|v| v.is_null()),
+                "Deposit request must not carry a receipt_token, got: {body}"
+            );
+        }
+        info!("Receipt Test 0 passed: deposit request has no receipt_token");
+
+        let ctx = generate_realistic_receipt_ciphertext();
+        assert_eq!(ctx.ciphertext_hex.len(), 576);
+        info!("Generated realistic receipt ciphertext (576 hex chars) via receipt_kemdem_encrypt");
+
+        // Obtain tx_hash via the client request status API — mirrors the wallet flow.
+        let request_metadata = get_tx_hash_from_request_status(
+            &http_client,
+            &client_base_url,
+            &transaction_ids[0].to_string(),
+        )
+        .await
+        .expect("first transaction should have tx_hash and receipt_token in request status");
+        let tx_hash = request_metadata
+            .tx_hash
+            .expect("request status tx_hash missing");
+        let receipt_token = request_metadata
+            .receipt_token
+            .expect("request status receipt_token missing");
+
+        info!("Receipt Test 1: Create receipt — happy path");
+        let (create_status, create_resp) = create_transfer_receipt_full(
+            &http_client,
+            &client_base_url,
+            &tx_hash,
+            &ctx.ciphertext_hex,
+            Some(1),
+            &receipt_token,
+        )
+        .await
+        .expect("Receipt Test 1 failed");
+        assert_eq!(create_status, 201);
+        assert_eq!(create_resp.receipt_id.len(), 64);
+        assert!(create_resp
+            .receipt_id
+            .chars()
+            .all(|c| c.is_ascii_hexdigit()));
+        // Transaction is already on-chain at this point, so status is included_l2
+        assert_eq!(create_resp.status, "included_l2");
+
+        info!(
+            "Receipt Test 2: Fan-out verification — resolve from proposer after client submission"
+        );
+        // The client POST in Test 1 fans the ciphertext out to all registered
+        // proposers.  Resolving directly from proposer_url (the downstream
+        // fan-out target) confirms the ciphertext was actually replicated there.
+        let resolve_resp =
+            resolve_transfer_receipt(&http_client, &proposer_url, &create_resp.receipt_id)
+                .await
+                .expect("Receipt Test 2 failed");
+        assert_eq!(resolve_resp.receipt_id, create_resp.receipt_id);
+        assert_eq!(resolve_resp.ciphertext, ctx.ciphertext_hex);
+        assert_eq!(resolve_resp.tx_hash, tx_hash);
+        assert_eq!(resolve_resp.version, 1);
+        assert!(resolve_resp.created_at_unix > 0);
+        assert!(resolve_resp.updated_at_unix > 0);
+        assert_eq!(resolve_resp.created_at_unix, resolve_resp.updated_at_unix);
+
+        info!("Receipt Test 2b: Round-trip KEM-DEM decrypt");
+        let ct_bytes =
+            hex::decode(&resolve_resp.ciphertext).expect("Stored ciphertext must be valid hex");
+        let mut cipher_text_arr = [Fr254::default(); 9];
+        for (i, slot) in cipher_text_arr.iter_mut().enumerate() {
+            let start = i * 32;
+            let end = start + 32;
+            *slot = Fr254::from_le_bytes_mod_order(&ct_bytes[start..end]);
+        }
+        let decrypted = receipt_kemdem_decrypt(ctx.recipient_private_key, &cipher_text_arr)
+            .expect("receipt_kemdem_decrypt should succeed");
+        assert_eq!(decrypted.sender_public_key_x, ctx.input.sender_public_key_x);
+        assert_eq!(decrypted.sender_public_key_y, ctx.input.sender_public_key_y);
+        assert_eq!(decrypted.erc_address, ctx.input.erc_address);
+        assert_eq!(decrypted.token_type, lib::shared_entities::TokenType::ERC20);
+        assert_eq!(decrypted.token_id_or_value, ctx.input.token_id_or_value);
+        assert_eq!(decrypted.receiver_commitment, ctx.input.receiver_commitment);
+        info!("Round-trip decrypt verified: all ERC20 plaintext fields recovered correctly");
+
+        info!("Receipt Test 3: Get receipt status");
+        let status_resp =
+            get_transfer_receipt_status(&http_client, &proposer_url, &create_resp.receipt_id)
+                .await
+                .expect("Receipt Test 3 failed");
+        assert_eq!(status_resp.receipt_id, create_resp.receipt_id);
+        assert_eq!(status_resp.status, "included_l2");
+
+        info!("Receipt Test 4: Idempotent create");
+        let (idempotent_status, idempotent_resp) = create_transfer_receipt_full(
+            &http_client,
+            &client_base_url,
+            &tx_hash,
+            &ctx.ciphertext_hex,
+            Some(1),
+            &receipt_token,
+        )
+        .await
+        .expect("Receipt Test 4 failed");
+        assert_eq!(idempotent_status, 200);
+        assert_eq!(idempotent_resp.receipt_id, create_resp.receipt_id);
+        // Replayed create must return refreshed status, not stale stored value
+        assert_eq!(idempotent_resp.status, "included_l2");
+
+        info!("Receipt Test 4b: Wrong receipt_token — fan-out returns 401");
+        // The client fans the submission out to all registered proposers.  Every
+        // proposer validates the receipt_token via constant-time HMAC comparison,
+        // so a wrong token must be rejected by all of them and the client must
+        // surface a 401 back to the caller.
+        let wrong_token = "00".repeat(32); // 64-char hex, wrong value
+        let err4b = create_transfer_receipt_raw(
+            &http_client,
+            &client_base_url,
+            &tx_hash,
+            &ctx.ciphertext_hex,
+            Some(1),
+            &wrong_token,
+        )
+        .await
+        .expect_err("wrong receipt_token must be rejected");
+        assert!(
+            err4b.to_string().contains("401"),
+            "expected 401 Unauthorized, got: {err4b}"
+        );
+        info!("Wrong receipt_token correctly rejected with 401 through fan-out path");
+
+        info!("Receipt Test 5: Conflict on mismatched ciphertext");
+        let mismatch_ctx = generate_realistic_receipt_ciphertext();
+        let err5 = create_transfer_receipt_raw(
+            &http_client,
+            &client_base_url,
+            &tx_hash,
+            &mismatch_ctx.ciphertext_hex,
+            Some(1),
+            &receipt_token,
+        )
+        .await
+        .expect_err("mismatched ciphertext must fail");
+        assert!(err5.to_string().contains("409"));
+        info!("Mismatched ciphertext correctly rejected with 409");
+
+        info!("Receipt Test 6: Conflict on mismatched version");
+        let err6 = create_transfer_receipt_raw(
+            &http_client,
+            &client_base_url,
+            &tx_hash,
+            &ctx.ciphertext_hex,
+            Some(99),
+            &receipt_token,
+        )
+        .await
+        .expect_err("mismatched version must fail");
+        assert!(err6.to_string().contains("409"));
+        info!("Mismatched version correctly rejected with 409");
+
+        info!("Receipt Test 7: Create with unknown tx_hash");
+        let unknown_tx_hash: String = "00".repeat(32);
+        let err7 = create_transfer_receipt_raw(
+            &http_client,
+            &client_base_url,
+            &unknown_tx_hash,
+            &ctx.ciphertext_hex,
+            Some(1),
+            "placeholder-receipt-token",
+        )
+        .await
+        .expect_err("unknown tx_hash must fail");
+        assert!(err7.to_string().contains("400"));
+
+        info!("Receipt Test 8: Resolve nonexistent receipt");
+        let fake_id = "a".repeat(64);
+        let err8 = resolve_transfer_receipt_raw(&http_client, &proposer_url, &fake_id)
+            .await
+            .expect_err("missing receipt must fail");
+        assert!(err8.to_string().contains("404"));
+
+        info!("Receipt Test 9: Status for nonexistent receipt");
+        let err9 = get_transfer_receipt_status_raw(&http_client, &proposer_url, &fake_id)
+            .await
+            .expect_err("missing receipt status must fail");
+        assert!(err9.to_string().contains("404"));
+
+        info!("Receipt Test 10: Resolve with invalid receipt_id format");
+        let err10 = resolve_transfer_receipt_raw(&http_client, &proposer_url, "not-hex!")
+            .await
+            .expect_err("invalid receipt_id must fail");
+        assert!(err10.to_string().contains("404"));
+
+        info!("Receipt Test 11: Status with invalid receipt_id format");
+        let err11 = get_transfer_receipt_status_raw(&http_client, &proposer_url, "not-hex!")
+            .await
+            .expect_err("invalid receipt status must fail");
+        assert!(err11.to_string().contains("404"));
+
+        info!("Receipt Test 12: Input validation — short tx_hash");
+        let err12 = create_transfer_receipt_raw(
+            &http_client,
+            &client_base_url,
+            "abcd1234",
+            &ctx.ciphertext_hex,
+            Some(1),
+            "placeholder-receipt-token",
+        )
+        .await
+        .expect_err("short tx_hash must fail");
+        assert!(err12.to_string().contains("400"));
+
+        info!("Receipt Test 13: Input validation — empty tx_hash");
+        let err13 = create_transfer_receipt_raw(
+            &http_client,
+            &client_base_url,
+            "",
+            &ctx.ciphertext_hex,
+            Some(1),
+            "placeholder-receipt-token",
+        )
+        .await
+        .expect_err("empty tx_hash must fail");
+        assert!(err13.to_string().contains("400"));
+
+        info!("Receipt Test 14: Input validation — non-hex tx_hash");
+        let err14 = create_transfer_receipt_raw(
+            &http_client,
+            &client_base_url,
+            &"zz".repeat(32),
+            &ctx.ciphertext_hex,
+            Some(1),
+            "placeholder-receipt-token",
+        )
+        .await
+        .expect_err("non-hex tx_hash must fail");
+        assert!(err14.to_string().contains("400"));
+
+        info!("Receipt Test 15: Input validation — short ciphertext");
+        let err15 = create_transfer_receipt_raw(
+            &http_client,
+            &client_base_url,
+            &unknown_tx_hash,
+            &"ab".repeat(100),
+            Some(1),
+            "placeholder-receipt-token",
+        )
+        .await
+        .expect_err("short ciphertext must fail");
+        assert!(err15.to_string().contains("400"));
+
+        info!("Receipt Test 16: Input validation — oversized ciphertext");
+        let err16 = create_transfer_receipt_raw(
+            &http_client,
+            &client_base_url,
+            &unknown_tx_hash,
+            &"ab".repeat(1025),
+            Some(1),
+            "placeholder-receipt-token",
+        )
+        .await
+        .expect_err("oversized ciphertext must fail");
+        assert!(err16.to_string().contains("400"));
+
+        info!("Receipt Test 17: Input validation — non-hex ciphertext");
+        let err17 = create_transfer_receipt_raw(
+            &http_client,
+            &client_base_url,
+            &unknown_tx_hash,
+            &"zz".repeat(288),
+            Some(1),
+            "placeholder-receipt-token",
+        )
+        .await
+        .expect_err("non-hex ciphertext must fail");
+        assert!(err17.to_string().contains("400"));
+
+        info!("Receipt Test 18: Input validation — odd-length ciphertext");
+        let err18 = create_transfer_receipt_raw(
+            &http_client,
+            &client_base_url,
+            &unknown_tx_hash,
+            &"a".repeat(577),
+            Some(1),
+            "placeholder-receipt-token",
+        )
+        .await
+        .expect_err("odd ciphertext must fail");
+        assert!(err18.to_string().contains("400"));
+
+        info!("Receipt Test 19: Input validation — unsupported version");
+        let fresh_tx_hash_for_version = "ff".repeat(32);
+        let err19 = create_transfer_receipt_raw(
+            &http_client,
+            &client_base_url,
+            &fresh_tx_hash_for_version,
+            &ctx.ciphertext_hex,
+            Some(2),
+            "placeholder-receipt-token",
+        )
+        .await
+        .expect_err("unsupported version must fail");
+        assert!(err19.to_string().contains("400"));
+
+        info!("Receipt Test 20: Create receipt for second valid tx_hash");
+        if transactions.len() > 1 {
+            let request_metadata_2 = get_tx_hash_from_request_status(
+                &http_client,
+                &client_base_url,
+                &transaction_ids[1].to_string(),
+            )
+            .await
+            .expect("second transaction should have tx_hash and receipt_token in request status");
+            let tx_hash_2 = request_metadata_2
+                .tx_hash
+                .expect("second request status tx_hash missing");
+            let receipt_token_2 = request_metadata_2
+                .receipt_token
+                .expect("second request status receipt_token missing");
+            let ctx2 = generate_realistic_receipt_ciphertext();
+            let (create_status_2, create_resp_2) = create_transfer_receipt_full(
+                &http_client,
+                &client_base_url,
+                &tx_hash_2,
+                &ctx2.ciphertext_hex,
+                Some(1),
+                &receipt_token_2,
+            )
+            .await
+            .expect("second receipt create failed");
+            assert_eq!(create_status_2, 201);
+
+            let resolve_resp_2 =
+                resolve_transfer_receipt(&http_client, &proposer_url, &create_resp_2.receipt_id)
+                    .await
+                    .expect("second receipt resolve failed");
+
+            let ct_bytes_2 = hex::decode(&resolve_resp_2.ciphertext)
+                .expect("Stored ciphertext must be valid hex");
+            let mut cipher_text_arr_2 = [Fr254::default(); 9];
+            for (i, slot) in cipher_text_arr_2.iter_mut().enumerate() {
+                let start = i * 32;
+                let end = start + 32;
+                *slot = Fr254::from_le_bytes_mod_order(&ct_bytes_2[start..end]);
+            }
+            let decrypted_2 =
+                receipt_kemdem_decrypt(ctx2.recipient_private_key, &cipher_text_arr_2)
+                    .expect("receipt_kemdem_decrypt should succeed for second receipt");
+            assert_eq!(
+                decrypted_2.sender_public_key_x,
+                ctx2.input.sender_public_key_x
+            );
+            assert_eq!(decrypted_2.token_id_or_value, ctx2.input.token_id_or_value);
+            info!(
+                "Second receipt created, resolved and decrypted: id={}",
+                create_resp_2.receipt_id
+            );
+        } else {
+            info!("Second receipt test skipped: only one transaction available");
+        }
+
+        info!("All transfer receipt tests passed!");
+    }
 
     // create swap requests (same party ordering in both legs)
     info!("Sending ERC20 swap transactions");

@@ -7,10 +7,11 @@ use crate::{
     initialisation::{get_blockchain_client_connection, get_db_connection},
     ports::{
         contracts::NightfallContract,
-        db::BlockStorageDB,
+        db::{BlockStorageDB, PendingBlockDB},
         events::EventHandler,
         trees::{CommitmentTree, HistoricRootTree, NullifierTree},
     },
+    services::assemble_block::{cleanup_selected_transactions, release_selected_transactions},
     services::selected_transactions::reconcile_orphaned_selected_transactions,
 };
 use alloy::primitives::{TxHash, I256};
@@ -140,6 +141,49 @@ where
     Ok(())
 }
 
+fn stored_block_from_contract_block(
+    blk: &Nightfall::Block,
+    layer2_block_number: u64,
+    proposer_address: alloy::primitives::Address,
+) -> StoredBlock {
+    StoredBlock {
+        layer2_block_number,
+        commitments: blk
+            .transactions
+            .iter()
+            .flat_map(|ntx| {
+                let tx: OnChainTransaction = (*ntx).clone().into();
+                tx.commitments
+                    .iter()
+                    .map(|c| c.to_hex_string())
+                    .collect::<Vec<_>>()
+            })
+            .collect(),
+        proposer_address,
+    }
+}
+
+fn stored_block_from_pending_block(
+    pending_block: &crate::domain::entities::PendingBlock,
+    proposer_address: alloy::primitives::Address,
+) -> Option<StoredBlock> {
+    let block = pending_block.block.as_ref()?;
+
+    Some(StoredBlock {
+        layer2_block_number: pending_block.layer2_block_number,
+        commitments: block
+            .transactions
+            .iter()
+            .flat_map(|ntx| {
+                ntx.commitments
+                    .iter()
+                    .map(|c| c.to_hex_string())
+                    .collect::<Vec<_>>()
+            })
+            .collect(),
+        proposer_address,
+    })
+}
 async fn process_propose_block_event<P, N>(
     decode: Nightfall::propose_blockCall,
     transaction_hash: TxHash,
@@ -176,21 +220,8 @@ where
     let layer_2_block_number_in_event_u64: u64 = layer_2_block_number_in_event
         .try_into()
         .expect("I256 to u64 conversion failed");
-    let store_block_pending = StoredBlock {
-        layer2_block_number: layer_2_block_number_in_event_u64,
-        commitments: blk
-            .transactions
-            .iter()
-            .flat_map(|ntx| {
-                let tx: OnChainTransaction = (*ntx).clone().into();
-                tx.commitments
-                    .iter()
-                    .map(|c| c.to_hex_string())
-                    .collect::<Vec<_>>()
-            })
-            .collect(),
-        proposer_address: sender_address,
-    };
+    let store_block_pending =
+        stored_block_from_contract_block(&blk, layer_2_block_number_in_event_u64, sender_address);
 
     // check and update the sychronisation status
     let mut sync_status = get_synchronisation_status().await.write().await;
@@ -231,6 +262,7 @@ where
         .expect("I256 to u64 conversion failed");
     // if proposer is out of sync, it won't have this block in db
     let current_block_stored = db.get_block_by_number(expected_block_number_u64).await;
+    let pending_block = db.get_pending_block(expected_block_number_u64).await;
 
     match current_block_stored {
         Some(current_block) => {
@@ -243,6 +275,16 @@ where
                 warn!(
                     "Block hash mismatch. Expected {current_block_stored_hash}, got {block_store_pending_hash} in layer 2 block {layer_2_block_number_in_event}"
                 );
+
+                if let Some(pending_block) = pending_block.as_ref() {
+                    let _ = release_selected_transactions::<P>(
+                        db,
+                        &pending_block.selected_deposits,
+                        &pending_block.selected_client_transaction_hashes,
+                    )
+                    .await;
+                    let _ = db.delete_pending_block(expected_block_number_u64).await;
+                }
 
                 // Delete the invalid block and clear sync status
                 db.delete_block_by_number(expected_block_number_u64).await;
@@ -369,6 +411,37 @@ where
     // if db doesn't have the block, it will be stored
     db.store_block(&store_block_pending).await;
 
+    if let Some(pending_block) = pending_block {
+        if let Some(pending_block_hash) =
+            stored_block_from_pending_block(&pending_block, our_address).map(|block| block.hash())
+        {
+            if pending_block_hash == store_block_pending.hash() {
+                let _ = cleanup_selected_transactions::<P>(
+                    db,
+                    &pending_block.selected_deposits,
+                    &pending_block.selected_client_transaction_hashes,
+                )
+                .await;
+            } else {
+                let _ = release_selected_transactions::<P>(
+                    db,
+                    &pending_block.selected_deposits,
+                    &pending_block.selected_client_transaction_hashes,
+                )
+                .await;
+            }
+        } else {
+            let _ = release_selected_transactions::<P>(
+                db,
+                &pending_block.selected_deposits,
+                &pending_block.selected_client_transaction_hashes,
+            )
+            .await;
+        }
+
+        let _ = db.delete_pending_block(expected_block_number_u64).await;
+    }
+
     let reconciliation_block_number = current_block_number_in_contract
         .try_into()
         .unwrap_or(layer_2_block_number_in_event_u64);
@@ -457,7 +530,11 @@ where
                 value: value_from_event,
                 secret_hash,
             };
-            let deposit_data = DepositDatawithFee { fee, deposit_data };
+            let deposit_data = DepositDatawithFee {
+                fee,
+                deposit_data,
+                reserved: false,
+            };
             process_deposit_transaction::<P, E>(deposit_data)
                 .await
                 .map_err(|_| {

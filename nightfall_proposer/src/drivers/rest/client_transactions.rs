@@ -14,6 +14,7 @@ use lib::{
     shared_entities::ClientTransaction,
 };
 use log::{error, info};
+
 use warp::{hyper::StatusCode, path, Filter};
 
 pub fn client_transaction<P, E>(
@@ -49,7 +50,7 @@ where
     handle_client_transaction_with(transaction, |transaction| async move {
         let result = process_nightfall_client_transaction::<P, E>(transaction).await;
         match result {
-            Ok(_) => Ok(()),
+            Ok(receipt_token) => Ok(receipt_token),
             Err(e) => {
                 error!("Error processing client transaction: {e}");
                 Err(warp::reject::custom(
@@ -68,11 +69,15 @@ async fn handle_client_transaction_with<P, F, Fut>(
 where
     P: Proof,
     F: FnOnce(ClientTransaction<P>) -> Fut,
-    Fut: Future<Output = Result<(), warp::Rejection>>,
+    Fut: Future<Output = Result<Option<String>, warp::Rejection>>,
 {
     info!("Received client transaction");
-    process(transaction).await?;
-    Ok(StatusCode::CREATED)
+    let receipt_token = process(transaction).await?;
+    let body = serde_json::json!({ "receipt_token": receipt_token });
+    Ok(warp::reply::with_status(
+        warp::reply::json(&body),
+        StatusCode::CREATED,
+    ))
 }
 
 async fn handle_cancel_swap_request<P>(
@@ -267,6 +272,7 @@ mod tests {
             deadline: Fr254::from(0u64),
             swap_side: Fr254::from(0u64),
             proof: MockProvingEngine::default_proof(),
+            receipt_token: None,
         }
     }
 
@@ -304,7 +310,7 @@ mod tests {
             .and(warp::body::json())
             .and_then(|transaction: ClientTransaction<MockProof>| async move {
                 handle_client_transaction_with(transaction, |_tx| async {
-                    Err(warp::reject::custom(
+                    Err::<Option<String>, _>(warp::reject::custom(
                         ProposerRejection::ClientTransactionFailed,
                     ))
                 })

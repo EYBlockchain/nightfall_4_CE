@@ -1,8 +1,12 @@
 use crate::{
     domain::entities::{
-        ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot, TxLifecycle,
+        ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot, PendingBlock,
+        TransferReceipt, TransferReceiptStatus, TxHashBytes, TxLifecycle,
     },
-    ports::db::{BlockStorageDB, HistoricRootsDB, TransactionsDB},
+    ports::db::{
+        BlockStorageDB, HistoricRootsDB, PendingBlockDB, TransactionsDB, TransferReceiptDB,
+        TransferReceiptStoreError,
+    },
 };
 use alloy::primitives::Address;
 use ark_bn254::Fr as Fr254;
@@ -58,6 +62,15 @@ fn selected_state_filter() -> Document {
     }
 }
 
+fn selected_or_included_state_filter() -> Document {
+    doc! {
+        "$or": [
+            doc! { "lifecycle.state": { "$in": ["selected", "included"] } },
+            legacy_selected_filter()
+        ]
+    }
+}
+
 fn selected_state_filter_for_block(block_l2: i64) -> Document {
     doc! {
         "$or": [
@@ -97,6 +110,28 @@ pub const DB: &str = "nightfall";
 const COLLECTION: &str = "ClientTransactions";
 const DEPOSIT_COLLECTION: &str = "Deposits";
 pub const PROPOSED_BLOCKS_COLLECTION: &str = "ProposedBlocks";
+const TRANSFER_RECEIPTS_COLLECTION: &str = "TransferReceipts";
+const PENDING_BLOCKS_COLLECTION: &str = "PendingBlocks";
+
+fn deposit_filter(deposit: &DepositDatawithFee) -> Document {
+    doc! {
+        "deposit_data.secret_hash": deposit.deposit_data.secret_hash.to_hex_string(),
+        "deposit_data.nf_slot_id": deposit.deposit_data.nf_slot_id.to_hex_string(),
+    }
+}
+
+fn deposit_filters(deposits: &[DepositDatawithFee]) -> Vec<Document> {
+    deposits.iter().map(deposit_filter).collect()
+}
+
+fn available_deposits_filter() -> Document {
+    doc! {
+        "$or": [
+            { "reserved": false },
+            { "reserved": { "$exists": false } }
+        ]
+    }
+}
 
 #[async_trait::async_trait]
 impl<'a, P> TransactionsDB<'a, P> for mongodb::Client
@@ -202,7 +237,7 @@ where
         swap_link: &Fr254,
     ) -> Result<u64, mongodb::error::Error> {
         let mut filter = swap_link_filter(swap_link);
-        filter.extend(selected_state_filter());
+        filter.extend(selected_or_included_state_filter());
         self.database(DB)
             .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
             .count_documents(filter)
@@ -226,6 +261,33 @@ where
         filter.extend(mempool_state_filter());
         let update = doc! {"$set": {
             "lifecycle": lifecycle_bson(&TxLifecycle::Cancelled)
+        }};
+        let result = self
+            .database(DB)
+            .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
+            .update_many(filter, update)
+            .await
+            .ok()?;
+        Some(result.modified_count)
+    }
+
+    async fn set_client_transactions_in_mempool_by_hashes(
+        &self,
+        transaction_hashes: &[Vec<u32>],
+        in_mempool: bool,
+    ) -> Option<u64> {
+        if transaction_hashes.is_empty() {
+            return Some(0);
+        }
+
+        let lifecycle = if in_mempool {
+            TxLifecycle::Mempool
+        } else {
+            TxLifecycle::Dropped
+        };
+        let filter = doc! {"hash": { "$in": transaction_hashes }};
+        let update = doc! {"$set": {
+            "lifecycle": lifecycle_bson(&lifecycle)
         }};
         let result = self
             .database(DB)
@@ -288,6 +350,38 @@ where
         Some(result.modified_count)
     }
 
+    async fn mark_transactions_included_by_hashes(
+        &self,
+        transaction_hashes: &[Vec<u32>],
+    ) -> Option<u64> {
+        if transaction_hashes.is_empty() {
+            return Some(0);
+        }
+
+        let collection = self
+            .database(DB)
+            .collection::<ClientTransactionWithMetaData<P>>(COLLECTION);
+        let mut modified = 0u64;
+
+        for hash in transaction_hashes {
+            let transaction =
+                <mongodb::Client as TransactionsDB<P>>::get_transaction(self, hash).await?;
+            let block_l2 = transaction.lifecycle.block_l2()?;
+            let block_l2_i64 = i64::try_from(block_l2).ok()?;
+
+            let mut filter = doc! { "hash": hash };
+            filter.extend(selected_state_filter_for_block(block_l2_i64));
+            let update = doc! {"$set": {
+                "lifecycle": lifecycle_bson(&TxLifecycle::Included { block_l2 })
+            }};
+
+            let result = collection.update_one(filter, update).await.ok()?;
+            modified += result.modified_count;
+        }
+
+        Some(modified)
+    }
+
     async fn drop_transactions(&self, txs: &[ClientTransactionWithMetaData<P>]) -> Option<u64> {
         if txs.is_empty() {
             return Some(0);
@@ -328,11 +422,9 @@ where
     }
 
     async fn find_deposit(&self, v: &DepositDatawithFee) -> Option<DepositDatawithFee> {
-        // we'll compute the hash of the transaction and then look it up in the database
-        let hash = v.hash().ok()?;
-        let filter = doc! {"hash": hash};
+        let filter = deposit_filter(v);
         self.database(DB)
-            .collection::<DepositDatawithFee>(COLLECTION)
+            .collection::<DepositDatawithFee>(DEPOSIT_COLLECTION)
             .find_one(filter)
             .await
             .expect("Database error") // we can't really proceed at this point
@@ -359,7 +451,7 @@ where
         let collection = self
             .database(DB)
             .collection::<DepositDatawithFee>(DEPOSIT_COLLECTION);
-        let mut cursor = collection.find(doc! {}).await.ok()?;
+        let mut cursor = collection.find(available_deposits_filter()).await.ok()?;
 
         let mut result: Vec<DepositDatawithFee> = Vec::new();
         while cursor.advance().await.ok()? {
@@ -377,7 +469,7 @@ where
     async fn count_mempool_deposits(&self) -> Result<u64, mongodb::error::Error> {
         self.database(DB)
             .collection::<DepositDatawithFee>(DEPOSIT_COLLECTION)
-            .count_documents(doc! {})
+            .count_documents(available_deposits_filter())
             .await
     }
 
@@ -395,22 +487,36 @@ where
             .database(DB)
             .collection::<DepositDatawithFee>(DEPOSIT_COLLECTION);
 
-        // Fetch all documents in the collection
-        let delete_conditions: Vec<_> = used_deposits
-            .iter()
-            .map(|d| {
-                doc! {
-                    "deposit_data.secret_hash": d.deposit_data.secret_hash.to_hex_string(),
-                    "deposit_data.nf_slot_id": d.deposit_data.nf_slot_id.to_hex_string(),
-                }
-            })
-            .collect();
+        let delete_conditions = deposit_filters(&used_deposits);
         let filter = doc! {
             "$or": delete_conditions
         };
         // Delete matching documents
         let result = collection.delete_many(filter).await.ok()?;
         Some(result.deleted_count)
+    }
+
+    async fn set_mempool_deposits_reserved(
+        &self,
+        deposits: Vec<Vec<DepositDatawithFee>>,
+        reserved: bool,
+    ) -> Option<u64> {
+        let deposits: Vec<DepositDatawithFee> = deposits.into_iter().flatten().collect();
+        if deposits.is_empty() {
+            return Some(0);
+        }
+
+        let filter = doc! {
+            "$or": deposit_filters(&deposits)
+        };
+        let update = doc! {"$set": { "reserved": reserved }};
+        let result = self
+            .database(DB)
+            .collection::<DepositDatawithFee>(DEPOSIT_COLLECTION)
+            .update_many(filter, update)
+            .await
+            .ok()?;
+        Some(result.modified_count)
     }
 
     // Remove all deposits from the mempool
@@ -577,10 +683,183 @@ impl BlockStorageDB for mongodb::Client {
     }
 }
 
+/// Creates unique indexes on `receipt_id` and `tx_hash` in the TransferReceipts collection.
+/// Must be called once at proposer startup.
+pub async fn ensure_transfer_receipt_indexes(
+    client: &mongodb::Client,
+) -> Result<(), mongodb::error::Error> {
+    use mongodb::options::IndexOptions;
+    use mongodb::IndexModel;
+
+    let collection = client
+        .database(DB)
+        .collection::<TransferReceipt>(TRANSFER_RECEIPTS_COLLECTION);
+
+    let receipt_id_index = IndexModel::builder()
+        .keys(doc! { "receipt_id": 1 })
+        .options(IndexOptions::builder().unique(true).build())
+        .build();
+
+    let tx_hash_hex_index = IndexModel::builder()
+        .keys(doc! { "tx_hash": 1 })
+        .options(IndexOptions::builder().unique(true).build())
+        .build();
+
+    collection.create_index(receipt_id_index).await?;
+    collection.create_index(tx_hash_hex_index).await?;
+    Ok(())
+}
+
+#[async_trait::async_trait]
+impl TransferReceiptDB for mongodb::Client {
+    async fn store_transfer_receipt(
+        &self,
+        receipt: TransferReceipt,
+    ) -> Result<(), TransferReceiptStoreError> {
+        let result = self
+            .database(DB)
+            .collection::<TransferReceipt>(TRANSFER_RECEIPTS_COLLECTION)
+            .insert_one(receipt)
+            .await;
+
+        match result {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                // MongoDB duplicate key error code is 11000.
+                let is_dup = matches!(
+                    *e.kind,
+                    mongodb::error::ErrorKind::Write(
+                        mongodb::error::WriteFailure::WriteError(ref we)
+                    ) if we.code == 11000
+                );
+                if is_dup {
+                    Err(TransferReceiptStoreError::DuplicateKey)
+                } else {
+                    Err(TransferReceiptStoreError::Other(e.to_string()))
+                }
+            }
+        }
+    }
+
+    async fn get_transfer_receipt(&self, receipt_id: &str) -> Option<TransferReceipt> {
+        let filter = doc! { "receipt_id": receipt_id };
+        match self
+            .database(DB)
+            .collection::<TransferReceipt>(TRANSFER_RECEIPTS_COLLECTION)
+            .find_one(filter)
+            .await
+        {
+            Ok(result) => result,
+            Err(e) => {
+                log::warn!("Failed to query transfer receipt by id={receipt_id}: {e}");
+                None
+            }
+        }
+    }
+
+    async fn get_transfer_receipt_by_tx_hash(
+        &self,
+        tx_hash: &TxHashBytes,
+    ) -> Option<TransferReceipt> {
+        let filter = doc! { "tx_hash": tx_hash.as_hex() };
+        match self
+            .database(DB)
+            .collection::<TransferReceipt>(TRANSFER_RECEIPTS_COLLECTION)
+            .find_one(filter)
+            .await
+        {
+            Ok(result) => result,
+            Err(e) => {
+                log::warn!(
+                    "Failed to query transfer receipt by tx_hash={}: {e}",
+                    tx_hash.as_hex()
+                );
+                None
+            }
+        }
+    }
+
+    async fn set_transfer_receipt_status(
+        &self,
+        receipt_id: &str,
+        status: TransferReceiptStatus,
+        updated_at_unix: i64,
+    ) -> Option<()> {
+        let filter = doc! { "receipt_id": receipt_id };
+        let status_bson = match mongodb::bson::to_bson(&status) {
+            Ok(b) => b,
+            Err(e) => {
+                log::warn!("Failed to serialize receipt status for id={receipt_id}: {e}");
+                return None;
+            }
+        };
+        let update = doc! {
+            "$set": {
+                "status": status_bson,
+                "updated_at_unix": updated_at_unix,
+            }
+        };
+        match self
+            .database(DB)
+            .collection::<TransferReceipt>(TRANSFER_RECEIPTS_COLLECTION)
+            .update_one(filter, update)
+            .await
+        {
+            Ok(_) => Some(()),
+            Err(e) => {
+                log::warn!("Failed to update transfer receipt status for id={receipt_id}: {e}");
+                None
+            }
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl PendingBlockDB for mongodb::Client {
+    async fn store_pending_block(&self, pending_block: &PendingBlock) -> Option<()> {
+        let filter = doc! { "layer2_block_number": pending_block.layer2_block_number as i64 };
+        self.database(DB)
+            .collection::<PendingBlock>(PENDING_BLOCKS_COLLECTION)
+            .replace_one(filter, pending_block)
+            .upsert(true)
+            .await
+            .ok()?;
+        Some(())
+    }
+
+    async fn get_pending_block(&self, block_number: u64) -> Option<PendingBlock> {
+        let filter = doc! { "layer2_block_number": block_number as i64 };
+        self.database(DB)
+            .collection::<PendingBlock>(PENDING_BLOCKS_COLLECTION)
+            .find_one(filter)
+            .await
+            .ok()?
+    }
+
+    async fn get_all_pending_blocks(&self) -> Option<Vec<PendingBlock>> {
+        let cursor = self
+            .database(DB)
+            .collection::<PendingBlock>(PENDING_BLOCKS_COLLECTION)
+            .find(doc! {})
+            .await
+            .ok()?;
+        cursor.try_collect().await.ok()
+    }
+
+    async fn delete_pending_block(&self, block_number: u64) -> Option<()> {
+        let filter = doc! { "layer2_block_number": block_number as i64 };
+        self.database(DB)
+            .collection::<PendingBlock>(PENDING_BLOCKS_COLLECTION)
+            .delete_one(filter)
+            .await
+            .ok()?;
+        Some(())
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
-    use ark_bn254::Fr as Fr254;
     use ark_std::UniformRand;
 
     #[test]
@@ -633,6 +912,24 @@ mod test {
             Ok(false)
         );
         assert!(legacy.get("block_l2").is_some());
+    }
+
+    #[test]
+    fn selected_or_included_filter_matches_active_and_finalized_shapes() {
+        let filter = selected_or_included_state_filter();
+        let branches = filter
+            .get_array("$or")
+            .expect("selected-or-included filter should contain transitional branches");
+
+        assert_eq!(branches.len(), 2);
+        let lifecycle_state = branches[0]
+            .as_document()
+            .and_then(|doc| doc.get_document("lifecycle.state").ok())
+            .expect("new lifecycle branch should match multiple states");
+        assert_eq!(
+            lifecycle_state.get_array("$in").expect("$in states").len(),
+            2
+        );
     }
 
     #[test]

@@ -187,6 +187,16 @@ pub enum ClientRejection {
     RequestNotFound,
     FailedDeEscrow,
     SynchronisationUnavailable,
+    /// The receipt_token did not match any proposer's stored token for that tx_hash.
+    ReceiptUnauthorized,
+    /// A receipt already exists for this transaction with a different ciphertext.
+    ReceiptConflict,
+    /// The transaction is not yet known to any proposer (submitted too early).
+    ReceiptTxNotFound,
+    /// The request body failed validation on the proposer (e.g. malformed tx_hash).
+    ReceiptValidationFailed,
+    /// All proposers are unreachable or rejected the receipt for unexpected reasons.
+    ReceiptSubmissionFailed,
 }
 
 impl std::fmt::Display for ClientRejection {
@@ -207,6 +217,24 @@ impl std::fmt::Display for ClientRejection {
             ClientRejection::FailedDeEscrow => write!(f, "Failed to de-escrow funds"),
             ClientRejection::SynchronisationUnavailable => {
                 write!(f, "Synchronisation service unavailable")
+            }
+            ClientRejection::ReceiptUnauthorized => {
+                write!(f, "Invalid or missing receipt_token")
+            }
+            ClientRejection::ReceiptConflict => {
+                write!(f, "Receipt already exists with different ciphertext")
+            }
+            ClientRejection::ReceiptTxNotFound => {
+                write!(f, "Transaction not found on proposer")
+            }
+            ClientRejection::ReceiptValidationFailed => {
+                write!(f, "Transfer receipt request failed validation")
+            }
+            ClientRejection::ReceiptSubmissionFailed => {
+                write!(
+                    f,
+                    "Receipt submission failed: no proposer accepted the receipt"
+                )
             }
         }
     }
