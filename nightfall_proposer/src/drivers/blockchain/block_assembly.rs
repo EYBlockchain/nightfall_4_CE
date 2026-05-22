@@ -2,7 +2,8 @@ use crate::{
     domain::entities::Block,
     drivers::blockchain::nightfall_event_listener::get_synchronisation_status,
     initialisation::{
-        get_block_assembly_trigger, get_blockchain_client_connection, get_db_connection,
+        get_block_assembly_status, get_block_assembly_trigger, get_blockchain_client_connection,
+        get_db_connection,
     },
     ports::{contracts::NightfallContract, proving::RecursiveProvingEngine},
     services::{
@@ -35,7 +36,7 @@ use std::{
     sync::Arc,
     time::Duration,
 };
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, OnceCell};
 
 #[derive(Debug)]
 pub enum BlockAssemblyError {
@@ -120,6 +121,30 @@ impl From<PlonkError> for BlockAssemblyError {
     fn from(e: PlonkError) -> Self {
         BlockAssemblyError::ProvingError(format!("PlonkError: {e}"))
     }
+}
+
+async fn get_pending_blocks_queue() -> &'static Mutex<VecDeque<Block>> {
+    static PENDING_BLOCKS: OnceCell<Mutex<VecDeque<Block>>> = OnceCell::const_new();
+    PENDING_BLOCKS
+        .get_or_init(|| async { Mutex::new(VecDeque::new()) })
+        .await
+}
+
+pub(crate) async fn clear_pending_blocks_queue() -> usize {
+    let mut blocks = get_pending_blocks_queue().await.lock().await;
+    let cleared = blocks.len();
+    blocks.clear();
+    cleared
+}
+
+#[cfg(test)]
+pub(crate) async fn push_pending_block_for_test(block: Block) {
+    get_pending_blocks_queue().await.lock().await.push_back(block);
+}
+
+#[cfg(test)]
+pub(crate) async fn pending_blocks_queue_len_for_test() -> usize {
+    get_pending_blocks_queue().await.lock().await.len()
 }
 
 async fn check_l1_finality(
@@ -217,6 +242,22 @@ where
     P: Proof,
     N: NightfallContract,
 {
+    if !get_synchronisation_status()
+        .await
+        .read()
+        .await
+        .is_synchronised()
+    {
+        warn!(
+            "Skipping pending block proposal because proposer recovery/desynchronisation is active"
+        );
+        return;
+    }
+    if !get_block_assembly_status().await.read().await.is_running() {
+        warn!("Skipping pending block proposal because block assembly is paused");
+        return;
+    }
+
     while !blocks.is_empty() {
         let current_l2_block_number = match N::get_current_layer2_blocknumber().await {
             Ok(block_number) => block_number,
@@ -311,7 +352,7 @@ where
     );
 
     // Shared queue for blocks waiting for finality confirmation
-    let pending_blocks: Arc<Mutex<VecDeque<Block>>> = Arc::new(Mutex::new(VecDeque::new()));
+    let pending_blocks = get_pending_blocks_queue().await;
     let confirmations_required = U64::from(12);
     let finality_check_interval = Duration::from_secs(5);
 
@@ -319,7 +360,6 @@ where
 
     // Spawn the finality checking task
     let _finality_checker: tokio::task::JoinHandle<Result<(), BlockAssemblyError>> = {
-        let pending_blocks = Arc::clone(&pending_blocks);
         let rr = Arc::clone(&round_robin_instance);
         let blockchain_client = blockchain_client.clone();
         tokio::spawn(async move {
@@ -594,5 +634,122 @@ where
             blocks.push_back(block);
             info!("Added block to queue ({} pending)", blocks.len());
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloy::primitives::Bytes;
+    use lib::error::NightfallContractError;
+    use serde::{Deserialize, Serialize};
+    use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+    use tokio::sync::Mutex as TokioMutex;
+
+    #[derive(Debug, Default, Clone, Serialize, Deserialize)]
+    struct MockProof;
+
+    impl Proof for MockProof {
+        fn compress_proof(&self) -> Result<Bytes, SerializationError> {
+            Ok(Bytes::new())
+        }
+
+        fn from_compressed(_compressed: Bytes) -> Result<Self, SerializationError> {
+            Ok(Self)
+        }
+    }
+
+    struct MockNightfallContract;
+
+    fn mock_proposed_blocks() -> &'static AtomicUsize {
+        static PROPOSED_BLOCKS: std::sync::OnceLock<AtomicUsize> = std::sync::OnceLock::new();
+        PROPOSED_BLOCKS.get_or_init(|| AtomicUsize::new(0))
+    }
+
+    fn mock_current_l2_block() -> &'static AtomicU64 {
+        static CURRENT_L2_BLOCK: std::sync::OnceLock<AtomicU64> = std::sync::OnceLock::new();
+        CURRENT_L2_BLOCK.get_or_init(|| AtomicU64::new(0))
+    }
+
+    #[async_trait::async_trait]
+    impl NightfallContract for MockNightfallContract {
+        async fn propose_block(block: Block) -> Result<(), NightfallContractError> {
+            mock_proposed_blocks().fetch_add(1, Ordering::SeqCst);
+            mock_current_l2_block().store(block.block_number.saturating_add(1), Ordering::SeqCst);
+            Ok(())
+        }
+
+        async fn get_current_layer2_blocknumber() -> Result<I256, NightfallContractError> {
+            Ok(
+                I256::try_from(mock_current_l2_block().load(Ordering::SeqCst))
+                    .expect("mock current l2 block should fit in I256"),
+            )
+        }
+    }
+
+    async fn block_assembly_test_lock() -> tokio::sync::MutexGuard<'static, ()> {
+        static LOCK: OnceCell<TokioMutex<()>> = OnceCell::const_new();
+        LOCK.get_or_init(|| async { TokioMutex::new(()) })
+            .await
+            .lock()
+            .await
+    }
+
+    async fn reset_test_state() {
+        clear_pending_blocks_queue().await;
+        mock_proposed_blocks().store(0, Ordering::SeqCst);
+        mock_current_l2_block().store(0, Ordering::SeqCst);
+        get_block_assembly_status().await.write().await.resume();
+        get_synchronisation_status()
+            .await
+            .write()
+            .await
+            .set_synchronised();
+    }
+
+    #[tokio::test]
+    async fn propose_pending_blocks_skips_when_recovery_is_active() {
+        let _lock = block_assembly_test_lock().await;
+        reset_test_state().await;
+
+        let mut blocks = VecDeque::from([Block::default()]);
+        get_synchronisation_status()
+            .await
+            .write()
+            .await
+            .clear_synchronised();
+
+        propose_pending_blocks::<MockProof, MockNightfallContract>(&mut blocks).await;
+
+        assert_eq!(mock_proposed_blocks().load(Ordering::SeqCst), 0);
+        assert_eq!(blocks.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn propose_pending_blocks_skips_when_block_assembly_is_paused() {
+        let _lock = block_assembly_test_lock().await;
+        reset_test_state().await;
+
+        let mut blocks = VecDeque::from([Block::default()]);
+        get_block_assembly_status().await.write().await.pause();
+
+        propose_pending_blocks::<MockProof, MockNightfallContract>(&mut blocks).await;
+
+        assert_eq!(mock_proposed_blocks().load(Ordering::SeqCst), 0);
+        assert_eq!(blocks.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn clear_pending_blocks_queue_removes_enqueued_blocks() {
+        let _lock = block_assembly_test_lock().await;
+        reset_test_state().await;
+
+        push_pending_block_for_test(Block::default()).await;
+        assert_eq!(pending_blocks_queue_len_for_test().await, 1);
+
+        let cleared = clear_pending_blocks_queue().await;
+
+        assert_eq!(cleared, 1);
+        assert_eq!(pending_blocks_queue_len_for_test().await, 0);
     }
 }

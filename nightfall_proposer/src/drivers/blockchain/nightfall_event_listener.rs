@@ -1,11 +1,14 @@
 use crate::{
     driven::db::snapshot::{
-        find_latest_valid_proposer_snapshot, recover_from_restore_journal,
-        restore_proposer_snapshot,
+        acquire_proposer_state_maintenance_guard, find_latest_valid_proposer_snapshot,
+        recover_from_restore_journal, restore_proposer_snapshot,
     },
     driven::nightfall_event::get_expected_layer2_blocknumber,
-    initialisation::{get_block_assembly_status, set_runtime_listener_start_block},
-    initialisation::{get_blockchain_client_connection, get_db_connection},
+    drivers::blockchain::block_assembly::clear_pending_blocks_queue,
+    initialisation::{
+        get_block_assembly_status, get_blockchain_client_connection, get_db_connection,
+        set_runtime_listener_start_block,
+    },
     ports::{
         contracts::NightfallContract,
         db::{SyncStateDB, TransactionsDB},
@@ -13,6 +16,7 @@ use crate::{
     },
     services::process_events::process_events,
     services::selected_transactions::reconcile_obviously_orphaned_selected_transactions,
+    services::snapshot_scheduler::set_last_snapshot_l2_block,
 };
 use alloy::{
     primitives::I256,
@@ -302,18 +306,24 @@ async fn latest_restorable_l2_block() -> usize {
 
 /// Cleans transient proposer-side state that should not survive a desync recovery attempt,
 /// without touching the restored or replayed tree state.
+///
+/// Known limitation: pending client transactions that have not reached `Selected`
+/// are dropped during recovery and must be resubmitted by clients afterwards.
 async fn cleanup_recovery_side_effects<P>(db: &MongoClient)
 where
     P: Proof,
 {
-    let removed_deposits = TransactionsDB::<P>::remove_all_mempool_deposits(db).await;
     let removed_client_txs = TransactionsDB::<P>::remove_all_mempool_client_transactions(db).await;
 
     debug!(
-        "Mempool cleanup: removed {} deposits and {} client transactions.",
-        removed_deposits.unwrap_or(0),
+        "Mempool cleanup: removed {} client transactions.",
         removed_client_txs.unwrap_or(0)
     );
+    if let Some(removed_client_txs) = removed_client_txs.filter(|count| *count > 0) {
+        warn!(
+            "Recovery dropped {removed_client_txs} pending proposer mempool client transaction(s); clients must resubmit them after recovery"
+        );
+    }
 
     let restored_selected = reconcile_obviously_orphaned_selected_transactions::<P>(db).await;
     debug!(
@@ -328,9 +338,7 @@ async fn reset_proposer_state_for_replay<P>(db: &MongoClient) -> Result<(), Even
 where
     P: Proof,
 {
-    reset_commitment_tree_for_replay(db).await?;
-    reset_historic_root_tree_for_replay(db).await?;
-    reset_nullifier_tree_for_replay(db).await?;
+    let _maintenance_guard = acquire_proposer_state_maintenance_guard().await;
 
     let mut session = db.start_session().await.map_err(|error| {
         EventHandlerError::IOError(format!(
@@ -354,6 +362,10 @@ where
                 "Could not delete proposer sync_state before replay fallback: {error}"
             ))
         })?;
+
+    reset_commitment_tree_for_replay(db).await?;
+    reset_historic_root_tree_for_replay(db).await?;
+    reset_nullifier_tree_for_replay(db).await?;
 
     cleanup_recovery_side_effects::<P>(db).await;
     Ok(())
@@ -402,6 +414,17 @@ async fn reset_historic_root_tree_for_replay(db: &MongoClient) -> Result<(), Eve
                 "Could not reinitialize proposer historic root tree before replay fallback: {error}"
             ))
         })?;
+    <MongoClient as HistoricRootTree<Fr254>>::append_historic_commitment_root(
+        db,
+        &Fr254::from(0u8),
+        true,
+    )
+    .await
+    .map_err(|error| {
+        EventHandlerError::IOError(format!(
+            "Could not restore zero historic root before replay fallback: {error}"
+        ))
+    })?;
 
     Ok(())
 }
@@ -463,6 +486,12 @@ where
         panic!("Restarting event listener while synchronised. This should not happen");
     }
     get_block_assembly_status().await.write().await.pause();
+    let dropped_pending_blocks = clear_pending_blocks_queue().await;
+    if dropped_pending_blocks > 0 {
+        warn!(
+            "Recovery cleared {dropped_pending_blocks} queued block assembly candidate(s) before restore/replay"
+        );
+    }
 
     let db = get_db_connection().await;
     let max_restorable_l2_block = latest_restorable_l2_block().await as u64;
@@ -482,6 +511,7 @@ where
                     *get_expected_layer2_blocknumber().await.write().await =
                         I256::try_from(next_expected_block)
                             .expect("Restored L2 block number does not fit into I256");
+                    set_last_snapshot_l2_block(sync_state.last_applied_l2_block).await;
                     let restored_is_at_tip = match N::get_current_layer2_blocknumber().await {
                         Ok(onchain_next_block_i256) if onchain_next_block_i256 >= I256::ZERO => {
                             match u64::try_from(onchain_next_block_i256) {
@@ -551,6 +581,7 @@ where
                             "Proposer replay fallback aborted because reset could not complete safely: {reset_error}"
                         );
                     }
+                    set_last_snapshot_l2_block(0).await;
                     *get_expected_layer2_blocknumber().await.write().await = I256::ZERO;
                     set_runtime_listener_start_block(start_block).await;
                 }
@@ -568,6 +599,7 @@ where
                     "Proposer replay fallback aborted because reset could not complete safely: {reset_error}"
                 );
             }
+            set_last_snapshot_l2_block(0).await;
             *get_expected_layer2_blocknumber().await.write().await = I256::ZERO;
             set_runtime_listener_start_block(start_block).await;
         }
@@ -583,6 +615,7 @@ where
                     "Proposer replay fallback aborted because reset could not complete safely: {reset_error}"
                 );
             }
+            set_last_snapshot_l2_block(0).await;
             *get_expected_layer2_blocknumber().await.write().await = I256::ZERO;
             set_runtime_listener_start_block(start_block).await;
         }
@@ -609,9 +642,12 @@ pub async fn get_synchronisation_status() -> &'static RwLock<SynchronisationStat
 mod tests {
     use super::*;
     use crate::{
-        domain::entities::{L1Ref, SyncState},
-        driven::db::mongo_db::{StoredBlock, DB},
-        ports::db::{BlockStorageDB, SyncStateDB},
+        domain::entities::{Block, DepositDatawithFee, L1Ref, SyncState},
+        drivers::blockchain::block_assembly::{
+            pending_blocks_queue_len_for_test, push_pending_block_for_test,
+        },
+        driven::db::mongo_db::{ensure_deposit_indexes, StoredBlock, DB},
+        ports::db::{BlockStorageDB, SyncStateDB, TransactionsDB},
     };
     use alloy::primitives::Bytes;
     use alloy::primitives::{Address, TxHash};
@@ -619,6 +655,7 @@ mod tests {
     use ark_serialize::SerializationError;
     use lib::hex_conversion::HexConvertible;
     use lib::nf_client_proof::Proof;
+    use lib::shared_entities::DepositData;
     use lib::tests_utils::{get_db_connection, get_mongo};
     use mongodb::bson::{doc, Document};
     use serde::{Deserialize, Serialize};
@@ -678,6 +715,9 @@ mod tests {
         <mongodb::Client as NullifierTree<Fr254>>::new_nullifier_tree(client, 29, 3)
             .await
             .expect("create nullifier tree");
+        ensure_deposit_indexes(client)
+            .await
+            .expect("create deposit indexes");
     }
 
     #[tokio::test]
@@ -713,7 +753,7 @@ mod tests {
         assert!(
             matches!(error, EventHandlerError::IOError(message) if message.contains("reset_commitment_tree_before_drop"))
         );
-        assert_eq!(client.get_sync_state().await, Some(sync_state));
+        assert_eq!(client.get_sync_state().await, None);
 
         let metadata_count = client
             .database(DB)
@@ -722,6 +762,59 @@ mod tests {
             .await
             .expect("count commitment metadata");
         assert!(metadata_count > 0);
+    }
+
+    #[tokio::test]
+    async fn recovery_entry_clears_pending_block_queue() {
+        let _lock = event_listener_test_lock().await;
+
+        get_block_assembly_status().await.write().await.resume();
+        push_pending_block_for_test(Block::default()).await;
+        assert_eq!(pending_blocks_queue_len_for_test().await, 1);
+
+        get_synchronisation_status()
+            .await
+            .write()
+            .await
+            .clear_synchronised();
+        get_block_assembly_status().await.write().await.pause();
+        let dropped_pending_blocks = clear_pending_blocks_queue().await;
+
+        assert_eq!(dropped_pending_blocks, 1);
+        assert_eq!(pending_blocks_queue_len_for_test().await, 0);
+    }
+
+    #[tokio::test]
+    async fn cleanup_recovery_side_effects_preserves_pending_deposits() {
+        let _lock = event_listener_test_lock().await;
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+
+        initialize_test_trees(&client).await;
+        let pending_deposit = DepositDatawithFee {
+            fee: Fr254::from(9u64),
+            deposit_data: DepositData {
+                nf_token_id: Fr254::from(41u64),
+                nf_slot_id: Fr254::from(42u64),
+                value: Fr254::from(43u64),
+                secret_hash: Fr254::from(44u64),
+            },
+        };
+        <mongodb::Client as TransactionsDB<MockProof>>::set_mempool_deposits(
+            &client,
+            vec![pending_deposit.clone()],
+        )
+        .await
+        .expect("store pending deposit");
+
+        cleanup_recovery_side_effects::<MockProof>(&client).await;
+
+        let restored_deposits = <mongodb::Client as TransactionsDB<MockProof>>::get_mempool_deposits(
+            &client,
+        )
+        .await
+        .expect("pending deposits should remain after recovery cleanup");
+        assert_eq!(restored_deposits, vec![pending_deposit]);
     }
 
     #[tokio::test]
@@ -766,5 +859,55 @@ mod tests {
             .await
             .expect("count nullifier metadata");
         assert!(nullifier_metadata_count > 0);
+    }
+
+    #[tokio::test]
+    async fn reset_proposer_state_for_replay_restores_zero_historic_root() {
+        let _lock = event_listener_test_lock().await;
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+
+        initialize_test_trees(&client).await;
+        let block = StoredBlock {
+            layer2_block_number: 32,
+            commitments: vec!["0xreset-zero-root".to_string()],
+            proposer_address: Address::from([32u8; 20]),
+        };
+        client.store_block(&block).await.expect("store block");
+        persist_sync_state(
+            &client,
+            &SyncState::new(
+                32,
+                block.hash().to_hex_string(),
+                L1Ref {
+                    block_number: 3200,
+                    tx_hash: TxHash::from([32u8; 32]),
+                    log_index: 32,
+                },
+                mongodb::bson::DateTime::now(),
+            ),
+        )
+        .await;
+
+        reset_proposer_state_for_replay::<MockProof>(&client)
+            .await
+            .expect("replay reset should succeed");
+
+        let historic_root_metadata = client
+            .database(DB)
+            .collection::<Document>(&format!(
+                "{}_metadata",
+                <mongodb::Client as HistoricRootTree<Fr254>>::TREE_NAME
+            ))
+            .find_one(doc! { "_id": 0 })
+            .await
+            .expect("read historic root metadata")
+            .expect("historic root metadata should exist");
+        assert_eq!(
+            historic_root_metadata.get_i64("sub_tree_count").unwrap_or_default(),
+            1,
+            "reset replay should restore the zero historic root invariant"
+        );
+        assert_eq!(client.get_sync_state().await, None);
     }
 }

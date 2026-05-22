@@ -3,7 +3,9 @@ use crate::{
         ProposerSnapshotManifest, RestoreJournal, RestoreJournalCollection, RestoreJournalPhase,
         RestoreJournalStep, SnapshotCollectionManifest, SyncState,
     },
-    driven::db::mongo_db::{DB, PROPOSED_BLOCKS_COLLECTION, SYNC_STATE_COLLECTION},
+    driven::db::mongo_db::{
+        DB, DEPOSIT_COLLECTION, PROPOSED_BLOCKS_COLLECTION, SYNC_STATE_COLLECTION,
+    },
     ports::db::{RestoreJournalDB, SyncStateDB},
     ports::trees::{CommitmentTree, HistoricRootTree, NullifierTree},
 };
@@ -60,7 +62,8 @@ pub(crate) fn try_acquire_proposer_state_maintenance_guard(
     proposer_state_maintenance_lock().try_lock().ok()
 }
 
-async fn acquire_proposer_state_maintenance_guard() -> tokio::sync::MutexGuard<'static, ()> {
+pub(crate) async fn acquire_proposer_state_maintenance_guard(
+) -> tokio::sync::MutexGuard<'static, ()> {
     proposer_state_maintenance_lock().lock().await
 }
 
@@ -99,6 +102,7 @@ pub enum SnapshotError {
     SerdeJson(serde_json::Error),
     MissingSyncState,
     MissingSnapshotCollection(String),
+    InvalidSnapshotSyncState(String),
     MissingRestoreJournal,
     UnsupportedManifestSchemaVersion(u32),
     UnsupportedManifestStorageFormat(String),
@@ -125,6 +129,11 @@ pub enum SnapshotError {
         expected: u64,
         actual: u64,
     },
+    SnapshotManifestSyncStateMismatch {
+        field: &'static str,
+        manifest_value: String,
+        snapshotted_value: String,
+    },
 }
 
 impl Display for SnapshotError {
@@ -143,6 +152,9 @@ impl Display for SnapshotError {
                 f,
                 "Cannot create proposer snapshot because canonical collection {collection_name} is missing"
             ),
+            Self::InvalidSnapshotSyncState(message) => {
+                write!(f, "Snapshot sync_state is invalid: {message}")
+            }
             Self::MissingRestoreJournal => {
                 write!(f, "Cannot continue restore flow without a persisted restore_journal")
             }
@@ -195,6 +207,14 @@ impl Display for SnapshotError {
             } => write!(
                 f,
                 "Snapshot document count mismatch for {collection_name}: expected {expected}, got {actual}"
+            ),
+            Self::SnapshotManifestSyncStateMismatch {
+                field,
+                manifest_value,
+                snapshotted_value,
+            } => write!(
+                f,
+                "Snapshot manifest field {field} does not match snapshotted sync_state: manifest={manifest_value}, snapshot={snapshotted_value}"
             ),
         }
     }
@@ -250,6 +270,7 @@ fn proposer_snapshot_collection_names() -> Vec<String> {
         "{}_indexed_leaves",
         <mongodb::Client as NullifierTree<Fr254>>::TREE_NAME
     ));
+    names.push(DEPOSIT_COLLECTION.to_string());
     names.push(PROPOSED_BLOCKS_COLLECTION.to_string());
     names.push(SYNC_STATE_COLLECTION.to_string());
     names
@@ -273,6 +294,7 @@ fn required_proposer_snapshot_collection_names() -> Vec<String> {
             "{}_indexed_leaves",
             <mongodb::Client as NullifierTree<Fr254>>::TREE_NAME
         ),
+        DEPOSIT_COLLECTION.to_string(),
         PROPOSED_BLOCKS_COLLECTION.to_string(),
         SYNC_STATE_COLLECTION.to_string(),
     ]
@@ -632,6 +654,8 @@ pub(crate) async fn load_and_validate_snapshot_manifest(
 ) -> Result<ProposerSnapshotManifest, SnapshotError> {
     let manifest = load_snapshot_manifest(snapshot_dir).await?;
     validate_snapshot_files(snapshot_dir, &manifest).await?;
+    let snapshotted_sync_state = load_snapshotted_sync_state(snapshot_dir, &manifest).await?;
+    validate_manifest_against_snapshotted_sync_state(&manifest, &snapshotted_sync_state)?;
     Ok(manifest)
 }
 
@@ -735,6 +759,112 @@ async fn validate_snapshot_files(
     Ok(())
 }
 
+fn snapshot_collection_manifest<'a>(
+    manifest: &'a ProposerSnapshotManifest,
+    collection_name: &str,
+) -> Result<&'a SnapshotCollectionManifest, SnapshotError> {
+    manifest
+        .collections
+        .iter()
+        .find(|collection| collection.collection_name == collection_name)
+        .ok_or_else(|| SnapshotError::MissingSnapshotCollection(collection_name.to_string()))
+}
+
+async fn load_snapshotted_sync_state(
+    snapshot_dir: &Path,
+    manifest: &ProposerSnapshotManifest,
+) -> Result<SyncState, SnapshotError> {
+    let sync_state_manifest = snapshot_collection_manifest(manifest, SYNC_STATE_COLLECTION)?;
+    validate_snapshot_file_name(&sync_state_manifest.file_name)?;
+
+    let file = File::open(snapshot_dir.join(&sync_state_manifest.file_name)).await?;
+    let mut reader = BufReader::new(file).lines();
+    let Some(line) = reader.next_line().await? else {
+        return Err(SnapshotError::InvalidSnapshotSyncState(
+            "sync_state snapshot file is empty".to_string(),
+        ));
+    };
+    let sync_state_json: serde_json::Value = serde_json::from_str(&line)?;
+    let sync_state_bson = Bson::try_from(sync_state_json).map_err(|error| {
+        SnapshotError::InvalidSnapshotSyncState(format!(
+            "could not parse sync_state snapshot extended JSON: {error}"
+        ))
+    })?;
+    let Bson::Document(sync_state_document) = sync_state_bson else {
+        return Err(SnapshotError::InvalidSnapshotSyncState(
+            "sync_state snapshot line is not a BSON document".to_string(),
+        ));
+    };
+    let sync_state: SyncState =
+        mongodb::bson::from_document(sync_state_document).map_err(|error| {
+            SnapshotError::InvalidSnapshotSyncState(format!(
+                "could not deserialize sync_state snapshot document: {error}"
+            ))
+        })?;
+
+    if reader.next_line().await?.is_some() {
+        return Err(SnapshotError::InvalidSnapshotSyncState(
+            "sync_state snapshot file contains multiple documents".to_string(),
+        ));
+    }
+
+    if sync_state.id != SyncState::DOCUMENT_ID {
+        return Err(SnapshotError::InvalidSnapshotSyncState(format!(
+            "unexpected sync_state document id {}",
+            sync_state.id
+        )));
+    }
+
+    Ok(sync_state)
+}
+
+fn validate_manifest_against_snapshotted_sync_state(
+    manifest: &ProposerSnapshotManifest,
+    snapshotted_sync_state: &SyncState,
+) -> Result<(), SnapshotError> {
+    if manifest.last_applied_l2_block != snapshotted_sync_state.last_applied_l2_block {
+        return Err(SnapshotError::SnapshotManifestSyncStateMismatch {
+            field: "last_applied_l2_block",
+            manifest_value: manifest.last_applied_l2_block.to_string(),
+            snapshotted_value: snapshotted_sync_state.last_applied_l2_block.to_string(),
+        });
+    }
+
+    if manifest.fingerprint != snapshotted_sync_state.fingerprint {
+        return Err(SnapshotError::SnapshotManifestSyncStateMismatch {
+            field: "fingerprint",
+            manifest_value: manifest.fingerprint.clone(),
+            snapshotted_value: snapshotted_sync_state.fingerprint.clone(),
+        });
+    }
+
+    if manifest.l1_ref.block_number != snapshotted_sync_state.l1_ref.block_number {
+        return Err(SnapshotError::SnapshotManifestSyncStateMismatch {
+            field: "l1_ref.block_number",
+            manifest_value: manifest.l1_ref.block_number.to_string(),
+            snapshotted_value: snapshotted_sync_state.l1_ref.block_number.to_string(),
+        });
+    }
+
+    if manifest.l1_ref.tx_hash != snapshotted_sync_state.l1_ref.tx_hash {
+        return Err(SnapshotError::SnapshotManifestSyncStateMismatch {
+            field: "l1_ref.tx_hash",
+            manifest_value: manifest.l1_ref.tx_hash.to_string(),
+            snapshotted_value: snapshotted_sync_state.l1_ref.tx_hash.to_string(),
+        });
+    }
+
+    if manifest.l1_ref.log_index != snapshotted_sync_state.l1_ref.log_index {
+        return Err(SnapshotError::SnapshotManifestSyncStateMismatch {
+            field: "l1_ref.log_index",
+            manifest_value: manifest.l1_ref.log_index.to_string(),
+            snapshotted_value: snapshotted_sync_state.l1_ref.log_index.to_string(),
+        });
+    }
+
+    Ok(())
+}
+
 async fn import_collection_into_shadow(
     database: &mongodb::Database,
     snapshot_dir: &Path,
@@ -742,12 +872,33 @@ async fn import_collection_into_shadow(
     shadow_collection_name: &str,
 ) -> Result<(), SnapshotError> {
     validate_snapshot_file_name(&manifest.file_name)?;
+    database.create_collection(shadow_collection_name).await?;
     let file = File::open(snapshot_dir.join(&manifest.file_name)).await?;
     let mut reader = BufReader::new(file).lines();
     let shadow_collection = database.collection::<Document>(shadow_collection_name);
 
     while let Some(line) = reader.next_line().await? {
-        let document: Document = serde_json::from_str(&line)?;
+        let json_value: serde_json::Value = serde_json::from_str(&line)?;
+        let bson_value = Bson::try_from(json_value).map_err(|error| {
+            SnapshotError::SerdeJson(serde_json::Error::io(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!(
+                    "could not parse snapshot line for collection {} as extended JSON: {error}",
+                    manifest.collection_name
+                ),
+            )))
+        })?;
+        let Bson::Document(document) = bson_value else {
+            return Err(SnapshotError::SerdeJson(serde_json::Error::io(
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!(
+                        "snapshot line for collection {} is not a BSON document",
+                        manifest.collection_name
+                    ),
+                ),
+            )));
+        };
         shadow_collection.insert_one(document).await?;
     }
 
@@ -1056,8 +1207,7 @@ pub async fn load_proposer_snapshot_into_shadow(
     snapshot_dir: &Path,
 ) -> Result<RestoreJournal, SnapshotError> {
     let snapshot_dir = snapshot_dir.to_path_buf();
-    let manifest = load_snapshot_manifest(&snapshot_dir).await?;
-    validate_snapshot_files(&snapshot_dir, &manifest).await?;
+    let manifest = load_and_validate_snapshot_manifest(&snapshot_dir).await?;
 
     let database = client.database(DB);
     let existing_collections = database.list_collection_names().await?;
@@ -1261,18 +1411,21 @@ mod test {
     use super::*;
     use crate::{
         domain::entities::{
-            L1Ref, RestoreJournal, RestoreJournalCollection, RestoreJournalPhase,
-            RestoreJournalStep, SyncState,
+            DepositDatawithFee, L1Ref, RestoreJournal, RestoreJournalCollection,
+            RestoreJournalPhase, RestoreJournalStep, SyncState,
         },
-        driven::db::mongo_db::{StoredBlock, RESTORE_JOURNAL_COLLECTION},
+        driven::db::mongo_db::{
+            ensure_deposit_indexes, StoredBlock, DEPOSIT_COLLECTION, RESTORE_JOURNAL_COLLECTION,
+        },
         ports::{
-            db::{BlockStorageDB, RestoreJournalDB, SyncStateDB},
+            db::{BlockStorageDB, RestoreJournalDB, SyncStateDB, TransactionsDB},
             trees::{CommitmentTree, HistoricRootTree, NullifierTree},
         },
     };
     use alloy::primitives::{Address, TxHash};
     use ark_ff::Zero;
     use lib::tests_utils::{get_db_connection, get_mongo};
+    use lib::shared_entities::DepositData;
     use std::{
         sync::{
             atomic::{AtomicBool, Ordering},
@@ -1323,6 +1476,9 @@ mod test {
         <mongodb::Client as NullifierTree<Fr254>>::new_nullifier_tree(client, 29, 3)
             .await
             .expect("create nullifier tree");
+        ensure_deposit_indexes(client)
+            .await
+            .expect("create deposit indexes");
     }
 
     async fn create_snapshot_fixture(
@@ -1765,6 +1921,10 @@ mod test {
         assert!(manifest
             .collections
             .iter()
+            .any(|collection| collection.collection_name == DEPOSIT_COLLECTION));
+        assert!(manifest
+            .collections
+            .iter()
             .any(|collection| collection.collection_name == PROPOSED_BLOCKS_COLLECTION));
         assert!(manifest
             .collections
@@ -2053,6 +2213,43 @@ mod test {
     }
 
     #[tokio::test]
+    async fn load_proposer_snapshot_into_shadow_rejects_manifest_sync_state_mismatch() {
+        let _snapshot_test_lock = snapshot_test_lock().await;
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+        initialize_snapshot_test_trees(&client).await;
+
+        let (snapshot_root, manifest, _, _) = create_snapshot_fixture(
+            &client,
+            36,
+            "0xmanifest-mismatch",
+            36,
+            3600,
+            "nf4-proposer-manifest-mismatch-test",
+        )
+        .await;
+        let snapshot_dir = snapshot_root.join(&manifest.snapshot_id);
+        let mut broken_manifest = read_manifest(&snapshot_dir).await;
+        broken_manifest.last_applied_l2_block += 1;
+        write_manifest(&snapshot_dir, &broken_manifest).await;
+
+        let error = load_proposer_snapshot_into_shadow(&client, &snapshot_dir)
+            .await
+            .expect_err("loading snapshot should reject manifest metadata drift");
+        assert!(matches!(
+            error,
+            SnapshotError::SnapshotManifestSyncStateMismatch {
+                field: "last_applied_l2_block",
+                ..
+            }
+        ));
+
+        fs::remove_dir_all(snapshot_root)
+            .await
+            .expect("cleanup snapshot directory");
+    }
+
+    #[tokio::test]
     async fn find_latest_valid_proposer_snapshot_prefers_highest_restorable_block() {
         let _snapshot_test_lock = snapshot_test_lock().await;
         let container = get_mongo().await;
@@ -2164,6 +2361,9 @@ mod test {
         <mongodb::Client as NullifierTree<Fr254>>::new_nullifier_tree(&client, 29, 3)
             .await
             .expect("create nullifier tree");
+        ensure_deposit_indexes(&client)
+            .await
+            .expect("create deposit indexes");
 
         let stored_block = StoredBlock {
             layer2_block_number: 8,
@@ -2352,6 +2552,9 @@ mod test {
         <mongodb::Client as NullifierTree<Fr254>>::new_nullifier_tree(&client, 29, 3)
             .await
             .expect("create nullifier tree");
+        ensure_deposit_indexes(&client)
+            .await
+            .expect("create deposit indexes");
 
         let snapshot_block = StoredBlock {
             layer2_block_number: 8,
@@ -2792,6 +2995,25 @@ mod test {
         <mongodb::Client as NullifierTree<Fr254>>::new_nullifier_tree(&client, 29, 3)
             .await
             .expect("create nullifier tree");
+        ensure_deposit_indexes(&client)
+            .await
+            .expect("create deposit indexes");
+
+        let snapshot_pending_deposit = DepositDatawithFee {
+            fee: Fr254::from(3u64),
+            deposit_data: DepositData {
+                nf_token_id: Fr254::from(101u64),
+                nf_slot_id: Fr254::from(102u64),
+                value: Fr254::from(103u64),
+                secret_hash: Fr254::from(104u64),
+            },
+        };
+        <mongodb::Client as TransactionsDB<lib::plonk_prover::plonk_proof::PlonkProof>>::set_mempool_deposits(
+            &client,
+            vec![snapshot_pending_deposit],
+        )
+        .await
+        .expect("store snapshot pending deposit");
 
         let snapshot_block = StoredBlock {
             layer2_block_number: 10,
@@ -2867,6 +3089,21 @@ mod test {
             })
             .await
             .expect("write newer live sync_state");
+        let stale_live_only_deposit = DepositDatawithFee {
+            fee: Fr254::from(8u64),
+            deposit_data: DepositData {
+                nf_token_id: Fr254::from(201u64),
+                nf_slot_id: Fr254::from(202u64),
+                value: Fr254::from(203u64),
+                secret_hash: Fr254::from(204u64),
+            },
+        };
+        <mongodb::Client as TransactionsDB<lib::plonk_prover::plonk_proof::PlonkProof>>::set_mempool_deposits(
+            &client,
+            vec![stale_live_only_deposit],
+        )
+        .await
+        .expect("store stale live-only deposit");
 
         load_proposer_snapshot_into_shadow(&client, &snapshot_dir)
             .await
@@ -2924,6 +3161,13 @@ mod test {
             .expect("count live proposed blocks");
         assert_eq!(live_blocks_count, 1);
 
+        let restored_deposits = <mongodb::Client as TransactionsDB<
+            lib::plonk_prover::plonk_proof::PlonkProof,
+        >>::get_mempool_deposits(&client)
+        .await
+        .expect("restored deposits should exist");
+        assert_eq!(restored_deposits, vec![snapshot_pending_deposit]);
+
         fs::remove_dir_all(snapshot_root)
             .await
             .expect("cleanup snapshot directory");
@@ -2951,6 +3195,9 @@ mod test {
         <mongodb::Client as NullifierTree<Fr254>>::new_nullifier_tree(&client, 29, 3)
             .await
             .expect("create nullifier tree");
+        ensure_deposit_indexes(&client)
+            .await
+            .expect("create deposit indexes");
 
         let snapshot_block = StoredBlock {
             layer2_block_number: 12,
@@ -3087,6 +3334,9 @@ mod test {
         <mongodb::Client as NullifierTree<Fr254>>::new_nullifier_tree(&client, 29, 3)
             .await
             .expect("create nullifier tree");
+        ensure_deposit_indexes(&client)
+            .await
+            .expect("create deposit indexes");
 
         let snapshot_block = StoredBlock {
             layer2_block_number: 14,

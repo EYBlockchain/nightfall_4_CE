@@ -182,7 +182,8 @@ where
     let ctx = <mongodb::Client as TransactionsDB<P>>::find_deposit(db, &deposit_data).await;
     // if it is, we should return an error
     if ctx.is_some() {
-        return Err(ClientTransactionError::TransactionAlreadyExists);
+        info!("Deposit transaction already exists in mempool, treating replay as a no-op");
+        return Ok(());
     }
     info!("Deposit Transaction is valid, storing in database");
     let key =

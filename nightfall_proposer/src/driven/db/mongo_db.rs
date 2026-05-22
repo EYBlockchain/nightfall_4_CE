@@ -85,6 +85,13 @@ fn swap_link_filter(swap_link: &Fr254) -> Document {
     }
 }
 
+fn deposit_identity_filter(deposit: &DepositDatawithFee) -> Document {
+    doc! {
+        "deposit_data.secret_hash": deposit.deposit_data.secret_hash.to_hex_string(),
+        "deposit_data.nf_slot_id": deposit.deposit_data.nf_slot_id.to_hex_string(),
+    }
+}
+
 fn cancelled_state_filter() -> Document {
     doc! {
         "$or": [
@@ -99,7 +106,7 @@ fn cancelled_state_filter() -> Document {
 
 pub const DB: &str = "nightfall";
 const COLLECTION: &str = "ClientTransactions";
-const DEPOSIT_COLLECTION: &str = "Deposits";
+pub const DEPOSIT_COLLECTION: &str = "Deposits";
 pub const PROPOSED_BLOCKS_COLLECTION: &str = "ProposedBlocks";
 pub const SYNC_STATE_COLLECTION: &str = "sync_state";
 pub const RESTORE_JOURNAL_COLLECTION: &str = "restore_journal";
@@ -335,12 +342,9 @@ where
     }
 
     async fn find_deposit(&self, v: &DepositDatawithFee) -> Option<DepositDatawithFee> {
-        // we'll compute the hash of the transaction and then look it up in the database
-        let hash = v.hash().ok()?;
-        let filter = doc! {"hash": hash};
         self.database(DB)
-            .collection::<DepositDatawithFee>(COLLECTION)
-            .find_one(filter)
+            .collection::<DepositDatawithFee>(DEPOSIT_COLLECTION)
+            .find_one(deposit_identity_filter(v))
             .await
             .expect("Database error") // we can't really proceed at this point
     }
@@ -354,11 +358,22 @@ where
         let collection = self
             .database(DB)
             .collection::<DepositDatawithFee>(DEPOSIT_COLLECTION);
+        let mut inserted_count = 0_u64;
 
-        // Directly insert Vec<DepositInfo> instead of converting to Document
-        let result = collection.insert_many(deposits).await.ok()?;
+        for deposit in deposits {
+            let filter = deposit_identity_filter(&deposit);
+            let update = doc! {
+                "$setOnInsert": mongodb::bson::to_document(&deposit).ok()?
+            };
+            let result = collection
+                .update_one(filter, update)
+                .upsert(true)
+                .await
+                .ok()?;
+            inserted_count += result.upserted_id.is_some() as u64;
+        }
 
-        Some(result.inserted_ids.len() as u64)
+        Some(inserted_count)
     }
 
     // Retrieve deposits from the mempool
@@ -405,12 +420,7 @@ where
         // Fetch all documents in the collection
         let delete_conditions: Vec<_> = used_deposits
             .iter()
-            .map(|d| {
-                doc! {
-                    "deposit_data.secret_hash": d.deposit_data.secret_hash.to_hex_string(),
-                    "deposit_data.nf_slot_id": d.deposit_data.nf_slot_id.to_hex_string(),
-                }
-            })
+            .map(deposit_identity_filter)
             .collect();
         let filter = doc! {
             "$or": delete_conditions
@@ -693,6 +703,37 @@ impl RestoreJournalDB for mongodb::Client {
     }
 }
 
+/// Creates a unique index for proposer deposit replay identity.
+/// Must be called once at proposer startup.
+pub async fn ensure_deposit_indexes(
+    client: &mongodb::Client,
+) -> Result<(), mongodb::error::Error> {
+    use mongodb::options::IndexOptions;
+    use mongodb::IndexModel;
+
+    let database = client.database(DB);
+    let existing_collections = database.list_collection_names().await?;
+    if !existing_collections
+        .iter()
+        .any(|name| name == DEPOSIT_COLLECTION)
+    {
+        database.create_collection(DEPOSIT_COLLECTION).await?;
+    }
+
+    let collection = database.collection::<DepositDatawithFee>(DEPOSIT_COLLECTION);
+
+    let deposit_identity_index = IndexModel::builder()
+        .keys(doc! {
+            "deposit_data.secret_hash": 1,
+            "deposit_data.nf_slot_id": 1,
+        })
+        .options(IndexOptions::builder().unique(true).build())
+        .build();
+
+    collection.create_index(deposit_identity_index).await?;
+    Ok(())
+}
+
 /// Creates unique indexes on `receipt_id` and `tx_hash` in the TransferReceipts collection.
 /// Must be called once at proposer startup.
 pub async fn ensure_transfer_receipt_indexes(
@@ -828,10 +869,13 @@ impl TransferReceiptDB for mongodb::Client {
 mod test {
     use super::*;
     use crate::domain::entities::{
-        L1Ref, RestoreJournalCollection, RestoreJournalPhase, RestoreJournalStep,
+        DepositDatawithFee, L1Ref, RestoreJournalCollection, RestoreJournalPhase,
+        RestoreJournalStep,
     };
     use ark_bn254::Fr as Fr254;
     use ark_std::UniformRand;
+    use lib::plonk_prover::plonk_proof::PlonkProof;
+    use lib::shared_entities::DepositData;
 
     #[test]
     fn mempool_filter_matches_new_and_legacy_shapes() {
@@ -936,6 +980,55 @@ mod test {
         );
         assert_eq!(stored.l1_ref.log_index, 3);
         assert_eq!(stored.schema_version, SyncState::SCHEMA_VERSION);
+    }
+
+    #[tokio::test]
+    async fn set_mempool_deposits_is_idempotent_for_replayed_deposit_events() {
+        let container = lib::tests_utils::get_mongo().await;
+        let client = lib::tests_utils::get_db_connection(&container).await;
+        ensure_deposit_indexes(&client)
+            .await
+            .expect("create deposit indexes");
+
+        let deposit = DepositDatawithFee {
+            fee: Fr254::from(7u64),
+            deposit_data: DepositData {
+                nf_token_id: Fr254::from(11u64),
+                nf_slot_id: Fr254::from(13u64),
+                value: Fr254::from(17u64),
+                secret_hash: Fr254::from(19u64),
+            },
+        };
+
+        assert_eq!(
+            <mongodb::Client as TransactionsDB<PlonkProof>>::set_mempool_deposits(
+                &client,
+                vec![deposit.clone()],
+            )
+            .await,
+            Some(1)
+        );
+        assert_eq!(
+            <mongodb::Client as TransactionsDB<PlonkProof>>::set_mempool_deposits(
+                &client,
+                vec![deposit.clone()],
+            )
+            .await,
+            Some(0)
+        );
+
+        let stored = client
+            .database(DB)
+            .collection::<DepositDatawithFee>(DEPOSIT_COLLECTION)
+            .count_documents(doc! {})
+            .await
+            .expect("count deposits");
+        assert_eq!(stored, 1);
+        assert!(
+            <mongodb::Client as TransactionsDB<PlonkProof>>::find_deposit(&client, &deposit)
+            .await
+            .is_some()
+        );
     }
 
     async fn seed_rename_spike_collection(

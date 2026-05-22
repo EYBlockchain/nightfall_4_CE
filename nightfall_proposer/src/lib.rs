@@ -92,9 +92,12 @@ pub mod initialisation {
 
     use super::driven::block_assembler::SmartTrigger;
     use crate::{
-        domain::entities::SyncState,
+        domain::entities::{L1Ref, SyncState},
         driven::block_assembler::BlockAssemblyStatus,
-        driven::db::{mongo_db::StoredBlock, snapshot::recover_from_restore_journal},
+        driven::db::{
+            mongo_db::{StoredBlock, DB},
+            snapshot::recover_from_restore_journal,
+        },
         driven::nightfall_event::get_expected_layer2_blocknumber,
         drivers::blockchain::nightfall_event_listener::get_synchronisation_status,
         ports::{
@@ -112,6 +115,7 @@ pub mod initialisation {
     use configuration::settings::{get_settings, WalletRole};
     use lib::{
         blockchain_client::BlockchainClientConnection, nf_client_proof::Proof,
+        merkle_trees::trees::TreeMetadata,
         wallets::LocalWsClient,
     };
     use lib::{hex_conversion::HexConvertible, merkle_trees::trees::MutableTree};
@@ -126,12 +130,27 @@ pub mod initialisation {
             .await
     }
 
+    async fn get_listener_resume_cursor() -> &'static RwLock<Option<L1Ref>> {
+        static LISTENER_RESUME_CURSOR: OnceCell<RwLock<Option<L1Ref>>> = OnceCell::const_new();
+        LISTENER_RESUME_CURSOR
+            .get_or_init(|| async { RwLock::new(None) })
+            .await
+    }
+
     pub async fn get_runtime_listener_start_block() -> usize {
         *get_listener_start_block().await.read().await
     }
 
     pub async fn set_runtime_listener_start_block(start_block: usize) {
         *get_listener_start_block().await.write().await = start_block;
+    }
+
+    pub async fn get_runtime_listener_resume_cursor() -> Option<L1Ref> {
+        get_listener_resume_cursor().await.read().await.clone()
+    }
+
+    pub async fn set_runtime_listener_resume_cursor(cursor: Option<L1Ref>) {
+        *get_listener_resume_cursor().await.write().await = cursor;
     }
 
     async fn ensure_commitment_tree_initialized(client: &Client) {
@@ -204,6 +223,9 @@ pub mod initialisation {
         ensure_commitment_tree_initialized(client).await;
         ensure_historic_root_tree_initialized(client).await;
         ensure_nullifier_tree_initialized(client).await;
+        crate::driven::db::mongo_db::ensure_deposit_indexes(client)
+            .await
+            .expect("Could not create deposit indexes");
         crate::driven::db::mongo_db::ensure_transfer_receipt_indexes(client)
             .await
             .expect("Could not create transfer receipt indexes");
@@ -244,6 +266,77 @@ pub mod initialisation {
              of chain. This may indicate an L1 reorg, chain rollback, or dev chain reset. \
              Manual recovery is required before restart."
         )
+    }
+
+    fn tree_state_inconsistency_error(details: &str) -> String {
+        format!(
+            "Proposer startup aborted: local proposer tree state is inconsistent with persisted \
+             sync_state. {details} Manual recovery is required before restart."
+        )
+    }
+
+    async fn tree_sub_tree_count(client: &Client, tree_name: &str) -> Result<u64, String> {
+        let metadata_collection_name = format!("{tree_name}_metadata");
+        let metadata = client
+            .database(DB)
+            .collection::<TreeMetadata<Fr254>>(&metadata_collection_name)
+            .find_one(mongodb::bson::doc! {})
+            .await
+            .map_err(|error| {
+                format!("Could not read proposer tree metadata for {tree_name}: {error}")
+            })?
+            .ok_or_else(|| {
+                tree_state_inconsistency_error(&format!(
+                    "tree metadata for {tree_name} is missing."
+                ))
+            })?;
+        Ok(metadata.sub_tree_count)
+    }
+
+    async fn validate_tree_state_against_sync_state(
+        client: &Client,
+        sync_state: Option<&SyncState>,
+        stored_block: Option<&StoredBlock>,
+    ) -> Result<(), String> {
+        let commitment_sub_tree_count =
+            tree_sub_tree_count(client, <mongodb::Client as CommitmentTree<Fr254>>::TREE_NAME)
+                .await?;
+        let historic_root_sub_tree_count =
+            tree_sub_tree_count(client, <mongodb::Client as HistoricRootTree<Fr254>>::TREE_NAME)
+                .await?;
+
+        match sync_state {
+            Some(sync_state) => {
+                if historic_root_sub_tree_count <= 1 {
+                    return Err(tree_state_inconsistency_error(&format!(
+                        "sync_state records applied L2 block {}, but the historic root tree only \
+                         contains the zero leaf.",
+                        sync_state.last_applied_l2_block
+                    )));
+                }
+
+                if commitment_sub_tree_count == 0
+                    && stored_block.is_some_and(|block| !block.commitments.is_empty())
+                {
+                    return Err(tree_state_inconsistency_error(&format!(
+                        "sync_state records applied L2 block {}, but the commitment tree is empty \
+                         while the stored block at that height contains commitments.",
+                        sync_state.last_applied_l2_block
+                    )));
+                }
+            }
+            None => {
+                if commitment_sub_tree_count > 0 || historic_root_sub_tree_count > 1 {
+                    return Err(tree_state_inconsistency_error(&format!(
+                        "no proposer sync_state exists, but proposer trees are not empty \
+                         (commitment_sub_tree_count={commitment_sub_tree_count}, \
+                         historic_root_sub_tree_count={historic_root_sub_tree_count})."
+                    )));
+                }
+            }
+        }
+
+        Ok(())
     }
 
     fn validate_sync_state_against_block(
@@ -320,6 +413,8 @@ pub mod initialisation {
                     .ok_or_else(|| missing_stored_block_error(sync_state.last_applied_l2_block))?;
 
                 validate_sync_state_against_block(&sync_state, &stored_block)?;
+                validate_tree_state_against_sync_state(db, Some(&sync_state), Some(&stored_block))
+                    .await?;
 
                 let next_expected_block = sync_state
                     .last_applied_l2_block
@@ -348,6 +443,7 @@ pub mod initialisation {
                         )
                     })?;
                 *listener_start_block = sync_state_l1_block_number;
+                set_runtime_listener_resume_cursor(Some(sync_state.l1_ref.clone())).await;
 
                 if next_expected_block == onchain_next_block {
                     sync_status.set_synchronised();
@@ -367,6 +463,8 @@ pub mod initialisation {
                 }
             }
             None => {
+                set_runtime_listener_resume_cursor(None).await;
+                validate_tree_state_against_sync_state(db, None, None).await?;
                 *expected_block_number = I256::ZERO;
                 if onchain_next_block == 0 {
                     sync_status.set_synchronised();
@@ -388,8 +486,25 @@ pub mod initialisation {
     where
         N: NightfallContract,
     {
-        let db = get_db_connection().await;
+        let db = get_raw_db_connection().await;
+        recover_then_initialize_proposer_db(db).await?;
         bootstrap_proposer_startup_state_with_db::<N>(db, true).await
+    }
+
+    async fn recover_then_initialize_proposer_db(db: &Client) -> Result<(), String> {
+        if let Err(error) = recover_from_restore_journal(db).await {
+            if db.get_restore_journal().await.is_none() {
+                warn!(
+                    "Proposer restore recovery completed by rolling back incomplete restore state before startup initialisation: {error}"
+                );
+            } else {
+                return Err(format!(
+                    "Proposer restore recovery failed before startup initialisation: {error}"
+                ));
+            }
+        }
+        ensure_proposer_db_initialized(db).await;
+        Ok(())
     }
 
     #[cfg(test)]
@@ -399,20 +514,51 @@ pub mod initialisation {
             domain::entities::{L1Ref, RestoreJournalPhase, RestoreJournalStep, SyncState},
             driven::db::{
                 mongo_db::{StoredBlock, DB},
-                snapshot::{create_proposer_snapshot, load_proposer_snapshot_into_shadow},
+                snapshot::{
+                    create_proposer_snapshot, load_proposer_snapshot_into_shadow,
+                    restore_proposer_snapshot,
+                },
             },
             driven::nightfall_event::get_expected_layer2_blocknumber,
             drivers::blockchain::nightfall_event_listener::get_synchronisation_status,
-            ports::db::{BlockStorageDB, RestoreJournalDB, SyncStateDB},
+            ports::{
+                db::{BlockStorageDB, RestoreJournalDB, SyncStateDB},
+                trees::{CommitmentTree, HistoricRootTree},
+            },
         };
         use alloy::primitives::{Address, TxHash};
+        use ark_bn254::Fr as Fr254;
         use lib::hex_conversion::HexConvertible;
+        use lib::merkle_trees::trees::MutableTree;
         use lib::tests_utils::{get_db_connection, get_mongo};
         use mongodb::bson::{doc, Document};
         use std::{fs, path::PathBuf};
         use tokio::sync::{Mutex, OnceCell};
 
         struct MockNightfallContract;
+
+        #[derive(Debug, PartialEq)]
+        struct CapturedSyncState {
+            last_applied_l2_block: u64,
+            fingerprint: String,
+            l1_ref: L1Ref,
+            schema_version: u32,
+        }
+
+        #[derive(Debug, PartialEq)]
+        struct CapturedStoredBlock {
+            layer2_block_number: u64,
+            commitments: Vec<String>,
+            proposer_address: Address,
+        }
+
+        #[derive(Debug, PartialEq)]
+        struct CapturedProposerState {
+            sync_state: CapturedSyncState,
+            blocks: Vec<CapturedStoredBlock>,
+            commitment_root: Fr254,
+            historic_root: Fr254,
+        }
 
         fn mock_onchain_next_block() -> &'static std::sync::atomic::AtomicU64 {
             static ONCHAIN_NEXT_BLOCK: std::sync::OnceLock<std::sync::atomic::AtomicU64> =
@@ -467,6 +613,29 @@ pub mod initialisation {
                 .expect("write sync_state");
         }
 
+        async fn materialize_tree_state_for_block(client: &mongodb::Client, block_number: u64) {
+            let commitment_leaf = Fr254::from(block_number + 1);
+            <mongodb::Client as MutableTree<Fr254>>::insert_leaf(
+                client,
+                commitment_leaf,
+                true,
+                <mongodb::Client as CommitmentTree<Fr254>>::TREE_NAME,
+            )
+            .await
+            .expect("append test commitment leaf");
+
+            let commitment_root = <mongodb::Client as CommitmentTree<Fr254>>::get_root(client)
+                .await
+                .expect("read commitment root");
+            <mongodb::Client as HistoricRootTree<Fr254>>::append_historic_commitment_root(
+                client,
+                &commitment_root,
+                true,
+            )
+            .await
+            .expect("append historic root");
+        }
+
         async fn create_snapshot_fixture(
             client: &mongodb::Client,
             snapshot_root_prefix: &str,
@@ -484,6 +653,7 @@ pub mod initialisation {
                 .store_block(&stored_block)
                 .await
                 .expect("store block for snapshot fixture");
+            materialize_tree_state_for_block(client, layer2_block_number).await;
 
             let sync_state = SyncState::new(
                 stored_block.layer2_block_number,
@@ -523,6 +693,7 @@ pub mod initialisation {
                 .store_block(&stored_block)
                 .await
                 .expect("store live block");
+            materialize_tree_state_for_block(client, layer2_block_number).await;
 
             let sync_state = SyncState::new(
                 stored_block.layer2_block_number,
@@ -536,6 +707,47 @@ pub mod initialisation {
             );
             persist_sync_state(client, &sync_state).await;
             sync_state
+        }
+
+        async fn capture_proposer_state(
+            client: &mongodb::Client,
+            block_numbers: &[u64],
+        ) -> CapturedProposerState {
+            let sync_state = client
+                .get_sync_state()
+                .await
+                .expect("sync_state should exist for captured state");
+            let mut blocks = Vec::with_capacity(block_numbers.len());
+            for block_number in block_numbers {
+                let stored_block = client
+                    .get_block_by_number(*block_number)
+                    .await
+                    .unwrap_or_else(|| panic!("missing stored block {block_number}"));
+                blocks.push(CapturedStoredBlock {
+                    layer2_block_number: stored_block.layer2_block_number,
+                    commitments: stored_block.commitments,
+                    proposer_address: stored_block.proposer_address,
+                });
+            }
+
+            CapturedProposerState {
+                sync_state: CapturedSyncState {
+                    last_applied_l2_block: sync_state.last_applied_l2_block,
+                    fingerprint: sync_state.fingerprint,
+                    l1_ref: sync_state.l1_ref,
+                    schema_version: sync_state.schema_version,
+                },
+                blocks,
+                commitment_root: <mongodb::Client as CommitmentTree<Fr254>>::get_root(client)
+                    .await
+                    .expect("read commitment root for captured state"),
+                historic_root: <mongodb::Client as MutableTree<Fr254>>::get_root(
+                    client,
+                    <mongodb::Client as HistoricRootTree<Fr254>>::TREE_NAME,
+                )
+                .await
+                .expect("read historic root for captured state"),
+            }
         }
 
         fn snapshot_dir(snapshot_root: &PathBuf) -> PathBuf {
@@ -555,6 +767,53 @@ pub mod initialisation {
                 .await
                 .clear_synchronised();
             set_runtime_listener_start_block(0).await;
+            set_runtime_listener_resume_cursor(None).await;
+        }
+
+        #[tokio::test]
+        async fn bootstrap_aborts_when_sync_state_exists_but_trees_are_torn_down() {
+            let _lock = bootstrap_test_lock().await;
+            let container = get_mongo().await;
+            let client = get_db_connection(&container).await;
+
+            let stored_block = StoredBlock {
+                layer2_block_number: 5,
+                commitments: vec!["0xtorn-state".to_string()],
+                proposer_address: Address::from([5u8; 20]),
+            };
+            client
+                .store_block(&stored_block)
+                .await
+                .expect("store torn-state block");
+            persist_sync_state(
+                &client,
+                &SyncState::new(
+                    stored_block.layer2_block_number,
+                    stored_block.hash().to_hex_string(),
+                    L1Ref {
+                        block_number: 500,
+                        tx_hash: TxHash::from([5u8; 32]),
+                        log_index: 5,
+                    },
+                    mongodb::bson::DateTime::now(),
+                ),
+            )
+            .await;
+
+            MockNightfallContract::set_onchain_next_block(6);
+            reset_runtime_bootstrap_state().await;
+
+            let error = bootstrap_proposer_startup_state_with_db::<MockNightfallContract>(
+                &client, false,
+            )
+            .await
+            .expect_err("bootstrap should reject torn proposer tree state");
+
+            assert!(
+                error.contains("tree state is inconsistent")
+                    && error.contains("Manual recovery is required"),
+                "unexpected bootstrap error: {error}"
+            );
         }
 
         async fn rename_collection(
@@ -826,22 +1085,129 @@ pub mod initialisation {
                 .await
                 .expect("cleanup snapshot directory");
         }
+
+        #[tokio::test]
+        async fn startup_recovers_restore_journal_before_reinitializing_live_tree_collections() {
+            let _lock = bootstrap_test_lock().await;
+            let container = get_mongo().await;
+            let client = get_db_connection(&container).await;
+
+            let (snapshot_root, snapshot_block, _) =
+                create_snapshot_fixture(&client, "nf4-bootstrap-ordering", 18, 1800).await;
+            let snapshot_dir = snapshot_dir(&snapshot_root);
+
+            set_live_sync_state(&client, 19, "0xnewer-live", 1900).await;
+            let mut journal = load_proposer_snapshot_into_shadow(&client, &snapshot_dir)
+                .await
+                .expect("load snapshot into shadow");
+            let ordered = ordered_restore_collections(&journal.collections);
+            rename_collection(&client, &ordered[0].live, &ordered[0].backup)
+                .await
+                .expect("simulate missing live collection mid-swap");
+            journal.collections = ordered;
+            journal.phase = RestoreJournalPhase::SwapInProgress;
+            journal.current_index = Some(0);
+            journal.current_step = Some(RestoreJournalStep::BackupCreated);
+            journal.updated_at = mongodb::bson::DateTime::now();
+            client
+                .upsert_restore_journal(&journal)
+                .await
+                .expect("persist mid-swap journal");
+
+            recover_then_initialize_proposer_db(&client)
+                .await
+                .expect("startup recovery should complete before init recreates live trees");
+
+            let resumed = client
+                .get_restore_journal()
+                .await
+                .expect("swap_complete journal should remain after recovery");
+            assert_eq!(resumed.phase, RestoreJournalPhase::SwapComplete);
+
+            let restored_sync_state = client
+                .get_sync_state()
+                .await
+                .expect("restored sync_state should exist");
+            assert_eq!(
+                restored_sync_state.last_applied_l2_block,
+                snapshot_block.layer2_block_number
+            );
+            assert_eq!(restored_sync_state.l1_ref.block_number, 1800);
+
+            tokio::fs::remove_dir_all(snapshot_root)
+                .await
+                .expect("cleanup snapshot directory");
+        }
+
+        #[tokio::test]
+        async fn snapshot_restore_then_replay_reaches_canonical_state() {
+            let _lock = bootstrap_test_lock().await;
+            let container = get_mongo().await;
+            let client = get_db_connection(&container).await;
+
+            let (snapshot_root, _, snapshot_sync_state) =
+                create_snapshot_fixture(&client, "nf4-restore-replay-e2e", 10, 1000).await;
+            let snapshot_dir = snapshot_dir(&snapshot_root);
+
+            set_live_sync_state(&client, 11, "0x0b", 1100).await;
+            set_live_sync_state(&client, 12, "0x0c", 1200).await;
+            let canonical_state = capture_proposer_state(&client, &[10, 11, 12]).await;
+
+            set_live_sync_state(&client, 12, "0xbad", 1299).await;
+            materialize_tree_state_for_block(&client, 99).await;
+
+            let restored_sync_state = restore_proposer_snapshot(&client, &snapshot_dir)
+                .await;
+            assert_eq!(
+                restored_sync_state.expect("restore should succeed"),
+                snapshot_sync_state
+            );
+            assert_eq!(
+                client
+                    .get_sync_state()
+                    .await
+                    .expect("restore should reinstall snapshot sync_state"),
+                snapshot_sync_state
+            );
+
+            set_live_sync_state(&client, 11, "0x0b", 1100).await;
+            set_live_sync_state(&client, 12, "0x0c", 1200).await;
+            let replayed_state = capture_proposer_state(&client, &[10, 11, 12]).await;
+
+            assert_eq!(replayed_state, canonical_state);
+
+            tokio::fs::remove_dir_all(snapshot_root)
+                .await
+                .expect("cleanup snapshot root");
+        }
+    }
+
+    async fn get_raw_db_connection() -> &'static Client {
+        static RAW_DB_CONNECTION: OnceCell<Client> = OnceCell::const_new();
+        RAW_DB_CONNECTION
+            .get_or_init(|| async {
+                let uri = &get_settings().nightfall_proposer.db_url;
+                Client::with_uri_str(uri)
+                    .await
+                    .expect("Could not create database connection")
+            })
+            .await
+    }
+
+    async fn ensure_singleton_proposer_db_initialized(client: &Client) {
+        static DB_INITIALIZED: OnceCell<()> = OnceCell::const_new();
+        DB_INITIALIZED
+            .get_or_init(|| async {
+                ensure_proposer_db_initialized(client).await;
+            })
+            .await;
     }
 
     /// This function is used to provide a singleton database connection across the entire application.
     pub async fn get_db_connection() -> &'static Client {
-        static DB_CONNECTION: OnceCell<Client> = OnceCell::const_new();
-        DB_CONNECTION
-            .get_or_init(|| async {
-                // select the proposer to use
-                let uri = &get_settings().nightfall_proposer.db_url;
-                let client = Client::with_uri_str(uri)
-                    .await
-                    .expect("Could not create database connection");
-                ensure_proposer_db_initialized(&client).await;
-                client
-            })
-            .await
+        let client = get_raw_db_connection().await;
+        ensure_singleton_proposer_db_initialized(client).await;
+        client
     }
 
     /// This function is used to provide a singleton blockchain client connection across the entire application.

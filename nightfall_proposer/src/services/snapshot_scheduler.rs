@@ -25,19 +25,28 @@ async fn get_last_snapshot_l2_block() -> &'static RwLock<u64> {
         .await
 }
 
+pub async fn set_last_snapshot_l2_block(last_snapshot_l2_block: u64) {
+    *get_last_snapshot_l2_block().await.write().await = last_snapshot_l2_block;
+}
+
 fn snapshot_root_dir() -> PathBuf {
     PathBuf::from(&get_settings().nightfall_proposer.snapshot_root_dir)
 }
 
-async fn initialize_snapshot_scheduler_state_for_root(root: &Path) -> Result<(), SnapshotError> {
+async fn initialize_snapshot_scheduler_state_for_root(
+    root: &Path,
+    live_last_applied_l2_block: Option<u64>,
+) -> Result<(), SnapshotError> {
     cleanup_orphaned_proposer_snapshot_temp_dirs(root).await?;
-    let latest_snapshot_l2_block = match find_latest_valid_proposer_snapshot(root, u64::MAX).await?
-    {
-        Some((_, manifest)) => manifest.last_applied_l2_block,
-        None => 0,
+    let live_snapshot_l2_block = match live_last_applied_l2_block {
+        Some(last_applied_l2_block) => last_applied_l2_block,
+        None => match find_latest_valid_proposer_snapshot(root, u64::MAX).await? {
+            Some((_, manifest)) => manifest.last_applied_l2_block,
+            None => 0,
+        },
     };
 
-    *get_last_snapshot_l2_block().await.write().await = latest_snapshot_l2_block;
+    set_last_snapshot_l2_block(live_snapshot_l2_block).await;
     Ok(())
 }
 
@@ -54,7 +63,13 @@ pub fn maybe_should_snapshot(
 }
 
 pub async fn initialize_snapshot_scheduler_state() -> Result<(), SnapshotError> {
-    initialize_snapshot_scheduler_state_for_root(&snapshot_root_dir()).await
+    let live_last_applied_l2_block = get_db_connection()
+        .await
+        .get_sync_state()
+        .await
+        .map(|sync_state| sync_state.last_applied_l2_block);
+    initialize_snapshot_scheduler_state_for_root(&snapshot_root_dir(), live_last_applied_l2_block)
+        .await
 }
 
 async fn prune_old_snapshots_by_manifest(
@@ -123,7 +138,7 @@ async fn create_snapshot_task(client: Client, snapshot_root_dir: PathBuf, retent
 
     match create_proposer_snapshot_unlocked(&client, &snapshot_root_dir).await {
         Ok(manifest) => {
-            *get_last_snapshot_l2_block().await.write().await = manifest.last_applied_l2_block;
+            set_last_snapshot_l2_block(manifest.last_applied_l2_block).await;
 
             if let Err(error) =
                 prune_old_snapshots_by_manifest(&snapshot_root_dir, retention_count).await
@@ -211,8 +226,10 @@ pub async fn run_snapshot_scheduler() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::entities::SnapshotCollectionManifest;
-    use crate::driven::db::mongo_db::{PROPOSED_BLOCKS_COLLECTION, SYNC_STATE_COLLECTION};
+    use crate::domain::entities::{L1Ref, SnapshotCollectionManifest, SyncState};
+    use crate::driven::db::mongo_db::{
+        DEPOSIT_COLLECTION, PROPOSED_BLOCKS_COLLECTION, SYNC_STATE_COLLECTION,
+    };
     use crate::ports::trees::{CommitmentTree, HistoricRootTree, NullifierTree};
     use ark_bn254::Fr as Fr254;
     use sha2::{Digest, Sha256};
@@ -236,6 +253,15 @@ mod tests {
 
     fn empty_file_checksum() -> String {
         hex::encode(Sha256::digest([]))
+    }
+
+    fn checksum_for_lines(lines: &[String]) -> String {
+        let mut checksum = Sha256::new();
+        for line in lines {
+            checksum.update(line.as_bytes());
+            checksum.update(b"\n");
+        }
+        hex::encode(checksum.finalize())
     }
 
     fn compute_test_overall_checksum(collections: &[SnapshotCollectionManifest]) -> String {
@@ -280,6 +306,7 @@ mod tests {
                 "{}_indexed_leaves",
                 <mongodb::Client as NullifierTree<Fr254>>::TREE_NAME
             ),
+            DEPOSIT_COLLECTION.to_string(),
             PROPOSED_BLOCKS_COLLECTION.to_string(),
             SYNC_STATE_COLLECTION.to_string(),
         ];
@@ -287,14 +314,40 @@ mod tests {
         let mut collections = Vec::new();
         for collection_name in required_collections {
             let file_name = format!("{collection_name}.jsonl");
-            fs::write(snapshot_dir.join(&file_name), b"")
+            let file_contents = if collection_name == SYNC_STATE_COLLECTION {
+                let sync_state = SyncState::new(
+                    last_applied_l2_block,
+                    format!("fingerprint-{last_applied_l2_block}"),
+                    L1Ref {
+                        block_number: last_applied_l2_block,
+                        tx_hash: alloy::primitives::TxHash::from([last_applied_l2_block as u8; 32]),
+                        log_index: 0,
+                    },
+                    DateTime::now(),
+                );
+                let bson = mongodb::bson::to_bson(&sync_state).expect("serialize sync_state");
+                let line = bson.into_relaxed_extjson().to_string();
+                vec![line]
+            } else {
+                Vec::new()
+            };
+            let serialized = if file_contents.is_empty() {
+                String::new()
+            } else {
+                format!("{}\n", file_contents.join("\n"))
+            };
+            fs::write(snapshot_dir.join(&file_name), serialized)
                 .await
-                .expect("write empty snapshot collection file");
+                .expect("write snapshot collection file");
             collections.push(SnapshotCollectionManifest {
                 collection_name,
                 file_name,
-                document_count: 0,
-                sha256: empty_file_checksum(),
+                document_count: file_contents.len() as u64,
+                sha256: if file_contents.is_empty() {
+                    empty_file_checksum()
+                } else {
+                    checksum_for_lines(&file_contents)
+                },
             });
         }
 
@@ -452,7 +505,7 @@ mod tests {
             write_minimal_valid_snapshot(&snapshot_dir, &format!("snapshot-{index}"), index).await;
         }
 
-        initialize_snapshot_scheduler_state_for_root(&root)
+        initialize_snapshot_scheduler_state_for_root(&root, None)
             .await
             .expect("initialize scheduler state");
 
@@ -472,5 +525,34 @@ mod tests {
         fs::remove_dir_all(root)
             .await
             .expect("cleanup scheduler init root");
+    }
+
+    #[tokio::test]
+    async fn initialize_snapshot_scheduler_state_prefers_live_sync_state_over_newer_disk_snapshot()
+    {
+        let _scheduler_test_lock = scheduler_test_lock().await;
+        let root = std::env::temp_dir().join(format!(
+            "nf4-proposer-scheduler-live-state-test-{}",
+            DateTime::now().timestamp_millis()
+        ));
+        fs::create_dir_all(&root).await.expect("create root");
+
+        for index in [4_u64, 9_u64] {
+            let snapshot_dir = root.join(format!("snapshot-{index}"));
+            fs::create_dir_all(&snapshot_dir)
+                .await
+                .expect("create snapshot dir");
+            write_minimal_valid_snapshot(&snapshot_dir, &format!("snapshot-{index}"), index).await;
+        }
+
+        initialize_snapshot_scheduler_state_for_root(&root, Some(4))
+            .await
+            .expect("initialize scheduler state from live sync_state");
+
+        assert_eq!(*get_last_snapshot_l2_block().await.read().await, 4);
+
+        fs::remove_dir_all(root)
+            .await
+            .expect("cleanup scheduler live state root");
     }
 }
