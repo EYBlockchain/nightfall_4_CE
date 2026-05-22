@@ -1,14 +1,17 @@
 use crate::{
-    domain::entities::{Block, ClientTransactionWithMetaData, DepositDatawithFee},
-    driven::db::mongo_db::{StoredBlock, DB, PROPOSED_BLOCKS_COLLECTION},
+    domain::entities::{
+        Block, ClientTransactionWithMetaData, DepositDatawithFee, PendingBlock, PendingBlockState,
+    },
+    driven::db::mongo_db::StoredBlock,
     drivers::blockchain::block_assembly::BlockAssemblyError,
     initialisation::{get_blockchain_client_connection, get_db_connection},
     ports::{
-        db::{BlockStorageDB, TransactionsDB},
+        db::{BlockStorageDB, PendingBlockDB, TransactionsDB},
         proving::RecursiveProvingEngine,
     },
     services::selected_transactions::reconcile_orphaned_selected_transactions,
 };
+use alloy::primitives::Address;
 use ark_bn254::Fr as Fr254;
 use ark_std::{collections::HashSet, Zero};
 use jf_primitives::poseidon::{FieldHasher, Poseidon};
@@ -19,7 +22,7 @@ use lib::{
     shared_entities::DepositData,
     utils::get_block_size,
 };
-use log::{info, warn};
+use log::{error, info, warn};
 use std::cmp::Reverse;
 use tokio::time::Instant;
 
@@ -178,30 +181,67 @@ pub(crate) fn transactions_to_include_in_block<K, V>(
     // If we have more than block_size transactions, we'll only include the block_size - DepositDatas most valuable transactions
     mempool_transactions.unwrap_or_default()
 }
-/// assemble_block is the main function that is called by the proposer to create a new block,
-/// it fetches the necessary data from the database and the contract, then assembles the block
-pub(crate) async fn assemble_block<P, R>(
-    current_l2_block_number: u64,
-) -> Result<Block, BlockAssemblyError>
+async fn assemble_block_with_context<P, R>(
+    db: &mongodb::Client,
+    block_size: usize,
+    layer2_block_number: u64,
+    proposer_address: Address,
+) -> Result<PendingBlock, BlockAssemblyError>
 where
     P: Proof,
     R: RecursiveProvingEngine<P> + Send + Sync + 'static,
 {
-    info!("Starting block assembly process");
-    // initialise included_depositinfos_group, selected_client_transactions
-    let included_depositinfos_group;
-    let selected_client_transactions: Vec<ClientTransactionWithMetaData<P>>;
+    let result = prepare_block_data::<P>(db, block_size, layer2_block_number).await;
+    match &result {
+        Ok(_) => info!("Block data prepared successfully"),
+        Err(e) => warn!("Failed to prepare block data: {e:?}"),
+    }
+
+    let (included_depositinfos_group, selected_client_transactions) = result?;
+    let selected_client_transaction_hashes =
+        selected_client_transaction_hashes(&selected_client_transactions);
+
+    let reserved_pending_block = PendingBlock {
+        layer2_block_number,
+        state: PendingBlockState::Reserved,
+        broadcast_tx_hash: None,
+        broadcast_receipt_checks: 0,
+        block: None,
+        selected_deposits: included_depositinfos_group.clone(),
+        selected_client_transaction_hashes: selected_client_transaction_hashes.clone(),
+    };
+
+    if db
+        .store_pending_block(&reserved_pending_block)
+        .await
+        .is_none()
     {
-        info!("Getting DB connection");
-        let db = get_db_connection().await;
-        info!("Preparing block data");
-        let block_size = get_block_size()?;
-        let result = prepare_block_data::<P>(db, block_size, current_l2_block_number).await;
-        match &result {
-            Ok(_) => info!("Block data prepared successfully"),
-            Err(e) => warn!("Failed to prepare block data: {e:?}"),
+        return Err(BlockAssemblyError::QueueError(
+            "Failed to persist reserved pending block".to_string(),
+        ));
+    }
+
+    if let Err(e) = reserve_selected_transactions::<P>(
+        db,
+        &included_depositinfos_group,
+        &selected_client_transactions,
+        layer2_block_number,
+    )
+    .await
+    {
+        if let Err(release_error) = release_selected_transactions::<P>(
+            db,
+            &included_depositinfos_group,
+            &selected_client_transaction_hashes,
+        )
+        .await
+        {
+            error!(
+                "Failed to release selected transactions after reservation failure: {release_error}"
+            );
         }
-        (included_depositinfos_group, selected_client_transactions) = result?;
+        let _ = db.delete_pending_block(layer2_block_number).await;
+        return Err(e);
     }
 
     // Convert DepositInfo into DepositData while maintaining nested structure
@@ -237,35 +277,100 @@ where
         {withdraw_count} withdrawal(s), and {swap_count} swap transaction(s) ({} pair(s))",
         swap_count / 2
     );
-    let block = make_block::<P, R>(included_deposits, selected_client_transactions).await?;
-    // save this block to Store block db
+
+    let mut block = match make_block::<P, R>(included_deposits, selected_client_transactions).await
+    {
+        Ok(block) => block,
+        Err(e) => {
+            if let Err(release_error) = release_selected_transactions::<P>(
+                db,
+                &included_depositinfos_group,
+                &selected_client_transaction_hashes,
+            )
+            .await
+            {
+                error!(
+                    "Failed to release reserved transactions after proving failure: {release_error}"
+                );
+            }
+            let _ = db.delete_pending_block(layer2_block_number).await;
+            return Err(e);
+        }
+    };
+    block.block_number = layer2_block_number;
+
+    let store_block = make_stored_block(&block, layer2_block_number, proposer_address);
+    if db.store_block(&store_block).await.is_none() {
+        if let Err(release_error) = release_selected_transactions::<P>(
+            db,
+            &included_depositinfos_group,
+            &selected_client_transaction_hashes,
+        )
+        .await
+        {
+            error!(
+                "Failed to release reserved transactions after speculative block storage failed: {release_error}"
+            );
+        }
+        let _ = db.delete_pending_block(layer2_block_number).await;
+        return Err(BlockAssemblyError::QueueError(
+            "Failed to store speculative block".to_string(),
+        ));
+    }
+
+    let pending_block = PendingBlock {
+        layer2_block_number,
+        state: PendingBlockState::ReadyToPropose,
+        broadcast_tx_hash: None,
+        broadcast_receipt_checks: 0,
+        block: Some(block),
+        selected_deposits: included_depositinfos_group,
+        selected_client_transaction_hashes,
+    };
+
+    if db.store_pending_block(&pending_block).await.is_none() {
+        let _ = db.delete_block_by_number(layer2_block_number).await;
+        if let Err(release_error) = release_selected_transactions::<P>(
+            db,
+            &pending_block.selected_deposits,
+            &pending_block.selected_client_transaction_hashes,
+        )
+        .await
+        {
+            error!(
+                "Failed to release reserved transactions after pending block storage failed: {release_error}"
+            );
+        }
+        let _ = db.delete_pending_block(layer2_block_number).await;
+        return Err(BlockAssemblyError::QueueError(
+            "Failed to persist pending block".to_string(),
+        ));
+    }
+
+    Ok(pending_block)
+}
+
+/// assemble_block is the main function that is called by the proposer to create a new block,
+/// it fetches the necessary data from the database and the contract, then assembles the block
+pub(crate) async fn assemble_block<P, R>(
+    current_l2_block_number: u64,
+) -> Result<PendingBlock, BlockAssemblyError>
+where
+    P: Proof,
+    R: RecursiveProvingEngine<P> + Send + Sync + 'static,
+{
+    info!("Starting block assembly process");
+    info!("Getting DB connection");
     let db = get_db_connection().await;
+    info!("Preparing block data");
+    let block_size = get_block_size()?;
     let our_address = get_blockchain_client_connection()
         .await
         .read()
         .await
         .get_address();
 
-    let store_block = StoredBlock {
-        layer2_block_number: current_l2_block_number,
-        commitments: block
-            .transactions
-            .iter()
-            .flat_map(|ntx| {
-                ntx.commitments
-                    .iter()
-                    .map(|c| c.to_hex_string())
-                    .collect::<Vec<_>>()
-            })
-            .collect(),
-        proposer_address: our_address,
-    };
-    db.database(DB)
-        .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
-        .insert_one(store_block.clone())
-        .await
-        .expect("Failed to insert block into database");
-    Ok(block)
+    assemble_block_with_context::<P, R>(db, block_size, current_l2_block_number, our_address).await
 }
 
 // this is where we compute the on chain block it's called by make_block
@@ -544,15 +649,7 @@ where
     let deposit_count = used_deposits_info.len();
     let reordered = place_swap_pairs_on_siblings(deposit_count, &selected_transactions);
 
-    // 9. Delete used deposits in mempool
-    <mongodb::Client as TransactionsDB<P>>::remove_mempool_deposits(db, used_deposits_info.clone())
-        .await;
-
-    // 10. Mark selected client transactions as already chosen for this block.
-    db.mark_transactions_selected_for_block(&reordered, current_block_number)
-        .await;
-
-    // 10b. Clear expired swaps from mempool
+    // Clear expired swaps from mempool; selected inputs are reserved after this function returns.
     if !expired_swaps.is_empty() {
         db.drop_transactions(&expired_swaps).await;
     }
@@ -565,14 +662,287 @@ where
     Ok((used_deposits_info, reordered))
 }
 
+fn selected_client_transaction_hashes<P>(
+    selected_client_transactions: &[ClientTransactionWithMetaData<P>],
+) -> Vec<Vec<u32>> {
+    selected_client_transactions
+        .iter()
+        .map(|tx| tx.hash.clone())
+        .collect()
+}
+
+fn make_stored_block(
+    block: &Block,
+    layer2_block_number: u64,
+    proposer_address: Address,
+) -> StoredBlock {
+    StoredBlock {
+        layer2_block_number,
+        commitments: block
+            .transactions
+            .iter()
+            .flat_map(|ntx| {
+                ntx.commitments
+                    .iter()
+                    .map(|c| c.to_hex_string())
+                    .collect::<Vec<_>>()
+            })
+            .collect(),
+        proposer_address,
+    }
+}
+
+pub(crate) async fn reserve_selected_transactions<P>(
+    db: &mongodb::Client,
+    selected_deposits: &[Vec<DepositDatawithFee>],
+    selected_client_transactions: &[ClientTransactionWithMetaData<P>],
+    layer2_block_number: u64,
+) -> Result<(), BlockAssemblyError>
+where
+    P: Proof,
+{
+    <mongodb::Client as TransactionsDB<P>>::set_mempool_deposits_reserved(
+        db,
+        selected_deposits.to_vec(),
+        true,
+    )
+    .await
+    .ok_or_else(|| {
+        BlockAssemblyError::QueueError("Failed to reserve selected deposits".to_string())
+    })?;
+
+    let modified = db
+        .mark_transactions_selected_for_block(selected_client_transactions, layer2_block_number)
+        .await
+        .ok_or_else(|| {
+            BlockAssemblyError::QueueError(
+                "Failed to reserve selected client transactions".to_string(),
+            )
+        })?;
+
+    if modified != selected_client_transactions.len() as u64 {
+        let selected_client_transaction_hashes =
+            selected_client_transaction_hashes(selected_client_transactions);
+        let _ = release_selected_transactions::<P>(
+            db,
+            selected_deposits,
+            &selected_client_transaction_hashes,
+        )
+        .await;
+        return Err(BlockAssemblyError::QueueError(format!(
+            "Reserved {modified} of {} selected client transactions",
+            selected_client_transactions.len()
+        )));
+    }
+
+    Ok(())
+}
+
+pub(crate) async fn release_selected_transactions<P>(
+    db: &mongodb::Client,
+    selected_deposits: &[Vec<DepositDatawithFee>],
+    selected_client_transaction_hashes: &[Vec<u32>],
+) -> Result<(), BlockAssemblyError>
+where
+    P: Proof,
+{
+    <mongodb::Client as TransactionsDB<P>>::set_mempool_deposits_reserved(
+        db,
+        selected_deposits.to_vec(),
+        false,
+    )
+    .await
+    .ok_or_else(|| {
+        BlockAssemblyError::QueueError("Failed to release reserved deposits".to_string())
+    })?;
+
+    <mongodb::Client as TransactionsDB<P>>::set_client_transactions_in_mempool_by_hashes(
+        db,
+        selected_client_transaction_hashes,
+        true,
+    )
+    .await
+    .ok_or_else(|| {
+        BlockAssemblyError::QueueError("Failed to release reserved client transactions".to_string())
+    })?;
+    Ok(())
+}
+
+pub(crate) async fn cleanup_selected_transactions<P>(
+    db: &mongodb::Client,
+    selected_deposits: &[Vec<DepositDatawithFee>],
+    selected_client_transaction_hashes: &[Vec<u32>],
+) -> Result<(), BlockAssemblyError>
+where
+    P: Proof,
+{
+    <mongodb::Client as TransactionsDB<P>>::remove_mempool_deposits(db, selected_deposits.to_vec())
+        .await
+        .ok_or_else(|| {
+            BlockAssemblyError::QueueError(
+                "Failed to remove selected deposits from mempool".to_string(),
+            )
+        })?;
+
+    <mongodb::Client as TransactionsDB<P>>::mark_transactions_included_by_hashes(
+        db,
+        selected_client_transaction_hashes,
+    )
+    .await
+    .ok_or_else(|| {
+        BlockAssemblyError::QueueError(
+            "Failed to mark selected client transactions as included".to_string(),
+        )
+    })?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::domain::entities::TxLifecycle;
+    use crate::driven::db::mongo_db::{DB, PROPOSED_BLOCKS_COLLECTION};
+    use ark_bn254::Fq as Fq254;
     use lib::{
+        nf_client_proof::PublicInputs,
         plonk_prover::plonk_proof::PlonkProof,
         tests_utils::{get_db_connection, get_mongo},
     };
+    use std::collections::HashSet;
+
+    struct SuccessfulTestProver;
+
+    impl RecursiveProvingEngine<PlonkProof> for SuccessfulTestProver {
+        type PreppedInfo = ();
+        type Error = BlockAssemblyError;
+        type RecursiveProof = Vec<Fq254>;
+
+        async fn prepare_state_transition(
+            _deposit_transactions: &[(PlonkProof, PublicInputs)],
+            _transactions: &[ClientTransactionWithMetaData<PlonkProof>],
+        ) -> Result<(Self::PreppedInfo, [Fr254; 3]), Self::Error> {
+            Ok((
+                (),
+                [Fr254::from(11u64), Fr254::from(12u64), Fr254::from(13u64)],
+            ))
+        }
+
+        fn recursive_prove(_info: Self::PreppedInfo) -> Result<Self::RecursiveProof, Self::Error> {
+            Ok(vec![Fq254::from(99u64); 10])
+        }
+
+        fn create_deposit_proof(
+            _deposit_data: &[DepositData; 4],
+            _public_inputs: &mut PublicInputs,
+        ) -> Result<PlonkProof, Self::Error> {
+            Ok(PlonkProof::default())
+        }
+    }
+
+    struct FailingTestProver;
+
+    impl RecursiveProvingEngine<PlonkProof> for FailingTestProver {
+        type PreppedInfo = ();
+        type Error = BlockAssemblyError;
+        type RecursiveProof = Vec<Fq254>;
+
+        async fn prepare_state_transition(
+            _deposit_transactions: &[(PlonkProof, PublicInputs)],
+            _transactions: &[ClientTransactionWithMetaData<PlonkProof>],
+        ) -> Result<(Self::PreppedInfo, [Fr254; 3]), Self::Error> {
+            Err(BlockAssemblyError::ProvingError(
+                "intentional proving failure".to_string(),
+            ))
+        }
+
+        fn recursive_prove(_info: Self::PreppedInfo) -> Result<Self::RecursiveProof, Self::Error> {
+            Ok(vec![Fq254::from(1u64); 10])
+        }
+
+        fn create_deposit_proof(
+            _deposit_data: &[DepositData; 4],
+            _public_inputs: &mut PublicInputs,
+        ) -> Result<PlonkProof, Self::Error> {
+            Ok(PlonkProof::default())
+        }
+    }
+
+    fn test_client_transaction(fee: u64) -> ClientTransactionWithMetaData<PlonkProof> {
+        ClientTransactionWithMetaData {
+            client_transaction: lib::shared_entities::ClientTransaction {
+                fee: Fr254::from(fee),
+                proof: PlonkProof::default(),
+                ..Default::default()
+            },
+            lifecycle: TxLifecycle::Mempool,
+            hash: vec![fee as u32],
+            historic_roots: vec![Fr254::from(123)],
+            receipt_token: None,
+        }
+    }
+
+    fn test_deposit(fee: u64) -> DepositDatawithFee {
+        DepositDatawithFee {
+            fee: Fr254::from(fee),
+            deposit_data: DepositData {
+                nf_token_id: Fr254::from(fee),
+                nf_slot_id: Fr254::from(fee),
+                value: Fr254::from(100u64),
+                secret_hash: Fr254::from(fee),
+            },
+            reserved: false,
+        }
+    }
+
+    async fn store_client_transactions(
+        db: &mongodb::Client,
+        fees: impl IntoIterator<Item = u64>,
+    ) -> Vec<ClientTransactionWithMetaData<PlonkProof>> {
+        let transactions = fees
+            .into_iter()
+            .map(test_client_transaction)
+            .collect::<Vec<_>>();
+        for tx in &transactions {
+            db.store_transaction(tx.clone()).await.unwrap();
+        }
+        transactions
+    }
+
+    #[tokio::test]
+    async fn cleanup_selected_transactions_marks_client_transactions_included() {
+        let container = get_mongo().await;
+        let db = get_db_connection(&container).await;
+        let tx = test_client_transaction(42);
+        db.store_transaction(tx.clone()).await.unwrap();
+
+        reserve_selected_transactions::<PlonkProof>(&db, &[], std::slice::from_ref(&tx), 7)
+            .await
+            .unwrap();
+        cleanup_selected_transactions::<PlonkProof>(&db, &[], std::slice::from_ref(&tx.hash))
+            .await
+            .unwrap();
+
+        let stored: ClientTransactionWithMetaData<PlonkProof> =
+            db.get_transaction(&tx.hash).await.unwrap();
+        assert_eq!(stored.lifecycle, TxLifecycle::Included { block_l2: 7 });
+        assert_eq!(
+            <mongodb::Client as TransactionsDB<PlonkProof>>::count_mempool_client_transactions(&db)
+                .await
+                .unwrap(),
+            0,
+            "included transactions must not be selectable again"
+        );
+        assert!(
+            <mongodb::Client as TransactionsDB<PlonkProof>>::get_all_selected_client_transactions(
+                &db
+            )
+            .await
+            .unwrap_or_default()
+            .is_empty(),
+            "included transactions should not look like in-flight reservations"
+        );
+    }
+
     #[tokio::test]
     async fn test_prepare_block_data_simple_case() {
         // Prepare data: 44 deposit data in mempool, fee (1...240), 4 tx data, fee (241...244)
@@ -595,6 +965,7 @@ mod tests {
                         value: Fr254::from(100u64),
                         secret_hash: Fr254::from(i),
                     },
+                    reserved: false,
                 })
                 .collect();
 
@@ -661,14 +1032,29 @@ mod tests {
             "Incorrect number of client transactions included"
         );
 
-        // **3. Check that the remaining 2 deposits are stored back in the mempool**
+        // Selection should not mutate the mempool. Cleanup happens after proposal/reconciliation.
         let remaining_deposits =
             { <mongodb::Client as TransactionsDB<PlonkProof>>::get_mempool_deposits(&db).await };
         assert!(
             remaining_deposits
                 .as_ref()
-                .is_none_or(|deposits| deposits.is_empty()),
-            "Remaining deposits are not empty"
+                .is_some_and(|deposits| deposits.len() == 240),
+            "Deposit mempool should remain unchanged until cleanup"
+        );
+        let remaining_client_transactions = {
+            let mempool_client_transactions: Option<
+                Vec<(Vec<u32>, ClientTransactionWithMetaData<PlonkProof>)>,
+            > = db.get_all_mempool_client_transactions().await;
+
+            transactions_to_include_in_block(mempool_client_transactions)
+                .into_iter()
+                .map(|(_, v)| v)
+                .collect::<Vec<ClientTransactionWithMetaData<PlonkProof>>>()
+        };
+        assert_eq!(
+            remaining_client_transactions.len(),
+            4,
+            "Client transaction mempool should remain unchanged until cleanup"
         );
     }
 
@@ -692,6 +1078,7 @@ mod tests {
                         value: Fr254::from(i),
                         secret_hash: Fr254::from(i),
                     },
+                    reserved: false,
                 })
                 .collect();
 
@@ -727,13 +1114,12 @@ mod tests {
 
         let remaining_deposits =
             { <mongodb::Client as TransactionsDB<PlonkProof>>::get_mempool_deposits(&db).await };
-        // fee in the remaining deposit should be 1
         let remain_deposits_fee: Vec<Fr254> =
             remaining_deposits.unwrap().iter().map(|d| d.fee).collect();
         assert_eq!(
-            remain_deposits_fee,
-            vec![Fr254::from(1)],
-            "Remaining deposit fees do not match expected values"
+            remain_deposits_fee.len(),
+            257,
+            "Deposit mempool should remain unchanged until cleanup"
         );
     }
 
@@ -804,10 +1190,10 @@ mod tests {
             .collect();
         actual_remaining_client_fees.sort_by_key(|&fee| Reverse(fee));
 
-        let expected_remaining_client_fees: Vec<Fr254> = (1..=10).rev().map(Fr254::from).collect();
+        let expected_remaining_client_fees: Vec<Fr254> = (1..=74).rev().map(Fr254::from).collect();
         assert_eq!(
             actual_remaining_client_fees, expected_remaining_client_fees,
-            "Remaining client transaction fees do not match expected values"
+            "Client transaction mempool should remain unchanged until cleanup"
         );
     }
 
@@ -833,6 +1219,7 @@ mod tests {
                         value: Fr254::from(100u64),
                         secret_hash: Fr254::from(i),
                     },
+                    reserved: false,
                 })
                 .collect();
 
@@ -904,9 +1291,10 @@ mod tests {
                 .map(|deposit| deposit.fee) // Extracting only the fees
                 .collect()
         };
-        assert!(
-            actual_fees_deposit_remainning.is_empty(),
-            "Remaining deposit fees should be empty"
+        assert_eq!(
+            actual_fees_deposit_remainning.len(),
+            4,
+            "Deposit mempool should remain unchanged until cleanup"
         );
 
         let remaining_client = {
@@ -919,15 +1307,114 @@ mod tests {
                 .map(|(_, v)| v)
                 .collect::<Vec<ClientTransactionWithMetaData<PlonkProof>>>()
         };
-        let remaining_client_fees: Vec<Fr254> = remaining_client
+        let mut remaining_client_fees: Vec<Fr254> = remaining_client
             .iter()
             .map(|d| d.client_transaction.fee)
             .collect();
+        remaining_client_fees.sort_by_key(|&fee| Reverse(fee));
+        let expected_remaining_client_fees: Vec<Fr254> = (1..=64).rev().map(Fr254::from).collect();
         assert_eq!(
-            remaining_client_fees,
-            vec![Fr254::from(1)],
-            "Remaining client transaction fees do not match expected values"
+            remaining_client_fees, expected_remaining_client_fees,
+            "Client transaction mempool should remain unchanged until cleanup"
         );
+    }
+
+    #[tokio::test]
+    async fn test_assemble_block_releases_reserved_transactions_on_proving_error() {
+        let container = get_mongo().await;
+        let db = get_db_connection(&container).await;
+
+        <mongodb::Client as TransactionsDB<PlonkProof>>::set_mempool_deposits(
+            &db,
+            (1..=4).map(test_deposit).collect(),
+        )
+        .await;
+        store_client_transactions(&db, 101..=104).await;
+
+        let result = assemble_block_with_context::<PlonkProof, FailingTestProver>(
+            &db,
+            64,
+            0,
+            Address::from([7u8; 20]),
+        )
+        .await;
+
+        assert!(matches!(
+            result,
+            Err(BlockAssemblyError::ProvingError(message))
+                if message == "intentional proving failure"
+        ));
+
+        let available_deposits =
+            <mongodb::Client as TransactionsDB<PlonkProof>>::get_mempool_deposits(&db)
+                .await
+                .unwrap();
+        assert_eq!(available_deposits.len(), 4);
+
+        let available_client_transactions =
+            <mongodb::Client as TransactionsDB<PlonkProof>>::get_all_mempool_client_transactions(
+                &db,
+            )
+            .await
+            .unwrap_or_default();
+        assert_eq!(available_client_transactions.len(), 4);
+
+        let pending_blocks = db.get_all_pending_blocks().await.unwrap_or_default();
+        assert!(pending_blocks.is_empty());
+
+        let stored_blocks = db.get_all_blocks().await.unwrap_or_default();
+        assert!(stored_blocks.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_assemble_block_skips_reserved_transactions_in_second_block() {
+        let container = get_mongo().await;
+        let db = get_db_connection(&container).await;
+
+        store_client_transactions(&db, 1..=128).await;
+
+        let first_block = assemble_block_with_context::<PlonkProof, SuccessfulTestProver>(
+            &db,
+            64,
+            0,
+            Address::from([8u8; 20]),
+        )
+        .await
+        .unwrap();
+        let second_block = assemble_block_with_context::<PlonkProof, SuccessfulTestProver>(
+            &db,
+            64,
+            1,
+            Address::from([8u8; 20]),
+        )
+        .await
+        .unwrap();
+
+        let first_hashes = first_block
+            .selected_client_transaction_hashes
+            .iter()
+            .cloned()
+            .collect::<HashSet<_>>();
+        let second_hashes = second_block
+            .selected_client_transaction_hashes
+            .iter()
+            .cloned()
+            .collect::<HashSet<_>>();
+
+        assert_eq!(first_hashes.len(), 64);
+        assert_eq!(second_hashes.len(), 64);
+        assert!(first_hashes.is_disjoint(&second_hashes));
+
+        let available_client_transactions =
+            <mongodb::Client as TransactionsDB<PlonkProof>>::get_all_mempool_client_transactions(
+                &db,
+            )
+            .await
+            .unwrap_or_default();
+        assert!(available_client_transactions.is_empty());
+
+        let pending_blocks = db.get_all_pending_blocks().await.unwrap_or_default();
+        assert_eq!(pending_blocks.len(), 2);
     }
 
     #[tokio::test]
@@ -1306,6 +1793,7 @@ mod tests {
                     value: Fr254::from(100u64),
                     secret_hash: Fr254::from(i as u64),
                 },
+                reserved: false,
             })
             .collect();
         <mongodb::Client as TransactionsDB<PlonkProof>>::set_mempool_deposits(&db, deposits).await;
@@ -1399,6 +1887,7 @@ mod tests {
                     value: Fr254::from(100u64),
                     secret_hash: Fr254::from(i as u64),
                 },
+                reserved: false,
             })
             .collect();
         <mongodb::Client as TransactionsDB<PlonkProof>>::set_mempool_deposits(&db, deposits).await;
@@ -1628,7 +2117,12 @@ mod tests {
             .count();
         assert_eq!(swap_count, 2, "Exactly one swap pair should be selected");
 
-        // One leg must remain in mempool.
+        let selected_deposits: Vec<Vec<DepositDatawithFee>> = vec![];
+        reserve_selected_transactions::<PlonkProof>(&db, &selected_deposits, &selected, 0)
+            .await
+            .unwrap();
+
+        // The selected pair is no longer selectable after reservation; the unmatched leg remains.
         let remaining_client = {
             let mempool_client_transactions: Option<
                 Vec<(Vec<u32>, ClientTransactionWithMetaData<PlonkProof>)>,
