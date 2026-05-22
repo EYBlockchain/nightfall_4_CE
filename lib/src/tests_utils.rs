@@ -11,8 +11,8 @@ use url::Host;
 
 const TEST_MONGO_REPLICA_SET_NAME: &str = "rs0";
 const TEST_MONGO_PORT: u16 = 27017;
-const TEST_MONGO_PORT_RETRY_ATTEMPTS: usize = 30;
-const TEST_MONGO_PING_RETRY_ATTEMPTS: usize = 30;
+const TEST_MONGO_PORT_RETRY_ATTEMPTS: usize = 60;
+const TEST_MONGO_PING_RETRY_ATTEMPTS: usize = 60;
 
 pub fn get_db_connection_uri(host: Host, port: u16) -> String {
     format!(
@@ -30,7 +30,7 @@ pub async fn get_mongo() -> ContainerAsync<GenericImage> {
         .with_wait_for(WaitFor::message_on_stdout("Waiting for connections"))
         .with_entrypoint("mongod")
         .with_cmd(["--replSet", TEST_MONGO_REPLICA_SET_NAME, "--bind_ip_all"])
-        .with_startup_timeout(Duration::from_secs(120));
+        .with_startup_timeout(Duration::from_secs(180));
 
     mongo_image.start().await.unwrap()
 }

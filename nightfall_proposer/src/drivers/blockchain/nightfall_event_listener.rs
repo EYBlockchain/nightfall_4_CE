@@ -27,6 +27,7 @@ use lib::{
     blockchain_client::BlockchainClientConnection,
     error::EventHandlerError,
     log_fetcher::get_logs_paginated,
+    merkle_trees::trees::MutableTree,
     nf_client_proof::{Proof, ProvingEngine},
     shared_entities::{SynchronisationPhase::Desynchronized, SynchronisationStatus},
 };
@@ -39,6 +40,63 @@ use tokio::{
     sync::{OnceCell, RwLock},
     time::sleep,
 };
+
+#[cfg(test)]
+use std::{collections::HashSet, sync::Mutex};
+
+#[cfg(test)]
+static ENABLED_REPLAY_RESET_FAILPOINTS: std::sync::OnceLock<Mutex<HashSet<String>>> =
+    std::sync::OnceLock::new();
+
+#[cfg(test)]
+fn enabled_replay_reset_failpoints() -> &'static Mutex<HashSet<String>> {
+    ENABLED_REPLAY_RESET_FAILPOINTS.get_or_init(|| Mutex::new(HashSet::new()))
+}
+
+fn maybe_fail_replay_reset(_name: &str) -> Result<(), EventHandlerError> {
+    #[cfg(test)]
+    {
+        if enabled_replay_reset_failpoints()
+            .lock()
+            .expect("replay reset failpoint lock poisoned")
+            .contains(_name)
+        {
+            return Err(EventHandlerError::IOError(format!(
+                "Simulated replay reset failure at {_name}"
+            )));
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(test)]
+struct TestReplayResetFailpointGuard {
+    name: String,
+}
+
+#[cfg(test)]
+impl TestReplayResetFailpointGuard {
+    fn enable(name: &str) -> Self {
+        enabled_replay_reset_failpoints()
+            .lock()
+            .expect("replay reset failpoint lock poisoned")
+            .insert(name.to_string());
+        Self {
+            name: name.to_string(),
+        }
+    }
+}
+
+#[cfg(test)]
+impl Drop for TestReplayResetFailpointGuard {
+    fn drop(&mut self) {
+        enabled_replay_reset_failpoints()
+            .lock()
+            .expect("replay reset failpoint lock poisoned")
+            .remove(&self.name);
+    }
+}
 
 /// This function starts the event handler. It will attempt to restart the event handler in case of errors
 /// with an exponential backoff for a configurable number of attempts. If the event handler
@@ -270,27 +328,9 @@ async fn reset_proposer_state_for_replay<P>(db: &MongoClient) -> Result<(), Even
 where
     P: Proof,
 {
-    <MongoClient as CommitmentTree<Fr254>>::reset_tree(db)
-        .await
-        .map_err(|error| {
-            EventHandlerError::IOError(format!(
-                "Could not reset proposer commitment tree before replay fallback: {error}"
-            ))
-        })?;
-    <MongoClient as HistoricRootTree<Fr254>>::reset_tree(db)
-        .await
-        .map_err(|error| {
-            EventHandlerError::IOError(format!(
-                "Could not reset proposer historic root tree before replay fallback: {error}"
-            ))
-        })?;
-    <MongoClient as NullifierTree<Fr254>>::reset_tree(db)
-        .await
-        .map_err(|error| {
-            EventHandlerError::IOError(format!(
-                "Could not reset proposer nullifier tree before replay fallback: {error}"
-            ))
-        })?;
+    reset_commitment_tree_for_replay(db).await?;
+    reset_historic_root_tree_for_replay(db).await?;
+    reset_nullifier_tree_for_replay(db).await?;
 
     let mut session = db.start_session().await.map_err(|error| {
         EventHandlerError::IOError(format!(
@@ -301,6 +341,8 @@ where
     session
         .start_transaction()
         .and_run2(async move |session| {
+            maybe_fail_replay_reset("delete_sync_state_before_delete")
+                .map_err(mongodb::error::Error::custom)?;
             db_for_cleanup
                 .delete_sync_state_with_session(session)
                 .await?;
@@ -314,6 +356,85 @@ where
         })?;
 
     cleanup_recovery_side_effects::<P>(db).await;
+    Ok(())
+}
+
+async fn reset_commitment_tree_for_replay(db: &MongoClient) -> Result<(), EventHandlerError> {
+    maybe_fail_replay_reset("reset_commitment_tree_before_drop")?;
+    <MongoClient as MutableTree<Fr254>>::reset_mutable_tree(
+        db,
+        <MongoClient as CommitmentTree<Fr254>>::TREE_NAME,
+    )
+    .await
+    .map_err(|error| {
+        EventHandlerError::IOError(format!(
+            "Could not reset proposer commitment tree before replay fallback: {error}"
+        ))
+    })?;
+
+    <MongoClient as CommitmentTree<Fr254>>::new_commitment_tree(db, 29, 3)
+        .await
+        .map_err(|error| {
+            EventHandlerError::IOError(format!(
+                "Could not reinitialize proposer commitment tree before replay fallback: {error}"
+            ))
+        })?;
+
+    Ok(())
+}
+
+async fn reset_historic_root_tree_for_replay(db: &MongoClient) -> Result<(), EventHandlerError> {
+    <MongoClient as MutableTree<Fr254>>::reset_mutable_tree(
+        db,
+        <MongoClient as HistoricRootTree<Fr254>>::TREE_NAME,
+    )
+    .await
+    .map_err(|error| {
+        EventHandlerError::IOError(format!(
+            "Could not reset proposer historic root tree before replay fallback: {error}"
+        ))
+    })?;
+
+    <MongoClient as HistoricRootTree<Fr254>>::new_historic_root_tree(db, 32)
+        .await
+        .map_err(|error| {
+            EventHandlerError::IOError(format!(
+                "Could not reinitialize proposer historic root tree before replay fallback: {error}"
+            ))
+        })?;
+
+    Ok(())
+}
+
+async fn reset_nullifier_tree_for_replay(db: &MongoClient) -> Result<(), EventHandlerError> {
+    <MongoClient as MutableTree<Fr254>>::reset_mutable_tree(
+        db,
+        <MongoClient as NullifierTree<Fr254>>::TREE_NAME,
+    )
+    .await
+    .map_err(|error| {
+        EventHandlerError::IOError(format!(
+            "Could not reset proposer nullifier tree before replay fallback: {error}"
+        ))
+    })?;
+
+    let indexed_collection = db
+        .database("nightfall")
+        .collection::<mongodb::bson::Document>("Nullifiers_indexed_leaves");
+    indexed_collection.drop().await.map_err(|error| {
+        EventHandlerError::IOError(format!(
+            "Could not reset proposer nullifier indexed leaves before replay fallback: {error}"
+        ))
+    })?;
+
+    <MongoClient as NullifierTree<Fr254>>::new_nullifier_tree(db, 29, 3)
+        .await
+        .map_err(|error| {
+            EventHandlerError::IOError(format!(
+                "Could not reinitialize proposer nullifier tree before replay fallback: {error}"
+            ))
+        })?;
+
     Ok(())
 }
 
@@ -482,4 +603,168 @@ pub async fn get_synchronisation_status() -> &'static RwLock<SynchronisationStat
     SYNCHRONISATION_STATUS
         .get_or_init(|| async { RwLock::new(SynchronisationStatus::new(Desynchronized)) })
         .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        domain::entities::{L1Ref, SyncState},
+        driven::db::mongo_db::{StoredBlock, DB},
+        ports::db::{BlockStorageDB, SyncStateDB},
+    };
+    use alloy::primitives::Bytes;
+    use alloy::primitives::{Address, TxHash};
+    use ark_ff::Zero;
+    use ark_serialize::SerializationError;
+    use lib::hex_conversion::HexConvertible;
+    use lib::nf_client_proof::Proof;
+    use lib::tests_utils::{get_db_connection, get_mongo};
+    use mongodb::bson::{doc, Document};
+    use serde::{Deserialize, Serialize};
+    use tokio::sync::{Mutex, OnceCell};
+
+    #[derive(Clone, Debug, Deserialize, Serialize)]
+    struct MockProof;
+
+    impl Proof for MockProof {
+        fn compress_proof(&self) -> Result<Bytes, SerializationError> {
+            Ok(Bytes::new())
+        }
+
+        fn from_compressed(_compressed: Bytes) -> Result<Self, SerializationError> {
+            Ok(Self)
+        }
+    }
+
+    async fn event_listener_test_lock() -> tokio::sync::MutexGuard<'static, ()> {
+        static LOCK: OnceCell<Mutex<()>> = OnceCell::const_new();
+        LOCK.get_or_init(|| async { Mutex::new(()) })
+            .await
+            .lock()
+            .await
+    }
+
+    async fn persist_sync_state(client: &mongodb::Client, sync_state: &SyncState) {
+        let mut session = client.start_session().await.expect("start session");
+        let client = client.clone();
+        let sync_state = sync_state.clone();
+        session
+            .start_transaction()
+            .and_run2(async move |session| {
+                client
+                    .update_sync_state_with_session(&sync_state, session)
+                    .await?;
+                Ok::<(), mongodb::error::Error>(())
+            })
+            .await
+            .expect("write sync_state");
+    }
+
+    async fn initialize_test_trees(client: &mongodb::Client) {
+        <mongodb::Client as CommitmentTree<Fr254>>::new_commitment_tree(client, 29, 3)
+            .await
+            .expect("create commitment tree");
+        <mongodb::Client as HistoricRootTree<Fr254>>::new_historic_root_tree(client, 32)
+            .await
+            .expect("create historic root tree");
+        <mongodb::Client as HistoricRootTree<Fr254>>::append_historic_commitment_root(
+            client,
+            &Fr254::zero(),
+            true,
+        )
+        .await
+        .expect("append zero historic root");
+        <mongodb::Client as NullifierTree<Fr254>>::new_nullifier_tree(client, 29, 3)
+            .await
+            .expect("create nullifier tree");
+    }
+
+    #[tokio::test]
+    async fn reset_proposer_state_for_replay_returns_error_when_tree_reset_fails() {
+        let _lock = event_listener_test_lock().await;
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+
+        initialize_test_trees(&client).await;
+        let block = StoredBlock {
+            layer2_block_number: 30,
+            commitments: vec!["0xreset-tree".to_string()],
+            proposer_address: Address::from([30u8; 20]),
+        };
+        client.store_block(&block).await.expect("store block");
+        let sync_state = SyncState::new(
+            30,
+            block.hash().to_hex_string(),
+            L1Ref {
+                block_number: 3000,
+                tx_hash: TxHash::from([30u8; 32]),
+                log_index: 30,
+            },
+            mongodb::bson::DateTime::now(),
+        );
+        persist_sync_state(&client, &sync_state).await;
+
+        let _failpoint = TestReplayResetFailpointGuard::enable("reset_commitment_tree_before_drop");
+        let error = reset_proposer_state_for_replay::<MockProof>(&client)
+            .await
+            .expect_err("tree reset failure should abort replay fallback");
+
+        assert!(
+            matches!(error, EventHandlerError::IOError(message) if message.contains("reset_commitment_tree_before_drop"))
+        );
+        assert_eq!(client.get_sync_state().await, Some(sync_state));
+
+        let metadata_count = client
+            .database(DB)
+            .collection::<Document>("Commitments_metadata")
+            .count_documents(doc! {})
+            .await
+            .expect("count commitment metadata");
+        assert!(metadata_count > 0);
+    }
+
+    #[tokio::test]
+    async fn reset_proposer_state_for_replay_returns_error_when_sync_state_delete_fails() {
+        let _lock = event_listener_test_lock().await;
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+
+        initialize_test_trees(&client).await;
+        let block = StoredBlock {
+            layer2_block_number: 31,
+            commitments: vec!["0xreset-delete".to_string()],
+            proposer_address: Address::from([31u8; 20]),
+        };
+        client.store_block(&block).await.expect("store block");
+        let sync_state = SyncState::new(
+            31,
+            block.hash().to_hex_string(),
+            L1Ref {
+                block_number: 3100,
+                tx_hash: TxHash::from([31u8; 32]),
+                log_index: 31,
+            },
+            mongodb::bson::DateTime::now(),
+        );
+        persist_sync_state(&client, &sync_state).await;
+
+        let _failpoint = TestReplayResetFailpointGuard::enable("delete_sync_state_before_delete");
+        let error = reset_proposer_state_for_replay::<MockProof>(&client)
+            .await
+            .expect_err("sync_state delete failure should abort replay fallback");
+
+        assert!(
+            matches!(error, EventHandlerError::IOError(message) if message.contains("sync_state"))
+        );
+        assert_eq!(client.get_sync_state().await, Some(sync_state));
+
+        let nullifier_metadata_count = client
+            .database(DB)
+            .collection::<Document>("Nullifiers_metadata")
+            .count_documents(doc! {})
+            .await
+            .expect("count nullifier metadata");
+        assert!(nullifier_metadata_count > 0);
+    }
 }

@@ -268,11 +268,13 @@ pub mod initialisation {
         Ok(())
     }
 
-    pub async fn bootstrap_proposer_startup_state<N>() -> Result<(), String>
+    async fn bootstrap_proposer_startup_state_with_db<N>(
+        db: &Client,
+        initialize_snapshot_scheduler: bool,
+    ) -> Result<(), String>
     where
         N: NightfallContract,
     {
-        let db = get_db_connection().await;
         if let Err(error) = recover_from_restore_journal(db).await {
             if db.get_restore_journal().await.is_none() {
                 warn!(
@@ -284,8 +286,10 @@ pub mod initialisation {
                 ));
             }
         }
-        if let Err(error) = initialize_snapshot_scheduler_state().await {
-            warn!("Could not initialize proposer snapshot scheduler state: {error}");
+        if initialize_snapshot_scheduler {
+            if let Err(error) = initialize_snapshot_scheduler_state().await {
+                warn!("Could not initialize proposer snapshot scheduler state: {error}");
+            }
         }
 
         let onchain_next_block_i256 = N::get_current_layer2_blocknumber()
@@ -378,6 +382,450 @@ pub mod initialisation {
         }
 
         Ok(())
+    }
+
+    pub async fn bootstrap_proposer_startup_state<N>() -> Result<(), String>
+    where
+        N: NightfallContract,
+    {
+        let db = get_db_connection().await;
+        bootstrap_proposer_startup_state_with_db::<N>(db, true).await
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use crate::{
+            domain::entities::{L1Ref, RestoreJournalPhase, RestoreJournalStep, SyncState},
+            driven::db::{
+                mongo_db::{StoredBlock, DB},
+                snapshot::{create_proposer_snapshot, load_proposer_snapshot_into_shadow},
+            },
+            driven::nightfall_event::get_expected_layer2_blocknumber,
+            drivers::blockchain::nightfall_event_listener::get_synchronisation_status,
+            ports::db::{BlockStorageDB, RestoreJournalDB, SyncStateDB},
+        };
+        use alloy::primitives::{Address, TxHash};
+        use lib::hex_conversion::HexConvertible;
+        use lib::tests_utils::{get_db_connection, get_mongo};
+        use mongodb::bson::{doc, Document};
+        use std::{fs, path::PathBuf};
+        use tokio::sync::{Mutex, OnceCell};
+
+        struct MockNightfallContract;
+
+        fn mock_onchain_next_block() -> &'static std::sync::atomic::AtomicU64 {
+            static ONCHAIN_NEXT_BLOCK: std::sync::OnceLock<std::sync::atomic::AtomicU64> =
+                std::sync::OnceLock::new();
+            ONCHAIN_NEXT_BLOCK.get_or_init(|| std::sync::atomic::AtomicU64::new(0))
+        }
+
+        impl MockNightfallContract {
+            fn set_onchain_next_block(block_number: u64) {
+                mock_onchain_next_block().store(block_number, std::sync::atomic::Ordering::SeqCst);
+            }
+        }
+
+        #[async_trait::async_trait]
+        impl NightfallContract for MockNightfallContract {
+            async fn propose_block(
+                _block: crate::domain::entities::Block,
+            ) -> Result<(), lib::error::NightfallContractError> {
+                unreachable!("propose_block is not used in bootstrap tests")
+            }
+
+            async fn get_current_layer2_blocknumber(
+            ) -> Result<I256, lib::error::NightfallContractError> {
+                Ok(I256::try_from(
+                    mock_onchain_next_block().load(std::sync::atomic::Ordering::SeqCst),
+                )
+                .expect("mock block number fits into I256"))
+            }
+        }
+
+        async fn bootstrap_test_lock() -> tokio::sync::MutexGuard<'static, ()> {
+            static LOCK: OnceCell<Mutex<()>> = OnceCell::const_new();
+            LOCK.get_or_init(|| async { Mutex::new(()) })
+                .await
+                .lock()
+                .await
+        }
+
+        async fn persist_sync_state(client: &mongodb::Client, sync_state: &SyncState) {
+            let mut session = client.start_session().await.expect("start session");
+            let client = client.clone();
+            let sync_state = sync_state.clone();
+            session
+                .start_transaction()
+                .and_run2(async move |session| {
+                    client
+                        .update_sync_state_with_session(&sync_state, session)
+                        .await?;
+                    Ok::<(), mongodb::error::Error>(())
+                })
+                .await
+                .expect("write sync_state");
+        }
+
+        async fn create_snapshot_fixture(
+            client: &mongodb::Client,
+            snapshot_root_prefix: &str,
+            layer2_block_number: u64,
+            l1_block_number: u64,
+        ) -> (PathBuf, StoredBlock, SyncState) {
+            ensure_proposer_db_initialized(client).await;
+
+            let stored_block = StoredBlock {
+                layer2_block_number,
+                commitments: vec![format!("0x{layer2_block_number:02x}")],
+                proposer_address: Address::from([layer2_block_number as u8; 20]),
+            };
+            client
+                .store_block(&stored_block)
+                .await
+                .expect("store block for snapshot fixture");
+
+            let sync_state = SyncState::new(
+                stored_block.layer2_block_number,
+                stored_block.hash().to_hex_string(),
+                L1Ref {
+                    block_number: l1_block_number,
+                    tx_hash: TxHash::from([layer2_block_number as u8; 32]),
+                    log_index: layer2_block_number,
+                },
+                mongodb::bson::DateTime::now(),
+            );
+            persist_sync_state(client, &sync_state).await;
+
+            let snapshot_root = std::env::temp_dir().join(format!(
+                "{snapshot_root_prefix}-{}",
+                mongodb::bson::DateTime::now().timestamp_millis()
+            ));
+            create_proposer_snapshot(client, &snapshot_root)
+                .await
+                .expect("create snapshot fixture");
+
+            (snapshot_root, stored_block, sync_state)
+        }
+
+        async fn set_live_sync_state(
+            client: &mongodb::Client,
+            layer2_block_number: u64,
+            commitment_tag: &str,
+            l1_block_number: u64,
+        ) -> SyncState {
+            let stored_block = StoredBlock {
+                layer2_block_number,
+                commitments: vec![commitment_tag.to_string()],
+                proposer_address: Address::from([layer2_block_number as u8; 20]),
+            };
+            client
+                .store_block(&stored_block)
+                .await
+                .expect("store live block");
+
+            let sync_state = SyncState::new(
+                stored_block.layer2_block_number,
+                stored_block.hash().to_hex_string(),
+                L1Ref {
+                    block_number: l1_block_number,
+                    tx_hash: TxHash::from([layer2_block_number as u8; 32]),
+                    log_index: layer2_block_number,
+                },
+                mongodb::bson::DateTime::now(),
+            );
+            persist_sync_state(client, &sync_state).await;
+            sync_state
+        }
+
+        fn snapshot_dir(snapshot_root: &PathBuf) -> PathBuf {
+            fs::read_dir(snapshot_root)
+                .expect("read snapshot root")
+                .next()
+                .expect("snapshot dir should exist")
+                .expect("read snapshot dir entry")
+                .path()
+        }
+
+        async fn reset_runtime_bootstrap_state() {
+            *get_expected_layer2_blocknumber().await.write().await = I256::ZERO;
+            get_synchronisation_status()
+                .await
+                .write()
+                .await
+                .clear_synchronised();
+            set_runtime_listener_start_block(0).await;
+        }
+
+        async fn rename_collection(
+            client: &mongodb::Client,
+            from: &str,
+            to: &str,
+        ) -> Result<(), mongodb::error::Error> {
+            client
+                .database("admin")
+                .run_command(doc! {
+                    "renameCollection": format!("{DB}.{from}"),
+                    "to": format!("{DB}.{to}"),
+                    "dropTarget": false,
+                })
+                .await?;
+            Ok(())
+        }
+
+        fn ordered_restore_collections(
+            journal: &[crate::domain::entities::RestoreJournalCollection],
+        ) -> Vec<crate::domain::entities::RestoreJournalCollection> {
+            let mut ordered = journal.to_vec();
+            ordered.sort_by(|left, right| {
+                match (
+                    left.live == crate::driven::db::mongo_db::SYNC_STATE_COLLECTION,
+                    right.live == crate::driven::db::mongo_db::SYNC_STATE_COLLECTION,
+                ) {
+                    (false, true) => std::cmp::Ordering::Less,
+                    (true, false) => std::cmp::Ordering::Greater,
+                    _ => left.live.cmp(&right.live),
+                }
+            });
+            ordered
+        }
+
+        #[tokio::test]
+        async fn bootstrap_cleans_loading_shadow_restore_journal_and_keeps_live_state() {
+            let _lock = bootstrap_test_lock().await;
+            let container = get_mongo().await;
+            let client = get_db_connection(&container).await;
+
+            let (snapshot_root, _, _) =
+                create_snapshot_fixture(&client, "nf4-bootstrap-loading-shadow", 8, 800).await;
+            let snapshot_dir = snapshot_dir(&snapshot_root);
+
+            let newer_live_sync_state = set_live_sync_state(&client, 9, "0xlive", 900).await;
+            let journal = load_proposer_snapshot_into_shadow(&client, &snapshot_dir)
+                .await
+                .expect("load snapshot into shadow");
+            assert_eq!(journal.phase, RestoreJournalPhase::LoadingShadow);
+
+            MockNightfallContract::set_onchain_next_block(10);
+            reset_runtime_bootstrap_state().await;
+
+            bootstrap_proposer_startup_state_with_db::<MockNightfallContract>(&client, false)
+                .await
+                .expect("bootstrap should clean loading shadow and continue");
+
+            assert_eq!(client.get_restore_journal().await, None);
+            assert_eq!(
+                client.get_sync_state().await,
+                Some(newer_live_sync_state.clone())
+            );
+            assert_eq!(
+                *get_expected_layer2_blocknumber().await.read().await,
+                I256::try_from(10_u64).expect("10 fits into I256")
+            );
+            assert_eq!(get_runtime_listener_start_block().await, 900);
+            assert!(get_synchronisation_status()
+                .await
+                .read()
+                .await
+                .is_synchronised());
+
+            let collection_names = client
+                .database(DB)
+                .list_collection_names()
+                .await
+                .expect("list collections");
+            assert!(!collection_names
+                .iter()
+                .any(|name| name.starts_with("restore_shadow__")));
+            assert!(!collection_names
+                .iter()
+                .any(|name| name.starts_with("restore_backup__")));
+
+            tokio::fs::remove_dir_all(snapshot_root)
+                .await
+                .expect("cleanup snapshot directory");
+        }
+
+        #[tokio::test]
+        async fn bootstrap_resumes_swap_in_progress_restore_and_marks_tip_synchronised() {
+            let _lock = bootstrap_test_lock().await;
+            let container = get_mongo().await;
+            let client = get_db_connection(&container).await;
+
+            let (snapshot_root, snapshot_block, _) =
+                create_snapshot_fixture(&client, "nf4-bootstrap-swap-resume", 12, 1200).await;
+            let snapshot_dir = snapshot_dir(&snapshot_root);
+
+            set_live_sync_state(&client, 13, "0xnewer-live", 1300).await;
+            let mut journal = load_proposer_snapshot_into_shadow(&client, &snapshot_dir)
+                .await
+                .expect("load snapshot into shadow");
+            let ordered = ordered_restore_collections(&journal.collections);
+            rename_collection(&client, &ordered[0].live, &ordered[0].backup)
+                .await
+                .expect("simulate backup rename");
+            journal.collections = ordered;
+            journal.phase = RestoreJournalPhase::SwapInProgress;
+            journal.current_index = Some(0);
+            journal.current_step = Some(RestoreJournalStep::BackupCreated);
+            journal.updated_at = mongodb::bson::DateTime::now();
+            client
+                .upsert_restore_journal(&journal)
+                .await
+                .expect("persist mid-swap journal");
+
+            MockNightfallContract::set_onchain_next_block(snapshot_block.layer2_block_number + 1);
+            reset_runtime_bootstrap_state().await;
+
+            bootstrap_proposer_startup_state_with_db::<MockNightfallContract>(&client, false)
+                .await
+                .expect("bootstrap should resume swap and continue");
+
+            let resumed = client
+                .get_restore_journal()
+                .await
+                .expect("swap_complete journal should remain for cleanup");
+            assert_eq!(resumed.phase, RestoreJournalPhase::SwapComplete);
+
+            let live_sync_state = client
+                .get_sync_state()
+                .await
+                .expect("restored sync_state should exist");
+            assert_eq!(live_sync_state.last_applied_l2_block, 12);
+            assert_eq!(live_sync_state.l1_ref.block_number, 1200);
+            assert_eq!(
+                *get_expected_layer2_blocknumber().await.read().await,
+                I256::try_from(13_u64).expect("13 fits into I256")
+            );
+            assert_eq!(get_runtime_listener_start_block().await, 1200);
+            assert!(get_synchronisation_status()
+                .await
+                .read()
+                .await
+                .is_synchronised());
+
+            tokio::fs::remove_dir_all(snapshot_root)
+                .await
+                .expect("cleanup snapshot directory");
+        }
+
+        #[tokio::test]
+        async fn bootstrap_keeps_resumed_restore_desynchronised_when_one_block_behind_tip() {
+            let _lock = bootstrap_test_lock().await;
+            let container = get_mongo().await;
+            let client = get_db_connection(&container).await;
+
+            let (snapshot_root, snapshot_block, _) =
+                create_snapshot_fixture(&client, "nf4-bootstrap-one-behind", 14, 1400).await;
+            let snapshot_dir = snapshot_dir(&snapshot_root);
+
+            set_live_sync_state(&client, 15, "0xnewer-live", 1500).await;
+            let mut journal = load_proposer_snapshot_into_shadow(&client, &snapshot_dir)
+                .await
+                .expect("load snapshot into shadow");
+            let ordered = ordered_restore_collections(&journal.collections);
+            rename_collection(&client, &ordered[0].live, &ordered[0].backup)
+                .await
+                .expect("simulate backup rename");
+            journal.collections = ordered;
+            journal.phase = RestoreJournalPhase::SwapInProgress;
+            journal.current_index = Some(0);
+            journal.current_step = Some(RestoreJournalStep::BackupCreated);
+            journal.updated_at = mongodb::bson::DateTime::now();
+            client
+                .upsert_restore_journal(&journal)
+                .await
+                .expect("persist mid-swap journal");
+
+            MockNightfallContract::set_onchain_next_block(snapshot_block.layer2_block_number + 2);
+            reset_runtime_bootstrap_state().await;
+
+            bootstrap_proposer_startup_state_with_db::<MockNightfallContract>(&client, false)
+                .await
+                .expect("bootstrap should resume swap and remain desynchronised");
+
+            assert_eq!(
+                *get_expected_layer2_blocknumber().await.read().await,
+                I256::try_from(15_u64).expect("15 fits into I256")
+            );
+            assert_eq!(get_runtime_listener_start_block().await, 1400);
+            assert!(!get_synchronisation_status()
+                .await
+                .read()
+                .await
+                .is_synchronised());
+
+            tokio::fs::remove_dir_all(snapshot_root)
+                .await
+                .expect("cleanup snapshot directory");
+        }
+
+        #[tokio::test]
+        async fn bootstrap_continues_after_restore_rollback_clears_the_journal() {
+            let _lock = bootstrap_test_lock().await;
+            let container = get_mongo().await;
+            let client = get_db_connection(&container).await;
+
+            let (snapshot_root, _, _) =
+                create_snapshot_fixture(&client, "nf4-bootstrap-rollback", 20, 2000).await;
+            let snapshot_dir = snapshot_dir(&snapshot_root);
+
+            let newer_live_sync_state =
+                set_live_sync_state(&client, 21, "0xnewer-live", 2100).await;
+            let mut journal = load_proposer_snapshot_into_shadow(&client, &snapshot_dir)
+                .await
+                .expect("load snapshot into shadow");
+            let ordered = ordered_restore_collections(&journal.collections);
+            rename_collection(&client, &ordered[0].live, &ordered[0].backup)
+                .await
+                .expect("rename first live to backup");
+            rename_collection(&client, &ordered[0].shadow, &ordered[0].live)
+                .await
+                .expect("rename first shadow to live");
+            journal.collections = ordered;
+            journal.phase = RestoreJournalPhase::SwapInProgress;
+            journal.current_index = Some(1);
+            journal.current_step = Some(RestoreJournalStep::BackupPending);
+            journal.updated_at = mongodb::bson::DateTime::now();
+            client
+                .upsert_restore_journal(&journal)
+                .await
+                .expect("persist rollback fixture journal");
+
+            client
+                .database(DB)
+                .collection::<Document>(&journal.collections[1].live)
+                .drop()
+                .await
+                .expect("drop live collection to force rollback");
+
+            MockNightfallContract::set_onchain_next_block(22);
+            reset_runtime_bootstrap_state().await;
+
+            bootstrap_proposer_startup_state_with_db::<MockNightfallContract>(&client, false)
+                .await
+                .expect("bootstrap should continue after rollback recovery");
+
+            assert_eq!(client.get_restore_journal().await, None);
+            assert_eq!(
+                client.get_sync_state().await,
+                Some(newer_live_sync_state.clone())
+            );
+            assert_eq!(
+                *get_expected_layer2_blocknumber().await.read().await,
+                I256::try_from(22_u64).expect("22 fits into I256")
+            );
+            assert_eq!(get_runtime_listener_start_block().await, 2100);
+            assert!(get_synchronisation_status()
+                .await
+                .read()
+                .await
+                .is_synchronised());
+
+            tokio::fs::remove_dir_all(snapshot_root)
+                .await
+                .expect("cleanup snapshot directory");
+        }
     }
 
     /// This function is used to provide a singleton database connection across the entire application.
