@@ -8,7 +8,7 @@ use crate::{
     ports::trees::{CommitmentTree, HistoricRootTree, NullifierTree},
 };
 use ark_bn254::Fr as Fr254;
-use log::warn;
+use log::{error, warn};
 use mongodb::bson::{Bson, Document};
 use mongodb::options::ReadConcern;
 use sha2::{Digest, Sha256};
@@ -17,6 +17,7 @@ use std::{
     fmt::{Display, Formatter},
     path::{Path, PathBuf},
     process,
+    sync::OnceLock,
 };
 use tokio::{
     fs::{self, File},
@@ -24,12 +25,10 @@ use tokio::{
 };
 
 const TEMP_SNAPSHOT_DIR_PREFIX: &str = ".tmp-proposer-snapshot-";
+static PROPOSER_STATE_MAINTENANCE_LOCK: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
 
 #[cfg(test)]
-use std::{
-    collections::HashSet,
-    sync::{Mutex, OnceLock},
-};
+use std::{collections::HashSet, sync::Mutex};
 
 #[cfg(test)]
 static ENABLED_FAILPOINTS: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
@@ -50,6 +49,19 @@ fn maybe_crash_at_failpoint(_name: &str) {
             panic!("simulated crash at failpoint {_name}");
         }
     }
+}
+
+fn proposer_state_maintenance_lock() -> &'static tokio::sync::Mutex<()> {
+    PROPOSER_STATE_MAINTENANCE_LOCK.get_or_init(|| tokio::sync::Mutex::new(()))
+}
+
+pub(crate) fn try_acquire_proposer_state_maintenance_guard(
+) -> Option<tokio::sync::MutexGuard<'static, ()>> {
+    proposer_state_maintenance_lock().try_lock().ok()
+}
+
+async fn acquire_proposer_state_maintenance_guard() -> tokio::sync::MutexGuard<'static, ()> {
+    proposer_state_maintenance_lock().lock().await
 }
 
 #[cfg(test)]
@@ -252,8 +264,33 @@ fn restore_phase_name(phase: &RestoreJournalPhase) -> &'static str {
     match phase {
         RestoreJournalPhase::LoadingShadow => "loading_shadow",
         RestoreJournalPhase::SwapInProgress => "swap_in_progress",
+        RestoreJournalPhase::RollbackInProgress => "rollback_in_progress",
         RestoreJournalPhase::SwapComplete => "swap_complete",
     }
+}
+
+fn rollback_indices_from_swap_state(
+    journal: &RestoreJournal,
+    collection_count: usize,
+) -> Result<Vec<usize>, SnapshotError> {
+    let current_index = journal.current_index.unwrap_or(0) as usize;
+    if current_index >= collection_count && collection_count > 0 {
+        return Err(SnapshotError::RestoreInvariantViolation(format!(
+            "current_index {} is out of bounds for {} collections",
+            current_index, collection_count
+        )));
+    }
+
+    let mut rollback_indices: Vec<usize> = if matches!(
+        journal.current_step,
+        Some(RestoreJournalStep::BackupCreated)
+    ) {
+        (0..=current_index).collect()
+    } else {
+        (0..current_index).collect()
+    };
+    rollback_indices.reverse();
+    Ok(rollback_indices)
 }
 
 fn compute_overall_checksum(collections: &[SnapshotCollectionManifest]) -> String {
@@ -354,6 +391,10 @@ pub async fn create_proposer_snapshot(
     fs::create_dir_all(&snapshot_root_dir).await?;
     cleanup_orphaned_proposer_snapshot_temp_dirs(&snapshot_root_dir).await?;
     let mut session = client.start_session().await?;
+    // temp_snapshot_dir must stay a sibling of the final snapshot_dir under
+    // snapshot_root_dir so the final rename remains atomic and intra-filesystem.
+    // Do not move temp snapshot staging to a different filesystem (for example
+    // /tmp) without adding an explicit copy fallback for EXDEV.
     let temp_snapshot_dir = snapshot_root_dir.join(format!(
         "{TEMP_SNAPSHOT_DIR_PREFIX}{}-{}",
         mongodb::bson::DateTime::now().timestamp_millis(),
@@ -645,35 +686,110 @@ async fn drop_collection_if_exists(
     Ok(())
 }
 
-async fn rollback_shadow_swap(
+async fn begin_rollback_from_swap_journal(
     client: &mongodb::Client,
-    journal: &RestoreJournal,
+    journal: &mut RestoreJournal,
 ) -> Result<(), SnapshotError> {
+    let ordered = restore_collections_in_swap_order(&journal.collections);
+    let rollback_indices = rollback_indices_from_swap_state(journal, ordered.len())?;
+
+    journal.collections = ordered;
+    journal.phase = RestoreJournalPhase::RollbackInProgress;
+    journal.current_index = rollback_indices.first().map(|index| *index as u32);
+    journal.current_step = journal
+        .current_index
+        .map(|_| RestoreJournalStep::RollbackPending);
+    journal.updated_at = mongodb::bson::DateTime::now();
+    client.upsert_restore_journal(journal).await?;
+    Ok(())
+}
+
+async fn complete_rollback_from_journal(
+    client: &mongodb::Client,
+    journal: &mut RestoreJournal,
+) -> Result<(), SnapshotError> {
+    if journal.phase != RestoreJournalPhase::RollbackInProgress {
+        return Err(SnapshotError::UnexpectedRestoreJournalPhase {
+            expected: "rollback_in_progress".to_string(),
+            actual: restore_phase_name(&journal.phase).to_string(),
+        });
+    }
+
     let database = client.database(DB);
     let ordered = restore_collections_in_swap_order(&journal.collections);
-    let current_index = journal.current_index.unwrap_or(0) as usize;
+    journal.collections = ordered.clone();
 
-    let mut rollback_indices: Vec<usize> = if matches!(
-        journal.current_step,
-        Some(RestoreJournalStep::BackupCreated)
-    ) {
-        (0..=current_index).collect()
-    } else {
-        (0..current_index).collect()
-    };
-    rollback_indices.reverse();
-
-    for index in rollback_indices {
-        let collection = &ordered[index];
-        if !collection_exists(&database, &collection.backup).await? {
+    let mut first_iteration = true;
+    while let Some(current_index) = journal.current_index {
+        let index = current_index as usize;
+        if index >= ordered.len() {
             return Err(SnapshotError::RestoreInvariantViolation(format!(
-                "expected backup collection {} during rollback",
-                collection.backup
+                "rollback current_index {} is out of bounds for {} collections",
+                index,
+                ordered.len()
             )));
         }
 
-        rename_collection(client, &collection.backup, &collection.live, true).await?;
+        let collection = &ordered[index];
+        let current_step = journal
+            .current_step
+            .clone()
+            .unwrap_or(RestoreJournalStep::RollbackPending);
+        match current_step {
+            RestoreJournalStep::RollbackPending | RestoreJournalStep::RollbackStarted => {
+                let resuming_started_step =
+                    matches!(current_step, RestoreJournalStep::RollbackStarted);
+                if matches!(current_step, RestoreJournalStep::RollbackPending) {
+                    journal.current_step = Some(RestoreJournalStep::RollbackStarted);
+                    journal.updated_at = mongodb::bson::DateTime::now();
+                    client.upsert_restore_journal(journal).await?;
+                    if first_iteration {
+                        maybe_crash_at_failpoint("restore_after_first_rollback_progress_persist");
+                    }
+                }
+
+                let backup_exists = collection_exists(&database, &collection.backup).await?;
+                let live_exists = collection_exists(&database, &collection.live).await?;
+
+                if backup_exists {
+                    rename_collection(client, &collection.backup, &collection.live, true).await?;
+                    if first_iteration {
+                        maybe_crash_at_failpoint("restore_after_first_rollback_live_restore");
+                    }
+
+                    journal.current_step = Some(RestoreJournalStep::RollbackApplied);
+                    journal.updated_at = mongodb::bson::DateTime::now();
+                    client.upsert_restore_journal(journal).await?;
+                } else if resuming_started_step && live_exists {
+                    journal.current_step = Some(RestoreJournalStep::RollbackApplied);
+                    journal.updated_at = mongodb::bson::DateTime::now();
+                    client.upsert_restore_journal(journal).await?;
+                } else {
+                    return Err(SnapshotError::RestoreInvariantViolation(format!(
+                        "rollback cannot restore live collection {} because backup {} is missing; manual intervention required",
+                        collection.live, collection.backup
+                    )));
+                }
+            }
+            RestoreJournalStep::RollbackApplied => {}
+            step => {
+                return Err(SnapshotError::RestoreInvariantViolation(format!(
+                    "rollback expected rollback step at index {index}, found {:?}",
+                    step
+                )));
+            }
+        }
+
+        journal.current_index = index.checked_sub(1).map(|next| next as u32);
+        journal.current_step = journal
+            .current_index
+            .map(|_| RestoreJournalStep::RollbackPending);
+        journal.updated_at = mongodb::bson::DateTime::now();
+        client.upsert_restore_journal(journal).await?;
+        first_iteration = false;
     }
+
+    maybe_crash_at_failpoint("restore_after_rollback_renames_complete");
 
     for collection in &ordered {
         drop_collection_if_exists(&database, &collection.shadow).await?;
@@ -682,6 +798,17 @@ async fn rollback_shadow_swap(
 
     client.delete_restore_journal().await?;
     Ok(())
+}
+
+async fn rollback_shadow_swap(
+    client: &mongodb::Client,
+    journal: &mut RestoreJournal,
+) -> Result<(), SnapshotError> {
+    if journal.phase == RestoreJournalPhase::SwapInProgress {
+        begin_rollback_from_swap_journal(client, journal).await?;
+    }
+
+    complete_rollback_from_journal(client, journal).await
 }
 
 async fn cleanup_loading_shadow_restore(
@@ -781,6 +908,12 @@ async fn complete_shadow_swap_from_journal(
 
                 rename_collection(client, &collection.shadow, &collection.live, false).await?;
             }
+            step => {
+                return Err(SnapshotError::RestoreInvariantViolation(format!(
+                    "swap expected backup step at index {index}, found {:?}",
+                    step
+                )));
+            }
         }
 
         if index + 1 < ordered.len() {
@@ -876,6 +1009,7 @@ pub async fn restore_proposer_snapshot(
     client: &mongodb::Client,
     snapshot_dir: &Path,
 ) -> Result<SyncState, SnapshotError> {
+    let _maintenance_guard = acquire_proposer_state_maintenance_guard().await;
     load_proposer_snapshot_into_shadow(client, snapshot_dir).await?;
     swap_proposer_shadow_into_live(client).await?;
     cleanup_after_proposer_shadow_swap(client).await?;
@@ -911,7 +1045,7 @@ pub async fn swap_proposer_shadow_into_live(
 
     if let Err(error) = complete_shadow_swap_from_journal(client, &mut journal).await {
         if matches!(error, SnapshotError::RestoreInvariantViolation(_)) {
-            rollback_shadow_swap(client, &journal).await?;
+            rollback_shadow_swap(client, &mut journal).await?;
         }
         return Err(error);
     }
@@ -951,6 +1085,13 @@ pub async fn cleanup_after_proposer_shadow_swap(
 }
 
 pub async fn recover_from_restore_journal(client: &mongodb::Client) -> Result<(), SnapshotError> {
+    let _maintenance_guard = acquire_proposer_state_maintenance_guard().await;
+    recover_from_restore_journal_unlocked(client).await
+}
+
+async fn recover_from_restore_journal_unlocked(
+    client: &mongodb::Client,
+) -> Result<(), SnapshotError> {
     let journal = match client.get_restore_journal().await {
         Some(journal) => journal,
         None => return Ok(()),
@@ -967,11 +1108,32 @@ pub async fn recover_from_restore_journal(client: &mongodb::Client) -> Result<()
                 Ok(()) => Ok(()),
                 Err(error) => {
                     if matches!(error, SnapshotError::RestoreInvariantViolation(_)) {
-                        rollback_shadow_swap(client, &journal).await?;
+                        if let Err(rollback_error) =
+                            rollback_shadow_swap(client, &mut journal).await
+                        {
+                            error!(
+                                "Proposer restore rollback cannot complete cleanly: {}. Manual intervention required.",
+                                rollback_error
+                            );
+                            return Err(rollback_error);
+                        }
                     }
                     Err(error)
                 }
             }
+        }
+        RestoreJournalPhase::RollbackInProgress => {
+            let mut journal = journal;
+            if let Err(error) = complete_rollback_from_journal(client, &mut journal).await {
+                error!(
+                    "Proposer restore rollback remains incomplete: {}. Manual intervention required.",
+                    error
+                );
+                return Err(error);
+            }
+            Err(SnapshotError::RestoreInvariantViolation(
+                "restore was rolled back after a crash mid-rollback; original restore did not complete".to_string(),
+            ))
         }
         RestoreJournalPhase::SwapComplete => cleanup_after_proposer_shadow_swap(client).await,
     }
@@ -994,6 +1156,13 @@ mod test {
     use alloy::primitives::{Address, TxHash};
     use ark_ff::Zero;
     use lib::tests_utils::{get_db_connection, get_mongo};
+    use std::{
+        sync::{
+            atomic::{AtomicBool, Ordering},
+            Arc,
+        },
+        time::Duration,
+    };
     use tokio::sync::{Mutex, OnceCell};
 
     async fn snapshot_test_lock() -> tokio::sync::MutexGuard<'static, ()> {
@@ -1039,6 +1208,135 @@ mod test {
             .expect("create nullifier tree");
     }
 
+    async fn create_snapshot_fixture(
+        client: &mongodb::Client,
+        layer2_block_number: u64,
+        commitment: &str,
+        proposer_byte: u8,
+        l1_block_number: u64,
+        snapshot_root_prefix: &str,
+    ) -> (PathBuf, ProposerSnapshotManifest, StoredBlock, SyncState) {
+        let stored_block = StoredBlock {
+            layer2_block_number,
+            commitments: vec![commitment.to_string()],
+            proposer_address: Address::from([proposer_byte; 20]),
+        };
+        client
+            .store_block(&stored_block)
+            .await
+            .expect("store block for snapshot fixture");
+
+        let sync_state = SyncState::new(
+            stored_block.layer2_block_number,
+            stored_block.hash().to_string(),
+            L1Ref {
+                block_number: l1_block_number,
+                tx_hash: TxHash::from([proposer_byte; 32]),
+                log_index: proposer_byte as u64,
+            },
+            mongodb::bson::DateTime::now(),
+        );
+        persist_sync_state(client, &sync_state).await;
+
+        let snapshot_root = std::env::temp_dir().join(format!(
+            "{snapshot_root_prefix}-{}",
+            mongodb::bson::DateTime::now().timestamp_millis()
+        ));
+        let manifest = create_proposer_snapshot(client, &snapshot_root)
+            .await
+            .expect("create snapshot fixture");
+
+        (snapshot_root, manifest, stored_block, sync_state)
+    }
+
+    async fn write_manifest(snapshot_dir: &Path, manifest: &ProposerSnapshotManifest) {
+        fs::write(
+            snapshot_dir.join("manifest.json"),
+            serde_json::to_vec_pretty(manifest).expect("serialize manifest"),
+        )
+        .await
+        .expect("write manifest");
+    }
+
+    async fn read_manifest(snapshot_dir: &Path) -> ProposerSnapshotManifest {
+        serde_json::from_slice(
+            &fs::read(snapshot_dir.join("manifest.json"))
+                .await
+                .expect("read manifest"),
+        )
+        .expect("deserialize manifest")
+    }
+
+    async fn prepare_mid_swap_pending_state(
+        client: &mongodb::Client,
+        snapshot_root_prefix: &str,
+        snapshot_block_number: u64,
+        newer_live_block_number: u64,
+    ) -> (PathBuf, RestoreJournal, SyncState) {
+        initialize_snapshot_test_trees(client).await;
+
+        let (snapshot_root, manifest, _, _) = create_snapshot_fixture(
+            client,
+            snapshot_block_number,
+            "0xsnapshot",
+            snapshot_block_number as u8,
+            snapshot_block_number * 100,
+            snapshot_root_prefix,
+        )
+        .await;
+        let snapshot_dir = snapshot_root.join(&manifest.snapshot_id);
+
+        let newer_live_block = StoredBlock {
+            layer2_block_number: newer_live_block_number,
+            commitments: vec!["0xnewer-live".to_string()],
+            proposer_address: Address::from([newer_live_block_number as u8; 20]),
+        };
+        client
+            .store_block(&newer_live_block)
+            .await
+            .expect("store newer live block");
+        let newer_live_sync_state = SyncState::new(
+            newer_live_block.layer2_block_number,
+            newer_live_block.hash().to_string(),
+            L1Ref {
+                block_number: newer_live_block_number * 100,
+                tx_hash: TxHash::from([newer_live_block_number as u8; 32]),
+                log_index: newer_live_block_number as u64,
+            },
+            mongodb::bson::DateTime::now(),
+        );
+        persist_sync_state(client, &newer_live_sync_state).await;
+
+        let mut journal = load_proposer_snapshot_into_shadow(client, &snapshot_dir)
+            .await
+            .expect("load snapshot into shadow");
+        let ordered = restore_collections_in_swap_order(&journal.collections);
+        assert!(
+            ordered.len() > 1,
+            "expected multiple collections in restore order"
+        );
+        let first = &ordered[0];
+
+        rename_collection(client, &first.live, &first.backup, false)
+            .await
+            .expect("rename first live to backup");
+        rename_collection(client, &first.shadow, &first.live, false)
+            .await
+            .expect("rename first shadow to live");
+
+        journal.collections = ordered;
+        journal.phase = RestoreJournalPhase::SwapInProgress;
+        journal.current_index = Some(1);
+        journal.current_step = Some(RestoreJournalStep::BackupPending);
+        journal.updated_at = mongodb::bson::DateTime::now();
+        client
+            .upsert_restore_journal(&journal)
+            .await
+            .expect("persist mid-swap journal");
+
+        (snapshot_root, journal, newer_live_sync_state)
+    }
+
     #[tokio::test]
     async fn recover_from_restore_journal_is_noop_when_idle() {
         let _snapshot_test_lock = snapshot_test_lock().await;
@@ -1050,6 +1348,44 @@ mod test {
             .expect("idle recover should be a no-op");
 
         assert_eq!(client.get_restore_journal().await, None);
+    }
+
+    #[tokio::test]
+    async fn proposer_state_maintenance_try_lock_skips_while_held() {
+        let _snapshot_test_lock = snapshot_test_lock().await;
+
+        let guard = acquire_proposer_state_maintenance_guard().await;
+        assert!(
+            try_acquire_proposer_state_maintenance_guard().is_none(),
+            "best-effort snapshot work should skip while maintenance is in progress"
+        );
+        drop(guard);
+
+        assert!(
+            try_acquire_proposer_state_maintenance_guard().is_some(),
+            "maintenance lock should become available again after release"
+        );
+    }
+
+    #[tokio::test]
+    async fn proposer_state_maintenance_critical_path_waits_for_release() {
+        let _snapshot_test_lock = snapshot_test_lock().await;
+
+        let guard = acquire_proposer_state_maintenance_guard().await;
+        let acquired = Arc::new(AtomicBool::new(false));
+        let acquired_for_task = Arc::clone(&acquired);
+        tokio::spawn(async move {
+            let guard = acquire_proposer_state_maintenance_guard().await;
+            acquired_for_task.store(true, Ordering::Release);
+            drop(guard);
+        });
+
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        assert!(
+            !acquired.load(Ordering::Acquire),
+            "critical restore path should wait while a snapshot-style holder still owns the lock"
+        );
+        drop(guard);
     }
 
     #[tokio::test]
@@ -1251,6 +1587,198 @@ mod test {
             .collections
             .iter()
             .any(|collection| collection.collection_name == SYNC_STATE_COLLECTION));
+
+        fs::remove_dir_all(snapshot_root)
+            .await
+            .expect("cleanup snapshot directory");
+    }
+
+    #[tokio::test]
+    async fn load_proposer_snapshot_into_shadow_rejects_wrong_schema_version() {
+        let _snapshot_test_lock = snapshot_test_lock().await;
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+        initialize_snapshot_test_trees(&client).await;
+
+        let (snapshot_root, manifest, _, _) = create_snapshot_fixture(
+            &client,
+            31,
+            "0xschema",
+            31,
+            3100,
+            "nf4-proposer-schema-version-test",
+        )
+        .await;
+        let snapshot_dir = snapshot_root.join(&manifest.snapshot_id);
+        let mut broken_manifest = read_manifest(&snapshot_dir).await;
+        broken_manifest.schema_version = 999;
+        write_manifest(&snapshot_dir, &broken_manifest).await;
+
+        let error = load_proposer_snapshot_into_shadow(&client, &snapshot_dir)
+            .await
+            .expect_err("loading snapshot should reject unsupported schema version");
+        assert!(matches!(
+            error,
+            SnapshotError::UnsupportedManifestSchemaVersion(999)
+        ));
+
+        fs::remove_dir_all(snapshot_root)
+            .await
+            .expect("cleanup snapshot directory");
+    }
+
+    #[tokio::test]
+    async fn load_proposer_snapshot_into_shadow_rejects_wrong_storage_format() {
+        let _snapshot_test_lock = snapshot_test_lock().await;
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+        initialize_snapshot_test_trees(&client).await;
+
+        let (snapshot_root, manifest, _, _) = create_snapshot_fixture(
+            &client,
+            32,
+            "0xstorage",
+            32,
+            3200,
+            "nf4-proposer-storage-format-test",
+        )
+        .await;
+        let snapshot_dir = snapshot_root.join(&manifest.snapshot_id);
+        let mut broken_manifest = read_manifest(&snapshot_dir).await;
+        broken_manifest.storage_format = "broken-format".to_string();
+        write_manifest(&snapshot_dir, &broken_manifest).await;
+
+        let error = load_proposer_snapshot_into_shadow(&client, &snapshot_dir)
+            .await
+            .expect_err("loading snapshot should reject unsupported storage format");
+        assert!(matches!(
+            error,
+            SnapshotError::UnsupportedManifestStorageFormat(ref actual)
+                if actual == "broken-format"
+        ));
+
+        fs::remove_dir_all(snapshot_root)
+            .await
+            .expect("cleanup snapshot directory");
+    }
+
+    #[tokio::test]
+    async fn load_proposer_snapshot_into_shadow_rejects_missing_snapshot_file() {
+        let _snapshot_test_lock = snapshot_test_lock().await;
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+        initialize_snapshot_test_trees(&client).await;
+
+        let (snapshot_root, manifest, _, _) = create_snapshot_fixture(
+            &client,
+            33,
+            "0xmissing-file",
+            33,
+            3300,
+            "nf4-proposer-missing-file-test",
+        )
+        .await;
+        let snapshot_dir = snapshot_root.join(&manifest.snapshot_id);
+        let removed_file = manifest
+            .collections
+            .first()
+            .expect("manifest should contain at least one collection")
+            .file_name
+            .clone();
+        fs::remove_file(snapshot_dir.join(&removed_file))
+            .await
+            .expect("remove snapshot file");
+
+        let error = load_proposer_snapshot_into_shadow(&client, &snapshot_dir)
+            .await
+            .expect_err("loading snapshot should reject missing snapshot file");
+        assert!(matches!(
+            error,
+            SnapshotError::MissingSnapshotFile(ref actual) if actual == &removed_file
+        ));
+
+        fs::remove_dir_all(snapshot_root)
+            .await
+            .expect("cleanup snapshot directory");
+    }
+
+    #[tokio::test]
+    async fn load_proposer_snapshot_into_shadow_rejects_bad_collection_checksum() {
+        let _snapshot_test_lock = snapshot_test_lock().await;
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+        initialize_snapshot_test_trees(&client).await;
+
+        let (snapshot_root, manifest, _, _) = create_snapshot_fixture(
+            &client,
+            34,
+            "0xbad-sha",
+            34,
+            3400,
+            "nf4-proposer-bad-collection-sha-test",
+        )
+        .await;
+        let snapshot_dir = snapshot_root.join(&manifest.snapshot_id);
+        let target_collection = manifest
+            .collections
+            .iter()
+            .find(|collection| collection.document_count > 0)
+            .unwrap_or_else(|| {
+                manifest
+                    .collections
+                    .first()
+                    .expect("manifest should contain at least one collection")
+            });
+        fs::write(
+            snapshot_dir.join(&target_collection.file_name),
+            b"{\"corrupted\":true}\n",
+        )
+        .await
+        .expect("corrupt collection file");
+
+        let error = load_proposer_snapshot_into_shadow(&client, &snapshot_dir)
+            .await
+            .expect_err("loading snapshot should reject bad collection checksum");
+        assert!(matches!(
+            error,
+            SnapshotError::CollectionChecksumMismatch { ref collection_name, .. }
+                if collection_name == &target_collection.collection_name
+        ));
+
+        fs::remove_dir_all(snapshot_root)
+            .await
+            .expect("cleanup snapshot directory");
+    }
+
+    #[tokio::test]
+    async fn load_proposer_snapshot_into_shadow_rejects_bad_overall_checksum() {
+        let _snapshot_test_lock = snapshot_test_lock().await;
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+        initialize_snapshot_test_trees(&client).await;
+
+        let (snapshot_root, manifest, _, _) = create_snapshot_fixture(
+            &client,
+            35,
+            "0xbad-overall",
+            35,
+            3500,
+            "nf4-proposer-bad-overall-sha-test",
+        )
+        .await;
+        let snapshot_dir = snapshot_root.join(&manifest.snapshot_id);
+        let mut broken_manifest = read_manifest(&snapshot_dir).await;
+        broken_manifest.overall_sha256 = "definitely-wrong".to_string();
+        write_manifest(&snapshot_dir, &broken_manifest).await;
+
+        let error = load_proposer_snapshot_into_shadow(&client, &snapshot_dir)
+            .await
+            .expect_err("loading snapshot should reject bad overall checksum");
+        assert!(matches!(
+            error,
+            SnapshotError::OverallChecksumMismatch { ref expected, .. }
+                if expected == "definitely-wrong"
+        ));
 
         fs::remove_dir_all(snapshot_root)
             .await
@@ -1793,6 +2321,181 @@ mod test {
         assert_eq!(
             live_sync_state.last_applied_l2_block,
             snapshot_block.layer2_block_number
+        );
+
+        fs::remove_dir_all(snapshot_root)
+            .await
+            .expect("cleanup snapshot directory");
+    }
+
+    #[tokio::test]
+    async fn recover_from_restore_journal_rolls_back_broken_invariant_and_restores_live_state() {
+        let _snapshot_test_lock = snapshot_test_lock().await;
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+
+        let (snapshot_root, journal, newer_live_sync_state) =
+            prepare_mid_swap_pending_state(&client, "nf4-proposer-rollback-success-test", 41, 42)
+                .await;
+
+        let ordered = restore_collections_in_swap_order(&journal.collections);
+        let broken_collection = &ordered[1];
+        client
+            .database(DB)
+            .collection::<Document>(&broken_collection.live)
+            .drop()
+            .await
+            .expect("drop live collection to force invariant violation");
+
+        let error = recover_from_restore_journal(&client)
+            .await
+            .expect_err("recovery should surface invariant violation after rollback");
+        assert!(matches!(error, SnapshotError::RestoreInvariantViolation(_)));
+
+        assert_eq!(
+            client.get_restore_journal().await,
+            None,
+            "successful rollback should clear restore_journal"
+        );
+
+        let live_sync_state = client
+            .get_sync_state()
+            .await
+            .expect("pre-swap live sync_state should be restored");
+        assert_eq!(live_sync_state, newer_live_sync_state);
+
+        let collection_names = client
+            .database(DB)
+            .list_collection_names()
+            .await
+            .expect("list collections");
+        assert!(!collection_names
+            .iter()
+            .any(|name| name.starts_with("restore_shadow__")));
+        assert!(!collection_names
+            .iter()
+            .any(|name| name.starts_with("restore_backup__")));
+
+        fs::remove_dir_all(snapshot_root)
+            .await
+            .expect("cleanup snapshot directory");
+    }
+
+    #[tokio::test]
+    async fn recover_from_restore_journal_resumes_real_mid_rollback_crash() {
+        let _snapshot_test_lock = snapshot_test_lock().await;
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+
+        let (snapshot_root, journal, newer_live_sync_state) =
+            prepare_mid_swap_pending_state(&client, "nf4-proposer-mid-rollback-crash-test", 51, 52)
+                .await;
+
+        let ordered = restore_collections_in_swap_order(&journal.collections);
+        let broken_collection = &ordered[1];
+        client
+            .database(DB)
+            .collection::<Document>(&broken_collection.live)
+            .drop()
+            .await
+            .expect("drop live collection to force rollback path");
+
+        let failpoint = TestFailpointGuard::enable("restore_after_first_rollback_live_restore");
+        let crash_client = client.clone();
+        let join_error =
+            tokio::spawn(async move { recover_from_restore_journal(&crash_client).await })
+                .await
+                .expect_err("rollback recovery should panic at failpoint");
+        assert!(join_error.is_panic());
+        drop(failpoint);
+
+        let persisted_journal = client
+            .get_restore_journal()
+            .await
+            .expect("journal should remain after rollback crash");
+        assert_eq!(
+            persisted_journal.phase,
+            RestoreJournalPhase::RollbackInProgress
+        );
+        assert_eq!(persisted_journal.current_index, Some(0));
+        assert_eq!(
+            persisted_journal.current_step,
+            Some(RestoreJournalStep::RollbackStarted)
+        );
+
+        let error = recover_from_restore_journal(&client)
+            .await
+            .expect_err("resume should surface original invariant violation after rollback");
+        assert!(matches!(error, SnapshotError::RestoreInvariantViolation(_)));
+        assert_eq!(client.get_restore_journal().await, None);
+
+        let live_sync_state = client
+            .get_sync_state()
+            .await
+            .expect("pre-swap live sync_state should be restored after resumed rollback");
+        assert_eq!(live_sync_state, newer_live_sync_state);
+
+        let collection_names = client
+            .database(DB)
+            .list_collection_names()
+            .await
+            .expect("list collections");
+        assert!(!collection_names
+            .iter()
+            .any(|name| name.starts_with("restore_shadow__")));
+        assert!(!collection_names
+            .iter()
+            .any(|name| name.starts_with("restore_backup__")));
+
+        fs::remove_dir_all(snapshot_root)
+            .await
+            .expect("cleanup snapshot directory");
+    }
+
+    #[tokio::test]
+    async fn recover_from_restore_journal_keeps_journal_when_rollback_fails() {
+        let _snapshot_test_lock = snapshot_test_lock().await;
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+
+        let (snapshot_root, journal, _) =
+            prepare_mid_swap_pending_state(&client, "nf4-proposer-rollback-failure-test", 43, 44)
+                .await;
+
+        let ordered = restore_collections_in_swap_order(&journal.collections);
+        let first_processed = &ordered[0];
+        let broken_collection = &ordered[1];
+
+        client
+            .database(DB)
+            .collection::<Document>(&broken_collection.live)
+            .drop()
+            .await
+            .expect("drop live collection to trigger invariant violation");
+        client
+            .database(DB)
+            .collection::<Document>(&first_processed.backup)
+            .drop()
+            .await
+            .expect("drop backup collection to make rollback impossible");
+
+        let error = recover_from_restore_journal(&client)
+            .await
+            .expect_err("recovery should fail when rollback itself cannot complete");
+        assert!(matches!(error, SnapshotError::RestoreInvariantViolation(_)));
+
+        let persisted_journal = client
+            .get_restore_journal()
+            .await
+            .expect("journal should remain when rollback fails");
+        assert_eq!(
+            persisted_journal.phase,
+            RestoreJournalPhase::RollbackInProgress
+        );
+        assert_eq!(persisted_journal.current_index, Some(0));
+        assert_eq!(
+            persisted_journal.current_step,
+            Some(RestoreJournalStep::RollbackStarted)
         );
 
         fs::remove_dir_all(snapshot_root)

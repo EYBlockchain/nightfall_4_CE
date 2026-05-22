@@ -136,6 +136,7 @@ impl ProposerSnapshotManifest {
 pub enum RestoreJournalPhase {
     LoadingShadow,
     SwapInProgress,
+    RollbackInProgress,
     SwapComplete,
 }
 
@@ -144,6 +145,9 @@ pub enum RestoreJournalPhase {
 pub enum RestoreJournalStep {
     BackupPending,
     BackupCreated,
+    RollbackPending,
+    RollbackStarted,
+    RollbackApplied,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

@@ -1,43 +1,23 @@
 use crate::driven::db::snapshot::{
     cleanup_orphaned_proposer_snapshot_temp_dirs, create_proposer_snapshot,
-    find_latest_valid_proposer_snapshot, SnapshotError,
+    find_latest_valid_proposer_snapshot, try_acquire_proposer_state_maintenance_guard,
+    SnapshotError,
 };
+use crate::ports::db::RestoreJournalDB;
 use configuration::settings::get_settings;
 use log::{debug, info, warn};
 use mongodb::Client;
-use std::{
-    path::{Path, PathBuf},
-    sync::atomic::{AtomicBool, Ordering},
-};
+use std::path::{Path, PathBuf};
 use tokio::{
     fs,
     sync::{OnceCell, RwLock},
 };
-
-static SNAPSHOT_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 
 async fn get_last_snapshot_l2_block() -> &'static RwLock<u64> {
     static LAST_SNAPSHOT_L2_BLOCK: OnceCell<RwLock<u64>> = OnceCell::const_new();
     LAST_SNAPSHOT_L2_BLOCK
         .get_or_init(|| async { RwLock::new(0) })
         .await
-}
-
-struct SnapshotTaskGuard;
-
-impl SnapshotTaskGuard {
-    fn try_acquire() -> Option<Self> {
-        SNAPSHOT_IN_PROGRESS
-            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
-            .ok()
-            .map(|_| Self)
-    }
-}
-
-impl Drop for SnapshotTaskGuard {
-    fn drop(&mut self) {
-        SNAPSHOT_IN_PROGRESS.store(false, Ordering::Release);
-    }
 }
 
 fn snapshot_root_dir() -> PathBuf {
@@ -130,13 +110,22 @@ async fn prune_old_snapshots_by_manifest(
 }
 
 async fn create_snapshot_task(client: Client, snapshot_root_dir: PathBuf, retention_count: usize) {
-    let _guard = match SnapshotTaskGuard::try_acquire() {
+    let _maintenance_guard = match try_acquire_proposer_state_maintenance_guard() {
         Some(guard) => guard,
         None => {
-            debug!("Skipping proposer snapshot creation because another snapshot is already in progress");
+            debug!(
+                "Skipping proposer snapshot creation because proposer maintenance is in progress"
+            );
             return;
         }
     };
+
+    if client.get_restore_journal().await.is_some() {
+        debug!(
+            "Skipping proposer snapshot creation because restore_journal indicates maintenance is still pending"
+        );
+        return;
+    }
 
     match create_proposer_snapshot(&client, &snapshot_root_dir).await {
         Ok(manifest) => {
