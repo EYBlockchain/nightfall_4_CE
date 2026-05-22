@@ -100,7 +100,7 @@ pub mod initialisation {
         ports::{
             block_assembly_trigger::BlockAssemblyTrigger,
             contracts::NightfallContract,
-            db::{BlockStorageDB, SyncStateDB},
+            db::{BlockStorageDB, RestoreJournalDB, SyncStateDB},
             trees::{CommitmentTree, HistoricRootTree, NullifierTree},
         },
         services::snapshot_scheduler::initialize_snapshot_scheduler_state,
@@ -273,9 +273,17 @@ pub mod initialisation {
         N: NightfallContract,
     {
         let db = get_db_connection().await;
-        recover_from_restore_journal(db)
-            .await
-            .map_err(|e| format!("Proposer restore recovery failed before bootstrap: {e}"))?;
+        if let Err(error) = recover_from_restore_journal(db).await {
+            if db.get_restore_journal().await.is_none() {
+                warn!(
+                    "Proposer restore recovery completed by rolling back incomplete restore state before bootstrap: {error}"
+                );
+            } else {
+                return Err(format!(
+                    "Proposer restore recovery failed before bootstrap: {error}"
+                ));
+            }
+        }
         if let Err(error) = initialize_snapshot_scheduler_state().await {
             warn!("Could not initialize proposer snapshot scheduler state: {error}");
         }

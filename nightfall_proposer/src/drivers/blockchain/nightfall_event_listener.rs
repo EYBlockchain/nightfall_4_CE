@@ -266,26 +266,55 @@ where
 
 /// Resets proposer state for the destructive replay fallback, including tree state and
 /// persisted sync_state, before historical events are replayed.
-async fn reset_proposer_state_for_replay<P>(db: &MongoClient)
+async fn reset_proposer_state_for_replay<P>(db: &MongoClient) -> Result<(), EventHandlerError>
 where
     P: Proof,
 {
-    let _ = <MongoClient as CommitmentTree<Fr254>>::reset_tree(db).await;
-    let _ = <MongoClient as HistoricRootTree<Fr254>>::reset_tree(db).await;
-    let _ = <MongoClient as NullifierTree<Fr254>>::reset_tree(db).await;
-    if let Ok(mut session) = db.start_session().await {
-        let db_for_cleanup = db.clone();
-        let _ = session
-            .start_transaction()
-            .and_run2(async move |session| {
-                db_for_cleanup
-                    .delete_sync_state_with_session(session)
-                    .await?;
-                Ok::<(), mongodb::error::Error>(())
-            })
-            .await;
-    }
+    <MongoClient as CommitmentTree<Fr254>>::reset_tree(db)
+        .await
+        .map_err(|error| {
+            EventHandlerError::IOError(format!(
+                "Could not reset proposer commitment tree before replay fallback: {error}"
+            ))
+        })?;
+    <MongoClient as HistoricRootTree<Fr254>>::reset_tree(db)
+        .await
+        .map_err(|error| {
+            EventHandlerError::IOError(format!(
+                "Could not reset proposer historic root tree before replay fallback: {error}"
+            ))
+        })?;
+    <MongoClient as NullifierTree<Fr254>>::reset_tree(db)
+        .await
+        .map_err(|error| {
+            EventHandlerError::IOError(format!(
+                "Could not reset proposer nullifier tree before replay fallback: {error}"
+            ))
+        })?;
+
+    let mut session = db.start_session().await.map_err(|error| {
+        EventHandlerError::IOError(format!(
+            "Could not start MongoDB session for proposer replay fallback reset: {error}"
+        ))
+    })?;
+    let db_for_cleanup = db.clone();
+    session
+        .start_transaction()
+        .and_run2(async move |session| {
+            db_for_cleanup
+                .delete_sync_state_with_session(session)
+                .await?;
+            Ok::<(), mongodb::error::Error>(())
+        })
+        .await
+        .map_err(|error| {
+            EventHandlerError::IOError(format!(
+                "Could not delete proposer sync_state before replay fallback: {error}"
+            ))
+        })?;
+
     cleanup_recovery_side_effects::<P>(db).await;
+    Ok(())
 }
 
 /// Returns the configured root directory where proposer snapshots are discovered for restore.
@@ -332,6 +361,47 @@ where
                     *get_expected_layer2_blocknumber().await.write().await =
                         I256::try_from(next_expected_block)
                             .expect("Restored L2 block number does not fit into I256");
+                    let restored_is_at_tip = match N::get_current_layer2_blocknumber().await {
+                        Ok(onchain_next_block_i256) if onchain_next_block_i256 >= I256::ZERO => {
+                            match u64::try_from(onchain_next_block_i256) {
+                                Ok(onchain_next_block) => next_expected_block == onchain_next_block,
+                                Err(_) => {
+                                    warn!(
+                                            "Restored proposer state but could not convert current on-chain L2 block number {} into u64; keeping proposer desynchronised until replay confirms state",
+                                            onchain_next_block_i256
+                                        );
+                                    false
+                                }
+                            }
+                        }
+                        Ok(onchain_next_block_i256) => {
+                            warn!(
+                                    "Restored proposer state but contract returned negative current L2 block number {}; keeping proposer desynchronised until replay confirms state",
+                                    onchain_next_block_i256
+                                );
+                            false
+                        }
+                        Err(error) => {
+                            warn!(
+                                    "Restored proposer state but could not fetch current on-chain L2 block number: {}. Keeping proposer desynchronised until replay confirms state",
+                                    error
+                                );
+                            false
+                        }
+                    };
+                    if restored_is_at_tip {
+                        get_synchronisation_status()
+                            .await
+                            .write()
+                            .await
+                            .set_synchronised();
+                    } else {
+                        get_synchronisation_status()
+                            .await
+                            .write()
+                            .await
+                            .clear_synchronised();
+                    }
                     next_listener_start_block = usize::try_from(sync_state.l1_ref.block_number)
                         .expect("Restored L1 block number does not fit into usize");
                     set_runtime_listener_start_block(next_listener_start_block).await;
@@ -355,7 +425,11 @@ where
                         error,
                         start_block
                     );
-                    reset_proposer_state_for_replay::<P>(db).await;
+                    if let Err(reset_error) = reset_proposer_state_for_replay::<P>(db).await {
+                        panic!(
+                            "Proposer replay fallback aborted because reset could not complete safely: {reset_error}"
+                        );
+                    }
                     *get_expected_layer2_blocknumber().await.write().await = I256::ZERO;
                     set_runtime_listener_start_block(start_block).await;
                 }
@@ -368,7 +442,11 @@ where
                 max_restorable_l2_block,
                 start_block
             );
-            reset_proposer_state_for_replay::<P>(db).await;
+            if let Err(reset_error) = reset_proposer_state_for_replay::<P>(db).await {
+                panic!(
+                    "Proposer replay fallback aborted because reset could not complete safely: {reset_error}"
+                );
+            }
             *get_expected_layer2_blocknumber().await.write().await = I256::ZERO;
             set_runtime_listener_start_block(start_block).await;
         }
@@ -379,7 +457,11 @@ where
                 error,
                 start_block
             );
-            reset_proposer_state_for_replay::<P>(db).await;
+            if let Err(reset_error) = reset_proposer_state_for_replay::<P>(db).await {
+                panic!(
+                    "Proposer replay fallback aborted because reset could not complete safely: {reset_error}"
+                );
+            }
             *get_expected_layer2_blocknumber().await.write().await = I256::ZERO;
             set_runtime_listener_start_block(start_block).await;
         }

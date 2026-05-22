@@ -8,7 +8,7 @@ use crate::{
     ports::trees::{CommitmentTree, HistoricRootTree, NullifierTree},
 };
 use ark_bn254::Fr as Fr254;
-use log::{error, warn};
+use log::{debug, error, warn};
 use mongodb::bson::{Bson, Document};
 use mongodb::options::ReadConcern;
 use sha2::{Digest, Sha256};
@@ -98,6 +98,7 @@ pub enum SnapshotError {
     Mongo(mongodb::error::Error),
     SerdeJson(serde_json::Error),
     MissingSyncState,
+    MissingSnapshotCollection(String),
     MissingRestoreJournal,
     UnsupportedManifestSchemaVersion(u32),
     UnsupportedManifestStorageFormat(String),
@@ -134,6 +135,10 @@ impl Display for SnapshotError {
             Self::MissingSyncState => write!(
                 f,
                 "Cannot create proposer snapshot without a persisted sync_state"
+            ),
+            Self::MissingSnapshotCollection(collection_name) => write!(
+                f,
+                "Cannot create proposer snapshot because canonical collection {collection_name} is missing"
             ),
             Self::MissingRestoreJournal => {
                 write!(f, "Cannot continue restore flow without a persisted restore_journal")
@@ -233,6 +238,29 @@ fn proposer_snapshot_collection_names() -> Vec<String> {
     names.push(PROPOSED_BLOCKS_COLLECTION.to_string());
     names.push(SYNC_STATE_COLLECTION.to_string());
     names
+}
+
+fn required_proposer_snapshot_collection_names() -> Vec<String> {
+    vec![
+        format!(
+            "{}_metadata",
+            <mongodb::Client as CommitmentTree<Fr254>>::TREE_NAME
+        ),
+        format!(
+            "{}_metadata",
+            <mongodb::Client as HistoricRootTree<Fr254>>::TREE_NAME
+        ),
+        format!(
+            "{}_metadata",
+            <mongodb::Client as NullifierTree<Fr254>>::TREE_NAME
+        ),
+        format!(
+            "{}_indexed_leaves",
+            <mongodb::Client as NullifierTree<Fr254>>::TREE_NAME
+        ),
+        PROPOSED_BLOCKS_COLLECTION.to_string(),
+        SYNC_STATE_COLLECTION.to_string(),
+    ]
 }
 
 fn shadow_collection_name(live_collection_name: &str) -> String {
@@ -387,6 +415,14 @@ pub async fn create_proposer_snapshot(
     // collection names are created during proposer initialization and are not
     // expected to change while a snapshot is taken.
     let existing_collections = database.list_collection_names().await?;
+    for collection_name in required_proposer_snapshot_collection_names() {
+        if !existing_collections
+            .iter()
+            .any(|name| name == &collection_name)
+        {
+            return Err(SnapshotError::MissingSnapshotCollection(collection_name));
+        }
+    }
     let snapshot_root_dir = snapshot_root_dir.to_path_buf();
     fs::create_dir_all(&snapshot_root_dir).await?;
     cleanup_orphaned_proposer_snapshot_temp_dirs(&snapshot_root_dir).await?;
@@ -437,8 +473,8 @@ pub async fn create_proposer_snapshot(
                         maybe_crash_at_failpoint("snapshot_after_first_collection_exported");
                     }
                 } else {
-                    warn!(
-                        "Skipping proposer snapshot collection {collection_name}: collection not found in database {DB}"
+                    debug!(
+                        "Skipping optional proposer snapshot collection {collection_name}: collection not found in database {DB}"
                     );
                 }
             }
