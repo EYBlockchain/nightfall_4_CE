@@ -114,19 +114,10 @@ pub trait PendingBlockDB {
         &self,
         session: &mut mongodb::ClientSession,
     ) -> Result<u64, mongodb::error::Error> {
-        let pending_blocks = self
-            .get_all_pending_blocks()
-            .await
-            .ok_or_else(|| mongodb::error::Error::custom("Could not list pending blocks"))?;
-        let mut deleted = 0_u64;
-        for pending_block in pending_blocks {
-            self.delete_pending_block(pending_block.layer2_block_number)
-                .await
-                .ok_or_else(|| mongodb::error::Error::custom("Could not delete pending block"))?;
-            deleted += 1;
-        }
         let _ = session;
-        Ok(deleted)
+        Err(mongodb::error::Error::custom(
+            "delete_all_pending_blocks_with_session must be implemented with session-aware deletes",
+        ))
     }
 }
 
