@@ -325,14 +325,20 @@ where
         D: Deserializer<'de>,
     {
         let helper = ClientTransactionWithMetaDataSerde::<P>::deserialize(deserializer)?;
-        // Legacy migration: a document with cancelled_explicitly=false,
-        // in_mempool=false, block_l2=None corresponds to a stale/expired
-        // removal in the pre-lifecycle codebase. All persisted transactions
-        // historically entered the mempool with in_mempool=true first
-        // (see nightfall_client_transaction.rs), so this triplet
-        // unambiguously represents a Dropped state. If a future code
-        // path persists transactions in this triplet for a different
-        // reason, this assumption must be revisited.
+        // Legacy migration support: startup backfills explicit lifecycle
+        // fields before runtime queries rely on them. This fallback keeps
+        // raw legacy documents deserializable during that migration window.
+        //
+        // In the pre-lifecycle codebase, all persisted client transactions
+        // first entered the mempool with `in_mempool=true` (see
+        // nightfall_client_transaction.rs). Therefore the legacy triplet
+        // `cancelled_explicitly=false`, `in_mempool=false`, `block_l2=None`
+        // cannot mean "never seen" or "still pending"; it unambiguously
+        // represents a stale/expired removal, so we map it to
+        // `TxLifecycle::Dropped`.
+        //
+        // If a future code path persists transactions in this triplet for a
+        // different reason, this assumption must be revisited.
         let lifecycle = helper.lifecycle.unwrap_or_else(|| {
             if helper.cancelled_explicitly {
                 TxLifecycle::Cancelled

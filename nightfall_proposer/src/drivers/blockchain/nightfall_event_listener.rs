@@ -11,7 +11,7 @@ use crate::{
     },
     ports::{
         contracts::NightfallContract,
-        db::{SyncStateDB, TransactionsDB},
+        db::{BlockStorageDB, PendingBlockDB, SyncStateDB, TransactionsDB},
         trees::{CommitmentTree, HistoricRootTree, NullifierTree},
     },
     services::process_events::process_events,
@@ -332,6 +332,42 @@ where
     );
 }
 
+async fn clear_all_reserved_deposits_for_recovery<P>(
+    db: &MongoClient,
+) -> Result<u64, EventHandlerError>
+where
+    P: Proof,
+{
+    TransactionsDB::<P>::clear_all_mempool_deposit_reservations(db)
+        .await
+        .ok_or_else(|| {
+            EventHandlerError::IOError(
+                "Could not clear reserved deposits during proposer recovery".to_string(),
+            )
+        })
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
+async fn cleanup_persisted_pending_blocks_for_recovery<P>(
+    db: &MongoClient,
+) -> Result<(u64, u64), EventHandlerError>
+where
+    P: Proof,
+{
+    let deleted_pending_blocks = db.delete_all_pending_blocks().await.ok_or_else(|| {
+        EventHandlerError::IOError(
+            "Could not delete persisted pending blocks during recovery".to_string(),
+        )
+    })?;
+    let unreserved_deposits = clear_all_reserved_deposits_for_recovery::<P>(db).await?;
+    if deleted_pending_blocks > 0 || unreserved_deposits > 0 {
+        warn!(
+            "Recovery discarded {deleted_pending_blocks} persisted pending block(s) and cleared {unreserved_deposits} reserved deposit selection(s)"
+        );
+    }
+    Ok((deleted_pending_blocks, unreserved_deposits))
+}
+
 /// Resets proposer state for the destructive replay fallback, including tree state and
 /// persisted sync_state, before historical events are replayed.
 async fn reset_proposer_state_for_replay<P>(db: &MongoClient) -> Result<(), EventHandlerError>
@@ -339,14 +375,13 @@ where
     P: Proof,
 {
     let _maintenance_guard = acquire_proposer_state_maintenance_guard().await;
-
     let mut session = db.start_session().await.map_err(|error| {
         EventHandlerError::IOError(format!(
             "Could not start MongoDB session for proposer replay fallback reset: {error}"
         ))
     })?;
     let db_for_cleanup = db.clone();
-    session
+    let (deleted_blocks, deleted_pending_blocks) = session
         .start_transaction()
         .and_run2(async move |session| {
             maybe_fail_replay_reset("delete_sync_state_before_delete")
@@ -354,14 +389,27 @@ where
             db_for_cleanup
                 .delete_sync_state_with_session(session)
                 .await?;
-            Ok::<(), mongodb::error::Error>(())
+            let deleted_blocks = db_for_cleanup
+                .delete_all_blocks_with_session(session)
+                .await?;
+            let deleted_pending_blocks = db_for_cleanup
+                .delete_all_pending_blocks_with_session(session)
+                .await?;
+            Ok::<(u64, u64), mongodb::error::Error>((deleted_blocks, deleted_pending_blocks))
         })
         .await
         .map_err(|error| {
             EventHandlerError::IOError(format!(
-                "Could not delete proposer sync_state before replay fallback: {error}"
+                "Could not clear proposer canonical state before replay fallback: {error}"
             ))
         })?;
+
+    let unreserved_deposits = clear_all_reserved_deposits_for_recovery::<P>(db).await?;
+    if deleted_blocks > 0 || deleted_pending_blocks > 0 || unreserved_deposits > 0 {
+        warn!(
+            "Replay fallback deleted {deleted_blocks} stored block(s), removed {deleted_pending_blocks} persisted pending block(s), and cleared {unreserved_deposits} reserved deposit selection(s)"
+        );
+    }
 
     reset_commitment_tree_for_replay(db).await?;
     reset_historic_root_tree_for_replay(db).await?;
@@ -561,7 +609,6 @@ where
                         sync_state.l1_ref.block_number,
                         next_expected_block
                     );
-                    cleanup_recovery_side_effects::<P>(db).await;
                 }
                 Err(error) => {
                     if let Err(recovery_error) = recover_from_restore_journal(db).await {
@@ -642,12 +689,14 @@ pub async fn get_synchronisation_status() -> &'static RwLock<SynchronisationStat
 mod tests {
     use super::*;
     use crate::{
-        domain::entities::{Block, DepositDatawithFee, L1Ref, PendingBlock, PendingBlockState, SyncState},
+        domain::entities::{
+            Block, DepositDatawithFee, L1Ref, PendingBlock, PendingBlockState, SyncState,
+        },
+        driven::db::mongo_db::{ensure_deposit_indexes, StoredBlock, DB},
         drivers::blockchain::block_assembly::{
             pending_blocks_queue_len_for_test, push_pending_block_for_test,
         },
-        driven::db::mongo_db::{ensure_deposit_indexes, StoredBlock, DB},
-        ports::db::{BlockStorageDB, SyncStateDB, TransactionsDB},
+        ports::db::{BlockStorageDB, PendingBlockDB, SyncStateDB, TransactionsDB},
     };
     use alloy::primitives::Bytes;
     use alloy::primitives::{Address, TxHash};
@@ -718,6 +767,19 @@ mod tests {
         ensure_deposit_indexes(client)
             .await
             .expect("create deposit indexes");
+    }
+
+    fn test_pending_deposit(seed: u64, reserved: bool) -> DepositDatawithFee {
+        DepositDatawithFee {
+            fee: Fr254::from(seed),
+            deposit_data: DepositData {
+                nf_token_id: Fr254::from(seed + 1),
+                nf_slot_id: Fr254::from(seed + 2),
+                value: Fr254::from(seed + 3),
+                secret_hash: Fr254::from(seed + 4),
+            },
+            reserved,
+        }
     }
 
     #[tokio::test]
@@ -820,12 +882,98 @@ mod tests {
 
         cleanup_recovery_side_effects::<MockProof>(&client).await;
 
-        let restored_deposits = <mongodb::Client as TransactionsDB<MockProof>>::get_mempool_deposits(
+        let restored_deposits =
+            <mongodb::Client as TransactionsDB<MockProof>>::get_mempool_deposits(&client)
+                .await
+                .expect("pending deposits should remain after recovery cleanup");
+        assert_eq!(restored_deposits, vec![pending_deposit]);
+    }
+
+    #[tokio::test]
+    async fn cleanup_persisted_pending_blocks_for_recovery_deletes_rows_and_unreserves_deposits() {
+        let _lock = event_listener_test_lock().await;
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+
+        initialize_test_trees(&client).await;
+        let reserved_deposit = test_pending_deposit(50, true);
+        <mongodb::Client as TransactionsDB<MockProof>>::set_mempool_deposits(
             &client,
+            vec![reserved_deposit],
         )
         .await
-        .expect("pending deposits should remain after recovery cleanup");
-        assert_eq!(restored_deposits, vec![pending_deposit]);
+        .expect("store reserved deposit");
+        client
+            .store_pending_block(&PendingBlock {
+                layer2_block_number: 50,
+                state: PendingBlockState::ReadyToPropose,
+                broadcast_tx_hash: None,
+                broadcast_receipt_checks: 0,
+                block: None,
+                selected_deposits: vec![vec![reserved_deposit]],
+                selected_client_transaction_hashes: Vec::new(),
+            })
+            .await
+            .expect("store stale pending block");
+
+        let (deleted_count, unreserved_count) =
+            cleanup_persisted_pending_blocks_for_recovery::<MockProof>(&client)
+                .await
+                .expect("cleanup stale persisted pending blocks");
+        assert_eq!(deleted_count, 1);
+        assert_eq!(unreserved_count, 1);
+        assert!(client
+            .get_all_pending_blocks()
+            .await
+            .expect("read pending blocks after cleanup")
+            .is_empty());
+
+        let restored_deposits =
+            <mongodb::Client as TransactionsDB<MockProof>>::get_mempool_deposits(&client)
+                .await
+                .expect("reserved deposit should be visible again");
+        assert_eq!(
+            restored_deposits,
+            vec![DepositDatawithFee {
+                reserved: false,
+                ..reserved_deposit
+            }]
+        );
+    }
+
+    #[tokio::test]
+    async fn cleanup_persisted_pending_blocks_for_recovery_unreserves_without_pending_rows() {
+        let _lock = event_listener_test_lock().await;
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+
+        initialize_test_trees(&client).await;
+        let reserved_deposit = test_pending_deposit(60, true);
+        <mongodb::Client as TransactionsDB<MockProof>>::set_mempool_deposits(
+            &client,
+            vec![reserved_deposit],
+        )
+        .await
+        .expect("store stranded reserved deposit");
+
+        let (deleted_count, unreserved_count) =
+            cleanup_persisted_pending_blocks_for_recovery::<MockProof>(&client)
+                .await
+                .expect("cleanup should clear stranded reservations");
+        assert_eq!(deleted_count, 0);
+        assert_eq!(unreserved_count, 1);
+
+        let restored_deposits =
+            <mongodb::Client as TransactionsDB<MockProof>>::get_mempool_deposits(&client)
+                .await
+                .expect("reserved deposit should be visible again");
+        assert_eq!(
+            restored_deposits,
+            vec![DepositDatawithFee {
+                reserved: false,
+                ..reserved_deposit
+            }]
+        );
     }
 
     #[tokio::test]
@@ -859,7 +1007,7 @@ mod tests {
             .expect_err("sync_state delete failure should abort replay fallback");
 
         assert!(
-            matches!(error, EventHandlerError::IOError(message) if message.contains("sync_state"))
+            matches!(error, EventHandlerError::IOError(message) if message.contains("canonical state"))
         );
         assert_eq!(client.get_sync_state().await, Some(sync_state));
 
@@ -915,10 +1063,58 @@ mod tests {
             .expect("read historic root metadata")
             .expect("historic root metadata should exist");
         assert_eq!(
-            historic_root_metadata.get_i64("sub_tree_count").unwrap_or_default(),
+            historic_root_metadata
+                .get_i64("sub_tree_count")
+                .unwrap_or_default(),
             1,
             "reset replay should restore the zero historic root invariant"
         );
         assert_eq!(client.get_sync_state().await, None);
+    }
+
+    #[tokio::test]
+    async fn reset_proposer_state_for_replay_removes_all_stale_proposed_blocks() {
+        let _lock = event_listener_test_lock().await;
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+
+        initialize_test_trees(&client).await;
+        for block_number in [40_u64, 41_u64, 42_u64] {
+            let block = StoredBlock {
+                layer2_block_number: block_number,
+                commitments: vec![format!("0xstale-{block_number}")],
+                proposer_address: Address::from([block_number as u8; 20]),
+            };
+            client.store_block(&block).await.expect("store stale block");
+            if block_number == 42 {
+                persist_sync_state(
+                    &client,
+                    &SyncState::new(
+                        block_number,
+                        block.hash().to_hex_string(),
+                        L1Ref {
+                            block_number: 4200,
+                            tx_hash: TxHash::from([42_u8; 32]),
+                            log_index: 42,
+                        },
+                        mongodb::bson::DateTime::now(),
+                    ),
+                )
+                .await;
+            }
+        }
+
+        reset_proposer_state_for_replay::<MockProof>(&client)
+            .await
+            .expect("replay reset should clear stale stored blocks");
+
+        assert!(
+            client
+                .get_all_blocks()
+                .await
+                .expect("read stored blocks after reset")
+                .is_empty(),
+            "replay reset should remove all stale stored blocks before replay begins"
+        );
     }
 }

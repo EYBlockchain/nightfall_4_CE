@@ -95,7 +95,11 @@ pub mod initialisation {
         domain::entities::{L1Ref, SyncState},
         driven::block_assembler::BlockAssemblyStatus,
         driven::db::{
-            mongo_db::{StoredBlock, DB},
+            client_transaction_state::{
+                backfill_legacy_client_transaction_lifecycle,
+                restore_all_selected_transactions_to_mempool, selected_client_transaction_count,
+            },
+            mongo_db::{StoredBlock, DB, DEPOSIT_COLLECTION, PROPOSED_BLOCKS_COLLECTION},
             snapshot::recover_from_restore_journal,
         },
         driven::nightfall_event::get_expected_layer2_blocknumber,
@@ -103,7 +107,7 @@ pub mod initialisation {
         ports::{
             block_assembly_trigger::BlockAssemblyTrigger,
             contracts::NightfallContract,
-            db::{BlockStorageDB, RestoreJournalDB, SyncStateDB},
+            db::{BlockStorageDB, PendingBlockDB, RestoreJournalDB, SyncStateDB},
             trees::{CommitmentTree, HistoricRootTree, NullifierTree},
         },
         services::snapshot_scheduler::initialize_snapshot_scheduler_state,
@@ -114,13 +118,15 @@ pub mod initialisation {
     use ark_std::sync::Arc;
     use configuration::settings::{get_settings, WalletRole};
     use lib::{
-        blockchain_client::BlockchainClientConnection, nf_client_proof::Proof,
-        merkle_trees::trees::TreeMetadata,
-        wallets::LocalWsClient,
+        blockchain_client::BlockchainClientConnection, merkle_trees::trees::TreeMetadata,
+        nf_client_proof::Proof, wallets::LocalWsClient,
     };
     use lib::{hex_conversion::HexConvertible, merkle_trees::trees::MutableTree};
     use log::{info, warn};
-    use mongodb::Client;
+    use mongodb::{
+        bson::{doc, Document},
+        Client,
+    };
     use tokio::sync::{OnceCell, RwLock};
 
     async fn get_listener_start_block() -> &'static RwLock<usize> {
@@ -275,6 +281,82 @@ pub mod initialisation {
         )
     }
 
+    fn stored_blocks_ahead_of_sync_state_error(
+        last_applied_l2_block: u64,
+        highest_stored_block: u64,
+    ) -> String {
+        format!(
+            "Proposer startup aborted: highest StoredBlock ({highest_stored_block}) is ahead of \
+             sync_state-applied block {last_applied_l2_block}. Local proposer state is \
+             inconsistent. Manual recovery is required before restart."
+        )
+    }
+
+    fn reserved_deposits_ahead_of_sync_state_error(
+        last_applied_l2_block: u64,
+        reserved_deposit_count: u64,
+    ) -> String {
+        format!(
+            "Proposer startup aborted: Deposits contains {reserved_deposit_count} reserved \
+             selection(s) ahead of sync_state-applied block {last_applied_l2_block}. Local \
+             proposer state is inconsistent. Manual recovery is required before restart."
+        )
+    }
+
+    fn selected_transactions_ahead_of_sync_state_error(
+        last_applied_l2_block: u64,
+        selected_transaction_count: u64,
+    ) -> String {
+        format!(
+            "Proposer startup aborted: ClientTransactions contains {selected_transaction_count} \
+             selected transaction(s) ahead of sync_state-applied block {last_applied_l2_block}. \
+             Local proposer state is inconsistent. Manual recovery is required before restart."
+        )
+    }
+
+    fn startup_local_state_cleanup_error(details: &str) -> String {
+        format!(
+            "Proposer startup aborted: non-canonical local proposer state cleanup failed. \
+             {details} Manual recovery is required before restart."
+        )
+    }
+
+    fn startup_legacy_transaction_migration_error(details: &str) -> String {
+        format!(
+            "Proposer startup aborted: legacy ClientTransactions lifecycle backfill failed. \
+             {details} Manual recovery is required before restart."
+        )
+    }
+
+    async fn backfill_legacy_client_transactions_at_startup(client: &Client) -> Result<(), String> {
+        let stats = backfill_legacy_client_transaction_lifecycle(client)
+            .await
+            .map_err(|error| startup_legacy_transaction_migration_error(&error))?;
+
+        if stats.total_backfilled() > 0 {
+            warn!(
+                "Backfilled {} legacy proposer client transaction lifecycle field(s) at startup \
+                 (mempool={}, selected={}, included={}, cancelled={}, dropped={})",
+                stats.total_backfilled(),
+                stats.mempool_backfilled,
+                stats.selected_backfilled,
+                stats.included_backfilled,
+                stats.cancelled_backfilled,
+                stats.dropped_backfilled
+            );
+        }
+
+        Ok(())
+    }
+
+    fn expected_historic_root_sub_tree_count(last_applied_l2_block: u64) -> Result<u64, String> {
+        last_applied_l2_block.checked_add(2).ok_or_else(|| {
+            tree_state_inconsistency_error(
+                "sync_state last_applied_l2_block overflowed while validating historic roots.",
+            )
+        })
+    }
+
     async fn tree_sub_tree_count(client: &Client, tree_name: &str) -> Result<u64, String> {
         let metadata_collection_name = format!("{tree_name}_metadata");
         let metadata = client
@@ -293,25 +375,75 @@ pub mod initialisation {
         Ok(metadata.sub_tree_count)
     }
 
+    async fn highest_stored_block_number(client: &Client) -> Result<Option<u64>, String> {
+        client
+            .database(DB)
+            .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
+            .find_one(mongodb::bson::doc! {})
+            .sort(mongodb::bson::doc! { "layer2_block_number": -1_i32 })
+            .await
+            .map_err(|error| format!("Could not inspect proposer StoredBlocks: {error}"))
+            .map(|maybe_block| maybe_block.map(|block| block.layer2_block_number))
+    }
+
+    async fn reserved_deposit_count(client: &Client) -> Result<u64, String> {
+        client
+            .database(DB)
+            .collection::<mongodb::bson::Document>(DEPOSIT_COLLECTION)
+            .count_documents(mongodb::bson::doc! { "reserved": true })
+            .await
+            .map_err(|error| format!("Could not inspect proposer Deposits reservations: {error}"))
+    }
+
+    pub(crate) async fn clear_all_reserved_deposits(client: &Client) -> Result<u64, String> {
+        client
+            .database(DB)
+            .collection::<Document>(DEPOSIT_COLLECTION)
+            .update_many(
+                doc! { "reserved": true },
+                doc! { "$set": { "reserved": false } },
+            )
+            .await
+            .map(|result| result.modified_count)
+            .map_err(|error| format!("Could not clear proposer Deposits reservations: {error}"))
+    }
+
     async fn validate_tree_state_against_sync_state(
         client: &Client,
         sync_state: Option<&SyncState>,
         stored_block: Option<&StoredBlock>,
     ) -> Result<(), String> {
-        let commitment_sub_tree_count =
-            tree_sub_tree_count(client, <mongodb::Client as CommitmentTree<Fr254>>::TREE_NAME)
-                .await?;
-        let historic_root_sub_tree_count =
-            tree_sub_tree_count(client, <mongodb::Client as HistoricRootTree<Fr254>>::TREE_NAME)
-                .await?;
+        let commitment_sub_tree_count = tree_sub_tree_count(
+            client,
+            <mongodb::Client as CommitmentTree<Fr254>>::TREE_NAME,
+        )
+        .await?;
+        let historic_root_sub_tree_count = tree_sub_tree_count(
+            client,
+            <mongodb::Client as HistoricRootTree<Fr254>>::TREE_NAME,
+        )
+        .await?;
 
         match sync_state {
             Some(sync_state) => {
+                let expected_historic_root_sub_tree_count =
+                    expected_historic_root_sub_tree_count(sync_state.last_applied_l2_block)?;
+
                 if historic_root_sub_tree_count <= 1 {
                     return Err(tree_state_inconsistency_error(&format!(
                         "sync_state records applied L2 block {}, but the historic root tree only \
                          contains the zero leaf.",
-                        sync_state.last_applied_l2_block
+                        sync_state.last_applied_l2_block,
+                    )));
+                }
+
+                if historic_root_sub_tree_count > expected_historic_root_sub_tree_count {
+                    return Err(tree_state_inconsistency_error(&format!(
+                        "sync_state records applied L2 block {}, but the historic root tree \
+                         sub_tree_count {} is ahead of the maximum coherent value {}.",
+                        sync_state.last_applied_l2_block,
+                        historic_root_sub_tree_count,
+                        expected_historic_root_sub_tree_count,
                     )));
                 }
 
@@ -337,6 +469,166 @@ pub mod initialisation {
         }
 
         Ok(())
+    }
+    async fn cleanup_non_canonical_startup_state(
+        client: &Client,
+        sync_state: Option<&SyncState>,
+    ) -> Result<(), String> {
+        let _ = restore_all_selected_transactions_to_mempool(client)
+            .await
+            .map_err(|error| startup_local_state_cleanup_error(&error))?;
+        let _ = clear_all_reserved_deposits(client)
+            .await
+            .map_err(|error| startup_local_state_cleanup_error(&error))?;
+
+        match sync_state {
+            Some(sync_state) => {
+                let stored_blocks = client.get_all_blocks().await.ok_or_else(|| {
+                    startup_local_state_cleanup_error(
+                        "Could not inspect proposer StoredBlocks during startup cleanup.",
+                    )
+                })?;
+
+                for stored_block in stored_blocks.into_iter().filter(|stored_block| {
+                    stored_block.layer2_block_number > sync_state.last_applied_l2_block
+                }) {
+                    client
+                        .delete_block_by_number(stored_block.layer2_block_number)
+                        .await
+                        .ok_or_else(|| {
+                            startup_local_state_cleanup_error(&format!(
+                                "Could not delete speculative StoredBlock {} during startup cleanup.",
+                                stored_block.layer2_block_number
+                            ))
+                        })?;
+                }
+            }
+            None => {
+                let _ = client.delete_all_blocks().await.ok_or_else(|| {
+                    startup_local_state_cleanup_error(
+                        "Could not delete speculative StoredBlocks during startup cleanup.",
+                    )
+                })?;
+            }
+        }
+
+        let _ = client.delete_all_pending_blocks().await.ok_or_else(|| {
+            startup_local_state_cleanup_error(
+                "Could not delete persisted PendingBlocks during startup cleanup.",
+            )
+        })?;
+
+        Ok(())
+    }
+
+    async fn validate_startup_proposer_state_consistency(client: &Client) -> Result<(), String> {
+        let sync_state = client.get_sync_state().await;
+
+        match sync_state.as_ref() {
+            Some(sync_state) => {
+                let stored_block = client
+                    .get_block_by_number(sync_state.last_applied_l2_block)
+                    .await
+                    .ok_or_else(|| missing_stored_block_error(sync_state.last_applied_l2_block))?;
+
+                validate_sync_state_against_block(sync_state, &stored_block)?;
+                validate_tree_state_against_sync_state(
+                    client,
+                    Some(sync_state),
+                    Some(&stored_block),
+                )
+                .await?;
+            }
+            None => {
+                validate_tree_state_against_sync_state(client, None, None).await?;
+
+                if let Some(highest_stored_block) = highest_stored_block_number(client).await? {
+                    return Err(stored_blocks_ahead_of_sync_state_error(
+                        0,
+                        highest_stored_block,
+                    ));
+                }
+            }
+        }
+
+        cleanup_non_canonical_startup_state(client, sync_state.as_ref()).await?;
+        validate_live_proposer_state_consistency(client).await
+    }
+
+    pub(crate) async fn validate_live_proposer_state_consistency(
+        client: &Client,
+    ) -> Result<(), String> {
+        match client.get_sync_state().await {
+            Some(sync_state) => {
+                let stored_block = client
+                    .get_block_by_number(sync_state.last_applied_l2_block)
+                    .await
+                    .ok_or_else(|| missing_stored_block_error(sync_state.last_applied_l2_block))?;
+
+                validate_sync_state_against_block(&sync_state, &stored_block)?;
+                validate_tree_state_against_sync_state(
+                    client,
+                    Some(&sync_state),
+                    Some(&stored_block),
+                )
+                .await?;
+
+                if let Some(highest_stored_block) = highest_stored_block_number(client).await? {
+                    if highest_stored_block > sync_state.last_applied_l2_block {
+                        return Err(stored_blocks_ahead_of_sync_state_error(
+                            sync_state.last_applied_l2_block,
+                            highest_stored_block,
+                        ));
+                    }
+                }
+
+                let reserved_deposit_count = reserved_deposit_count(client).await?;
+                if reserved_deposit_count > 0 {
+                    return Err(reserved_deposits_ahead_of_sync_state_error(
+                        sync_state.last_applied_l2_block,
+                        reserved_deposit_count,
+                    ));
+                }
+
+                let selected_transaction_count = selected_client_transaction_count(client).await?;
+                if selected_transaction_count > 0 {
+                    return Err(selected_transactions_ahead_of_sync_state_error(
+                        sync_state.last_applied_l2_block,
+                        selected_transaction_count,
+                    ));
+                }
+
+                Ok(())
+            }
+            None => {
+                validate_tree_state_against_sync_state(client, None, None).await?;
+
+                if let Some(highest_stored_block) = highest_stored_block_number(client).await? {
+                    return Err(stored_blocks_ahead_of_sync_state_error(
+                        0,
+                        highest_stored_block,
+                    ));
+                }
+
+                let reserved_deposit_count = reserved_deposit_count(client).await?;
+                if reserved_deposit_count > 0 {
+                    return Err(reserved_deposits_ahead_of_sync_state_error(
+                        0,
+                        reserved_deposit_count,
+                    ));
+                }
+
+                let selected_transaction_count = selected_client_transaction_count(client).await?;
+                if selected_transaction_count > 0 {
+                    return Err(selected_transactions_ahead_of_sync_state_error(
+                        0,
+                        selected_transaction_count,
+                    ));
+                }
+
+                Ok(())
+            }
+        }
     }
 
     fn validate_sync_state_against_block(
@@ -368,6 +660,8 @@ pub mod initialisation {
     where
         N: NightfallContract,
     {
+        backfill_legacy_client_transactions_at_startup(db).await?;
+
         if let Err(error) = recover_from_restore_journal(db).await {
             if db.get_restore_journal().await.is_none() {
                 warn!(
@@ -384,6 +678,8 @@ pub mod initialisation {
                 warn!("Could not initialize proposer snapshot scheduler state: {error}");
             }
         }
+
+        validate_startup_proposer_state_consistency(db).await?;
 
         let onchain_next_block_i256 = N::get_current_layer2_blocknumber()
             .await
@@ -492,6 +788,7 @@ pub mod initialisation {
     }
 
     async fn recover_then_initialize_proposer_db(db: &Client) -> Result<(), String> {
+        backfill_legacy_client_transactions_at_startup(db).await?;
         if let Err(error) = recover_from_restore_journal(db).await {
             if db.get_restore_journal().await.is_none() {
                 warn!(
@@ -511,9 +808,12 @@ pub mod initialisation {
     mod tests {
         use super::*;
         use crate::{
-            domain::entities::{L1Ref, RestoreJournalPhase, RestoreJournalStep, SyncState},
+            domain::entities::{
+                Block, ClientTransactionWithMetaData, DepositDatawithFee, L1Ref, PendingBlock,
+                PendingBlockState, RestoreJournalPhase, RestoreJournalStep, SyncState, TxLifecycle,
+            },
             driven::db::{
-                mongo_db::{StoredBlock, DB},
+                mongo_db::{StoredBlock, DB, DEPOSIT_COLLECTION},
                 snapshot::{
                     create_proposer_snapshot, load_proposer_snapshot_into_shadow,
                     restore_proposer_snapshot,
@@ -522,20 +822,39 @@ pub mod initialisation {
             driven::nightfall_event::get_expected_layer2_blocknumber,
             drivers::blockchain::nightfall_event_listener::get_synchronisation_status,
             ports::{
-                db::{BlockStorageDB, RestoreJournalDB, SyncStateDB},
+                db::{
+                    BlockStorageDB, PendingBlockDB, RestoreJournalDB, SyncStateDB, TransactionsDB,
+                },
                 trees::{CommitmentTree, HistoricRootTree},
             },
         };
-        use alloy::primitives::{Address, TxHash};
+        use alloy::primitives::{Address, Bytes, TxHash};
         use ark_bn254::Fr as Fr254;
+        use ark_serialize::SerializationError;
         use lib::hex_conversion::HexConvertible;
         use lib::merkle_trees::trees::MutableTree;
+        use lib::nf_client_proof::Proof;
+        use lib::shared_entities::{ClientTransaction, CompressedSecrets, DepositData};
         use lib::tests_utils::{get_db_connection, get_mongo};
         use mongodb::bson::{doc, Document};
+        use serde::{Deserialize, Serialize};
         use std::{fs, path::PathBuf};
         use tokio::sync::{Mutex, OnceCell};
 
         struct MockNightfallContract;
+
+        #[derive(Clone, Debug, Default, Deserialize, Serialize)]
+        struct MockProof;
+
+        impl Proof for MockProof {
+            fn compress_proof(&self) -> Result<Bytes, SerializationError> {
+                Ok(Bytes::new())
+            }
+
+            fn from_compressed(_compressed: Bytes) -> Result<Self, SerializationError> {
+                Ok(Self)
+            }
+        }
 
         #[derive(Debug, PartialEq)]
         struct CapturedSyncState {
@@ -576,7 +895,10 @@ pub mod initialisation {
         impl NightfallContract for MockNightfallContract {
             async fn propose_block(
                 _block: crate::domain::entities::Block,
-            ) -> Result<crate::ports::contracts::ProposeBlockOutcome, lib::error::NightfallContractError> {
+            ) -> Result<
+                crate::ports::contracts::ProposeBlockOutcome,
+                lib::error::NightfallContractError,
+            > {
                 unreachable!("propose_block is not used in bootstrap tests")
             }
 
@@ -715,6 +1037,68 @@ pub mod initialisation {
             sync_state
         }
 
+        fn test_reserved_deposit(seed: u64) -> DepositDatawithFee {
+            DepositDatawithFee {
+                fee: Fr254::from(seed),
+                deposit_data: DepositData {
+                    nf_token_id: Fr254::from(seed + 100),
+                    nf_slot_id: Fr254::from(seed + 101),
+                    value: Fr254::from(seed + 102),
+                    secret_hash: Fr254::from(seed + 103),
+                },
+                reserved: true,
+            }
+        }
+
+        fn test_selected_client_transaction(
+            seed: u32,
+            block_l2: u64,
+        ) -> ClientTransactionWithMetaData<MockProof> {
+            ClientTransactionWithMetaData {
+                client_transaction: ClientTransaction {
+                    commitments: [
+                        Fr254::from(u64::from(seed) + 200),
+                        Fr254::zero(),
+                        Fr254::zero(),
+                        Fr254::zero(),
+                    ],
+                    compressed_secrets: CompressedSecrets::default(),
+                    proof: MockProof,
+                    ..Default::default()
+                },
+                lifecycle: TxLifecycle::Selected { block_l2 },
+                hash: vec![seed, seed + 1, seed + 2],
+                historic_roots: vec![],
+                receipt_token: None,
+            }
+        }
+
+        fn legacy_document_from_transaction(
+            transaction: &ClientTransactionWithMetaData<MockProof>,
+            legacy_kind: &str,
+        ) -> Document {
+            let mut document =
+                mongodb::bson::to_document(transaction).expect("serialize client transaction");
+            document.remove("lifecycle");
+
+            match legacy_kind {
+                "selected_or_included" => {
+                    document.insert("in_mempool", false);
+                    document.insert("cancelled_explicitly", false);
+                    document.insert(
+                        "block_l2",
+                        mongodb::bson::Bson::Int64(
+                            i64::try_from(transaction.lifecycle.block_l2().expect("block_l2"))
+                                .expect("block_l2 fits i64"),
+                        ),
+                    );
+                }
+                other => panic!("unexpected legacy kind {other}"),
+            }
+
+            document
+        }
+
         async fn capture_proposer_state(
             client: &mongodb::Client,
             block_numbers: &[u64],
@@ -809,16 +1193,691 @@ pub mod initialisation {
             MockNightfallContract::set_onchain_next_block(6);
             reset_runtime_bootstrap_state().await;
 
-            let error = bootstrap_proposer_startup_state_with_db::<MockNightfallContract>(
-                &client, false,
-            )
-            .await
-            .expect_err("bootstrap should reject torn proposer tree state");
+            let error =
+                bootstrap_proposer_startup_state_with_db::<MockNightfallContract>(&client, false)
+                    .await
+                    .expect_err("bootstrap should reject torn proposer tree state");
 
             assert!(
                 error.contains("tree state is inconsistent")
                     && error.contains("Manual recovery is required"),
                 "unexpected bootstrap error: {error}"
+            );
+        }
+
+        #[tokio::test]
+        async fn bootstrap_cleans_stored_blocks_ahead_of_sync_state() {
+            let _lock = bootstrap_test_lock().await;
+            let container = get_mongo().await;
+            let client = get_db_connection(&container).await;
+
+            ensure_proposer_db_initialized(&client).await;
+            set_live_sync_state(&client, 5, "0x05", 500).await;
+            client
+                .store_block(&StoredBlock {
+                    layer2_block_number: 6,
+                    commitments: vec!["0x06".to_string()],
+                    proposer_address: Address::from([6u8; 20]),
+                })
+                .await
+                .expect("store speculative block ahead of sync_state");
+
+            MockNightfallContract::set_onchain_next_block(6);
+            reset_runtime_bootstrap_state().await;
+
+            bootstrap_proposer_startup_state_with_db::<MockNightfallContract>(&client, false)
+                .await
+                .expect("bootstrap should clean stored blocks ahead of sync_state");
+
+            assert!(client.get_block_by_number(6).await.is_none());
+        }
+
+        #[tokio::test]
+        async fn bootstrap_aborts_when_no_sync_state_but_stored_blocks_exist() {
+            let _lock = bootstrap_test_lock().await;
+            let container = get_mongo().await;
+            let client = get_db_connection(&container).await;
+
+            ensure_proposer_db_initialized(&client).await;
+            client
+                .store_block(&StoredBlock {
+                    layer2_block_number: 0,
+                    commitments: vec!["0x00".to_string()],
+                    proposer_address: Address::from([0u8; 20]),
+                })
+                .await
+                .expect("store block without sync_state");
+
+            MockNightfallContract::set_onchain_next_block(0);
+            reset_runtime_bootstrap_state().await;
+
+            let error =
+                bootstrap_proposer_startup_state_with_db::<MockNightfallContract>(&client, false)
+                    .await
+                    .expect_err("bootstrap should fail closed on stored blocks without sync_state");
+
+            assert!(
+                error.contains("highest StoredBlock (0) is ahead of sync_state-applied block 0"),
+                "unexpected bootstrap error: {error}"
+            );
+            assert!(
+                client.get_block_by_number(0).await.is_some(),
+                "stored block should remain because cleanup must not run after fail-closed validation"
+            );
+        }
+
+        #[tokio::test]
+        async fn bootstrap_aborts_when_no_sync_state_but_trees_are_non_empty() {
+            let _lock = bootstrap_test_lock().await;
+            let container = get_mongo().await;
+            let client = get_db_connection(&container).await;
+
+            ensure_proposer_db_initialized(&client).await;
+            materialize_tree_state_for_block(&client, 0).await;
+
+            let commitment_root_before =
+                <mongodb::Client as CommitmentTree<Fr254>>::get_root(&client)
+                    .await
+                    .expect("read commitment root before failed bootstrap");
+            let historic_root_before = <mongodb::Client as MutableTree<Fr254>>::get_root(
+                &client,
+                <mongodb::Client as HistoricRootTree<Fr254>>::TREE_NAME,
+            )
+            .await
+            .expect("read historic root before failed bootstrap");
+
+            MockNightfallContract::set_onchain_next_block(0);
+            reset_runtime_bootstrap_state().await;
+
+            let error =
+                bootstrap_proposer_startup_state_with_db::<MockNightfallContract>(&client, false)
+                    .await
+                    .expect_err("bootstrap should fail closed on trees without sync_state");
+
+            assert!(
+                error.contains("no proposer sync_state exists, but proposer trees are not empty"),
+                "unexpected bootstrap error: {error}"
+            );
+            assert_eq!(
+                <mongodb::Client as CommitmentTree<Fr254>>::get_root(&client)
+                    .await
+                    .expect("read commitment root after failed bootstrap"),
+                commitment_root_before
+            );
+            assert_eq!(
+                <mongodb::Client as MutableTree<Fr254>>::get_root(
+                    &client,
+                    <mongodb::Client as HistoricRootTree<Fr254>>::TREE_NAME,
+                )
+                .await
+                .expect("read historic root after failed bootstrap"),
+                historic_root_before
+            );
+        }
+
+        #[tokio::test]
+        async fn bootstrap_cleans_ready_to_propose_pending_block_startup_state() {
+            let _lock = bootstrap_test_lock().await;
+            let container = get_mongo().await;
+            let client = get_db_connection(&container).await;
+
+            ensure_proposer_db_initialized(&client).await;
+            set_live_sync_state(&client, 5, "0x05", 500).await;
+            let canonical_commitment_root =
+                <mongodb::Client as CommitmentTree<Fr254>>::get_root(&client)
+                    .await
+                    .expect("read canonical commitment root before cleanup");
+            let canonical_historic_root = <mongodb::Client as MutableTree<Fr254>>::get_root(
+                &client,
+                <mongodb::Client as HistoricRootTree<Fr254>>::TREE_NAME,
+            )
+            .await
+            .expect("read canonical historic root before cleanup");
+            let selected_deposit = test_reserved_deposit(5);
+            let selected_transaction = test_selected_client_transaction(51, 6);
+            let included_transaction = ClientTransactionWithMetaData {
+                lifecycle: TxLifecycle::Included { block_l2: 4 },
+                ..test_selected_client_transaction(61, 4)
+            };
+            let dropped_transaction = ClientTransactionWithMetaData {
+                lifecycle: TxLifecycle::Dropped,
+                ..test_selected_client_transaction(71, 6)
+            };
+            <mongodb::Client as TransactionsDB<MockProof>>::set_mempool_deposits(
+                &client,
+                vec![selected_deposit],
+            )
+            .await
+            .expect("store reserved deposit for ready pending block");
+            client
+                .store_transaction(selected_transaction.clone())
+                .await
+                .expect("store selected client transaction for ready pending block");
+            client
+                .store_transaction(included_transaction.clone())
+                .await
+                .expect("store included client transaction for ready pending block");
+            client
+                .store_transaction(dropped_transaction.clone())
+                .await
+                .expect("store dropped client transaction for ready pending block");
+
+            client
+                .store_pending_block(&PendingBlock {
+                    layer2_block_number: 6,
+                    state: PendingBlockState::ReadyToPropose,
+                    broadcast_tx_hash: None,
+                    broadcast_receipt_checks: 0,
+                    block: Some(Block::default()),
+                    selected_deposits: vec![vec![selected_deposit]],
+                    selected_client_transaction_hashes: vec![selected_transaction.hash.clone()],
+                })
+                .await
+                .expect("store ready pending block");
+            client
+                .store_block(&StoredBlock {
+                    layer2_block_number: 6,
+                    commitments: vec!["0x06".to_string()],
+                    proposer_address: Address::from([6u8; 20]),
+                })
+                .await
+                .expect("store speculative block for ready pending block");
+
+            MockNightfallContract::set_onchain_next_block(6);
+            reset_runtime_bootstrap_state().await;
+
+            bootstrap_proposer_startup_state_with_db::<MockNightfallContract>(&client, false)
+                .await
+                .expect("bootstrap should clean ready pending state");
+
+            assert_eq!(client.get_pending_block(6).await, None);
+            assert!(client.get_block_by_number(6).await.is_none());
+            assert_eq!(
+                client
+                    .database(DB)
+                    .collection::<Document>(DEPOSIT_COLLECTION)
+                    .count_documents(doc! { "reserved": true })
+                    .await
+                    .expect("count reserved deposits after ready pending cleanup"),
+                0
+            );
+            assert!(
+                <mongodb::Client as TransactionsDB<MockProof>>::get_transaction(
+                    &client,
+                    &selected_transaction.hash,
+                )
+                .await
+                .expect("selected transaction should still exist after cleanup")
+                .lifecycle
+                .is_mempool()
+            );
+            assert_eq!(
+                <mongodb::Client as TransactionsDB<MockProof>>::get_transaction(
+                    &client,
+                    &included_transaction.hash,
+                )
+                .await
+                .expect("included transaction should still exist after cleanup")
+                .lifecycle,
+                TxLifecycle::Included { block_l2: 4 }
+            );
+            assert_eq!(
+                <mongodb::Client as TransactionsDB<MockProof>>::get_transaction(
+                    &client,
+                    &dropped_transaction.hash,
+                )
+                .await
+                .expect("dropped transaction should still exist after cleanup")
+                .lifecycle,
+                TxLifecycle::Dropped
+            );
+            assert_eq!(
+                <mongodb::Client as CommitmentTree<Fr254>>::get_root(&client)
+                    .await
+                    .expect("read commitment root after cleanup"),
+                canonical_commitment_root
+            );
+            assert_eq!(
+                <mongodb::Client as MutableTree<Fr254>>::get_root(
+                    &client,
+                    <mongodb::Client as HistoricRootTree<Fr254>>::TREE_NAME,
+                )
+                .await
+                .expect("read historic root after cleanup"),
+                canonical_historic_root
+            );
+        }
+
+        #[tokio::test]
+        async fn bootstrap_cleans_reserved_pending_block_recovery_state() {
+            let _lock = bootstrap_test_lock().await;
+            let container = get_mongo().await;
+            let client = get_db_connection(&container).await;
+
+            ensure_proposer_db_initialized(&client).await;
+            set_live_sync_state(&client, 5, "0x05", 500).await;
+            let selected_deposit = test_reserved_deposit(7);
+            let selected_transaction = test_selected_client_transaction(71, 6);
+            <mongodb::Client as TransactionsDB<MockProof>>::set_mempool_deposits(
+                &client,
+                vec![selected_deposit],
+            )
+            .await
+            .expect("store reserved deposit for reserved pending block");
+            client
+                .store_transaction(selected_transaction.clone())
+                .await
+                .expect("store selected client transaction for reserved pending block");
+
+            client
+                .store_pending_block(&PendingBlock {
+                    layer2_block_number: 6,
+                    state: PendingBlockState::Reserved,
+                    broadcast_tx_hash: None,
+                    broadcast_receipt_checks: 0,
+                    block: None,
+                    selected_deposits: vec![vec![selected_deposit]],
+                    selected_client_transaction_hashes: vec![vec![9, 9, 9]],
+                })
+                .await
+                .expect("store reserved pending block");
+            client
+                .store_block(&StoredBlock {
+                    layer2_block_number: 6,
+                    commitments: vec!["0x06".to_string()],
+                    proposer_address: Address::from([6u8; 20]),
+                })
+                .await
+                .expect("store speculative block for reserved pending block");
+
+            MockNightfallContract::set_onchain_next_block(6);
+            reset_runtime_bootstrap_state().await;
+
+            bootstrap_proposer_startup_state_with_db::<MockNightfallContract>(&client, false)
+                .await
+                .expect("bootstrap should clean reserved pending state");
+
+            assert_eq!(client.get_pending_block(6).await, None);
+            assert!(client.get_block_by_number(6).await.is_none());
+            assert_eq!(
+                client
+                    .database(DB)
+                    .collection::<Document>(DEPOSIT_COLLECTION)
+                    .count_documents(doc! { "reserved": true })
+                    .await
+                    .expect("count reserved deposits after reserved pending cleanup"),
+                0
+            );
+            assert!(
+                <mongodb::Client as TransactionsDB<MockProof>>::get_transaction(
+                    &client,
+                    &selected_transaction.hash,
+                )
+                .await
+                .expect("selected transaction should still exist after cleanup")
+                .lifecycle
+                .is_mempool()
+            );
+        }
+
+        #[tokio::test]
+        async fn bootstrap_cleans_broadcast_pending_block_startup_state() {
+            let _lock = bootstrap_test_lock().await;
+            let container = get_mongo().await;
+            let client = get_db_connection(&container).await;
+
+            ensure_proposer_db_initialized(&client).await;
+            set_live_sync_state(&client, 5, "0x05", 500).await;
+            let selected_deposit = test_reserved_deposit(9);
+            let selected_transaction = test_selected_client_transaction(91, 6);
+            <mongodb::Client as TransactionsDB<MockProof>>::set_mempool_deposits(
+                &client,
+                vec![selected_deposit],
+            )
+            .await
+            .expect("store reserved deposit for broadcast pending block");
+            client
+                .store_transaction(selected_transaction.clone())
+                .await
+                .expect("store selected client transaction for broadcast pending block");
+
+            client
+                .store_pending_block(&PendingBlock {
+                    layer2_block_number: 6,
+                    state: PendingBlockState::BroadcastPending,
+                    broadcast_tx_hash: Some(TxHash::from([9u8; 32])),
+                    broadcast_receipt_checks: 3,
+                    block: Some(Block::default()),
+                    selected_deposits: vec![vec![selected_deposit]],
+                    selected_client_transaction_hashes: vec![selected_transaction.hash.clone()],
+                })
+                .await
+                .expect("store broadcast-pending block");
+            client
+                .store_block(&StoredBlock {
+                    layer2_block_number: 6,
+                    commitments: vec!["0x06".to_string()],
+                    proposer_address: Address::from([9u8; 20]),
+                })
+                .await
+                .expect("store speculative block for broadcast-pending block");
+
+            MockNightfallContract::set_onchain_next_block(6);
+            reset_runtime_bootstrap_state().await;
+
+            bootstrap_proposer_startup_state_with_db::<MockNightfallContract>(&client, false)
+                .await
+                .expect("bootstrap should clean broadcast-pending state");
+
+            assert_eq!(client.get_pending_block(6).await, None);
+            assert!(client.get_block_by_number(6).await.is_none());
+            assert_eq!(
+                client
+                    .database(DB)
+                    .collection::<Document>(DEPOSIT_COLLECTION)
+                    .count_documents(doc! { "reserved": true })
+                    .await
+                    .expect("count reserved deposits after broadcast cleanup"),
+                0
+            );
+            assert!(
+                <mongodb::Client as TransactionsDB<MockProof>>::get_transaction(
+                    &client,
+                    &selected_transaction.hash,
+                )
+                .await
+                .expect("selected transaction should still exist after cleanup")
+                .lifecycle
+                .is_mempool()
+            );
+        }
+
+        #[tokio::test]
+        async fn bootstrap_backfills_legacy_client_transaction_lifecycle_before_cleanup() {
+            let _lock = bootstrap_test_lock().await;
+            let container = get_mongo().await;
+            let client = get_db_connection(&container).await;
+
+            ensure_proposer_db_initialized(&client).await;
+            let included_transaction = test_selected_client_transaction(201, 5);
+            let selected_transaction = test_selected_client_transaction(211, 6);
+            let canonical_commitment =
+                included_transaction.client_transaction.commitments[0].to_hex_string();
+            set_live_sync_state(&client, 5, &canonical_commitment, 500).await;
+            client
+                .database(DB)
+                .collection::<Document>("ClientTransactions")
+                .insert_many(vec![
+                    legacy_document_from_transaction(&included_transaction, "selected_or_included"),
+                    legacy_document_from_transaction(&selected_transaction, "selected_or_included"),
+                ])
+                .await
+                .expect("store legacy lifecycle fixtures");
+
+            MockNightfallContract::set_onchain_next_block(6);
+            reset_runtime_bootstrap_state().await;
+
+            bootstrap_proposer_startup_state_with_db::<MockNightfallContract>(&client, false)
+                .await
+                .expect("bootstrap should backfill legacy lifecycle fields before cleanup");
+
+            assert_eq!(
+                <mongodb::Client as TransactionsDB<MockProof>>::get_transaction(
+                    &client,
+                    &included_transaction.hash,
+                )
+                .await
+                .expect("included transaction should still exist after bootstrap")
+                .lifecycle,
+                TxLifecycle::Included { block_l2: 5 }
+            );
+            assert!(
+                <mongodb::Client as TransactionsDB<MockProof>>::get_transaction(
+                    &client,
+                    &selected_transaction.hash,
+                )
+                .await
+                .expect("selected transaction should still exist after bootstrap")
+                .lifecycle
+                .is_mempool(),
+                "startup cleanup should only demote the legacy Selected transaction after backfill"
+            );
+        }
+
+        #[tokio::test]
+        async fn bootstrap_cleans_reserved_deposits_ahead_of_sync_state_without_pending_block() {
+            let _lock = bootstrap_test_lock().await;
+            let container = get_mongo().await;
+            let client = get_db_connection(&container).await;
+
+            ensure_proposer_db_initialized(&client).await;
+            set_live_sync_state(&client, 5, "0x05", 500).await;
+            <mongodb::Client as TransactionsDB<MockProof>>::set_mempool_deposits(
+                &client,
+                vec![DepositDatawithFee {
+                    fee: Fr254::from(5u64),
+                    deposit_data: DepositData {
+                        nf_token_id: Fr254::from(51u64),
+                        nf_slot_id: Fr254::from(52u64),
+                        value: Fr254::from(53u64),
+                        secret_hash: Fr254::from(54u64),
+                    },
+                    reserved: true,
+                }],
+            )
+            .await
+            .expect("store reserved deposit");
+
+            MockNightfallContract::set_onchain_next_block(6);
+            reset_runtime_bootstrap_state().await;
+
+            bootstrap_proposer_startup_state_with_db::<MockNightfallContract>(&client, false)
+                .await
+                .expect("bootstrap should clean reserved deposits ahead of sync_state");
+
+            assert_eq!(
+                client
+                    .database(DB)
+                    .collection::<Document>(DEPOSIT_COLLECTION)
+                    .count_documents(doc! { "reserved": true })
+                    .await
+                    .expect("count reserved deposits after cleanup"),
+                0
+            );
+        }
+
+        #[tokio::test]
+        async fn bootstrap_cleans_reserved_pending_block_with_mismatched_deposit_identities() {
+            let _lock = bootstrap_test_lock().await;
+            let container = get_mongo().await;
+            let client = get_db_connection(&container).await;
+
+            ensure_proposer_db_initialized(&client).await;
+            set_live_sync_state(&client, 5, "0x05", 500).await;
+            let selected_deposit = DepositDatawithFee {
+                reserved: false,
+                ..test_reserved_deposit(11)
+            };
+            let orphan_reserved_deposit = test_reserved_deposit(12);
+            <mongodb::Client as TransactionsDB<MockProof>>::set_mempool_deposits(
+                &client,
+                vec![selected_deposit, orphan_reserved_deposit],
+            )
+            .await
+            .expect("store mismatched reserved deposits for reserved cleanup");
+
+            client
+                .store_pending_block(&PendingBlock {
+                    layer2_block_number: 6,
+                    state: PendingBlockState::Reserved,
+                    broadcast_tx_hash: None,
+                    broadcast_receipt_checks: 0,
+                    block: None,
+                    selected_deposits: vec![vec![selected_deposit]],
+                    selected_client_transaction_hashes: Vec::new(),
+                })
+                .await
+                .expect("store reserved pending block");
+
+            MockNightfallContract::set_onchain_next_block(6);
+            reset_runtime_bootstrap_state().await;
+
+            bootstrap_proposer_startup_state_with_db::<MockNightfallContract>(&client, false)
+                .await
+                .expect("bootstrap should clean mismatched reserved deposit identities");
+
+            assert_eq!(
+                client
+                    .database(DB)
+                    .collection::<Document>(DEPOSIT_COLLECTION)
+                    .count_documents(doc! { "reserved": true })
+                    .await
+                    .expect("count reserved deposits after cleanup"),
+                0
+            );
+            assert_eq!(client.get_pending_block(6).await, None);
+        }
+
+        #[tokio::test]
+        async fn bootstrap_cleans_ready_pending_selected_client_transaction_hash_mismatch() {
+            let _lock = bootstrap_test_lock().await;
+            let container = get_mongo().await;
+            let client = get_db_connection(&container).await;
+
+            ensure_proposer_db_initialized(&client).await;
+            set_live_sync_state(&client, 5, "0x05", 500).await;
+            let selected_deposit = test_reserved_deposit(13);
+            let selected_transaction = test_selected_client_transaction(131, 6);
+            let orphan_selected_transaction = test_selected_client_transaction(141, 6);
+
+            <mongodb::Client as TransactionsDB<MockProof>>::set_mempool_deposits(
+                &client,
+                vec![selected_deposit],
+            )
+            .await
+            .expect("store reserved deposit for ready pending state");
+            client
+                .store_transaction(selected_transaction.clone())
+                .await
+                .expect("store selected client transaction for ready pending block");
+            client
+                .store_transaction(orphan_selected_transaction.clone())
+                .await
+                .expect("store orphan selected transaction for ready pending block");
+
+            client
+                .store_pending_block(&PendingBlock {
+                    layer2_block_number: 6,
+                    state: PendingBlockState::ReadyToPropose,
+                    broadcast_tx_hash: None,
+                    broadcast_receipt_checks: 0,
+                    block: Some(Block::default()),
+                    selected_deposits: vec![vec![selected_deposit]],
+                    selected_client_transaction_hashes: vec![selected_transaction.hash.clone()],
+                })
+                .await
+                .expect("store ready pending block with mismatched selected tx identities");
+            client
+                .store_block(&StoredBlock {
+                    layer2_block_number: 6,
+                    commitments: vec!["0x06".to_string()],
+                    proposer_address: Address::from([6u8; 20]),
+                })
+                .await
+                .expect("store speculative block for ready pending block");
+
+            MockNightfallContract::set_onchain_next_block(6);
+            reset_runtime_bootstrap_state().await;
+
+            bootstrap_proposer_startup_state_with_db::<MockNightfallContract>(&client, false)
+                .await
+                .expect("bootstrap should clean mismatched selected transaction identities");
+
+            assert_eq!(client.get_pending_block(6).await, None);
+            assert!(client.get_block_by_number(6).await.is_none());
+            assert!(
+                <mongodb::Client as TransactionsDB<MockProof>>::get_transaction(
+                    &client,
+                    &selected_transaction.hash,
+                )
+                .await
+                .expect("selected transaction should still exist after cleanup")
+                .lifecycle
+                .is_mempool()
+            );
+            assert!(
+                <mongodb::Client as TransactionsDB<MockProof>>::get_transaction(
+                    &client,
+                    &orphan_selected_transaction.hash,
+                )
+                .await
+                .expect("orphan selected transaction should still exist after cleanup")
+                .lifecycle
+                .is_mempool()
+            );
+        }
+
+        #[tokio::test]
+        async fn bootstrap_cleans_ready_pending_selected_client_transaction_block_mismatch() {
+            let _lock = bootstrap_test_lock().await;
+            let container = get_mongo().await;
+            let client = get_db_connection(&container).await;
+
+            ensure_proposer_db_initialized(&client).await;
+            set_live_sync_state(&client, 5, "0x05", 500).await;
+            let selected_deposit = test_reserved_deposit(15);
+            let selected_transaction = test_selected_client_transaction(151, 7);
+
+            <mongodb::Client as TransactionsDB<MockProof>>::set_mempool_deposits(
+                &client,
+                vec![selected_deposit],
+            )
+            .await
+            .expect("store reserved deposit for wrong-block selected transaction");
+            client
+                .store_transaction(selected_transaction.clone())
+                .await
+                .expect("store selected transaction with wrong block");
+
+            client
+                .store_pending_block(&PendingBlock {
+                    layer2_block_number: 6,
+                    state: PendingBlockState::ReadyToPropose,
+                    broadcast_tx_hash: None,
+                    broadcast_receipt_checks: 0,
+                    block: Some(Block::default()),
+                    selected_deposits: vec![vec![selected_deposit]],
+                    selected_client_transaction_hashes: vec![selected_transaction.hash.clone()],
+                })
+                .await
+                .expect("store ready pending block");
+            client
+                .store_block(&StoredBlock {
+                    layer2_block_number: 6,
+                    commitments: vec!["0x06".to_string()],
+                    proposer_address: Address::from([6u8; 20]),
+                })
+                .await
+                .expect("store speculative block for wrong-block selected tx");
+
+            MockNightfallContract::set_onchain_next_block(6);
+            reset_runtime_bootstrap_state().await;
+
+            bootstrap_proposer_startup_state_with_db::<MockNightfallContract>(&client, false)
+                .await
+                .expect("bootstrap should clean selected transaction bound to wrong block");
+
+            assert_eq!(client.get_pending_block(6).await, None);
+            assert!(client.get_block_by_number(6).await.is_none());
+            assert!(
+                <mongodb::Client as TransactionsDB<MockProof>>::get_transaction(
+                    &client,
+                    &selected_transaction.hash,
+                )
+                .await
+                .expect("selected transaction should still exist after cleanup")
+                .lifecycle
+                .is_mempool()
             );
         }
 
@@ -853,6 +1912,51 @@ pub mod initialisation {
                 }
             });
             ordered
+        }
+
+        async fn first_existing_live_restore_collection(
+            client: &mongodb::Client,
+            journal: &[crate::domain::entities::RestoreJournalCollection],
+        ) -> (usize, crate::domain::entities::RestoreJournalCollection) {
+            let existing_collections = client
+                .database(DB)
+                .list_collection_names()
+                .await
+                .expect("list collections");
+            ordered_restore_collections(journal)
+                .into_iter()
+                .enumerate()
+                .find(|(_, collection)| {
+                    existing_collections
+                        .iter()
+                        .any(|name| name == &collection.live)
+                })
+                .expect("at least one live restore collection should exist")
+        }
+
+        async fn next_required_live_restore_collection(
+            client: &mongodb::Client,
+            journal: &[crate::domain::entities::RestoreJournalCollection],
+            after_index: usize,
+        ) -> (usize, crate::domain::entities::RestoreJournalCollection) {
+            let existing_collections = client
+                .database(DB)
+                .list_collection_names()
+                .await
+                .expect("list collections");
+            ordered_restore_collections(journal)
+                .into_iter()
+                .enumerate()
+                .skip(after_index + 1)
+                .find(|(_, collection)| {
+                    existing_collections
+                        .iter()
+                        .any(|name| name == &collection.live)
+                        && crate::driven::db::snapshot::required_proposer_snapshot_collection_names()
+                            .iter()
+                            .any(|name| name == &collection.live)
+                })
+                .expect("expected another required live restore collection after the first processed one")
         }
 
         #[tokio::test]
@@ -926,12 +2030,14 @@ pub mod initialisation {
                 .await
                 .expect("load snapshot into shadow");
             let ordered = ordered_restore_collections(&journal.collections);
-            rename_collection(&client, &ordered[0].live, &ordered[0].backup)
+            let (first_live_index, first_live) =
+                first_existing_live_restore_collection(&client, &journal.collections).await;
+            rename_collection(&client, &first_live.live, &first_live.backup)
                 .await
                 .expect("simulate backup rename");
             journal.collections = ordered;
             journal.phase = RestoreJournalPhase::SwapInProgress;
-            journal.current_index = Some(0);
+            journal.current_index = Some(first_live_index as u32);
             journal.current_step = Some(RestoreJournalStep::BackupCreated);
             journal.updated_at = mongodb::bson::DateTime::now();
             client
@@ -989,12 +2095,14 @@ pub mod initialisation {
                 .await
                 .expect("load snapshot into shadow");
             let ordered = ordered_restore_collections(&journal.collections);
-            rename_collection(&client, &ordered[0].live, &ordered[0].backup)
+            let (first_live_index, first_live) =
+                first_existing_live_restore_collection(&client, &journal.collections).await;
+            rename_collection(&client, &first_live.live, &first_live.backup)
                 .await
                 .expect("simulate backup rename");
             journal.collections = ordered;
             journal.phase = RestoreJournalPhase::SwapInProgress;
-            journal.current_index = Some(0);
+            journal.current_index = Some(first_live_index as u32);
             journal.current_step = Some(RestoreJournalStep::BackupCreated);
             journal.updated_at = mongodb::bson::DateTime::now();
             client
@@ -1041,15 +2149,24 @@ pub mod initialisation {
                 .await
                 .expect("load snapshot into shadow");
             let ordered = ordered_restore_collections(&journal.collections);
-            rename_collection(&client, &ordered[0].live, &ordered[0].backup)
+            let (first_live_index, first_live) =
+                first_existing_live_restore_collection(&client, &journal.collections).await;
+            rename_collection(&client, &first_live.live, &first_live.backup)
                 .await
                 .expect("rename first live to backup");
-            rename_collection(&client, &ordered[0].shadow, &ordered[0].live)
+            rename_collection(&client, &first_live.shadow, &first_live.live)
                 .await
                 .expect("rename first shadow to live");
+            let (next_live_index, next_live) = next_required_live_restore_collection(
+                &client,
+                &journal.collections,
+                first_live_index,
+            )
+            .await;
+
             journal.collections = ordered;
             journal.phase = RestoreJournalPhase::SwapInProgress;
-            journal.current_index = Some(1);
+            journal.current_index = Some(next_live_index as u32);
             journal.current_step = Some(RestoreJournalStep::BackupPending);
             journal.updated_at = mongodb::bson::DateTime::now();
             client
@@ -1059,7 +2176,7 @@ pub mod initialisation {
 
             client
                 .database(DB)
-                .collection::<Document>(&journal.collections[1].live)
+                .collection::<Document>(&next_live.live)
                 .drop()
                 .await
                 .expect("drop live collection to force rollback");
@@ -1107,12 +2224,14 @@ pub mod initialisation {
                 .await
                 .expect("load snapshot into shadow");
             let ordered = ordered_restore_collections(&journal.collections);
-            rename_collection(&client, &ordered[0].live, &ordered[0].backup)
+            let (first_live_index, first_live) =
+                first_existing_live_restore_collection(&client, &journal.collections).await;
+            rename_collection(&client, &first_live.live, &first_live.backup)
                 .await
                 .expect("simulate missing live collection mid-swap");
             journal.collections = ordered;
             journal.phase = RestoreJournalPhase::SwapInProgress;
-            journal.current_index = Some(0);
+            journal.current_index = Some(first_live_index as u32);
             journal.current_step = Some(RestoreJournalStep::BackupCreated);
             journal.updated_at = mongodb::bson::DateTime::now();
             client
@@ -1162,8 +2281,7 @@ pub mod initialisation {
             set_live_sync_state(&client, 12, "0xbad", 1299).await;
             materialize_tree_state_for_block(&client, 99).await;
 
-            let restored_sync_state = restore_proposer_snapshot(&client, &snapshot_dir)
-                .await;
+            let restored_sync_state = restore_proposer_snapshot(&client, &snapshot_dir).await;
             assert_eq!(
                 restored_sync_state.expect("restore should succeed"),
                 snapshot_sync_state

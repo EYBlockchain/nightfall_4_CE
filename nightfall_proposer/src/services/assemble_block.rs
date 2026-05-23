@@ -2,7 +2,7 @@ use crate::{
     domain::entities::{
         Block, ClientTransactionWithMetaData, DepositDatawithFee, PendingBlock, PendingBlockState,
     },
-    driven::db::mongo_db::StoredBlock,
+    driven::db::{mongo_db::StoredBlock, snapshot::acquire_proposer_state_maintenance_guard},
     drivers::blockchain::block_assembly::BlockAssemblyError,
     initialisation::{get_blockchain_client_connection, get_db_connection},
     ports::{
@@ -191,6 +191,7 @@ where
     P: Proof,
     R: RecursiveProvingEngine<P> + Send + Sync + 'static,
 {
+    let _maintenance_guard = acquire_proposer_state_maintenance_guard().await;
     let result = prepare_block_data::<P>(db, block_size, layer2_block_number).await;
     match &result {
         Ok(_) => info!("Block data prepared successfully"),

@@ -4,6 +4,10 @@ use crate::{
         RestoreJournal, SyncState, TransferReceipt, TransferReceiptStatus, TxHashBytes,
         TxLifecycle,
     },
+    driven::db::client_transaction_state::{
+        selected_or_included_transactions_filter, selected_transactions_filter,
+        selected_transactions_filter_for_block,
+    },
     ports::db::{
         BlockStorageDB, HistoricRootsDB, PendingBlockDB, RestoreJournalDB, SyncStateDB,
         TransactionsDB, TransferReceiptDB, TransferReceiptStoreError,
@@ -25,22 +29,13 @@ fn lifecycle_bson(lifecycle: &TxLifecycle) -> Bson {
     mongodb::bson::to_bson(lifecycle).expect("TxLifecycle should serialize to BSON")
 }
 
-// Temporary migration support: queries must match both the new explicit
-// lifecycle document and the legacy triplet {in_mempool, block_l2,
-// cancelled_explicitly} until existing proposer data has been backfilled.
+// Startup migration backfills legacy client transaction lifecycle fields. The
+// remaining legacy query branches below are only retained for mempool and
+// cancelled-state compatibility while older data drains out of the system.
 fn legacy_mempool_filter() -> Document {
     doc! {
         "lifecycle": { "$exists": false },
         "in_mempool": true,
-        "cancelled_explicitly": { "$ne": true }
-    }
-}
-
-fn legacy_selected_filter() -> Document {
-    doc! {
-        "lifecycle": { "$exists": false },
-        "in_mempool": { "$ne": true },
-        "block_l2": { "$exists": true, "$ne": Bson::Null },
         "cancelled_explicitly": { "$ne": true }
     }
 }
@@ -50,41 +45,6 @@ fn mempool_state_filter() -> Document {
         "$or": [
             doc! { "lifecycle.state": "mempool" },
             legacy_mempool_filter()
-        ]
-    }
-}
-
-fn selected_state_filter() -> Document {
-    doc! {
-        "$or": [
-            doc! { "lifecycle.state": "selected" },
-            legacy_selected_filter()
-        ]
-    }
-}
-
-fn selected_or_included_state_filter() -> Document {
-    doc! {
-        "$or": [
-            doc! { "lifecycle.state": { "$in": ["selected", "included"] } },
-            legacy_selected_filter()
-        ]
-    }
-}
-
-fn selected_state_filter_for_block(block_l2: i64) -> Document {
-    doc! {
-        "$or": [
-            doc! {
-                "lifecycle.state": "selected",
-                "lifecycle.block_l2": Bson::Int64(block_l2)
-            },
-            doc! {
-                "lifecycle": { "$exists": false },
-                "in_mempool": { "$ne": true },
-                "block_l2": Bson::Int64(block_l2),
-                "cancelled_explicitly": { "$ne": true }
-            }
         ]
     }
 }
@@ -198,7 +158,7 @@ where
     async fn get_all_selected_client_transactions(
         &self,
     ) -> Option<Vec<(Vec<u32>, ClientTransactionWithMetaData<P>)>> {
-        let filter = selected_state_filter();
+        let filter = selected_transactions_filter();
         let mut cursor: mongodb::Cursor<ClientTransactionWithMetaData<P>> = self
             .database(DB)
             .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
@@ -240,7 +200,7 @@ where
         swap_link: &Fr254,
     ) -> Result<u64, mongodb::error::Error> {
         let mut filter = swap_link_filter(swap_link);
-        filter.extend(selected_or_included_state_filter());
+        filter.extend(selected_or_included_transactions_filter());
         self.database(DB)
             .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
             .count_documents(filter)
@@ -340,7 +300,7 @@ where
         let mut filter = doc! {
             "hash": { "$in": k }
         };
-        filter.extend(selected_state_filter_for_block(block_l2));
+        filter.extend(selected_transactions_filter_for_block(block_l2));
         let update = doc! {"$set": {
             "lifecycle": lifecycle_bson(&TxLifecycle::Mempool)
         }};
@@ -373,7 +333,7 @@ where
             let block_l2_i64 = i64::try_from(block_l2).ok()?;
 
             let mut filter = doc! { "hash": hash };
-            filter.extend(selected_state_filter_for_block(block_l2_i64));
+            filter.extend(selected_transactions_filter_for_block(block_l2_i64));
             let update = doc! {"$set": {
                 "lifecycle": lifecycle_bson(&TxLifecycle::Included { block_l2 })
             }};
@@ -527,6 +487,19 @@ where
             .database(DB)
             .collection::<DepositDatawithFee>(DEPOSIT_COLLECTION)
             .update_many(filter, update)
+            .await
+            .ok()?;
+        Some(result.modified_count)
+    }
+
+    async fn clear_all_mempool_deposit_reservations(&self) -> Option<u64> {
+        let result = self
+            .database(DB)
+            .collection::<DepositDatawithFee>(DEPOSIT_COLLECTION)
+            .update_many(
+                doc! { "reserved": true },
+                doc! { "$set": { "reserved": false } },
+            )
             .await
             .ok()?;
         Some(result.modified_count)
@@ -704,6 +677,16 @@ impl BlockStorageDB for mongodb::Client {
         Some(())
     }
 
+    async fn delete_all_blocks(&self) -> Option<u64> {
+        let result = self
+            .database(DB)
+            .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
+            .delete_many(doc! {})
+            .await
+            .ok()?;
+        Some(result.deleted_count)
+    }
+
     async fn delete_block_by_number_with_session(
         &self,
         block_number: u64,
@@ -716,6 +699,19 @@ impl BlockStorageDB for mongodb::Client {
             .session(&mut *session)
             .await?;
         Ok(())
+    }
+
+    async fn delete_all_blocks_with_session(
+        &self,
+        session: &mut mongodb::ClientSession,
+    ) -> Result<u64, mongodb::error::Error> {
+        let result = self
+            .database(DB)
+            .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
+            .delete_many(doc! {})
+            .session(&mut *session)
+            .await?;
+        Ok(result.deleted_count)
     }
 }
 
@@ -807,9 +803,7 @@ impl RestoreJournalDB for mongodb::Client {
 
 /// Creates a unique index for proposer deposit replay identity.
 /// Must be called once at proposer startup.
-pub async fn ensure_deposit_indexes(
-    client: &mongodb::Client,
-) -> Result<(), mongodb::error::Error> {
+pub async fn ensure_deposit_indexes(client: &mongodb::Client) -> Result<(), mongodb::error::Error> {
     use mongodb::options::IndexOptions;
     use mongodb::IndexModel;
 
@@ -1008,6 +1002,29 @@ impl PendingBlockDB for mongodb::Client {
             .ok()?;
         Some(())
     }
+
+    async fn delete_all_pending_blocks(&self) -> Option<u64> {
+        let result = self
+            .database(DB)
+            .collection::<PendingBlock>(PENDING_BLOCKS_COLLECTION)
+            .delete_many(doc! {})
+            .await
+            .ok()?;
+        Some(result.deleted_count)
+    }
+
+    async fn delete_all_pending_blocks_with_session(
+        &self,
+        session: &mut mongodb::ClientSession,
+    ) -> Result<u64, mongodb::error::Error> {
+        let result = self
+            .database(DB)
+            .collection::<PendingBlock>(PENDING_BLOCKS_COLLECTION)
+            .delete_many(doc! {})
+            .session(&mut *session)
+            .await?;
+        Ok(result.deleted_count)
+    }
 }
 
 #[cfg(test)]
@@ -1042,43 +1059,22 @@ mod test {
     }
 
     #[test]
-    fn selected_filter_matches_new_and_legacy_shapes() {
-        let filter = selected_state_filter();
-        let branches = filter
-            .get_array("$or")
-            .expect("selected filter should contain transitional branches");
+    fn selected_filter_matches_only_explicit_selected_lifecycle_state() {
+        let filter = selected_transactions_filter();
 
-        assert_eq!(branches.len(), 2);
         assert_eq!(
-            branches[0]
-                .as_document()
-                .and_then(|doc| doc.get_str("lifecycle.state").ok()),
-            Some("selected")
+            filter.get_str("lifecycle.state"),
+            Ok("selected"),
+            "selected filter should only match the explicit Selected lifecycle state"
         );
-        let legacy = branches[1]
-            .as_document()
-            .expect("legacy selected branch should be a document");
-        assert_eq!(
-            legacy
-                .get_document("lifecycle")
-                .and_then(|doc| doc.get_bool("$exists")),
-            Ok(false)
-        );
-        assert!(legacy.get("block_l2").is_some());
     }
 
     #[test]
-    fn selected_or_included_filter_matches_active_and_finalized_shapes() {
-        let filter = selected_or_included_state_filter();
-        let branches = filter
-            .get_array("$or")
-            .expect("selected-or-included filter should contain transitional branches");
-
-        assert_eq!(branches.len(), 2);
-        let lifecycle_state = branches[0]
-            .as_document()
-            .and_then(|doc| doc.get_document("lifecycle.state").ok())
-            .expect("new lifecycle branch should match multiple states");
+    fn selected_or_included_filter_matches_explicit_lifecycle_states_only() {
+        let filter = selected_or_included_transactions_filter();
+        let lifecycle_state = filter
+            .get_document("lifecycle.state")
+            .expect("selected-or-included filter should match multiple explicit lifecycle states");
         assert_eq!(
             lifecycle_state.get_array("$in").expect("$in states").len(),
             2

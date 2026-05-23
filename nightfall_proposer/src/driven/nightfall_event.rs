@@ -158,6 +158,68 @@ where
     Ok(())
 }
 
+fn stored_block_from_pending_block(
+    pending_block: &crate::domain::entities::PendingBlock,
+    proposer_address: alloy::primitives::Address,
+) -> Option<StoredBlock> {
+    let block = pending_block.block.as_ref()?;
+
+    Some(StoredBlock {
+        layer2_block_number: pending_block.layer2_block_number,
+        commitments: block
+            .transactions
+            .iter()
+            .flat_map(|ntx| {
+                ntx.commitments
+                    .iter()
+                    .map(|c| c.to_hex_string())
+                    .collect::<Vec<_>>()
+            })
+            .collect(),
+        proposer_address,
+    })
+}
+
+async fn finalize_pending_block_after_applied_block<P>(
+    db: &Client,
+    pending_block: crate::domain::entities::PendingBlock,
+    our_address: alloy::primitives::Address,
+    applied_block: &StoredBlock,
+) where
+    P: Proof,
+{
+    if let Some(pending_block_hash) =
+        stored_block_from_pending_block(&pending_block, our_address).map(|block| block.hash())
+    {
+        if pending_block_hash == applied_block.hash() {
+            let _ = cleanup_selected_transactions::<P>(
+                db,
+                &pending_block.selected_deposits,
+                &pending_block.selected_client_transaction_hashes,
+            )
+            .await;
+        } else {
+            let _ = release_selected_transactions::<P>(
+                db,
+                &pending_block.selected_deposits,
+                &pending_block.selected_client_transaction_hashes,
+            )
+            .await;
+        }
+    } else {
+        let _ = release_selected_transactions::<P>(
+            db,
+            &pending_block.selected_deposits,
+            &pending_block.selected_client_transaction_hashes,
+        )
+        .await;
+    }
+
+    let _ = db
+        .delete_pending_block(pending_block.layer2_block_number)
+        .await;
+}
+
 async fn process_propose_block_event<P, N>(
     decode: Nightfall::propose_blockCall,
     transaction_hash: TxHash,
@@ -168,28 +230,6 @@ where
     P: Proof,
     N: NightfallContract,
 {
-    fn stored_block_from_pending_block(
-        pending_block: &crate::domain::entities::PendingBlock,
-        proposer_address: alloy::primitives::Address,
-    ) -> Option<StoredBlock> {
-        let block = pending_block.block.as_ref()?;
-
-        Some(StoredBlock {
-            layer2_block_number: pending_block.layer2_block_number,
-            commitments: block
-                .transactions
-                .iter()
-                .flat_map(|ntx| {
-                    ntx.commitments
-                        .iter()
-                        .map(|c| c.to_hex_string())
-                        .collect::<Vec<_>>()
-                })
-                .collect(),
-            proposer_address,
-        })
-    }
-
     let our_address = get_blockchain_client_connection()
         .await
         .read()
@@ -497,6 +537,40 @@ where
         debug!("Historic root matches commitment tree root");
     }
 
+    // see if we need to update the synchronisation status
+    //This is a final safety check. Earlier we used event-level info to decide whether to sync. Now we consult the contract’s real-time state.
+
+    let delta = current_block_number_in_contract - layer_2_block_number_in_event - I256::ONE;
+    if delta != I256::ZERO {
+        warn!("Synchronising - behind blockchain by {delta} layer 2 blocks ");
+        sync_status.clear_synchronised();
+    } else {
+        debug!("Synchronised with blockchain");
+        sync_status.set_synchronised();
+    }
+
+    if let Some(pending_block) = pending_block {
+        finalize_pending_block_after_applied_block::<P>(
+            db,
+            pending_block,
+            our_address,
+            &store_block_pending,
+        )
+        .await;
+    }
+
+    let reconciliation_block_number = current_block_number_in_contract
+        .try_into()
+        .unwrap_or(layer_2_block_number_in_event_u64);
+    let became_synchronised = !was_synchronised && sync_status.is_synchronised();
+    drop(sync_status);
+    drop(expected_onchain_block_number);
+
+    if became_synchronised {
+        let _ =
+            reconcile_orphaned_selected_transactions::<P>(db, reconciliation_block_number).await;
+    }
+
     match get_blockchain_client_connection()
         .await
         .read()
@@ -515,61 +589,6 @@ where
                 error
             );
         }
-    }
-
-    // see if we need to update the synchronisation status
-    //This is a final safety check. Earlier we used event-level info to decide whether to sync. Now we consult the contract’s real-time state.
-
-    let delta = current_block_number_in_contract - layer_2_block_number_in_event - I256::ONE;
-    if delta != I256::ZERO {
-        warn!("Synchronising - behind blockchain by {delta} layer 2 blocks ");
-        sync_status.clear_synchronised();
-    } else {
-        debug!("Synchronised with blockchain");
-        sync_status.set_synchronised();
-    }
-
-    if let Some(pending_block) = pending_block {
-        if let Some(pending_block_hash) =
-            stored_block_from_pending_block(&pending_block, our_address).map(|block| block.hash())
-        {
-            if pending_block_hash == store_block_pending.hash() {
-                let _ = cleanup_selected_transactions::<P>(
-                    db,
-                    &pending_block.selected_deposits,
-                    &pending_block.selected_client_transaction_hashes,
-                )
-                .await;
-            } else {
-                let _ = release_selected_transactions::<P>(
-                    db,
-                    &pending_block.selected_deposits,
-                    &pending_block.selected_client_transaction_hashes,
-                )
-                .await;
-            }
-        } else {
-            let _ = release_selected_transactions::<P>(
-                db,
-                &pending_block.selected_deposits,
-                &pending_block.selected_client_transaction_hashes,
-            )
-            .await;
-        }
-
-        let _ = db.delete_pending_block(expected_block_number_u64).await;
-    }
-
-    let reconciliation_block_number = current_block_number_in_contract
-        .try_into()
-        .unwrap_or(layer_2_block_number_in_event_u64);
-    let became_synchronised = !was_synchronised && sync_status.is_synchronised();
-    drop(sync_status);
-    drop(expected_onchain_block_number);
-
-    if became_synchronised {
-        let _ =
-            reconcile_orphaned_selected_transactions::<P>(db, reconciliation_block_number).await;
     }
 
     Ok(())
@@ -664,4 +683,231 @@ where
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        domain::entities::{Block, DepositDatawithFee, PendingBlock, PendingBlockState, SyncState},
+        driven::db::{
+            mongo_db::{ensure_deposit_indexes, StoredBlock, DEPOSIT_COLLECTION},
+            snapshot::create_proposer_snapshot,
+        },
+        ports::{
+            db::{BlockStorageDB, PendingBlockDB, SyncStateDB, TransactionsDB},
+            trees::{CommitmentTree, HistoricRootTree, NullifierTree},
+        },
+    };
+    use alloy::primitives::{Address, Bytes, TxHash};
+    use ark_ff::Zero;
+    use ark_serialize::SerializationError;
+    use lib::{
+        hex_conversion::HexConvertible,
+        merkle_trees::trees::MutableTree,
+        nf_client_proof::Proof,
+        shared_entities::{DepositData, OnChainTransaction},
+        tests_utils::{get_db_connection as get_test_db_connection, get_mongo},
+    };
+    use serde::{Deserialize, Serialize};
+    use tokio::sync::{Mutex, OnceCell};
+
+    #[derive(Clone, Debug, Deserialize, Serialize)]
+    struct MockProof;
+
+    impl Proof for MockProof {
+        fn compress_proof(&self) -> Result<Bytes, SerializationError> {
+            Ok(Bytes::new())
+        }
+
+        fn from_compressed(_compressed: Bytes) -> Result<Self, SerializationError> {
+            Ok(Self)
+        }
+    }
+
+    async fn nightfall_event_test_lock() -> tokio::sync::MutexGuard<'static, ()> {
+        static LOCK: OnceCell<Mutex<()>> = OnceCell::const_new();
+        LOCK.get_or_init(|| async { Mutex::new(()) })
+            .await
+            .lock()
+            .await
+    }
+
+    async fn persist_sync_state(client: &mongodb::Client, sync_state: &SyncState) {
+        let mut session = client.start_session().await.expect("start session");
+        let client = client.clone();
+        let sync_state = sync_state.clone();
+        session
+            .start_transaction()
+            .and_run2(async move |session| {
+                client
+                    .update_sync_state_with_session(&sync_state, session)
+                    .await?;
+                Ok::<(), mongodb::error::Error>(())
+            })
+            .await
+            .expect("write sync_state");
+    }
+
+    async fn initialize_test_trees(client: &mongodb::Client) {
+        <mongodb::Client as CommitmentTree<Fr254>>::new_commitment_tree(client, 29, 3)
+            .await
+            .expect("create commitment tree");
+        <mongodb::Client as HistoricRootTree<Fr254>>::new_historic_root_tree(client, 32)
+            .await
+            .expect("create historic root tree");
+        <mongodb::Client as HistoricRootTree<Fr254>>::append_historic_commitment_root(
+            client,
+            &Fr254::zero(),
+            true,
+        )
+        .await
+        .expect("append zero historic root");
+        <mongodb::Client as NullifierTree<Fr254>>::new_nullifier_tree(client, 29, 3)
+            .await
+            .expect("create nullifier tree");
+        ensure_deposit_indexes(client)
+            .await
+            .expect("create deposit indexes");
+    }
+
+    async fn materialize_tree_state_for_block(client: &mongodb::Client, leaf: Fr254) {
+        <mongodb::Client as MutableTree<Fr254>>::insert_leaf(
+            client,
+            leaf,
+            true,
+            <mongodb::Client as CommitmentTree<Fr254>>::TREE_NAME,
+        )
+        .await
+        .expect("append test commitment leaf");
+
+        let commitment_root = <mongodb::Client as CommitmentTree<Fr254>>::get_root(client)
+            .await
+            .expect("read commitment root");
+        <mongodb::Client as HistoricRootTree<Fr254>>::append_historic_commitment_root(
+            client,
+            &commitment_root,
+            true,
+        )
+        .await
+        .expect("append historic root");
+    }
+
+    #[tokio::test]
+    async fn snapshots_created_after_pending_block_cleanup_exclude_consumed_deposits() {
+        let _lock = nightfall_event_test_lock().await;
+        let container = get_mongo().await;
+        let client = get_test_db_connection(&container).await;
+
+        initialize_test_trees(&client).await;
+
+        let selected_deposit = DepositDatawithFee {
+            fee: Fr254::from(3_u64),
+            deposit_data: DepositData {
+                nf_token_id: Fr254::from(11_u64),
+                nf_slot_id: Fr254::from(12_u64),
+                value: Fr254::from(13_u64),
+                secret_hash: Fr254::from(14_u64),
+            },
+            reserved: true,
+        };
+        <mongodb::Client as TransactionsDB<MockProof>>::set_mempool_deposits(
+            &client,
+            vec![selected_deposit],
+        )
+        .await
+        .expect("store selected deposit");
+
+        let commitment = Fr254::from(21_u64);
+        let on_chain_transaction = OnChainTransaction {
+            commitments: [commitment, Fr254::zero(), Fr254::zero(), Fr254::zero()],
+            ..Default::default()
+        };
+        let applied_block = StoredBlock {
+            layer2_block_number: 7,
+            commitments: on_chain_transaction
+                .commitments
+                .iter()
+                .map(|commitment| commitment.to_hex_string())
+                .collect(),
+            proposer_address: Address::from([7_u8; 20]),
+        };
+        client
+            .store_block(&applied_block)
+            .await
+            .expect("store applied block");
+        materialize_tree_state_for_block(&client, commitment).await;
+
+        persist_sync_state(
+            &client,
+            &SyncState::new(
+                applied_block.layer2_block_number,
+                applied_block.hash().to_hex_string(),
+                L1Ref {
+                    block_number: 700,
+                    tx_hash: TxHash::from([7_u8; 32]),
+                    log_index: 7,
+                },
+                mongodb::bson::DateTime::now(),
+            ),
+        )
+        .await;
+
+        let pending_block = PendingBlock {
+            layer2_block_number: applied_block.layer2_block_number,
+            state: PendingBlockState::ReadyToPropose,
+            broadcast_tx_hash: None,
+            broadcast_receipt_checks: 0,
+            block: Some(Block {
+                transactions: vec![on_chain_transaction],
+                ..Default::default()
+            }),
+            selected_deposits: vec![vec![selected_deposit]],
+            selected_client_transaction_hashes: Vec::new(),
+        };
+        client
+            .store_pending_block(&pending_block)
+            .await
+            .expect("store pending block");
+
+        finalize_pending_block_after_applied_block::<MockProof>(
+            &client,
+            pending_block,
+            applied_block.proposer_address,
+            &applied_block,
+        )
+        .await;
+
+        assert_eq!(
+            client
+                .get_pending_block(applied_block.layer2_block_number)
+                .await,
+            None
+        );
+        assert_eq!(
+            <mongodb::Client as TransactionsDB<MockProof>>::get_mempool_deposits(&client).await,
+            None
+        );
+
+        let snapshot_root = std::env::temp_dir().join(format!(
+            "nf4-event-snapshot-ordering-{}",
+            mongodb::bson::DateTime::now().timestamp_millis()
+        ));
+        let manifest = create_proposer_snapshot(&client, &snapshot_root)
+            .await
+            .expect("create proposer snapshot");
+        let deposits_manifest = manifest
+            .collections
+            .iter()
+            .find(|collection| collection.collection_name == DEPOSIT_COLLECTION)
+            .expect("snapshot should include deposits collection");
+        assert_eq!(
+            deposits_manifest.document_count, 0,
+            "snapshot should not retain deposits consumed by the applied block"
+        );
+
+        tokio::fs::remove_dir_all(snapshot_root)
+            .await
+            .expect("cleanup snapshot root");
+    }
 }

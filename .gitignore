@@ -20,4 +20,5 @@ configuration/toml
 remappings.txt
 local.env
 /data/proposer_snapshots/
+/nightfall_proposer/data/
 temp/

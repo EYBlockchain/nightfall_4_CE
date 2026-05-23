@@ -3,13 +3,20 @@ use crate::{
         ProposerSnapshotManifest, RestoreJournal, RestoreJournalCollection, RestoreJournalPhase,
         RestoreJournalStep, SnapshotCollectionManifest, SyncState,
     },
-    driven::db::mongo_db::{
-        DB, DEPOSIT_COLLECTION, PROPOSED_BLOCKS_COLLECTION, SYNC_STATE_COLLECTION,
+    driven::db::client_transaction_state::{
+        remove_all_mempool_client_transactions, restore_all_selected_transactions_to_mempool,
     },
-    ports::db::{RestoreJournalDB, SyncStateDB},
+    driven::db::mongo_db::{
+        ensure_deposit_indexes, StoredBlock, DB, DEPOSIT_COLLECTION, PROPOSED_BLOCKS_COLLECTION,
+        SYNC_STATE_COLLECTION,
+    },
+    initialisation::{clear_all_reserved_deposits, validate_live_proposer_state_consistency},
+    ports::db::{PendingBlockDB, RestoreJournalDB, SyncStateDB},
     ports::trees::{CommitmentTree, HistoricRootTree, NullifierTree},
 };
 use ark_bn254::Fr as Fr254;
+use lib::hex_conversion::HexConvertible;
+use lib::merkle_trees::trees::TreeMetadata;
 use log::{debug, error, warn};
 use mongodb::bson::{Bson, Document};
 use mongodb::options::ReadConcern;
@@ -51,6 +58,15 @@ fn maybe_crash_at_failpoint(_name: &str) {
             panic!("simulated crash at failpoint {_name}");
         }
     }
+}
+
+fn expected_historic_root_sub_tree_count(last_applied_l2_block: u64) -> Result<u64, SnapshotError> {
+    last_applied_l2_block.checked_add(2).ok_or_else(|| {
+        SnapshotError::InvalidSnapshotSyncState(
+            "sync_state last_applied_l2_block overflowed while validating historic roots"
+                .to_string(),
+        )
+    })
 }
 
 fn proposer_state_maintenance_lock() -> &'static tokio::sync::Mutex<()> {
@@ -276,7 +292,18 @@ fn proposer_snapshot_collection_names() -> Vec<String> {
     names
 }
 
-fn required_proposer_snapshot_collection_names() -> Vec<String> {
+fn restore_journal_collections_for_canonical_snapshot() -> Vec<RestoreJournalCollection> {
+    proposer_snapshot_collection_names()
+        .into_iter()
+        .map(|collection_name| RestoreJournalCollection {
+            shadow: shadow_collection_name(&collection_name),
+            backup: backup_collection_name(&collection_name),
+            live: collection_name,
+        })
+        .collect()
+}
+
+pub(crate) fn required_proposer_snapshot_collection_names() -> Vec<String> {
     vec![
         format!(
             "{}_metadata",
@@ -338,6 +365,15 @@ fn validate_snapshot_manifest_collection_set(
     }
 
     Ok(())
+}
+
+fn is_optional_snapshot_collection(collection_name: &str) -> bool {
+    proposer_snapshot_collection_names()
+        .into_iter()
+        .any(|name| name == collection_name)
+        && !required_proposer_snapshot_collection_names()
+            .into_iter()
+            .any(|name| name == collection_name)
 }
 
 fn validate_snapshot_file_name(file_name: &str) -> Result<(), SnapshotError> {
@@ -548,6 +584,10 @@ pub(crate) async fn create_proposer_snapshot_unlocked(
                 .await?
                 .ok_or_else(|| snapshot_error_to_mongo(SnapshotError::MissingSyncState))?;
 
+            validate_snapshot_state_with_session(&database, &sync_state, session)
+                .await
+                .map_err(snapshot_error_to_mongo)?;
+
             let created_at = mongodb::bson::DateTime::now();
             let snapshot_id = format!(
                 "proposer-l2-{}-{}",
@@ -657,6 +697,159 @@ pub(crate) async fn load_and_validate_snapshot_manifest(
     let snapshotted_sync_state = load_snapshotted_sync_state(snapshot_dir, &manifest).await?;
     validate_manifest_against_snapshotted_sync_state(&manifest, &snapshotted_sync_state)?;
     Ok(manifest)
+}
+
+async fn tree_sub_tree_count_with_session(
+    database: &mongodb::Database,
+    tree_name: &str,
+    session: &mut mongodb::ClientSession,
+) -> Result<u64, SnapshotError> {
+    let metadata_collection_name = format!("{tree_name}_metadata");
+    let metadata = database
+        .collection::<TreeMetadata<Fr254>>(&metadata_collection_name)
+        .find_one(mongodb::bson::doc! { "_id": 0 })
+        .session(&mut *session)
+        .await?
+        .ok_or_else(|| {
+            SnapshotError::InvalidSnapshotSyncState(format!(
+                "tree metadata for {tree_name} is missing while creating a snapshot"
+            ))
+        })?;
+    Ok(metadata.sub_tree_count)
+}
+
+async fn highest_stored_block_with_session(
+    database: &mongodb::Database,
+    session: &mut mongodb::ClientSession,
+) -> Result<Option<StoredBlock>, SnapshotError> {
+    database
+        .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
+        .find_one(mongodb::bson::doc! {})
+        .sort(mongodb::bson::doc! { "layer2_block_number": -1_i32 })
+        .session(&mut *session)
+        .await
+        .map_err(SnapshotError::from)
+}
+
+async fn reserved_deposit_count_with_session(
+    database: &mongodb::Database,
+    session: &mut mongodb::ClientSession,
+) -> Result<u64, SnapshotError> {
+    database
+        .collection::<Document>(DEPOSIT_COLLECTION)
+        .count_documents(mongodb::bson::doc! { "reserved": true })
+        .session(&mut *session)
+        .await
+        .map_err(SnapshotError::from)
+}
+
+async fn validate_snapshot_state_with_session(
+    database: &mongodb::Database,
+    sync_state: &SyncState,
+    session: &mut mongodb::ClientSession,
+) -> Result<(), SnapshotError> {
+    if sync_state.schema_version != SyncState::SCHEMA_VERSION {
+        return Err(SnapshotError::InvalidSnapshotSyncState(format!(
+            "sync_state uses unsupported schema version {}",
+            sync_state.schema_version
+        )));
+    }
+
+    let stored_block = database
+        .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
+        .find_one(mongodb::bson::doc! {
+            "layer2_block_number": sync_state.last_applied_l2_block as i64
+        })
+        .session(&mut *session)
+        .await?
+        .ok_or_else(|| {
+            SnapshotError::InvalidSnapshotSyncState(format!(
+                "sync_state references L2 block {}, but StoredBlock at that height is missing",
+                sync_state.last_applied_l2_block
+            ))
+        })?;
+
+    let stored_fingerprint = stored_block.hash().to_hex_string();
+    if stored_fingerprint != sync_state.fingerprint {
+        return Err(SnapshotError::InvalidSnapshotSyncState(format!(
+            "sync_state fingerprint {} does not match StoredBlock fingerprint {} at L2 block {}",
+            sync_state.fingerprint, stored_fingerprint, sync_state.last_applied_l2_block
+        )));
+    }
+
+    if let Some(highest_stored_block) = highest_stored_block_with_session(database, session).await?
+    {
+        if highest_stored_block.layer2_block_number > sync_state.last_applied_l2_block {
+            return Err(SnapshotError::InvalidSnapshotSyncState(format!(
+                "highest StoredBlock {} is ahead of sync_state-applied block {}",
+                highest_stored_block.layer2_block_number, sync_state.last_applied_l2_block
+            )));
+        }
+    }
+
+    let reserved_deposit_count = reserved_deposit_count_with_session(database, session).await?;
+    if reserved_deposit_count > 0 {
+        return Err(SnapshotError::InvalidSnapshotSyncState(format!(
+            "Deposits contains {reserved_deposit_count} reserved selection(s) ahead of sync_state-applied block {}",
+            sync_state.last_applied_l2_block
+        )));
+    }
+
+    let commitment_sub_tree_count = tree_sub_tree_count_with_session(
+        database,
+        <mongodb::Client as CommitmentTree<Fr254>>::TREE_NAME,
+        session,
+    )
+    .await?;
+    let historic_root_sub_tree_count = tree_sub_tree_count_with_session(
+        database,
+        <mongodb::Client as HistoricRootTree<Fr254>>::TREE_NAME,
+        session,
+    )
+    .await?;
+    let expected_historic_root_sub_tree_count =
+        expected_historic_root_sub_tree_count(sync_state.last_applied_l2_block)?;
+
+    if historic_root_sub_tree_count <= 1 {
+        return Err(SnapshotError::InvalidSnapshotSyncState(
+            "historic root tree only contains the zero leaf".to_string(),
+        ));
+    }
+
+    if historic_root_sub_tree_count > expected_historic_root_sub_tree_count {
+        return Err(SnapshotError::InvalidSnapshotSyncState(format!(
+            "historic root tree sub_tree_count {} is ahead of sync_state-applied block {} (maximum coherent value {})",
+            historic_root_sub_tree_count,
+            sync_state.last_applied_l2_block,
+            expected_historic_root_sub_tree_count
+        )));
+    }
+
+    if commitment_sub_tree_count == 0 && !stored_block.commitments.is_empty() {
+        return Err(SnapshotError::InvalidSnapshotSyncState(format!(
+            "commitment tree is empty while StoredBlock {} contains commitments",
+            sync_state.last_applied_l2_block
+        )));
+    }
+
+    Ok(())
+}
+
+async fn ensure_empty_shadow_collection(
+    database: &mongodb::Database,
+    shadow_collection_name: &str,
+) -> Result<(), SnapshotError> {
+    database.create_collection(shadow_collection_name).await?;
+    Ok(())
+}
+
+async fn ensure_restored_snapshot_collection_indexes(
+    client: &mongodb::Client,
+) -> Result<(), SnapshotError> {
+    // Deposits is currently the only snapshot-restored collection with required
+    // secondary indexes beyond MongoDB's default _id index.
+    ensure_deposit_indexes(client).await?;
+    Ok(())
 }
 
 pub async fn find_latest_valid_proposer_snapshot(
@@ -1018,6 +1211,7 @@ async fn complete_rollback_from_journal(
 
                 let backup_exists = collection_exists(&database, &collection.backup).await?;
                 let live_exists = collection_exists(&database, &collection.live).await?;
+                let shadow_exists = collection_exists(&database, &collection.shadow).await?;
 
                 if backup_exists {
                     rename_collection(client, &collection.backup, &collection.live, true).await?;
@@ -1028,7 +1222,14 @@ async fn complete_rollback_from_journal(
                     journal.current_step = Some(RestoreJournalStep::RollbackApplied);
                     journal.updated_at = mongodb::bson::DateTime::now();
                     client.upsert_restore_journal(journal).await?;
-                } else if resuming_started_step && live_exists {
+                } else if is_optional_snapshot_collection(&collection.live) && live_exists {
+                    drop_collection_if_exists(&database, &collection.live).await?;
+                    journal.current_step = Some(RestoreJournalStep::RollbackApplied);
+                    journal.updated_at = mongodb::bson::DateTime::now();
+                    client.upsert_restore_journal(journal).await?;
+                } else if is_optional_snapshot_collection(&collection.live)
+                    && (shadow_exists || resuming_started_step)
+                {
                     journal.current_step = Some(RestoreJournalStep::RollbackApplied);
                     journal.updated_at = mongodb::bson::DateTime::now();
                     client.upsert_restore_journal(journal).await?;
@@ -1135,29 +1336,33 @@ async fn complete_shadow_swap_from_journal(
                     )));
                 }
 
-                if !collection_exists(&database, &collection.live).await? {
+                let live_exists = collection_exists(&database, &collection.live).await?;
+                let shadow_exists = collection_exists(&database, &collection.shadow).await?;
+
+                if !shadow_exists {
+                    if !live_exists || !is_optional_snapshot_collection(&collection.live) {
+                        return Err(SnapshotError::RestoreInvariantViolation(format!(
+                            "shadow collection {} is missing before swap",
+                            collection.shadow
+                        )));
+                    }
+                } else if live_exists {
+                    rename_collection(client, &collection.live, &collection.backup, false).await?;
+
+                    journal.current_index = Some(index as u32);
+                    journal.current_step = Some(RestoreJournalStep::BackupCreated);
+                    journal.updated_at = mongodb::bson::DateTime::now();
+                    client.upsert_restore_journal(journal).await?;
+                    maybe_crash_at_failpoint("restore_after_backup_created");
+                    rename_collection(client, &collection.shadow, &collection.live, false).await?;
+                } else if is_optional_snapshot_collection(&collection.live) {
+                    rename_collection(client, &collection.shadow, &collection.live, false).await?;
+                } else {
                     return Err(SnapshotError::RestoreInvariantViolation(format!(
                         "live collection {} is missing before swap",
                         collection.live
                     )));
                 }
-
-                if !collection_exists(&database, &collection.shadow).await? {
-                    return Err(SnapshotError::RestoreInvariantViolation(format!(
-                        "shadow collection {} is missing before swap",
-                        collection.shadow
-                    )));
-                }
-
-                rename_collection(client, &collection.live, &collection.backup, false).await?;
-
-                journal.current_index = Some(index as u32);
-                journal.current_step = Some(RestoreJournalStep::BackupCreated);
-                journal.updated_at = mongodb::bson::DateTime::now();
-                client.upsert_restore_journal(journal).await?;
-                maybe_crash_at_failpoint("restore_after_backup_created");
-
-                rename_collection(client, &collection.shadow, &collection.live, false).await?;
             }
             RestoreJournalStep::BackupCreated => {
                 if !collection_exists(&database, &collection.backup).await? {
@@ -1168,13 +1373,15 @@ async fn complete_shadow_swap_from_journal(
                 }
 
                 if !collection_exists(&database, &collection.shadow).await? {
-                    return Err(SnapshotError::RestoreInvariantViolation(format!(
-                        "shadow collection {} is missing while resume expects BackupCreated",
-                        collection.shadow
-                    )));
+                    if !collection_exists(&database, &collection.live).await? {
+                        return Err(SnapshotError::RestoreInvariantViolation(format!(
+                            "shadow collection {} is missing while resume expects BackupCreated",
+                            collection.shadow
+                        )));
+                    }
+                } else {
+                    rename_collection(client, &collection.shadow, &collection.live, false).await?;
                 }
-
-                rename_collection(client, &collection.shadow, &collection.live, false).await?;
             }
             step => {
                 return Err(SnapshotError::RestoreInvariantViolation(format!(
@@ -1208,18 +1415,15 @@ pub async fn load_proposer_snapshot_into_shadow(
 ) -> Result<RestoreJournal, SnapshotError> {
     let snapshot_dir = snapshot_dir.to_path_buf();
     let manifest = load_and_validate_snapshot_manifest(&snapshot_dir).await?;
+    let manifest_collections_by_name: std::collections::HashMap<_, _> = manifest
+        .collections
+        .iter()
+        .map(|collection| (collection.collection_name.as_str(), collection))
+        .collect();
 
     let database = client.database(DB);
     let existing_collections = database.list_collection_names().await?;
-    let restore_collections: Vec<RestoreJournalCollection> = manifest
-        .collections
-        .iter()
-        .map(|collection| RestoreJournalCollection {
-            live: collection.collection_name.clone(),
-            shadow: shadow_collection_name(&collection.collection_name),
-            backup: backup_collection_name(&collection.collection_name),
-        })
-        .collect();
+    let restore_collections = restore_journal_collections_for_canonical_snapshot();
 
     let now = mongodb::bson::DateTime::now();
     let mut journal = RestoreJournal::new_loading_shadow(
@@ -1253,16 +1457,20 @@ pub async fn load_proposer_snapshot_into_shadow(
         }
     }
 
-    for (manifest_collection, restore_collection) in
-        manifest.collections.iter().zip(restore_collections.iter())
-    {
-        import_collection_into_shadow(
-            &database,
-            &snapshot_dir,
-            manifest_collection,
-            &restore_collection.shadow,
-        )
-        .await?;
+    for restore_collection in &restore_collections {
+        if let Some(manifest_collection) =
+            manifest_collections_by_name.get(restore_collection.live.as_str())
+        {
+            import_collection_into_shadow(
+                &database,
+                &snapshot_dir,
+                manifest_collection,
+                &restore_collection.shadow,
+            )
+            .await?;
+        } else {
+            ensure_empty_shadow_collection(&database, &restore_collection.shadow).await?;
+        }
         maybe_crash_at_failpoint("restore_after_first_shadow_collection_imported");
     }
 
@@ -1335,6 +1543,12 @@ pub async fn cleanup_after_proposer_shadow_swap(
         });
     }
 
+    ensure_restored_snapshot_collection_indexes(client).await?;
+    cleanup_non_snapshot_restore_state(client).await?;
+    validate_live_proposer_state_consistency(client)
+        .await
+        .map_err(SnapshotError::RestoreInvariantViolation)?;
+
     let database = client.database(DB);
     let ordered = restore_collections_in_swap_order(&journal.collections);
 
@@ -1348,6 +1562,36 @@ pub async fn cleanup_after_proposer_shadow_swap(
     }
 
     client.delete_restore_journal().await?;
+    Ok(())
+}
+
+async fn cleanup_non_snapshot_restore_state(client: &mongodb::Client) -> Result<(), SnapshotError> {
+    let deleted_pending_blocks = client.delete_all_pending_blocks().await.ok_or_else(|| {
+        SnapshotError::RestoreInvariantViolation(
+            "Could not delete persisted PendingBlocks during snapshot restore finalization"
+                .to_string(),
+        )
+    })?;
+    let cleared_reserved_deposits = clear_all_reserved_deposits(client)
+        .await
+        .map_err(SnapshotError::RestoreInvariantViolation)?;
+    let removed_mempool_transactions = remove_all_mempool_client_transactions(client)
+        .await
+        .map_err(SnapshotError::RestoreInvariantViolation)?;
+    let restored_selected_transactions = restore_all_selected_transactions_to_mempool(client)
+        .await
+        .map_err(SnapshotError::RestoreInvariantViolation)?;
+
+    if deleted_pending_blocks > 0
+        || cleared_reserved_deposits > 0
+        || removed_mempool_transactions > 0
+        || restored_selected_transactions > 0
+    {
+        warn!(
+            "Snapshot restore discarded {deleted_pending_blocks} persisted PendingBlock(s), cleared {cleared_reserved_deposits} reserved deposit selection(s), dropped {removed_mempool_transactions} mempool client transaction(s), and restored {restored_selected_transactions} selected client transaction(s) to the mempool before validating restored proposer state"
+        );
+    }
+
     Ok(())
 }
 
@@ -1411,21 +1655,26 @@ mod test {
     use super::*;
     use crate::{
         domain::entities::{
-            DepositDatawithFee, L1Ref, RestoreJournal, RestoreJournalCollection,
-            RestoreJournalPhase, RestoreJournalStep, SyncState,
+            Block, ClientTransactionWithMetaData, DepositDatawithFee, L1Ref, PendingBlock,
+            PendingBlockState, RestoreJournal, RestoreJournalCollection, RestoreJournalPhase,
+            RestoreJournalStep, SyncState, TxLifecycle,
         },
         driven::db::mongo_db::{
             ensure_deposit_indexes, StoredBlock, DEPOSIT_COLLECTION, RESTORE_JOURNAL_COLLECTION,
         },
         ports::{
-            db::{BlockStorageDB, RestoreJournalDB, SyncStateDB, TransactionsDB},
+            db::{BlockStorageDB, PendingBlockDB, RestoreJournalDB, SyncStateDB, TransactionsDB},
             trees::{CommitmentTree, HistoricRootTree, NullifierTree},
         },
     };
-    use alloy::primitives::{Address, TxHash};
+    use alloy::primitives::{Address, Bytes, TxHash};
     use ark_ff::Zero;
+    use ark_serialize::SerializationError;
+    use lib::merkle_trees::trees::MutableTree;
+    use lib::nf_client_proof::Proof;
+    use lib::shared_entities::{ClientTransaction, CompressedSecrets, DepositData};
     use lib::tests_utils::{get_db_connection, get_mongo};
-    use lib::shared_entities::DepositData;
+    use serde::{Deserialize, Serialize};
     use std::{
         sync::{
             atomic::{AtomicBool, Ordering},
@@ -1443,20 +1692,106 @@ mod test {
             .await
     }
 
+    #[derive(Clone, Debug, Default, Deserialize, Serialize)]
+    struct MockProof;
+
+    impl Proof for MockProof {
+        fn compress_proof(&self) -> Result<Bytes, SerializationError> {
+            Ok(Bytes::new())
+        }
+
+        fn from_compressed(_compressed: Bytes) -> Result<Self, SerializationError> {
+            Ok(Self)
+        }
+    }
+
+    fn test_selected_client_transaction(
+        seed: u32,
+        block_l2: u64,
+        commitment: Fr254,
+    ) -> ClientTransactionWithMetaData<MockProof> {
+        ClientTransactionWithMetaData {
+            client_transaction: ClientTransaction {
+                commitments: [commitment, Fr254::zero(), Fr254::zero(), Fr254::zero()],
+                compressed_secrets: CompressedSecrets::default(),
+                proof: MockProof,
+                ..Default::default()
+            },
+            lifecycle: TxLifecycle::Selected { block_l2 },
+            hash: vec![seed, seed + 1, seed + 2],
+            historic_roots: vec![],
+            receipt_token: None,
+        }
+    }
+
     async fn persist_sync_state(client: &mongodb::Client, sync_state: &SyncState) {
         let mut session = client.start_session().await.expect("start session");
-        let client = client.clone();
-        let sync_state = sync_state.clone();
+        let client_for_write = client.clone();
+        let sync_state_for_write = sync_state.clone();
         session
             .start_transaction()
             .and_run2(async move |session| {
-                client
-                    .update_sync_state_with_session(&sync_state, session)
+                client_for_write
+                    .update_sync_state_with_session(&sync_state_for_write, session)
                     .await?;
                 Ok::<(), mongodb::error::Error>(())
             })
             .await
             .expect("write sync_state");
+
+        let stored_block = client
+            .get_block_by_number(sync_state.last_applied_l2_block)
+            .await
+            .expect("stored block should exist for test sync_state");
+
+        let commitment_metadata = client
+            .database(DB)
+            .collection::<TreeMetadata<Fr254>>(&format!(
+                "{}_metadata",
+                <mongodb::Client as CommitmentTree<Fr254>>::TREE_NAME
+            ))
+            .find_one(mongodb::bson::doc! { "_id": 0 })
+            .await
+            .expect("read commitment metadata");
+        if commitment_metadata
+            .as_ref()
+            .is_some_and(|metadata| metadata.sub_tree_count == 0)
+            && !stored_block.commitments.is_empty()
+        {
+            <mongodb::Client as MutableTree<Fr254>>::insert_leaf(
+                &client,
+                Fr254::from(sync_state.last_applied_l2_block + 1),
+                true,
+                <mongodb::Client as CommitmentTree<Fr254>>::TREE_NAME,
+            )
+            .await
+            .expect("materialize commitment tree state for snapshot test");
+        }
+
+        let historic_root_metadata = client
+            .database(DB)
+            .collection::<TreeMetadata<Fr254>>(&format!(
+                "{}_metadata",
+                <mongodb::Client as HistoricRootTree<Fr254>>::TREE_NAME
+            ))
+            .find_one(mongodb::bson::doc! { "_id": 0 })
+            .await
+            .expect("read historic root metadata");
+        if historic_root_metadata
+            .as_ref()
+            .is_some_and(|metadata| metadata.sub_tree_count <= 1)
+        {
+            let commitment_root = <mongodb::Client as CommitmentTree<Fr254>>::get_root(&client)
+                .await
+                .expect("read commitment root");
+            <mongodb::Client as HistoricRootTree<Fr254>>::append_historic_commitment_root(
+                &client,
+                &commitment_root,
+                true,
+            )
+            .await
+            .expect("materialize historic root state for snapshot test");
+        }
     }
 
     async fn initialize_snapshot_test_trees(client: &mongodb::Client) {
@@ -1501,7 +1836,7 @@ mod test {
 
         let sync_state = SyncState::new(
             stored_block.layer2_block_number,
-            stored_block.hash().to_string(),
+            stored_block.hash().to_hex_string(),
             L1Ref {
                 block_number: l1_block_number,
                 tx_hash: TxHash::from([proposer_byte; 32]),
@@ -1520,6 +1855,53 @@ mod test {
             .expect("create snapshot fixture");
 
         (snapshot_root, manifest, stored_block, sync_state)
+    }
+
+    async fn first_existing_live_restore_collection(
+        client: &mongodb::Client,
+        journal: &[RestoreJournalCollection],
+    ) -> (usize, RestoreJournalCollection) {
+        let existing_collections = client
+            .database(DB)
+            .list_collection_names()
+            .await
+            .expect("list collections");
+        restore_collections_in_swap_order(journal)
+            .into_iter()
+            .enumerate()
+            .find(|(_, collection)| {
+                existing_collections
+                    .iter()
+                    .any(|name| name == &collection.live)
+            })
+            .expect("at least one live restore collection should exist")
+    }
+
+    async fn next_required_live_restore_collection(
+        client: &mongodb::Client,
+        journal: &[RestoreJournalCollection],
+        after_index: usize,
+    ) -> (usize, RestoreJournalCollection) {
+        let existing_collections = client
+            .database(DB)
+            .list_collection_names()
+            .await
+            .expect("list collections");
+        restore_collections_in_swap_order(journal)
+            .into_iter()
+            .enumerate()
+            .skip(after_index + 1)
+            .find(|(_, collection)| {
+                existing_collections
+                    .iter()
+                    .any(|name| name == &collection.live)
+                    && required_proposer_snapshot_collection_names()
+                        .iter()
+                        .any(|name| name == &collection.live)
+            })
+            .expect(
+                "expected another required live restore collection after the first processed one",
+            )
     }
 
     async fn write_manifest(snapshot_dir: &Path, manifest: &ProposerSnapshotManifest) {
@@ -1570,7 +1952,7 @@ mod test {
             .expect("store newer live block");
         let newer_live_sync_state = SyncState::new(
             newer_live_block.layer2_block_number,
-            newer_live_block.hash().to_string(),
+            newer_live_block.hash().to_hex_string(),
             L1Ref {
                 block_number: newer_live_block_number * 100,
                 tx_hash: TxHash::from([newer_live_block_number as u8; 32]),
@@ -1588,7 +1970,8 @@ mod test {
             ordered.len() > 1,
             "expected multiple collections in restore order"
         );
-        let first = &ordered[0];
+        let (first_index, first) =
+            first_existing_live_restore_collection(client, &journal.collections).await;
 
         rename_collection(client, &first.live, &first.backup, false)
             .await
@@ -1597,9 +1980,12 @@ mod test {
             .await
             .expect("rename first shadow to live");
 
+        let (next_index, _) =
+            next_required_live_restore_collection(client, &journal.collections, first_index).await;
+
         journal.collections = ordered;
         journal.phase = RestoreJournalPhase::SwapInProgress;
-        journal.current_index = Some(1);
+        journal.current_index = Some(next_index as u32);
         journal.current_step = Some(RestoreJournalStep::BackupPending);
         journal.updated_at = mongodb::bson::DateTime::now();
         client
@@ -1681,7 +2067,7 @@ mod test {
             &client,
             &SyncState::new(
                 stored_block.layer2_block_number,
-                stored_block.hash().to_string(),
+                stored_block.hash().to_hex_string(),
                 L1Ref {
                     block_number: 100,
                     tx_hash: TxHash::from([7; 32]),
@@ -1806,7 +2192,7 @@ mod test {
             &client,
             &SyncState::new(
                 stored_block.layer2_block_number,
-                stored_block.hash().to_string(),
+                stored_block.hash().to_hex_string(),
                 L1Ref {
                     block_number: 2100,
                     tx_hash: TxHash::from([21u8; 32]),
@@ -1896,7 +2282,7 @@ mod test {
 
         let sync_state = SyncState::new(
             stored_block.layer2_block_number,
-            stored_block.hash().to_string(),
+            stored_block.hash().to_hex_string(),
             L1Ref {
                 block_number: 1234,
                 tx_hash: TxHash::from([9u8; 32]),
@@ -2269,7 +2655,7 @@ mod test {
             &client,
             &SyncState::new(
                 first_block.layer2_block_number,
-                first_block.hash().to_string(),
+                first_block.hash().to_hex_string(),
                 L1Ref {
                     block_number: 100,
                     tx_hash: TxHash::from([4u8; 32]),
@@ -2301,7 +2687,7 @@ mod test {
             &client,
             &SyncState::new(
                 second_block.layer2_block_number,
-                second_block.hash().to_string(),
+                second_block.hash().to_hex_string(),
                 L1Ref {
                     block_number: 200,
                     tx_hash: TxHash::from([7u8; 32]),
@@ -2377,7 +2763,7 @@ mod test {
 
         let sync_state = SyncState::new(
             stored_block.layer2_block_number,
-            stored_block.hash().to_string(),
+            stored_block.hash().to_hex_string(),
             L1Ref {
                 block_number: 5678,
                 tx_hash: TxHash::from([8u8; 32]),
@@ -2386,17 +2772,7 @@ mod test {
             mongodb::bson::DateTime::now(),
         );
 
-        let mut session = client.start_session().await.expect("start session");
-        session
-            .start_transaction()
-            .and_run2(async |session| {
-                client
-                    .update_sync_state_with_session(&sync_state, session)
-                    .await?;
-                Ok::<(), mongodb::error::Error>(())
-            })
-            .await
-            .expect("write sync_state");
+        persist_sync_state(&client, &sync_state).await;
 
         let snapshot_root = std::env::temp_dir().join(format!(
             "nf4-proposer-shadow-load-test-{}",
@@ -2472,7 +2848,7 @@ mod test {
             &client,
             &SyncState::new(
                 stored_block.layer2_block_number,
-                stored_block.hash().to_string(),
+                stored_block.hash().to_hex_string(),
                 L1Ref {
                     block_number: 2200,
                     tx_hash: TxHash::from([22u8; 32]),
@@ -2568,7 +2944,7 @@ mod test {
 
         let snapshot_sync_state = SyncState::new(
             snapshot_block.layer2_block_number,
-            snapshot_block.hash().to_string(),
+            snapshot_block.hash().to_hex_string(),
             L1Ref {
                 block_number: 5678,
                 tx_hash: TxHash::from([8u8; 32]),
@@ -2577,17 +2953,7 @@ mod test {
             mongodb::bson::DateTime::now(),
         );
 
-        let mut session = client.start_session().await.expect("start session");
-        session
-            .start_transaction()
-            .and_run2(async |session| {
-                client
-                    .update_sync_state_with_session(&snapshot_sync_state, session)
-                    .await?;
-                Ok::<(), mongodb::error::Error>(())
-            })
-            .await
-            .expect("write snapshot sync_state");
+        persist_sync_state(&client, &snapshot_sync_state).await;
 
         let snapshot_root = std::env::temp_dir().join(format!(
             "nf4-proposer-shadow-swap-test-{}",
@@ -2611,7 +2977,7 @@ mod test {
 
         let new_live_sync_state = SyncState::new(
             new_live_block.layer2_block_number,
-            new_live_block.hash().to_string(),
+            new_live_block.hash().to_hex_string(),
             L1Ref {
                 block_number: 91011,
                 tx_hash: TxHash::from([7u8; 32]),
@@ -2619,17 +2985,7 @@ mod test {
             },
             mongodb::bson::DateTime::now(),
         );
-        let mut session = client.start_session().await.expect("start session");
-        session
-            .start_transaction()
-            .and_run2(async |session| {
-                client
-                    .update_sync_state_with_session(&new_live_sync_state, session)
-                    .await?;
-                Ok::<(), mongodb::error::Error>(())
-            })
-            .await
-            .expect("write newer live sync_state");
+        persist_sync_state(&client, &new_live_sync_state).await;
 
         load_proposer_snapshot_into_shadow(&client, &snapshot_dir)
             .await
@@ -2649,7 +3005,7 @@ mod test {
         assert_eq!(live_sync_state.last_applied_l2_block, 8);
         assert_eq!(
             live_sync_state.fingerprint,
-            snapshot_block.hash().to_string()
+            snapshot_block.hash().to_hex_string()
         );
 
         let live_blocks_count = client
@@ -2707,7 +3063,7 @@ mod test {
             &client,
             &SyncState::new(
                 snapshot_block.layer2_block_number,
-                snapshot_block.hash().to_string(),
+                snapshot_block.hash().to_hex_string(),
                 L1Ref {
                     block_number: 2300,
                     tx_hash: TxHash::from([23u8; 32]),
@@ -2740,7 +3096,7 @@ mod test {
             &client,
             &SyncState::new(
                 newer_live_block.layer2_block_number,
-                newer_live_block.hash().to_string(),
+                newer_live_block.hash().to_hex_string(),
                 L1Ref {
                     block_number: 2400,
                     tx_hash: TxHash::from([24u8; 32]),
@@ -2809,7 +3165,7 @@ mod test {
                 .await;
 
         let ordered = restore_collections_in_swap_order(&journal.collections);
-        let broken_collection = &ordered[1];
+        let broken_collection = &ordered[journal.current_index.expect("current_index") as usize];
         client
             .database(DB)
             .collection::<Document>(&broken_collection.live)
@@ -2862,7 +3218,7 @@ mod test {
                 .await;
 
         let ordered = restore_collections_in_swap_order(&journal.collections);
-        let broken_collection = &ordered[1];
+        let broken_collection = &ordered[journal.current_index.expect("current_index") as usize];
         client
             .database(DB)
             .collection::<Document>(&broken_collection.live)
@@ -2870,7 +3226,7 @@ mod test {
             .await
             .expect("drop live collection to force rollback path");
 
-        let failpoint = TestFailpointGuard::enable("restore_after_first_rollback_live_restore");
+        let failpoint = TestFailpointGuard::enable("restore_after_first_rollback_progress_persist");
         let crash_client = client.clone();
         let join_error =
             tokio::spawn(async move { recover_from_restore_journal(&crash_client).await })
@@ -2887,7 +3243,14 @@ mod test {
             persisted_journal.phase,
             RestoreJournalPhase::RollbackInProgress
         );
-        assert_eq!(persisted_journal.current_index, Some(0));
+        let expected_rollback_index = journal
+            .current_index
+            .and_then(|index| index.checked_sub(1))
+            .expect("mid-rollback crash should start after at least one processed collection");
+        assert_eq!(
+            persisted_journal.current_index,
+            Some(expected_rollback_index)
+        );
         assert_eq!(
             persisted_journal.current_step,
             Some(RestoreJournalStep::RollbackStarted)
@@ -2932,9 +3295,10 @@ mod test {
             prepare_mid_swap_pending_state(&client, "nf4-proposer-rollback-failure-test", 43, 44)
                 .await;
 
+        let (first_processed_index, first_processed) =
+            first_existing_live_restore_collection(&client, &journal.collections).await;
         let ordered = restore_collections_in_swap_order(&journal.collections);
-        let first_processed = &ordered[0];
-        let broken_collection = &ordered[1];
+        let broken_collection = &ordered[journal.current_index.expect("current_index") as usize];
 
         client
             .database(DB)
@@ -2962,7 +3326,10 @@ mod test {
             persisted_journal.phase,
             RestoreJournalPhase::RollbackInProgress
         );
-        assert_eq!(persisted_journal.current_index, Some(0));
+        assert_eq!(
+            persisted_journal.current_index,
+            Some(first_processed_index as u32)
+        );
         assert_eq!(
             persisted_journal.current_step,
             Some(RestoreJournalStep::RollbackStarted)
@@ -3028,7 +3395,7 @@ mod test {
 
         let snapshot_sync_state = SyncState::new(
             snapshot_block.layer2_block_number,
-            snapshot_block.hash().to_string(),
+            snapshot_block.hash().to_hex_string(),
             L1Ref {
                 block_number: 1112,
                 tx_hash: TxHash::from([6u8; 32]),
@@ -3037,17 +3404,7 @@ mod test {
             mongodb::bson::DateTime::now(),
         );
 
-        let mut session = client.start_session().await.expect("start session");
-        session
-            .start_transaction()
-            .and_run2(async |session| {
-                client
-                    .update_sync_state_with_session(&snapshot_sync_state, session)
-                    .await?;
-                Ok::<(), mongodb::error::Error>(())
-            })
-            .await
-            .expect("write snapshot sync_state");
+        persist_sync_state(&client, &snapshot_sync_state).await;
 
         let snapshot_root = std::env::temp_dir().join(format!(
             "nf4-proposer-shadow-cleanup-test-{}",
@@ -3071,7 +3428,7 @@ mod test {
 
         let newer_live_sync_state = SyncState::new(
             newer_live_block.layer2_block_number,
-            newer_live_block.hash().to_string(),
+            newer_live_block.hash().to_hex_string(),
             L1Ref {
                 block_number: 1314,
                 tx_hash: TxHash::from([5u8; 32]),
@@ -3079,17 +3436,7 @@ mod test {
             },
             mongodb::bson::DateTime::now(),
         );
-        let mut session = client.start_session().await.expect("start session");
-        session
-            .start_transaction()
-            .and_run2(async |session| {
-                client
-                    .update_sync_state_with_session(&newer_live_sync_state, session)
-                    .await?;
-                Ok::<(), mongodb::error::Error>(())
-            })
-            .await
-            .expect("write newer live sync_state");
+        persist_sync_state(&client, &newer_live_sync_state).await;
         let stale_live_only_deposit = DepositDatawithFee {
             fee: Fr254::from(8u64),
             deposit_data: DepositData {
@@ -3152,7 +3499,7 @@ mod test {
         assert_eq!(live_sync_state.last_applied_l2_block, 10);
         assert_eq!(
             live_sync_state.fingerprint,
-            snapshot_block.hash().to_string()
+            snapshot_block.hash().to_hex_string()
         );
 
         let live_blocks_count = client
@@ -3169,6 +3516,260 @@ mod test {
         .await
         .expect("restored deposits should exist");
         assert_eq!(restored_deposits, vec![snapshot_pending_deposit]);
+
+        let duplicate_insert_error = client
+            .database(DB)
+            .collection::<DepositDatawithFee>(DEPOSIT_COLLECTION)
+            .insert_one(snapshot_pending_deposit)
+            .await
+            .expect_err("restored deposit collection should keep its unique index");
+        assert!(duplicate_insert_error.to_string().contains("E11000"));
+
+        fs::remove_dir_all(snapshot_root)
+            .await
+            .expect("cleanup snapshot directory");
+    }
+
+    #[tokio::test]
+    async fn restore_proposer_snapshot_cleans_non_snapshotted_recovery_state_before_validation() {
+        let _snapshot_test_lock = snapshot_test_lock().await;
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+
+        initialize_snapshot_test_trees(&client).await;
+
+        let selected_commitment = Fr254::from(777u64);
+        let snapshot_block = StoredBlock {
+            layer2_block_number: 10,
+            commitments: vec![selected_commitment.to_hex_string()],
+            proposer_address: Address::from([8u8; 20]),
+        };
+        client
+            .store_block(&snapshot_block)
+            .await
+            .expect("store snapshot block");
+        let snapshot_sync_state = SyncState::new(
+            snapshot_block.layer2_block_number,
+            snapshot_block.hash().to_hex_string(),
+            L1Ref {
+                block_number: 2000,
+                tx_hash: TxHash::from([8u8; 32]),
+                log_index: 8,
+            },
+            mongodb::bson::DateTime::now(),
+        );
+        persist_sync_state(&client, &snapshot_sync_state).await;
+
+        let snapshot_root = std::env::temp_dir().join(format!(
+            "nf4-proposer-restore-cleans-nonsnapshotted-state-{}",
+            mongodb::bson::DateTime::now().timestamp_millis()
+        ));
+        let manifest = create_proposer_snapshot(&client, &snapshot_root)
+            .await
+            .expect("create snapshot");
+        let snapshot_dir = snapshot_root.join(&manifest.snapshot_id);
+
+        let reserved_deposit = DepositDatawithFee {
+            fee: Fr254::from(9u64),
+            deposit_data: DepositData {
+                nf_token_id: Fr254::from(301u64),
+                nf_slot_id: Fr254::from(302u64),
+                value: Fr254::from(303u64),
+                secret_hash: Fr254::from(304u64),
+            },
+            reserved: true,
+        };
+        <mongodb::Client as TransactionsDB<MockProof>>::set_mempool_deposits(
+            &client,
+            vec![reserved_deposit.clone()],
+        )
+        .await
+        .expect("store reserved deposit outside the snapshot");
+
+        let selected_transaction = test_selected_client_transaction(
+            41,
+            snapshot_sync_state.last_applied_l2_block,
+            selected_commitment,
+        );
+        client
+            .store_transaction(selected_transaction.clone())
+            .await
+            .expect("store lingering selected transaction outside the snapshot");
+
+        client
+            .store_pending_block(&PendingBlock {
+                layer2_block_number: snapshot_sync_state.last_applied_l2_block + 1,
+                state: PendingBlockState::ReadyToPropose,
+                broadcast_tx_hash: None,
+                broadcast_receipt_checks: 0,
+                block: Some(Block::default()),
+                selected_deposits: vec![vec![reserved_deposit]],
+                selected_client_transaction_hashes: vec![selected_transaction.hash.clone()],
+            })
+            .await
+            .expect("store stale pending block outside the snapshot");
+
+        let removed_mempool_transaction =
+            test_selected_client_transaction(51, 0, Fr254::from(901u64));
+        let removed_mempool_transaction = ClientTransactionWithMetaData {
+            lifecycle: TxLifecycle::Mempool,
+            ..removed_mempool_transaction
+        };
+        client
+            .store_transaction(removed_mempool_transaction.clone())
+            .await
+            .expect("store stale mempool transaction outside the snapshot");
+
+        let restored_sync_state = restore_proposer_snapshot(&client, &snapshot_dir)
+            .await
+            .expect("restore should clean non-snapshotted recovery state before validation");
+        assert_eq!(restored_sync_state, snapshot_sync_state);
+
+        assert!(
+            client
+                .get_all_pending_blocks()
+                .await
+                .expect("read pending blocks after restore")
+                .is_empty(),
+            "restore should discard lingering PendingBlocks that are not part of the snapshot"
+        );
+        assert_eq!(
+            client
+                .database(DB)
+                .collection::<Document>(DEPOSIT_COLLECTION)
+                .count_documents(mongodb::bson::doc! { "reserved": true })
+                .await
+                .expect("count reserved deposits after restore"),
+            0,
+            "restore should clear lingering reserved deposits before validation"
+        );
+        assert!(
+            <mongodb::Client as TransactionsDB<MockProof>>::get_transaction(
+                &client,
+                &selected_transaction.hash,
+            )
+            .await
+            .expect("selected transaction should still exist after restore cleanup")
+            .lifecycle
+            .is_mempool(),
+            "restore should normalize lingering Selected transactions back to the mempool before validation"
+        );
+        assert!(
+            <mongodb::Client as TransactionsDB<MockProof>>::get_transaction(
+                &client,
+                &removed_mempool_transaction.hash,
+            )
+            .await
+            .is_none(),
+            "restore should still drop non-selected mempool transactions during recovery"
+        );
+
+        fs::remove_dir_all(snapshot_root)
+            .await
+            .expect("cleanup snapshot directory");
+    }
+
+    #[tokio::test]
+    async fn restore_replaces_absent_optional_live_collections_with_empty_state() {
+        let _snapshot_test_lock = snapshot_test_lock().await;
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+        initialize_snapshot_test_trees(&client).await;
+
+        let snapshot_block = StoredBlock {
+            layer2_block_number: 3,
+            commitments: Vec::new(),
+            proposer_address: Address::from([3u8; 20]),
+        };
+        client
+            .store_block(&snapshot_block)
+            .await
+            .expect("store snapshot block");
+        let snapshot_sync_state = SyncState::new(
+            snapshot_block.layer2_block_number,
+            snapshot_block.hash().to_hex_string(),
+            L1Ref {
+                block_number: 303,
+                tx_hash: TxHash::from([3u8; 32]),
+                log_index: 3,
+            },
+            mongodb::bson::DateTime::now(),
+        );
+        persist_sync_state(&client, &snapshot_sync_state).await;
+        <mongodb::Client as HistoricRootTree<Fr254>>::append_historic_commitment_root(
+            &client,
+            &Fr254::from(3u64),
+            true,
+        )
+        .await
+        .expect("append snapshot historic root");
+
+        let snapshot_root = std::env::temp_dir().join(format!(
+            "nf4-proposer-optional-live-reset-test-{}",
+            mongodb::bson::DateTime::now().timestamp_millis()
+        ));
+        let manifest = create_proposer_snapshot(&client, &snapshot_root)
+            .await
+            .expect("create snapshot");
+        let commitment_nodes_collection = format!(
+            "{}_nodes",
+            <mongodb::Client as CommitmentTree<Fr254>>::TREE_NAME
+        );
+        assert!(
+            !manifest
+                .collections
+                .iter()
+                .any(|collection| collection.collection_name == commitment_nodes_collection),
+            "snapshot fixture should omit optional empty commitment nodes collection"
+        );
+        let snapshot_dir = snapshot_root.join(&manifest.snapshot_id);
+
+        client
+            .database(DB)
+            .collection::<Document>(&commitment_nodes_collection)
+            .insert_one(mongodb::bson::doc! { "_id": 999_i64, "value": "stale" })
+            .await
+            .expect("seed stale live commitment nodes");
+
+        let newer_live_block = StoredBlock {
+            layer2_block_number: 4,
+            commitments: Vec::new(),
+            proposer_address: Address::from([4u8; 20]),
+        };
+        client
+            .store_block(&newer_live_block)
+            .await
+            .expect("store newer live block");
+        let newer_live_sync_state = SyncState::new(
+            newer_live_block.layer2_block_number,
+            newer_live_block.hash().to_hex_string(),
+            L1Ref {
+                block_number: 404,
+                tx_hash: TxHash::from([4u8; 32]),
+                log_index: 4,
+            },
+            mongodb::bson::DateTime::now(),
+        );
+        persist_sync_state(&client, &newer_live_sync_state).await;
+        <mongodb::Client as HistoricRootTree<Fr254>>::append_historic_commitment_root(
+            &client,
+            &Fr254::from(4u64),
+            true,
+        )
+        .await
+        .expect("append newer live historic root");
+
+        restore_proposer_snapshot(&client, &snapshot_dir)
+            .await
+            .expect("restore snapshot");
+
+        let live_commitment_nodes_count = client
+            .database(DB)
+            .collection::<Document>(&commitment_nodes_collection)
+            .count_documents(mongodb::bson::doc! {})
+            .await
+            .expect("count restored commitment nodes");
+        assert_eq!(live_commitment_nodes_count, 0);
 
         fs::remove_dir_all(snapshot_root)
             .await
@@ -3213,7 +3814,7 @@ mod test {
 
         let snapshot_sync_state = SyncState::new(
             snapshot_block.layer2_block_number,
-            snapshot_block.hash().to_string(),
+            snapshot_block.hash().to_hex_string(),
             L1Ref {
                 block_number: 2122,
                 tx_hash: TxHash::from([4u8; 32]),
@@ -3222,17 +3823,7 @@ mod test {
             mongodb::bson::DateTime::now(),
         );
 
-        let mut session = client.start_session().await.expect("start session");
-        session
-            .start_transaction()
-            .and_run2(async |session| {
-                client
-                    .update_sync_state_with_session(&snapshot_sync_state, session)
-                    .await?;
-                Ok::<(), mongodb::error::Error>(())
-            })
-            .await
-            .expect("write snapshot sync_state");
+        persist_sync_state(&client, &snapshot_sync_state).await;
 
         let snapshot_root = std::env::temp_dir().join(format!(
             "nf4-proposer-recover-swap-test-{}",
@@ -3256,7 +3847,7 @@ mod test {
 
         let newer_live_sync_state = SyncState::new(
             newer_live_block.layer2_block_number,
-            newer_live_block.hash().to_string(),
+            newer_live_block.hash().to_hex_string(),
             L1Ref {
                 block_number: 2324,
                 tx_hash: TxHash::from([3u8; 32]),
@@ -3264,23 +3855,14 @@ mod test {
             },
             mongodb::bson::DateTime::now(),
         );
-        let mut session = client.start_session().await.expect("start session");
-        session
-            .start_transaction()
-            .and_run2(async |session| {
-                client
-                    .update_sync_state_with_session(&newer_live_sync_state, session)
-                    .await?;
-                Ok::<(), mongodb::error::Error>(())
-            })
-            .await
-            .expect("write newer live sync_state");
+        persist_sync_state(&client, &newer_live_sync_state).await;
 
         let mut journal = load_proposer_snapshot_into_shadow(&client, &snapshot_dir)
             .await
             .expect("load snapshot into shadow");
         let ordered = restore_collections_in_swap_order(&journal.collections);
-        let first = &ordered[0];
+        let (first_index, first) =
+            first_existing_live_restore_collection(&client, &journal.collections).await;
 
         rename_collection(&client, &first.live, &first.backup, false)
             .await
@@ -3288,7 +3870,7 @@ mod test {
 
         journal.collections = ordered;
         journal.phase = RestoreJournalPhase::SwapInProgress;
-        journal.current_index = Some(0);
+        journal.current_index = Some(first_index as u32);
         journal.current_step = Some(RestoreJournalStep::BackupCreated);
         journal.updated_at = mongodb::bson::DateTime::now();
         client.upsert_restore_journal(&journal).await.unwrap();
@@ -3312,6 +3894,277 @@ mod test {
         fs::remove_dir_all(snapshot_root)
             .await
             .expect("cleanup snapshot directory");
+    }
+
+    #[tokio::test]
+    async fn cleanup_after_shadow_swap_keeps_backups_when_restored_state_is_incoherent() {
+        let _snapshot_test_lock = snapshot_test_lock().await;
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+        initialize_snapshot_test_trees(&client).await;
+
+        let snapshot_block = StoredBlock {
+            layer2_block_number: 6,
+            commitments: Vec::new(),
+            proposer_address: Address::from([6u8; 20]),
+        };
+        client
+            .store_block(&snapshot_block)
+            .await
+            .expect("store snapshot block");
+        let snapshot_sync_state = SyncState::new(
+            snapshot_block.layer2_block_number,
+            snapshot_block.hash().to_hex_string(),
+            L1Ref {
+                block_number: 606,
+                tx_hash: TxHash::from([6u8; 32]),
+                log_index: 6,
+            },
+            mongodb::bson::DateTime::now(),
+        );
+        persist_sync_state(&client, &snapshot_sync_state).await;
+        <mongodb::Client as HistoricRootTree<Fr254>>::append_historic_commitment_root(
+            &client,
+            &Fr254::from(6u64),
+            true,
+        )
+        .await
+        .expect("append snapshot historic root");
+
+        let snapshot_root = std::env::temp_dir().join(format!(
+            "nf4-proposer-cleanup-validation-test-{}",
+            mongodb::bson::DateTime::now().timestamp_millis()
+        ));
+        let manifest = create_proposer_snapshot(&client, &snapshot_root)
+            .await
+            .expect("create snapshot");
+        let snapshot_dir = snapshot_root.join(&manifest.snapshot_id);
+
+        let newer_live_block = StoredBlock {
+            layer2_block_number: 7,
+            commitments: Vec::new(),
+            proposer_address: Address::from([7u8; 20]),
+        };
+        client
+            .store_block(&newer_live_block)
+            .await
+            .expect("store newer live block");
+        let newer_live_sync_state = SyncState::new(
+            newer_live_block.layer2_block_number,
+            newer_live_block.hash().to_hex_string(),
+            L1Ref {
+                block_number: 707,
+                tx_hash: TxHash::from([7u8; 32]),
+                log_index: 7,
+            },
+            mongodb::bson::DateTime::now(),
+        );
+        persist_sync_state(&client, &newer_live_sync_state).await;
+        <mongodb::Client as HistoricRootTree<Fr254>>::append_historic_commitment_root(
+            &client,
+            &Fr254::from(7u64),
+            true,
+        )
+        .await
+        .expect("append newer live historic root");
+
+        load_proposer_snapshot_into_shadow(&client, &snapshot_dir)
+            .await
+            .expect("load snapshot into shadow");
+        swap_proposer_shadow_into_live(&client)
+            .await
+            .expect("swap shadow into live");
+
+        client
+            .delete_block_by_number(snapshot_block.layer2_block_number)
+            .await
+            .expect("delete restored stored block");
+
+        let error = cleanup_after_proposer_shadow_swap(&client)
+            .await
+            .expect_err("cleanup should refuse to discard backups for incoherent restore");
+        assert!(matches!(error, SnapshotError::RestoreInvariantViolation(_)));
+        assert!(
+            client.get_restore_journal().await.is_some(),
+            "restore journal should be preserved for manual recovery"
+        );
+        assert!(
+            client
+                .database(DB)
+                .list_collection_names()
+                .await
+                .expect("list collections")
+                .iter()
+                .any(|name| name == &backup_collection_name(PROPOSED_BLOCKS_COLLECTION)),
+            "backup collections should remain available for rollback"
+        );
+
+        fs::remove_dir_all(snapshot_root)
+            .await
+            .expect("cleanup snapshot directory");
+    }
+
+    #[tokio::test]
+    async fn create_proposer_snapshot_rejects_tree_state_ahead_of_sync_state() {
+        let _snapshot_test_lock = snapshot_test_lock().await;
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+        initialize_snapshot_test_trees(&client).await;
+
+        let stored_block = StoredBlock {
+            layer2_block_number: 0,
+            commitments: Vec::new(),
+            proposer_address: Address::from([1u8; 20]),
+        };
+        client
+            .store_block(&stored_block)
+            .await
+            .expect("store block");
+        let sync_state = SyncState::new(
+            stored_block.layer2_block_number,
+            stored_block.hash().to_hex_string(),
+            L1Ref {
+                block_number: 100,
+                tx_hash: TxHash::from([1u8; 32]),
+                log_index: 1,
+            },
+            mongodb::bson::DateTime::now(),
+        );
+        persist_sync_state(&client, &sync_state).await;
+        <mongodb::Client as HistoricRootTree<Fr254>>::append_historic_commitment_root(
+            &client,
+            &Fr254::from(1u64),
+            true,
+        )
+        .await
+        .expect("append applied historic root");
+        <mongodb::Client as HistoricRootTree<Fr254>>::append_historic_commitment_root(
+            &client,
+            &Fr254::from(2u64),
+            true,
+        )
+        .await
+        .expect("append extra historic root");
+
+        let snapshot_root = std::env::temp_dir().join(format!(
+            "nf4-proposer-snapshot-inconsistent-state-{}",
+            mongodb::bson::DateTime::now().timestamp_millis()
+        ));
+        let error = create_proposer_snapshot(&client, &snapshot_root)
+            .await
+            .expect_err("snapshot should reject tree state ahead of sync_state");
+        assert!(error.to_string().contains("creating snapshot"));
+    }
+
+    #[tokio::test]
+    async fn create_proposer_snapshot_rejects_stored_block_ahead_of_sync_state() {
+        let _snapshot_test_lock = snapshot_test_lock().await;
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+        initialize_snapshot_test_trees(&client).await;
+
+        let applied_block = StoredBlock {
+            layer2_block_number: 0,
+            commitments: Vec::new(),
+            proposer_address: Address::from([2u8; 20]),
+        };
+        client
+            .store_block(&applied_block)
+            .await
+            .expect("store applied block");
+        persist_sync_state(
+            &client,
+            &SyncState::new(
+                applied_block.layer2_block_number,
+                applied_block.hash().to_hex_string(),
+                L1Ref {
+                    block_number: 200,
+                    tx_hash: TxHash::from([2u8; 32]),
+                    log_index: 2,
+                },
+                mongodb::bson::DateTime::now(),
+            ),
+        )
+        .await;
+
+        let speculative_block = StoredBlock {
+            layer2_block_number: 1,
+            commitments: vec!["0xspeculative".to_string()],
+            proposer_address: Address::from([3u8; 20]),
+        };
+        client
+            .store_block(&speculative_block)
+            .await
+            .expect("store speculative block ahead of sync_state");
+
+        let snapshot_root = std::env::temp_dir().join(format!(
+            "nf4-proposer-snapshot-ahead-stored-block-{}",
+            mongodb::bson::DateTime::now().timestamp_millis()
+        ));
+        let error = create_proposer_snapshot(&client, &snapshot_root)
+            .await
+            .expect_err("snapshot should reject speculative StoredBlocks ahead of sync_state");
+        assert!(error
+            .to_string()
+            .contains("highest StoredBlock 1 is ahead of sync_state-applied block 0"));
+    }
+
+    #[tokio::test]
+    async fn create_proposer_snapshot_rejects_reserved_deposits_ahead_of_sync_state() {
+        let _snapshot_test_lock = snapshot_test_lock().await;
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+        initialize_snapshot_test_trees(&client).await;
+
+        let applied_block = StoredBlock {
+            layer2_block_number: 0,
+            commitments: Vec::new(),
+            proposer_address: Address::from([4u8; 20]),
+        };
+        client
+            .store_block(&applied_block)
+            .await
+            .expect("store applied block");
+        persist_sync_state(
+            &client,
+            &SyncState::new(
+                applied_block.layer2_block_number,
+                applied_block.hash().to_hex_string(),
+                L1Ref {
+                    block_number: 400,
+                    tx_hash: TxHash::from([4u8; 32]),
+                    log_index: 4,
+                },
+                mongodb::bson::DateTime::now(),
+            ),
+        )
+        .await;
+        <mongodb::Client as TransactionsDB<MockProof>>::set_mempool_deposits(
+            &client,
+            vec![DepositDatawithFee {
+                fee: Fr254::from(4u64),
+                deposit_data: DepositData {
+                    nf_token_id: Fr254::from(41u64),
+                    nf_slot_id: Fr254::from(42u64),
+                    value: Fr254::from(43u64),
+                    secret_hash: Fr254::from(44u64),
+                },
+                reserved: true,
+            }],
+        )
+        .await
+        .expect("store reserved deposit");
+
+        let snapshot_root = std::env::temp_dir().join(format!(
+            "nf4-proposer-snapshot-reserved-deposits-{}",
+            mongodb::bson::DateTime::now().timestamp_millis()
+        ));
+        let error = create_proposer_snapshot(&client, &snapshot_root)
+            .await
+            .expect_err("snapshot should reject reserved deposits ahead of sync_state");
+        assert!(error.to_string().contains(
+            "Deposits contains 1 reserved selection(s) ahead of sync_state-applied block 0"
+        ));
     }
 
     #[tokio::test]
@@ -3352,7 +4205,7 @@ mod test {
 
         let snapshot_sync_state = SyncState::new(
             snapshot_block.layer2_block_number,
-            snapshot_block.hash().to_string(),
+            snapshot_block.hash().to_hex_string(),
             L1Ref {
                 block_number: 2526,
                 tx_hash: TxHash::from([2u8; 32]),
@@ -3361,17 +4214,7 @@ mod test {
             mongodb::bson::DateTime::now(),
         );
 
-        let mut session = client.start_session().await.expect("start session");
-        session
-            .start_transaction()
-            .and_run2(async |session| {
-                client
-                    .update_sync_state_with_session(&snapshot_sync_state, session)
-                    .await?;
-                Ok::<(), mongodb::error::Error>(())
-            })
-            .await
-            .expect("write snapshot sync_state");
+        persist_sync_state(&client, &snapshot_sync_state).await;
 
         let snapshot_root = std::env::temp_dir().join(format!(
             "nf4-proposer-recover-complete-test-{}",
@@ -3395,7 +4238,7 @@ mod test {
 
         let newer_live_sync_state = SyncState::new(
             newer_live_block.layer2_block_number,
-            newer_live_block.hash().to_string(),
+            newer_live_block.hash().to_hex_string(),
             L1Ref {
                 block_number: 2728,
                 tx_hash: TxHash::from([1u8; 32]),
@@ -3403,17 +4246,7 @@ mod test {
             },
             mongodb::bson::DateTime::now(),
         );
-        let mut session = client.start_session().await.expect("start session");
-        session
-            .start_transaction()
-            .and_run2(async |session| {
-                client
-                    .update_sync_state_with_session(&newer_live_sync_state, session)
-                    .await?;
-                Ok::<(), mongodb::error::Error>(())
-            })
-            .await
-            .expect("write newer live sync_state");
+        persist_sync_state(&client, &newer_live_sync_state).await;
 
         load_proposer_snapshot_into_shadow(&client, &snapshot_dir)
             .await
@@ -3455,7 +4288,7 @@ mod test {
             &client,
             &SyncState::new(
                 snapshot_block.layer2_block_number,
-                snapshot_block.hash().to_string(),
+                snapshot_block.hash().to_hex_string(),
                 L1Ref {
                     block_number: 2500,
                     tx_hash: TxHash::from([25u8; 32]),
@@ -3488,7 +4321,7 @@ mod test {
             &client,
             &SyncState::new(
                 newer_live_block.layer2_block_number,
-                newer_live_block.hash().to_string(),
+                newer_live_block.hash().to_hex_string(),
                 L1Ref {
                     block_number: 2600,
                     tx_hash: TxHash::from([26u8; 32]),

@@ -27,6 +27,16 @@ pub trait BlockStorageDB {
     async fn get_block_by_number(&self, block_number: u64) -> Option<StoredBlock>;
     async fn get_all_blocks(&self) -> Option<Vec<StoredBlock>>;
     async fn delete_block_by_number(&self, block_number: u64) -> Option<()>;
+    async fn delete_all_blocks(&self) -> Option<u64> {
+        let blocks = self.get_all_blocks().await?;
+        let mut deleted = 0_u64;
+        for block in blocks {
+            self.delete_block_by_number(block.layer2_block_number)
+                .await?;
+            deleted += 1;
+        }
+        Some(deleted)
+    }
     async fn delete_block_by_number_with_session(
         &self,
         block_number: u64,
@@ -35,6 +45,22 @@ pub trait BlockStorageDB {
         self.delete_block_by_number(block_number)
             .await
             .ok_or_else(|| mongodb::error::Error::custom("Could not delete proposed block"))
+    }
+    async fn delete_all_blocks_with_session(
+        &self,
+        session: &mut mongodb::ClientSession,
+    ) -> Result<u64, mongodb::error::Error> {
+        let blocks = self
+            .get_all_blocks()
+            .await
+            .ok_or_else(|| mongodb::error::Error::custom("Could not list proposed blocks"))?;
+        let mut deleted = 0_u64;
+        for block in blocks {
+            self.delete_block_by_number_with_session(block.layer2_block_number, session)
+                .await?;
+            deleted += 1;
+        }
+        Ok(deleted)
     }
 }
 
@@ -74,6 +100,34 @@ pub trait PendingBlockDB {
     async fn get_pending_block(&self, block_number: u64) -> Option<PendingBlock>;
     async fn get_all_pending_blocks(&self) -> Option<Vec<PendingBlock>>;
     async fn delete_pending_block(&self, block_number: u64) -> Option<()>;
+    async fn delete_all_pending_blocks(&self) -> Option<u64> {
+        let pending_blocks = self.get_all_pending_blocks().await?;
+        let mut deleted = 0_u64;
+        for pending_block in pending_blocks {
+            self.delete_pending_block(pending_block.layer2_block_number)
+                .await?;
+            deleted += 1;
+        }
+        Some(deleted)
+    }
+    async fn delete_all_pending_blocks_with_session(
+        &self,
+        session: &mut mongodb::ClientSession,
+    ) -> Result<u64, mongodb::error::Error> {
+        let pending_blocks = self
+            .get_all_pending_blocks()
+            .await
+            .ok_or_else(|| mongodb::error::Error::custom("Could not list pending blocks"))?;
+        let mut deleted = 0_u64;
+        for pending_block in pending_blocks {
+            self.delete_pending_block(pending_block.layer2_block_number)
+                .await
+                .ok_or_else(|| mongodb::error::Error::custom("Could not delete pending block"))?;
+            deleted += 1;
+        }
+        let _ = session;
+        Ok(deleted)
+    }
 }
 
 /// Used to store transactions that are on chain. Can be queried to see if a nullifier or commitment is on chain.
@@ -144,6 +198,7 @@ pub trait TransactionsDB<'a, P> {
         deposits: Vec<Vec<DepositDatawithFee>>,
         reserved: bool,
     ) -> Option<u64>;
+    async fn clear_all_mempool_deposit_reservations(&self) -> Option<u64>;
     async fn remove_all_mempool_deposits(&self) -> Option<u64>;
     async fn remove_all_mempool_client_transactions(&self) -> Option<u64>;
 }
