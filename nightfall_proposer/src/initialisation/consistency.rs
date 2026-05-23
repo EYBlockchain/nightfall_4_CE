@@ -236,18 +236,19 @@ pub(super) async fn validate_startup_proposer_state_consistency(
     validate_live_proposer_state_consistency(client).await
 }
 
-pub(crate) async fn validate_live_proposer_state_consistency(
+async fn validate_snapshotted_live_proposer_state_with_sync_state(
     client: &Client,
+    sync_state: Option<&SyncState>,
 ) -> Result<(), String> {
-    match client.get_sync_state().await {
+    match sync_state {
         Some(sync_state) => {
             let stored_block = client
                 .get_block_by_number(sync_state.last_applied_l2_block)
                 .await
                 .ok_or_else(|| missing_stored_block_error(sync_state.last_applied_l2_block))?;
 
-            validate_sync_state_against_block(&sync_state, &stored_block)?;
-            validate_tree_state_against_sync_state(client, Some(&sync_state), Some(&stored_block))
+            validate_sync_state_against_block(sync_state, &stored_block)?;
+            validate_tree_state_against_sync_state(client, Some(sync_state), Some(&stored_block))
                 .await?;
 
             if let Some(highest_stored_block) = highest_stored_block_number(client).await? {
@@ -259,6 +260,38 @@ pub(crate) async fn validate_live_proposer_state_consistency(
                 }
             }
 
+            Ok(())
+        }
+        None => {
+            validate_tree_state_against_sync_state(client, None, None).await?;
+
+            if let Some(highest_stored_block) = highest_stored_block_number(client).await? {
+                return Err(stored_blocks_ahead_of_sync_state_error(
+                    0,
+                    highest_stored_block,
+                ));
+            }
+
+            Ok(())
+        }
+    }
+}
+
+pub(crate) async fn validate_snapshotted_live_proposer_state_consistency(
+    client: &Client,
+) -> Result<(), String> {
+    let sync_state = client.get_sync_state().await;
+    validate_snapshotted_live_proposer_state_with_sync_state(client, sync_state.as_ref()).await
+}
+
+pub(crate) async fn validate_live_proposer_state_consistency(
+    client: &Client,
+) -> Result<(), String> {
+    let sync_state = client.get_sync_state().await;
+    validate_snapshotted_live_proposer_state_with_sync_state(client, sync_state.as_ref()).await?;
+
+    match sync_state {
+        Some(sync_state) => {
             let reserved_deposit_count = reserved_deposit_count(client).await?;
             if reserved_deposit_count > 0 {
                 return Err(reserved_deposits_ahead_of_sync_state_error(

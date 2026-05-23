@@ -19,14 +19,18 @@ mod runtime_listener;
 
 pub use bootstrap::bootstrap_proposer_startup_state;
 pub(crate) use cleanup::clear_all_reserved_deposits;
-pub(crate) use consistency::validate_live_proposer_state_consistency;
+pub(crate) use consistency::{
+    validate_live_proposer_state_consistency, validate_snapshotted_live_proposer_state_consistency,
+};
 pub use runtime_listener::{
     get_runtime_listener_resume_cursor, get_runtime_listener_start_block,
     set_runtime_listener_resume_cursor, set_runtime_listener_start_block,
 };
 
-use bootstrap::{bootstrap_proposer_startup_state_with_db, recover_then_initialize_proposer_db};
 use db::ensure_proposer_db_initialized;
+
+#[cfg(test)]
+use bootstrap::{bootstrap_proposer_startup_state_with_db, recover_then_initialize_proposer_db};
 
 #[cfg(test)]
 mod tests;

@@ -1449,6 +1449,58 @@ async fn bootstrap_continues_after_restore_rollback_clears_the_journal() {
 }
 
 #[tokio::test]
+async fn bootstrap_continues_after_swap_complete_rollback_and_restores_pre_snapshot_runtime_state()
+{
+    let _lock = bootstrap_test_lock().await;
+    let container = get_mongo().await;
+    let client = get_db_connection(&container).await;
+
+    let (snapshot_root, _, _) =
+        create_snapshot_fixture(&client, "nf4-bootstrap-swap-complete-rollback", 22, 2200).await;
+    let snapshot_dir = snapshot_dir(&snapshot_root);
+
+    let newer_live_sync_state = set_live_sync_state(&client, 23, "0xnewer-live", 2300).await;
+    load_proposer_snapshot_into_shadow(&client, &snapshot_dir)
+        .await
+        .expect("load snapshot into shadow");
+    crate::driven::db::snapshot::swap_proposer_shadow_into_live(&client)
+        .await
+        .expect("swap shadow into live");
+
+    client
+        .delete_block_by_number(22)
+        .await
+        .expect("delete restored stored block to force swap_complete rollback");
+
+    MockNightfallContract::set_onchain_next_block(24);
+    reset_runtime_bootstrap_state().await;
+
+    bootstrap_proposer_startup_state_with_db::<MockNightfallContract>(&client, false)
+        .await
+        .expect("bootstrap should continue after swap_complete rollback recovery");
+
+    assert_eq!(client.get_restore_journal().await, None);
+    assert_eq!(
+        client.get_sync_state().await,
+        Some(newer_live_sync_state.clone())
+    );
+    assert_eq!(
+        *get_expected_layer2_blocknumber().await.read().await,
+        I256::try_from(24_u64).expect("24 fits into I256")
+    );
+    assert_eq!(get_runtime_listener_start_block().await, 2300);
+    assert!(get_synchronisation_status()
+        .await
+        .read()
+        .await
+        .is_synchronised());
+
+    tokio::fs::remove_dir_all(snapshot_root)
+        .await
+        .expect("cleanup snapshot directory");
+}
+
+#[tokio::test]
 async fn startup_recovers_restore_journal_before_reinitializing_live_tree_collections() {
     let _lock = bootstrap_test_lock().await;
     let container = get_mongo().await;

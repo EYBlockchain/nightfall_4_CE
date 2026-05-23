@@ -161,6 +161,16 @@ In that case, rollback should:
 - drop remaining shadow collections
 - keep the proposer non-READY and fail closed if rollback cannot be completed cleanly
 
+Implementation note and deferred follow-up:
+
+- when recovery resumes a `rollback_in_progress` journal at an **optional** collection where the journal step is `rollback_started`, `backup` is absent, and `live` is present, recovery now drops `live` only if it can still verify that `live` matches the restored snapshot state; otherwise it fails closed and requires manual intervention
+- when recovery resumes a `rollback_in_progress` journal at a **required** collection where the journal step is `rollback_started`, `backup` is absent, and `live` is present, the current implementation still treats this as the backup having already been renamed back to live
+- that assumption is correct for the legitimate crash window between `rename_collection(backup, live)` and the `rollback_applied` journal write
+- it is **not** correct if a required backup collection was lost externally (for example storage corruption or manual deletion) while the journal was at `rollback_started`
+- in that case recovery may incorrectly mark the collection as rolled back and may boot from a mixed old/new state
+- if external backup loss is suspected, manual intervention is required before restart
+- a robust fix would persist a per-collection fingerprint in the journal at the moment `live -> backup` succeeds, then verify `live` against that fingerprint when resuming rollback; this is deferred as a follow-up
+
 ### `swap_complete`
 
 Live collections already point to restored data. Recovery should:
