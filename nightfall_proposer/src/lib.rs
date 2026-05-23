@@ -375,6 +375,35 @@ pub mod initialisation {
         Ok(metadata.sub_tree_count)
     }
 
+    async fn collection_exists(client: &Client, collection_name: &str) -> Result<bool, String> {
+        let names = client
+            .database(DB)
+            .list_collection_names()
+            .await
+            .map_err(|error| format!("Could not list proposer collections: {error}"))?;
+        Ok(names.iter().any(|name| name == collection_name))
+    }
+
+    async fn indexed_leaves_count(client: &Client, tree_name: &str) -> Result<u64, String> {
+        let collection_name = format!("{tree_name}_indexed_leaves");
+        if !collection_exists(client, &collection_name).await? {
+            return Err(tree_state_inconsistency_error(&format!(
+                "indexed leaves collection for {tree_name} is missing."
+            )));
+        }
+
+        client
+            .database(DB)
+            .collection::<Document>(&collection_name)
+            .count_documents(doc! {})
+            .await
+            .map_err(|error| {
+                format!(
+                    "Could not count proposer indexed leaves collection {collection_name}: {error}"
+                )
+            })
+    }
+
     async fn highest_stored_block_number(client: &Client) -> Result<Option<u64>, String> {
         client
             .database(DB)
@@ -418,6 +447,12 @@ pub mod initialisation {
             <mongodb::Client as CommitmentTree<Fr254>>::TREE_NAME,
         )
         .await?;
+        let nullifier_sub_tree_count =
+            tree_sub_tree_count(client, <mongodb::Client as NullifierTree<Fr254>>::TREE_NAME)
+                .await?;
+        let nullifier_indexed_leaf_count =
+            indexed_leaves_count(client, <mongodb::Client as NullifierTree<Fr254>>::TREE_NAME)
+                .await?;
         let historic_root_sub_tree_count = tree_sub_tree_count(
             client,
             <mongodb::Client as HistoricRootTree<Fr254>>::TREE_NAME,
@@ -456,13 +491,35 @@ pub mod initialisation {
                         sync_state.last_applied_l2_block
                     )));
                 }
+
+                if nullifier_sub_tree_count == 0 {
+                    return Err(tree_state_inconsistency_error(&format!(
+                        "sync_state records applied L2 block {}, but the nullifier tree metadata \
+                         reports sub_tree_count 0.",
+                        sync_state.last_applied_l2_block
+                    )));
+                }
+
+                if nullifier_indexed_leaf_count == 0 {
+                    return Err(tree_state_inconsistency_error(&format!(
+                        "sync_state records applied L2 block {}, but the nullifier indexed leaves \
+                         collection is empty.",
+                        sync_state.last_applied_l2_block
+                    )));
+                }
             }
             None => {
-                if commitment_sub_tree_count > 0 || historic_root_sub_tree_count > 1 {
+                if commitment_sub_tree_count > 0
+                    || historic_root_sub_tree_count > 1
+                    || nullifier_sub_tree_count != 1
+                    || nullifier_indexed_leaf_count != 1
+                {
                     return Err(tree_state_inconsistency_error(&format!(
                         "no proposer sync_state exists, but proposer trees are not empty \
                          (commitment_sub_tree_count={commitment_sub_tree_count}, \
-                         historic_root_sub_tree_count={historic_root_sub_tree_count})."
+                         historic_root_sub_tree_count={historic_root_sub_tree_count}, \
+                         nullifier_sub_tree_count={nullifier_sub_tree_count}, \
+                         nullifier_indexed_leaf_count={nullifier_indexed_leaf_count})."
                     )));
                 }
             }
@@ -1201,6 +1258,72 @@ pub mod initialisation {
             assert!(
                 error.contains("tree state is inconsistent")
                     && error.contains("Manual recovery is required"),
+                "unexpected bootstrap error: {error}"
+            );
+        }
+
+        #[tokio::test]
+        async fn bootstrap_aborts_when_sync_state_exists_but_nullifier_metadata_is_missing() {
+            let _lock = bootstrap_test_lock().await;
+            let container = get_mongo().await;
+            let client = get_db_connection(&container).await;
+
+            ensure_proposer_db_initialized(&client).await;
+            set_live_sync_state(&client, 5, "0x05", 500).await;
+            client
+                .database(DB)
+                .collection::<Document>("Nullifiers_metadata")
+                .drop()
+                .await
+                .expect("drop nullifier metadata");
+
+            MockNightfallContract::set_onchain_next_block(6);
+            reset_runtime_bootstrap_state().await;
+
+            let error = bootstrap_proposer_startup_state_with_db::<MockNightfallContract>(
+                &client, false,
+            )
+            .await
+            .expect_err(
+                "bootstrap should reject missing nullifier metadata with sync_state present",
+            );
+
+            assert!(
+                error.contains("tree state is inconsistent")
+                    && error.contains("tree metadata for Nullifiers is missing"),
+                "unexpected bootstrap error: {error}"
+            );
+        }
+
+        #[tokio::test]
+        async fn bootstrap_aborts_when_sync_state_exists_but_nullifier_indexed_leaves_are_empty() {
+            let _lock = bootstrap_test_lock().await;
+            let container = get_mongo().await;
+            let client = get_db_connection(&container).await;
+
+            ensure_proposer_db_initialized(&client).await;
+            set_live_sync_state(&client, 5, "0x05", 500).await;
+            client
+                .database(DB)
+                .collection::<Document>("Nullifiers_indexed_leaves")
+                .delete_many(doc! {})
+                .await
+                .expect("empty nullifier indexed leaves");
+
+            MockNightfallContract::set_onchain_next_block(6);
+            reset_runtime_bootstrap_state().await;
+
+            let error = bootstrap_proposer_startup_state_with_db::<MockNightfallContract>(
+                &client, false,
+            )
+            .await
+            .expect_err(
+                "bootstrap should reject empty nullifier indexed leaves with sync_state present",
+            );
+
+            assert!(
+                error.contains("tree state is inconsistent")
+                    && error.contains("nullifier indexed leaves collection is empty"),
                 "unexpected bootstrap error: {error}"
             );
         }

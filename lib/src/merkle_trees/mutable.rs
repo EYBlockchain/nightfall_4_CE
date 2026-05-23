@@ -241,10 +241,14 @@ where
             }
         }
 
-        // If there is nothing to flush, we can safely drop the cache and return.
+        // If there is nothing to flush, we can safely clear the cache and return.
         if models.is_empty() {
             if let Some(session) = session.as_deref_mut() {
-                cache_collection.drop().session(session).await
+                cache_collection
+                    .delete_many(doc! {})
+                    .session(session)
+                    .await
+                    .map(|_| ())
             } else {
                 cache_collection.drop().await
             }
@@ -284,9 +288,13 @@ where
             )));
         }
 
-        // Only now that we know all writes were acknowledged do we drop the cache.
+        // Only now that we know all writes were acknowledged do we clear the cache.
         if let Some(session) = session.as_deref_mut() {
-            cache_collection.drop().session(session).await
+            cache_collection
+                .delete_many(doc! {})
+                .session(session)
+                .await
+                .map(|_| ())
         } else {
             cache_collection.drop().await
         }
@@ -1479,5 +1487,49 @@ mod test {
             result,
             Err(MerkleTreeError::Error(msg)) if msg.contains("sub_tree_height too large")
         ));
+    }
+
+    #[tokio::test]
+    async fn flush_cache_with_session_succeeds_inside_transaction() {
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+        let tree_id = "flush_cache_transaction_safe";
+
+        <mongodb::Client as MutableTree<Fr254>>::new_mutable_tree(&client, 3, 1, tree_id)
+            .await
+            .expect("create mutable tree");
+
+        let cache_collection = client
+            .database(<mongodb::Client as MutableTree<Fr254>>::MUT_DB_NAME)
+            .collection::<Node<Fr254>>(&format!("{tree_id}_cache"));
+        cache_collection
+            .insert_one(Node {
+                value: Fr254::one(),
+                _id: 0,
+            })
+            .await
+            .expect("seed cache entry");
+
+        let mut session = client.start_session().await.expect("start session");
+        session
+            .start_transaction()
+            .and_run2(async |session| {
+                <mongodb::Client as MutableTree<Fr254>>::flush_cache_with_session(
+                    &client,
+                    tree_id,
+                    Some(session),
+                )
+                .await
+                .map_err(|error| mongodb::error::Error::custom(error.to_string()))?;
+                Ok::<(), mongodb::error::Error>(())
+            })
+            .await
+            .expect("flush cache in transaction should commit");
+
+        let remaining_cache_docs = cache_collection
+            .count_documents(mongodb::bson::doc! {})
+            .await
+            .expect("count cache docs");
+        assert_eq!(remaining_cache_docs, 0);
     }
 }

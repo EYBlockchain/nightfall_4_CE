@@ -38,15 +38,20 @@ async fn initialize_snapshot_scheduler_state_for_root(
     live_last_applied_l2_block: Option<u64>,
 ) -> Result<(), SnapshotError> {
     cleanup_orphaned_proposer_snapshot_temp_dirs(root).await?;
-    let live_snapshot_l2_block = match live_last_applied_l2_block {
-        Some(last_applied_l2_block) => last_applied_l2_block,
+    let last_snapshot_l2_block = match live_last_applied_l2_block {
+        Some(last_applied_l2_block) => {
+            match find_latest_valid_proposer_snapshot(root, last_applied_l2_block).await? {
+                Some((_, manifest)) => manifest.last_applied_l2_block,
+                None => 0,
+            }
+        }
         None => match find_latest_valid_proposer_snapshot(root, u64::MAX).await? {
             Some((_, manifest)) => manifest.last_applied_l2_block,
             None => 0,
         },
     };
 
-    set_last_snapshot_l2_block(live_snapshot_l2_block).await;
+    set_last_snapshot_l2_block(last_snapshot_l2_block).await;
     Ok(())
 }
 
@@ -528,8 +533,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn initialize_snapshot_scheduler_state_prefers_live_sync_state_over_newer_disk_snapshot()
-    {
+    async fn initialize_snapshot_scheduler_state_uses_latest_disk_snapshot_not_ahead_of_live_sync_state(
+    ) {
         let _scheduler_test_lock = scheduler_test_lock().await;
         let root = std::env::temp_dir().join(format!(
             "nf4-proposer-scheduler-live-state-test-{}",
@@ -554,5 +559,25 @@ mod tests {
         fs::remove_dir_all(root)
             .await
             .expect("cleanup scheduler live state root");
+    }
+
+    #[tokio::test]
+    async fn initialize_snapshot_scheduler_state_sets_zero_when_live_sync_state_has_no_snapshot() {
+        let _scheduler_test_lock = scheduler_test_lock().await;
+        let root = std::env::temp_dir().join(format!(
+            "nf4-proposer-scheduler-no-snapshot-test-{}",
+            DateTime::now().timestamp_millis()
+        ));
+        fs::create_dir_all(&root).await.expect("create root");
+
+        initialize_snapshot_scheduler_state_for_root(&root, Some(100))
+            .await
+            .expect("initialize scheduler state with live sync_state but no snapshots");
+
+        assert_eq!(*get_last_snapshot_l2_block().await.read().await, 0);
+
+        fs::remove_dir_all(root)
+            .await
+            .expect("cleanup scheduler no snapshot root");
     }
 }
