@@ -264,12 +264,6 @@ where
             ))
         })?;
 
-        if expected < 1 {
-            return Err(MerkleTreeError::Error(
-                "Invalid cached_entries count: must be positive".to_string(),
-            ));
-        }
-
         // Execute ordered bulk write so that on the first error, remaining operations are not applied.
         let result = if let Some(session) = session.as_deref_mut() {
             self.bulk_write(models).ordered(true).session(session).await
