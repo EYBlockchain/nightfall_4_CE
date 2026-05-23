@@ -39,12 +39,13 @@ pub trait BlockStorageDB {
     }
     async fn delete_block_by_number_with_session(
         &self,
-        block_number: u64,
-        _session: &mut mongodb::ClientSession,
+        _block_number: u64,
+        session: &mut mongodb::ClientSession,
     ) -> Result<(), mongodb::error::Error> {
-        self.delete_block_by_number(block_number)
-            .await
-            .ok_or_else(|| mongodb::error::Error::custom("Could not delete proposed block"))
+        let _ = session;
+        Err(mongodb::error::Error::custom(
+            "delete_block_by_number_with_session must be implemented with session-aware deletes",
+        ))
     }
     async fn delete_all_blocks_with_session(
         &self,
