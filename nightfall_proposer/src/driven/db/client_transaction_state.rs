@@ -55,6 +55,13 @@ pub(crate) fn selected_transactions_filter_for_block(block_l2: i64) -> Document 
     }
 }
 
+pub(crate) fn selected_transactions_filter_after_block(block_l2: i64) -> Document {
+    doc! {
+        "lifecycle.state": "selected",
+        "lifecycle.block_l2": { "$gt": Bson::Int64(block_l2) },
+    }
+}
+
 #[cfg(test)]
 fn legacy_transactions_filter() -> Document {
     doc! { "lifecycle": { "$exists": false } }
@@ -274,6 +281,26 @@ pub(crate) async fn selected_client_transaction_count(client: &Client) -> Result
         })
 }
 
+pub(crate) async fn selected_client_transaction_count_after_block(
+    client: &Client,
+    last_applied_l2_block: u64,
+) -> Result<u64, String> {
+    let last_applied_l2_block = i64::try_from(last_applied_l2_block).map_err(|_| {
+        format!("Could not convert proposer last applied L2 block {last_applied_l2_block} into i64")
+    })?;
+
+    client
+        .database(DB)
+        .collection::<Document>(CLIENT_TRANSACTIONS_COLLECTION)
+        .count_documents(selected_transactions_filter_after_block(last_applied_l2_block))
+        .await
+        .map_err(|error| {
+            format!(
+                "Could not inspect proposer selected client transactions beyond L2 block {last_applied_l2_block}: {error}"
+            )
+        })
+}
+
 pub(crate) async fn restore_all_selected_transactions_to_mempool(
     client: &Client,
 ) -> Result<u64, String> {
@@ -293,6 +320,34 @@ pub(crate) async fn restore_all_selected_transactions_to_mempool(
         .map_err(|error| {
             format!(
                 "Could not restore proposer selected client transactions to the mempool: {error}"
+            )
+        })
+}
+
+pub(crate) async fn restore_selected_transactions_to_mempool_after_block(
+    client: &Client,
+    last_applied_l2_block: u64,
+) -> Result<u64, String> {
+    let last_applied_l2_block = i64::try_from(last_applied_l2_block).map_err(|_| {
+        format!("Could not convert proposer last applied L2 block {last_applied_l2_block} into i64")
+    })?;
+
+    client
+        .database(DB)
+        .collection::<Document>(CLIENT_TRANSACTIONS_COLLECTION)
+        .update_many(
+            selected_transactions_filter_after_block(last_applied_l2_block),
+            doc! {
+                "$set": {
+                    "lifecycle": lifecycle_bson(&TxLifecycle::Mempool)
+                }
+            },
+        )
+        .await
+        .map(|result| result.modified_count)
+        .map_err(|error| {
+            format!(
+                "Could not restore proposer selected client transactions beyond L2 block {last_applied_l2_block} to the mempool: {error}"
             )
         })
 }

@@ -888,6 +888,55 @@ async fn bootstrap_backfills_legacy_client_transaction_lifecycle_before_cleanup(
 }
 
 #[tokio::test]
+async fn bootstrap_preserves_selected_transactions_at_sync_state_height() {
+    let _lock = bootstrap_test_lock().await;
+    let container = get_mongo().await;
+    let client = get_db_connection(&container).await;
+
+    ensure_proposer_db_initialized(&client).await;
+    let canonical_selected_transaction = test_selected_client_transaction(221, 5);
+    let speculative_selected_transaction = test_selected_client_transaction(231, 6);
+    client
+        .store_transaction(canonical_selected_transaction.clone())
+        .await
+        .expect("store canonical selected transaction");
+    client
+        .store_transaction(speculative_selected_transaction.clone())
+        .await
+        .expect("store speculative selected transaction");
+    set_live_sync_state(&client, 5, "0x05", 500).await;
+
+    MockNightfallContract::set_onchain_next_block(6);
+    reset_runtime_bootstrap_state().await;
+
+    bootstrap_proposer_startup_state_with_db::<MockNightfallContract>(&client, false)
+        .await
+        .expect("bootstrap should preserve canonical selected transactions at sync_state height");
+
+    assert_eq!(
+        <mongodb::Client as TransactionsDB<MockProof>>::get_transaction(
+            &client,
+            &canonical_selected_transaction.hash,
+        )
+        .await
+        .expect("canonical selected transaction should still exist after bootstrap")
+        .lifecycle,
+        TxLifecycle::Selected { block_l2: 5 }
+    );
+    assert!(
+        <mongodb::Client as TransactionsDB<MockProof>>::get_transaction(
+            &client,
+            &speculative_selected_transaction.hash,
+        )
+        .await
+        .expect("speculative selected transaction should still exist after bootstrap")
+        .lifecycle
+        .is_mempool(),
+        "startup cleanup should only demote Selected transactions ahead of sync_state"
+    );
+}
+
+#[tokio::test]
 async fn bootstrap_cleans_reserved_deposits_ahead_of_sync_state_without_pending_block() {
     let _lock = bootstrap_test_lock().await;
     let container = get_mongo().await;

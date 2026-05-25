@@ -5,7 +5,10 @@ use super::cleanup::{
 use crate::{
     domain::entities::SyncState,
     driven::db::{
-        client_transaction_state::selected_client_transaction_count, mongo_db::StoredBlock,
+        client_transaction_state::{
+            selected_client_transaction_count, selected_client_transaction_count_after_block,
+        },
+        mongo_db::StoredBlock,
     },
     ports::{
         db::{BlockStorageDB, SyncStateDB},
@@ -300,7 +303,11 @@ pub(crate) async fn validate_live_proposer_state_consistency(
                 ));
             }
 
-            let selected_transaction_count = selected_client_transaction_count(client).await?;
+            let selected_transaction_count = selected_client_transaction_count_after_block(
+                client,
+                sync_state.last_applied_l2_block,
+            )
+            .await?;
             if selected_transaction_count > 0 {
                 return Err(selected_transactions_ahead_of_sync_state_error(
                     sync_state.last_applied_l2_block,

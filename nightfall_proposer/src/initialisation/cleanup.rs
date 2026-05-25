@@ -2,7 +2,10 @@ use super::consistency::startup_local_state_cleanup_error;
 use crate::{
     domain::entities::SyncState,
     driven::db::{
-        client_transaction_state::restore_all_selected_transactions_to_mempool,
+        client_transaction_state::{
+            restore_all_selected_transactions_to_mempool,
+            restore_selected_transactions_to_mempool_after_block,
+        },
         mongo_db::{StoredBlock, DB, DEPOSIT_COLLECTION, PROPOSED_BLOCKS_COLLECTION},
     },
     ports::db::{BlockStorageDB, PendingBlockDB},
@@ -94,9 +97,22 @@ pub(super) async fn cleanup_non_canonical_startup_state(
     client: &Client,
     sync_state: Option<&SyncState>,
 ) -> Result<(), String> {
-    let _ = restore_all_selected_transactions_to_mempool(client)
-        .await
-        .map_err(|error| startup_local_state_cleanup_error(&error))?;
+    match sync_state {
+        Some(sync_state) => {
+            let _ = restore_selected_transactions_to_mempool_after_block(
+                client,
+                sync_state.last_applied_l2_block,
+            )
+            .await
+            .map_err(|error| startup_local_state_cleanup_error(&error))?;
+        }
+        None => {
+            let _ = restore_all_selected_transactions_to_mempool(client)
+                .await
+                .map_err(|error| startup_local_state_cleanup_error(&error))?;
+        }
+    }
+
     let _ = clear_all_reserved_deposits(client)
         .await
         .map_err(|error| startup_local_state_cleanup_error(&error))?;
