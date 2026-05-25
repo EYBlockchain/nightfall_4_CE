@@ -1,5 +1,6 @@
 use crate::{
     domain::entities::{L1Ref, SyncState},
+    driven::db::client_transaction_state::restore_all_selected_transactions_to_mempool,
     driven::db::snapshot::{
         acquire_proposer_state_maintenance_guard, find_latest_valid_proposer_snapshot,
         recover_from_restore_journal, restore_proposer_snapshot,
@@ -17,7 +18,6 @@ use crate::{
         trees::{CommitmentTree, HistoricRootTree, NullifierTree},
     },
     services::process_events::process_events,
-    services::selected_transactions::reconcile_obviously_orphaned_selected_transactions,
     services::snapshot_scheduler::set_last_snapshot_l2_block,
 };
 use alloy::{
@@ -137,6 +137,7 @@ where
                     log::error!(
                         "Proposer event listener terminated with error: {e:?}. Restarting in {backoff_delay:?}"
                     );
+                    apply_listener_retry_runtime_state().await;
                     if attempts >= max_attempts {
                         log::error!("Proposer event listener: max attempts reached. Giving up.");
                         if let Err(err) = notify_failure_proposer(
@@ -183,9 +184,33 @@ async fn apply_restored_listener_runtime_state(sync_state: &SyncState) -> usize 
     next_listener_start_block
 }
 
-async fn apply_destructive_replay_listener_runtime_state(start_block: usize) {
+fn destructive_replay_start_block() -> usize {
+    get_settings().genesis_block
+}
+
+async fn apply_destructive_replay_listener_runtime_state() -> usize {
+    let start_block = destructive_replay_start_block();
     set_runtime_listener_resume_cursor(None).await;
     set_runtime_listener_start_block(start_block).await;
+    start_block
+}
+
+async fn apply_listener_retry_runtime_state() {
+    get_synchronisation_status()
+        .await
+        .write()
+        .await
+        .clear_synchronised();
+    get_block_assembly_status().await.write().await.pause();
+}
+
+async fn apply_listener_caught_up_runtime_state() {
+    get_synchronisation_status()
+        .await
+        .write()
+        .await
+        .set_synchronised();
+    get_block_assembly_status().await.write().await.resume();
 }
 
 // This function listens for events and processes them. It's started by the start_event_listener function
@@ -285,6 +310,8 @@ where
         }
     }
 
+    apply_listener_caught_up_runtime_state().await;
+
     let mut events_stream = events_subscription.into_stream();
 
     while let Some(log) = events_stream.next().await {
@@ -340,6 +367,8 @@ async fn latest_restorable_l2_block() -> usize {
 ///
 /// Known limitation: pending client transactions that have not reached `Selected`
 /// are dropped during recovery and must be resubmitted by clients afterwards.
+/// `Selected` transactions are released back to the mempool so replay can rebuild
+/// canonical transaction lifecycle from scratch.
 async fn cleanup_recovery_side_effects<P>(db: &MongoClient)
 where
     P: Proof,
@@ -356,9 +385,9 @@ where
         );
     }
 
-    let restored_selected = reconcile_obviously_orphaned_selected_transactions::<P>(db).await;
+    let restored_selected = restore_all_selected_transactions_to_mempool(db).await;
     debug!(
-        "Selected transaction recovery after restart restored {} orphaned transaction(s).",
+        "Selected transaction recovery after restart restored {} transaction(s) to the mempool.",
         restored_selected.unwrap_or(0)
     );
 }
@@ -549,7 +578,7 @@ async fn proposer_snapshot_root_dir() -> PathBuf {
 /// Attempts to restore from the most recent valid proposer snapshot first; falls
 /// back to destructive reset+replay if no valid snapshot is found or the restore
 /// itself fails. Only the destructive fallback erases already synchronised data.
-pub async fn restart_event_listener<P, E, N>(start_block: usize)
+pub async fn restart_event_listener<P, E, N>(_start_block: usize)
 where
     P: Proof,
     E: ProvingEngine<P>,
@@ -575,9 +604,13 @@ where
     let db = get_db_connection().await;
     let max_restorable_l2_block = latest_restorable_l2_block().await as u64;
     let snapshot_root_dir = proposer_snapshot_root_dir().await;
-    let mut next_listener_start_block = start_block;
-
-    match find_latest_valid_proposer_snapshot(&snapshot_root_dir, max_restorable_l2_block).await {
+    let replay_start_block = destructive_replay_start_block();
+    let next_listener_start_block = match find_latest_valid_proposer_snapshot(
+        &snapshot_root_dir,
+        max_restorable_l2_block,
+    )
+    .await
+    {
         Ok(Some((snapshot_dir, manifest))) => {
             warn!(
                 "Desynchronised proposer state detected. Attempting snapshot restore from {} (L2 block {}) before falling back to reset+replay",
@@ -629,13 +662,14 @@ where
                             .await
                             .clear_synchronised();
                     }
-                    next_listener_start_block =
+                    let next_listener_start_block =
                         apply_restored_listener_runtime_state(&sync_state).await;
                     warn!(
                         "Snapshot restore completed successfully. Proposer will replay from L1 block {} with next expected L2 block {}",
                         sync_state.l1_ref.block_number,
                         next_expected_block
                     );
+                    next_listener_start_block
                 }
                 Err(error) => {
                     if let Err(recovery_error) = recover_from_restore_journal(db).await {
@@ -647,7 +681,7 @@ where
                         "Snapshot restore from {} failed: {}. Falling back to destructive reset+replay from L1 block {}",
                         snapshot_dir.display(),
                         error,
-                        start_block
+                        replay_start_block
                     );
                     if let Err(reset_error) = reset_proposer_state_for_replay::<P>(db).await {
                         panic!(
@@ -656,7 +690,7 @@ where
                     }
                     set_last_snapshot_l2_block(0).await;
                     *get_expected_layer2_blocknumber().await.write().await = I256::ZERO;
-                    apply_destructive_replay_listener_runtime_state(start_block).await;
+                    apply_destructive_replay_listener_runtime_state().await
                 }
             }
         }
@@ -665,7 +699,7 @@ where
                 "No valid proposer snapshot found under {} for L2 recovery point <= {}. Falling back to destructive reset+replay from L1 block {}",
                 snapshot_root_dir.display(),
                 max_restorable_l2_block,
-                start_block
+                replay_start_block
             );
             if let Err(reset_error) = reset_proposer_state_for_replay::<P>(db).await {
                 panic!(
@@ -674,14 +708,14 @@ where
             }
             set_last_snapshot_l2_block(0).await;
             *get_expected_layer2_blocknumber().await.write().await = I256::ZERO;
-            apply_destructive_replay_listener_runtime_state(start_block).await;
+            apply_destructive_replay_listener_runtime_state().await
         }
         Err(error) => {
             warn!(
                 "Snapshot discovery failed under {}: {}. Falling back to destructive reset+replay from L1 block {}",
                 snapshot_root_dir.display(),
                 error,
-                start_block
+                replay_start_block
             );
             if let Err(reset_error) = reset_proposer_state_for_replay::<P>(db).await {
                 panic!(
@@ -690,9 +724,9 @@ where
             }
             set_last_snapshot_l2_block(0).await;
             *get_expected_layer2_blocknumber().await.write().await = I256::ZERO;
-            apply_destructive_replay_listener_runtime_state(start_block).await;
+            apply_destructive_replay_listener_runtime_state().await
         }
-    }
+    };
 
     let settings = get_settings();
     let max_attempts = settings
@@ -715,7 +749,10 @@ pub async fn get_synchronisation_status() -> &'static RwLock<SynchronisationStat
 mod tests {
     use super::*;
     use crate::{
-        domain::entities::{Block, DepositDatawithFee, PendingBlock, PendingBlockState},
+        domain::entities::{
+            Block, ClientTransactionWithMetaData, DepositDatawithFee, PendingBlock,
+            PendingBlockState, TxLifecycle,
+        },
         driven::db::mongo_db::{ensure_deposit_indexes, StoredBlock, DB},
         drivers::blockchain::block_assembly::{
             pending_blocks_queue_len_for_test, push_pending_block_for_test,
@@ -730,13 +767,13 @@ mod tests {
     use ark_serialize::SerializationError;
     use lib::hex_conversion::HexConvertible;
     use lib::nf_client_proof::Proof;
-    use lib::shared_entities::DepositData;
+    use lib::shared_entities::{ClientTransaction, CompressedSecrets, DepositData};
     use lib::tests_utils::{get_db_connection, get_mongo};
     use mongodb::bson::{doc, Document};
     use serde::{Deserialize, Serialize};
     use tokio::sync::{Mutex, OnceCell};
 
-    #[derive(Clone, Debug, Deserialize, Serialize)]
+    #[derive(Clone, Debug, Default, Deserialize, Serialize)]
     struct MockProof;
 
     impl Proof for MockProof {
@@ -946,10 +983,74 @@ mod tests {
         .await;
         set_runtime_listener_start_block(100).await;
 
-        apply_destructive_replay_listener_runtime_state(42).await;
+        let start_block = apply_destructive_replay_listener_runtime_state().await;
 
-        assert_eq!(get_runtime_listener_start_block().await, 42);
+        assert_eq!(start_block, destructive_replay_start_block());
+        assert_eq!(get_runtime_listener_start_block().await, start_block);
         assert_eq!(get_runtime_listener_resume_cursor().await, None);
+    }
+
+    #[tokio::test]
+    async fn apply_listener_retry_runtime_state_clears_sync_and_pauses_assembly() {
+        let _lock = event_listener_test_lock().await;
+        get_synchronisation_status()
+            .await
+            .write()
+            .await
+            .set_synchronised();
+        get_block_assembly_status().await.write().await.resume();
+
+        apply_listener_retry_runtime_state().await;
+
+        assert!(!get_synchronisation_status()
+            .await
+            .read()
+            .await
+            .is_synchronised());
+        assert!(!get_block_assembly_status().await.read().await.is_running());
+    }
+
+    #[tokio::test]
+    async fn apply_listener_caught_up_runtime_state_sets_sync_and_resumes_assembly() {
+        let _lock = event_listener_test_lock().await;
+        get_synchronisation_status()
+            .await
+            .write()
+            .await
+            .clear_synchronised();
+        get_block_assembly_status().await.write().await.pause();
+
+        apply_listener_caught_up_runtime_state().await;
+
+        assert!(get_synchronisation_status()
+            .await
+            .read()
+            .await
+            .is_synchronised());
+        assert!(get_block_assembly_status().await.read().await.is_running());
+    }
+
+    fn test_selected_client_transaction(
+        seed: u32,
+        block_l2: u64,
+    ) -> ClientTransactionWithMetaData<MockProof> {
+        ClientTransactionWithMetaData {
+            client_transaction: ClientTransaction {
+                commitments: [
+                    Fr254::from(u64::from(seed) + 100),
+                    Fr254::zero(),
+                    Fr254::zero(),
+                    Fr254::zero(),
+                ],
+                compressed_secrets: CompressedSecrets::default(),
+                proof: MockProof,
+                ..Default::default()
+            },
+            lifecycle: TxLifecycle::Selected { block_l2 },
+            hash: vec![seed, seed + 1, seed + 2],
+            historic_roots: vec![],
+            receipt_token: None,
+        }
     }
 
     fn test_pending_deposit(seed: u64, reserved: bool) -> DepositDatawithFee {
@@ -1070,6 +1171,33 @@ mod tests {
                 .await
                 .expect("pending deposits should remain after recovery cleanup");
         assert_eq!(restored_deposits, vec![pending_deposit]);
+    }
+
+    #[tokio::test]
+    async fn cleanup_recovery_side_effects_restores_selected_transactions_to_mempool() {
+        let _lock = event_listener_test_lock().await;
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+
+        initialize_test_trees(&client).await;
+        let selected_transaction = test_selected_client_transaction(77, 12);
+        client
+            .store_transaction(selected_transaction.clone())
+            .await
+            .expect("store selected transaction");
+
+        cleanup_recovery_side_effects::<MockProof>(&client).await;
+
+        assert!(
+            <mongodb::Client as TransactionsDB<MockProof>>::get_transaction(
+                &client,
+                &selected_transaction.hash,
+            )
+            .await
+            .expect("selected transaction should still exist after cleanup")
+            .lifecycle
+            .is_mempool()
+        );
     }
 
     #[tokio::test]
