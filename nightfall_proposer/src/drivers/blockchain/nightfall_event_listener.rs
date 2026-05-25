@@ -597,25 +597,22 @@ where
                                 Ok(onchain_next_block) => next_expected_block == onchain_next_block,
                                 Err(_) => {
                                     warn!(
-                                            "Restored proposer state but could not convert current on-chain L2 block number {} into u64; keeping proposer desynchronised until replay confirms state",
-                                            onchain_next_block_i256
-                                        );
+                                        "Restored proposer state but could not convert current on-chain L2 block number {onchain_next_block_i256} into u64; keeping proposer desynchronised until replay confirms state"
+                                    );
                                     false
                                 }
                             }
                         }
                         Ok(onchain_next_block_i256) => {
                             warn!(
-                                    "Restored proposer state but contract returned negative current L2 block number {}; keeping proposer desynchronised until replay confirms state",
-                                    onchain_next_block_i256
-                                );
+                                "Restored proposer state but contract returned negative current L2 block number {onchain_next_block_i256}; keeping proposer desynchronised until replay confirms state"
+                            );
                             false
                         }
                         Err(error) => {
                             warn!(
-                                    "Restored proposer state but could not fetch current on-chain L2 block number: {}. Keeping proposer desynchronised until replay confirms state",
-                                    error
-                                );
+                                "Restored proposer state but could not fetch current on-chain L2 block number: {error}. Keeping proposer desynchronised until replay confirms state"
+                            );
                             false
                         }
                     };
@@ -643,8 +640,7 @@ where
                 Err(error) => {
                     if let Err(recovery_error) = recover_from_restore_journal(db).await {
                         warn!(
-                            "Snapshot restore failed and in-process restore journal recovery also failed: {}. Continuing with destructive reset fallback",
-                            recovery_error
+                            "Snapshot restore failed and in-process restore journal recovery also failed: {recovery_error}. Continuing with destructive reset fallback"
                         );
                     }
                     warn!(
@@ -1062,7 +1058,7 @@ mod tests {
         };
         <mongodb::Client as TransactionsDB<MockProof>>::set_mempool_deposits(
             &client,
-            vec![pending_deposit.clone()],
+            vec![pending_deposit],
         )
         .await
         .expect("store pending deposit");

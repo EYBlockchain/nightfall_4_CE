@@ -709,7 +709,7 @@ impl<F: PrimeField + PoseidonParams> IndexedLeaves<F> for mongodb::Client {
             ));
         }
         let low_leaf_value: F = low_leaf.value;
-        self.update_leaf_with_session(low_leaf_value, index, leaf, tree_id, session.as_deref_mut())
+        self.update_leaf_with_session(low_leaf_value, index, leaf, tree_id, session)
             .await?;
         Ok(Some(()))
     }
@@ -729,7 +729,7 @@ impl<F: PrimeField + PoseidonParams> IndexedLeaves<F> for mongodb::Client {
         value: Option<F>,
         next_value: Option<F>,
         tree_id: &str,
-        mut session: Option<&mut ClientSession>,
+        session: Option<&mut ClientSession>,
     ) -> Result<Option<IndexedLeaf<F>>, Self::Error> {
         let collection_name = format!("{}_{}", tree_id, "indexed_leaves");
         let db = self.database(<Self as IndexedLeaves<F>>::DB);
@@ -760,7 +760,7 @@ impl<F: PrimeField + PoseidonParams> IndexedLeaves<F> for mongodb::Client {
             _ => doc! {},
         };
 
-        if let Some(session) = session.as_deref_mut() {
+        if let Some(session) = session {
             collection.find_one(query).session(session).await
         } else {
             collection.find_one(query).await
@@ -781,13 +781,13 @@ impl<F: PrimeField + PoseidonParams> IndexedLeaves<F> for mongodb::Client {
         &self,
         leaf_value: &F,
         tree_id: &str,
-        mut session: Option<&mut ClientSession>,
+        session: Option<&mut ClientSession>,
     ) -> Result<Option<IndexedLeaf<F>>, Self::Error> {
         let collection_name = format!("{}_{}", tree_id, "indexed_leaves");
         let db = self.database(<Self as IndexedLeaves<F>>::DB);
         let collection = db.collection::<IndexedLeaf<F>>(&collection_name);
         let padded_hex = fr_to_bson_padded(leaf_value)?;
-        if let Some(session) = session.as_deref_mut() {
+        if let Some(session) = session {
             let mut cursor = collection
                 .find(doc! {"value": {"$lt": padded_hex}})
                 .sort(doc! {"value": -1})
@@ -843,7 +843,7 @@ impl<F: PrimeField + PoseidonParams> IndexedLeaves<F> for mongodb::Client {
         new_next_index: u64,
         new_next_value: F,
         tree_id: &str,
-        mut session: Option<&mut ClientSession>,
+        session: Option<&mut ClientSession>,
     ) -> Result<(), Self::Error> {
         let collection_name = format!("{}_{}", tree_id, "indexed_leaves");
         let db = self.database(<Self as IndexedLeaves<F>>::DB);
@@ -854,7 +854,7 @@ impl<F: PrimeField + PoseidonParams> IndexedLeaves<F> for mongodb::Client {
         let bson_next_index = u64_to_i64_checked(new_next_index)?;
         let update =
             doc! {"$set": {"next_index": bson_next_index, "next_value": padded_next_value}};
-        let result = if let Some(session) = session.as_deref_mut() {
+        let result = if let Some(session) = session {
             collection.update_one(query, update).session(session).await
         } else {
             collection.update_one(query, update).await

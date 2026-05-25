@@ -778,7 +778,7 @@ where
 
                 if last_finalized_turn == Some(onchain_start_block) {
                     process_pending_blocks_for_proposal::<P, N>(
-                        &pending_blocks,
+                        pending_blocks,
                         "current proposer turn already finalized",
                     )
                     .await;
@@ -855,7 +855,7 @@ where
                         last_finalized_turn = Some(onchain_start_block);
 
                         process_pending_blocks_for_proposal::<P, N>(
-                            &pending_blocks,
+                            pending_blocks,
                             "finalized canonical rotation",
                         )
                         .await;

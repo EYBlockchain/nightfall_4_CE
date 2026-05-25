@@ -214,8 +214,7 @@ pub async fn run_snapshot_scheduler() {
             Ok(current_l1_block) => current_l1_block,
             Err(error) => {
                 debug!(
-                    "Skipping proposer snapshot scheduler poll because current L1 head could not be fetched: {}",
-                    error
+                    "Skipping proposer snapshot scheduler poll because current L1 head could not be fetched: {error}"
                 );
                 sleep(SNAPSHOT_SCHEDULER_POLL_INTERVAL).await;
                 continue;

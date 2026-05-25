@@ -472,8 +472,7 @@ async fn rollback_indices_from_swap_state(
     let current_index = journal.current_index.unwrap_or(0) as usize;
     if current_index >= collection_count && collection_count > 0 {
         return Err(SnapshotError::RestoreInvariantViolation(format!(
-            "current_index {} is out of bounds for {} collections",
-            current_index, collection_count
+            "current_index {current_index} is out of bounds for {collection_count} collections"
         )));
     }
 
@@ -1309,8 +1308,7 @@ async fn complete_rollback_from_journal(
         let index = current_index as usize;
         if index >= ordered.len() {
             return Err(SnapshotError::RestoreInvariantViolation(format!(
-                "rollback current_index {} is out of bounds for {} collections",
-                index,
+                "rollback current_index {index} is out of bounds for {} collections",
                 ordered.len()
             )));
         }
@@ -1362,15 +1360,11 @@ async fn complete_rollback_from_journal(
                     journal.current_step = Some(RestoreJournalStep::RollbackApplied);
                     journal.updated_at = mongodb::bson::DateTime::now();
                     client.upsert_restore_journal(journal).await?;
-                } else if resuming_started_step
+                } else if (resuming_started_step
                     && layout.live_exists
-                    && !is_optional_snapshot_collection(&collection.live)
-                {
-                    journal.current_step = Some(RestoreJournalStep::RollbackApplied);
-                    journal.updated_at = mongodb::bson::DateTime::now();
-                    client.upsert_restore_journal(journal).await?;
-                } else if is_optional_snapshot_collection(&collection.live)
-                    && (layout.shadow_exists || resuming_started_step)
+                    && !is_optional_snapshot_collection(&collection.live))
+                    || (is_optional_snapshot_collection(&collection.live)
+                        && (layout.shadow_exists || resuming_started_step))
                 {
                     journal.current_step = Some(RestoreJournalStep::RollbackApplied);
                     journal.updated_at = mongodb::bson::DateTime::now();
@@ -1385,8 +1379,7 @@ async fn complete_rollback_from_journal(
             RestoreJournalStep::RollbackApplied => {}
             step => {
                 return Err(SnapshotError::RestoreInvariantViolation(format!(
-                    "rollback expected rollback step at index {index}, found {:?}",
-                    step
+                    "rollback expected rollback step at index {index}, found {step:?}"
                 )));
             }
         }
@@ -1464,8 +1457,7 @@ async fn complete_shadow_swap_from_journal(
     let start_index = journal.current_index.unwrap_or(0) as usize;
     if start_index >= ordered.len() {
         return Err(SnapshotError::RestoreInvariantViolation(format!(
-            "current_index {} is out of bounds for {} collections",
-            start_index,
+            "current_index {start_index} is out of bounds for {} collections",
             ordered.len()
         )));
     }
@@ -1577,8 +1569,7 @@ async fn complete_shadow_swap_from_journal(
             }
             step => {
                 return Err(SnapshotError::RestoreInvariantViolation(format!(
-                    "swap expected backup step at index {index}, found {:?}",
-                    step
+                    "swap expected backup step at index {index}, found {step:?}"
                 )));
             }
         }
@@ -1831,8 +1822,7 @@ async fn recover_from_restore_journal_unlocked(
                             rollback_shadow_swap(client, &mut journal).await
                         {
                             error!(
-                                "Proposer restore rollback cannot complete cleanly: {}. Manual intervention required.",
-                                rollback_error
+                                "Proposer restore rollback cannot complete cleanly: {rollback_error}. Manual intervention required."
                             );
                             return Err(rollback_error);
                         }
@@ -1845,8 +1835,7 @@ async fn recover_from_restore_journal_unlocked(
             let mut journal = journal;
             if let Err(error) = complete_rollback_from_journal(client, &mut journal).await {
                 error!(
-                    "Proposer restore rollback remains incomplete: {}. Manual intervention required.",
-                    error
+                    "Proposer restore rollback remains incomplete: {error}. Manual intervention required."
                 );
                 return Err(error);
             }
@@ -1864,8 +1853,7 @@ async fn recover_from_restore_journal_unlocked(
                             rollback_completed_swap_from_backups(client, &mut journal).await
                         {
                             error!(
-                                "Proposer restore rollback from swap_complete cannot complete cleanly: {}. Manual intervention required.",
-                                rollback_error
+                                "Proposer restore rollback from swap_complete cannot complete cleanly: {rollback_error}. Manual intervention required."
                             );
                             return Err(rollback_error);
                         }
@@ -1986,7 +1974,7 @@ mod test {
             && !stored_block.commitments.is_empty()
         {
             <mongodb::Client as MutableTree<Fr254>>::insert_leaf(
-                &client,
+                client,
                 Fr254::from(sync_state.last_applied_l2_block + 1),
                 true,
                 <mongodb::Client as CommitmentTree<Fr254>>::TREE_NAME,
@@ -2008,11 +1996,11 @@ mod test {
             .as_ref()
             .is_some_and(|metadata| metadata.sub_tree_count <= 1)
         {
-            let commitment_root = <mongodb::Client as CommitmentTree<Fr254>>::get_root(&client)
+            let commitment_root = <mongodb::Client as CommitmentTree<Fr254>>::get_root(client)
                 .await
                 .expect("read commitment root");
             <mongodb::Client as HistoricRootTree<Fr254>>::append_historic_commitment_root(
-                &client,
+                client,
                 &commitment_root,
                 true,
             )
@@ -2183,7 +2171,7 @@ mod test {
             L1Ref {
                 block_number: newer_live_block_number * 100,
                 tx_hash: TxHash::from([newer_live_block_number as u8; 32]),
-                log_index: newer_live_block_number as u64,
+                log_index: newer_live_block_number,
             },
             mongodb::bson::DateTime::now(),
         );
@@ -3043,8 +3031,7 @@ mod test {
                 .expect("count shadow documents");
             assert_eq!(
                 shadow_count, collection.document_count,
-                "shadow collection {} should contain the manifest document count",
-                shadow_name
+                "shadow collection {shadow_name} should contain the manifest document count"
             );
         }
 
@@ -4423,7 +4410,7 @@ mod test {
         };
         <mongodb::Client as TransactionsDB<MockProof>>::set_mempool_deposits(
             &client,
-            vec![reserved_deposit.clone()],
+            vec![reserved_deposit],
         )
         .await
         .expect("store reserved deposit outside the snapshot");
@@ -5149,7 +5136,7 @@ mod test {
         };
         <mongodb::Client as TransactionsDB<MockProof>>::set_mempool_deposits(
             &client,
-            vec![reserved_deposit.clone()],
+            vec![reserved_deposit],
         )
         .await
         .expect("store reserved deposit outside the snapshot");
@@ -5171,7 +5158,7 @@ mod test {
                 broadcast_tx_hash: None,
                 broadcast_receipt_checks: 0,
                 block: Some(Block::default()),
-                selected_deposits: vec![vec![reserved_deposit.clone()]],
+                selected_deposits: vec![vec![reserved_deposit]],
                 selected_client_transaction_hashes: vec![selected_transaction.hash.clone()],
             })
             .await
@@ -5607,7 +5594,7 @@ mod test {
         };
         <mongodb::Client as TransactionsDB<MockProof>>::set_mempool_deposits(
             &client,
-            vec![reserved_deposit.clone()],
+            vec![reserved_deposit],
         )
         .await
         .expect("store reserved deposit outside the snapshot");
@@ -5629,7 +5616,7 @@ mod test {
                 broadcast_tx_hash: None,
                 broadcast_receipt_checks: 0,
                 block: Some(Block::default()),
-                selected_deposits: vec![vec![reserved_deposit.clone()]],
+                selected_deposits: vec![vec![reserved_deposit]],
                 selected_client_transaction_hashes: vec![selected_transaction.hash.clone()],
             })
             .await

@@ -62,8 +62,7 @@ pub async fn get_db_connection(container: &ContainerAsync<GenericImage>) -> mong
     }
     let port = port.unwrap_or_else(|| {
         panic!(
-            "Mongo testcontainer did not expose TCP port {} after {} attempts",
-            TEST_MONGO_PORT, TEST_MONGO_PORT_RETRY_ATTEMPTS
+            "Mongo testcontainer did not expose TCP port {TEST_MONGO_PORT} after {TEST_MONGO_PORT_RETRY_ATTEMPTS} attempts"
         )
     });
     let direct_uri = get_direct_db_connection_uri(&host, port);
@@ -89,8 +88,7 @@ pub async fn get_db_connection(container: &ContainerAsync<GenericImage>) -> mong
         attempts += 1;
         if attempts >= TEST_MONGO_PING_RETRY_ATTEMPTS {
             panic!(
-                "MongoDB not ready after {} ping attempts on {}",
-                TEST_MONGO_PING_RETRY_ATTEMPTS, direct_uri
+                "MongoDB not ready after {TEST_MONGO_PING_RETRY_ATTEMPTS} ping attempts on {direct_uri}"
             );
         }
         sleep(Duration::from_secs(1)).await;

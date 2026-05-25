@@ -584,9 +584,7 @@ where
         }
         Err(error) => {
             warn!(
-                "Skipping automatic proposer snapshot scheduling after L2 block {} because current L1 head could not be fetched: {}",
-                layer_2_block_number_in_event_u64,
-                error
+                "Skipping automatic proposer snapshot scheduling after L2 block {layer_2_block_number_in_event_u64} because current L1 head could not be fetched: {error}"
             );
         }
     }

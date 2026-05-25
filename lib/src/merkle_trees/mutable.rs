@@ -87,13 +87,13 @@ where
     async fn get_root_with_session(
         &self,
         tree_id: &str,
-        mut session: Option<&mut ClientSession>,
+        session: Option<&mut ClientSession>,
     ) -> Result<F, Self::Error> {
         let metadata_collection_name = format!("{}_{}", tree_id, "metadata");
         let metadata_collection = self
             .database(<Self as MutableTree<F>>::MUT_DB_NAME)
             .collection::<TreeMetadata<F>>(&metadata_collection_name);
-        let metadata = if let Some(session) = session.as_deref_mut() {
+        let metadata = if let Some(session) = session {
             metadata_collection
                 .find_one(doc! {"_id": 0})
                 .session(session)
@@ -142,7 +142,7 @@ where
                 let node_collection = self
                     .database(<Self as MutableTree<F>>::MUT_DB_NAME)
                     .collection::<Node<F>>(&node_collection_name);
-                let node = if let Some(session) = session.as_deref_mut() {
+                let node = if let Some(session) = session {
                     node_collection
                         .find_one(doc! {"_id": bson_index})
                         .session(session)
@@ -283,7 +283,7 @@ where
         }
 
         // Only now that we know all writes were acknowledged do we clear the cache.
-        if let Some(session) = session.as_deref_mut() {
+        if let Some(session) = session {
             cache_collection
                 .delete_many(doc! {})
                 .session(session)
@@ -341,7 +341,7 @@ where
         value: F,
         update_tree: bool,
         tree_id: &str,
-        mut session: Option<&mut ClientSession>,
+        session: Option<&mut ClientSession>,
     ) -> Result<(), Self::Error> {
         let update_value = fr_to_bson_padded(&value)?;
         let bson_index = to_bson(&index).map_err(|e| MerkleTreeError::DatabaseError(e.into()))?;
@@ -350,7 +350,7 @@ where
             let cache_collection = self
                 .database(<Self as MutableTree<F>>::MUT_DB_NAME)
                 .collection::<Node<F>>(&cache_collection_name);
-            let update = if let Some(session) = session.as_deref_mut() {
+            let update = if let Some(session) = session {
                 cache_collection
                     .update_one(
                         doc! {"_id": bson_index},
@@ -381,7 +381,7 @@ where
             let node_collection = self
                 .database(<Self as MutableTree<F>>::MUT_DB_NAME)
                 .collection::<Node<F>>(&node_collection_name);
-            let update = if let Some(session) = session.as_deref_mut() {
+            let update = if let Some(session) = session {
                 node_collection
                     .update_one(
                         doc! {"_id": bson_index},
@@ -557,12 +557,7 @@ where
                 ));
             }
             // save the cached nodes
-            <Self as MutableTree<F>>::flush_cache_with_session(
-                self,
-                tree_id,
-                session.as_deref_mut(),
-            )
-            .await?;
+            <Self as MutableTree<F>>::flush_cache_with_session(self, tree_id, session).await?;
         }
         // return the final root and the new sub tree count (from which leaf indices can be derived)
         Ok(hash)
@@ -743,12 +738,7 @@ where
             }
             .map_err(MerkleTreeError::DatabaseError)?;
             // save the cached nodes
-            <Self as MutableTree<F>>::flush_cache_with_session(
-                self,
-                tree_id,
-                session.as_deref_mut(),
-            )
-            .await?;
+            <Self as MutableTree<F>>::flush_cache_with_session(self, tree_id, session).await?;
         } else {
             sub_tree_count = old_sub_tree_count;
         }
@@ -1044,7 +1034,7 @@ where
             _id: 0,
             root: hash,
         };
-        if let Some(session) = session.as_deref_mut() {
+        if let Some(session) = session {
             metadata_collection
                 .replace_one(doc! {"_id": 0}, new_metadata)
                 .session(session)
