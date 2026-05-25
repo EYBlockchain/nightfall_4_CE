@@ -13,6 +13,8 @@ jobs:
     runs-on: self-hosted
     environment: DEV
     steps:
+      - name: Cleanup stale proposer snapshots
+        run: sudo rm -rf "$GITHUB_WORKSPACE/data/proposer_snapshots" || true
       - name: Checkout
         uses: actions/checkout@v4
         # Add Node so npx exists for OZ upgrades validation
@@ -50,6 +52,8 @@ jobs:
       NF4_MOCK_PROVER: "true"
       NF4_CONTRACTS__DEPLOY_CONTRACTS: "true"
     steps:
+      - name: Cleanup stale proposer snapshots
+        run: sudo rm -rf "$GITHUB_WORKSPACE/data/proposer_snapshots" || true
       - name: Checkout
         uses: actions/checkout@v4
       - name: Clear previous run
@@ -80,6 +84,8 @@ jobs:
       NF4_MOCK_PROVER: "false"
       NF4_CONTRACTS__DEPLOY_CONTRACTS: "true"
     steps:
+      - name: Cleanup stale proposer snapshots
+        run: sudo rm -rf "$GITHUB_WORKSPACE/data/proposer_snapshots" || true
       - name: Checkout
         uses: actions/checkout@v4
       - name: link pptau cache
@@ -189,6 +195,8 @@ jobs:
     needs: [build]
     runs-on: self-hosted
     steps:
+      - name: Cleanup stale proposer snapshots
+        run: sudo rm -rf "$GITHUB_WORKSPACE/data/proposer_snapshots" || true
       - name: Checkout
         uses: actions/checkout@v4
       - name: Run Forge Tests
