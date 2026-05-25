@@ -1,4 +1,5 @@
 use crate::{
+    domain::entities::{L1Ref, SyncState},
     driven::db::snapshot::{
         acquire_proposer_state_maintenance_guard, find_latest_valid_proposer_snapshot,
         recover_from_restore_journal, restore_proposer_snapshot,
@@ -7,6 +8,7 @@ use crate::{
     drivers::blockchain::block_assembly::clear_pending_blocks_queue,
     initialisation::{
         get_block_assembly_status, get_blockchain_client_connection, get_db_connection,
+        get_runtime_listener_resume_cursor, set_runtime_listener_resume_cursor,
         set_runtime_listener_start_block,
     },
     ports::{
@@ -20,7 +22,7 @@ use crate::{
 };
 use alloy::{
     primitives::I256,
-    rpc::types::Filter,
+    rpc::types::{Filter, Log},
     sol_types::{SolEvent, SolEventInterface},
 };
 use ark_bn254::Fr as Fr254;
@@ -161,6 +163,31 @@ async fn notify_failure_proposer(message: &str) -> Result<(), ()> {
     Ok(())
 }
 
+fn should_skip_replayed_log(cursor: Option<&L1Ref>, log: &Log) -> bool {
+    matches!(
+        (cursor, log.block_number, log.log_index),
+        (Some(cursor), Some(block_number), Some(log_index))
+            if block_number == cursor.block_number && log_index <= cursor.log_index
+    )
+}
+
+fn listener_start_block_from_sync_state(sync_state: &SyncState) -> usize {
+    usize::try_from(sync_state.l1_ref.block_number)
+        .expect("Restored L1 block number does not fit into usize")
+}
+
+async fn apply_restored_listener_runtime_state(sync_state: &SyncState) -> usize {
+    let next_listener_start_block = listener_start_block_from_sync_state(sync_state);
+    set_runtime_listener_resume_cursor(Some(sync_state.l1_ref.clone())).await;
+    set_runtime_listener_start_block(next_listener_start_block).await;
+    next_listener_start_block
+}
+
+async fn apply_destructive_replay_listener_runtime_state(start_block: usize) {
+    set_runtime_listener_resume_cursor(None).await;
+    set_runtime_listener_start_block(start_block).await;
+}
+
 // This function listens for events and processes them. It's started by the start_event_listener function
 pub async fn listen_for_events<P, E, N>(start_block: usize) -> Result<(), EventHandlerError>
 where
@@ -190,6 +217,7 @@ where
         .subscribe_logs(&events_filter)
         .await
         .map_err(|_| EventHandlerError::NoEventStream)?;
+    let replay_resume_cursor = get_runtime_listener_resume_cursor().await;
 
     {
         let latest_block = blockchain_client
@@ -217,6 +245,9 @@ where
             };
             log::info!("Found {} past events to process", past_events.len());
             for evt in past_events {
+                if should_skip_replayed_log(replay_resume_cursor.as_ref(), &evt) {
+                    continue;
+                }
                 let event = match Nightfall::NightfallEvents::decode_log(&evt.inner) {
                     Ok(e) => e,
                     Err(e) => {
@@ -601,9 +632,8 @@ where
                             .await
                             .clear_synchronised();
                     }
-                    next_listener_start_block = usize::try_from(sync_state.l1_ref.block_number)
-                        .expect("Restored L1 block number does not fit into usize");
-                    set_runtime_listener_start_block(next_listener_start_block).await;
+                    next_listener_start_block =
+                        apply_restored_listener_runtime_state(&sync_state).await;
                     warn!(
                         "Snapshot restore completed successfully. Proposer will replay from L1 block {} with next expected L2 block {}",
                         sync_state.l1_ref.block_number,
@@ -630,7 +660,7 @@ where
                     }
                     set_last_snapshot_l2_block(0).await;
                     *get_expected_layer2_blocknumber().await.write().await = I256::ZERO;
-                    set_runtime_listener_start_block(start_block).await;
+                    apply_destructive_replay_listener_runtime_state(start_block).await;
                 }
             }
         }
@@ -648,7 +678,7 @@ where
             }
             set_last_snapshot_l2_block(0).await;
             *get_expected_layer2_blocknumber().await.write().await = I256::ZERO;
-            set_runtime_listener_start_block(start_block).await;
+            apply_destructive_replay_listener_runtime_state(start_block).await;
         }
         Err(error) => {
             warn!(
@@ -664,7 +694,7 @@ where
             }
             set_last_snapshot_l2_block(0).await;
             *get_expected_layer2_blocknumber().await.write().await = I256::ZERO;
-            set_runtime_listener_start_block(start_block).await;
+            apply_destructive_replay_listener_runtime_state(start_block).await;
         }
     }
 
@@ -689,17 +719,17 @@ pub async fn get_synchronisation_status() -> &'static RwLock<SynchronisationStat
 mod tests {
     use super::*;
     use crate::{
-        domain::entities::{
-            Block, DepositDatawithFee, L1Ref, PendingBlock, PendingBlockState, SyncState,
-        },
+        domain::entities::{Block, DepositDatawithFee, PendingBlock, PendingBlockState},
         driven::db::mongo_db::{ensure_deposit_indexes, StoredBlock, DB},
         drivers::blockchain::block_assembly::{
             pending_blocks_queue_len_for_test, push_pending_block_for_test,
         },
+        initialisation::get_runtime_listener_start_block,
         ports::db::{BlockStorageDB, PendingBlockDB, SyncStateDB, TransactionsDB},
     };
     use alloy::primitives::Bytes;
     use alloy::primitives::{Address, TxHash};
+    use alloy::rpc::types::Log as RpcLog;
     use ark_ff::Zero;
     use ark_serialize::SerializationError;
     use lib::hex_conversion::HexConvertible;
@@ -767,6 +797,163 @@ mod tests {
         ensure_deposit_indexes(client)
             .await
             .expect("create deposit indexes");
+    }
+
+    #[test]
+    fn should_skip_replayed_log_skips_lower_log_index_in_same_block() {
+        let cursor = L1Ref {
+            block_number: 100,
+            tx_hash: TxHash::from([1u8; 32]),
+            log_index: 8,
+        };
+        let log = RpcLog {
+            block_number: Some(100),
+            log_index: Some(7),
+            ..RpcLog::default()
+        };
+
+        assert!(should_skip_replayed_log(Some(&cursor), &log));
+    }
+
+    #[test]
+    fn should_skip_replayed_log_skips_equal_log_index_in_same_block() {
+        let cursor = L1Ref {
+            block_number: 100,
+            tx_hash: TxHash::from([2u8; 32]),
+            log_index: 8,
+        };
+        let log = RpcLog {
+            block_number: Some(100),
+            log_index: Some(8),
+            ..RpcLog::default()
+        };
+
+        assert!(should_skip_replayed_log(Some(&cursor), &log));
+    }
+
+    #[test]
+    fn should_skip_replayed_log_keeps_higher_log_index_in_same_block() {
+        let cursor = L1Ref {
+            block_number: 100,
+            tx_hash: TxHash::from([3u8; 32]),
+            log_index: 8,
+        };
+        let log = RpcLog {
+            block_number: Some(100),
+            log_index: Some(9),
+            ..RpcLog::default()
+        };
+
+        assert!(!should_skip_replayed_log(Some(&cursor), &log));
+    }
+
+    #[test]
+    fn should_skip_replayed_log_keeps_logs_from_other_blocks() {
+        let cursor = L1Ref {
+            block_number: 100,
+            tx_hash: TxHash::from([4u8; 32]),
+            log_index: 8,
+        };
+        let earlier_log = RpcLog {
+            block_number: Some(99),
+            log_index: Some(99),
+            ..RpcLog::default()
+        };
+        let later_log = RpcLog {
+            block_number: Some(101),
+            log_index: Some(0),
+            ..RpcLog::default()
+        };
+
+        assert!(!should_skip_replayed_log(Some(&cursor), &earlier_log));
+        assert!(!should_skip_replayed_log(Some(&cursor), &later_log));
+    }
+
+    #[test]
+    fn should_skip_replayed_log_keeps_logs_with_missing_log_index() {
+        let cursor = L1Ref {
+            block_number: 100,
+            tx_hash: TxHash::from([5u8; 32]),
+            log_index: 8,
+        };
+        let log = RpcLog {
+            block_number: Some(100),
+            log_index: None,
+            ..RpcLog::default()
+        };
+
+        assert!(!should_skip_replayed_log(Some(&cursor), &log));
+    }
+
+    #[test]
+    fn should_skip_replayed_log_keeps_logs_with_missing_block_number() {
+        let cursor = L1Ref {
+            block_number: 100,
+            tx_hash: TxHash::from([6u8; 32]),
+            log_index: 8,
+        };
+        let log = RpcLog {
+            block_number: None,
+            log_index: Some(8),
+            ..RpcLog::default()
+        };
+
+        assert!(!should_skip_replayed_log(Some(&cursor), &log));
+    }
+
+    #[test]
+    fn should_skip_replayed_log_keeps_logs_without_cursor() {
+        let log = RpcLog {
+            block_number: Some(100),
+            log_index: Some(8),
+            ..RpcLog::default()
+        };
+
+        assert!(!should_skip_replayed_log(None, &log));
+    }
+
+    #[tokio::test]
+    async fn apply_restored_listener_runtime_state_sets_resume_cursor_from_sync_state() {
+        let _lock = event_listener_test_lock().await;
+        set_runtime_listener_resume_cursor(None).await;
+        set_runtime_listener_start_block(0).await;
+
+        let sync_state = SyncState::new(
+            8,
+            "fingerprint".to_string(),
+            L1Ref {
+                block_number: 100,
+                tx_hash: TxHash::from([7u8; 32]),
+                log_index: 8,
+            },
+            mongodb::bson::DateTime::now(),
+        );
+
+        let start_block = apply_restored_listener_runtime_state(&sync_state).await;
+
+        assert_eq!(start_block, 100);
+        assert_eq!(get_runtime_listener_start_block().await, 100);
+        assert_eq!(
+            get_runtime_listener_resume_cursor().await,
+            Some(sync_state.l1_ref.clone())
+        );
+    }
+
+    #[tokio::test]
+    async fn apply_destructive_replay_listener_runtime_state_clears_resume_cursor() {
+        let _lock = event_listener_test_lock().await;
+        set_runtime_listener_resume_cursor(Some(L1Ref {
+            block_number: 100,
+            tx_hash: TxHash::from([8u8; 32]),
+            log_index: 8,
+        }))
+        .await;
+        set_runtime_listener_start_block(100).await;
+
+        apply_destructive_replay_listener_runtime_state(42).await;
+
+        assert_eq!(get_runtime_listener_start_block().await, 42);
+        assert_eq!(get_runtime_listener_resume_cursor().await, None);
     }
 
     fn test_pending_deposit(seed: u64, reserved: bool) -> DepositDatawithFee {

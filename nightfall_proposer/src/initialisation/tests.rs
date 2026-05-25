@@ -1235,6 +1235,10 @@ async fn bootstrap_cleans_loading_shadow_restore_journal_and_keeps_live_state() 
         I256::try_from(10_u64).expect("10 fits into I256")
     );
     assert_eq!(get_runtime_listener_start_block().await, 900);
+    assert_eq!(
+        get_runtime_listener_resume_cursor().await,
+        Some(newer_live_sync_state.l1_ref.clone())
+    );
     assert!(get_synchronisation_status()
         .await
         .read()
@@ -1312,6 +1316,10 @@ async fn bootstrap_resumes_swap_in_progress_restore_and_marks_tip_synchronised()
         I256::try_from(13_u64).expect("13 fits into I256")
     );
     assert_eq!(get_runtime_listener_start_block().await, 1200);
+    assert_eq!(
+        get_runtime_listener_resume_cursor().await,
+        Some(live_sync_state.l1_ref.clone())
+    );
     assert!(get_synchronisation_status()
         .await
         .read()
@@ -1329,7 +1337,7 @@ async fn bootstrap_keeps_resumed_restore_desynchronised_when_one_block_behind_ti
     let container = get_mongo().await;
     let client = get_db_connection(&container).await;
 
-    let (snapshot_root, snapshot_block, _) =
+    let (snapshot_root, snapshot_block, snapshot_sync_state) =
         create_snapshot_fixture(&client, "nf4-bootstrap-one-behind", 14, 1400).await;
     let snapshot_dir = snapshot_dir(&snapshot_root);
 
@@ -1365,6 +1373,10 @@ async fn bootstrap_keeps_resumed_restore_desynchronised_when_one_block_behind_ti
         I256::try_from(15_u64).expect("15 fits into I256")
     );
     assert_eq!(get_runtime_listener_start_block().await, 1400);
+    assert_eq!(
+        get_runtime_listener_resume_cursor().await,
+        Some(snapshot_sync_state.l1_ref.clone())
+    );
     assert!(!get_synchronisation_status()
         .await
         .read()
