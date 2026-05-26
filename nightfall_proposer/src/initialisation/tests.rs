@@ -15,7 +15,7 @@ use crate::{
     ports::{
         contracts::NightfallContract,
         db::{BlockStorageDB, PendingBlockDB, RestoreJournalDB, SyncStateDB, TransactionsDB},
-        trees::{CommitmentTree, HistoricRootTree},
+        trees::{CommitmentTree, HistoricRootTree, NullifierTree},
     },
 };
 use alloy::primitives::{Address, Bytes, TxHash, I256};
@@ -211,6 +211,19 @@ async fn materialize_tree_state_for_block(client: &mongodb::Client, block_number
     )
     .await
     .expect("append historic root");
+}
+
+fn test_nullifier_batch(seed: u64) -> [Fr254; 8] {
+    [
+        Fr254::from(seed),
+        Fr254::zero(),
+        Fr254::zero(),
+        Fr254::zero(),
+        Fr254::zero(),
+        Fr254::zero(),
+        Fr254::zero(),
+        Fr254::zero(),
+    ]
 }
 
 async fn create_snapshot_fixture(
@@ -640,6 +653,90 @@ async fn bootstrap_cleans_first_pending_block_startup_state_without_sync_state()
 }
 
 #[tokio::test]
+async fn bootstrap_resets_tree_state_for_first_pending_block_crash_before_sync_state() {
+    let _lock = bootstrap_test_lock().await;
+    let container = get_mongo().await;
+    let client = get_db_connection(&container).await;
+
+    ensure_proposer_db_initialized(&client).await;
+    let zero_commitment_root = <mongodb::Client as CommitmentTree<Fr254>>::get_root(&client)
+        .await
+        .expect("read zero commitment root before reset");
+    let zero_historic_root = <mongodb::Client as MutableTree<Fr254>>::get_root(
+        &client,
+        <mongodb::Client as HistoricRootTree<Fr254>>::TREE_NAME,
+    )
+    .await
+    .expect("read zero historic root before reset");
+    let zero_nullifier_root = <mongodb::Client as MutableTree<Fr254>>::get_root(
+        &client,
+        <mongodb::Client as NullifierTree<Fr254>>::TREE_NAME,
+    )
+    .await
+    .expect("read zero nullifier root before reset");
+
+    client
+        .store_pending_block(&PendingBlock {
+            layer2_block_number: 0,
+            state: PendingBlockState::ReadyToPropose,
+            broadcast_tx_hash: None,
+            broadcast_receipt_checks: 0,
+            block: Some(Block::default()),
+            selected_deposits: Vec::new(),
+            selected_client_transaction_hashes: Vec::new(),
+        })
+        .await
+        .expect("store first pending block");
+    client
+        .store_block(&StoredBlock {
+            layer2_block_number: 0,
+            commitments: vec!["0x00".to_string()],
+            proposer_address: Address::from([0u8; 20]),
+        })
+        .await
+        .expect("store first speculative block without sync_state");
+    materialize_tree_state_for_block(&client, 0).await;
+    <mongodb::Client as NullifierTree<Fr254>>::insert_nullifiers(&client, &test_nullifier_batch(1))
+        .await
+        .expect("materialize speculative nullifier state");
+
+    MockNightfallContract::set_onchain_next_block(0);
+    reset_runtime_bootstrap_state().await;
+
+    bootstrap_proposer_startup_state_with_db::<MockNightfallContract>(&client, false)
+        .await
+        .expect("bootstrap should reset speculative tree state and continue");
+
+    assert_eq!(client.get_sync_state().await, None);
+    assert_eq!(client.get_pending_block(0).await, None);
+    assert!(client.get_block_by_number(0).await.is_none());
+    assert_eq!(
+        <mongodb::Client as CommitmentTree<Fr254>>::get_root(&client)
+            .await
+            .expect("read commitment root after replay reset"),
+        zero_commitment_root
+    );
+    assert_eq!(
+        <mongodb::Client as MutableTree<Fr254>>::get_root(
+            &client,
+            <mongodb::Client as HistoricRootTree<Fr254>>::TREE_NAME,
+        )
+        .await
+        .expect("read historic root after replay reset"),
+        zero_historic_root
+    );
+    assert_eq!(
+        <mongodb::Client as MutableTree<Fr254>>::get_root(
+            &client,
+            <mongodb::Client as NullifierTree<Fr254>>::TREE_NAME,
+        )
+        .await
+        .expect("read nullifier root after replay reset"),
+        zero_nullifier_root
+    );
+}
+
+#[tokio::test]
 async fn bootstrap_aborts_when_no_sync_state_but_trees_are_non_empty() {
     let _lock = bootstrap_test_lock().await;
     let container = get_mongo().await;
@@ -815,6 +912,92 @@ async fn bootstrap_cleans_ready_to_propose_pending_block_startup_state() {
         .await
         .expect("read historic root after cleanup"),
         canonical_historic_root
+    );
+}
+
+#[tokio::test]
+async fn bootstrap_resets_tree_state_for_speculative_block_ahead_of_sync_state() {
+    let _lock = bootstrap_test_lock().await;
+    let container = get_mongo().await;
+    let client = get_db_connection(&container).await;
+
+    ensure_proposer_db_initialized(&client).await;
+    let zero_commitment_root = <mongodb::Client as CommitmentTree<Fr254>>::get_root(&client)
+        .await
+        .expect("read zero commitment root before canonical setup");
+    let zero_historic_root = <mongodb::Client as MutableTree<Fr254>>::get_root(
+        &client,
+        <mongodb::Client as HistoricRootTree<Fr254>>::TREE_NAME,
+    )
+    .await
+    .expect("read zero historic root before canonical setup");
+    let zero_nullifier_root = <mongodb::Client as MutableTree<Fr254>>::get_root(
+        &client,
+        <mongodb::Client as NullifierTree<Fr254>>::TREE_NAME,
+    )
+    .await
+    .expect("read zero nullifier root before canonical setup");
+
+    set_live_sync_state(&client, 5, "0x05", 500).await;
+    client
+        .store_pending_block(&PendingBlock {
+            layer2_block_number: 6,
+            state: PendingBlockState::ReadyToPropose,
+            broadcast_tx_hash: None,
+            broadcast_receipt_checks: 0,
+            block: Some(Block::default()),
+            selected_deposits: Vec::new(),
+            selected_client_transaction_hashes: Vec::new(),
+        })
+        .await
+        .expect("store speculative pending block ahead of sync_state");
+    client
+        .store_block(&StoredBlock {
+            layer2_block_number: 6,
+            commitments: vec!["0x06".to_string()],
+            proposer_address: Address::from([6u8; 20]),
+        })
+        .await
+        .expect("store speculative block ahead of sync_state");
+    materialize_tree_state_for_block(&client, 99).await;
+    <mongodb::Client as NullifierTree<Fr254>>::insert_nullifiers(&client, &test_nullifier_batch(6))
+        .await
+        .expect("materialize speculative nullifier state ahead of sync_state");
+
+    MockNightfallContract::set_onchain_next_block(6);
+    reset_runtime_bootstrap_state().await;
+
+    bootstrap_proposer_startup_state_with_db::<MockNightfallContract>(&client, false)
+        .await
+        .expect("bootstrap should reset local canonical state and continue via replay");
+
+    assert_eq!(client.get_sync_state().await, None);
+    assert!(client.get_block_by_number(5).await.is_none());
+    assert!(client.get_block_by_number(6).await.is_none());
+    assert_eq!(client.get_pending_block(6).await, None);
+    assert_eq!(
+        <mongodb::Client as CommitmentTree<Fr254>>::get_root(&client)
+            .await
+            .expect("read commitment root after startup replay reset"),
+        zero_commitment_root
+    );
+    assert_eq!(
+        <mongodb::Client as MutableTree<Fr254>>::get_root(
+            &client,
+            <mongodb::Client as HistoricRootTree<Fr254>>::TREE_NAME,
+        )
+        .await
+        .expect("read historic root after startup replay reset"),
+        zero_historic_root
+    );
+    assert_eq!(
+        <mongodb::Client as MutableTree<Fr254>>::get_root(
+            &client,
+            <mongodb::Client as NullifierTree<Fr254>>::TREE_NAME,
+        )
+        .await
+        .expect("read nullifier root after startup replay reset"),
+        zero_nullifier_root
     );
 }
 

@@ -1,6 +1,7 @@
 use super::cleanup::{
     cleanup_non_canonical_startup_state, highest_stored_block_number, indexed_leaves_count,
-    reserved_deposit_count, tree_sub_tree_count,
+    reserved_deposit_count, reset_proposer_state_for_startup_replay,
+    startup_tree_replay_reset_candidate, tree_sub_tree_count,
 };
 use crate::{
     domain::entities::SyncState,
@@ -17,6 +18,7 @@ use crate::{
 };
 use ark_bn254::Fr as Fr254;
 use lib::hex_conversion::HexConvertible;
+use log::warn;
 use mongodb::Client;
 
 pub(super) fn missing_stored_block_error(last_applied_l2_block: u64) -> String {
@@ -221,7 +223,7 @@ pub(super) async fn validate_startup_proposer_state_consistency(
 ) -> Result<(), String> {
     let sync_state = client.get_sync_state().await;
 
-    match sync_state.as_ref() {
+    let initial_tree_validation = match sync_state.as_ref() {
         Some(sync_state) => {
             let stored_block = client
                 .get_block_by_number(sync_state.last_applied_l2_block)
@@ -230,11 +232,26 @@ pub(super) async fn validate_startup_proposer_state_consistency(
 
             validate_sync_state_against_block(sync_state, &stored_block)?;
             validate_tree_state_against_sync_state(client, Some(sync_state), Some(&stored_block))
-                .await?;
+                .await
         }
-        None => {
-            validate_tree_state_against_sync_state(client, None, None).await?;
+        None => validate_tree_state_against_sync_state(client, None, None).await,
+    };
+
+    if let Err(error) = initial_tree_validation {
+        let should_reset_to_replay = error.contains("local proposer tree state is inconsistent")
+            && startup_tree_replay_reset_candidate(client, sync_state.as_ref()).await?;
+        if !should_reset_to_replay {
+            return Err(error);
         }
+
+        warn!(
+            "Startup found proposer tree state inconsistent with persisted sync_state while \
+             speculative startup state was still present. Clearing local proposer canonical state \
+             and resetting trees so listener replay can rebuild canonically: {error}"
+        );
+        reset_proposer_state_for_startup_replay(client).await?;
+        cleanup_non_canonical_startup_state(client, None).await?;
+        return validate_live_proposer_state_consistency(client).await;
     }
 
     cleanup_non_canonical_startup_state(client, sync_state.as_ref()).await?;
