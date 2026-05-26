@@ -4,7 +4,8 @@ use crate::{
         RestoreJournalStep, SnapshotCollectionManifest, SyncState,
     },
     driven::db::client_transaction_state::{
-        remove_all_mempool_client_transactions, restore_selected_transactions_to_mempool_after_block,
+        remove_all_mempool_client_transactions,
+        restore_selected_transactions_to_mempool_after_block,
     },
     driven::db::mongo_db::{
         ensure_deposit_indexes, StoredBlock, DB, DEPOSIT_COLLECTION, PROPOSED_BLOCKS_COLLECTION,
@@ -1774,9 +1775,14 @@ async fn complete_cleanup_after_proposer_shadow_swap(
 }
 
 async fn cleanup_non_snapshot_restore_state(client: &mongodb::Client) -> Result<(), SnapshotError> {
-    let sync_state = client.get_sync_state().await.ok_or(SnapshotError::RestoreInvariantViolation(
-        "Could not load restored sync_state during snapshot restore finalization".to_string(),
-    ))?;
+    let sync_state =
+        client
+            .get_sync_state()
+            .await
+            .ok_or(SnapshotError::RestoreInvariantViolation(
+                "Could not load restored sync_state during snapshot restore finalization"
+                    .to_string(),
+            ))?;
     let deleted_pending_blocks = client.delete_all_pending_blocks().await.ok_or_else(|| {
         SnapshotError::RestoreInvariantViolation(
             "Could not delete persisted PendingBlocks during snapshot restore finalization"
