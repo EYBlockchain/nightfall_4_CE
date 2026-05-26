@@ -16,6 +16,7 @@ use mongodb::{
     bson::{doc, Document},
     Client,
 };
+use std::collections::HashSet;
 
 pub(super) async fn tree_sub_tree_count(client: &Client, tree_name: &str) -> Result<u64, String> {
     let metadata_collection_name = format!("{tree_name}_metadata");
@@ -93,6 +94,33 @@ pub(crate) async fn clear_all_reserved_deposits(client: &Client) -> Result<u64, 
         .map_err(|error| format!("Could not clear proposer Deposits reservations: {error}"))
 }
 
+async fn pending_block_numbers(client: &Client) -> Result<HashSet<u64>, String> {
+    client
+        .get_all_pending_blocks()
+        .await
+        .ok_or_else(|| {
+            startup_local_state_cleanup_error(
+                "Could not inspect proposer PendingBlocks during startup cleanup.",
+            )
+        })
+        .map(|pending_blocks| {
+            pending_blocks
+                .into_iter()
+                .map(|pending_block| pending_block.layer2_block_number)
+                .collect()
+        })
+}
+
+fn speculative_blocks_without_sync_state_are_cleanup_safe(
+    stored_blocks: &[StoredBlock],
+    pending_block_numbers: &HashSet<u64>,
+) -> bool {
+    !stored_blocks.is_empty()
+        && stored_blocks
+            .iter()
+            .all(|stored_block| pending_block_numbers.contains(&stored_block.layer2_block_number))
+}
+
 pub(super) async fn cleanup_non_canonical_startup_state(
     client: &Client,
     sync_state: Option<&SyncState>,
@@ -140,6 +168,23 @@ pub(super) async fn cleanup_non_canonical_startup_state(
             }
         }
         None => {
+            let stored_blocks = client.get_all_blocks().await.ok_or_else(|| {
+                startup_local_state_cleanup_error(
+                    "Could not inspect proposer StoredBlocks during startup cleanup.",
+                )
+            })?;
+            if !stored_blocks.is_empty() {
+                let pending_block_numbers = pending_block_numbers(client).await?;
+                if !speculative_blocks_without_sync_state_are_cleanup_safe(
+                    &stored_blocks,
+                    &pending_block_numbers,
+                ) {
+                    return Err(startup_local_state_cleanup_error(
+                        "StoredBlocks exist without sync_state, but they are not fully explained by persisted PendingBlocks. Manual recovery is required.",
+                    ));
+                }
+            }
+
             let _ = client.delete_all_blocks().await.ok_or_else(|| {
                 startup_local_state_cleanup_error(
                     "Could not delete speculative StoredBlocks during startup cleanup.",

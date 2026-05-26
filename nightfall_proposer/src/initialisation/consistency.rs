@@ -234,13 +234,6 @@ pub(super) async fn validate_startup_proposer_state_consistency(
         }
         None => {
             validate_tree_state_against_sync_state(client, None, None).await?;
-
-            if let Some(highest_stored_block) = highest_stored_block_number(client).await? {
-                return Err(stored_blocks_ahead_of_sync_state_error(
-                    0,
-                    highest_stored_block,
-                ));
-            }
         }
     }
 

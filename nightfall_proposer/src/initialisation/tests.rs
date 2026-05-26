@@ -564,12 +564,78 @@ async fn bootstrap_aborts_when_no_sync_state_but_stored_blocks_exist() {
         .expect_err("bootstrap should fail closed on stored blocks without sync_state");
 
     assert!(
-        error.contains("highest StoredBlock (0) is ahead of sync_state-applied block 0"),
+        error.contains("StoredBlocks exist without sync_state")
+            && error.contains("Manual recovery is required"),
         "unexpected bootstrap error: {error}"
     );
     assert!(
         client.get_block_by_number(0).await.is_some(),
         "stored block should remain because cleanup must not run after fail-closed validation"
+    );
+}
+
+#[tokio::test]
+async fn bootstrap_cleans_first_pending_block_startup_state_without_sync_state() {
+    let _lock = bootstrap_test_lock().await;
+    let container = get_mongo().await;
+    let client = get_db_connection(&container).await;
+
+    ensure_proposer_db_initialized(&client).await;
+    let canonical_commitment_root = <mongodb::Client as CommitmentTree<Fr254>>::get_root(&client)
+        .await
+        .expect("read canonical commitment root before cleanup");
+    let canonical_historic_root = <mongodb::Client as MutableTree<Fr254>>::get_root(
+        &client,
+        <mongodb::Client as HistoricRootTree<Fr254>>::TREE_NAME,
+    )
+    .await
+    .expect("read canonical historic root before cleanup");
+
+    client
+        .store_pending_block(&PendingBlock {
+            layer2_block_number: 0,
+            state: PendingBlockState::ReadyToPropose,
+            broadcast_tx_hash: None,
+            broadcast_receipt_checks: 0,
+            block: Some(Block::default()),
+            selected_deposits: Vec::new(),
+            selected_client_transaction_hashes: Vec::new(),
+        })
+        .await
+        .expect("store first pending block");
+    client
+        .store_block(&StoredBlock {
+            layer2_block_number: 0,
+            commitments: vec!["0x00".to_string()],
+            proposer_address: Address::from([0u8; 20]),
+        })
+        .await
+        .expect("store first speculative block without sync_state");
+
+    MockNightfallContract::set_onchain_next_block(0);
+    reset_runtime_bootstrap_state().await;
+
+    bootstrap_proposer_startup_state_with_db::<MockNightfallContract>(&client, false)
+        .await
+        .expect("bootstrap should clean first pending startup state without sync_state");
+
+    assert_eq!(client.get_sync_state().await, None);
+    assert_eq!(client.get_pending_block(0).await, None);
+    assert!(client.get_block_by_number(0).await.is_none());
+    assert_eq!(
+        <mongodb::Client as CommitmentTree<Fr254>>::get_root(&client)
+            .await
+            .expect("read commitment root after cleanup"),
+        canonical_commitment_root
+    );
+    assert_eq!(
+        <mongodb::Client as MutableTree<Fr254>>::get_root(
+            &client,
+            <mongodb::Client as HistoricRootTree<Fr254>>::TREE_NAME,
+        )
+        .await
+        .expect("read historic root after cleanup"),
+        canonical_historic_root
     );
 }
 
