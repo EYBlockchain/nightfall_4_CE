@@ -210,3 +210,32 @@ The proposer can become READY again only after all of the following are true:
 - post-restore replay from `sync_state.l1_ref.block_number` has completed and the proposer is back at the current L1/L2 tip
 
 Restore completion alone is not enough to become READY; replay catch-up must also succeed.
+
+## Deferred Follow-Up: Tree State Upper Bounds Beyond HistoricRoot
+
+Current startup and post-restore validation enforce an exact `HistoricRootTree` progression against
+`sync_state.last_applied_l2_block`.
+
+A symmetric "tree is ahead of sync_state" upper-bound check is not yet implemented for
+`CommitmentTree` and `NullifierTree`.
+
+- for `CommitmentTree`, an exact bound may be derivable from canonical stored block contents, but
+  this is not yet enforced by the current implementation
+- for `NullifierTree`, the current persisted canonical state does not include enough information to
+  derive a robust exact upper bound during startup or restore validation
+
+As a result, current validation detects empty or missing tree state and `HistoricRootTree`
+incoherence, but it does not yet reject every case where commitment/nullifier tree state has
+advanced beyond the persisted `sync_state`.
+
+If either tree has advanced beyond `sync_state`, replay may try to re-apply state that is already
+materialized locally. For commitments, that can shift local tree progression away from the
+canonical replay path and produce divergent roots. For nullifiers, replay may attempt to reinsert
+already-present leaves, causing replay failures or inconsistent local state. Any later proof built
+against those wrong roots would then be invalid.
+
+A robust follow-up should either:
+
+- persist sufficient canonical per-block nullifier accounting to derive an exact expected bound, or
+- persist explicit canonical tree progress counters alongside `sync_state` for startup and restore
+  validation
