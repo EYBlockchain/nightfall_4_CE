@@ -135,12 +135,14 @@ fn classify_legacy_active_transaction<P>(
             transaction.hash
         )
     })?;
+    let transaction_commitments = transaction_commitments_hex(transaction);
 
     let lifecycle = match stored_blocks.get(&block_l2) {
         Some(block_commitments)
-            if transaction_commitments_hex(transaction)
-                .into_iter()
-                .all(|commitment| block_commitments.contains(&commitment)) =>
+            if !transaction_commitments.is_empty()
+                && transaction_commitments
+                    .iter()
+                    .all(|commitment| block_commitments.contains(commitment)) =>
         {
             TxLifecycle::Included { block_l2 }
         }
@@ -662,8 +664,60 @@ mod tests {
             collection
                 .count_documents(count_legacy_client_transactions_filter())
                 .await
-                .expect("count legacy rows after second migration"),
+            .expect("count legacy rows after second migration"),
             0
+        );
+    }
+
+    #[tokio::test]
+    async fn legacy_withdrawal_without_commitments_is_not_backfilled_as_included() {
+        let _lock = client_transaction_state_test_lock().await;
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+
+        let withdrawal_transaction =
+            test_transaction(60, TxLifecycle::Selected { block_l2: 32 }, Fr254::zero());
+
+        let collection = client
+            .database(DB)
+            .collection::<Document>(CLIENT_TRANSACTIONS_COLLECTION);
+        collection
+            .insert_one(legacy_document_from_transaction(
+                &withdrawal_transaction,
+                "selected_or_included",
+            ))
+            .await
+            .expect("insert legacy withdrawal fixture");
+
+        client
+            .store_block(&StoredBlock {
+                layer2_block_number: 32,
+                commitments: vec![Fr254::from(320_u64).to_hex_string()],
+                proposer_address: Address::from([32_u8; 20]),
+            })
+            .await
+            .expect("store block fixture for legacy withdrawal");
+
+        let stats = backfill_legacy_client_transaction_lifecycle(&client)
+            .await
+            .expect("legacy withdrawal lifecycle backfill should succeed");
+        assert_eq!(
+            stats,
+            LegacyClientTransactionLifecycleMigrationStats {
+                selected_backfilled: 1,
+                ..Default::default()
+            }
+        );
+
+        assert_eq!(
+            <Client as TransactionsDB<MockProof>>::get_transaction(
+                &client,
+                &withdrawal_transaction.hash
+            )
+            .await
+            .expect("read withdrawal transaction after migration")
+            .lifecycle,
+            TxLifecycle::Selected { block_l2: 32 }
         );
     }
 }
