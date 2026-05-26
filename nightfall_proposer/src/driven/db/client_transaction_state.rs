@@ -352,11 +352,45 @@ pub(crate) async fn restore_selected_transactions_to_mempool_after_block(
         })
 }
 
-pub(crate) async fn remove_all_mempool_client_transactions(client: &Client) -> Result<u64, String> {
+pub(crate) async fn restore_selected_transactions_to_mempool_after_block_with_session(
+    client: &Client,
+    last_applied_l2_block: u64,
+    session: &mut mongodb::ClientSession,
+) -> Result<u64, String> {
+    let last_applied_l2_block = i64::try_from(last_applied_l2_block).map_err(|_| {
+        format!("Could not convert proposer last applied L2 block {last_applied_l2_block} into i64")
+    })?;
+
+    client
+        .database(DB)
+        .collection::<Document>(CLIENT_TRANSACTIONS_COLLECTION)
+        .update_many(
+            selected_transactions_filter_after_block(last_applied_l2_block),
+            doc! {
+                "$set": {
+                    "lifecycle": lifecycle_bson(&TxLifecycle::Mempool)
+                }
+            },
+        )
+        .session(&mut *session)
+        .await
+        .map(|result| result.modified_count)
+        .map_err(|error| {
+            format!(
+                "Could not restore proposer selected client transactions beyond L2 block {last_applied_l2_block} to the mempool: {error}"
+            )
+        })
+}
+
+pub(crate) async fn remove_all_mempool_client_transactions_with_session(
+    client: &Client,
+    session: &mut mongodb::ClientSession,
+) -> Result<u64, String> {
     client
         .database(DB)
         .collection::<Document>(CLIENT_TRANSACTIONS_COLLECTION)
         .delete_many(mempool_transactions_filter())
+        .session(&mut *session)
         .await
         .map(|result| result.deleted_count)
         .map_err(|error| format!("Could not discard proposer mempool client transactions: {error}"))

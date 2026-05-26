@@ -172,6 +172,8 @@ pub enum RestoreJournalPhase {
 pub enum RestoreJournalStep {
     BackupPending,
     BackupCreated,
+    NonSnapshotCleanupPending,
+    NonSnapshotCleanupApplied,
     RollbackPending,
     RollbackStarted,
     RollbackApplied,

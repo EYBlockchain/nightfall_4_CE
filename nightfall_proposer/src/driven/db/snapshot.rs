@@ -4,15 +4,15 @@ use crate::{
         RestoreJournalStep, SnapshotCollectionManifest, SyncState,
     },
     driven::db::client_transaction_state::{
-        remove_all_mempool_client_transactions,
-        restore_selected_transactions_to_mempool_after_block,
+        remove_all_mempool_client_transactions_with_session,
+        restore_selected_transactions_to_mempool_after_block_with_session,
     },
     driven::db::mongo_db::{
         ensure_deposit_indexes, StoredBlock, DB, DEPOSIT_COLLECTION, PROPOSED_BLOCKS_COLLECTION,
-        SYNC_STATE_COLLECTION,
+        RESTORE_JOURNAL_COLLECTION, SYNC_STATE_COLLECTION,
     },
     initialisation::{
-        clear_all_reserved_deposits, validate_live_proposer_state_consistency,
+        validate_live_proposer_state_consistency,
         validate_snapshotted_live_proposer_state_consistency,
     },
     ports::db::{PendingBlockDB, RestoreJournalDB, SyncStateDB},
@@ -1594,7 +1594,7 @@ async fn complete_shadow_swap_from_journal(
 
     journal.phase = RestoreJournalPhase::SwapComplete;
     journal.current_index = None;
-    journal.current_step = None;
+    journal.current_step = Some(RestoreJournalStep::NonSnapshotCleanupPending);
     journal.updated_at = mongodb::bson::DateTime::now();
     client.upsert_restore_journal(journal).await?;
     maybe_crash_at_failpoint("restore_after_swap_complete");
@@ -1753,7 +1753,9 @@ async fn complete_cleanup_after_proposer_shadow_swap(
     client: &mongodb::Client,
     journal: &RestoreJournal,
 ) -> Result<(), SnapshotError> {
-    cleanup_non_snapshot_restore_state(client).await?;
+    let cleanup_stats = apply_non_snapshot_cleanup_if_needed(client, journal).await?;
+    maybe_crash_at_failpoint("restore_after_non_snapshot_cleanup_applied");
+    log_non_snapshot_cleanup_stats(&cleanup_stats);
     validate_live_proposer_state_consistency(client)
         .await
         .map_err(SnapshotError::RestoreInvariantViolation)?;
@@ -1774,46 +1776,170 @@ async fn complete_cleanup_after_proposer_shadow_swap(
     Ok(())
 }
 
-async fn cleanup_non_snapshot_restore_state(client: &mongodb::Client) -> Result<(), SnapshotError> {
-    let sync_state =
-        client
-            .get_sync_state()
-            .await
-            .ok_or(SnapshotError::RestoreInvariantViolation(
-                "Could not load restored sync_state during snapshot restore finalization"
-                    .to_string(),
-            ))?;
-    let deleted_pending_blocks = client.delete_all_pending_blocks().await.ok_or_else(|| {
-        SnapshotError::RestoreInvariantViolation(
-            "Could not delete persisted PendingBlocks during snapshot restore finalization"
-                .to_string(),
-        )
-    })?;
-    let cleared_reserved_deposits = clear_all_reserved_deposits(client)
-        .await
-        .map_err(SnapshotError::RestoreInvariantViolation)?;
-    let removed_mempool_transactions = remove_all_mempool_client_transactions(client)
-        .await
-        .map_err(SnapshotError::RestoreInvariantViolation)?;
-    let restored_selected_transactions = restore_selected_transactions_to_mempool_after_block(
-        client,
-        sync_state.last_applied_l2_block,
-    )
-    .await
-    .map_err(SnapshotError::RestoreInvariantViolation)?;
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+struct NonSnapshotCleanupStats {
+    last_applied_l2_block: u64,
+    deleted_pending_blocks: u64,
+    cleared_reserved_deposits: u64,
+    removed_mempool_transactions: u64,
+    restored_selected_transactions: u64,
+}
 
-    if deleted_pending_blocks > 0
-        || cleared_reserved_deposits > 0
-        || removed_mempool_transactions > 0
-        || restored_selected_transactions > 0
-    {
-        warn!(
-            "Snapshot restore discarded {deleted_pending_blocks} persisted PendingBlock(s), cleared {cleared_reserved_deposits} reserved deposit selection(s), dropped {removed_mempool_transactions} mempool client transaction(s), and restored {restored_selected_transactions} selected client transaction(s) beyond restored sync_state L2 block {} to the mempool after validating restored snapshot collections and before final live-state validation",
-            sync_state.last_applied_l2_block
-        );
+async fn apply_non_snapshot_cleanup_if_needed(
+    client: &mongodb::Client,
+    journal: &RestoreJournal,
+) -> Result<NonSnapshotCleanupStats, SnapshotError> {
+    match journal.current_step.clone() {
+        Some(RestoreJournalStep::NonSnapshotCleanupApplied) => {
+            Ok(NonSnapshotCleanupStats::default())
+        }
+        Some(RestoreJournalStep::NonSnapshotCleanupPending) | None => {
+            cleanup_non_snapshot_restore_state(client, journal).await
+        }
+        Some(step) => Err(SnapshotError::RestoreInvariantViolation(format!(
+            "swap_complete cleanup expected non_snapshot_cleanup step, found {step:?}"
+        ))),
+    }
+}
+
+async fn get_sync_state_with_session(
+    client: &mongodb::Client,
+    session: &mut mongodb::ClientSession,
+) -> Result<SyncState, mongodb::error::Error> {
+    client
+        .database(DB)
+        .collection::<SyncState>(SYNC_STATE_COLLECTION)
+        .find_one(mongodb::bson::doc! { "_id": SyncState::DOCUMENT_ID })
+        .session(&mut *session)
+        .await?
+        .ok_or_else(|| {
+            mongodb::error::Error::custom(
+                "Could not load restored sync_state during snapshot restore finalization",
+            )
+        })
+}
+
+async fn clear_all_reserved_deposits_with_session(
+    client: &mongodb::Client,
+    session: &mut mongodb::ClientSession,
+) -> Result<u64, mongodb::error::Error> {
+    client
+        .database(DB)
+        .collection::<Document>(DEPOSIT_COLLECTION)
+        .update_many(
+            mongodb::bson::doc! { "reserved": true },
+            mongodb::bson::doc! { "$set": { "reserved": false } },
+        )
+        .session(&mut *session)
+        .await
+        .map(|result| result.modified_count)
+}
+
+async fn upsert_restore_journal_with_session(
+    client: &mongodb::Client,
+    journal: &RestoreJournal,
+    session: &mut mongodb::ClientSession,
+) -> Result<(), mongodb::error::Error> {
+    let result = client
+        .database(DB)
+        .collection::<RestoreJournal>(RESTORE_JOURNAL_COLLECTION)
+        .replace_one(
+            mongodb::bson::doc! { "_id": RestoreJournal::DOCUMENT_ID },
+            journal,
+        )
+        .upsert(true)
+        .session(&mut *session)
+        .await?;
+
+    if result.matched_count == 0 && result.upserted_id.is_none() {
+        return Err(mongodb::error::Error::custom(
+            "Failed to upsert proposer restore_journal",
+        ));
     }
 
     Ok(())
+}
+
+async fn cleanup_non_snapshot_restore_state(
+    client: &mongodb::Client,
+    journal: &RestoreJournal,
+) -> Result<NonSnapshotCleanupStats, SnapshotError> {
+    let journal_for_update = journal.clone();
+    let client_for_transaction = client.clone();
+    let mut session = client.start_session().await?;
+    session
+        .start_transaction()
+        .and_run2(async move |session| {
+            let sync_state = get_sync_state_with_session(&client_for_transaction, session).await?;
+            let deleted_pending_blocks = client_for_transaction
+                .delete_all_pending_blocks_with_session(session)
+                .await
+                .map_err(|error| {
+                    mongodb::error::Error::custom(format!(
+                        "Could not delete persisted PendingBlocks during snapshot restore finalization: {error}"
+                    ))
+                })?;
+            let cleared_reserved_deposits =
+                clear_all_reserved_deposits_with_session(&client_for_transaction, session)
+                    .await
+                    .map_err(|error| {
+                        mongodb::error::Error::custom(format!(
+                            "Could not clear proposer Deposits reservations during snapshot restore finalization: {error}"
+                        ))
+                    })?;
+            let removed_mempool_transactions =
+                remove_all_mempool_client_transactions_with_session(
+                    &client_for_transaction,
+                    session,
+                )
+                .await
+                .map_err(mongodb::error::Error::custom)?;
+            let restored_selected_transactions =
+                restore_selected_transactions_to_mempool_after_block_with_session(
+                    &client_for_transaction,
+                    sync_state.last_applied_l2_block,
+                    session,
+                )
+                .await
+                .map_err(mongodb::error::Error::custom)?;
+
+            let mut updated_journal = journal_for_update.clone();
+            updated_journal.current_step = Some(RestoreJournalStep::NonSnapshotCleanupApplied);
+            updated_journal.updated_at = mongodb::bson::DateTime::now();
+            upsert_restore_journal_with_session(
+                &client_for_transaction,
+                &updated_journal,
+                session,
+            )
+            .await?;
+
+            Ok::<NonSnapshotCleanupStats, mongodb::error::Error>(NonSnapshotCleanupStats {
+                last_applied_l2_block: sync_state.last_applied_l2_block,
+                deleted_pending_blocks,
+                cleared_reserved_deposits,
+                removed_mempool_transactions,
+                restored_selected_transactions,
+            })
+        })
+        .await
+        .map_err(SnapshotError::Mongo)
+}
+
+fn log_non_snapshot_cleanup_stats(stats: &NonSnapshotCleanupStats) {
+    if stats.deleted_pending_blocks > 0
+        || stats.cleared_reserved_deposits > 0
+        || stats.removed_mempool_transactions > 0
+        || stats.restored_selected_transactions > 0
+    {
+        warn!(
+            "Snapshot restore discarded {} persisted PendingBlock(s), cleared {} reserved deposit selection(s), dropped {} mempool client transaction(s), and restored {} selected client transaction(s) beyond restored sync_state L2 block {} to the mempool after validating restored snapshot collections and before final live-state validation",
+            stats.deleted_pending_blocks,
+            stats.cleared_reserved_deposits,
+            stats.removed_mempool_transactions,
+            stats.restored_selected_transactions,
+            stats.last_applied_l2_block
+        );
+    }
 }
 
 pub async fn recover_from_restore_journal(client: &mongodb::Client) -> Result<(), SnapshotError> {
@@ -3236,7 +3362,10 @@ mod test {
 
         assert_eq!(journal.phase, RestoreJournalPhase::SwapComplete);
         assert_eq!(journal.current_index, None);
-        assert_eq!(journal.current_step, None);
+        assert_eq!(
+            journal.current_step,
+            Some(RestoreJournalStep::NonSnapshotCleanupPending)
+        );
 
         let live_sync_state = client
             .get_sync_state()
@@ -5831,6 +5960,138 @@ mod test {
         assert!(!names
             .iter()
             .any(|name| name.starts_with("restore_backup__")));
+
+        fs::remove_dir_all(snapshot_root)
+            .await
+            .expect("cleanup snapshot directory");
+    }
+
+    #[tokio::test]
+    async fn recover_from_restore_journal_skips_non_snapshot_cleanup_once_applied() {
+        let _snapshot_test_lock = snapshot_test_lock().await;
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+
+        initialize_snapshot_test_trees(&client).await;
+
+        let snapshot_block = StoredBlock {
+            layer2_block_number: 25,
+            commitments: vec!["0xcleanup-selected".to_string()],
+            proposer_address: Address::from([31u8; 20]),
+        };
+        client
+            .store_block(&snapshot_block)
+            .await
+            .expect("store snapshot block");
+
+        let snapshot_sync_state = SyncState::new(
+            snapshot_block.layer2_block_number,
+            snapshot_block.hash().to_hex_string(),
+            L1Ref {
+                block_number: 2500,
+                tx_hash: TxHash::from([31u8; 32]),
+                log_index: 4,
+            },
+            mongodb::bson::DateTime::now(),
+        );
+        persist_sync_state(&client, &snapshot_sync_state).await;
+
+        let snapshot_root = std::env::temp_dir().join(format!(
+            "nf4-proposer-cleanup-applied-crash-test-{}",
+            mongodb::bson::DateTime::now().timestamp_millis()
+        ));
+        let manifest = create_proposer_snapshot(&client, &snapshot_root)
+            .await
+            .expect("create snapshot");
+        let snapshot_dir = snapshot_root.join(&manifest.snapshot_id);
+
+        let newer_live_block = StoredBlock {
+            layer2_block_number: 26,
+            commitments: vec!["0xnewer".to_string()],
+            proposer_address: Address::from([32u8; 20]),
+        };
+        client
+            .store_block(&newer_live_block)
+            .await
+            .expect("store newer live block");
+        persist_sync_state(
+            &client,
+            &SyncState::new(
+                newer_live_block.layer2_block_number,
+                newer_live_block.hash().to_hex_string(),
+                L1Ref {
+                    block_number: 2600,
+                    tx_hash: TxHash::from([32u8; 32]),
+                    log_index: 5,
+                },
+                mongodb::bson::DateTime::now(),
+            ),
+        )
+        .await;
+
+        let selected_transaction = test_selected_client_transaction(
+            401,
+            snapshot_block.layer2_block_number + 1,
+            Fr254::from(444_u64),
+        );
+        client
+            .store_transaction(selected_transaction.clone())
+            .await
+            .expect("store selected transaction ahead of snapshot state");
+
+        load_proposer_snapshot_into_shadow(&client, &snapshot_dir)
+            .await
+            .expect("load snapshot into shadow");
+        swap_proposer_shadow_into_live(&client)
+            .await
+            .expect("swap shadow into live");
+
+        let failpoint = TestFailpointGuard::enable("restore_after_non_snapshot_cleanup_applied");
+        let crash_client = client.clone();
+        let join_error =
+            tokio::spawn(async move { cleanup_after_proposer_shadow_swap(&crash_client).await })
+                .await
+                .expect_err("cleanup should panic after non-snapshot cleanup commit");
+        assert!(join_error.is_panic());
+        drop(failpoint);
+
+        let journal = client
+            .get_restore_journal()
+            .await
+            .expect("journal should remain after cleanup-applied crash");
+        assert_eq!(journal.phase, RestoreJournalPhase::SwapComplete);
+        assert_eq!(
+            journal.current_step,
+            Some(RestoreJournalStep::NonSnapshotCleanupApplied)
+        );
+        assert!(
+            <mongodb::Client as TransactionsDB<MockProof>>::get_transaction(
+                &client,
+                &selected_transaction.hash,
+            )
+            .await
+            .expect("selected transaction should still exist after cleanup-applied crash")
+            .lifecycle
+            .is_mempool(),
+            "cleanup should have already restored the selected transaction to the mempool before the crash"
+        );
+
+        recover_from_restore_journal(&client)
+            .await
+            .expect("recover should skip already-applied non-snapshot cleanup");
+
+        assert_eq!(client.get_restore_journal().await, None);
+        assert!(
+            <mongodb::Client as TransactionsDB<MockProof>>::get_transaction(
+                &client,
+                &selected_transaction.hash,
+            )
+            .await
+            .expect("transaction should still exist after swap_complete recovery")
+            .lifecycle
+            .is_mempool(),
+            "recovery should not delete transactions preserved by the first cleanup pass"
+        );
 
         fs::remove_dir_all(snapshot_root)
             .await

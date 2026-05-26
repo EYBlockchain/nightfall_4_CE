@@ -18,7 +18,6 @@ mod db;
 mod runtime_listener;
 
 pub use bootstrap::bootstrap_proposer_startup_state;
-pub(crate) use cleanup::clear_all_reserved_deposits;
 pub(crate) use consistency::{
     validate_live_proposer_state_consistency, validate_snapshotted_live_proposer_state_consistency,
 };
