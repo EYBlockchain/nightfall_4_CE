@@ -18,6 +18,7 @@ use crate::{
         trees::{CommitmentTree, HistoricRootTree, NullifierTree},
     },
     services::process_events::process_events,
+    services::selected_transactions::reconcile_orphaned_selected_transactions,
     services::snapshot_scheduler::set_last_snapshot_l2_block,
 };
 use alloy::{
@@ -239,6 +240,56 @@ pub(crate) fn set_listener_replay_catch_up_pending(pending: bool) {
     listener_replay_catch_up_pending_cell().store(pending, Ordering::SeqCst);
 }
 
+async fn reconcile_orphaned_selected_transactions_after_listener_catch_up<P>(
+    db: &MongoClient,
+    current_layer2_block_number: u64,
+) where
+    P: Proof,
+{
+    match reconcile_orphaned_selected_transactions::<P>(db, current_layer2_block_number).await {
+        Some(restored) if restored > 0 => {
+            warn!(
+                "Listener catch-up restored {restored} orphaned selected transaction(s) to the \
+                 mempool at L2 block {current_layer2_block_number}"
+            );
+        }
+        Some(_) => {}
+        None => {
+            warn!(
+                "Listener catch-up could not reconcile orphaned selected transactions at L2 \
+                 block {current_layer2_block_number}"
+            );
+        }
+    }
+}
+
+async fn finalize_listener_catch_up<P>()
+where
+    P: Proof,
+{
+    let current_layer2_block_number =
+        match u64::try_from(*get_expected_layer2_blocknumber().await.read().await) {
+            Ok(block_number) => block_number,
+            Err(_) => {
+                warn!(
+                    "Listener catch-up could not derive the current L2 block number from \
+                 expected_layer2_blocknumber; skipping orphaned selected transaction \
+                 reconciliation"
+                );
+                apply_listener_caught_up_runtime_state().await;
+                return;
+            }
+        };
+
+    let db = get_db_connection().await;
+    reconcile_orphaned_selected_transactions_after_listener_catch_up::<P>(
+        db,
+        current_layer2_block_number,
+    )
+    .await;
+    apply_listener_caught_up_runtime_state().await;
+}
+
 async fn advance_runtime_listener_state_from_log(log: &Log) {
     let (Some(block_number), Some(tx_hash), Some(log_index)) =
         (log.block_number, log.transaction_hash, log.log_index)
@@ -376,7 +427,7 @@ where
         }
     }
 
-    apply_listener_caught_up_runtime_state().await;
+    finalize_listener_catch_up::<P>().await;
 
     while let Some(log) = events_stream.next().await {
         process_listener_log::<P, E, N>(log, start_block).await?;
@@ -1256,6 +1307,36 @@ mod tests {
             )
             .await
             .expect("selected transaction should still exist after cleanup")
+            .lifecycle
+            .is_mempool()
+        );
+    }
+
+    #[tokio::test]
+    async fn listener_catch_up_reconciliation_restores_orphaned_selected_transactions() {
+        let _lock = event_listener_test_lock().await;
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+
+        initialize_test_trees(&client).await;
+        let selected_transaction = test_selected_client_transaction(88, 7);
+        client
+            .store_transaction(selected_transaction.clone())
+            .await
+            .expect("store selected transaction");
+
+        reconcile_orphaned_selected_transactions_after_listener_catch_up::<MockProof>(&client, 8)
+            .await;
+
+        assert!(
+            <mongodb::Client as TransactionsDB<MockProof>>::get_transaction(
+                &client,
+                &selected_transaction.hash,
+            )
+            .await
+            .expect(
+                "selected transaction should still exist after listener catch-up reconciliation"
+            )
             .lifecycle
             .is_mempool()
         );
