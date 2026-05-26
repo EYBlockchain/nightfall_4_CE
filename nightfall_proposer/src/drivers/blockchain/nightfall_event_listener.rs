@@ -12,6 +12,7 @@ use crate::{
         get_block_assembly_status, get_blockchain_client_connection, get_db_connection,
         get_runtime_listener_resume_cursor, get_runtime_listener_start_block,
         set_runtime_listener_resume_cursor, set_runtime_listener_start_block,
+        validate_live_proposer_state_consistency,
     },
     ports::{
         contracts::NightfallContract,
@@ -242,10 +243,23 @@ async fn recovered_snapshot_sync_state_if_available(
             })?;
     }
 
-    Ok(db
-        .get_sync_state()
+    let Some(sync_state) = db.get_sync_state().await else {
+        return Ok(None);
+    };
+
+    if !restored_sync_state_matches_manifest(&sync_state, manifest) {
+        return Ok(None);
+    }
+
+    validate_live_proposer_state_consistency(db)
         .await
-        .filter(|sync_state| restored_sync_state_matches_manifest(sync_state, manifest)))
+        .map_err(|error| {
+            format!(
+                "restored sync_state matches the snapshot manifest, but live proposer state remains inconsistent: {error}"
+            )
+        })?;
+
+    Ok(Some(sync_state))
 }
 
 fn destructive_replay_start_block() -> usize {
@@ -1396,6 +1410,57 @@ mod tests {
 
         assert_eq!(recovered_sync_state, sync_state);
         assert_eq!(client.get_restore_journal().await, None);
+    }
+
+    #[tokio::test]
+    async fn recovered_snapshot_sync_state_if_available_rejects_inconsistent_live_state() {
+        let _lock = event_listener_test_lock().await;
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+
+        initialize_test_trees(&client).await;
+        let block = StoredBlock {
+            layer2_block_number: 31,
+            commitments: vec!["0xinconsistent-live-state".to_string()],
+            proposer_address: Address::from([31u8; 20]),
+        };
+        client.store_block(&block).await.expect("store block");
+        let sync_state = SyncState::new(
+            31,
+            block.hash().to_hex_string(),
+            L1Ref {
+                block_number: 3100,
+                tx_hash: TxHash::from([31u8; 32]),
+                log_index: 31,
+            },
+            mongodb::bson::DateTime::now(),
+        );
+        persist_sync_state(&client, &sync_state).await;
+
+        let manifest = ProposerSnapshotManifest::new(
+            "snapshot-31".to_string(),
+            mongodb::bson::DateTime::now(),
+            DB.to_string(),
+            &sync_state,
+            Vec::new(),
+            "overall".to_string(),
+        );
+
+        client
+            .database(DB)
+            .collection::<Document>(&format!(
+                "{}_metadata",
+                <mongodb::Client as NullifierTree<Fr254>>::TREE_NAME
+            ))
+            .drop()
+            .await
+            .expect("drop nullifier metadata to simulate inconsistent live state");
+
+        let error = recovered_snapshot_sync_state_if_available(&client, &manifest)
+            .await
+            .expect_err("helper should reject matching sync_state when live state is inconsistent");
+
+        assert!(error.contains("live proposer state remains inconsistent"));
     }
 
     #[tokio::test]
