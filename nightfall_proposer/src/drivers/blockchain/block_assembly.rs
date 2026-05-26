@@ -1,6 +1,8 @@
 use crate::{
     domain::entities::{PendingBlock, PendingBlockState},
-    drivers::blockchain::nightfall_event_listener::get_synchronisation_status,
+    drivers::blockchain::nightfall_event_listener::{
+        get_synchronisation_status, is_listener_replay_catch_up_pending,
+    },
     initialisation::{
         get_block_assembly_status, get_block_assembly_trigger, get_blockchain_client_connection,
     },
@@ -556,9 +558,11 @@ async fn process_pending_blocks_for_proposal<P, N>(
         .read()
         .await
         .is_synchronised()
+        || is_listener_replay_catch_up_pending()
     {
         warn!(
-            "Skipping pending block proposal because proposer recovery/desynchronisation is active"
+            "Skipping pending block proposal because proposer recovery/desynchronisation or \
+             replay catch-up is active"
         );
         return;
     }
@@ -956,8 +960,10 @@ where
             // if we're at block 0, we're automatically synchronised because no blocks have been made yet
             sync_status.set_synchronised();
         }
-        if !sync_status.is_synchronised() {
-            warn!("We are not synchronised. We won't make blocks until we are");
+        if !sync_status.is_synchronised() || is_listener_replay_catch_up_pending() {
+            warn!(
+                "We are not synchronised yet. We won't make blocks until replay catch-up completes"
+            );
             continue;
         }
         debug!("Triggered block assembly");

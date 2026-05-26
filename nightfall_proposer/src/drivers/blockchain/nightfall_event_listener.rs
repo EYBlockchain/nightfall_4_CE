@@ -41,6 +41,10 @@ use log::{debug, warn};
 use mongodb::Client as MongoClient;
 use nightfall_bindings::artifacts::Nightfall;
 use std::path::PathBuf;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    OnceLock,
+};
 use std::time::Duration;
 use tokio::{
     sync::{OnceCell, RwLock},
@@ -184,6 +188,7 @@ fn listener_start_block_from_sync_state(sync_state: &SyncState) -> usize {
 
 async fn apply_restored_listener_runtime_state(sync_state: &SyncState) -> usize {
     let next_listener_start_block = listener_start_block_from_sync_state(sync_state);
+    set_listener_replay_catch_up_pending(true);
     set_runtime_listener_resume_cursor(Some(sync_state.l1_ref.clone())).await;
     set_runtime_listener_start_block(next_listener_start_block).await;
     next_listener_start_block
@@ -195,12 +200,14 @@ fn destructive_replay_start_block() -> usize {
 
 async fn apply_destructive_replay_listener_runtime_state() -> usize {
     let start_block = destructive_replay_start_block();
+    set_listener_replay_catch_up_pending(true);
     set_runtime_listener_resume_cursor(None).await;
     set_runtime_listener_start_block(start_block).await;
     start_block
 }
 
 async fn apply_listener_retry_runtime_state() {
+    set_listener_replay_catch_up_pending(true);
     get_synchronisation_status()
         .await
         .write()
@@ -210,12 +217,26 @@ async fn apply_listener_retry_runtime_state() {
 }
 
 async fn apply_listener_caught_up_runtime_state() {
+    set_listener_replay_catch_up_pending(false);
     get_synchronisation_status()
         .await
         .write()
         .await
         .set_synchronised();
     get_block_assembly_status().await.write().await.resume();
+}
+
+fn listener_replay_catch_up_pending_cell() -> &'static AtomicBool {
+    static LISTENER_REPLAY_CATCH_UP_PENDING: OnceLock<AtomicBool> = OnceLock::new();
+    LISTENER_REPLAY_CATCH_UP_PENDING.get_or_init(|| AtomicBool::new(false))
+}
+
+pub(crate) fn is_listener_replay_catch_up_pending() -> bool {
+    listener_replay_catch_up_pending_cell().load(Ordering::SeqCst)
+}
+
+pub(crate) fn set_listener_replay_catch_up_pending(pending: bool) {
+    listener_replay_catch_up_pending_cell().store(pending, Ordering::SeqCst);
 }
 
 async fn advance_runtime_listener_state_from_log(log: &Log) {
@@ -282,6 +303,7 @@ where
     E: ProvingEngine<P>,
     N: NightfallContract,
 {
+    set_listener_replay_catch_up_pending(true);
     let blockchain_client = get_blockchain_client_connection()
         .await
         .read()
@@ -926,6 +948,7 @@ mod tests {
     #[tokio::test]
     async fn apply_restored_listener_runtime_state_sets_resume_cursor_from_sync_state() {
         let _lock = event_listener_test_lock().await;
+        set_listener_replay_catch_up_pending(false);
         set_runtime_listener_resume_cursor(None).await;
         set_runtime_listener_start_block(0).await;
 
@@ -948,11 +971,13 @@ mod tests {
             get_runtime_listener_resume_cursor().await,
             Some(sync_state.l1_ref.clone())
         );
+        assert!(is_listener_replay_catch_up_pending());
     }
 
     #[tokio::test]
     async fn apply_destructive_replay_listener_runtime_state_clears_resume_cursor() {
         let _lock = event_listener_test_lock().await;
+        set_listener_replay_catch_up_pending(false);
         set_runtime_listener_resume_cursor(Some(L1Ref {
             block_number: 100,
             tx_hash: TxHash::from([8u8; 32]),
@@ -966,6 +991,7 @@ mod tests {
         assert_eq!(start_block, destructive_replay_start_block());
         assert_eq!(get_runtime_listener_start_block().await, start_block);
         assert_eq!(get_runtime_listener_resume_cursor().await, None);
+        assert!(is_listener_replay_catch_up_pending());
     }
 
     #[tokio::test]
@@ -1024,6 +1050,7 @@ mod tests {
     #[tokio::test]
     async fn apply_listener_retry_runtime_state_clears_sync_and_pauses_assembly() {
         let _lock = event_listener_test_lock().await;
+        set_listener_replay_catch_up_pending(false);
         get_synchronisation_status()
             .await
             .write()
@@ -1039,11 +1066,13 @@ mod tests {
             .await
             .is_synchronised());
         assert!(!get_block_assembly_status().await.read().await.is_running());
+        assert!(is_listener_replay_catch_up_pending());
     }
 
     #[tokio::test]
     async fn apply_listener_caught_up_runtime_state_sets_sync_and_resumes_assembly() {
         let _lock = event_listener_test_lock().await;
+        set_listener_replay_catch_up_pending(true);
         get_synchronisation_status()
             .await
             .write()
@@ -1059,6 +1088,7 @@ mod tests {
             .await
             .is_synchronised());
         assert!(get_block_assembly_status().await.read().await.is_running());
+        assert!(!is_listener_replay_catch_up_pending());
     }
 
     fn test_selected_client_transaction(

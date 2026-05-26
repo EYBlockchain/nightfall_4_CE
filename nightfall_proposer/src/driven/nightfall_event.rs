@@ -4,7 +4,9 @@ use crate::{
     driven::{
         db::mongo_db::StoredBlock, nightfall_client_transaction::process_deposit_transaction,
     },
-    drivers::blockchain::nightfall_event_listener::get_synchronisation_status,
+    drivers::blockchain::nightfall_event_listener::{
+        get_synchronisation_status, is_listener_replay_catch_up_pending,
+    },
     initialisation::{get_blockchain_client_connection, get_db_connection},
     ports::{
         contracts::NightfallContract,
@@ -389,9 +391,11 @@ where
             EventHandlerError::IOError("Could not retrieve current block number".to_string())
         })?;
 
+    let replay_catch_up_pending = is_listener_replay_catch_up_pending();
+
     // if the current block number is exactly one, then we're automatically synchronised because we've seen one
     // blockproposed event (or we wouldn't be here) and that must also be the only one
-    if current_block_number_in_contract == I256::ONE {
+    if current_block_number_in_contract == I256::ONE && !replay_catch_up_pending {
         debug!("Synchronised with blockchain");
         sync_status.set_synchronised();
     }
@@ -543,6 +547,13 @@ where
     let delta = current_block_number_in_contract - layer_2_block_number_in_event - I256::ONE;
     if delta != I256::ZERO {
         warn!("Synchronising - behind blockchain by {delta} layer 2 blocks ");
+        sync_status.clear_synchronised();
+    } else if replay_catch_up_pending {
+        debug!(
+            "Listener replay catch-up is still in progress after applying L2 block \
+             {layer_2_block_number_in_event_u64}; deferring synchronised status until the \
+             listener finishes draining historical events"
+        );
         sync_status.clear_synchronised();
     } else {
         debug!("Synchronised with blockchain");
