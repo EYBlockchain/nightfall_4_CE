@@ -2,8 +2,10 @@ use crate::drivers::blockchain::nightfall_event_listener::start_event_listener;
 use crate::initialisation::get_runtime_listener_start_block;
 use crate::ports::contracts::NightfallContract;
 use configuration::settings::get_settings;
+use futures::FutureExt;
 use lib::nf_client_proof::{Proof, ProvingEngine};
 use log::{info, warn};
+use std::panic::AssertUnwindSafe;
 use tokio::{
     sync::{OnceCell, RwLock},
     task::JoinHandle,
@@ -34,10 +36,20 @@ where
     tokio::spawn(async move {
         let mut next_start_block = start_block;
         loop {
-            let _ = start_event_listener::<P, E, N>(next_start_block, max_attempts).await;
-            warn!(
-                "Event listener task exited after exhausting its retry budget; restarting supervisor loop shortly."
-            );
+            match AssertUnwindSafe(start_event_listener::<P, E, N>(
+                next_start_block,
+                max_attempts,
+            ))
+            .catch_unwind()
+            .await
+            {
+                Ok(()) => warn!(
+                    "Event listener task exited after exhausting its retry budget; restarting supervisor loop shortly."
+                ),
+                Err(_) => warn!(
+                    "Event listener task panicked; restarting supervisor loop shortly."
+                ),
+            }
             next_start_block = get_runtime_listener_start_block().await;
             sleep(Duration::from_secs(1)).await;
         }

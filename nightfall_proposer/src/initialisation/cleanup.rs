@@ -297,23 +297,6 @@ pub(crate) async fn begin_startup_replay_reset(
     Ok(marker)
 }
 
-pub(crate) async fn clear_startup_replay_reset_marker_if_present(
-    client: &Client,
-) -> Result<(), String> {
-    if client.get_startup_replay_reset_marker().await.is_none() {
-        return Ok(());
-    }
-
-    client
-        .delete_startup_replay_reset_marker()
-        .await
-        .map_err(|error| {
-            startup_local_state_cleanup_error(&format!(
-                "Could not clear startup replay reset marker: {error}"
-            ))
-        })
-}
-
 async fn apply_startup_replay_db_cleanup(
     client: &Client,
     marker: &StartupReplayResetMarker,

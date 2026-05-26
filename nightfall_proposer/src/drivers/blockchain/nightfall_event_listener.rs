@@ -10,9 +10,8 @@ use crate::{
     driven::nightfall_event::get_expected_layer2_blocknumber,
     drivers::blockchain::block_assembly::clear_pending_blocks_queue,
     initialisation::{
-        clear_startup_replay_reset_marker_if_present, complete_startup_replay_reset,
-        get_block_assembly_status, get_blockchain_client_connection, get_db_connection,
-        get_runtime_listener_resume_cursor, get_runtime_listener_start_block,
+        complete_startup_replay_reset, get_block_assembly_status, get_blockchain_client_connection,
+        get_db_connection, get_runtime_listener_resume_cursor, get_runtime_listener_start_block,
         set_runtime_listener_resume_cursor, set_runtime_listener_start_block,
         validate_live_proposer_state_consistency,
     },
@@ -197,14 +196,6 @@ async fn apply_restored_listener_runtime_state(sync_state: &SyncState) -> usize 
 }
 
 async fn continue_from_restored_sync_state(sync_state: &SyncState) -> usize {
-    if let Err(error) =
-        clear_startup_replay_reset_marker_if_present(get_db_connection().await).await
-    {
-        warn!(
-            "Recovered proposer snapshot state is live, but a stale startup replay reset marker \
-             could not be cleared: {error}"
-        );
-    }
     let next_expected_block = sync_state.last_applied_l2_block.saturating_add(1);
     *get_expected_layer2_blocknumber().await.write().await = I256::try_from(next_expected_block)
         .expect("Restored L2 block number does not fit into I256");

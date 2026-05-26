@@ -16,7 +16,7 @@ use crate::{
         validate_live_proposer_state_consistency,
         validate_snapshotted_live_proposer_state_consistency,
     },
-    ports::db::{PendingBlockDB, RestoreJournalDB, SyncStateDB},
+    ports::db::{PendingBlockDB, RestoreJournalDB, StartupReplayResetMarkerDB, SyncStateDB},
     ports::trees::{CommitmentTree, HistoricRootTree, NullifierTree},
 };
 use ark_bn254::Fr as Fr254;
@@ -1810,8 +1810,22 @@ async fn complete_cleanup_after_proposer_shadow_swap(
         drop_collection_if_exists(&database, &collection.shadow).await?;
     }
 
+    clear_startup_replay_reset_marker_if_present(client).await?;
     client.delete_restore_journal().await?;
     Ok(())
+}
+
+async fn clear_startup_replay_reset_marker_if_present(
+    client: &mongodb::Client,
+) -> Result<(), SnapshotError> {
+    if client.get_startup_replay_reset_marker().await.is_none() {
+        return Ok(());
+    }
+
+    client
+        .delete_startup_replay_reset_marker()
+        .await
+        .map_err(SnapshotError::Mongo)
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -2070,13 +2084,17 @@ mod test {
         domain::entities::{
             Block, ClientTransactionWithMetaData, DepositDatawithFee, L1Ref, PendingBlock,
             PendingBlockState, RestoreJournal, RestoreJournalCollection, RestoreJournalPhase,
-            RestoreJournalStep, SyncState, TxLifecycle,
+            RestoreJournalStep, StartupReplayResetMarker, StartupReplayResetPhase, SyncState,
+            TxLifecycle,
         },
         driven::db::mongo_db::{
             ensure_deposit_indexes, StoredBlock, DEPOSIT_COLLECTION, RESTORE_JOURNAL_COLLECTION,
         },
         ports::{
-            db::{BlockStorageDB, PendingBlockDB, RestoreJournalDB, SyncStateDB, TransactionsDB},
+            db::{
+                BlockStorageDB, PendingBlockDB, RestoreJournalDB, StartupReplayResetMarkerDB,
+                SyncStateDB, TransactionsDB,
+            },
             trees::{CommitmentTree, HistoricRootTree, NullifierTree},
         },
     };
@@ -6121,6 +6139,106 @@ mod test {
         assert!(!names
             .iter()
             .any(|name| name.starts_with("restore_backup__")));
+
+        fs::remove_dir_all(snapshot_root)
+            .await
+            .expect("cleanup snapshot directory");
+    }
+
+    #[tokio::test]
+    async fn cleanup_after_proposer_shadow_swap_clears_stale_startup_replay_reset_marker() {
+        let _snapshot_test_lock = snapshot_test_lock().await;
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+
+        initialize_snapshot_test_trees(&client).await;
+
+        let snapshot_block = StoredBlock {
+            layer2_block_number: 27,
+            commitments: vec!["0xrestore-marker".to_string()],
+            proposer_address: Address::from([27u8; 20]),
+        };
+        client
+            .store_block(&snapshot_block)
+            .await
+            .expect("store snapshot block");
+        persist_sync_state(
+            &client,
+            &SyncState::new(
+                snapshot_block.layer2_block_number,
+                snapshot_block.hash().to_hex_string(),
+                L1Ref {
+                    block_number: 2700,
+                    tx_hash: TxHash::from([27u8; 32]),
+                    log_index: 6,
+                },
+                mongodb::bson::DateTime::now(),
+            ),
+        )
+        .await;
+
+        let snapshot_root = std::env::temp_dir().join(format!(
+            "nf4-proposer-restore-marker-test-{}",
+            mongodb::bson::DateTime::now().timestamp_millis()
+        ));
+        let manifest = create_proposer_snapshot(&client, &snapshot_root)
+            .await
+            .expect("create snapshot");
+        let snapshot_dir = snapshot_root.join(&manifest.snapshot_id);
+
+        let newer_live_block = StoredBlock {
+            layer2_block_number: 28,
+            commitments: vec!["0xnewer-live".to_string()],
+            proposer_address: Address::from([28u8; 20]),
+        };
+        client
+            .store_block(&newer_live_block)
+            .await
+            .expect("store newer live block");
+        persist_sync_state(
+            &client,
+            &SyncState::new(
+                newer_live_block.layer2_block_number,
+                newer_live_block.hash().to_hex_string(),
+                L1Ref {
+                    block_number: 2800,
+                    tx_hash: TxHash::from([28u8; 32]),
+                    log_index: 7,
+                },
+                mongodb::bson::DateTime::now(),
+            ),
+        )
+        .await;
+
+        client
+            .upsert_startup_replay_reset_marker(&StartupReplayResetMarker::new(
+                StartupReplayResetPhase::DbCleanupPending,
+                mongodb::bson::DateTime::now(),
+            ))
+            .await
+            .expect("persist stale startup replay reset marker");
+
+        load_proposer_snapshot_into_shadow(&client, &snapshot_dir)
+            .await
+            .expect("load snapshot into shadow");
+        swap_proposer_shadow_into_live(&client)
+            .await
+            .expect("swap shadow into live");
+
+        cleanup_after_proposer_shadow_swap(&client)
+            .await
+            .expect("cleanup should clear stale startup replay reset marker");
+
+        assert_eq!(client.get_restore_journal().await, None);
+        assert_eq!(client.get_startup_replay_reset_marker().await, None);
+        let live_sync_state = client
+            .get_sync_state()
+            .await
+            .expect("restored live sync_state should remain");
+        assert_eq!(
+            live_sync_state.last_applied_l2_block,
+            snapshot_block.layer2_block_number
+        );
 
         fs::remove_dir_all(snapshot_root)
             .await
