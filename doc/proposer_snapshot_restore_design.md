@@ -67,6 +67,27 @@ Restore may normalize obviously non-canonical lifecycle state, but final lifecyc
 active transactions must be derived from canonical replayed state rather than assumed from
 pre-restore live documents.
 
+5. Destructive replay only after restore-journal state is cleared
+
+Destructive replay fallback is only allowed after restore-journal recovery has either cleared the
+`restore_journal` and related `restore_backup__*` / `restore_shadow__*` state, or confirmed that no
+such state exists.
+
+If restore-journal recovery fails and journal or backup/shadow state may still be present, recovery
+must fail closed for manual intervention instead of falling through to destructive reset.
+
+6. Startup cleanup must preserve tree/state coherence
+
+Startup cleanup must leave `sync_state`, `StoredBlock`, `PendingBlock`, and proposer tree state
+mutually coherent.
+
+If startup cleanup removes speculative `StoredBlock` or `PendingBlock` state beyond `sync_state`, it
+must also roll back or reset the corresponding Merkle tree state to a value coherent with
+`sync_state` before startup can continue.
+
+Deleting speculative block state without rolling back trees can leave proposer roots ahead of
+`sync_state`.
+
 ## Journal Model
 
 `restore_journal` is a single-document Mongo collection.
