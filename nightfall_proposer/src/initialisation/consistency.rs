@@ -216,18 +216,6 @@ pub(super) async fn validate_tree_state_against_sync_state(
 
     Ok(())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn expected_historic_root_sub_tree_count_tracks_last_applied_block_exactly() {
-        assert_eq!(expected_historic_root_sub_tree_count(0).unwrap(), 2);
-        assert_eq!(expected_historic_root_sub_tree_count(10).unwrap(), 12);
-    }
-}
-
 pub(super) async fn validate_startup_proposer_state_consistency(
     client: &Client,
 ) -> Result<(), String> {
@@ -389,4 +377,15 @@ pub(super) fn validate_sync_state_against_block(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn expected_historic_root_sub_tree_count_tracks_last_applied_block_exactly() {
+        assert_eq!(expected_historic_root_sub_tree_count(0).unwrap(), 2);
+        assert_eq!(expected_historic_root_sub_tree_count(10).unwrap(), 12);
+    }
 }

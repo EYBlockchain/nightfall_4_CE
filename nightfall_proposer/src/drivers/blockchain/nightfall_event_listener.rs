@@ -335,9 +335,7 @@ where
                 if should_skip_replayed_log(replay_resume_cursor.as_ref(), &evt) {
                     continue;
                 }
-                if let Err(error) = process_listener_log::<P, E, N>(evt, start_block).await {
-                    return Err(error);
-                }
+                process_listener_log::<P, E, N>(evt, start_block).await?;
             }
         } else {
             println!( "Start block {start_block} is greater than latest block {latest_block}. No past events to process.");
