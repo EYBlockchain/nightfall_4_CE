@@ -2,7 +2,7 @@ use super::client_nf_3::parse_token_type;
 use crate::ports::contracts::NightfallContract;
 use ::nightfall_bindings::artifacts::Nightfall;
 use lib::{client_models::DeEscrowDataReq, shared_entities::WithdrawData as NFWithdrawData};
-use log::{debug, error};
+use log::{debug, info, error};
 use reqwest::StatusCode;
 use warp::{reject, Reply};
 
@@ -19,7 +19,7 @@ pub async fn handle_de_escrow(data: DeEscrowDataReq) -> Result<impl Reply, warp:
     match available {
         Ok(b) => {
             if b {
-                debug!("Withdraw is on chain, attempting to de-escrow funds");
+                info!("Withdraw is on chain, attempting to de-escrow funds");
                 Nightfall::NightfallCalls::de_escrow_funds(withdraw_data, token_type)
                     .await
                     .map_err(|e| {
@@ -36,7 +36,7 @@ pub async fn handle_de_escrow(data: DeEscrowDataReq) -> Result<impl Reply, warp:
             }
         }
         Err(e) => {
-            debug!("Nightfall contract error: {e}");
+            info!("Nightfall contract error: {e}");
             Err(reject::custom(
                 crate::domain::error::ClientRejection::FailedDeEscrow,
             ))

@@ -84,6 +84,8 @@ pub async fn run_tests(
 
     let erc1155_deposit_1_token_id = test_settings.erc1155_deposit_1.token_id.clone();
     let erc1155_withdraw_1_token_id = test_settings.erc1155_withdraw_1.token_id.clone();
+    let erc3525_token_id_1 = test_settings.erc3525_deposit_1.token_id.clone();
+    let erc3525_token_id_2 = test_settings.erc3525_deposit_2.token_id.clone();
 
     // override the mining interval that may have been set in Anvil. If Anvil was set to automine, also turn that off
     let http_client = reqwest::Client::new();
@@ -174,6 +176,21 @@ pub async fn run_tests(
         .await
         .expect("balanceOf() call failed");
     assert_eq!(my_balance, U256::from(2));
+
+    let erc3525_slot_1 = erc3525_contract
+        .slotOf(U256::from_hex_string(&erc3525_token_id_1).unwrap())
+        .call()
+        .await
+        .expect("slotOf() call failed");
+    let erc3525_slot_2 = erc3525_contract
+        .slotOf(U256::from_hex_string(&erc3525_token_id_2).unwrap())
+        .call()
+        .await
+        .expect("slotOf() call failed");
+    assert_eq!(
+        erc3525_slot_1, erc3525_slot_2,
+        "ERC3525 integration test requires token ids to share a slot"
+    );
 
     //see if the NF4_LARGE_BLOCK_TEST environment variable is set to 'true' and run the large block test only if it is
     let (
@@ -779,6 +796,8 @@ pub async fn run_tests(
     ));
     debug!("transaction_erc721_transfer has been created");
 
+    // This ERC3525 transfer will use both token_id 7 and 8 as they have slot.
+
     transaction_ids.push(create_nf3_transfer_transaction(
         zkp_key2.clone(),
         &http_client,
@@ -787,15 +806,6 @@ pub async fn run_tests(
         test_settings.erc3525_transfer_1,
     ));
     debug!("transaction_erc3525_transfer_1 has been created");
-
-    transaction_ids.push(create_nf3_transfer_transaction(
-        zkp_key2.clone(),
-        &http_client,
-        url.clone(),
-        TokenType::ERC3525,
-        test_settings.erc3525_transfer_2,
-    ));
-    debug!("transaction_erc3525_transfer_2 has been created");
 
     transaction_ids.push(create_nf3_transfer_transaction(
         zkp_key2.clone(),
@@ -839,6 +849,79 @@ pub async fn run_tests(
         .await
         .unwrap();
     info!("Transfer commitments are now on-chain");
+
+    info!("Sending same-slot ERC3525 transfer from client 2 back to client 1");
+    let client2_transfer_url = Url::parse("http://client2:3000")
+        .unwrap()
+        .join("v1/transfer")
+        .unwrap();
+    let same_slot_erc3525_transfer_id = create_nf3_transfer_transaction(
+        zkp_key.clone(),
+        &http_client,
+        client2_transfer_url.clone(),
+        TokenType::ERC3525,
+        test_settings.erc3525_transfer_same_slot,
+    )
+    .await
+    .unwrap();
+
+    info!("Sending ERC3525 token 0x08 transfer from client 1 to client 2");
+    let erc3525_transfer_2_id = create_nf3_transfer_transaction(
+        zkp_key2.clone(),
+        &http_client,
+        url.clone(),
+        TokenType::ERC3525,
+        test_settings.erc3525_transfer_2,
+    )
+    .await
+    .unwrap();
+    debug!("transaction_erc3525_transfer_2 has been created");
+
+    let erc3525_transfer_transactions = wait_for_all_responses(
+        &[same_slot_erc3525_transfer_id, erc3525_transfer_2_id],
+        responses.clone(),
+    )
+    .await
+    .into_iter()
+    .map(|(id, l)| {
+        let transaction = serde_json::from_str::<(Value, Option<TransactionReceipt>)>(&l)
+            .expect("Failed to parse response")
+            .0;
+        (id, transaction)
+    })
+    .collect::<HashMap<_, _>>();
+
+    let same_slot_erc3525_transaction = erc3525_transfer_transactions
+        .get(&same_slot_erc3525_transfer_id)
+        .expect("Missing same-slot ERC3525 transfer response");
+    let erc3525_transfer_2_transaction = erc3525_transfer_transactions
+        .get(&erc3525_transfer_2_id)
+        .expect("Missing ERC3525 token 0x08 transfer response");
+
+    let same_slot_erc3525_commitment = Fr254::from_hex_string(
+        same_slot_erc3525_transaction["commitments"][0]
+            .as_str()
+            .expect("Missing same-slot ERC3525 commitment"),
+    )
+    .unwrap();
+    let erc3525_transfer_2_commitment = Fr254::from_hex_string(
+        erc3525_transfer_2_transaction["commitments"][0]
+            .as_str()
+            .expect("Missing ERC3525 token 0x08 transfer commitment"),
+    )
+    .unwrap();
+
+    wait_on_chain(
+        &[same_slot_erc3525_commitment],
+        &settings.nightfall_client.url,
+    )
+    .await
+    .unwrap();
+    info!("Same-slot ERC3525 transfer commitment is now on-chain");
+    wait_on_chain(&[erc3525_transfer_2_commitment], "http://client2:3000")
+        .await
+        .unwrap();
+    info!("ERC3525 token 0x08 transfer commitment is now on-chain for client2");
 
     //check that the new balances are as expected
     let balance = get_erc20_balance(
@@ -1700,15 +1783,17 @@ pub async fn run_tests(
     )
     .await;
     let client2_erc20_after =
-        get_erc20_balance(&http_client, Url::parse("http://client2:3000").unwrap()).await;
-
-    assert_eq!(client1_erc3525_slot7_after, client1_erc3525_slot7_before);
-    assert_eq!(client1_erc3525_slot8_after, client1_erc3525_slot8_before);
-    assert_eq!(client2_erc3525_slot7_after, client2_erc3525_slot7_before);
-    assert_eq!(client2_erc3525_slot8_after, client2_erc3525_slot8_before);
-    assert_eq!(client1_erc20_after, client1_erc20_before);
-    assert_eq!(client2_erc20_after, client2_erc20_before);
-
+        get_erc20_balance(&http_client, Url::parse("http://client2:3000").unwrap()).await;        assert_eq!(
+            client1_erc3525_slot7_after + client1_erc3525_slot8_after,
+            client1_erc3525_slot7_before + client1_erc3525_slot8_before
+        );
+        assert_eq!(
+            client2_erc3525_slot7_after + client2_erc3525_slot8_after,
+            client2_erc3525_slot7_before + client2_erc3525_slot8_before
+        );
+        assert_eq!(client1_erc20_after, client1_erc20_before);
+        assert_eq!(client2_erc20_after, client2_erc20_before);
+    
     // ERC1155 swap.
     info!("Sending ERC1155 swap transactions");
     let raw_swap_nonce = (Uuid::new_v4().as_u128() & u128::from(u64::MAX)).max(1);
