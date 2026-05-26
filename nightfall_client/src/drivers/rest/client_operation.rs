@@ -1,6 +1,6 @@
 use crate::{
     domain::{
-        entities::{CommitmentStatus, Operation, RequestStatus},
+        entities::{CommitmentStatus, Operation, OperationType, RequestStatus},
         error::TransactionHandlerError,
         notifications::NotificationPayload,
     },
@@ -34,7 +34,7 @@ use nf_curves::ed_on_bn254::BabyJubjub;
 use nf_curves::ed_on_bn254::Fr as BJJScalar;
 use nightfall_bindings::artifacts::ProposerManager;
 use reqwest::{Client, Error as ReqwestError};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{error::Error, fmt::Debug, time::Duration};
 use tokio::time::sleep;
 use url::Url;
@@ -61,6 +61,12 @@ pub struct SwapParams {
 pub struct SubmittedOperation<P> {
     pub payload: NotificationPayload,
     pub transaction: ClientTransaction<P>,
+    pub receipt_token: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ProposerTransactionAcceptedResponse {
+    receipt_token: Option<String>,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -130,9 +136,7 @@ where
                         commitment_entry.native_slot_id = Some(slot_info.slot_id.to_hex_string());
                     }
                     Err(e) => {
-                        warn!(
-                            "{id} Could not enrich commitment with native slot metadata: {e}"
-                        );
+                        warn!("{id} Could not enrich commitment with native slot metadata: {e}");
                     }
                 }
                 commitment_entries.push(commitment_entry);
@@ -192,9 +196,21 @@ where
         error!("{id} {e}");
         TransactionHandlerError::CustomError(e.to_string())
     })?;
+
+    // Generate a single receipt_token for Transfer transactions before fan-out
+    // so every proposer receives and stores the same token.  This ensures that
+    // the receipt_id derived from it (HMAC of receipt_token + tx_hash) is
+    // identical on every proposer regardless of which one the receiver queries.
+    if operation.operation_type == OperationType::Transfer {
+        use rand::{rngs::OsRng, RngCore};
+        let mut bytes = [0u8; 32];
+        OsRng.fill_bytes(&mut bytes);
+        operation_result.receipt_token = Some(hex::encode(bytes));
+    }
+
     // having done that, we can submit the nighfall transaction to proposer offchain
 
-    let tx_receipt = process_transaction_offchain(&operation_result, id)
+    let (tx_receipt, _receipt_token) = process_transaction_offchain(&operation_result, id)
         .await
         .map_err(|e| TransactionHandlerError::CustomError(e.to_string()))?;
     info!("{id} {} transaction submitted", operation.operation_type);
@@ -234,9 +250,15 @@ where
 
     let uuid = serde_json::to_string(id).map_err(TransactionHandlerError::JsonConversionError)?;
 
+    // Use the locally-generated receipt_token as the authoritative value
+    // rather than the proposer-echoed one.  The proposer stores and echoes the
+    // token unchanged, so the values are always identical — but sourcing it
+    // locally removes any implicit dependency on the proposer round-trip.
+    let authoritative_receipt_token = operation_result.receipt_token.clone();
     Ok(SubmittedOperation {
         payload: NotificationPayload::TransactionEvent { response, uuid },
         transaction: operation_result,
+        receipt_token: authoritative_receipt_token,
     })
 }
 
@@ -256,7 +278,7 @@ where
     E: ProvingEngine<P> + Send + Sync,
     N: NightfallContract,
 {
-    Ok(submit_client_operation::<P, E, N>(
+    let submitted = submit_client_operation::<P, E, N>(
         operation,
         spend_commitments,
         new_commitments,
@@ -266,8 +288,20 @@ where
         swap_params,
         id,
     )
-    .await?
-    .payload)
+    .await?;
+
+    // Persist the canonical proposer tx_hash on the request record so the
+    // wallet can retrieve it via GET /v1/request/{uuid} without needing a webhook.
+    if let Ok(hash_bytes) = submitted.transaction.hash() {
+        let tx_hash_hex: String = hash_bytes.iter().map(|b| format!("{b:02x}")).collect();
+        let db = crate::initialisation::get_db_connection().await;
+        let _ = db.set_request_tx_hash(id, &tx_hash_hex).await;
+        if let Some(receipt_token) = submitted.receipt_token.as_deref() {
+            let _ = db.set_request_receipt_token(id, receipt_token).await;
+        }
+    }
+
+    Ok(submitted.payload)
 }
 
 /// Only retry on network issues or timeouts
@@ -282,7 +316,7 @@ async fn send_to_proposer_with_retry<P: Serialize + Sync>(
     id: &str,
     max_retries: u32,
     initial_backoff: Duration,
-) -> Result<(), (String, bool)> {
+) -> Result<Option<String>, (String, bool)> {
     let url = match Url::parse(&proposer.url).and_then(|base| base.join("/v1/transaction")) {
         Ok(u) => u,
         Err(e) => {
@@ -304,8 +338,17 @@ async fn send_to_proposer_with_retry<P: Serialize + Sync>(
             Ok(response) => {
                 let status = response.status();
                 if status.is_success() {
+                    let response_body = response.text().await.unwrap_or_default();
+                    let parsed =
+                        serde_json::from_str::<ProposerTransactionAcceptedResponse>(&response_body)
+                            .map_err(|e| {
+                                (
+                                    format!("Failed to parse proposer transaction response: {e}"),
+                                    false,
+                                )
+                            })?;
                     debug!("{id} Successfully sent transaction to proposer at {url}");
-                    return Ok(());
+                    return Ok(parsed.receipt_token);
                 } else {
                     let body = response.text().await.unwrap_or_default();
                     error!("{id} Error from proposer: HTTP {status} — Body: {body}");
@@ -564,7 +607,7 @@ pub async fn request_swap_cancel(
 pub async fn process_transaction_offchain<P: Serialize + Sync>(
     l2_transaction: &ClientTransaction<P>,
     id: &str,
-) -> Result<Option<TransactionReceipt>, Box<dyn Error>> {
+) -> Result<(Option<TransactionReceipt>, Option<String>), Box<dyn Error>> {
     info!("{id} Sending client transaction to all proposers concurrently.");
     const MAX_RETRIES: u32 = 3;
     const INITIAL_BACKOFF: Duration = Duration::from_millis(500);
@@ -600,11 +643,15 @@ pub async fn process_transaction_offchain<P: Serialize + Sync>(
 
     let mut any_success = false;
     let mut any_retriable_failures = false;
+    let mut receipt_token = None;
 
     for result in results {
         match result {
-            Ok(_) => {
+            Ok(token) => {
                 any_success = true;
+                if receipt_token.is_none() {
+                    receipt_token = token;
+                }
             }
             Err((msg, retriable)) => {
                 warn!("{id} Proposer error: {msg}");
@@ -617,7 +664,7 @@ pub async fn process_transaction_offchain<P: Serialize + Sync>(
 
     if any_success {
         db.update_request(id, RequestStatus::Submitted).await;
-        Ok(None)
+        Ok((None, receipt_token))
     } else if any_retriable_failures {
         db.update_request(id, RequestStatus::ProposerUnreachable)
             .await;

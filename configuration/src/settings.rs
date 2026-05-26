@@ -279,16 +279,12 @@ impl Settings {
 
     pub fn azure_key_name_for_role(&self, role: WalletRole) -> Result<&str, String> {
         match role {
-            WalletRole::Client => self
-                .client_azure_key_name
-                .as_deref()
-                .ok_or_else(|| "Missing CLIENT_SIGNING_KEY_NAME for Azure client wallet".to_string()),
-            WalletRole::Proposer => self
-                .proposer_azure_key_name
-                .as_deref()
-                .ok_or_else(|| {
-                    "Missing PROPOSER_SIGNING_KEY_NAME for Azure proposer wallet".to_string()
-                }),
+            WalletRole::Client => self.client_azure_key_name.as_deref().ok_or_else(|| {
+                "Missing CLIENT_SIGNING_KEY_NAME for Azure client wallet".to_string()
+            }),
+            WalletRole::Proposer => self.proposer_azure_key_name.as_deref().ok_or_else(|| {
+                "Missing PROPOSER_SIGNING_KEY_NAME for Azure proposer wallet".to_string()
+            }),
         }
     }
 
@@ -297,13 +293,9 @@ impl Settings {
             WalletRole::Client => self.client_x509_azure_key_name.as_deref().ok_or_else(|| {
                 "Missing CLIENT_X509_SIGNING_KEY_NAME for Azure client X509 signer".to_string()
             }),
-            WalletRole::Proposer => self
-                .proposer_x509_azure_key_name
-                .as_deref()
-                .ok_or_else(|| {
-                    "Missing PROPOSER_X509_SIGNING_KEY_NAME for Azure proposer X509 signer"
-                        .to_string()
-                }),
+            WalletRole::Proposer => self.proposer_x509_azure_key_name.as_deref().ok_or_else(|| {
+                "Missing PROPOSER_X509_SIGNING_KEY_NAME for Azure proposer X509 signer".to_string()
+            }),
         }
     }
 }
