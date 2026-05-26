@@ -538,7 +538,11 @@ where
     // see if we need to update the synchronisation status
     //This is a final safety check. Earlier we used event-level info to decide whether to sync. Now we consult the contract’s real-time state.
 
-    let delta = current_block_number_in_contract - layer_2_block_number_in_event - I256::ONE;
+    let latest_current_block_number_in_contract =
+        N::get_current_layer2_blocknumber().await.map_err(|_| {
+            EventHandlerError::IOError("Could not retrieve current block number".to_string())
+        })?;
+    let delta = latest_current_block_number_in_contract - layer_2_block_number_in_event - I256::ONE;
     if delta != I256::ZERO {
         warn!("Synchronising - behind blockchain by {delta} layer 2 blocks ");
         sync_status.clear_synchronised();

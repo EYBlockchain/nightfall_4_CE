@@ -519,6 +519,16 @@ where
     apply_listener_caught_up_runtime_state().await;
 }
 
+async fn retry_listener_catch_up_if_pending<P, N>()
+where
+    P: Proof,
+    N: NightfallContract,
+{
+    if is_listener_replay_catch_up_pending() {
+        finalize_listener_catch_up::<P, N>().await;
+    }
+}
+
 async fn advance_runtime_listener_state_from_log(log: &Log) {
     let (Some(block_number), Some(tx_hash), Some(log_index)) =
         (log.block_number, log.transaction_hash, log.log_index)
@@ -660,6 +670,7 @@ where
 
     while let Some(log) = events_stream.next().await {
         process_listener_log::<P, E, N>(log, start_block).await?;
+        retry_listener_catch_up_if_pending::<P, N>().await;
     }
 
     Err(EventHandlerError::StreamTerminated)

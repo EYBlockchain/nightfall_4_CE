@@ -368,10 +368,10 @@ where
                 Ok(result) => result,
                 Err(error) => {
                     warn!(
-                        "Skipping lifecycle promotion to Included for proposer client transaction {:?} at L2 block {} after update failure: {}",
+                        "Failed lifecycle promotion to Included for proposer client transaction {:?} at L2 block {}: {}",
                         hash, block_l2, error
                     );
-                    continue;
+                    return None;
                 }
             };
             modified += result.modified_count;
