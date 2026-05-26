@@ -123,7 +123,12 @@ async fn prune_old_snapshots_by_manifest(
     Ok(())
 }
 
-async fn create_snapshot_task(client: Client, snapshot_root_dir: PathBuf, retention_count: usize) {
+async fn create_snapshot_task(
+    client: Client,
+    snapshot_root_dir: PathBuf,
+    retention_count: usize,
+    current_l1_block: u64,
+) {
     let _maintenance_guard = match try_acquire_proposer_state_maintenance_guard() {
         Some(guard) => guard,
         None => {
@@ -137,6 +142,29 @@ async fn create_snapshot_task(client: Client, snapshot_root_dir: PathBuf, retent
     if client.get_restore_journal().await.is_some() {
         debug!(
             "Skipping proposer snapshot creation because restore_journal indicates maintenance is still pending"
+        );
+        return;
+    }
+
+    let settings = &get_settings().nightfall_proposer;
+    let sync_state = match client.get_sync_state().await {
+        Some(sync_state) => sync_state,
+        None => {
+            debug!("Skipping proposer snapshot creation because sync_state is missing");
+            return;
+        }
+    };
+    let last_snapshot_l2_block = *get_last_snapshot_l2_block().await.read().await;
+    if !maybe_should_snapshot(
+        sync_state.last_applied_l2_block,
+        last_snapshot_l2_block,
+        current_l1_block,
+        sync_state.l1_ref.block_number,
+        settings.snapshot_interval_l2_blocks,
+        settings.snapshot_min_l1_confirmations,
+    ) {
+        debug!(
+            "Skipping proposer snapshot creation because eligibility changed after acquiring the maintenance guard"
         );
         return;
     }
@@ -193,7 +221,7 @@ async fn maybe_schedule_snapshot_for_current_l1_head(client: &Client, current_l1
     let retention_count = settings.snapshot_retention_count as usize;
 
     tokio::spawn(async move {
-        create_snapshot_task(client, snapshot_root_dir, retention_count).await;
+        create_snapshot_task(client, snapshot_root_dir, retention_count, current_l1_block).await;
     });
 }
 

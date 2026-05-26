@@ -62,6 +62,13 @@ pub(crate) fn selected_transactions_filter_after_block(block_l2: i64) -> Documen
     }
 }
 
+pub(crate) fn included_transactions_filter_after_block(block_l2: i64) -> Document {
+    doc! {
+        "lifecycle.state": "included",
+        "lifecycle.block_l2": { "$gt": Bson::Int64(block_l2) },
+    }
+}
+
 #[cfg(test)]
 fn legacy_transactions_filter() -> Document {
     doc! { "lifecycle": { "$exists": false } }
@@ -384,6 +391,36 @@ pub(crate) async fn restore_selected_transactions_to_mempool_after_block_with_se
         })
 }
 
+pub(crate) async fn restore_included_transactions_to_mempool_after_block_with_session(
+    client: &Client,
+    last_applied_l2_block: u64,
+    session: &mut mongodb::ClientSession,
+) -> Result<u64, String> {
+    let last_applied_l2_block = i64::try_from(last_applied_l2_block).map_err(|_| {
+        format!("Could not convert proposer last applied L2 block {last_applied_l2_block} into i64")
+    })?;
+
+    client
+        .database(DB)
+        .collection::<Document>(CLIENT_TRANSACTIONS_COLLECTION)
+        .update_many(
+            included_transactions_filter_after_block(last_applied_l2_block),
+            doc! {
+                "$set": {
+                    "lifecycle": lifecycle_bson(&TxLifecycle::Mempool)
+                }
+            },
+        )
+        .session(&mut *session)
+        .await
+        .map(|result| result.modified_count)
+        .map_err(|error| {
+            format!(
+                "Could not restore proposer included client transactions beyond L2 block {last_applied_l2_block} to the mempool: {error}"
+            )
+        })
+}
+
 pub(crate) async fn remove_all_mempool_client_transactions_with_session(
     client: &Client,
     session: &mut mongodb::ClientSession,
@@ -664,7 +701,7 @@ mod tests {
             collection
                 .count_documents(count_legacy_client_transactions_filter())
                 .await
-            .expect("count legacy rows after second migration"),
+                .expect("count legacy rows after second migration"),
             0
         );
     }

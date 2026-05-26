@@ -5,6 +5,7 @@ use crate::{
     },
     driven::db::client_transaction_state::{
         remove_all_mempool_client_transactions_with_session,
+        restore_included_transactions_to_mempool_after_block_with_session,
         restore_selected_transactions_to_mempool_after_block_with_session,
     },
     driven::db::mongo_db::{
@@ -588,6 +589,7 @@ async fn export_collection(
     }
 
     file.flush().await?;
+    file.sync_all().await?;
 
     Ok(SnapshotCollectionManifest {
         collection_name: collection_name.to_string(),
@@ -595,6 +597,21 @@ async fn export_collection(
         document_count,
         sha256: hex::encode(checksum.finalize()),
     })
+}
+
+async fn sync_path(path: &Path) -> Result<(), SnapshotError> {
+    let path = path.to_path_buf();
+    tokio::task::spawn_blocking(move || -> Result<(), std::io::Error> {
+        std::fs::File::open(path)?.sync_all()?;
+        Ok(())
+    })
+    .await
+    .map_err(|join_error| {
+        SnapshotError::Io(std::io::Error::other(format!(
+            "Could not wait for fsync task to finish: {join_error}"
+        )))
+    })??;
+    Ok(())
 }
 
 pub async fn create_proposer_snapshot(
@@ -717,8 +734,12 @@ pub(crate) async fn create_proposer_snapshot_unlocked(
     let result = async {
         let manifest_path: PathBuf = temp_snapshot_dir.join("manifest.json");
         let manifest_bytes = serde_json::to_vec_pretty(&manifest)?;
-        fs::write(manifest_path, manifest_bytes).await?;
+        let mut manifest_file = File::create(&manifest_path).await?;
+        manifest_file.write_all(&manifest_bytes).await?;
+        manifest_file.flush().await?;
+        manifest_file.sync_all().await?;
         fs::rename(&temp_snapshot_dir, &snapshot_dir).await?;
+        sync_path(&snapshot_root_dir).await?;
         Ok::<(), SnapshotError>(())
     }
     .await;
@@ -1800,6 +1821,7 @@ struct NonSnapshotCleanupStats {
     cleared_reserved_deposits: u64,
     removed_mempool_transactions: u64,
     restored_selected_transactions: u64,
+    restored_included_transactions: u64,
 }
 
 async fn apply_non_snapshot_cleanup_if_needed(
@@ -1919,6 +1941,14 @@ async fn cleanup_non_snapshot_restore_state(
                 )
                 .await
                 .map_err(mongodb::error::Error::custom)?;
+            let restored_included_transactions =
+                restore_included_transactions_to_mempool_after_block_with_session(
+                    &client_for_transaction,
+                    sync_state.last_applied_l2_block,
+                    session,
+                )
+                .await
+                .map_err(mongodb::error::Error::custom)?;
 
             let mut updated_journal = journal_for_update.clone();
             updated_journal.current_step = Some(RestoreJournalStep::NonSnapshotCleanupApplied);
@@ -1936,6 +1966,7 @@ async fn cleanup_non_snapshot_restore_state(
                 cleared_reserved_deposits,
                 removed_mempool_transactions,
                 restored_selected_transactions,
+                restored_included_transactions,
             })
         })
         .await
@@ -1947,14 +1978,16 @@ fn log_non_snapshot_cleanup_stats(stats: &NonSnapshotCleanupStats) {
         || stats.cleared_reserved_deposits > 0
         || stats.removed_mempool_transactions > 0
         || stats.restored_selected_transactions > 0
+        || stats.restored_included_transactions > 0
     {
         warn!(
-            "Snapshot restore discarded {} persisted PendingBlock(s), cleared {} reserved deposit selection(s), dropped {} mempool client transaction(s), and restored {} selected client transaction(s) beyond restored sync_state L2 block {} to the mempool after validating restored snapshot collections and before final live-state validation",
+            "Snapshot restore discarded {} persisted PendingBlock(s), cleared {} reserved deposit selection(s), dropped {} mempool client transaction(s), restored {} selected client transaction(s) beyond restored sync_state L2 block {} to the mempool, and restored {} included client transaction(s) beyond that restored sync_state to the mempool before final live-state validation",
             stats.deleted_pending_blocks,
             stats.cleared_reserved_deposits,
             stats.removed_mempool_transactions,
             stats.restored_selected_transactions,
-            stats.last_applied_l2_block
+            stats.last_applied_l2_block,
+            stats.restored_included_transactions,
         );
     }
 }
@@ -4660,6 +4693,21 @@ mod test {
             .await
             .expect("store speculative selected transaction outside the snapshot");
 
+        let speculative_included_transaction = ClientTransactionWithMetaData {
+            lifecycle: TxLifecycle::Included {
+                block_l2: snapshot_sync_state.last_applied_l2_block + 2,
+            },
+            ..test_selected_client_transaction(
+                43,
+                snapshot_sync_state.last_applied_l2_block + 2,
+                Fr254::from(903u64),
+            )
+        };
+        client
+            .store_transaction(speculative_included_transaction.clone())
+            .await
+            .expect("store speculative included transaction outside the snapshot");
+
         client
             .store_pending_block(&PendingBlock {
                 layer2_block_number: snapshot_sync_state.last_applied_l2_block + 1,
@@ -4728,6 +4776,17 @@ mod test {
             .lifecycle
             .is_mempool(),
             "restore should normalize speculative Selected transactions beyond the restored sync_state back to the mempool before validation"
+        );
+        assert!(
+            <mongodb::Client as TransactionsDB<MockProof>>::get_transaction(
+                &client,
+                &speculative_included_transaction.hash,
+            )
+            .await
+            .expect("speculative included transaction should still exist after restore cleanup")
+            .lifecycle
+            .is_mempool(),
+            "restore should restore speculative Included transactions beyond the restored sync_state to the mempool before validation"
         );
         assert!(
             <mongodb::Client as TransactionsDB<MockProof>>::get_transaction(

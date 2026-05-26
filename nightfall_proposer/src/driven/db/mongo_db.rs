@@ -21,6 +21,7 @@ use lib::{
     error::ConversionError, hex_conversion::HexConvertible, nf_client_proof::Proof,
     shared_entities::ClientTransaction,
 };
+use log::warn;
 use mongodb::bson::{doc, Bson, Document};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -363,7 +364,16 @@ where
                 "lifecycle": lifecycle_bson(&TxLifecycle::Included { block_l2 })
             }};
 
-            let result = collection.update_one(filter, update).await.ok()?;
+            let result = match collection.update_one(filter, update).await {
+                Ok(result) => result,
+                Err(error) => {
+                    warn!(
+                        "Skipping lifecycle promotion to Included for proposer client transaction {:?} at L2 block {} after update failure: {}",
+                        hash, block_l2, error
+                    );
+                    continue;
+                }
+            };
             modified += result.modified_count;
         }
 
@@ -642,13 +652,14 @@ impl BlockStorageDB for mongodb::Client {
         let collection = self
             .database(DB)
             .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION);
-        let existing_block = collection.find_one(filter.clone()).await.ok()?;
-        if existing_block.is_some() {
-            let update = doc! { "$set": { "commitments": block.commitments.clone() } };
-            collection.update_one(filter, update).await.ok()?;
-            return Some(());
+        let result = collection
+            .replace_one(filter, block)
+            .upsert(true)
+            .await
+            .ok()?;
+        if result.matched_count == 0 && result.upserted_id.is_none() {
+            return None;
         }
-        collection.insert_one(block).await.ok()?;
         Some(())
     }
 
