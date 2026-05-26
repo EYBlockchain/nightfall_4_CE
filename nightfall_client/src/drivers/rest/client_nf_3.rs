@@ -886,7 +886,7 @@ where
 }
 
 /// handle_client_deposit_request is the entry point for deposit requests from the client.
-pub async fn deposit<N: NightfallContract>(
+pub async fn handle_deposit<N: NightfallContract>(
     req: NF3DepositRequest,
     id: &str,
 ) -> Result<NotificationPayload, TransactionHandlerError> {
