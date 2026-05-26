@@ -247,36 +247,53 @@ async fn finalize_pending_block_after_applied_block<P>(
 ) where
     P: Proof,
 {
-    if let Some(pending_block_hash) =
+    let cleanup_result = if let Some(pending_block_hash) =
         stored_block_from_pending_block(&pending_block, our_address).map(|block| block.hash())
     {
         if pending_block_hash == applied_block.hash() {
-            let _ = cleanup_selected_transactions::<P>(
+            cleanup_selected_transactions::<P>(
                 db,
                 &pending_block.selected_deposits,
                 &pending_block.selected_client_transaction_hashes,
             )
-            .await;
+            .await
         } else {
-            let _ = release_selected_transactions::<P>(
+            release_selected_transactions::<P>(
                 db,
                 &pending_block.selected_deposits,
                 &pending_block.selected_client_transaction_hashes,
             )
-            .await;
+            .await
         }
     } else {
-        let _ = release_selected_transactions::<P>(
+        release_selected_transactions::<P>(
             db,
             &pending_block.selected_deposits,
             &pending_block.selected_client_transaction_hashes,
         )
-        .await;
+        .await
+    };
+
+    if let Err(error) = cleanup_result {
+        warn!(
+            "Keeping PendingBlock {} after canonical L2 block application because lifecycle \
+             cleanup did not complete safely: {error}",
+            pending_block.layer2_block_number
+        );
+        return;
     }
 
-    let _ = db
+    if db
         .delete_pending_block(pending_block.layer2_block_number)
-        .await;
+        .await
+        .is_none()
+    {
+        warn!(
+            "PendingBlock {} matched canonical application cleanup but could not be deleted; \
+             keeping persisted recovery state for later cleanup",
+            pending_block.layer2_block_number
+        );
+    }
 }
 
 async fn cleanup_mismatched_proposer_block_state(
