@@ -161,6 +161,16 @@ pub(super) async fn validate_tree_state_against_sync_state(
                 )));
             }
 
+            if historic_root_sub_tree_count < expected_historic_root_sub_tree_count {
+                return Err(tree_state_inconsistency_error(&format!(
+                    "sync_state records applied L2 block {}, but the historic root tree \
+                     sub_tree_count {} is behind the required coherent value {}.",
+                    sync_state.last_applied_l2_block,
+                    historic_root_sub_tree_count,
+                    expected_historic_root_sub_tree_count,
+                )));
+            }
+
             if commitment_sub_tree_count == 0
                 && stored_block.is_some_and(|block| !block.commitments.is_empty())
             {
@@ -205,6 +215,17 @@ pub(super) async fn validate_tree_state_against_sync_state(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn expected_historic_root_sub_tree_count_tracks_last_applied_block_exactly() {
+        assert_eq!(expected_historic_root_sub_tree_count(0).unwrap(), 2);
+        assert_eq!(expected_historic_root_sub_tree_count(10).unwrap(), 12);
+    }
 }
 
 pub(super) async fn validate_startup_proposer_state_consistency(

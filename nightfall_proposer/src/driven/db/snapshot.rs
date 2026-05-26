@@ -880,6 +880,15 @@ async fn validate_snapshot_state_with_session(
         )));
     }
 
+    if historic_root_sub_tree_count < expected_historic_root_sub_tree_count {
+        return Err(SnapshotError::InvalidSnapshotSyncState(format!(
+            "historic root tree sub_tree_count {} is behind sync_state-applied block {} (required coherent value {})",
+            historic_root_sub_tree_count,
+            sync_state.last_applied_l2_block,
+            expected_historic_root_sub_tree_count
+        )));
+    }
+
     if commitment_sub_tree_count == 0 && !stored_block.commitments.is_empty() {
         return Err(SnapshotError::InvalidSnapshotSyncState(format!(
             "commitment tree is empty while StoredBlock {} contains commitments",
@@ -1885,7 +1894,7 @@ mod test {
     use alloy::primitives::{Address, Bytes, TxHash};
     use ark_ff::Zero;
     use ark_serialize::SerializationError;
-    use lib::merkle_trees::trees::MutableTree;
+    use lib::merkle_trees::trees::{MutableTree, TreeMetadata};
     use lib::nf_client_proof::Proof;
     use lib::shared_entities::{ClientTransaction, CompressedSecrets, DepositData};
     use lib::tests_utils::{get_db_connection, get_mongo};
@@ -1983,7 +1992,11 @@ mod test {
             .expect("materialize commitment tree state for snapshot test");
         }
 
-        let historic_root_metadata = client
+        let target_historic_root_sub_tree_count = sync_state
+            .last_applied_l2_block
+            .checked_add(2)
+            .expect("historic root count should not overflow in snapshot tests");
+        let mut historic_root_sub_tree_count = client
             .database(DB)
             .collection::<TreeMetadata<Fr254>>(&format!(
                 "{}_metadata",
@@ -1991,11 +2004,10 @@ mod test {
             ))
             .find_one(mongodb::bson::doc! { "_id": 0 })
             .await
-            .expect("read historic root metadata");
-        if historic_root_metadata
-            .as_ref()
-            .is_some_and(|metadata| metadata.sub_tree_count <= 1)
-        {
+            .expect("read historic root metadata")
+            .expect("historic root metadata should exist for snapshot tests")
+            .sub_tree_count;
+        while historic_root_sub_tree_count < target_historic_root_sub_tree_count {
             let commitment_root = <mongodb::Client as CommitmentTree<Fr254>>::get_root(client)
                 .await
                 .expect("read commitment root");
@@ -2006,6 +2018,7 @@ mod test {
             )
             .await
             .expect("materialize historic root state for snapshot test");
+            historic_root_sub_tree_count += 1;
         }
     }
 
@@ -3744,14 +3757,6 @@ mod test {
             mongodb::bson::DateTime::now(),
         );
         persist_sync_state(&client, &snapshot_sync_state).await;
-        <mongodb::Client as HistoricRootTree<Fr254>>::append_historic_commitment_root(
-            &client,
-            &Fr254::from(63u64),
-            true,
-        )
-        .await
-        .expect("append snapshot historic root");
-
         let snapshot_root = std::env::temp_dir().join(format!(
             "nf4-proposer-optional-rollback-drop-resume-test-{}",
             mongodb::bson::DateTime::now().timestamp_millis()
@@ -3792,14 +3797,6 @@ mod test {
             mongodb::bson::DateTime::now(),
         );
         persist_sync_state(&client, &newer_live_sync_state).await;
-        <mongodb::Client as HistoricRootTree<Fr254>>::append_historic_commitment_root(
-            &client,
-            &Fr254::from(64u64),
-            true,
-        )
-        .await
-        .expect("append newer live historic root");
-
         let mut journal = load_proposer_snapshot_into_shadow(&client, &snapshot_dir)
             .await
             .expect("load snapshot into shadow");
@@ -3949,14 +3946,6 @@ mod test {
             mongodb::bson::DateTime::now(),
         );
         persist_sync_state(&client, &snapshot_sync_state).await;
-        <mongodb::Client as HistoricRootTree<Fr254>>::append_historic_commitment_root(
-            &client,
-            &Fr254::from(65u64),
-            true,
-        )
-        .await
-        .expect("append snapshot historic root");
-
         let snapshot_root = std::env::temp_dir().join(format!(
             "nf4-proposer-optional-rollback-stale-live-test-{}",
             mongodb::bson::DateTime::now().timestamp_millis()
@@ -3997,14 +3986,6 @@ mod test {
             mongodb::bson::DateTime::now(),
         );
         persist_sync_state(&client, &newer_live_sync_state).await;
-        <mongodb::Client as HistoricRootTree<Fr254>>::append_historic_commitment_root(
-            &client,
-            &Fr254::from(66u64),
-            true,
-        )
-        .await
-        .expect("append newer live historic root");
-
         let mut journal = load_proposer_snapshot_into_shadow(&client, &snapshot_dir)
             .await
             .expect("load snapshot into shadow");
@@ -4525,14 +4506,6 @@ mod test {
             mongodb::bson::DateTime::now(),
         );
         persist_sync_state(&client, &snapshot_sync_state).await;
-        <mongodb::Client as HistoricRootTree<Fr254>>::append_historic_commitment_root(
-            &client,
-            &Fr254::from(3u64),
-            true,
-        )
-        .await
-        .expect("append snapshot historic root");
-
         let snapshot_root = std::env::temp_dir().join(format!(
             "nf4-proposer-optional-live-reset-test-{}",
             mongodb::bson::DateTime::now().timestamp_millis()
@@ -4580,14 +4553,6 @@ mod test {
             mongodb::bson::DateTime::now(),
         );
         persist_sync_state(&client, &newer_live_sync_state).await;
-        <mongodb::Client as HistoricRootTree<Fr254>>::append_historic_commitment_root(
-            &client,
-            &Fr254::from(4u64),
-            true,
-        )
-        .await
-        .expect("append newer live historic root");
-
         restore_proposer_snapshot(&client, &snapshot_dir)
             .await
             .expect("restore snapshot");
@@ -4632,14 +4597,6 @@ mod test {
             mongodb::bson::DateTime::now(),
         );
         persist_sync_state(&client, &snapshot_sync_state).await;
-        <mongodb::Client as HistoricRootTree<Fr254>>::append_historic_commitment_root(
-            &client,
-            &Fr254::from(5u64),
-            true,
-        )
-        .await
-        .expect("append snapshot historic root");
-
         let snapshot_root = std::env::temp_dir().join(format!(
             "nf4-proposer-optional-shadow-missing-recovery-test-{}",
             mongodb::bson::DateTime::now().timestamp_millis()
@@ -4687,14 +4644,6 @@ mod test {
             mongodb::bson::DateTime::now(),
         );
         persist_sync_state(&client, &newer_live_sync_state).await;
-        <mongodb::Client as HistoricRootTree<Fr254>>::append_historic_commitment_root(
-            &client,
-            &Fr254::from(6u64),
-            true,
-        )
-        .await
-        .expect("append newer live historic root");
-
         let mut journal = load_proposer_snapshot_into_shadow(&client, &snapshot_dir)
             .await
             .expect("load snapshot into shadow");
@@ -4804,14 +4753,6 @@ mod test {
             mongodb::bson::DateTime::now(),
         );
         persist_sync_state(&client, &snapshot_sync_state).await;
-        <mongodb::Client as HistoricRootTree<Fr254>>::append_historic_commitment_root(
-            &client,
-            &Fr254::from(7u64),
-            true,
-        )
-        .await
-        .expect("append snapshot historic root");
-
         let snapshot_root = std::env::temp_dir().join(format!(
             "nf4-proposer-optional-live-restored-recovery-test-{}",
             mongodb::bson::DateTime::now().timestamp_millis()
@@ -4852,14 +4793,6 @@ mod test {
             mongodb::bson::DateTime::now(),
         );
         persist_sync_state(&client, &newer_live_sync_state).await;
-        <mongodb::Client as HistoricRootTree<Fr254>>::append_historic_commitment_root(
-            &client,
-            &Fr254::from(8u64),
-            true,
-        )
-        .await
-        .expect("append newer live historic root");
-
         let mut journal = load_proposer_snapshot_into_shadow(&client, &snapshot_dir)
             .await
             .expect("load snapshot into shadow");
@@ -5072,14 +5005,6 @@ mod test {
             mongodb::bson::DateTime::now(),
         );
         persist_sync_state(&client, &snapshot_sync_state).await;
-        <mongodb::Client as HistoricRootTree<Fr254>>::append_historic_commitment_root(
-            &client,
-            &Fr254::from(6u64),
-            true,
-        )
-        .await
-        .expect("append snapshot historic root");
-
         let snapshot_root = std::env::temp_dir().join(format!(
             "nf4-proposer-cleanup-validation-test-{}",
             mongodb::bson::DateTime::now().timestamp_millis()
@@ -5109,14 +5034,6 @@ mod test {
             mongodb::bson::DateTime::now(),
         );
         persist_sync_state(&client, &newer_live_sync_state).await;
-        <mongodb::Client as HistoricRootTree<Fr254>>::append_historic_commitment_root(
-            &client,
-            &Fr254::from(7u64),
-            true,
-        )
-        .await
-        .expect("append newer live historic root");
-
         load_proposer_snapshot_into_shadow(&client, &snapshot_dir)
             .await
             .expect("load snapshot into shadow");
@@ -5530,14 +5447,6 @@ mod test {
             mongodb::bson::DateTime::now(),
         );
         persist_sync_state(&client, &snapshot_sync_state).await;
-        <mongodb::Client as HistoricRootTree<Fr254>>::append_historic_commitment_root(
-            &client,
-            &Fr254::from(29u64),
-            true,
-        )
-        .await
-        .expect("append snapshot historic root");
-
         let snapshot_root = std::env::temp_dir().join(format!(
             "nf4-proposer-recover-swap-complete-rollback-test-{}",
             mongodb::bson::DateTime::now().timestamp_millis()
@@ -5567,14 +5476,6 @@ mod test {
             mongodb::bson::DateTime::now(),
         );
         persist_sync_state(&client, &newer_live_sync_state).await;
-        <mongodb::Client as HistoricRootTree<Fr254>>::append_historic_commitment_root(
-            &client,
-            &Fr254::from(30u64),
-            true,
-        )
-        .await
-        .expect("append newer live historic root");
-
         load_proposer_snapshot_into_shadow(&client, &snapshot_dir)
             .await
             .expect("load snapshot into shadow");
@@ -5719,14 +5620,6 @@ mod test {
             mongodb::bson::DateTime::now(),
         );
         persist_sync_state(&client, &snapshot_sync_state).await;
-        <mongodb::Client as HistoricRootTree<Fr254>>::append_historic_commitment_root(
-            &client,
-            &Fr254::from(31u64),
-            true,
-        )
-        .await
-        .expect("append snapshot historic root");
-
         let snapshot_root = std::env::temp_dir().join(format!(
             "nf4-proposer-recover-swap-complete-rollback-failure-test-{}",
             mongodb::bson::DateTime::now().timestamp_millis()
@@ -5756,14 +5649,6 @@ mod test {
             mongodb::bson::DateTime::now(),
         );
         persist_sync_state(&client, &_newer_live_sync_state).await;
-        <mongodb::Client as HistoricRootTree<Fr254>>::append_historic_commitment_root(
-            &client,
-            &Fr254::from(32u64),
-            true,
-        )
-        .await
-        .expect("append newer live historic root");
-
         load_proposer_snapshot_into_shadow(&client, &snapshot_dir)
             .await
             .expect("load snapshot into shadow");
