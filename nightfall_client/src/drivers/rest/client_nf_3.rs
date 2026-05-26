@@ -1601,6 +1601,7 @@ where
 
     {
         let fee_token_id = get_fee_token_id();
+        //getting the slot_id for the token_id
         let nf_slot_id = resolve_target_slot_id_from_token_id(db, nf_token_id).await?;
         let spend_value_commitments = find_usable_commitments(nf_slot_id, value, db)
             .await
