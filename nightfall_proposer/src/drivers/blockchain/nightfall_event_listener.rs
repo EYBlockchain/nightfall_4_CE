@@ -10,6 +10,7 @@ use crate::{
     driven::nightfall_event::get_expected_layer2_blocknumber,
     drivers::blockchain::block_assembly::clear_pending_blocks_queue,
     initialisation::{
+        clear_startup_replay_reset_marker_if_present, complete_startup_replay_reset,
         get_block_assembly_status, get_blockchain_client_connection, get_db_connection,
         get_runtime_listener_resume_cursor, get_runtime_listener_start_block,
         set_runtime_listener_resume_cursor, set_runtime_listener_start_block,
@@ -17,8 +18,7 @@ use crate::{
     },
     ports::{
         contracts::NightfallContract,
-        db::{BlockStorageDB, PendingBlockDB, RestoreJournalDB, SyncStateDB, TransactionsDB},
-        trees::{CommitmentTree, HistoricRootTree, NullifierTree},
+        db::{PendingBlockDB, RestoreJournalDB, SyncStateDB, TransactionsDB},
     },
     services::process_events::process_events,
     services::selected_transactions::reconcile_active_client_transaction_lifecycle,
@@ -29,7 +29,6 @@ use alloy::{
     rpc::types::{Filter, Log},
     sol_types::{SolEvent, SolEventInterface},
 };
-use ark_bn254::Fr as Fr254;
 use configuration::{addresses::get_addresses, settings::get_settings};
 use futures::StreamExt;
 use futures::{future::BoxFuture, FutureExt};
@@ -37,7 +36,6 @@ use lib::{
     blockchain_client::BlockchainClientConnection,
     error::EventHandlerError,
     log_fetcher::get_logs_paginated,
-    merkle_trees::trees::MutableTree,
     nf_client_proof::{Proof, ProvingEngine},
     shared_entities::{SynchronisationPhase::Desynchronized, SynchronisationStatus},
 };
@@ -199,6 +197,14 @@ async fn apply_restored_listener_runtime_state(sync_state: &SyncState) -> usize 
 }
 
 async fn continue_from_restored_sync_state(sync_state: &SyncState) -> usize {
+    if let Err(error) =
+        clear_startup_replay_reset_marker_if_present(get_db_connection().await).await
+    {
+        warn!(
+            "Recovered proposer snapshot state is live, but a stale startup replay reset marker \
+             could not be cleared: {error}"
+        );
+    }
     let next_expected_block = sync_state.last_applied_l2_block.saturating_add(1);
     *get_expected_layer2_blocknumber().await.write().await = I256::try_from(next_expected_block)
         .expect("Restored L2 block number does not fit into I256");
@@ -433,6 +439,8 @@ pub(crate) fn is_listener_replay_catch_up_pending() -> bool {
 pub(crate) fn set_listener_replay_catch_up_pending(pending: bool) {
     listener_replay_catch_up_pending_cell().store(pending, Ordering::SeqCst);
 }
+
+const LISTENER_CATCH_UP_RETRY_INTERVAL: Duration = Duration::from_secs(5);
 
 async fn reconcile_active_client_transactions_after_listener_catch_up<P>(
     db: &MongoClient,
@@ -670,12 +678,20 @@ where
 
     finalize_listener_catch_up::<P, N>().await;
 
-    while let Some(log) = events_stream.next().await {
-        process_listener_log::<P, E, N>(log, start_block).await?;
-        retry_listener_catch_up_if_pending::<P, N>().await;
+    loop {
+        tokio::select! {
+            maybe_log = events_stream.next() => {
+                let Some(log) = maybe_log else {
+                    return Err(EventHandlerError::StreamTerminated);
+                };
+                process_listener_log::<P, E, N>(log, start_block).await?;
+                retry_listener_catch_up_if_pending::<P, N>().await;
+            }
+            _ = sleep(LISTENER_CATCH_UP_RETRY_INTERVAL), if is_listener_replay_catch_up_pending() => {
+                retry_listener_catch_up_if_pending::<P, N>().await;
+            }
+        }
     }
-
-    Err(EventHandlerError::StreamTerminated)
 }
 
 /// Returns the highest L2 block that is safe to target with snapshot restore during desync
@@ -762,137 +778,11 @@ where
     P: Proof,
 {
     let _maintenance_guard = acquire_proposer_state_maintenance_guard().await;
-    let mut session = db.start_session().await.map_err(|error| {
-        EventHandlerError::IOError(format!(
-            "Could not start MongoDB session for proposer replay fallback reset: {error}"
-        ))
-    })?;
-    let db_for_cleanup = db.clone();
-    let (deleted_blocks, deleted_pending_blocks) = session
-        .start_transaction()
-        .and_run2(async move |session| {
-            maybe_fail_replay_reset("delete_sync_state_before_delete")
-                .map_err(mongodb::error::Error::custom)?;
-            db_for_cleanup
-                .delete_sync_state_with_session(session)
-                .await?;
-            let deleted_blocks = db_for_cleanup
-                .delete_all_blocks_with_session(session)
-                .await?;
-            let deleted_pending_blocks = db_for_cleanup
-                .delete_all_pending_blocks_with_session(session)
-                .await?;
-            Ok::<(u64, u64), mongodb::error::Error>((deleted_blocks, deleted_pending_blocks))
-        })
+    maybe_fail_replay_reset("delete_sync_state_before_delete")?;
+    complete_startup_replay_reset(db)
         .await
-        .map_err(|error| {
-            EventHandlerError::IOError(format!(
-                "Could not clear proposer canonical state before replay fallback: {error}"
-            ))
-        })?;
-
-    let unreserved_deposits = clear_all_reserved_deposits_for_recovery::<P>(db).await?;
-    if deleted_blocks > 0 || deleted_pending_blocks > 0 || unreserved_deposits > 0 {
-        warn!(
-            "Replay fallback deleted {deleted_blocks} stored block(s), removed {deleted_pending_blocks} persisted pending block(s), and cleared {unreserved_deposits} reserved deposit selection(s)"
-        );
-    }
-
-    reset_commitment_tree_for_replay(db).await?;
-    reset_historic_root_tree_for_replay(db).await?;
-    reset_nullifier_tree_for_replay(db).await?;
-
+        .map_err(EventHandlerError::IOError)?;
     cleanup_recovery_side_effects::<P>(db).await;
-    Ok(())
-}
-
-async fn reset_commitment_tree_for_replay(db: &MongoClient) -> Result<(), EventHandlerError> {
-    maybe_fail_replay_reset("reset_commitment_tree_before_drop")?;
-    <MongoClient as MutableTree<Fr254>>::reset_mutable_tree(
-        db,
-        <MongoClient as CommitmentTree<Fr254>>::TREE_NAME,
-    )
-    .await
-    .map_err(|error| {
-        EventHandlerError::IOError(format!(
-            "Could not reset proposer commitment tree before replay fallback: {error}"
-        ))
-    })?;
-
-    <MongoClient as CommitmentTree<Fr254>>::new_commitment_tree(db, 29, 3)
-        .await
-        .map_err(|error| {
-            EventHandlerError::IOError(format!(
-                "Could not reinitialize proposer commitment tree before replay fallback: {error}"
-            ))
-        })?;
-
-    Ok(())
-}
-
-async fn reset_historic_root_tree_for_replay(db: &MongoClient) -> Result<(), EventHandlerError> {
-    <MongoClient as MutableTree<Fr254>>::reset_mutable_tree(
-        db,
-        <MongoClient as HistoricRootTree<Fr254>>::TREE_NAME,
-    )
-    .await
-    .map_err(|error| {
-        EventHandlerError::IOError(format!(
-            "Could not reset proposer historic root tree before replay fallback: {error}"
-        ))
-    })?;
-
-    <MongoClient as HistoricRootTree<Fr254>>::new_historic_root_tree(db, 32)
-        .await
-        .map_err(|error| {
-            EventHandlerError::IOError(format!(
-                "Could not reinitialize proposer historic root tree before replay fallback: {error}"
-            ))
-        })?;
-    <MongoClient as HistoricRootTree<Fr254>>::append_historic_commitment_root(
-        db,
-        &Fr254::from(0u8),
-        true,
-    )
-    .await
-    .map_err(|error| {
-        EventHandlerError::IOError(format!(
-            "Could not restore zero historic root before replay fallback: {error}"
-        ))
-    })?;
-
-    Ok(())
-}
-
-async fn reset_nullifier_tree_for_replay(db: &MongoClient) -> Result<(), EventHandlerError> {
-    <MongoClient as MutableTree<Fr254>>::reset_mutable_tree(
-        db,
-        <MongoClient as NullifierTree<Fr254>>::TREE_NAME,
-    )
-    .await
-    .map_err(|error| {
-        EventHandlerError::IOError(format!(
-            "Could not reset proposer nullifier tree before replay fallback: {error}"
-        ))
-    })?;
-
-    let indexed_collection = db
-        .database("nightfall")
-        .collection::<mongodb::bson::Document>("Nullifiers_indexed_leaves");
-    indexed_collection.drop().await.map_err(|error| {
-        EventHandlerError::IOError(format!(
-            "Could not reset proposer nullifier indexed leaves before replay fallback: {error}"
-        ))
-    })?;
-
-    <MongoClient as NullifierTree<Fr254>>::new_nullifier_tree(db, 29, 3)
-        .await
-        .map_err(|error| {
-            EventHandlerError::IOError(format!(
-                "Could not reinitialize proposer nullifier tree before replay fallback: {error}"
-            ))
-        })?;
-
     Ok(())
 }
 
@@ -1012,14 +902,16 @@ mod tests {
         ports::db::{
             BlockStorageDB, PendingBlockDB, RestoreJournalDB, SyncStateDB, TransactionsDB,
         },
+        ports::trees::{CommitmentTree, HistoricRootTree, NullifierTree},
     };
     use alloy::primitives::Bytes;
     use alloy::primitives::{Address, TxHash};
     use alloy::rpc::types::Log as RpcLog;
+    use ark_bn254::Fr as Fr254;
     use ark_ff::Zero;
     use ark_serialize::SerializationError;
     use lib::hex_conversion::HexConvertible;
-    use lib::merkle_trees::trees::TreeMetadata;
+    use lib::merkle_trees::trees::{MutableTree, TreeMetadata};
     use lib::nf_client_proof::Proof;
     use lib::shared_entities::{ClientTransaction, CompressedSecrets, DepositData};
     use lib::tests_utils::{get_db_connection, get_mongo};

@@ -32,8 +32,15 @@ where
         .unwrap_or(10);
 
     tokio::spawn(async move {
-        let _ = start_event_listener::<P, E, N>(start_block, max_attempts).await;
-        // discard Result
+        let mut next_start_block = start_block;
+        loop {
+            let _ = start_event_listener::<P, E, N>(next_start_block, max_attempts).await;
+            warn!(
+                "Event listener task exited after exhausting its retry budget; restarting supervisor loop shortly."
+            );
+            next_start_block = get_runtime_listener_start_block().await;
+            sleep(Duration::from_secs(1)).await;
+        }
     })
 }
 

@@ -277,7 +277,9 @@ async fn advance_startup_replay_reset_marker(
     Ok(next_marker)
 }
 
-async fn begin_startup_replay_reset(client: &Client) -> Result<StartupReplayResetMarker, String> {
+pub(crate) async fn begin_startup_replay_reset(
+    client: &Client,
+) -> Result<StartupReplayResetMarker, String> {
     if let Some(marker) = client.get_startup_replay_reset_marker().await {
         return Ok(marker);
     }
@@ -293,6 +295,23 @@ async fn begin_startup_replay_reset(client: &Client) -> Result<StartupReplayRese
             ))
         })?;
     Ok(marker)
+}
+
+pub(crate) async fn clear_startup_replay_reset_marker_if_present(
+    client: &Client,
+) -> Result<(), String> {
+    if client.get_startup_replay_reset_marker().await.is_none() {
+        return Ok(());
+    }
+
+    client
+        .delete_startup_replay_reset_marker()
+        .await
+        .map_err(|error| {
+            startup_local_state_cleanup_error(&format!(
+                "Could not clear startup replay reset marker: {error}"
+            ))
+        })
 }
 
 async fn apply_startup_replay_db_cleanup(
@@ -334,7 +353,7 @@ async fn apply_startup_replay_db_cleanup(
     Ok(next_marker)
 }
 
-pub(super) async fn complete_startup_replay_reset(client: &Client) -> Result<(), String> {
+pub(crate) async fn complete_startup_replay_reset(client: &Client) -> Result<(), String> {
     let mut marker = begin_startup_replay_reset(client).await?;
 
     loop {

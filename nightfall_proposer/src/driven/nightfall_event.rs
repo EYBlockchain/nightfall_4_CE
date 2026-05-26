@@ -7,7 +7,9 @@ use crate::{
     drivers::blockchain::nightfall_event_listener::{
         get_synchronisation_status, is_listener_replay_catch_up_pending,
     },
-    initialisation::{get_blockchain_client_connection, get_db_connection},
+    initialisation::{
+        begin_startup_replay_reset, get_blockchain_client_connection, get_db_connection,
+    },
     ports::{
         contracts::NightfallContract,
         db::{BlockStorageDB, PendingBlockDB, SyncStateDB},
@@ -428,6 +430,12 @@ where
                 warn!(
                     "Block hash mismatch. Expected {current_block_stored_hash}, got {block_store_pending_hash} in layer 2 block {layer_2_block_number_in_event}"
                 );
+
+                begin_startup_replay_reset(db).await.map_err(|error| {
+                    EventHandlerError::IOError(format!(
+                        "Could not persist startup replay reset marker before mismatch recovery: {error}"
+                    ))
+                })?;
 
                 if let Some(pending_block) = pending_block.as_ref() {
                     let _ = release_selected_transactions::<P>(
