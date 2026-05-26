@@ -14,7 +14,8 @@ where
         &mut self,
         fee_token_id: Variable,
         nf_address: Variable,
-        token_id: Variable,
+        recipient_nf_token_id: Variable,
+        change_nf_token_id: Variable,
         slot_id: Variable,
         value: Variable,
         fee: Variable,
@@ -35,7 +36,8 @@ where
         &mut self,
         fee_token_id: Variable,
         nf_address: Variable,
-        token_id: Variable,
+        recipient_nf_token_id: Variable,
+        change_nf_token_id: Variable,
         slot_id: Variable,
         value: Variable,
         fee: Variable,
@@ -49,7 +51,7 @@ where
         // new_commitments_values[1]: fee change value
         // Check the first commitment, Transfered to Token
         let first_commitment_hash = self.poseidon_hash(&[
-            token_id,
+            recipient_nf_token_id,
             slot_id,
             value,
             recipient_public_key[0].get_x(),
@@ -62,7 +64,7 @@ where
         // Check the second commitment Transfer Change Token
         let is_transfer_change_zero = self.is_zero(new_commitments_values[0])?;
         let second_commitment_hash = self.poseidon_hash(&[
-            token_id,
+            change_nf_token_id,
             slot_id,
             new_commitments_values[0],
             recipient_public_key[1].get_x(),

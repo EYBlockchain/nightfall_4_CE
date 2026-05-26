@@ -32,10 +32,10 @@ mod tests {
         derive_key::ZKPKeys,
         hex_conversion::HexConvertible,
         nf_client_proof::{PrivateInputs, PublicInputs},
-        nf_token_id::to_nf_token_id_from_str,
+        nf_token_id::{to_nf_slot_id_from_str, to_nf_token_id_from_str},
         plonk_prover::circuits::{unified_circuit::unified_circuit_builder, DOMAIN_SHARED_SALT},
         secret_hash::SecretHash,
-        shared_entities::{DepositData, DepositSecret, Preimage, Salt},
+        shared_entities::{DepositData, DepositSecret, Preimage, Salt, TokenType},
     };
     use nf_curves::ed_on_bn254::{BabyJubjub, Fq as Fr254, Fr as BJJScalar};
     use num_bigint::BigUint;
@@ -283,7 +283,13 @@ mod tests {
         let token_id_string = Fr254::to_hex_string(&token_id_fr);
 
         let nf_token_id = to_nf_token_id_from_str(&erc_address_string, &token_id_string).unwrap();
-        let nf_slot_id = nf_token_id;
+        let nf_slot_id = to_nf_slot_id_from_str(
+            &erc_address_string,
+            &token_id_string,
+            &token_id_string,
+            TokenType::ERC20,
+        )
+        .unwrap();
 
         // make a random Nightfall address
         let mut bytes = rand::thread_rng();
@@ -397,6 +403,7 @@ mod tests {
             .fee_token_id(fee_token_id)
             .nf_address(nf_address_h160)
             .value_a(value)
+            .spent_nf_token_ids([nf_token_id, nf_token_id])
             .nf_token_a_id(nf_token_id)
             .nf_slot_id(nf_slot_id)
             .ephemeral_key(ephemeral_key)
@@ -544,7 +551,13 @@ mod tests {
         let token_id_string = Fr254::to_hex_string(&token_id_fr);
 
         let nf_token_id = to_nf_token_id_from_str(&erc_address_string, &token_id_string).unwrap();
-        let nf_slot_id = nf_token_id;
+        let nf_slot_id = to_nf_slot_id_from_str(
+            &erc_address_string,
+            &token_id_string,
+            &token_id_string,
+            TokenType::ERC20,
+        )
+        .unwrap();
 
         let mut bytes = rand::thread_rng();
         let nf_address_h160 = Address::new(bytes.gen());
@@ -606,6 +619,7 @@ mod tests {
             .fee_token_id(fee_token_id)
             .nf_address(nf_address_h160)
             .value_a(value)
+            .spent_nf_token_ids([nf_token_id, nf_token_id])
             .nf_token_a_id(nf_token_id)
             .nf_slot_id(nf_slot_id)
             .ephemeral_key(ephemeral_key)
@@ -721,7 +735,13 @@ mod tests {
         let token_id_string = Fr254::to_hex_string(&token_id_fr);
 
         let nf_token_id = to_nf_token_id_from_str(&erc_address_string, &token_id_string).unwrap();
-        let nf_slot_id = nf_token_id;
+        let nf_slot_id = to_nf_slot_id_from_str(
+            &erc_address_string,
+            &token_id_string,
+            &token_id_string,
+            TokenType::ERC20,
+        )
+        .unwrap();
 
         // Generate a random withdraw address
         let mut withdraw_address_bytes: [u8; 20] = [0; 20]; // Initialize with zeros
@@ -844,6 +864,7 @@ mod tests {
             .fee_token_id(fee_token_id)
             .nf_address(nf_address_h160)
             .value_a(value)
+            .spent_nf_token_ids([nf_token_id, nf_token_id])
             .nf_token_a_id(nf_token_id)
             .nf_slot_id(nf_slot_id)
             .ephemeral_key(ephemeral_key)
@@ -983,6 +1004,13 @@ mod tests {
         let token_id_a_string = Fr254::to_hex_string(&token_id_a_fr);
         let nf_token_a_id =
             to_nf_token_id_from_str(&erc_address_a_string, &token_id_a_string).unwrap();
+        let nf_slot_a_id = to_nf_slot_id_from_str(
+            &erc_address_a_string,
+            &token_id_a_string,
+            &token_id_a_string,
+            TokenType::ERC20,
+        )
+        .unwrap();
 
         let erc_address_b: [u8; 20] = rand::thread_rng().gen();
         let erc_address_b_string = format!("0x{}", hex::encode(erc_address_b));
@@ -1032,7 +1060,7 @@ mod tests {
 
         // I am Party A, so I send token_a with value_a
         let nf_token_id = nf_token_a_id;
-        let nf_slot_id = nf_token_id;
+        let nf_slot_id = nf_slot_a_id;
 
         let nullified_one = Preimage::new(
             nullified_value_one,
@@ -1099,6 +1127,7 @@ mod tests {
             .fee_token_id(fee_token_id)
             .nf_address(nf_address_h160)
             .value_a(value)
+            .spent_nf_token_ids([nf_token_id, nf_token_id])
             .nf_token_a_id(nf_token_a_id)
             .nf_slot_id(nf_slot_id)
             .ephemeral_key(ephemeral_key)
@@ -1289,6 +1318,13 @@ mod tests {
         let token_id_b_string = Fr254::to_hex_string(&token_id_b_fr);
         let nf_token_b_id =
             to_nf_token_id_from_str(&erc_address_b_string, &token_id_b_string).unwrap();
+        let nf_slot_b_id = to_nf_slot_id_from_str(
+            &erc_address_b_string,
+            &token_id_b_string,
+            &token_id_b_string,
+            TokenType::ERC20,
+        )
+        .unwrap();
 
         // Fee setup
         let nf_address_h160 = Address::new(rand::thread_rng().gen());
@@ -1320,7 +1356,7 @@ mod tests {
         let deadline = Fr254::from(1000u64);
 
         let nf_token_id = nf_token_b_id;
-        let nf_slot_id = nf_token_id;
+        let nf_slot_id = nf_slot_b_id;
 
         let nullified_one = Preimage::new(
             nullified_value_one,
@@ -1385,6 +1421,7 @@ mod tests {
             .fee_token_id(fee_token_id)
             .nf_address(nf_address_h160)
             .value_a(value_a)
+            .spent_nf_token_ids([nf_token_id, nf_token_id])
             .nf_token_a_id(nf_token_a_id)
             .nf_slot_id(nf_slot_id)
             .ephemeral_key(ephemeral_key)
@@ -1540,7 +1577,9 @@ mod tests {
         keys_a: &ZKPKeys,
         keys_b: &ZKPKeys,
         nf_token_a_id: Fr254,
+        nf_slot_a_id: Fr254,
         nf_token_b_id: Fr254,
+        nf_slot_b_id: Fr254,
         value_a: Fr254,
         value_b: Fr254,
         swap_nonce: Fr254,
@@ -1570,7 +1609,11 @@ mod tests {
                 Fr254::zero(),
             )
         };
-        let nf_slot_id = nf_token_id;
+        let nf_slot_id = if prover_is_party_a {
+            nf_slot_a_id
+        } else {
+            nf_slot_b_id
+        };
 
         let mut nullified_value_one = rand_96_bit(rng);
         let mut nullified_value_two = rand_96_bit(rng);
@@ -1649,6 +1692,7 @@ mod tests {
             .fee_token_id(fee_token_id)
             .nf_address(nf_address_h160)
             .value_a(value_a)
+            .spent_nf_token_ids([nf_token_id, nf_token_id])
             .nf_token_a_id(nf_token_a_id)
             .nf_slot_id(nf_slot_id)
             .ephemeral_key(ephemeral_key)
@@ -1814,7 +1858,7 @@ mod tests {
         let secret_hash = deposit_secret.hash().expect("deposit secret hash");
         let deposit_data = [
             DepositData {
-                nf_token_id: info.private_inputs.nf_token_a_id,
+                nf_token_id: info.private_inputs.spent_nf_token_ids[0],
                 nf_slot_id: info.private_inputs.nf_slot_id,
                 value: info.private_inputs.nullifiers_values[0],
                 secret_hash,
@@ -2550,7 +2594,7 @@ mod tests {
                 }),
                 Box::new(|| {
                     let mut info = build_valid_swap_inputs();
-                    info.private_inputs.nf_token_a_id = Fr254::from(999u64);
+                    info.private_inputs.spent_nf_token_ids[0] = Fr254::from(999u64);
                     info
                 }),
                 Box::new(|| {
@@ -2570,15 +2614,18 @@ mod tests {
                 }),
             ];
 
-            for create_invalid in invalid_cases {
+            for (idx, create_invalid) in invalid_cases.into_iter().enumerate() {
                 let mut info = create_invalid();
                 let circuit =
                     unified_circuit_builder(&mut info.public_inputs, &mut info.private_inputs)
                         .unwrap();
 
-                assert!(circuit
-                    .check_circuit_satisfiability(Vec::from(&info.public_inputs).as_slice())
-                    .is_err());
+                assert!(
+                    circuit
+                        .check_circuit_satisfiability(Vec::from(&info.public_inputs).as_slice())
+                        .is_err(),
+                    "invalid swap case {idx} unexpectedly satisfied the circuit"
+                );
             }
         }
     }
@@ -2627,6 +2674,13 @@ mod tests {
         let nf_token_a_id =
             to_nf_token_id_from_str(&erc_address_a_string, &Fr254::to_hex_string(&token_id_a))
                 .unwrap();
+        let nf_slot_a_id = to_nf_slot_id_from_str(
+            &erc_address_a_string,
+            &Fr254::to_hex_string(&token_id_a),
+            &Fr254::to_hex_string(&token_id_a),
+            TokenType::ERC20,
+        )
+        .unwrap();
 
         let erc_address_b: [u8; 20] = rand::thread_rng().gen();
         let erc_address_b_string = format!("0x{}", hex::encode(erc_address_b));
@@ -2634,6 +2688,13 @@ mod tests {
         let nf_token_b_id =
             to_nf_token_id_from_str(&erc_address_b_string, &Fr254::to_hex_string(&token_id_b))
                 .unwrap();
+        let nf_slot_b_id = to_nf_slot_id_from_str(
+            &erc_address_b_string,
+            &Fr254::to_hex_string(&token_id_b),
+            &Fr254::to_hex_string(&token_id_b),
+            TokenType::ERC20,
+        )
+        .unwrap();
 
         let nf_address_h160 = Address::new(rand::thread_rng().gen());
         let nf_address_token = nf_address_h160.tokenize();
@@ -2670,7 +2731,9 @@ mod tests {
             &keys_a,
             &keys_b,
             nf_token_a_id,
+            nf_slot_a_id,
             nf_token_b_id,
+            nf_slot_b_id,
             value_a,
             value_b,
             swap_nonce,
@@ -2685,7 +2748,9 @@ mod tests {
             &keys_a,
             &keys_b,
             nf_token_a_id,
+            nf_slot_a_id,
             nf_token_b_id,
+            nf_slot_b_id,
             value_a,
             value_b,
             swap_nonce,
