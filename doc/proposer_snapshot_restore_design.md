@@ -88,6 +88,25 @@ must also roll back or reset the corresponding Merkle tree state to a value cohe
 Deleting speculative block state without rolling back trees can leave proposer roots ahead of
 `sync_state`.
 
+7. Startup replay reset must be crash-resumable
+
+If startup detects speculative proposer state that cannot be repaired in place and therefore falls
+back to "clear canonical local state, reset trees, and let listener replay rebuild canonically",
+that reset sequence must itself be crash-resumable.
+
+A crash after canonical state has been deleted, but before proposer trees have been fully reset and
+reinitialized, must not leave the next startup unable to distinguish:
+
+- a legitimate empty proposer state ready for replay, from
+- a partially applied startup replay reset that still requires recovery work
+
+Therefore startup replay reset must persist an explicit marker before destructive reset begins, and
+must clear that marker only after all canonical collections, proposer trees, and auxiliary cleanup
+have reached their intended replay-baseline state.
+
+Bootstrap must check for that marker before ordinary startup validation and must resume or complete
+the reset rather than fail closed on the resulting mixed state.
+
 ## Journal Model
 
 `restore_journal` is a single-document Mongo collection.
@@ -117,6 +136,43 @@ Recommended document shape:
 ```
 
 `idle` is represented by **absence** of the journal document. That keeps the steady state simple: if no restore is in progress or pending cleanup, there is no journal.
+
+## Startup Replay Reset Marker
+
+Startup replay reset should use its own persistent single-document marker instead of overloading
+`restore_journal`, because the reset flow is logically separate from snapshot restore and may run
+even when no snapshot restore was attempted.
+
+Recommended document shape:
+
+```json
+{
+  "_id": "proposer",
+  "schema_version": 1,
+  "phase": "db_cleanup_pending | db_cleanup_applied | tree_reset_pending | auxiliary_cleanup_pending",
+  "started_at": "BSON datetime",
+  "updated_at": "BSON datetime"
+}
+```
+
+Recommended collection name:
+
+- `startup_replay_reset_marker`
+
+`idle` is represented by **absence** of the marker document.
+
+Phase meaning:
+
+- `db_cleanup_pending`: startup chose the replay-reset path, but canonical collections may still be
+  intact
+- `db_cleanup_applied`: `sync_state`, `StoredBlock`, and `PendingBlock` have been durably cleared;
+  trees may still reflect speculative state
+- `tree_reset_pending`: retained as the same semantic boundary as `db_cleanup_applied`; an
+  implementation may collapse these two phases if the phase write and DB cleanup commit are made
+  together
+- `auxiliary_cleanup_pending`: proposer trees have been reset to replay baseline; auxiliary live
+  state cleanup (for example reserved deposits and active transaction normalization) may still be
+  incomplete
 
 ## Naming
 
@@ -247,6 +303,38 @@ Live state was never modified. Recovery should:
 
 This phase is restartable and should not try to resume partially imported shadow collections.
 
+### `startup_replay_reset_marker`
+
+If the startup replay reset marker exists, bootstrap must complete that reset before ordinary live
+state validation.
+
+Recommended recovery logic:
+
+- if `phase=db_cleanup_pending`:
+  - ensure the canonical replay-reset decision is still valid
+  - clear `sync_state`, `StoredBlock`, and `PendingBlock` in one Mongo transaction
+  - advance the marker to `db_cleanup_applied` in the same transaction
+- if `phase=db_cleanup_applied`:
+  - reset and reinitialize `CommitmentTree`
+  - reset and reinitialize `HistoricRootTree`, including the zero historic root leaf
+  - reset and reinitialize `NullifierTree`, including indexed leaves baseline state
+  - advance the marker to `auxiliary_cleanup_pending`
+- if `phase=auxiliary_cleanup_pending`:
+  - restore `Selected` / `Included` client transaction lifecycle to replay-safe baseline
+  - clear reserved deposit state
+  - verify that live proposer state now matches the intended replay baseline:
+    - no `sync_state`
+    - no `StoredBlock`
+    - no `PendingBlock`
+    - empty commitment tree
+    - historic root tree containing only the zero leaf
+    - empty nullifier tree baseline
+  - delete the marker document, returning to `idle`
+
+The reset must fail closed if the marker exists but the required reset step cannot be completed
+cleanly. However, bootstrap must not treat "marker exists + mixed local state" as an unexplained
+manual-recovery case; it must first attempt to resume the reset described by the marker.
+
 ### `swap_in_progress`
 
 Default rule: **resume forward**, not rollback.
@@ -303,6 +391,66 @@ During `swap_in_progress`:
 - **rollback** is a fallback only when journal/namespace invariants are broken badly enough that resume is unsafe
 
 This keeps the happy path simple while still preserving a safety net for partial namespace damage.
+
+## Startup Replay Reset Crash Windows
+
+The startup replay reset path must explicitly cover the following crash windows:
+
+1. Crash before the marker is created
+
+- no replay reset has started
+- ordinary startup validation still applies
+
+2. Crash after marker creation but before canonical DB cleanup commits
+
+- live `sync_state`, `StoredBlock`, and `PendingBlock` may still be present
+- resume by re-running the transactional DB cleanup and advancing the marker only if that
+  transaction commits
+
+3. Crash after canonical DB cleanup commits but before any tree reset completes
+
+- `sync_state`, `StoredBlock`, and `PendingBlock` are gone
+- proposer trees may still be speculative and ahead of replay baseline
+- ordinary startup validation would see "no sync_state, but non-empty trees"
+- marker-guided recovery must therefore reset trees instead of failing closed
+
+4. Crash during commitment / historic-root / nullifier tree reset
+
+- some trees may already be at replay baseline while others still reflect speculative state
+- marker-guided recovery must treat tree reset as repeatable and converge all trees to the same
+  replay baseline before allowing startup to continue
+
+5. Crash after tree reset but before auxiliary cleanup completes
+
+- canonical collections and trees are already at replay baseline
+- auxiliary live state may still contain stale reserved deposits or active transaction lifecycle
+- recovery must resume auxiliary cleanup and only then clear the marker
+
+6. Crash after auxiliary cleanup but before marker deletion
+
+- the target replay-baseline state may already be fully established
+- resume must verify that the baseline state is already satisfied and then delete the stale marker
+
+## Startup Replay Reset Edge Cases
+
+- Marker exists, but `restore_journal` also exists:
+  - `restore_journal` recovery must run first
+  - startup replay reset is only evaluated after snapshot restore recovery has either completed or
+    failed closed
+
+- Marker exists, but canonical proposer state has partially reappeared:
+  - recovery must treat the marker as authoritative and re-run DB cleanup before tree validation
+
+- Marker exists, but one tree reset helper is not idempotent:
+  - that helper must be made idempotent or split into separately journaled sub-steps
+  - bootstrap must never assume a partially reset tree can be interpreted safely without finishing
+    the reset
+
+- Marker exists, but auxiliary cleanup has already been applied once:
+  - cleanup operations must be replay-safe or the marker needs a finer-grained committed step
+
+- Marker exists, but state no longer matches any valid replay baseline after external tampering:
+  - fail closed and require manual intervention
 
 ## `sync_state` Handling
 
