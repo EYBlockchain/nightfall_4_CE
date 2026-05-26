@@ -1,6 +1,7 @@
 use crate::{
     domain::entities::{L1Ref, ProposerSnapshotManifest, RestoreJournalPhase, SyncState},
     driven::db::client_transaction_state::restore_all_selected_transactions_to_mempool,
+    driven::db::mongo_db::DB,
     driven::db::snapshot::{
         acquire_proposer_state_maintenance_guard, cleanup_after_proposer_shadow_swap,
         find_latest_valid_proposer_snapshot, recover_from_restore_journal,
@@ -260,6 +261,118 @@ async fn recovered_snapshot_sync_state_if_available(
         })?;
 
     Ok(Some(sync_state))
+}
+
+async fn restore_recovery_state_may_still_be_present(db: &MongoClient) -> Result<bool, String> {
+    if db.get_restore_journal().await.is_some() {
+        return Ok(true);
+    }
+
+    let collection_names = db
+        .database(DB)
+        .list_collection_names()
+        .await
+        .map_err(|error| format!("could not inspect restore recovery collections: {error}"))?;
+
+    Ok(collection_names.iter().any(|name| {
+        name.starts_with("restore_backup__") || name.starts_with("restore_shadow__")
+    }))
+}
+
+async fn continue_after_failed_snapshot_restore<P>(
+    db: &MongoClient,
+    snapshot_dir: &std::path::Path,
+    manifest: &ProposerSnapshotManifest,
+    restore_error: &str,
+    replay_start_block: usize,
+) -> usize
+where
+    P: Proof,
+{
+    match recover_from_restore_journal(db).await {
+        Ok(()) => match recovered_snapshot_sync_state_if_available(db, manifest).await {
+            Ok(Some(sync_state)) => {
+                warn!(
+                    "Snapshot restore from {} returned an error ({}), but restore journal recovery completed the requested snapshot successfully",
+                    snapshot_dir.display(),
+                    restore_error,
+                );
+                continue_from_restored_sync_state(&sync_state).await
+            }
+            Ok(None) => {
+                warn!(
+                    "Snapshot restore from {} failed: {}. Restore journal recovery did not leave the requested snapshot state live. Falling back to destructive reset+replay from L1 block {}",
+                    snapshot_dir.display(),
+                    restore_error,
+                    replay_start_block
+                );
+                continue_with_destructive_replay_fallback::<P>(db).await
+            }
+            Err(recovery_error) => {
+                continue_after_incomplete_restore_recovery::<P>(
+                    db,
+                    snapshot_dir,
+                    restore_error,
+                    &recovery_error,
+                    replay_start_block,
+                )
+                .await
+            }
+        },
+        Err(recovery_error) => {
+            continue_after_incomplete_restore_recovery::<P>(
+                db,
+                snapshot_dir,
+                restore_error,
+                &recovery_error.to_string(),
+                replay_start_block,
+            )
+            .await
+        }
+    }
+}
+
+async fn continue_after_incomplete_restore_recovery<P>(
+    db: &MongoClient,
+    snapshot_dir: &std::path::Path,
+    restore_error: &str,
+    recovery_error: &str,
+    replay_start_block: usize,
+) -> usize
+where
+    P: Proof,
+{
+    match restore_recovery_state_may_still_be_present(db).await {
+        Ok(true) => panic!(
+            "Snapshot restore from {} failed: {}. Restore journal recovery also failed or \
+             could not finalize safely: {}. restore_journal or restore backup/shadow state \
+             may still be present. Manual intervention is required before destructive replay.",
+            snapshot_dir.display(),
+            restore_error,
+            recovery_error
+        ),
+        Ok(false) => {
+            warn!(
+                "Snapshot restore from {} failed: {}. Restore journal recovery also failed or \
+                 could not finalize safely: {}. No residual restore state remains, so \
+                 destructive reset+replay from L1 block {} is allowed.",
+                snapshot_dir.display(),
+                restore_error,
+                recovery_error,
+                replay_start_block
+            );
+            continue_with_destructive_replay_fallback::<P>(db).await
+        }
+        Err(state_error) => panic!(
+            "Snapshot restore from {} failed: {}. Restore journal recovery also failed or \
+             could not finalize safely: {}. Additionally, residual restore state could not be \
+             inspected safely: {}. Manual intervention is required before destructive replay.",
+            snapshot_dir.display(),
+            restore_error,
+            recovery_error,
+            state_error
+        ),
+    }
 }
 
 fn destructive_replay_start_block() -> usize {
@@ -785,47 +898,16 @@ where
             );
             match restore_proposer_snapshot(db, &snapshot_dir).await {
                 Ok(sync_state) => continue_from_restored_sync_state(&sync_state).await,
-                Err(error) => match recover_from_restore_journal(db).await {
-                    Ok(()) => match recovered_snapshot_sync_state_if_available(db, &manifest).await
-                    {
-                        Ok(Some(sync_state)) => {
-                            warn!(
-                                "Snapshot restore from {} returned an error ({error}), but restore journal recovery completed the requested snapshot successfully",
-                                snapshot_dir.display(),
-                            );
-                            continue_from_restored_sync_state(&sync_state).await
-                        }
-                        Ok(None) => {
-                            warn!(
-                                "Snapshot restore from {} failed: {}. Restore journal recovery did not leave the requested snapshot state live. Falling back to destructive reset+replay from L1 block {}",
-                                snapshot_dir.display(),
-                                error,
-                                replay_start_block
-                            );
-                            continue_with_destructive_replay_fallback::<P>(db).await
-                        }
-                        Err(recovery_error) => {
-                            warn!(
-                                "Snapshot restore from {} failed: {}. Restore journal recovery ran but the recovered state could not be finalized safely: {}. Falling back to destructive reset+replay from L1 block {}",
-                                snapshot_dir.display(),
-                                error,
-                                recovery_error,
-                                replay_start_block
-                            );
-                            continue_with_destructive_replay_fallback::<P>(db).await
-                        }
-                    },
-                    Err(recovery_error) => {
-                        warn!(
-                            "Snapshot restore from {} failed: {}. In-process restore journal recovery also failed: {}. Falling back to destructive reset+replay from L1 block {}",
-                            snapshot_dir.display(),
-                            error,
-                            recovery_error,
-                            replay_start_block
-                        );
-                        continue_with_destructive_replay_fallback::<P>(db).await
-                    }
-                },
+                Err(error) => {
+                    continue_after_failed_snapshot_restore::<P>(
+                        db,
+                        &snapshot_dir,
+                        &manifest,
+                        &error.to_string(),
+                        replay_start_block,
+                    )
+                    .await
+                }
             }
         }
         Ok(None) => {
@@ -872,7 +954,9 @@ mod tests {
             Block, ClientTransactionWithMetaData, DepositDatawithFee, PendingBlock,
             PendingBlockState, RestoreJournalPhase, TxLifecycle,
         },
-        driven::db::mongo_db::{ensure_deposit_indexes, StoredBlock, DB},
+        driven::db::mongo_db::{
+            ensure_deposit_indexes, StoredBlock, DB, PROPOSED_BLOCKS_COLLECTION,
+        },
         driven::db::snapshot::{
             create_proposer_snapshot, load_proposer_snapshot_into_shadow,
             swap_proposer_shadow_into_live,
@@ -1461,6 +1545,113 @@ mod tests {
             .expect_err("helper should reject matching sync_state when live state is inconsistent");
 
         assert!(error.contains("live proposer state remains inconsistent"));
+    }
+
+    #[tokio::test]
+    async fn continue_after_failed_snapshot_restore_aborts_when_recovery_leaves_restore_state() {
+        let _lock = event_listener_test_lock().await;
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+
+        initialize_test_trees(&client).await;
+        let snapshot_block = StoredBlock {
+            layer2_block_number: 31,
+            commitments: vec!["0xlistener-restore-abort".to_string()],
+            proposer_address: Address::from([31u8; 20]),
+        };
+        client
+            .store_block(&snapshot_block)
+            .await
+            .expect("store snapshot block");
+        let snapshot_sync_state = SyncState::new(
+            snapshot_block.layer2_block_number,
+            snapshot_block.hash().to_hex_string(),
+            L1Ref {
+                block_number: 3100,
+                tx_hash: TxHash::from([31u8; 32]),
+                log_index: 31,
+            },
+            mongodb::bson::DateTime::now(),
+        );
+        persist_sync_state(&client, &snapshot_sync_state).await;
+
+        let snapshot_root = std::env::temp_dir().join(format!(
+            "nf4-event-listener-restart-abort-{}",
+            mongodb::bson::DateTime::now().timestamp_millis()
+        ));
+        let manifest = create_proposer_snapshot(&client, &snapshot_root)
+            .await
+            .expect("create snapshot");
+        let snapshot_dir = snapshot_root.join(&manifest.snapshot_id);
+
+        let newer_live_block = StoredBlock {
+            layer2_block_number: 32,
+            commitments: Vec::new(),
+            proposer_address: Address::from([32u8; 20]),
+        };
+        client
+            .store_block(&newer_live_block)
+            .await
+            .expect("store newer live block");
+        let newer_live_sync_state = SyncState::new(
+            newer_live_block.layer2_block_number,
+            newer_live_block.hash().to_hex_string(),
+            L1Ref {
+                block_number: 3200,
+                tx_hash: TxHash::from([32u8; 32]),
+                log_index: 32,
+            },
+            mongodb::bson::DateTime::now(),
+        );
+        persist_sync_state(&client, &newer_live_sync_state).await;
+
+        load_proposer_snapshot_into_shadow(&client, &snapshot_dir)
+            .await
+            .expect("load snapshot into shadow");
+        swap_proposer_shadow_into_live(&client)
+            .await
+            .expect("swap snapshot into live");
+
+        client
+            .delete_block_by_number(snapshot_block.layer2_block_number)
+            .await
+            .expect("delete restored stored block");
+        client
+            .database(DB)
+            .collection::<Document>(&format!("restore_backup__{PROPOSED_BLOCKS_COLLECTION}"))
+            .drop()
+            .await
+            .expect("drop required backup collection");
+
+        let client_for_restart = client.clone();
+        let snapshot_dir_for_restart = snapshot_dir.clone();
+        let manifest_for_restart = manifest.clone();
+        let join_error = tokio::spawn(async move {
+            continue_after_failed_snapshot_restore::<MockProof>(
+                &client_for_restart,
+                &snapshot_dir_for_restart,
+                &manifest_for_restart,
+                "forced restore failure",
+                destructive_replay_start_block(),
+            )
+            .await
+        })
+        .await
+        .expect_err("restart helper should abort instead of entering destructive replay");
+
+        assert!(join_error.is_panic(), "expected panic, got {join_error:?}");
+        assert!(
+            client.get_restore_journal().await.is_some(),
+            "stale restore_journal should remain for manual inspection"
+        );
+        assert!(
+            client.get_sync_state().await.is_some(),
+            "destructive replay must not wipe sync_state after fail-closed abort"
+        );
+
+        tokio::fs::remove_dir_all(snapshot_root)
+            .await
+            .expect("cleanup snapshot directory");
     }
 
     #[tokio::test]
