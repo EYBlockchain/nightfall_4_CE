@@ -1,7 +1,8 @@
 use crate::{
     domain::entities::{
         ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot, PendingBlock,
-        RestoreJournal, SyncState, TransferReceipt, TransferReceiptStatus, TxHashBytes,
+        RestoreJournal, StartupReplayResetMarker, SyncState, TransferReceipt,
+        TransferReceiptStatus, TxHashBytes,
     },
     driven::db::mongo_db::StoredBlock,
 };
@@ -95,6 +96,28 @@ pub trait RestoreJournalDB {
     async fn get_restore_journal(&self) -> Option<RestoreJournal>;
 
     async fn delete_restore_journal(&self) -> Result<(), mongodb::error::Error>;
+}
+
+#[async_trait::async_trait]
+pub trait StartupReplayResetMarkerDB {
+    async fn upsert_startup_replay_reset_marker(
+        &self,
+        marker: &StartupReplayResetMarker,
+    ) -> Result<(), mongodb::error::Error>;
+
+    async fn upsert_startup_replay_reset_marker_with_session(
+        &self,
+        _marker: &StartupReplayResetMarker,
+        _session: &mut mongodb::ClientSession,
+    ) -> Result<(), mongodb::error::Error> {
+        Err(mongodb::error::Error::custom(
+            "upsert_startup_replay_reset_marker_with_session must be implemented with session-aware writes",
+        ))
+    }
+
+    async fn get_startup_replay_reset_marker(&self) -> Option<StartupReplayResetMarker>;
+
+    async fn delete_startup_replay_reset_marker(&self) -> Result<(), mongodb::error::Error>;
 }
 
 #[async_trait::async_trait]

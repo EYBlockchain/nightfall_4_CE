@@ -69,6 +69,10 @@ pub(crate) fn included_transactions_filter_after_block(block_l2: i64) -> Documen
     }
 }
 
+fn included_transactions_filter() -> Document {
+    doc! { "lifecycle.state": "included" }
+}
+
 #[cfg(test)]
 fn legacy_transactions_filter() -> Document {
     doc! { "lifecycle": { "$exists": false } }
@@ -329,6 +333,29 @@ pub(crate) async fn restore_all_selected_transactions_to_mempool(
         .map_err(|error| {
             format!(
                 "Could not restore proposer selected client transactions to the mempool: {error}"
+            )
+        })
+}
+
+pub(crate) async fn restore_all_included_transactions_to_mempool(
+    client: &Client,
+) -> Result<u64, String> {
+    client
+        .database(DB)
+        .collection::<Document>(CLIENT_TRANSACTIONS_COLLECTION)
+        .update_many(
+            included_transactions_filter(),
+            doc! {
+                "$set": {
+                    "lifecycle": lifecycle_bson(&TxLifecycle::Mempool)
+                }
+            },
+        )
+        .await
+        .map(|result| result.modified_count)
+        .map_err(|error| {
+            format!(
+                "Could not restore proposer included client transactions to the mempool: {error}"
             )
         })
 }

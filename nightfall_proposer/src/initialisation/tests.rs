@@ -2,7 +2,8 @@ use super::*;
 use crate::{
     domain::entities::{
         Block, ClientTransactionWithMetaData, DepositDatawithFee, L1Ref, PendingBlock,
-        PendingBlockState, RestoreJournalPhase, RestoreJournalStep, SyncState, TxLifecycle,
+        PendingBlockState, RestoreJournalPhase, RestoreJournalStep, StartupReplayResetMarker,
+        StartupReplayResetPhase, SyncState, TxLifecycle,
     },
     driven::db::{
         mongo_db::{StoredBlock, DB, DEPOSIT_COLLECTION},
@@ -14,7 +15,10 @@ use crate::{
     drivers::blockchain::nightfall_event_listener::get_synchronisation_status,
     ports::{
         contracts::NightfallContract,
-        db::{BlockStorageDB, PendingBlockDB, RestoreJournalDB, SyncStateDB, TransactionsDB},
+        db::{
+            BlockStorageDB, PendingBlockDB, RestoreJournalDB, StartupReplayResetMarkerDB,
+            SyncStateDB, TransactionsDB,
+        },
         trees::{CommitmentTree, HistoricRootTree, NullifierTree},
     },
 };
@@ -188,6 +192,18 @@ async fn persist_sync_state(client: &mongodb::Client, sync_state: &SyncState) {
         .expect("materialize historic root state for bootstrap test");
         historic_root_sub_tree_count += 1;
     }
+}
+
+async fn persist_startup_replay_reset_marker(
+    client: &mongodb::Client,
+    phase: StartupReplayResetPhase,
+) -> StartupReplayResetMarker {
+    let marker = StartupReplayResetMarker::new(phase, mongodb::bson::DateTime::now());
+    client
+        .upsert_startup_replay_reset_marker(&marker)
+        .await
+        .expect("write startup replay reset marker");
+    marker
 }
 
 async fn materialize_tree_state_for_block(client: &mongodb::Client, block_number: u64) {
@@ -734,6 +750,123 @@ async fn bootstrap_resets_tree_state_for_first_pending_block_crash_before_sync_s
         .expect("read nullifier root after replay reset"),
         zero_nullifier_root
     );
+    assert_eq!(client.get_startup_replay_reset_marker().await, None);
+}
+
+#[tokio::test]
+async fn bootstrap_resumes_startup_replay_reset_after_db_cleanup_applied_crash() {
+    let _lock = bootstrap_test_lock().await;
+    let container = get_mongo().await;
+    let client = get_db_connection(&container).await;
+
+    ensure_proposer_db_initialized(&client).await;
+    let zero_commitment_root = <mongodb::Client as CommitmentTree<Fr254>>::get_root(&client)
+        .await
+        .expect("read zero commitment root before resume");
+    let zero_historic_root = <mongodb::Client as MutableTree<Fr254>>::get_root(
+        &client,
+        <mongodb::Client as HistoricRootTree<Fr254>>::TREE_NAME,
+    )
+    .await
+    .expect("read zero historic root before resume");
+    let zero_nullifier_root = <mongodb::Client as MutableTree<Fr254>>::get_root(
+        &client,
+        <mongodb::Client as NullifierTree<Fr254>>::TREE_NAME,
+    )
+    .await
+    .expect("read zero nullifier root before resume");
+
+    let selected_deposit = test_reserved_deposit(80);
+    let selected_transaction = test_selected_client_transaction(81, 0);
+    let included_transaction = ClientTransactionWithMetaData {
+        lifecycle: TxLifecycle::Included { block_l2: 0 },
+        ..test_selected_client_transaction(91, 0)
+    };
+
+    <mongodb::Client as TransactionsDB<MockProof>>::set_mempool_deposits(
+        &client,
+        vec![selected_deposit],
+    )
+    .await
+    .expect("store reserved deposit before replay reset resume");
+    client
+        .store_transaction(selected_transaction.clone())
+        .await
+        .expect("store selected transaction before replay reset resume");
+    client
+        .store_transaction(included_transaction.clone())
+        .await
+        .expect("store included transaction before replay reset resume");
+
+    materialize_tree_state_for_block(&client, 0).await;
+    <mongodb::Client as NullifierTree<Fr254>>::insert_nullifiers(&client, &test_nullifier_batch(8))
+        .await
+        .expect("materialize speculative nullifier state before replay reset resume");
+
+    persist_startup_replay_reset_marker(&client, StartupReplayResetPhase::DbCleanupApplied).await;
+
+    MockNightfallContract::set_onchain_next_block(0);
+    reset_runtime_bootstrap_state().await;
+
+    bootstrap_proposer_startup_state_with_db::<MockNightfallContract>(&client, false)
+        .await
+        .expect("bootstrap should resume startup replay reset after db cleanup crash");
+
+    assert_eq!(client.get_startup_replay_reset_marker().await, None);
+    assert_eq!(client.get_sync_state().await, None);
+    assert_eq!(
+        <mongodb::Client as TransactionsDB<MockProof>>::get_transaction(
+            &client,
+            &selected_transaction.hash,
+        )
+        .await
+        .expect("selected transaction should still exist after replay reset resume")
+        .lifecycle,
+        TxLifecycle::Mempool
+    );
+    assert_eq!(
+        <mongodb::Client as TransactionsDB<MockProof>>::get_transaction(
+            &client,
+            &included_transaction.hash,
+        )
+        .await
+        .expect("included transaction should still exist after replay reset resume")
+        .lifecycle,
+        TxLifecycle::Mempool
+    );
+    assert_eq!(
+        client
+            .database(DB)
+            .collection::<Document>(DEPOSIT_COLLECTION)
+            .count_documents(doc! { "reserved": true })
+            .await
+            .expect("count reserved deposits after replay reset resume"),
+        0
+    );
+    assert_eq!(
+        <mongodb::Client as CommitmentTree<Fr254>>::get_root(&client)
+            .await
+            .expect("read commitment root after replay reset resume"),
+        zero_commitment_root
+    );
+    assert_eq!(
+        <mongodb::Client as MutableTree<Fr254>>::get_root(
+            &client,
+            <mongodb::Client as HistoricRootTree<Fr254>>::TREE_NAME,
+        )
+        .await
+        .expect("read historic root after replay reset resume"),
+        zero_historic_root
+    );
+    assert_eq!(
+        <mongodb::Client as MutableTree<Fr254>>::get_root(
+            &client,
+            <mongodb::Client as NullifierTree<Fr254>>::TREE_NAME,
+        )
+        .await
+        .expect("read nullifier root after replay reset resume"),
+        zero_nullifier_root
+    );
 }
 
 #[tokio::test]
@@ -998,6 +1131,220 @@ async fn bootstrap_resets_tree_state_for_speculative_block_ahead_of_sync_state()
         .await
         .expect("read nullifier root after startup replay reset"),
         zero_nullifier_root
+    );
+    assert_eq!(client.get_startup_replay_reset_marker().await, None);
+}
+
+#[tokio::test]
+async fn bootstrap_resumes_startup_replay_reset_from_db_cleanup_pending_marker() {
+    let _lock = bootstrap_test_lock().await;
+    let container = get_mongo().await;
+    let client = get_db_connection(&container).await;
+
+    ensure_proposer_db_initialized(&client).await;
+    let zero_commitment_root = <mongodb::Client as CommitmentTree<Fr254>>::get_root(&client)
+        .await
+        .expect("read zero commitment root before marker resume");
+    let zero_historic_root = <mongodb::Client as MutableTree<Fr254>>::get_root(
+        &client,
+        <mongodb::Client as HistoricRootTree<Fr254>>::TREE_NAME,
+    )
+    .await
+    .expect("read zero historic root before marker resume");
+    let zero_nullifier_root = <mongodb::Client as MutableTree<Fr254>>::get_root(
+        &client,
+        <mongodb::Client as NullifierTree<Fr254>>::TREE_NAME,
+    )
+    .await
+    .expect("read zero nullifier root before marker resume");
+
+    set_live_sync_state(&client, 5, "0x05", 500).await;
+    let selected_deposit = test_reserved_deposit(100);
+    let selected_transaction = test_selected_client_transaction(101, 6);
+    let included_transaction = ClientTransactionWithMetaData {
+        lifecycle: TxLifecycle::Included { block_l2: 6 },
+        ..test_selected_client_transaction(111, 6)
+    };
+    <mongodb::Client as TransactionsDB<MockProof>>::set_mempool_deposits(
+        &client,
+        vec![selected_deposit],
+    )
+    .await
+    .expect("store reserved deposit before db cleanup pending resume");
+    client
+        .store_transaction(selected_transaction.clone())
+        .await
+        .expect("store selected transaction before db cleanup pending resume");
+    client
+        .store_transaction(included_transaction.clone())
+        .await
+        .expect("store included transaction before db cleanup pending resume");
+
+    client
+        .store_pending_block(&PendingBlock {
+            layer2_block_number: 6,
+            state: PendingBlockState::ReadyToPropose,
+            broadcast_tx_hash: None,
+            broadcast_receipt_checks: 0,
+            block: Some(Block::default()),
+            selected_deposits: vec![vec![selected_deposit]],
+            selected_client_transaction_hashes: vec![selected_transaction.hash.clone()],
+        })
+        .await
+        .expect("store speculative pending block before marker resume");
+    client
+        .store_block(&StoredBlock {
+            layer2_block_number: 6,
+            commitments: vec!["0x06".to_string()],
+            proposer_address: Address::from([6u8; 20]),
+        })
+        .await
+        .expect("store speculative block before marker resume");
+    materialize_tree_state_for_block(&client, 99).await;
+    <mongodb::Client as NullifierTree<Fr254>>::insert_nullifiers(
+        &client,
+        &test_nullifier_batch(10),
+    )
+    .await
+    .expect("materialize nullifier state before db cleanup pending resume");
+
+    persist_startup_replay_reset_marker(&client, StartupReplayResetPhase::DbCleanupPending).await;
+
+    MockNightfallContract::set_onchain_next_block(6);
+    reset_runtime_bootstrap_state().await;
+
+    bootstrap_proposer_startup_state_with_db::<MockNightfallContract>(&client, false)
+        .await
+        .expect("bootstrap should resume startup replay reset from db cleanup pending marker");
+
+    assert_eq!(client.get_startup_replay_reset_marker().await, None);
+    assert_eq!(client.get_sync_state().await, None);
+    assert!(client.get_block_by_number(5).await.is_none());
+    assert!(client.get_block_by_number(6).await.is_none());
+    assert_eq!(client.get_pending_block(6).await, None);
+    assert_eq!(
+        <mongodb::Client as TransactionsDB<MockProof>>::get_transaction(
+            &client,
+            &selected_transaction.hash,
+        )
+        .await
+        .expect("selected transaction should still exist after db cleanup pending resume")
+        .lifecycle,
+        TxLifecycle::Mempool
+    );
+    assert_eq!(
+        <mongodb::Client as TransactionsDB<MockProof>>::get_transaction(
+            &client,
+            &included_transaction.hash,
+        )
+        .await
+        .expect("included transaction should still exist after db cleanup pending resume")
+        .lifecycle,
+        TxLifecycle::Mempool
+    );
+    assert_eq!(
+        client
+            .database(DB)
+            .collection::<Document>(DEPOSIT_COLLECTION)
+            .count_documents(doc! { "reserved": true })
+            .await
+            .expect("count reserved deposits after db cleanup pending resume"),
+        0
+    );
+    assert_eq!(
+        <mongodb::Client as CommitmentTree<Fr254>>::get_root(&client)
+            .await
+            .expect("read commitment root after db cleanup pending resume"),
+        zero_commitment_root
+    );
+    assert_eq!(
+        <mongodb::Client as MutableTree<Fr254>>::get_root(
+            &client,
+            <mongodb::Client as HistoricRootTree<Fr254>>::TREE_NAME,
+        )
+        .await
+        .expect("read historic root after db cleanup pending resume"),
+        zero_historic_root
+    );
+    assert_eq!(
+        <mongodb::Client as MutableTree<Fr254>>::get_root(
+            &client,
+            <mongodb::Client as NullifierTree<Fr254>>::TREE_NAME,
+        )
+        .await
+        .expect("read nullifier root after db cleanup pending resume"),
+        zero_nullifier_root
+    );
+}
+
+#[tokio::test]
+async fn bootstrap_resumes_startup_replay_reset_from_auxiliary_cleanup_pending_marker() {
+    let _lock = bootstrap_test_lock().await;
+    let container = get_mongo().await;
+    let client = get_db_connection(&container).await;
+
+    ensure_proposer_db_initialized(&client).await;
+    let selected_deposit = test_reserved_deposit(120);
+    let selected_transaction = test_selected_client_transaction(121, 0);
+    let included_transaction = ClientTransactionWithMetaData {
+        lifecycle: TxLifecycle::Included { block_l2: 0 },
+        ..test_selected_client_transaction(131, 0)
+    };
+
+    <mongodb::Client as TransactionsDB<MockProof>>::set_mempool_deposits(
+        &client,
+        vec![selected_deposit],
+    )
+    .await
+    .expect("store reserved deposit before auxiliary cleanup resume");
+    client
+        .store_transaction(selected_transaction.clone())
+        .await
+        .expect("store selected transaction before auxiliary cleanup resume");
+    client
+        .store_transaction(included_transaction.clone())
+        .await
+        .expect("store included transaction before auxiliary cleanup resume");
+
+    persist_startup_replay_reset_marker(&client, StartupReplayResetPhase::AuxiliaryCleanupPending)
+        .await;
+
+    MockNightfallContract::set_onchain_next_block(0);
+    reset_runtime_bootstrap_state().await;
+
+    bootstrap_proposer_startup_state_with_db::<MockNightfallContract>(&client, false)
+        .await
+        .expect("bootstrap should resume startup replay reset from auxiliary cleanup marker");
+
+    assert_eq!(client.get_startup_replay_reset_marker().await, None);
+    assert_eq!(
+        <mongodb::Client as TransactionsDB<MockProof>>::get_transaction(
+            &client,
+            &selected_transaction.hash,
+        )
+        .await
+        .expect("selected transaction should still exist after auxiliary cleanup resume")
+        .lifecycle,
+        TxLifecycle::Mempool
+    );
+    assert_eq!(
+        <mongodb::Client as TransactionsDB<MockProof>>::get_transaction(
+            &client,
+            &included_transaction.hash,
+        )
+        .await
+        .expect("included transaction should still exist after auxiliary cleanup resume")
+        .lifecycle,
+        TxLifecycle::Mempool
+    );
+    assert_eq!(
+        client
+            .database(DB)
+            .collection::<Document>(DEPOSIT_COLLECTION)
+            .count_documents(doc! { "reserved": true })
+            .await
+            .expect("count reserved deposits after auxiliary cleanup resume"),
+        0
     );
 }
 

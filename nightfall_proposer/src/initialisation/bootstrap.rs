@@ -1,4 +1,5 @@
 use super::{
+    cleanup::resume_startup_replay_reset_if_needed,
     consistency::{
         ahead_of_chain_error, missing_stored_block_error,
         startup_legacy_transaction_migration_error, validate_startup_proposer_state_consistency,
@@ -17,7 +18,7 @@ use crate::{
     drivers::blockchain::nightfall_event_listener::get_synchronisation_status,
     ports::{
         contracts::NightfallContract,
-        db::{BlockStorageDB, RestoreJournalDB, SyncStateDB},
+        db::{BlockStorageDB, RestoreJournalDB, StartupReplayResetMarkerDB, SyncStateDB},
     },
     services::snapshot_scheduler::initialize_snapshot_scheduler_state,
 };
@@ -67,6 +68,11 @@ where
                 "Proposer restore recovery failed before bootstrap: {error}"
             ));
         }
+    }
+    if resume_startup_replay_reset_if_needed(db).await? {
+        warn!(
+            "Proposer startup resumed an interrupted startup replay reset before bootstrap validation"
+        );
     }
     if initialize_snapshot_scheduler {
         if let Err(error) = initialize_snapshot_scheduler_state().await {
@@ -193,6 +199,12 @@ pub(super) async fn recover_then_initialize_proposer_db(db: &Client) -> Result<(
                 "Proposer restore recovery failed before startup initialisation: {error}"
             ));
         }
+    }
+    if let Some(marker) = db.get_startup_replay_reset_marker().await {
+        warn!(
+            "Detected startup replay reset marker in phase {:?} during proposer startup initialisation; bootstrap will resume reset before validation",
+            marker.phase
+        );
     }
     ensure_proposer_db_initialized(db).await;
     Ok(())

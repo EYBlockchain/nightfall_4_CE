@@ -1,22 +1,23 @@
 use super::consistency::startup_local_state_cleanup_error;
 use crate::{
-    domain::entities::SyncState,
+    domain::entities::{StartupReplayResetMarker, StartupReplayResetPhase, SyncState},
     driven::db::{
         client_transaction_state::{
+            restore_all_included_transactions_to_mempool,
             restore_all_selected_transactions_to_mempool,
             restore_selected_transactions_to_mempool_after_block,
         },
         mongo_db::{StoredBlock, DB, DEPOSIT_COLLECTION, PROPOSED_BLOCKS_COLLECTION},
     },
     ports::{
-        db::{BlockStorageDB, PendingBlockDB, SyncStateDB},
+        db::{BlockStorageDB, PendingBlockDB, StartupReplayResetMarkerDB, SyncStateDB},
         trees::{CommitmentTree, HistoricRootTree, NullifierTree},
     },
 };
 use ark_bn254::Fr as Fr254;
 use lib::merkle_trees::trees::{MutableTree, TreeMetadata};
 use mongodb::{
-    bson::{doc, Document},
+    bson::{doc, DateTime, Document},
     Client,
 };
 use std::collections::HashSet;
@@ -137,6 +138,10 @@ pub(super) async fn startup_tree_replay_reset_candidate(
     client: &Client,
     sync_state: Option<&SyncState>,
 ) -> Result<bool, String> {
+    if client.get_startup_replay_reset_marker().await.is_some() {
+        return Ok(true);
+    }
+
     let pending_blocks = client.get_all_pending_blocks().await.ok_or_else(|| {
         startup_local_state_cleanup_error(
             "Could not inspect proposer PendingBlocks while evaluating startup tree recovery.",
@@ -176,34 +181,7 @@ pub(super) async fn startup_tree_replay_reset_candidate(
     }
 }
 
-pub(super) async fn reset_proposer_state_for_startup_replay(client: &Client) -> Result<(), String> {
-    let mut session = client.start_session().await.map_err(|error| {
-        startup_local_state_cleanup_error(&format!(
-            "Could not start MongoDB session for startup replay reset: {error}"
-        ))
-    })?;
-    let client_for_cleanup = client.clone();
-    session
-        .start_transaction()
-        .and_run2(async move |session| {
-            client_for_cleanup
-                .delete_sync_state_with_session(session)
-                .await?;
-            client_for_cleanup
-                .delete_all_blocks_with_session(session)
-                .await?;
-            client_for_cleanup
-                .delete_all_pending_blocks_with_session(session)
-                .await?;
-            Ok::<(), mongodb::error::Error>(())
-        })
-        .await
-        .map_err(|error| {
-            startup_local_state_cleanup_error(&format!(
-                "Could not clear proposer canonical state for startup replay reset: {error}"
-            ))
-        })?;
-
+async fn reset_trees_for_startup_replay(client: &Client) -> Result<(), String> {
     <Client as MutableTree<Fr254>>::reset_mutable_tree(
         client,
         <Client as CommitmentTree<Fr254>>::TREE_NAME,
@@ -282,6 +260,122 @@ pub(super) async fn reset_proposer_state_for_startup_replay(client: &Client) -> 
     Ok(())
 }
 
+async fn advance_startup_replay_reset_marker(
+    client: &Client,
+    marker: &StartupReplayResetMarker,
+    phase: StartupReplayResetPhase,
+) -> Result<StartupReplayResetMarker, String> {
+    let next_marker = marker.with_phase(phase, DateTime::now());
+    client
+        .upsert_startup_replay_reset_marker(&next_marker)
+        .await
+        .map_err(|error| {
+            startup_local_state_cleanup_error(&format!(
+                "Could not update startup replay reset marker: {error}"
+            ))
+        })?;
+    Ok(next_marker)
+}
+
+async fn begin_startup_replay_reset(client: &Client) -> Result<StartupReplayResetMarker, String> {
+    if let Some(marker) = client.get_startup_replay_reset_marker().await {
+        return Ok(marker);
+    }
+
+    let marker =
+        StartupReplayResetMarker::new(StartupReplayResetPhase::DbCleanupPending, DateTime::now());
+    client
+        .upsert_startup_replay_reset_marker(&marker)
+        .await
+        .map_err(|error| {
+            startup_local_state_cleanup_error(&format!(
+                "Could not persist startup replay reset marker: {error}"
+            ))
+        })?;
+    Ok(marker)
+}
+
+async fn apply_startup_replay_db_cleanup(
+    client: &Client,
+    marker: &StartupReplayResetMarker,
+) -> Result<StartupReplayResetMarker, String> {
+    let mut session = client.start_session().await.map_err(|error| {
+        startup_local_state_cleanup_error(&format!(
+            "Could not start MongoDB session for startup replay reset: {error}"
+        ))
+    })?;
+    let client_for_cleanup = client.clone();
+    let next_marker = marker.with_phase(StartupReplayResetPhase::DbCleanupApplied, DateTime::now());
+    let marker_for_cleanup = next_marker.clone();
+    session
+        .start_transaction()
+        .and_run2(async move |session| {
+            client_for_cleanup
+                .delete_sync_state_with_session(session)
+                .await?;
+            client_for_cleanup
+                .delete_all_blocks_with_session(session)
+                .await?;
+            client_for_cleanup
+                .delete_all_pending_blocks_with_session(session)
+                .await?;
+            client_for_cleanup
+                .upsert_startup_replay_reset_marker_with_session(&marker_for_cleanup, session)
+                .await?;
+            Ok::<(), mongodb::error::Error>(())
+        })
+        .await
+        .map_err(|error| {
+            startup_local_state_cleanup_error(&format!(
+                "Could not clear proposer canonical state for startup replay reset: {error}"
+            ))
+        })?;
+
+    Ok(next_marker)
+}
+
+pub(super) async fn complete_startup_replay_reset(client: &Client) -> Result<(), String> {
+    let mut marker = begin_startup_replay_reset(client).await?;
+
+    loop {
+        marker = match marker.phase {
+            StartupReplayResetPhase::DbCleanupPending => {
+                apply_startup_replay_db_cleanup(client, &marker).await?
+            }
+            StartupReplayResetPhase::DbCleanupApplied => {
+                reset_trees_for_startup_replay(client).await?;
+                advance_startup_replay_reset_marker(
+                    client,
+                    &marker,
+                    StartupReplayResetPhase::AuxiliaryCleanupPending,
+                )
+                .await?
+            }
+            StartupReplayResetPhase::AuxiliaryCleanupPending => {
+                cleanup_non_canonical_startup_state(client, None).await?;
+                client
+                    .delete_startup_replay_reset_marker()
+                    .await
+                    .map_err(|error| {
+                        startup_local_state_cleanup_error(&format!(
+                            "Could not clear startup replay reset marker after successful recovery: {error}"
+                        ))
+                    })?;
+                return Ok(());
+            }
+        };
+    }
+}
+
+pub(super) async fn resume_startup_replay_reset_if_needed(client: &Client) -> Result<bool, String> {
+    if client.get_startup_replay_reset_marker().await.is_none() {
+        return Ok(false);
+    }
+
+    complete_startup_replay_reset(client).await?;
+    Ok(true)
+}
+
 pub(super) async fn cleanup_non_canonical_startup_state(
     client: &Client,
     sync_state: Option<&SyncState>,
@@ -297,6 +391,9 @@ pub(super) async fn cleanup_non_canonical_startup_state(
         }
         None => {
             let _ = restore_all_selected_transactions_to_mempool(client)
+                .await
+                .map_err(|error| startup_local_state_cleanup_error(&error))?;
+            let _ = restore_all_included_transactions_to_mempool(client)
                 .await
                 .map_err(|error| startup_local_state_cleanup_error(&error))?;
         }

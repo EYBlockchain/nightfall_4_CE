@@ -229,6 +229,49 @@ impl RestoreJournal {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum StartupReplayResetPhase {
+    DbCleanupPending,
+    DbCleanupApplied,
+    AuxiliaryCleanupPending,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct StartupReplayResetMarker {
+    #[serde(rename = "_id")]
+    pub id: String,
+    pub schema_version: u32,
+    pub phase: StartupReplayResetPhase,
+    pub started_at: DateTime,
+    pub updated_at: DateTime,
+}
+
+impl StartupReplayResetMarker {
+    pub const DOCUMENT_ID: &'static str = "proposer";
+    pub const SCHEMA_VERSION: u32 = 1;
+
+    pub fn new(phase: StartupReplayResetPhase, now: DateTime) -> Self {
+        Self {
+            id: Self::DOCUMENT_ID.to_string(),
+            schema_version: Self::SCHEMA_VERSION,
+            phase,
+            started_at: now,
+            updated_at: now,
+        }
+    }
+
+    pub fn with_phase(&self, phase: StartupReplayResetPhase, now: DateTime) -> Self {
+        Self {
+            id: self.id.clone(),
+            schema_version: self.schema_version,
+            phase,
+            started_at: self.started_at,
+            updated_at: now,
+        }
+    }
+}
+
 impl DepositDatawithFee {
     #[allow(dead_code)]
     pub fn hash(&self) -> Result<Vec<u32>, SerializationError> {

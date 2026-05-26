@@ -1,6 +1,6 @@
 use super::cleanup::{
-    cleanup_non_canonical_startup_state, highest_stored_block_number, indexed_leaves_count,
-    reserved_deposit_count, reset_proposer_state_for_startup_replay,
+    cleanup_non_canonical_startup_state, complete_startup_replay_reset,
+    highest_stored_block_number, indexed_leaves_count, reserved_deposit_count,
     startup_tree_replay_reset_candidate, tree_sub_tree_count,
 };
 use crate::{
@@ -249,8 +249,7 @@ pub(super) async fn validate_startup_proposer_state_consistency(
              speculative startup state was still present. Clearing local proposer canonical state \
              and resetting trees so listener replay can rebuild canonically: {error}"
         );
-        reset_proposer_state_for_startup_replay(client).await?;
-        cleanup_non_canonical_startup_state(client, None).await?;
+        complete_startup_replay_reset(client).await?;
         return validate_live_proposer_state_consistency(client).await;
     }
 

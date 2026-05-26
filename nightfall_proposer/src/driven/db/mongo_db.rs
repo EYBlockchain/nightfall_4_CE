@@ -1,16 +1,17 @@
 use crate::{
     domain::entities::{
         ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot, PendingBlock,
-        RestoreJournal, SyncState, TransferReceipt, TransferReceiptStatus, TxHashBytes,
-        TxLifecycle,
+        RestoreJournal, StartupReplayResetMarker, SyncState, TransferReceipt,
+        TransferReceiptStatus, TxHashBytes, TxLifecycle,
     },
     driven::db::client_transaction_state::{
         selected_or_included_transactions_filter, selected_transactions_filter,
         selected_transactions_filter_for_block,
     },
     ports::db::{
-        BlockStorageDB, HistoricRootsDB, PendingBlockDB, RestoreJournalDB, SyncStateDB,
-        TransactionsDB, TransferReceiptDB, TransferReceiptStoreError,
+        BlockStorageDB, HistoricRootsDB, PendingBlockDB, RestoreJournalDB,
+        StartupReplayResetMarkerDB, SyncStateDB, TransactionsDB, TransferReceiptDB,
+        TransferReceiptStoreError,
     },
 };
 use alloy::primitives::Address;
@@ -81,6 +82,7 @@ pub const DEPOSIT_COLLECTION: &str = "Deposits";
 pub const PROPOSED_BLOCKS_COLLECTION: &str = "ProposedBlocks";
 pub const SYNC_STATE_COLLECTION: &str = "sync_state";
 pub const RESTORE_JOURNAL_COLLECTION: &str = "restore_journal";
+pub const STARTUP_REPLAY_RESET_MARKER_COLLECTION: &str = "startup_replay_reset_marker";
 const TRANSFER_RECEIPTS_COLLECTION: &str = "TransferReceipts";
 const PENDING_BLOCKS_COLLECTION: &str = "PendingBlocks";
 
@@ -832,6 +834,73 @@ impl RestoreJournalDB for mongodb::Client {
         self.database(DB)
             .collection::<RestoreJournal>(RESTORE_JOURNAL_COLLECTION)
             .delete_one(doc! { "_id": RestoreJournal::DOCUMENT_ID })
+            .await?;
+        Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl StartupReplayResetMarkerDB for mongodb::Client {
+    async fn upsert_startup_replay_reset_marker(
+        &self,
+        marker: &StartupReplayResetMarker,
+    ) -> Result<(), mongodb::error::Error> {
+        let result = self
+            .database(DB)
+            .collection::<StartupReplayResetMarker>(STARTUP_REPLAY_RESET_MARKER_COLLECTION)
+            .replace_one(
+                doc! { "_id": StartupReplayResetMarker::DOCUMENT_ID },
+                marker,
+            )
+            .upsert(true)
+            .await?;
+
+        if result.matched_count == 0 && result.upserted_id.is_none() {
+            return Err(mongodb::error::Error::custom(
+                "Failed to upsert proposer startup_replay_reset_marker",
+            ));
+        }
+
+        Ok(())
+    }
+
+    async fn upsert_startup_replay_reset_marker_with_session(
+        &self,
+        marker: &StartupReplayResetMarker,
+        session: &mut mongodb::ClientSession,
+    ) -> Result<(), mongodb::error::Error> {
+        let result = self
+            .database(DB)
+            .collection::<StartupReplayResetMarker>(STARTUP_REPLAY_RESET_MARKER_COLLECTION)
+            .replace_one(
+                doc! { "_id": StartupReplayResetMarker::DOCUMENT_ID },
+                marker,
+            )
+            .upsert(true)
+            .session(&mut *session)
+            .await?;
+
+        if result.matched_count == 0 && result.upserted_id.is_none() {
+            return Err(mongodb::error::Error::custom(
+                "Failed to upsert proposer startup_replay_reset_marker",
+            ));
+        }
+
+        Ok(())
+    }
+
+    async fn get_startup_replay_reset_marker(&self) -> Option<StartupReplayResetMarker> {
+        self.database(DB)
+            .collection::<StartupReplayResetMarker>(STARTUP_REPLAY_RESET_MARKER_COLLECTION)
+            .find_one(doc! { "_id": StartupReplayResetMarker::DOCUMENT_ID })
+            .await
+            .ok()?
+    }
+
+    async fn delete_startup_replay_reset_marker(&self) -> Result<(), mongodb::error::Error> {
+        self.database(DB)
+            .collection::<StartupReplayResetMarker>(STARTUP_REPLAY_RESET_MARKER_COLLECTION)
+            .delete_one(doc! { "_id": StartupReplayResetMarker::DOCUMENT_ID })
             .await?;
         Ok(())
     }
