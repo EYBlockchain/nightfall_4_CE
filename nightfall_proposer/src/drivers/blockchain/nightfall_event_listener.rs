@@ -481,9 +481,8 @@ where
         Ok(block_number) => block_number,
         Err(error) => {
             warn!(
-                "Listener catch-up could not fetch the current on-chain L2 block number: {}. \
-                 Keeping proposer desynchronised until replay can continue",
-                error
+                "Listener catch-up could not fetch the current on-chain L2 block number: \
+                 {error}. Keeping proposer desynchronised until replay can continue"
             );
             return;
         }
@@ -502,10 +501,10 @@ where
 
     if current_layer2_block_number != current_onchain_layer2_block_number {
         warn!(
-            "Listener catch-up reached in-memory next expected L2 block {} but on-chain next \
-             expected L2 block is {}. Keeping proposer desynchronised until replay fully \
-             catches up",
-            current_layer2_block_number, current_onchain_layer2_block_number
+            "Listener catch-up reached in-memory next expected L2 block \
+             {current_layer2_block_number} but on-chain next expected L2 block is \
+             {current_onchain_layer2_block_number}. Keeping proposer desynchronised until replay \
+             fully catches up"
         );
         return;
     }
@@ -976,8 +975,8 @@ where
         }
     };
     debug!(
-        "Prepared proposer listener recovery runtime state. Outer retry loop will resume from L1 block {}",
-        next_listener_start_block
+        "Prepared proposer listener recovery runtime state. Outer retry loop will resume from \
+         L1 block {next_listener_start_block}"
     );
 }
 

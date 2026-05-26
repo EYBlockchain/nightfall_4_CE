@@ -368,8 +368,8 @@ where
                 Ok(result) => result,
                 Err(error) => {
                     warn!(
-                        "Failed lifecycle promotion to Included for proposer client transaction {:?} at L2 block {}: {}",
-                        hash, block_l2, error
+                        "Failed lifecycle promotion to Included for proposer client transaction \
+                         {hash:?} at L2 block {block_l2}: {error}"
                     );
                     return None;
                 }
