@@ -451,26 +451,21 @@ where
 
     let replay_catch_up_pending = is_listener_replay_catch_up_pending();
 
-    // if the current block number is exactly one, then we're automatically synchronised because we've seen one
-    // blockproposed event (or we wouldn't be here) and that must also be the only one
-    if current_block_number_in_contract == I256::ONE && !replay_catch_up_pending {
-        debug!("Synchronised with blockchain");
-        sync_status.set_synchronised();
-    }
-
     // next, we'll unpack the commitments and add them to the proposer's commitment tree
     // normally, we don't update the trees if we're the proposer, because we'll have done it when we proposed the block
     // but if we're not in sync then we need to get this information from the blockchain.
     // There's one more case, where this is the first block, so we must be synchronised in the sense that our block count is the
     // same as the blockchain's block count, but we've lost the commitment data. In this case, we need to update the trees too.
     // If we don't have the data from the first block, out commitment root will be zero.
+    let first_block_is_already_caught_up =
+        current_block_number_in_contract == I256::ONE && !replay_catch_up_pending;
     let commitment_root = <Client as CommitmentTree<Fr254>>::get_root(db)
         .await
         .map_err(|_| {
             EventHandlerError::IOError("Could not retrieve commitment root".to_string())
         })?;
     let should_refresh_local_trees = our_address != sender_address
-        || !sync_status.is_synchronised()
+        || (!sync_status.is_synchronised() && !first_block_is_already_caught_up)
         || commitment_root.0.is_zero();
     let commitments = if should_refresh_local_trees {
         blk.transactions
