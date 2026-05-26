@@ -45,6 +45,8 @@ use std::{collections::HashSet, sync::Mutex};
 
 #[cfg(test)]
 static ENABLED_FAILPOINTS: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+#[cfg(test)]
+static SNAPSHOT_TEST_LOCK: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
 
 #[cfg(test)]
 fn enabled_failpoints() -> &'static Mutex<HashSet<String>> {
@@ -75,6 +77,14 @@ fn expected_historic_root_sub_tree_count(last_applied_l2_block: u64) -> Result<u
 
 fn proposer_state_maintenance_lock() -> &'static tokio::sync::Mutex<()> {
     PROPOSER_STATE_MAINTENANCE_LOCK.get_or_init(|| tokio::sync::Mutex::new(()))
+}
+
+#[cfg(test)]
+pub(crate) async fn snapshot_test_lock() -> tokio::sync::MutexGuard<'static, ()> {
+    SNAPSHOT_TEST_LOCK
+        .get_or_init(|| tokio::sync::Mutex::new(()))
+        .lock()
+        .await
 }
 
 pub(crate) fn try_acquire_proposer_state_maintenance_guard(
@@ -935,6 +945,13 @@ pub async fn find_latest_valid_proposer_snapshot(
         }
 
         let snapshot_dir = entry.path();
+        let Some(snapshot_dir_name) = snapshot_dir.file_name().and_then(|name| name.to_str())
+        else {
+            continue;
+        };
+        if snapshot_dir_name.starts_with(TEMP_SNAPSHOT_DIR_PREFIX) {
+            continue;
+        }
         let manifest = match load_and_validate_snapshot_manifest(&snapshot_dir).await {
             Ok(manifest) => manifest,
             Err(error) => {
@@ -2047,7 +2064,7 @@ mod test {
     };
     use tokio::sync::{Mutex, OnceCell};
 
-    async fn snapshot_test_lock() -> tokio::sync::MutexGuard<'static, ()> {
+    pub(crate) async fn snapshot_test_lock() -> tokio::sync::MutexGuard<'static, ()> {
         static LOCK: OnceCell<Mutex<()>> = OnceCell::const_new();
         LOCK.get_or_init(|| async { Mutex::new(()) })
             .await
@@ -3086,6 +3103,91 @@ mod test {
             .expect("snapshot should exist");
         assert_eq!(selected_manifest.last_applied_l2_block, 7);
         assert_eq!(selected_manifest.snapshot_id, second_manifest.snapshot_id);
+
+        fs::remove_dir_all(snapshot_root)
+            .await
+            .expect("cleanup snapshot directory");
+    }
+
+    #[tokio::test]
+    async fn find_latest_valid_proposer_snapshot_ignores_temp_snapshot_dirs() {
+        let _snapshot_test_lock = snapshot_test_lock().await;
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+        initialize_snapshot_test_trees(&client).await;
+
+        let canonical_block = StoredBlock {
+            layer2_block_number: 5,
+            commitments: vec!["0xaaa".to_string()],
+            proposer_address: Address::from([5u8; 20]),
+        };
+        client
+            .store_block(&canonical_block)
+            .await
+            .expect("store canonical block");
+        persist_sync_state(
+            &client,
+            &SyncState::new(
+                canonical_block.layer2_block_number,
+                canonical_block.hash().to_hex_string(),
+                L1Ref {
+                    block_number: 150,
+                    tx_hash: TxHash::from([5u8; 32]),
+                    log_index: 0,
+                },
+                mongodb::bson::DateTime::now(),
+            ),
+        )
+        .await;
+
+        let snapshot_root = std::env::temp_dir().join(format!(
+            "nf4-proposer-temp-discovery-test-{}",
+            mongodb::bson::DateTime::now().timestamp_millis()
+        ));
+        let manifest = create_proposer_snapshot(&client, &snapshot_root)
+            .await
+            .expect("create canonical snapshot");
+        let canonical_snapshot_dir = snapshot_root.join(&manifest.snapshot_id);
+
+        let temp_snapshot_dir = snapshot_root.join(format!(
+            "{TEMP_SNAPSHOT_DIR_PREFIX}{}-{}",
+            manifest.last_applied_l2_block + 1,
+            manifest.snapshot_id
+        ));
+        fs::create_dir_all(&temp_snapshot_dir)
+            .await
+            .expect("create temp snapshot dir");
+        for collection in &manifest.collections {
+            fs::copy(
+                canonical_snapshot_dir.join(&collection.file_name),
+                temp_snapshot_dir.join(&collection.file_name),
+            )
+            .await
+            .expect("copy collection snapshot into temp dir");
+        }
+        let mut temp_manifest = manifest.clone();
+        temp_manifest.snapshot_id = temp_snapshot_dir
+            .file_name()
+            .and_then(|name| name.to_str())
+            .expect("temp snapshot dir name should be valid utf-8")
+            .to_string();
+        temp_manifest.last_applied_l2_block += 1;
+        write_manifest(&temp_snapshot_dir, &temp_manifest).await;
+
+        let (selected_dir, selected_manifest) = find_latest_valid_proposer_snapshot(
+            &snapshot_root,
+            temp_manifest.last_applied_l2_block,
+        )
+        .await
+        .expect("discover snapshot")
+        .expect("snapshot should exist");
+
+        assert_eq!(selected_dir, canonical_snapshot_dir);
+        assert_eq!(selected_manifest.snapshot_id, manifest.snapshot_id);
+        assert_eq!(
+            selected_manifest.last_applied_l2_block,
+            manifest.last_applied_l2_block
+        );
 
         fs::remove_dir_all(snapshot_root)
             .await

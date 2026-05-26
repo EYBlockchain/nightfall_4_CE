@@ -960,7 +960,7 @@ mod tests {
             ensure_deposit_indexes, StoredBlock, DB, PROPOSED_BLOCKS_COLLECTION,
         },
         driven::db::snapshot::{
-            create_proposer_snapshot, load_proposer_snapshot_into_shadow,
+            create_proposer_snapshot, load_proposer_snapshot_into_shadow, snapshot_test_lock,
             swap_proposer_shadow_into_live,
         },
         drivers::blockchain::block_assembly::{
@@ -1552,6 +1552,7 @@ mod tests {
     #[tokio::test]
     async fn continue_after_failed_snapshot_restore_aborts_when_recovery_leaves_restore_state() {
         let _lock = event_listener_test_lock().await;
+        let _snapshot_lock = snapshot_test_lock().await;
         let container = get_mongo().await;
         let client = get_db_connection(&container).await;
 
