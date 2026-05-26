@@ -574,9 +574,9 @@ impl CommitmentDB<Fr254, CommitmentEntry> for Client {
         Ok(reserved_commitments)
     }
 
-    async fn get_available_commitments(&self, nf_token_id: Fr254) -> Option<Vec<CommitmentEntry>> {
+    async fn get_available_commitments(&self, nf_slot_id: Fr254) -> Option<Vec<CommitmentEntry>> {
         let filter = doc! {
-            "preimage.nf_token_id": nf_token_id.to_hex_string(),
+            "preimage.nf_slot_id": nf_slot_id.to_hex_string(),
             "status": "Unspent"
         };
         let mut cursor = self

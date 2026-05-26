@@ -33,13 +33,13 @@ const MAX_POSSIBLE_COMMITMENTS: usize = 2;
 // The function returns exactly MAX_POSSIBLE_COMMITMENTS preimages, with unused slots
 // filled with Preimage::default().
 pub async fn find_usable_commitments(
-    target_token_id: Fr254,
+    target_slot_id: Fr254,
     target_value: Fr254,
     db: &Client,
 ) -> Result<[Preimage; MAX_POSSIBLE_COMMITMENTS], &'static str> {
     // Verify enough commitments and get sorted available commitments
     let (avaliable_sorted_commitments, min_num_c) =
-        verify_enough_commitments(target_token_id, target_value, db).await?;
+        verify_enough_commitments(target_slot_id, target_value, db).await?;
 
     // Determine max number of commitments to use
     let max_num_c = avaliable_sorted_commitments
@@ -247,23 +247,22 @@ fn calculate_minimum_commitments(
 // Fetch and filter on-chain commitments
 async fn fetch_on_chain_commitments(
     db: &Client,
-    token_id: Fr254,
+    slot_id: Fr254,
 ) -> Result<Vec<Preimage>, &'static str> {
     let commitments = db
-        .get_available_commitments(token_id)
+        .get_available_commitments(slot_id)
         .await
         .ok_or("No commmitments found in the db")?;
     Ok(commitments.into_iter().map(|c| c.get_preimage()).collect())
 }
 
 async fn verify_enough_commitments(
-    target_token_id: Fr254,
+    target_slot_id: Fr254,
     target_value: Fr254,
     db: &Client,
 ) -> Result<(std::vec::Vec<Preimage>, usize), &'static str> {
     // Fetch on-chain commitments for the non-fee component
-    let mut on_chain_old_value_commitments =
-        fetch_on_chain_commitments(db, target_token_id).await?;
+    let mut on_chain_old_value_commitments = fetch_on_chain_commitments(db, target_slot_id).await?;
     on_chain_old_value_commitments.sort_by_key(|a| a.get_value());
     trace!("On-chain commitments for value: {on_chain_old_value_commitments:?}");
 
@@ -290,6 +289,15 @@ mod test {
     use mongodb::bson::doc;
     use url::Host;
 
+    fn test_preimage(value: u64, id: u64) -> Preimage {
+        Preimage {
+            value: Fr254::from(value),
+            nf_token_id: Fr254::from(id),
+            nf_slot_id: Fr254::from(id),
+            ..Default::default()
+        }
+    }
+
     #[tokio::test]
     async fn test_find_usable_commitments_success() {
         // 1. Setup: start Mongo test container and get DB connection
@@ -308,11 +316,7 @@ mod test {
         // Insert commitments for token_id = 1 (value commitments)
         let value_commitments = vec![
             CommitmentEntry::new(
-                Preimage {
-                    value: Fr254::from(5u64),
-                    nf_token_id: Fr254::from(1u64),
-                    ..Default::default()
-                },
+                test_preimage(5, 1),
                 Fr254::default(),
                 CommitmentStatus::Unspent,
                 TokenType::ERC1155,
@@ -320,11 +324,7 @@ mod test {
                 None,
             ),
             CommitmentEntry::new(
-                Preimage {
-                    value: Fr254::from(6u64),
-                    nf_token_id: Fr254::from(1u64),
-                    ..Default::default()
-                },
+                test_preimage(6, 1),
                 Fr254::default(),
                 CommitmentStatus::Unspent,
                 TokenType::ERC1155,
@@ -332,11 +332,7 @@ mod test {
                 None,
             ),
             CommitmentEntry::new(
-                Preimage {
-                    value: Fr254::from(7u64),
-                    nf_token_id: Fr254::from(1u64),
-                    ..Default::default()
-                },
+                test_preimage(7, 1),
                 Fr254::default(),
                 CommitmentStatus::Unspent,
                 TokenType::ERC1155,
@@ -383,11 +379,7 @@ mod test {
         // Insert commitments for token_id = 2 (fee commitments)
         let fee_commitments = vec![
             CommitmentEntry::new(
-                Preimage {
-                    value: Fr254::from(2u64),
-                    nf_token_id: Fr254::from(2u64),
-                    ..Default::default()
-                },
+                test_preimage(2, 2),
                 Fr254::default(),
                 CommitmentStatus::Unspent,
                 TokenType::ERC1155,
@@ -395,11 +387,7 @@ mod test {
                 None,
             ),
             CommitmentEntry::new(
-                Preimage {
-                    value: Fr254::from(12u64),
-                    nf_token_id: Fr254::from(2u64),
-                    ..Default::default()
-                },
+                test_preimage(12, 2),
                 Fr254::default(),
                 CommitmentStatus::Unspent,
                 TokenType::ERC1155,
@@ -407,11 +395,7 @@ mod test {
                 None,
             ),
             CommitmentEntry::new(
-                Preimage {
-                    value: Fr254::from(13u64),
-                    nf_token_id: Fr254::from(2u64),
-                    ..Default::default()
-                },
+                test_preimage(13, 2),
                 Fr254::default(),
                 CommitmentStatus::Unspent,
                 TokenType::ERC1155,
@@ -460,11 +444,7 @@ mod test {
             let commitments = vec![
                 // Value commitments for nf_token_id: 1
                 CommitmentEntry::new(
-                    Preimage {
-                        value: Fr254::from(1u64),
-                        nf_token_id: Fr254::from(1u64),
-                        ..Default::default()
-                    },
+                    test_preimage(1, 1),
                     Fr254::default(),
                     CommitmentStatus::Unspent,
                     TokenType::ERC1155,
@@ -472,11 +452,7 @@ mod test {
                     None,
                 ),
                 CommitmentEntry::new(
-                    Preimage {
-                        value: Fr254::from(2u64),
-                        nf_token_id: Fr254::from(1u64),
-                        ..Default::default()
-                    },
+                    test_preimage(2, 1),
                     Fr254::default(),
                     CommitmentStatus::Unspent,
                     TokenType::ERC1155,
@@ -484,11 +460,7 @@ mod test {
                     None,
                 ),
                 CommitmentEntry::new(
-                    Preimage {
-                        value: Fr254::from(3u64),
-                        nf_token_id: Fr254::from(1u64),
-                        ..Default::default()
-                    },
+                    test_preimage(3, 1),
                     Fr254::default(),
                     CommitmentStatus::Unspent,
                     TokenType::ERC1155,
@@ -496,11 +468,7 @@ mod test {
                     None,
                 ),
                 CommitmentEntry::new(
-                    Preimage {
-                        value: Fr254::from(4u64),
-                        nf_token_id: Fr254::from(1u64),
-                        ..Default::default()
-                    },
+                    test_preimage(4, 1),
                     Fr254::default(),
                     CommitmentStatus::Unspent,
                     TokenType::ERC1155,
@@ -509,11 +477,7 @@ mod test {
                 ),
                 // Fee commitments for nf_token_id: 2
                 CommitmentEntry::new(
-                    Preimage {
-                        value: Fr254::from(1u64),
-                        nf_token_id: Fr254::from(2u64),
-                        ..Default::default()
-                    },
+                    test_preimage(1, 2),
                     Fr254::default(),
                     CommitmentStatus::Unspent,
                     TokenType::ERC1155,
@@ -521,11 +485,7 @@ mod test {
                     None,
                 ),
                 CommitmentEntry::new(
-                    Preimage {
-                        value: Fr254::from(2u64),
-                        nf_token_id: Fr254::from(2u64),
-                        ..Default::default()
-                    },
+                    test_preimage(2, 2),
                     Fr254::default(),
                     CommitmentStatus::Unspent,
                     TokenType::ERC1155,
@@ -533,11 +493,7 @@ mod test {
                     None,
                 ),
                 CommitmentEntry::new(
-                    Preimage {
-                        value: Fr254::from(5u64),
-                        nf_token_id: Fr254::from(2u64),
-                        ..Default::default()
-                    },
+                    test_preimage(5, 2),
                     Fr254::default(),
                     CommitmentStatus::Unspent,
                     TokenType::ERC1155,
@@ -545,11 +501,7 @@ mod test {
                     None,
                 ),
                 CommitmentEntry::new(
-                    Preimage {
-                        value: Fr254::from(3u64),
-                        nf_token_id: Fr254::from(2u64),
-                        ..Default::default()
-                    },
+                    test_preimage(3, 2),
                     Fr254::default(),
                     CommitmentStatus::Unspent,
                     TokenType::ERC1155,
@@ -557,11 +509,7 @@ mod test {
                     None,
                 ),
                 CommitmentEntry::new(
-                    Preimage {
-                        value: Fr254::from(6u64),
-                        nf_token_id: Fr254::from(2u64),
-                        ..Default::default()
-                    },
+                    test_preimage(6, 2),
                     Fr254::default(),
                     CommitmentStatus::Unspent,
                     TokenType::ERC1155,
@@ -648,11 +596,7 @@ mod test {
 
             let commitments = vec![
                 CommitmentEntry::new(
-                    Preimage {
-                        value: Fr254::from(5u64),
-                        nf_token_id: Fr254::from(1u64),
-                        ..Default::default()
-                    },
+                    test_preimage(5, 1),
                     Fr254::default(),
                     CommitmentStatus::Unspent,
                     TokenType::ERC1155,
@@ -660,11 +604,7 @@ mod test {
                     None,
                 ),
                 CommitmentEntry::new(
-                    Preimage {
-                        value: Fr254::from(6u64),
-                        nf_token_id: Fr254::from(1u64),
-                        ..Default::default()
-                    },
+                    test_preimage(6, 1),
                     Fr254::default(),
                     CommitmentStatus::Unspent,
                     TokenType::ERC1155,
@@ -672,11 +612,7 @@ mod test {
                     None,
                 ),
                 CommitmentEntry::new(
-                    Preimage {
-                        value: Fr254::from(7u64),
-                        nf_token_id: Fr254::from(1u64),
-                        ..Default::default()
-                    },
+                    test_preimage(7, 1),
                     Fr254::default(),
                     CommitmentStatus::Unspent,
                     TokenType::ERC1155,
@@ -739,11 +675,7 @@ mod test {
         let value_commitments = vec![
             // Only insert commitments for nf_token_id: 1
             CommitmentEntry::new(
-                Preimage {
-                    value: Fr254::from(5u64),
-                    nf_token_id: Fr254::from(1u64),
-                    ..Default::default()
-                },
+                test_preimage(5, 1),
                 Fr254::default(),
                 CommitmentStatus::Unspent,
                 TokenType::ERC1155,
@@ -751,11 +683,7 @@ mod test {
                 None,
             ),
             CommitmentEntry::new(
-                Preimage {
-                    value: Fr254::from(6u64),
-                    nf_token_id: Fr254::from(1u64),
-                    ..Default::default()
-                },
+                test_preimage(6, 1),
                 Fr254::default(),
                 CommitmentStatus::Unspent,
                 TokenType::ERC1155,
@@ -763,11 +691,7 @@ mod test {
                 None,
             ),
             CommitmentEntry::new(
-                Preimage {
-                    value: Fr254::from(7u64),
-                    nf_token_id: Fr254::from(1u64),
-                    ..Default::default()
-                },
+                test_preimage(7, 1),
                 Fr254::default(),
                 CommitmentStatus::Unspent,
                 TokenType::ERC1155,
@@ -824,11 +748,7 @@ mod test {
         let fee_commitments = vec![
             // Only insert commitments for nf_token_id: 2
             CommitmentEntry::new(
-                Preimage {
-                    value: Fr254::from(5u64),
-                    nf_token_id: Fr254::from(2u64),
-                    ..Default::default()
-                },
+                test_preimage(5, 2),
                 Fr254::default(),
                 CommitmentStatus::Unspent,
                 TokenType::ERC1155,
@@ -836,11 +756,7 @@ mod test {
                 None,
             ),
             CommitmentEntry::new(
-                Preimage {
-                    value: Fr254::from(6u64),
-                    nf_token_id: Fr254::from(2u64),
-                    ..Default::default()
-                },
+                test_preimage(6, 2),
                 Fr254::default(),
                 CommitmentStatus::Unspent,
                 TokenType::ERC1155,
@@ -848,11 +764,7 @@ mod test {
                 None,
             ),
             CommitmentEntry::new(
-                Preimage {
-                    value: Fr254::from(12u64),
-                    nf_token_id: Fr254::from(2u64),
-                    ..Default::default()
-                },
+                test_preimage(12, 2),
                 Fr254::default(),
                 CommitmentStatus::Unspent,
                 TokenType::ERC1155,
@@ -860,11 +772,7 @@ mod test {
                 None,
             ),
             CommitmentEntry::new(
-                Preimage {
-                    value: Fr254::from(2u64),
-                    nf_token_id: Fr254::from(2u64),
-                    ..Default::default()
-                },
+                test_preimage(2, 2),
                 Fr254::default(),
                 CommitmentStatus::Unspent,
                 TokenType::ERC1155,
@@ -872,11 +780,7 @@ mod test {
                 None,
             ),
             CommitmentEntry::new(
-                Preimage {
-                    value: Fr254::from(13u64),
-                    nf_token_id: Fr254::from(2u64),
-                    ..Default::default()
-                },
+                test_preimage(13, 2),
                 Fr254::default(),
                 CommitmentStatus::Unspent,
                 TokenType::ERC1155,
@@ -925,11 +829,7 @@ mod test {
 
             let commitments = vec![
                 CommitmentEntry::new(
-                    Preimage {
-                        value: Fr254::from(5u64),
-                        nf_token_id: Fr254::from(1u64),
-                        ..Default::default()
-                    },
+                    test_preimage(5, 1),
                     Fr254::default(),
                     CommitmentStatus::Unspent,
                     TokenType::ERC1155,
@@ -937,11 +837,7 @@ mod test {
                     None,
                 ),
                 CommitmentEntry::new(
-                    Preimage {
-                        value: Fr254::from(6u64),
-                        nf_token_id: Fr254::from(1u64),
-                        ..Default::default()
-                    },
+                    test_preimage(6, 1),
                     Fr254::default(),
                     CommitmentStatus::Unspent,
                     TokenType::ERC1155,
@@ -949,11 +845,7 @@ mod test {
                     None,
                 ),
                 CommitmentEntry::new(
-                    Preimage {
-                        value: Fr254::from(7u64),
-                        nf_token_id: Fr254::from(1u64),
-                        ..Default::default()
-                    },
+                    test_preimage(7, 1),
                     Fr254::default(),
                     CommitmentStatus::Unspent,
                     TokenType::ERC1155,
@@ -1002,11 +894,7 @@ mod test {
 
             let commitments = vec![
                 CommitmentEntry::new(
-                    Preimage {
-                        value: Fr254::from(5u64),
-                        nf_token_id: Fr254::from(1u64),
-                        ..Default::default()
-                    },
+                    test_preimage(5, 1),
                     Fr254::default(),
                     CommitmentStatus::Unspent,
                     TokenType::ERC1155,
@@ -1014,11 +902,7 @@ mod test {
                     None,
                 ),
                 CommitmentEntry::new(
-                    Preimage {
-                        value: Fr254::from(6u64),
-                        nf_token_id: Fr254::from(1u64),
-                        ..Default::default()
-                    },
+                    test_preimage(6, 1),
                     Fr254::default(),
                     CommitmentStatus::Unspent,
                     TokenType::ERC1155,
@@ -1026,11 +910,7 @@ mod test {
                     None,
                 ),
                 CommitmentEntry::new(
-                    Preimage {
-                        value: Fr254::from(7u64),
-                        nf_token_id: Fr254::from(1u64),
-                        ..Default::default()
-                    },
+                    test_preimage(7, 1),
                     Fr254::default(),
                     CommitmentStatus::Unspent,
                     TokenType::ERC1155,
@@ -1081,11 +961,7 @@ mod test {
 
         let commitments = vec![
             CommitmentEntry::new(
-                Preimage {
-                    value: Fr254::from(10u64),
-                    nf_token_id: Fr254::from(1u64),
-                    ..Default::default()
-                },
+                test_preimage(10, 1),
                 Fr254::default(),
                 CommitmentStatus::Unspent,
                 TokenType::ERC1155,
@@ -1093,11 +969,7 @@ mod test {
                 None,
             ),
             CommitmentEntry::new(
-                Preimage {
-                    value: Fr254::from(20u64),
-                    nf_token_id: Fr254::from(1u64),
-                    ..Default::default()
-                },
+                test_preimage(20, 1),
                 Fr254::default(),
                 CommitmentStatus::Unspent,
                 TokenType::ERC1155,
