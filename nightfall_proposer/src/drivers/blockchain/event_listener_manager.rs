@@ -41,7 +41,16 @@ where
 pub async fn ensure_running<P: Proof, E: ProvingEngine<P>, N: NightfallContract>() {
     let lock = listener_lock().await;
     let mut guard = lock.write().await;
-    if guard.is_none() {
+    let should_spawn = match guard.as_ref() {
+        None => true,
+        Some(handle) if handle.is_finished() => {
+            warn!("Event listener task had already stopped; spawning a replacement.");
+            true
+        }
+        Some(_) => false,
+    };
+
+    if should_spawn {
         *guard = Some(spawn_listener::<P, E, N>().await);
         info!("Event listener started.");
     }

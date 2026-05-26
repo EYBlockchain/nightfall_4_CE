@@ -581,7 +581,10 @@ where
             restart_event_listener::<P, E, N>(restart_start_block).await;
             Err(EventHandlerError::StreamTerminated)
         }
-        Err(error) => panic!("Error processing event: {error:?}"),
+        Err(error) => {
+            warn!("Event listener hit a recoverable processing error: {error:?}");
+            Err(error)
+        }
     }
 }
 
