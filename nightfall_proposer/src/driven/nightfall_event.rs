@@ -15,7 +15,7 @@ use crate::{
         trees::{CommitmentTree, HistoricRootTree, NullifierTree},
     },
     services::assemble_block::{cleanup_selected_transactions, release_selected_transactions},
-    services::selected_transactions::reconcile_orphaned_selected_transactions,
+    services::selected_transactions::reconcile_active_client_transaction_lifecycle,
     services::snapshot_scheduler::maybe_schedule_snapshot_for_applied_block,
 };
 use alloy::primitives::{TxHash, I256};
@@ -44,6 +44,9 @@ use std::{
 };
 use tokio::sync::{OnceCell, RwLock};
 
+#[cfg(test)]
+use std::{collections::HashSet, sync::Mutex};
+
 fn merkle_tree_error_to_mongo(
     error: lib::merkle_trees::trees::MerkleTreeError<mongodb::error::Error>,
 ) -> mongodb::error::Error {
@@ -59,6 +62,60 @@ pub async fn get_expected_layer2_blocknumber() -> &'static RwLock<I256> {
     LAYER2_BLOCKNUMBER
         .get_or_init(|| async { RwLock::new(I256::ZERO) })
         .await
+}
+
+#[cfg(test)]
+static ENABLED_BLOCK_APPLY_FAILPOINTS: std::sync::OnceLock<Mutex<HashSet<String>>> =
+    std::sync::OnceLock::new();
+
+#[cfg(test)]
+fn enabled_block_apply_failpoints() -> &'static Mutex<HashSet<String>> {
+    ENABLED_BLOCK_APPLY_FAILPOINTS.get_or_init(|| Mutex::new(HashSet::new()))
+}
+
+fn maybe_fail_block_apply(_name: &str) -> Result<(), mongodb::error::Error> {
+    #[cfg(test)]
+    {
+        if enabled_block_apply_failpoints()
+            .lock()
+            .expect("block apply failpoint lock poisoned")
+            .contains(_name)
+        {
+            return Err(mongodb::error::Error::custom(format!(
+                "Simulated block apply failure at {_name}"
+            )));
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(test)]
+struct TestBlockApplyFailpointGuard {
+    name: String,
+}
+
+#[cfg(test)]
+impl TestBlockApplyFailpointGuard {
+    fn enable(name: &str) -> Self {
+        enabled_block_apply_failpoints()
+            .lock()
+            .expect("block apply failpoint lock poisoned")
+            .insert(name.to_string());
+        Self {
+            name: name.to_string(),
+        }
+    }
+}
+
+#[cfg(test)]
+impl Drop for TestBlockApplyFailpointGuard {
+    fn drop(&mut self) {
+        enabled_block_apply_failpoints()
+            .lock()
+            .expect("block apply failpoint lock poisoned")
+            .remove(&self.name);
+    }
 }
 
 #[derive(Debug)]
@@ -222,6 +279,33 @@ async fn finalize_pending_block_after_applied_block<P>(
         .await;
 }
 
+async fn cleanup_mismatched_proposer_block_state(
+    db: &Client,
+    block_number: u64,
+) -> Result<(), EventHandlerError> {
+    let db_for_cleanup = db.clone();
+    let mut session = db.start_session().await.map_err(|_| {
+        EventHandlerError::IOError(
+            "Could not start MongoDB session for mismatch cleanup".to_string(),
+        )
+    })?;
+
+    session
+        .start_transaction()
+        .and_run2(async move |session| {
+            db_for_cleanup
+                .delete_block_by_number_with_session(block_number, session)
+                .await?;
+            Ok::<(), mongodb::error::Error>(())
+        })
+        .await
+        .map_err(|e| {
+            EventHandlerError::IOError(format!(
+                "Could not clean up mismatched proposer block state: {e}"
+            ))
+        })
+}
+
 async fn process_propose_block_event<P, N>(
     decode: Nightfall::propose_blockCall,
     transaction_hash: TxHash,
@@ -338,31 +422,7 @@ where
                     let _ = db.delete_pending_block(expected_block_number_u64).await;
                 }
 
-                let db_for_cleanup = db.clone();
-                let block_number_for_cleanup = expected_block_number_u64;
-                let mut session = db.start_session().await.map_err(|_| {
-                    EventHandlerError::IOError(
-                        "Could not start MongoDB session for mismatch cleanup".to_string(),
-                    )
-                })?;
-
-                session
-                    .start_transaction()
-                    .and_run2(async move |session| {
-                        db_for_cleanup
-                            .delete_block_by_number_with_session(block_number_for_cleanup, session)
-                            .await?;
-                        db_for_cleanup
-                            .delete_sync_state_with_session(session)
-                            .await?;
-                        Ok::<(), mongodb::error::Error>(())
-                    })
-                    .await
-                    .map_err(|e| {
-                        EventHandlerError::IOError(format!(
-                            "Could not clean up mismatched proposer block state: {e}"
-                        ))
-                    })?;
+                cleanup_mismatched_proposer_block_state(db, expected_block_number_u64).await?;
 
                 sync_status.clear_synchronised();
 
@@ -456,82 +516,18 @@ where
     let historic_root_for_transaction = historic_root;
     let sync_state_l1_ref_for_transaction = sync_state_l1_ref.clone();
     let should_refresh_local_trees_for_transaction = should_refresh_local_trees;
+    let commitment_root = apply_proposer_block_transaction(
+        db_for_transaction,
+        should_refresh_local_trees_for_transaction,
+        commitments_for_transaction,
+        nullifiers_for_transaction,
+        historic_root_for_transaction,
+        block_for_transaction,
+        sync_state_l1_ref_for_transaction,
+    )
+    .await?;
 
-    let mut session = db
-        .start_session()
-        .await
-        .map_err(|_| EventHandlerError::IOError("Could not start MongoDB session".to_string()))?;
-    let commitment_root = session
-        .start_transaction()
-        .and_run2(async move |session| {
-            if should_refresh_local_trees_for_transaction {
-                debug!(
-                    "Adding {} commitments to commitment tree",
-                    commitments_for_transaction.len()
-                );
-                <Client as CommitmentTree<Fr254>>::append_sub_trees_with_session(
-                    &db_for_transaction,
-                    &commitments_for_transaction,
-                    true,
-                    session,
-                )
-                .await
-                .map_err(merkle_tree_error_to_mongo)?;
-                debug!(
-                    "Adding {} nullifiers to indexed Timber tree",
-                    nullifiers_for_transaction.len()
-                );
-                <Client as NullifierTree<Fr254>>::insert_nullifiers_with_session(
-                    &db_for_transaction,
-                    &nullifiers_for_transaction,
-                    session,
-                )
-                .await
-                .map_err(merkle_tree_error_to_mongo)?;
-            }
-
-            db_for_transaction
-                .append_historic_commitment_root_with_session(
-                    &historic_root_for_transaction,
-                    true,
-                    session,
-                )
-                .await
-                .map_err(merkle_tree_error_to_mongo)?;
-            debug!(
-                "Stored new commitments tree root in historic root timber tree: {historic_root_for_transaction}"
-            );
-
-            let commitment_root = <Client as CommitmentTree<Fr254>>::get_root_with_session(
-                &db_for_transaction,
-                session,
-            )
-            .await
-            .map_err(merkle_tree_error_to_mongo)?;
-
-            db_for_transaction
-                .store_block_with_session(&block_for_transaction, session)
-                .await?;
-
-            let sync_state = SyncState::new(
-                block_for_transaction.layer2_block_number,
-                block_for_transaction.hash().to_hex_string(),
-                sync_state_l1_ref_for_transaction.clone(),
-                mongodb::bson::DateTime::now(),
-            );
-
-            db_for_transaction
-                .update_sync_state_with_session(&sync_state, session)
-                .await?;
-
-            Ok::<Fr254, mongodb::error::Error>(commitment_root)
-        })
-        .await
-        .map_err(|e| {
-            EventHandlerError::IOError(format!(
-                "Could not apply proposer block transaction: {e}"
-            ))
-        })?;
+    *expected_onchain_block_number += I256::ONE; // move on to the next block after durable commit
 
     if commitment_root != historic_root {
         error!(
@@ -578,8 +574,8 @@ where
     drop(expected_onchain_block_number);
 
     if became_synchronised {
-        let _ =
-            reconcile_orphaned_selected_transactions::<P>(db, reconciliation_block_number).await;
+        let _ = reconcile_active_client_transaction_lifecycle::<P>(db, reconciliation_block_number)
+            .await;
     }
 
     match get_blockchain_client_connection()
@@ -601,6 +597,82 @@ where
     }
 
     Ok(())
+}
+
+async fn apply_proposer_block_transaction(
+    db: Client,
+    should_refresh_local_trees: bool,
+    commitments: Vec<Fr254>,
+    nullifiers: Vec<Fr254>,
+    historic_root: Fr254,
+    block_for_transaction: StoredBlock,
+    sync_state_l1_ref: L1Ref,
+) -> Result<Fr254, EventHandlerError> {
+    let mut session = db
+        .start_session()
+        .await
+        .map_err(|_| EventHandlerError::IOError("Could not start MongoDB session".to_string()))?;
+    session
+        .start_transaction()
+        .and_run2(async move |session| {
+            if should_refresh_local_trees {
+                debug!(
+                    "Adding {} commitments to commitment tree",
+                    commitments.len()
+                );
+                <Client as CommitmentTree<Fr254>>::append_sub_trees_with_session(
+                    &db,
+                    &commitments,
+                    true,
+                    session,
+                )
+                .await
+                .map_err(merkle_tree_error_to_mongo)?;
+                debug!(
+                    "Adding {} nullifiers to indexed Timber tree",
+                    nullifiers.len()
+                );
+                <Client as NullifierTree<Fr254>>::insert_nullifiers_with_session(
+                    &db,
+                    &nullifiers,
+                    session,
+                )
+                .await
+                .map_err(merkle_tree_error_to_mongo)?;
+            }
+
+            db.append_historic_commitment_root_with_session(&historic_root, true, session)
+                .await
+                .map_err(merkle_tree_error_to_mongo)?;
+            debug!(
+                "Stored new commitments tree root in historic root timber tree: {historic_root}"
+            );
+
+            let commitment_root =
+                <Client as CommitmentTree<Fr254>>::get_root_with_session(&db, session)
+                    .await
+                    .map_err(merkle_tree_error_to_mongo)?;
+
+            db.store_block_with_session(&block_for_transaction, session)
+                .await?;
+
+            let sync_state = SyncState::new(
+                block_for_transaction.layer2_block_number,
+                block_for_transaction.hash().to_hex_string(),
+                sync_state_l1_ref.clone(),
+                mongodb::bson::DateTime::now(),
+            );
+
+            db.update_sync_state_with_session(&sync_state, session)
+                .await?;
+            maybe_fail_block_apply("after_sync_state_update")?;
+
+            Ok::<Fr254, mongodb::error::Error>(commitment_root)
+        })
+        .await
+        .map_err(|e| {
+            EventHandlerError::IOError(format!("Could not apply proposer block transaction: {e}"))
+        })
 }
 
 pub async fn process_deposit_escrowed_event<P, E>(
@@ -948,5 +1020,129 @@ mod tests {
         tokio::fs::remove_dir_all(snapshot_root)
             .await
             .expect("cleanup snapshot root");
+    }
+
+    #[tokio::test]
+    async fn failed_block_apply_does_not_advance_expected_layer2_blocknumber() {
+        let _lock = nightfall_event_test_lock().await;
+        let container = get_mongo().await;
+        let client = get_test_db_connection(&container).await;
+
+        initialize_test_trees(&client).await;
+        *get_expected_layer2_blocknumber().await.write().await =
+            I256::try_from(9_u64).expect("test L2 block fits into I256");
+
+        let _failpoint = TestBlockApplyFailpointGuard::enable("after_sync_state_update");
+        let error = apply_proposer_block_transaction(
+            client.clone(),
+            false,
+            Vec::new(),
+            Vec::new(),
+            Fr254::zero(),
+            StoredBlock {
+                layer2_block_number: 9,
+                commitments: Vec::new(),
+                proposer_address: Address::from([9_u8; 20]),
+            },
+            L1Ref {
+                block_number: 900,
+                tx_hash: TxHash::from([9_u8; 32]),
+                log_index: 9,
+            },
+        )
+        .await
+        .expect_err("block apply should fail at failpoint");
+
+        let error_debug = format!("{error:?}");
+        assert!(
+            matches!(&error, EventHandlerError::IOError(message) if message.contains("Could not apply proposer block transaction")),
+            "unexpected error from failed block apply: {error_debug}"
+        );
+        assert_eq!(
+            *get_expected_layer2_blocknumber().await.read().await,
+            I256::try_from(9_u64).expect("test L2 block fits into I256"),
+            "failed block apply must not advance the in-memory expected L2 block number"
+        );
+        assert_eq!(client.get_sync_state().await, None);
+        assert!(client.get_block_by_number(9).await.is_none());
+    }
+
+    #[tokio::test]
+    async fn mismatch_cleanup_preserves_sync_state_and_tree_coherence() {
+        let _lock = nightfall_event_test_lock().await;
+        let container = get_mongo().await;
+        let client = get_test_db_connection(&container).await;
+
+        initialize_test_trees(&client).await;
+        let applied_commitment = Fr254::from(71_u64);
+        let applied_block = StoredBlock {
+            layer2_block_number: 7,
+            commitments: vec![applied_commitment.to_hex_string()],
+            proposer_address: Address::from([7_u8; 20]),
+        };
+        client
+            .store_block(&applied_block)
+            .await
+            .expect("store applied block");
+        materialize_tree_state_for_block(&client, applied_commitment).await;
+
+        let sync_state = SyncState::new(
+            applied_block.layer2_block_number,
+            applied_block.hash().to_hex_string(),
+            L1Ref {
+                block_number: 700,
+                tx_hash: TxHash::from([7_u8; 32]),
+                log_index: 7,
+            },
+            mongodb::bson::DateTime::now(),
+        );
+        persist_sync_state(&client, &sync_state).await;
+
+        let commitment_root_before = <mongodb::Client as CommitmentTree<Fr254>>::get_root(&client)
+            .await
+            .expect("read commitment root before mismatch cleanup");
+        let historic_root_before = <mongodb::Client as MutableTree<Fr254>>::get_root(
+            &client,
+            <mongodb::Client as HistoricRootTree<Fr254>>::TREE_NAME,
+        )
+        .await
+        .expect("read historic root before mismatch cleanup");
+
+        let speculative_block = StoredBlock {
+            layer2_block_number: 8,
+            commitments: vec!["0xspeculative-mismatch".to_string()],
+            proposer_address: Address::from([8_u8; 20]),
+        };
+        client
+            .store_block(&speculative_block)
+            .await
+            .expect("store speculative mismatched block");
+
+        cleanup_mismatched_proposer_block_state(&client, 8)
+            .await
+            .expect("cleanup should remove only the speculative mismatched block");
+
+        assert_eq!(client.get_sync_state().await, Some(sync_state));
+        let retained_block = client
+            .get_block_by_number(7)
+            .await
+            .expect("applied block should still exist after mismatch cleanup");
+        assert_eq!(retained_block.hash(), applied_block.hash());
+        assert!(client.get_block_by_number(8).await.is_none());
+        assert_eq!(
+            <mongodb::Client as CommitmentTree<Fr254>>::get_root(&client)
+                .await
+                .expect("read commitment root after mismatch cleanup"),
+            commitment_root_before
+        );
+        assert_eq!(
+            <mongodb::Client as MutableTree<Fr254>>::get_root(
+                &client,
+                <mongodb::Client as HistoricRootTree<Fr254>>::TREE_NAME,
+            )
+            .await
+            .expect("read historic root after mismatch cleanup"),
+            historic_root_before
+        );
     }
 }
