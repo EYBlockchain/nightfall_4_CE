@@ -136,15 +136,14 @@ where
             *listener_start_block = sync_state_l1_block_number;
             set_runtime_listener_resume_cursor(Some(sync_state.l1_ref.clone())).await;
 
+            sync_status.clear_synchronised();
             if next_expected_block == onchain_next_block {
-                sync_status.set_synchronised();
                 info!(
-                    "Recovered proposer state at L2 tip {} from sync_state; listener will resume from L1 block {} to safely skip already applied events if replayed",
+                    "Recovered proposer state at L2 tip {} from sync_state; proposer will remain desynchronised until replay from L1 block {} confirms catch-up",
                     sync_state.last_applied_l2_block,
                     sync_state.l1_ref.block_number
                 );
             } else {
-                sync_status.clear_synchronised();
                 info!(
                     "Recovered proposer state at L2 block {}, behind chain tip {}; listener replay will start from L1 block {}",
                     sync_state.last_applied_l2_block,

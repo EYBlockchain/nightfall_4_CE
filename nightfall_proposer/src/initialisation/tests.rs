@@ -23,7 +23,7 @@ use ark_bn254::Fr as Fr254;
 use ark_serialize::SerializationError;
 use ark_std::Zero;
 use lib::hex_conversion::HexConvertible;
-use lib::merkle_trees::trees::MutableTree;
+use lib::merkle_trees::trees::{MutableTree, TreeMetadata};
 use lib::nf_client_proof::Proof;
 use lib::shared_entities::{ClientTransaction, CompressedSecrets, DepositData};
 use lib::tests_utils::{get_db_connection, get_mongo};
@@ -115,18 +115,79 @@ async fn bootstrap_test_lock() -> tokio::sync::MutexGuard<'static, ()> {
 
 async fn persist_sync_state(client: &mongodb::Client, sync_state: &SyncState) {
     let mut session = client.start_session().await.expect("start session");
-    let client = client.clone();
-    let sync_state = sync_state.clone();
+    let client_for_write = client.clone();
+    let sync_state_for_write = sync_state.clone();
     session
         .start_transaction()
         .and_run2(async move |session| {
-            client
-                .update_sync_state_with_session(&sync_state, session)
+            client_for_write
+                .update_sync_state_with_session(&sync_state_for_write, session)
                 .await?;
             Ok::<(), mongodb::error::Error>(())
         })
         .await
         .expect("write sync_state");
+
+    let stored_block = client
+        .get_block_by_number(sync_state.last_applied_l2_block)
+        .await
+        .expect("stored block should exist for test sync_state");
+
+    let commitment_metadata = client
+        .database(DB)
+        .collection::<TreeMetadata<Fr254>>(&format!(
+            "{}_metadata",
+            <mongodb::Client as CommitmentTree<Fr254>>::TREE_NAME
+        ))
+        .find_one(doc! { "_id": 0 })
+        .await
+        .expect("read commitment metadata");
+    if commitment_metadata
+        .as_ref()
+        .is_some_and(|metadata| metadata.sub_tree_count == 0)
+        && !stored_block.commitments.is_empty()
+    {
+        <mongodb::Client as MutableTree<Fr254>>::insert_leaf(
+            client,
+            Fr254::from(sync_state.last_applied_l2_block + 1),
+            true,
+            <mongodb::Client as CommitmentTree<Fr254>>::TREE_NAME,
+        )
+        .await
+        .expect("materialize commitment tree state for bootstrap test");
+    }
+
+    let target_historic_root_sub_tree_count = sync_state
+        .last_applied_l2_block
+        .checked_add(2)
+        .expect("historic root count should not overflow in bootstrap tests");
+    let Some(historic_root_metadata) = client
+        .database(DB)
+        .collection::<TreeMetadata<Fr254>>(&format!(
+            "{}_metadata",
+            <mongodb::Client as HistoricRootTree<Fr254>>::TREE_NAME
+        ))
+        .find_one(doc! { "_id": 0 })
+        .await
+        .expect("read historic root metadata")
+    else {
+        return;
+    };
+    let mut historic_root_sub_tree_count = historic_root_metadata.sub_tree_count;
+
+    while historic_root_sub_tree_count < target_historic_root_sub_tree_count {
+        let commitment_root = <mongodb::Client as CommitmentTree<Fr254>>::get_root(client)
+            .await
+            .expect("read commitment root");
+        <mongodb::Client as HistoricRootTree<Fr254>>::append_historic_commitment_root(
+            client,
+            &commitment_root,
+            true,
+        )
+        .await
+        .expect("materialize historic root state for bootstrap test");
+        historic_root_sub_tree_count += 1;
+    }
 }
 
 async fn materialize_tree_state_for_block(client: &mongodb::Client, block_number: u64) {
@@ -1288,7 +1349,7 @@ async fn bootstrap_cleans_loading_shadow_restore_journal_and_keeps_live_state() 
         get_runtime_listener_resume_cursor().await,
         Some(newer_live_sync_state.l1_ref.clone())
     );
-    assert!(get_synchronisation_status()
+    assert!(!get_synchronisation_status()
         .await
         .read()
         .await
@@ -1312,7 +1373,7 @@ async fn bootstrap_cleans_loading_shadow_restore_journal_and_keeps_live_state() 
 }
 
 #[tokio::test]
-async fn bootstrap_resumes_swap_in_progress_restore_and_marks_tip_synchronised() {
+async fn bootstrap_resumes_swap_in_progress_restore_and_keeps_tip_desynchronised_until_replay() {
     let _lock = bootstrap_test_lock().await;
     let container = get_mongo().await;
     let client = get_db_connection(&container).await;
@@ -1369,7 +1430,7 @@ async fn bootstrap_resumes_swap_in_progress_restore_and_marks_tip_synchronised()
         get_runtime_listener_resume_cursor().await,
         Some(live_sync_state.l1_ref.clone())
     );
-    assert!(get_synchronisation_status()
+    assert!(!get_synchronisation_status()
         .await
         .read()
         .await
@@ -1498,7 +1559,7 @@ async fn bootstrap_continues_after_restore_rollback_clears_the_journal() {
         I256::try_from(22_u64).expect("22 fits into I256")
     );
     assert_eq!(get_runtime_listener_start_block().await, 2100);
-    assert!(get_synchronisation_status()
+    assert!(!get_synchronisation_status()
         .await
         .read()
         .await
@@ -1550,7 +1611,7 @@ async fn bootstrap_continues_after_swap_complete_rollback_and_restores_pre_snaps
         I256::try_from(24_u64).expect("24 fits into I256")
     );
     assert_eq!(get_runtime_listener_start_block().await, 2300);
-    assert!(get_synchronisation_status()
+    assert!(!get_synchronisation_status()
         .await
         .read()
         .await

@@ -9,8 +9,8 @@ use crate::{
     drivers::blockchain::block_assembly::clear_pending_blocks_queue,
     initialisation::{
         get_block_assembly_status, get_blockchain_client_connection, get_db_connection,
-        get_runtime_listener_resume_cursor, set_runtime_listener_resume_cursor,
-        set_runtime_listener_start_block,
+        get_runtime_listener_resume_cursor, get_runtime_listener_start_block,
+        set_runtime_listener_resume_cursor, set_runtime_listener_start_block,
     },
     ports::{
         contracts::NightfallContract,
@@ -125,7 +125,12 @@ where
 
         loop {
             attempts += 1;
-            log::info!("Proposer event listener (attempt {attempts})...");
+            let start_block = if attempts == 1 {
+                start_block
+            } else {
+                get_runtime_listener_start_block().await
+            };
+            log::info!("Proposer event listener (attempt {attempts}) from L1 block {start_block}...");
             let result = listen_for_events::<P, E, N>(start_block).await;
 
             match result {
@@ -213,6 +218,63 @@ async fn apply_listener_caught_up_runtime_state() {
     get_block_assembly_status().await.write().await.resume();
 }
 
+async fn advance_runtime_listener_state_from_log(log: &Log) {
+    let (Some(block_number), Some(tx_hash), Some(log_index)) =
+        (log.block_number, log.transaction_hash, log.log_index)
+    else {
+        return;
+    };
+    let Ok(start_block) = usize::try_from(block_number) else {
+        return;
+    };
+
+    set_runtime_listener_resume_cursor(Some(L1Ref {
+        block_number,
+        tx_hash,
+        log_index,
+    }))
+    .await;
+    set_runtime_listener_start_block(start_block).await;
+}
+
+async fn process_listener_log<P, E, N>(
+    log: Log,
+    restart_start_block: usize,
+) -> Result<(), EventHandlerError>
+where
+    P: Proof,
+    E: ProvingEngine<P>,
+    N: NightfallContract,
+{
+    let event = match Nightfall::NightfallEvents::decode_log(&log.inner) {
+        Ok(event) => event,
+        Err(error) => {
+            warn!("Failed to decode log: {error:?}");
+            return Ok(());
+        }
+    };
+
+    match process_events::<P, E, N>(event.data, log.clone()).await {
+        Ok(_) => {
+            advance_runtime_listener_state_from_log(&log).await;
+            Ok(())
+        }
+        Err(EventHandlerError::MissingBlocks(n)) => {
+            warn!("Missing blocks. Last contiguous block was {n}. Restarting event listener");
+            restart_event_listener::<P, E, N>(restart_start_block).await;
+            Err(EventHandlerError::StreamTerminated)
+        }
+        Err(EventHandlerError::BlockHashError(expected, found)) => {
+            warn!(
+                "Block hash mismatch: expected {expected:?}, found {found:?}. Restarting event listener"
+            );
+            restart_event_listener::<P, E, N>(restart_start_block).await;
+            Err(EventHandlerError::StreamTerminated)
+        }
+        Err(error) => panic!("Error processing event: {error:?}"),
+    }
+}
+
 // This function listens for events and processes them. It's started by the start_event_listener function
 pub async fn listen_for_events<P, E, N>(start_block: usize) -> Result<(), EventHandlerError>
 where
@@ -273,36 +335,8 @@ where
                 if should_skip_replayed_log(replay_resume_cursor.as_ref(), &evt) {
                     continue;
                 }
-                let event = match Nightfall::NightfallEvents::decode_log(&evt.inner) {
-                    Ok(e) => e,
-                    Err(e) => {
-                        warn!("Failed to decode log: {e:?}");
-                        continue; // Skip malformed events
-                    }
-                };
-                let result = process_events::<P, E, N>(event.data, evt).await;
-                match result {
-                    Ok(_) => continue,
-                    Err(e) => {
-                        match e {
-                            // we're missing blocks, so we need to re-synchronise
-                            EventHandlerError::MissingBlocks(n) => {
-                                warn!("Missing blocks. Last contiguous block was {n}. Restarting event listener");
-                                restart_event_listener::<P, E, N>(start_block).await;
-                                return Err(EventHandlerError::StreamTerminated);
-                            }
-
-                            EventHandlerError::BlockHashError(expected, found) => {
-                                warn!(
-                                    "Block hash mismatch: expected {expected:?}, found {found:?}. Restarting event listener"
-                                );
-                                restart_event_listener::<P, E, N>(start_block).await;
-                                return Err(EventHandlerError::StreamTerminated);
-                            }
-
-                            _ => panic!("Error processing event: {e:?}"),
-                        }
-                    }
+                if let Err(error) = process_listener_log::<P, E, N>(evt, start_block).await {
+                    return Err(error);
                 }
             }
         } else {
@@ -310,42 +344,22 @@ where
         }
     }
 
-    apply_listener_caught_up_runtime_state().await;
-
     let mut events_stream = events_subscription.into_stream();
 
-    while let Some(log) = events_stream.next().await {
-        let event = match Nightfall::NightfallEvents::decode_log(&log.inner) {
-            Ok(e) => e,
-            Err(e) => {
-                warn!("Failed to decode log: {e:?}");
-                continue; // Skip malformed events
+    loop {
+        match events_stream.next().now_or_never() {
+            Some(Some(log)) => {
+                process_listener_log::<P, E, N>(log, start_block).await?;
             }
-        };
-        let result = process_events::<P, E, N>(event.data, log).await;
-        match result {
-            Ok(_) => continue,
-            Err(e) => {
-                match e {
-                    // we're missing blocks, so we need to re-synchronise
-                    EventHandlerError::MissingBlocks(n) => {
-                        warn!("Missing blocks. Last contiguous block was {n}. Restarting event listener");
-                        restart_event_listener::<P, E, N>(start_block).await;
-                        return Err(EventHandlerError::StreamTerminated);
-                    }
-
-                    EventHandlerError::BlockHashError(expected, found) => {
-                        warn!(
-                                "Block hash mismatch: expected {expected:?}, found {found:?}. Restarting event listener"
-                            );
-                        restart_event_listener::<P, E, N>(start_block).await;
-                        return Err(EventHandlerError::StreamTerminated);
-                    }
-
-                    _ => panic!("Error processing event: {e:?}"),
-                }
-            }
+            Some(None) => return Err(EventHandlerError::StreamTerminated),
+            None => break,
         }
+    }
+
+    apply_listener_caught_up_runtime_state().await;
+
+    while let Some(log) = events_stream.next().await {
+        process_listener_log::<P, E, N>(log, start_block).await?;
     }
 
     Err(EventHandlerError::StreamTerminated)
@@ -624,48 +638,15 @@ where
                         I256::try_from(next_expected_block)
                             .expect("Restored L2 block number does not fit into I256");
                     set_last_snapshot_l2_block(sync_state.last_applied_l2_block).await;
-                    let restored_is_at_tip = match N::get_current_layer2_blocknumber().await {
-                        Ok(onchain_next_block_i256) if onchain_next_block_i256 >= I256::ZERO => {
-                            match u64::try_from(onchain_next_block_i256) {
-                                Ok(onchain_next_block) => next_expected_block == onchain_next_block,
-                                Err(_) => {
-                                    warn!(
-                                        "Restored proposer state but could not convert current on-chain L2 block number {onchain_next_block_i256} into u64; keeping proposer desynchronised until replay confirms state"
-                                    );
-                                    false
-                                }
-                            }
-                        }
-                        Ok(onchain_next_block_i256) => {
-                            warn!(
-                                "Restored proposer state but contract returned negative current L2 block number {onchain_next_block_i256}; keeping proposer desynchronised until replay confirms state"
-                            );
-                            false
-                        }
-                        Err(error) => {
-                            warn!(
-                                "Restored proposer state but could not fetch current on-chain L2 block number: {error}. Keeping proposer desynchronised until replay confirms state"
-                            );
-                            false
-                        }
-                    };
-                    if restored_is_at_tip {
-                        get_synchronisation_status()
-                            .await
-                            .write()
-                            .await
-                            .set_synchronised();
-                    } else {
-                        get_synchronisation_status()
-                            .await
-                            .write()
-                            .await
-                            .clear_synchronised();
-                    }
+                    get_synchronisation_status()
+                        .await
+                        .write()
+                        .await
+                        .clear_synchronised();
                     let next_listener_start_block =
                         apply_restored_listener_runtime_state(&sync_state).await;
                     warn!(
-                        "Snapshot restore completed successfully. Proposer will replay from L1 block {} with next expected L2 block {}",
+                        "Snapshot restore completed successfully. Proposer will remain desynchronised until replay catches up from L1 block {} with next expected L2 block {}",
                         sync_state.l1_ref.block_number,
                         next_expected_block
                     );
@@ -734,7 +715,6 @@ where
         .max_event_listener_attempts
         .unwrap_or(10);
 
-    get_block_assembly_status().await.write().await.resume();
     start_event_listener::<P, E, N>(next_listener_start_block, max_attempts).await;
 }
 
@@ -988,6 +968,59 @@ mod tests {
         assert_eq!(start_block, destructive_replay_start_block());
         assert_eq!(get_runtime_listener_start_block().await, start_block);
         assert_eq!(get_runtime_listener_resume_cursor().await, None);
+    }
+
+    #[tokio::test]
+    async fn advance_runtime_listener_state_from_log_updates_cursor_and_start_block() {
+        let _lock = event_listener_test_lock().await;
+        set_runtime_listener_resume_cursor(None).await;
+        set_runtime_listener_start_block(0).await;
+
+        let log = RpcLog {
+            block_number: Some(321),
+            transaction_hash: Some(TxHash::from([9u8; 32])),
+            log_index: Some(12),
+            ..RpcLog::default()
+        };
+
+        advance_runtime_listener_state_from_log(&log).await;
+
+        assert_eq!(get_runtime_listener_start_block().await, 321);
+        assert_eq!(
+            get_runtime_listener_resume_cursor().await,
+            Some(L1Ref {
+                block_number: 321,
+                tx_hash: TxHash::from([9u8; 32]),
+                log_index: 12,
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn advance_runtime_listener_state_from_log_ignores_incomplete_logs() {
+        let _lock = event_listener_test_lock().await;
+        let original_cursor = L1Ref {
+            block_number: 400,
+            tx_hash: TxHash::from([4u8; 32]),
+            log_index: 4,
+        };
+        set_runtime_listener_resume_cursor(Some(original_cursor.clone())).await;
+        set_runtime_listener_start_block(400).await;
+
+        let incomplete_log = RpcLog {
+            block_number: Some(401),
+            transaction_hash: None,
+            log_index: Some(5),
+            ..RpcLog::default()
+        };
+
+        advance_runtime_listener_state_from_log(&incomplete_log).await;
+
+        assert_eq!(get_runtime_listener_start_block().await, 400);
+        assert_eq!(
+            get_runtime_listener_resume_cursor().await,
+            Some(original_cursor)
+        );
     }
 
     #[tokio::test]
