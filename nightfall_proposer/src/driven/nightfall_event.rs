@@ -689,7 +689,7 @@ mod tests {
     use crate::{
         domain::entities::{Block, DepositDatawithFee, PendingBlock, PendingBlockState, SyncState},
         driven::db::{
-            mongo_db::{ensure_deposit_indexes, StoredBlock, DEPOSIT_COLLECTION},
+            mongo_db::{ensure_deposit_indexes, StoredBlock, DB, DEPOSIT_COLLECTION},
             snapshot::create_proposer_snapshot,
         },
         ports::{
@@ -702,7 +702,7 @@ mod tests {
     use ark_serialize::SerializationError;
     use lib::{
         hex_conversion::HexConvertible,
-        merkle_trees::trees::MutableTree,
+        merkle_trees::trees::{MutableTree, TreeMetadata},
         nf_client_proof::Proof,
         shared_entities::{DepositData, OnChainTransaction},
         tests_utils::{get_db_connection as get_test_db_connection, get_mongo},
@@ -733,18 +733,48 @@ mod tests {
 
     async fn persist_sync_state(client: &mongodb::Client, sync_state: &SyncState) {
         let mut session = client.start_session().await.expect("start session");
-        let client = client.clone();
-        let sync_state = sync_state.clone();
+        let client_for_write = client.clone();
+        let sync_state_for_write = sync_state.clone();
         session
             .start_transaction()
             .and_run2(async move |session| {
-                client
-                    .update_sync_state_with_session(&sync_state, session)
+                client_for_write
+                    .update_sync_state_with_session(&sync_state_for_write, session)
                     .await?;
                 Ok::<(), mongodb::error::Error>(())
             })
             .await
             .expect("write sync_state");
+
+        let target_historic_root_sub_tree_count = sync_state
+            .last_applied_l2_block
+            .checked_add(2)
+            .expect("historic root count should not overflow in event tests");
+        let mut historic_root_sub_tree_count = client
+            .database(DB)
+            .collection::<TreeMetadata<Fr254>>(&format!(
+                "{}_metadata",
+                <mongodb::Client as HistoricRootTree<Fr254>>::TREE_NAME
+            ))
+            .find_one(mongodb::bson::doc! { "_id": 0 })
+            .await
+            .expect("read historic root metadata")
+            .expect("historic root metadata should exist for event tests")
+            .sub_tree_count;
+
+        while historic_root_sub_tree_count < target_historic_root_sub_tree_count {
+            let commitment_root = <mongodb::Client as CommitmentTree<Fr254>>::get_root(client)
+                .await
+                .expect("read commitment root");
+            <mongodb::Client as HistoricRootTree<Fr254>>::append_historic_commitment_root(
+                client,
+                &commitment_root,
+                true,
+            )
+            .await
+            .expect("materialize historic root state for event test");
+            historic_root_sub_tree_count += 1;
+        }
     }
 
     async fn initialize_test_trees(client: &mongodb::Client) {
