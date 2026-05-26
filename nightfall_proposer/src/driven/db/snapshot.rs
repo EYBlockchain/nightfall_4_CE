@@ -4,7 +4,7 @@ use crate::{
         RestoreJournalStep, SnapshotCollectionManifest, SyncState,
     },
     driven::db::client_transaction_state::{
-        remove_all_mempool_client_transactions, restore_all_selected_transactions_to_mempool,
+        remove_all_mempool_client_transactions, restore_selected_transactions_to_mempool_after_block,
     },
     driven::db::mongo_db::{
         ensure_deposit_indexes, StoredBlock, DB, DEPOSIT_COLLECTION, PROPOSED_BLOCKS_COLLECTION,
@@ -1774,6 +1774,9 @@ async fn complete_cleanup_after_proposer_shadow_swap(
 }
 
 async fn cleanup_non_snapshot_restore_state(client: &mongodb::Client) -> Result<(), SnapshotError> {
+    let sync_state = client.get_sync_state().await.ok_or(SnapshotError::RestoreInvariantViolation(
+        "Could not load restored sync_state during snapshot restore finalization".to_string(),
+    ))?;
     let deleted_pending_blocks = client.delete_all_pending_blocks().await.ok_or_else(|| {
         SnapshotError::RestoreInvariantViolation(
             "Could not delete persisted PendingBlocks during snapshot restore finalization"
@@ -1786,9 +1789,12 @@ async fn cleanup_non_snapshot_restore_state(client: &mongodb::Client) -> Result<
     let removed_mempool_transactions = remove_all_mempool_client_transactions(client)
         .await
         .map_err(SnapshotError::RestoreInvariantViolation)?;
-    let restored_selected_transactions = restore_all_selected_transactions_to_mempool(client)
-        .await
-        .map_err(SnapshotError::RestoreInvariantViolation)?;
+    let restored_selected_transactions = restore_selected_transactions_to_mempool_after_block(
+        client,
+        sync_state.last_applied_l2_block,
+    )
+    .await
+    .map_err(SnapshotError::RestoreInvariantViolation)?;
 
     if deleted_pending_blocks > 0
         || cleared_reserved_deposits > 0
@@ -1796,7 +1802,8 @@ async fn cleanup_non_snapshot_restore_state(client: &mongodb::Client) -> Result<
         || restored_selected_transactions > 0
     {
         warn!(
-            "Snapshot restore discarded {deleted_pending_blocks} persisted PendingBlock(s), cleared {cleared_reserved_deposits} reserved deposit selection(s), dropped {removed_mempool_transactions} mempool client transaction(s), and restored {restored_selected_transactions} selected client transaction(s) to the mempool after validating restored snapshot collections and before final live-state validation"
+            "Snapshot restore discarded {deleted_pending_blocks} persisted PendingBlock(s), cleared {cleared_reserved_deposits} reserved deposit selection(s), dropped {removed_mempool_transactions} mempool client transaction(s), and restored {restored_selected_transactions} selected client transaction(s) beyond restored sync_state L2 block {} to the mempool after validating restored snapshot collections and before final live-state validation",
+            sync_state.last_applied_l2_block
         );
     }
 
@@ -4406,6 +4413,16 @@ mod test {
             .await
             .expect("store lingering selected transaction outside the snapshot");
 
+        let speculative_selected_transaction = test_selected_client_transaction(
+            42,
+            snapshot_sync_state.last_applied_l2_block + 1,
+            Fr254::from(902u64),
+        );
+        client
+            .store_transaction(speculative_selected_transaction.clone())
+            .await
+            .expect("store speculative selected transaction outside the snapshot");
+
         client
             .store_pending_block(&PendingBlock {
                 layer2_block_number: snapshot_sync_state.last_applied_l2_block + 1,
@@ -4461,8 +4478,19 @@ mod test {
             .await
             .expect("selected transaction should still exist after restore cleanup")
             .lifecycle
+            .is_selected(),
+            "restore should preserve selected transactions already canonical at the restored sync_state height"
+        );
+        assert!(
+            <mongodb::Client as TransactionsDB<MockProof>>::get_transaction(
+                &client,
+                &speculative_selected_transaction.hash,
+            )
+            .await
+            .expect("speculative selected transaction should still exist after restore cleanup")
+            .lifecycle
             .is_mempool(),
-            "restore should normalize lingering Selected transactions back to the mempool before validation"
+            "restore should normalize speculative Selected transactions beyond the restored sync_state back to the mempool before validation"
         );
         assert!(
             <mongodb::Client as TransactionsDB<MockProof>>::get_transaction(
