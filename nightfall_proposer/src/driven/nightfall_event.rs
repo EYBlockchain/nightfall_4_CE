@@ -440,8 +440,6 @@ where
         }
     }
 
-    *expected_onchain_block_number += I256::ONE; // move on to the next block
-
     // warn that we're not synced with the blockchain if we're behind
     // before we used the event filter layer 2 block number
     // now we get the current_block_number from the blockchain

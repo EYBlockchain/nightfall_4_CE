@@ -459,9 +459,10 @@ async fn reconcile_active_client_transactions_after_listener_catch_up<P>(
     }
 }
 
-async fn finalize_listener_catch_up<P>()
+async fn finalize_listener_catch_up<P, N>()
 where
     P: Proof,
+    N: NightfallContract,
 {
     let current_layer2_block_number =
         match u64::try_from(*get_expected_layer2_blocknumber().await.read().await) {
@@ -469,13 +470,45 @@ where
             Err(_) => {
                 warn!(
                     "Listener catch-up could not derive the current L2 block number from \
-                 expected_layer2_blocknumber; skipping active client transaction lifecycle \
-                 reconciliation"
+                 expected_layer2_blocknumber; keeping proposer desynchronised until replay can \
+                 continue"
                 );
-                apply_listener_caught_up_runtime_state().await;
                 return;
             }
         };
+
+    let current_onchain_layer2_block_number = match N::get_current_layer2_blocknumber().await {
+        Ok(block_number) => block_number,
+        Err(error) => {
+            warn!(
+                "Listener catch-up could not fetch the current on-chain L2 block number: {}. \
+                 Keeping proposer desynchronised until replay can continue",
+                error
+            );
+            return;
+        }
+    };
+    let current_onchain_layer2_block_number =
+        match u64::try_from(current_onchain_layer2_block_number) {
+            Ok(block_number) => block_number,
+            Err(_) => {
+                warn!(
+                    "Listener catch-up could not convert the current on-chain L2 block number \
+                     into u64; keeping proposer desynchronised until replay can continue"
+                );
+                return;
+            }
+        };
+
+    if current_layer2_block_number != current_onchain_layer2_block_number {
+        warn!(
+            "Listener catch-up reached in-memory next expected L2 block {} but on-chain next \
+             expected L2 block is {}. Keeping proposer desynchronised until replay fully \
+             catches up",
+            current_layer2_block_number, current_onchain_layer2_block_number
+        );
+        return;
+    }
 
     let db = get_db_connection().await;
     reconcile_active_client_transactions_after_listener_catch_up::<P>(
@@ -623,7 +656,7 @@ where
         }
     }
 
-    finalize_listener_catch_up::<P>().await;
+    finalize_listener_catch_up::<P, N>().await;
 
     while let Some(log) = events_stream.next().await {
         process_listener_log::<P, E, N>(log, start_block).await?;
@@ -931,14 +964,10 @@ where
             continue_with_destructive_replay_fallback::<P>(db).await
         }
     };
-
-    let settings = get_settings();
-    let max_attempts = settings
-        .nightfall_proposer
-        .max_event_listener_attempts
-        .unwrap_or(10);
-
-    start_event_listener::<P, E, N>(next_listener_start_block, max_attempts).await;
+    debug!(
+        "Prepared proposer listener recovery runtime state. Outer retry loop will resume from L1 block {}",
+        next_listener_start_block
+    );
 }
 
 pub async fn get_synchronisation_status() -> &'static RwLock<SynchronisationStatus> {
