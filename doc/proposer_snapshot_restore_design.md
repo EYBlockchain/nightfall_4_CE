@@ -12,6 +12,61 @@ Define a robust proposer snapshot restore flow that remains safe even though Mon
 
 This note covers restore design only. It does **not** implement restore code.
 
+## Design Invariants
+
+The restore design relies on the following invariants.
+
+1. Canonical snapshot boundary
+
+`ClientTransactions` is outside the canonical proposer snapshot boundary.
+
+Canonical restore correctness must depend only on the snapshotted proposer state:
+
+- proposer trees
+- `StoredBlock`
+- `sync_state`
+- other explicitly snapshotted canonical collections
+
+`ClientTransactions` must therefore be treated as live auxiliary state during restore.
+
+2. Crash-idempotent non-snapshot cleanup
+
+The non-snapshot cleanup performed after `swap_complete` must be crash-idempotent.
+
+A crash after restored live collections are already in place, but before `restore_journal` is
+deleted, must not allow a second cleanup pass to delete or corrupt transactions that were
+intentionally preserved by the first pass.
+
+3. Journaled cleanup progress
+
+If non-snapshot cleanup is not intrinsically safe to run multiple times, its progress must be
+recorded explicitly in `restore_journal`.
+
+Recovery must be able to distinguish unambiguously between:
+
+- cleanup not yet committed, in which case it must be rerun
+- cleanup already committed, in which case it must be skipped on resume
+
+The safest design is to commit cleanup progress in the same Mongo transaction as the non-snapshot
+cleanup writes.
+
+4. Post-restore lifecycle reconciliation
+
+Because `ClientTransactions` is outside the canonical snapshot boundary, active client transaction
+lifecycle must be reconciled explicitly against canonical proposer state after restore and replay.
+
+In particular:
+
+- `Selected { block_l2 }` entries above restored `sync_state.last_applied_l2_block` must not
+  remain trusted after restore
+- `Included { block_l2 }` entries above restored `sync_state.last_applied_l2_block` must not
+  remain trusted after restore without explicit reconciliation against canonical `StoredBlock`
+  contents
+
+Restore may normalize obviously non-canonical lifecycle state, but final lifecycle correctness for
+active transactions must be derived from canonical replayed state rather than assumed from
+pre-restore live documents.
+
 ## Journal Model
 
 `restore_journal` is a single-document Mongo collection.
@@ -27,7 +82,7 @@ Recommended document shape:
   "manifest_overall_sha256": "...",
   "phase": "loading_shadow | swap_in_progress | swap_complete",
   "current_index": 0,
-  "current_step": "backup_pending | backup_created",
+  "current_step": "backup_pending | backup_created | non_snapshot_cleanup_pending | non_snapshot_cleanup_applied | rollback_pending | rollback_started | rollback_applied",
   "collections": [
     {
       "live": "Commitments_nodes",
@@ -116,6 +171,43 @@ For each collection entry at index `i`:
 - drop any leftover `restore_shadow__*` collections
 - delete the `restore_journal` document, returning to `idle`
 
+### 4a. Non-snapshot cleanup invariants
+
+`ClientTransactions` is intentionally kept outside the canonical proposer snapshot boundary.
+
+That means restore correctness does not depend on snapshotting client transaction lifecycle, but it
+also means any live-only recovery state must be normalized explicitly after the canonical snapshot
+has been swapped into live collections.
+
+The non-snapshot cleanup phase includes at least:
+
+- deleting persisted `PendingBlock` state
+- clearing reserved deposit selections
+- deleting ordinary mempool client transactions
+- normalizing active client transaction lifecycle that is ahead of the restored `sync_state`
+
+In particular:
+
+- `Selected { block_l2 }` entries with `block_l2 > restored_sync_state.last_applied_l2_block`
+  must not remain selected after restore
+- `Included { block_l2 }` entries with `block_l2 > restored_sync_state.last_applied_l2_block`
+  must not be trusted as canonical after restore without explicit reconciliation
+
+This cleanup must be crash-idempotent.
+
+A crash after live collections have been restored but before `restore_journal` is deleted must not
+allow a second cleanup pass to delete transactions that were intentionally preserved by the first
+pass.
+
+Therefore, non-snapshot cleanup must either:
+
+- be safe to execute multiple times without changing the final result, or
+- persist explicit cleanup progress in `restore_journal` and skip already-committed cleanup work on
+  resume
+
+The safest design is to treat non-snapshot cleanup as a journaled step of `swap_complete`, and to
+update that journal step in the same Mongo transaction as the non-snapshot cleanup writes.
+
 ## Crash Recovery On Startup
 
 ### `idle` (journal absent)
@@ -176,7 +268,9 @@ Implementation note and deferred follow-up:
 Live collections already point to restored data. Recovery should:
 
 - validate live `sync_state` against the restored `StoredBlock`
-- if valid, finish cleanup of `restore_backup__*` and `restore_shadow__*`, then delete the journal
+- complete any journaled non-snapshot cleanup that was not durably committed before the crash
+- skip non-snapshot cleanup if the journal shows that cleanup was already committed
+- only after cleanup and validation succeed, finish removal of `restore_backup__*` and `restore_shadow__*`, then delete the journal
 - if invalid and backups still exist, attempt rollback from backups
 - if invalid and backups are gone, fail closed and require manual intervention
 
@@ -210,6 +304,32 @@ The proposer can become READY again only after all of the following are true:
 - post-restore replay from `sync_state.l1_ref.block_number` has completed and the proposer is back at the current L1/L2 tip
 
 Restore completion alone is not enough to become READY; replay catch-up must also succeed.
+
+## Deferred Follow-Up: Client Transaction Lifecycle Reconciliation
+
+Because `ClientTransactions` is outside the canonical snapshot boundary, restore cannot assume that
+live `Selected` or `Included` lifecycle entries above the restored `sync_state` remain correct.
+
+A later replay may reconstruct the same canonical inclusion, or it may replay a different canonical
+block sequence after desync recovery, block-hash mismatch, or similar divergence handling.
+
+As a result, lifecycle state for active client transactions should be reconciled explicitly after
+restore and replay against canonical `StoredBlock` contents.
+
+A robust reconciliation rule is:
+
+- if the canonical `StoredBlock(block_l2)` contains the transaction commitments, classify the
+  transaction as `Included { block_l2 }`
+- if `block_l2 <= sync_state.last_applied_l2_block` but the canonical block does not contain the
+  transaction, classify it as `Mempool`
+- otherwise classify it as `Selected { block_l2 }`
+
+This keeps `ClientTransactions` outside the snapshot while still restoring lifecycle consistency
+against canonical proposer state.
+
+This reconciliation should run at the end of listener historical replay catch-up, in the same
+finalization path that currently reconciles orphaned selected transactions, before
+`apply_listener_caught_up_runtime_state()` marks the proposer synchronised again.
 
 ## Deferred Follow-Up: Tree State Upper Bounds Beyond HistoricRoot
 
