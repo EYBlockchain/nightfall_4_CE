@@ -26,7 +26,10 @@ where
 {
     let s = get_settings();
     let start_block = get_runtime_listener_start_block().await;
-    let max_attempts = s.nightfall_client.max_event_listener_attempts.unwrap_or(10);
+    let max_attempts = s
+        .nightfall_proposer
+        .max_event_listener_attempts
+        .unwrap_or(10);
 
     tokio::spawn(async move {
         let _ = start_event_listener::<P, E, N>(start_block, max_attempts).await;
