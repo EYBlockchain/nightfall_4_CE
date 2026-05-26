@@ -14,7 +14,11 @@ jobs:
     environment: DEV
     steps:
       - name: Cleanup stale proposer snapshots
-        run: sudo rm -rf "$GITHUB_WORKSPACE/data/proposer_snapshots" || true
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${GITHUB_WORKSPACE:-}"
+          sudo rm -rf "$GITHUB_WORKSPACE/data/proposer_snapshots"
       - name: Checkout
         uses: actions/checkout@v4
         # Add Node so npx exists for OZ upgrades validation
@@ -46,7 +50,11 @@ jobs:
           RUST_MIN_STACK: "8388608"
       - name: Cleanup snapshots after tests
         if: always()
-        run: sudo rm -rf "$GITHUB_WORKSPACE/data/proposer_snapshots" || true
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${GITHUB_WORKSPACE:-}"
+          sudo rm -rf "$GITHUB_WORKSPACE/data/proposer_snapshots"
   resync:
     name: Synchronisation Test with Mock Prover
     needs: [build]
@@ -201,11 +209,19 @@ jobs:
     runs-on: self-hosted
     steps:
       - name: Cleanup stale proposer snapshots
-        run: sudo rm -rf "$GITHUB_WORKSPACE/data/proposer_snapshots" || true
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${GITHUB_WORKSPACE:-}"
+          sudo rm -rf "$GITHUB_WORKSPACE/data/proposer_snapshots"
       - name: Checkout
         uses: actions/checkout@v4
       - name: Run Forge Tests
         run: forge test
       - name: Cleanup snapshots after tests
         if: always()
-        run: sudo rm -rf "$GITHUB_WORKSPACE/data/proposer_snapshots" || true
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${GITHUB_WORKSPACE:-}"
+          sudo rm -rf "$GITHUB_WORKSPACE/data/proposer_snapshots"
