@@ -1,9 +1,10 @@
 use crate::{
-    domain::entities::{L1Ref, SyncState},
+    domain::entities::{L1Ref, ProposerSnapshotManifest, RestoreJournalPhase, SyncState},
     driven::db::client_transaction_state::restore_all_selected_transactions_to_mempool,
     driven::db::snapshot::{
-        acquire_proposer_state_maintenance_guard, find_latest_valid_proposer_snapshot,
-        recover_from_restore_journal, restore_proposer_snapshot,
+        acquire_proposer_state_maintenance_guard, cleanup_after_proposer_shadow_swap,
+        find_latest_valid_proposer_snapshot, recover_from_restore_journal,
+        restore_proposer_snapshot,
     },
     driven::nightfall_event::get_expected_layer2_blocknumber,
     drivers::blockchain::block_assembly::clear_pending_blocks_queue,
@@ -14,7 +15,7 @@ use crate::{
     },
     ports::{
         contracts::NightfallContract,
-        db::{BlockStorageDB, PendingBlockDB, SyncStateDB, TransactionsDB},
+        db::{BlockStorageDB, PendingBlockDB, RestoreJournalDB, SyncStateDB, TransactionsDB},
         trees::{CommitmentTree, HistoricRootTree, NullifierTree},
     },
     services::process_events::process_events,
@@ -195,6 +196,58 @@ async fn apply_restored_listener_runtime_state(sync_state: &SyncState) -> usize 
     next_listener_start_block
 }
 
+async fn continue_from_restored_sync_state(sync_state: &SyncState) -> usize {
+    let next_expected_block = sync_state.last_applied_l2_block.saturating_add(1);
+    *get_expected_layer2_blocknumber().await.write().await = I256::try_from(next_expected_block)
+        .expect("Restored L2 block number does not fit into I256");
+    set_last_snapshot_l2_block(sync_state.last_applied_l2_block).await;
+    get_synchronisation_status()
+        .await
+        .write()
+        .await
+        .clear_synchronised();
+    let next_listener_start_block = apply_restored_listener_runtime_state(sync_state).await;
+    warn!(
+        "Recovered proposer snapshot state is live. Proposer will remain desynchronised until replay catches up from L1 block {} with next expected L2 block {}",
+        sync_state.l1_ref.block_number,
+        next_expected_block
+    );
+    next_listener_start_block
+}
+
+fn restored_sync_state_matches_manifest(
+    sync_state: &SyncState,
+    manifest: &ProposerSnapshotManifest,
+) -> bool {
+    sync_state.last_applied_l2_block == manifest.last_applied_l2_block
+        && sync_state.fingerprint == manifest.fingerprint
+        && sync_state.l1_ref == manifest.l1_ref
+}
+
+async fn recovered_snapshot_sync_state_if_available(
+    db: &MongoClient,
+    manifest: &ProposerSnapshotManifest,
+) -> Result<Option<SyncState>, String> {
+    if let Some(journal) = db.get_restore_journal().await {
+        if journal.phase != RestoreJournalPhase::SwapComplete {
+            return Ok(None);
+        }
+
+        cleanup_after_proposer_shadow_swap(db)
+            .await
+            .map_err(|error| {
+                format!(
+                    "restore journal recovery reached swap_complete but cleanup could not finish: {error}"
+                )
+            })?;
+    }
+
+    Ok(db
+        .get_sync_state()
+        .await
+        .filter(|sync_state| restored_sync_state_matches_manifest(sync_state, manifest)))
+}
+
 fn destructive_replay_start_block() -> usize {
     get_settings().genesis_block
 }
@@ -205,6 +258,20 @@ async fn apply_destructive_replay_listener_runtime_state() -> usize {
     set_runtime_listener_resume_cursor(None).await;
     set_runtime_listener_start_block(start_block).await;
     start_block
+}
+
+async fn continue_with_destructive_replay_fallback<P>(db: &MongoClient) -> usize
+where
+    P: Proof,
+{
+    if let Err(reset_error) = reset_proposer_state_for_replay::<P>(db).await {
+        panic!(
+            "Proposer replay fallback aborted because reset could not complete safely: {reset_error}"
+        );
+    }
+    set_last_snapshot_l2_block(0).await;
+    *get_expected_layer2_blocknumber().await.write().await = I256::ZERO;
+    apply_destructive_replay_listener_runtime_state().await
 }
 
 async fn apply_listener_retry_runtime_state() {
@@ -703,47 +770,48 @@ where
                 manifest.last_applied_l2_block
             );
             match restore_proposer_snapshot(db, &snapshot_dir).await {
-                Ok(sync_state) => {
-                    let next_expected_block = sync_state.last_applied_l2_block.saturating_add(1);
-                    *get_expected_layer2_blocknumber().await.write().await =
-                        I256::try_from(next_expected_block)
-                            .expect("Restored L2 block number does not fit into I256");
-                    set_last_snapshot_l2_block(sync_state.last_applied_l2_block).await;
-                    get_synchronisation_status()
-                        .await
-                        .write()
-                        .await
-                        .clear_synchronised();
-                    let next_listener_start_block =
-                        apply_restored_listener_runtime_state(&sync_state).await;
-                    warn!(
-                        "Snapshot restore completed successfully. Proposer will remain desynchronised until replay catches up from L1 block {} with next expected L2 block {}",
-                        sync_state.l1_ref.block_number,
-                        next_expected_block
-                    );
-                    next_listener_start_block
-                }
-                Err(error) => {
-                    if let Err(recovery_error) = recover_from_restore_journal(db).await {
+                Ok(sync_state) => continue_from_restored_sync_state(&sync_state).await,
+                Err(error) => match recover_from_restore_journal(db).await {
+                    Ok(()) => match recovered_snapshot_sync_state_if_available(db, &manifest).await
+                    {
+                        Ok(Some(sync_state)) => {
+                            warn!(
+                                "Snapshot restore from {} returned an error ({error}), but restore journal recovery completed the requested snapshot successfully",
+                                snapshot_dir.display(),
+                            );
+                            continue_from_restored_sync_state(&sync_state).await
+                        }
+                        Ok(None) => {
+                            warn!(
+                                "Snapshot restore from {} failed: {}. Restore journal recovery did not leave the requested snapshot state live. Falling back to destructive reset+replay from L1 block {}",
+                                snapshot_dir.display(),
+                                error,
+                                replay_start_block
+                            );
+                            continue_with_destructive_replay_fallback::<P>(db).await
+                        }
+                        Err(recovery_error) => {
+                            warn!(
+                                "Snapshot restore from {} failed: {}. Restore journal recovery ran but the recovered state could not be finalized safely: {}. Falling back to destructive reset+replay from L1 block {}",
+                                snapshot_dir.display(),
+                                error,
+                                recovery_error,
+                                replay_start_block
+                            );
+                            continue_with_destructive_replay_fallback::<P>(db).await
+                        }
+                    },
+                    Err(recovery_error) => {
                         warn!(
-                            "Snapshot restore failed and in-process restore journal recovery also failed: {recovery_error}. Continuing with destructive reset fallback"
+                            "Snapshot restore from {} failed: {}. In-process restore journal recovery also failed: {}. Falling back to destructive reset+replay from L1 block {}",
+                            snapshot_dir.display(),
+                            error,
+                            recovery_error,
+                            replay_start_block
                         );
+                        continue_with_destructive_replay_fallback::<P>(db).await
                     }
-                    warn!(
-                        "Snapshot restore from {} failed: {}. Falling back to destructive reset+replay from L1 block {}",
-                        snapshot_dir.display(),
-                        error,
-                        replay_start_block
-                    );
-                    if let Err(reset_error) = reset_proposer_state_for_replay::<P>(db).await {
-                        panic!(
-                            "Proposer replay fallback aborted because reset could not complete safely: {reset_error}"
-                        );
-                    }
-                    set_last_snapshot_l2_block(0).await;
-                    *get_expected_layer2_blocknumber().await.write().await = I256::ZERO;
-                    apply_destructive_replay_listener_runtime_state().await
-                }
+                },
             }
         }
         Ok(None) => {
@@ -753,14 +821,7 @@ where
                 max_restorable_l2_block,
                 replay_start_block
             );
-            if let Err(reset_error) = reset_proposer_state_for_replay::<P>(db).await {
-                panic!(
-                    "Proposer replay fallback aborted because reset could not complete safely: {reset_error}"
-                );
-            }
-            set_last_snapshot_l2_block(0).await;
-            *get_expected_layer2_blocknumber().await.write().await = I256::ZERO;
-            apply_destructive_replay_listener_runtime_state().await
+            continue_with_destructive_replay_fallback::<P>(db).await
         }
         Err(error) => {
             warn!(
@@ -769,14 +830,7 @@ where
                 error,
                 replay_start_block
             );
-            if let Err(reset_error) = reset_proposer_state_for_replay::<P>(db).await {
-                panic!(
-                    "Proposer replay fallback aborted because reset could not complete safely: {reset_error}"
-                );
-            }
-            set_last_snapshot_l2_block(0).await;
-            *get_expected_layer2_blocknumber().await.write().await = I256::ZERO;
-            apply_destructive_replay_listener_runtime_state().await
+            continue_with_destructive_replay_fallback::<P>(db).await
         }
     };
 
@@ -802,14 +856,20 @@ mod tests {
     use crate::{
         domain::entities::{
             Block, ClientTransactionWithMetaData, DepositDatawithFee, PendingBlock,
-            PendingBlockState, TxLifecycle,
+            PendingBlockState, RestoreJournalPhase, TxLifecycle,
         },
         driven::db::mongo_db::{ensure_deposit_indexes, StoredBlock, DB},
+        driven::db::snapshot::{
+            create_proposer_snapshot, load_proposer_snapshot_into_shadow,
+            swap_proposer_shadow_into_live,
+        },
         drivers::blockchain::block_assembly::{
             pending_blocks_queue_len_for_test, push_pending_block_for_test,
         },
         initialisation::get_runtime_listener_start_block,
-        ports::db::{BlockStorageDB, PendingBlockDB, SyncStateDB, TransactionsDB},
+        ports::db::{
+            BlockStorageDB, PendingBlockDB, RestoreJournalDB, SyncStateDB, TransactionsDB,
+        },
     };
     use alloy::primitives::Bytes;
     use alloy::primitives::{Address, TxHash};
@@ -817,6 +877,7 @@ mod tests {
     use ark_ff::Zero;
     use ark_serialize::SerializationError;
     use lib::hex_conversion::HexConvertible;
+    use lib::merkle_trees::trees::TreeMetadata;
     use lib::nf_client_proof::Proof;
     use lib::shared_entities::{ClientTransaction, CompressedSecrets, DepositData};
     use lib::tests_utils::{get_db_connection, get_mongo};
@@ -847,18 +908,76 @@ mod tests {
 
     async fn persist_sync_state(client: &mongodb::Client, sync_state: &SyncState) {
         let mut session = client.start_session().await.expect("start session");
-        let client = client.clone();
-        let sync_state = sync_state.clone();
+        let client_for_write = client.clone();
+        let sync_state_for_write = sync_state.clone();
         session
             .start_transaction()
             .and_run2(async move |session| {
-                client
-                    .update_sync_state_with_session(&sync_state, session)
+                client_for_write
+                    .update_sync_state_with_session(&sync_state_for_write, session)
                     .await?;
                 Ok::<(), mongodb::error::Error>(())
             })
             .await
             .expect("write sync_state");
+
+        let stored_block = client
+            .get_block_by_number(sync_state.last_applied_l2_block)
+            .await
+            .expect("stored block should exist for event listener test sync_state");
+
+        let commitment_metadata = client
+            .database(DB)
+            .collection::<TreeMetadata<Fr254>>(&format!(
+                "{}_metadata",
+                <mongodb::Client as CommitmentTree<Fr254>>::TREE_NAME
+            ))
+            .find_one(doc! { "_id": 0 })
+            .await
+            .expect("read commitment metadata");
+        if commitment_metadata
+            .as_ref()
+            .is_some_and(|metadata| metadata.sub_tree_count == 0)
+            && !stored_block.commitments.is_empty()
+        {
+            <mongodb::Client as MutableTree<Fr254>>::insert_leaf(
+                client,
+                Fr254::from(sync_state.last_applied_l2_block + 1),
+                true,
+                <mongodb::Client as CommitmentTree<Fr254>>::TREE_NAME,
+            )
+            .await
+            .expect("materialize commitment tree state for event listener test");
+        }
+
+        let target_historic_root_sub_tree_count = sync_state
+            .last_applied_l2_block
+            .checked_add(2)
+            .expect("historic root count should not overflow in event listener tests");
+        let mut historic_root_sub_tree_count = client
+            .database(DB)
+            .collection::<TreeMetadata<Fr254>>(&format!(
+                "{}_metadata",
+                <mongodb::Client as HistoricRootTree<Fr254>>::TREE_NAME
+            ))
+            .find_one(doc! { "_id": 0 })
+            .await
+            .expect("read historic root metadata")
+            .expect("historic root metadata should exist for event listener tests")
+            .sub_tree_count;
+        while historic_root_sub_tree_count < target_historic_root_sub_tree_count {
+            let commitment_root = <mongodb::Client as CommitmentTree<Fr254>>::get_root(client)
+                .await
+                .expect("read commitment root");
+            <mongodb::Client as HistoricRootTree<Fr254>>::append_historic_commitment_root(
+                client,
+                &commitment_root,
+                true,
+            )
+            .await
+            .expect("materialize historic root state for event listener test");
+            historic_root_sub_tree_count += 1;
+        }
     }
 
     async fn initialize_test_trees(client: &mongodb::Client) {
@@ -1176,6 +1295,107 @@ mod tests {
             },
             reserved,
         }
+    }
+
+    #[test]
+    fn restored_sync_state_matches_manifest_requires_exact_restore_identity() {
+        let sync_state = SyncState::new(
+            11,
+            "fingerprint-11".to_string(),
+            L1Ref {
+                block_number: 1100,
+                tx_hash: TxHash::from([11u8; 32]),
+                log_index: 11,
+            },
+            mongodb::bson::DateTime::now(),
+        );
+        let manifest = ProposerSnapshotManifest::new(
+            "snapshot-11".to_string(),
+            mongodb::bson::DateTime::now(),
+            DB.to_string(),
+            &sync_state,
+            Vec::new(),
+            "overall".to_string(),
+        );
+
+        assert!(restored_sync_state_matches_manifest(&sync_state, &manifest));
+
+        let different_fingerprint = SyncState {
+            fingerprint: "different".to_string(),
+            ..sync_state.clone()
+        };
+        assert!(!restored_sync_state_matches_manifest(
+            &different_fingerprint,
+            &manifest
+        ));
+
+        let different_l1_ref = SyncState {
+            l1_ref: L1Ref {
+                log_index: 12,
+                ..sync_state.l1_ref.clone()
+            },
+            ..sync_state.clone()
+        };
+        assert!(!restored_sync_state_matches_manifest(
+            &different_l1_ref,
+            &manifest
+        ));
+    }
+
+    #[tokio::test]
+    async fn recovered_snapshot_sync_state_if_available_finishes_swap_complete_cleanup() {
+        let _lock = event_listener_test_lock().await;
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+
+        initialize_test_trees(&client).await;
+        let block = StoredBlock {
+            layer2_block_number: 25,
+            commitments: vec!["0xswap-complete-recovery".to_string()],
+            proposer_address: Address::from([25u8; 20]),
+        };
+        client.store_block(&block).await.expect("store block");
+        let sync_state = SyncState::new(
+            25,
+            block.hash().to_hex_string(),
+            L1Ref {
+                block_number: 2500,
+                tx_hash: TxHash::from([25u8; 32]),
+                log_index: 25,
+            },
+            mongodb::bson::DateTime::now(),
+        );
+        persist_sync_state(&client, &sync_state).await;
+
+        let snapshot_root = std::env::temp_dir().join(format!(
+            "nf4-event-listener-snapshot-{}",
+            mongodb::bson::DateTime::now().timestamp_millis()
+        ));
+        let manifest = create_proposer_snapshot(&client, &snapshot_root)
+            .await
+            .expect("create snapshot");
+        let snapshot_dir = snapshot_root.join(&manifest.snapshot_id);
+
+        load_proposer_snapshot_into_shadow(&client, &snapshot_dir)
+            .await
+            .expect("load snapshot into shadow");
+        swap_proposer_shadow_into_live(&client)
+            .await
+            .expect("swap snapshot into live");
+
+        let journal = client
+            .get_restore_journal()
+            .await
+            .expect("swap_complete journal should exist");
+        assert_eq!(journal.phase, RestoreJournalPhase::SwapComplete);
+
+        let recovered_sync_state = recovered_snapshot_sync_state_if_available(&client, &manifest)
+            .await
+            .expect("recover helper should succeed")
+            .expect("recover helper should surface restored sync_state");
+
+        assert_eq!(recovered_sync_state, sync_state);
+        assert_eq!(client.get_restore_journal().await, None);
     }
 
     #[tokio::test]
