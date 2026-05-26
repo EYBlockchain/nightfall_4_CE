@@ -54,9 +54,8 @@ jobs:
     env:
       NF4_MOCK_PROVER: "true"
       NF4_CONTRACTS__DEPLOY_CONTRACTS: "true"
+      NF4_PROPOSER_SNAPSHOT_MOUNT: proposer_snapshots_data
     steps:
-      - name: Cleanup stale proposer snapshots
-        run: sudo rm -rf "$GITHUB_WORKSPACE/data/proposer_snapshots" || true
       - name: Checkout
         uses: actions/checkout@v4
       - name: Clear previous run
@@ -79,9 +78,6 @@ jobs:
         if: always()
         run: |
           docker compose --profile sync_test down -v --remove-orphans || true
-      - name: Cleanup snapshots after tests
-        if: always()
-        run: sudo rm -rf "$GITHUB_WORKSPACE/data/proposer_snapshots" || true
 
   rollup-prover:
     name: Rollup prover integration Test
@@ -92,9 +88,8 @@ jobs:
     env:
       NF4_MOCK_PROVER: "false"
       NF4_CONTRACTS__DEPLOY_CONTRACTS: "true"
+      NF4_PROPOSER_SNAPSHOT_MOUNT: proposer_snapshots_data
     steps:
-      - name: Cleanup stale proposer snapshots
-        run: sudo rm -rf "$GITHUB_WORKSPACE/data/proposer_snapshots" || true
       - name: Checkout
         uses: actions/checkout@v4
       - name: link pptau cache
@@ -200,10 +195,6 @@ jobs:
         if: always()
         run: |
           docker compose --profile sync_test down -v --remove-orphans || true
-      - name: Cleanup snapshots after tests
-        if: always()
-        run: sudo rm -rf "$GITHUB_WORKSPACE/data/proposer_snapshots" || true
-
   forge:
     name: Smart Contract Unit Tests
     needs: [build]

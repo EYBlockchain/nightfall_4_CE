@@ -169,7 +169,7 @@ services:
         target: /app/configuration/toml
         read_only: true
       - ./configuration/bin/keys:/app/configuration/bin/keys:ro
-      - ./data/proposer_snapshots:/app/data/proposer_snapshots
+      - ${NF4_PROPOSER_SNAPSHOT_MOUNT:-./data/proposer_snapshots}:/app/data/proposer_snapshots
     depends_on:
       db_proposer:
         condition: service_healthy
@@ -220,7 +220,7 @@ services:
     networks:
       - nightfall_network
     volumes:
-      - ./data/proposer_snapshots:/app/data/proposer_snapshots
+      - ${NF4_PROPOSER_SNAPSHOT_MOUNT:-./data/proposer_snapshots}:/app/data/proposer_snapshots
     depends_on:
       db_proposer:
         condition: service_healthy
@@ -261,7 +261,7 @@ services:
         target: /app/configuration/toml
         read_only: true
       - ./configuration/bin/keys:/app/configuration/bin/keys:ro
-      - ./data/proposer_snapshots:/app/data/proposer_snapshots
+      - ${NF4_PROPOSER_SNAPSHOT_MOUNT:-./data/proposer_snapshots}:/app/data/proposer_snapshots
     depends_on:
       db_proposer2:
         condition: service_healthy
@@ -619,6 +619,7 @@ volumes:
   address_data:
   key_data:
   toml_data:
+  proposer_snapshots_data:
 
 networks:
    nightfall_network:
