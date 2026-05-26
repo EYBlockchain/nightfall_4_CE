@@ -12,13 +12,15 @@ jobs:
     name: Check + Lint
     runs-on: self-hosted
     environment: DEV
+    env:
+      NF4_NIGHTFALL_PROPOSER__SNAPSHOT_ROOT_DIR: ${{ runner.temp }}/proposer_snapshots/build
     steps:
       - name: Cleanup stale proposer snapshots
         shell: bash
         run: |
           set -euo pipefail
-          test -n "${GITHUB_WORKSPACE:-}"
-          sudo rm -rf "$GITHUB_WORKSPACE/data/proposer_snapshots"
+          test -n "${NF4_NIGHTFALL_PROPOSER__SNAPSHOT_ROOT_DIR:-}"
+          rm -rf "$NF4_NIGHTFALL_PROPOSER__SNAPSHOT_ROOT_DIR"
       - name: Checkout
         uses: actions/checkout@v4
         # Add Node so npx exists for OZ upgrades validation
@@ -53,8 +55,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -n "${GITHUB_WORKSPACE:-}"
-          sudo rm -rf "$GITHUB_WORKSPACE/data/proposer_snapshots"
+          test -n "${NF4_NIGHTFALL_PROPOSER__SNAPSHOT_ROOT_DIR:-}"
+          rm -rf "$NF4_NIGHTFALL_PROPOSER__SNAPSHOT_ROOT_DIR"
   resync:
     name: Synchronisation Test with Mock Prover
     needs: [build]
@@ -207,13 +209,15 @@ jobs:
     name: Smart Contract Unit Tests
     needs: [build]
     runs-on: self-hosted
+    env:
+      NF4_NIGHTFALL_PROPOSER__SNAPSHOT_ROOT_DIR: ${{ runner.temp }}/proposer_snapshots/forge
     steps:
       - name: Cleanup stale proposer snapshots
         shell: bash
         run: |
           set -euo pipefail
-          test -n "${GITHUB_WORKSPACE:-}"
-          sudo rm -rf "$GITHUB_WORKSPACE/data/proposer_snapshots"
+          test -n "${NF4_NIGHTFALL_PROPOSER__SNAPSHOT_ROOT_DIR:-}"
+          rm -rf "$NF4_NIGHTFALL_PROPOSER__SNAPSHOT_ROOT_DIR"
       - name: Checkout
         uses: actions/checkout@v4
       - name: Run Forge Tests
@@ -223,5 +227,5 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -n "${GITHUB_WORKSPACE:-}"
-          sudo rm -rf "$GITHUB_WORKSPACE/data/proposer_snapshots"
+          test -n "${NF4_NIGHTFALL_PROPOSER__SNAPSHOT_ROOT_DIR:-}"
+          rm -rf "$NF4_NIGHTFALL_PROPOSER__SNAPSHOT_ROOT_DIR"
