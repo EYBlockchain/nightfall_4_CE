@@ -3,7 +3,7 @@ use figment::{
     Figment,
 };
 use serde::{de, Deserialize, Deserializer, Serialize};
-use std::{env, sync::OnceLock};
+use std::{env, path::PathBuf, sync::OnceLock};
 
 // rather than pass around what are effectively constant values, or recreate them locally,
 // let's use the lazy_static crate to create a global variable that can be used to consume
@@ -175,7 +175,8 @@ fn default_rpc_rate_limit() -> u32 {
 }
 
 fn default_proposer_snapshot_root_dir() -> String {
-    "./data/proposer_snapshots".to_string()
+    normalize_snapshot_root_dir("./data/proposer_snapshots")
+        .expect("default proposer snapshot root dir should resolve to an absolute path")
 }
 
 fn default_snapshot_interval_l2_blocks() -> u64 {
@@ -192,6 +193,17 @@ fn default_snapshot_retention_count() -> u64 {
 
 fn default_snapshot_enabled() -> bool {
     true
+}
+
+fn normalize_snapshot_root_dir(path: &str) -> Result<String, String> {
+    let path = PathBuf::from(path);
+    if path.is_absolute() {
+        return Ok(path.to_string_lossy().into_owned());
+    }
+
+    let current_dir = env::current_dir()
+        .map_err(|error| format!("Could not resolve current working directory: {error}"))?;
+    Ok(current_dir.join(path).to_string_lossy().into_owned())
 }
 
 #[derive(Debug, Deserialize, Serialize, Default)]
@@ -283,6 +295,8 @@ impl Settings {
                 "Azure proposer X509 signer",
             )?);
         }
+        settings.nightfall_proposer.snapshot_root_dir =
+            normalize_snapshot_root_dir(&settings.nightfall_proposer.snapshot_root_dir)?;
         Ok(settings)
     }
 
@@ -666,6 +680,37 @@ mod tests {
         match tmp_azure_vault_url {
             Some(val) => env::set_var("AZURE_VAULT_URL", val),
             None => env::remove_var("AZURE_VAULT_URL"),
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn test_relative_snapshot_root_dir_is_normalized_to_absolute() {
+        let tmp_run_mode = env::var("NF4_RUN_MODE").ok();
+        let tmp_snapshot_root_dir = env::var("NF4_NIGHTFALL_PROPOSER__SNAPSHOT_ROOT_DIR").ok();
+
+        env::set_var("NF4_RUN_MODE", "development");
+        env::set_var(
+            "NF4_NIGHTFALL_PROPOSER__SNAPSHOT_ROOT_DIR",
+            "relative/snapshots",
+        );
+
+        let settings = Settings::new().unwrap();
+        let configured_path = PathBuf::from(&settings.nightfall_proposer.snapshot_root_dir);
+        let expected_path = env::current_dir()
+            .expect("current directory should exist for settings test")
+            .join("relative/snapshots");
+
+        assert!(configured_path.is_absolute());
+        assert_eq!(configured_path, expected_path);
+
+        match tmp_run_mode {
+            Some(val) => env::set_var("NF4_RUN_MODE", val),
+            None => env::remove_var("NF4_RUN_MODE"),
+        }
+        match tmp_snapshot_root_dir {
+            Some(val) => env::set_var("NF4_NIGHTFALL_PROPOSER__SNAPSHOT_ROOT_DIR", val),
+            None => env::remove_var("NF4_NIGHTFALL_PROPOSER__SNAPSHOT_ROOT_DIR"),
         }
     }
 }
