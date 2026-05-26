@@ -136,6 +136,9 @@ pub trait TransactionsDB<'a, P> {
     async fn get_all_selected_client_transactions(
         &self,
     ) -> Option<Vec<(Vec<u32>, ClientTransactionWithMetaData<P>)>>;
+    async fn get_all_selected_or_included_client_transactions(
+        &self,
+    ) -> Option<Vec<(Vec<u32>, ClientTransactionWithMetaData<P>)>>;
     async fn count_mempool_client_transactions(&self) -> Result<u64, mongodb::error::Error>;
     async fn count_mempool_swap_transactions(
         &self,

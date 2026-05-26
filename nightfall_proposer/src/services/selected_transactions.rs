@@ -1,10 +1,14 @@
 use crate::{
-    domain::entities::{Block, ClientTransactionWithMetaData},
-    driven::db::mongo_db::StoredBlock,
-    ports::db::{BlockStorageDB, TransactionsDB},
+    domain::entities::{Block, ClientTransactionWithMetaData, TxLifecycle},
+    driven::db::{
+        client_transaction_state::{lifecycle_bson, CLIENT_TRANSACTIONS_COLLECTION},
+        mongo_db::{StoredBlock, DB},
+    },
+    ports::db::{BlockStorageDB, PendingBlockDB, TransactionsDB},
 };
 use ark_ff::Zero;
 use lib::{hex_conversion::HexConvertible, nf_client_proof::Proof};
+use mongodb::bson::doc;
 use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -34,9 +38,11 @@ fn block_contains_transaction<P>(
     block_commitments: &HashSet<String>,
     transaction: &ClientTransactionWithMetaData<P>,
 ) -> bool {
-    transaction_commitments_hex(transaction)
-        .into_iter()
-        .all(|commitment| block_commitments.contains(&commitment))
+    let transaction_commitments = transaction_commitments_hex(transaction);
+    !transaction_commitments.is_empty()
+        && transaction_commitments
+            .into_iter()
+            .all(|commitment| block_commitments.contains(&commitment))
 }
 
 fn stored_block_commitments_map(stored_blocks: Vec<StoredBlock>) -> HashMap<u64, HashSet<String>> {
@@ -49,6 +55,16 @@ fn stored_block_commitments_map(stored_blocks: Vec<StoredBlock>) -> HashMap<u64,
             )
         })
         .collect()
+}
+
+async fn pending_selected_transaction_hashes(db: &mongodb::Client) -> Option<HashSet<Vec<u32>>> {
+    let pending_blocks = <mongodb::Client as PendingBlockDB>::get_all_pending_blocks(db).await?;
+    Some(
+        pending_blocks
+            .into_iter()
+            .flat_map(|pending_block| pending_block.selected_client_transaction_hashes.into_iter())
+            .collect(),
+    )
 }
 
 fn classify_selected_transaction<P>(
@@ -143,13 +159,92 @@ where
 {
     let classified_transactions =
         get_classified_selected_transactions::<P>(db, current_layer2_block_number, true).await?;
+    let pending_hashes = pending_selected_transaction_hashes(db).await?;
     let orphaned_transactions = classified_transactions
         .into_iter()
-        .filter(|classified| classified.state == SelectedTransactionState::Orphaned)
+        .filter(|classified| {
+            classified.state == SelectedTransactionState::Orphaned
+                && !pending_hashes.contains(&classified.transaction.hash)
+        })
         .map(|classified| classified.transaction)
         .collect::<Vec<_>>();
 
     restore_selected_transactions_grouped_by_block(db, orphaned_transactions).await
+}
+
+fn reconcile_active_transaction_lifecycle<P>(
+    transaction: &ClientTransactionWithMetaData<P>,
+    stored_blocks: &HashMap<u64, HashSet<String>>,
+    current_layer2_block_number: u64,
+) -> Option<TxLifecycle> {
+    let block_l2 = transaction.lifecycle.block_l2()?;
+
+    let lifecycle = match stored_blocks.get(&block_l2) {
+        Some(block_commitments) if block_contains_transaction(block_commitments, transaction) => {
+            TxLifecycle::Included { block_l2 }
+        }
+        Some(_) => TxLifecycle::Mempool,
+        None if block_l2 < current_layer2_block_number => TxLifecycle::Mempool,
+        _ => TxLifecycle::Selected { block_l2 },
+    };
+
+    Some(lifecycle)
+}
+
+pub async fn reconcile_active_client_transaction_lifecycle<P>(
+    db: &mongodb::Client,
+    current_layer2_block_number: u64,
+) -> Option<u64>
+where
+    P: Proof,
+{
+    let active_transactions =
+        <mongodb::Client as TransactionsDB<P>>::get_all_selected_or_included_client_transactions(
+            db,
+        )
+        .await?;
+    let stored_blocks = stored_block_commitments_map(
+        <mongodb::Client as BlockStorageDB>::get_all_blocks(db).await?,
+    );
+    let collection = db
+        .database(DB)
+        .collection::<mongodb::bson::Document>(CLIENT_TRANSACTIONS_COLLECTION);
+
+    let mut modified = 0_u64;
+    for (_, transaction) in active_transactions {
+        let Some(target_lifecycle) = reconcile_active_transaction_lifecycle(
+            &transaction,
+            &stored_blocks,
+            current_layer2_block_number,
+        ) else {
+            continue;
+        };
+
+        if transaction.lifecycle == target_lifecycle {
+            continue;
+        }
+
+        let result = collection
+            .update_one(
+                doc! {
+                    "hash": &transaction.hash,
+                    "lifecycle.state": { "$in": ["selected", "included"] }
+                },
+                doc! {
+                    "$set": {
+                        "lifecycle": lifecycle_bson(&target_lifecycle)
+                    }
+                },
+            )
+            .await
+            .ok()?;
+        if result.modified_count != 1 {
+            return None;
+        }
+        modified += 1;
+    }
+
+    Some(modified)
 }
 
 pub async fn reconcile_obviously_orphaned_selected_transactions<P>(
@@ -405,6 +500,53 @@ mod tests {
             db.get_transaction(&tx.hash).await.unwrap();
         assert_eq!(restored, 1);
         assert_eq!(stored.lifecycle, TxLifecycle::Mempool);
+    }
+
+    #[tokio::test]
+    async fn replay_reconciliation_restores_stale_included_transaction_to_mempool() {
+        let container = get_mongo().await;
+        let db = get_db_connection(&container).await;
+        let tx = ClientTransactionWithMetaData {
+            lifecycle: TxLifecycle::Included { block_l2: 7 },
+            ..sample_selected_transaction(Fr254::from(10u64), 7)
+        };
+        db.store_transaction(tx.clone()).await.unwrap();
+        db.store_block(&StoredBlock {
+            layer2_block_number: 7,
+            commitments: vec![Fr254::from(11u64).to_hex_string()],
+            proposer_address: Address::ZERO,
+        })
+        .await
+        .unwrap();
+
+        let reconciled = reconcile_active_client_transaction_lifecycle::<MockProof>(&db, 8)
+            .await
+            .unwrap();
+
+        let stored: ClientTransactionWithMetaData<MockProof> =
+            db.get_transaction(&tx.hash).await.unwrap();
+        assert_eq!(reconciled, 1);
+        assert_eq!(stored.lifecycle, TxLifecycle::Mempool);
+    }
+
+    #[tokio::test]
+    async fn replay_reconciliation_demotes_future_included_transaction_back_to_selected() {
+        let container = get_mongo().await;
+        let db = get_db_connection(&container).await;
+        let tx = ClientTransactionWithMetaData {
+            lifecycle: TxLifecycle::Included { block_l2: 30 },
+            ..sample_selected_transaction(Fr254::from(10u64), 30)
+        };
+        db.store_transaction(tx.clone()).await.unwrap();
+
+        let reconciled = reconcile_active_client_transaction_lifecycle::<MockProof>(&db, 30)
+            .await
+            .unwrap();
+
+        let stored: ClientTransactionWithMetaData<MockProof> =
+            db.get_transaction(&tx.hash).await.unwrap();
+        assert_eq!(reconciled, 1);
+        assert_eq!(stored.lifecycle, TxLifecycle::Selected { block_l2: 30 });
     }
 
     #[tokio::test]

@@ -21,7 +21,7 @@ use crate::{
         trees::{CommitmentTree, HistoricRootTree, NullifierTree},
     },
     services::process_events::process_events,
-    services::selected_transactions::reconcile_orphaned_selected_transactions,
+    services::selected_transactions::reconcile_active_client_transaction_lifecycle,
     services::snapshot_scheduler::set_last_snapshot_l2_block,
 };
 use alloy::{
@@ -274,9 +274,9 @@ async fn restore_recovery_state_may_still_be_present(db: &MongoClient) -> Result
         .await
         .map_err(|error| format!("could not inspect restore recovery collections: {error}"))?;
 
-    Ok(collection_names.iter().any(|name| {
-        name.starts_with("restore_backup__") || name.starts_with("restore_shadow__")
-    }))
+    Ok(collection_names
+        .iter()
+        .any(|name| name.starts_with("restore_backup__") || name.starts_with("restore_shadow__")))
 }
 
 async fn continue_after_failed_snapshot_restore<P>(
@@ -434,24 +434,26 @@ pub(crate) fn set_listener_replay_catch_up_pending(pending: bool) {
     listener_replay_catch_up_pending_cell().store(pending, Ordering::SeqCst);
 }
 
-async fn reconcile_orphaned_selected_transactions_after_listener_catch_up<P>(
+async fn reconcile_active_client_transactions_after_listener_catch_up<P>(
     db: &MongoClient,
     current_layer2_block_number: u64,
 ) where
     P: Proof,
 {
-    match reconcile_orphaned_selected_transactions::<P>(db, current_layer2_block_number).await {
-        Some(restored) if restored > 0 => {
+    match reconcile_active_client_transaction_lifecycle::<P>(db, current_layer2_block_number).await
+    {
+        Some(reclassified) if reclassified > 0 => {
             warn!(
-                "Listener catch-up restored {restored} orphaned selected transaction(s) to the \
-                 mempool at L2 block {current_layer2_block_number}"
+                "Listener catch-up reclassified {reclassified} active client transaction(s) \
+                 against canonical StoredBlock state at L2 block \
+                 {current_layer2_block_number}"
             );
         }
         Some(_) => {}
         None => {
             warn!(
-                "Listener catch-up could not reconcile orphaned selected transactions at L2 \
-                 block {current_layer2_block_number}"
+                "Listener catch-up could not reconcile active client transaction lifecycle at \
+                 L2 block {current_layer2_block_number}"
             );
         }
     }
@@ -467,7 +469,7 @@ where
             Err(_) => {
                 warn!(
                     "Listener catch-up could not derive the current L2 block number from \
-                 expected_layer2_blocknumber; skipping orphaned selected transaction \
+                 expected_layer2_blocknumber; skipping active client transaction lifecycle \
                  reconciliation"
                 );
                 apply_listener_caught_up_runtime_state().await;
@@ -476,7 +478,7 @@ where
         };
 
     let db = get_db_connection().await;
-    reconcile_orphaned_selected_transactions_after_listener_catch_up::<P>(
+    reconcile_active_client_transactions_after_listener_catch_up::<P>(
         db,
         current_layer2_block_number,
     )
@@ -1801,8 +1803,7 @@ mod tests {
             .await
             .expect("store selected transaction");
 
-        reconcile_orphaned_selected_transactions_after_listener_catch_up::<MockProof>(&client, 8)
-            .await;
+        reconcile_active_client_transactions_after_listener_catch_up::<MockProof>(&client, 8).await;
 
         assert!(
             <mongodb::Client as TransactionsDB<MockProof>>::get_transaction(

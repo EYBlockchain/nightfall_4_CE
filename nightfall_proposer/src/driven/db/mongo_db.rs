@@ -173,6 +173,24 @@ where
         Some(result)
     }
 
+    async fn get_all_selected_or_included_client_transactions(
+        &self,
+    ) -> Option<Vec<(Vec<u32>, ClientTransactionWithMetaData<P>)>> {
+        let filter = selected_or_included_transactions_filter();
+        let mut cursor: mongodb::Cursor<ClientTransactionWithMetaData<P>> = self
+            .database(DB)
+            .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
+            .find(filter)
+            .await
+            .ok()?;
+        let mut result: Vec<(Vec<u32>, ClientTransactionWithMetaData<P>)> = Vec::new();
+        while cursor.advance().await.ok()? {
+            let v: ClientTransactionWithMetaData<P> = cursor.deserialize_current().ok()?;
+            result.push((v.hash.clone(), v));
+        }
+        Some(result)
+    }
+
     // Count client_transaction in the mempool
     // This is used to determine if we need to assemble a block
     async fn count_mempool_client_transactions(&self) -> Result<u64, mongodb::error::Error> {
@@ -327,10 +345,17 @@ where
         let mut modified = 0u64;
 
         for hash in transaction_hashes {
-            let transaction =
-                <mongodb::Client as TransactionsDB<P>>::get_transaction(self, hash).await?;
-            let block_l2 = transaction.lifecycle.block_l2()?;
-            let block_l2_i64 = i64::try_from(block_l2).ok()?;
+            let Some(transaction) =
+                <mongodb::Client as TransactionsDB<P>>::get_transaction(self, hash).await
+            else {
+                continue;
+            };
+            let Some(block_l2) = transaction.lifecycle.block_l2() else {
+                continue;
+            };
+            let Ok(block_l2_i64) = i64::try_from(block_l2) else {
+                continue;
+            };
 
             let mut filter = doc! { "hash": hash };
             filter.extend(selected_transactions_filter_for_block(block_l2_i64));

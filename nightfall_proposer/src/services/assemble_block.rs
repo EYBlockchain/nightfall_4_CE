@@ -945,6 +945,43 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn cleanup_selected_transactions_skips_non_selected_transactions() {
+        let container = get_mongo().await;
+        let db = get_db_connection(&container).await;
+        let selected_tx = test_client_transaction(52);
+        let mempool_tx = test_client_transaction(53);
+        db.store_transaction(selected_tx.clone()).await.unwrap();
+        db.store_transaction(mempool_tx.clone()).await.unwrap();
+
+        reserve_selected_transactions::<PlonkProof>(
+            &db,
+            &[],
+            std::slice::from_ref(&selected_tx),
+            8,
+        )
+        .await
+        .unwrap();
+        cleanup_selected_transactions::<PlonkProof>(
+            &db,
+            &[],
+            &[selected_tx.hash.clone(), mempool_tx.hash.clone()],
+        )
+        .await
+        .unwrap();
+
+        let stored_selected: ClientTransactionWithMetaData<PlonkProof> =
+            db.get_transaction(&selected_tx.hash).await.unwrap();
+        assert_eq!(
+            stored_selected.lifecycle,
+            TxLifecycle::Included { block_l2: 8 }
+        );
+
+        let stored_mempool: ClientTransactionWithMetaData<PlonkProof> =
+            db.get_transaction(&mempool_tx.hash).await.unwrap();
+        assert!(stored_mempool.lifecycle.is_mempool());
+    }
+
+    #[tokio::test]
     async fn test_prepare_block_data_simple_case() {
         // Prepare data: 44 deposit data in mempool, fee (1...240), 4 tx data, fee (241...244)
         // block_size = 64, 4 client transactions, 240 deposit data  = 64 transactions
