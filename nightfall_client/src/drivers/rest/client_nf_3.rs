@@ -246,7 +246,10 @@ fn validate_withdraw_request_payload(req: &NF3WithdrawRequest) -> Result<(), Str
     validate_asset_constraints(token_type, value, token_id)
 }
 
-async fn resolve_target_slot_id_from_token_id(db: &mongodb::Client, nf_token_id: Fr254) -> Fr254 {
+async fn resolve_target_slot_id_from_token_id(
+    db: &mongodb::Client,
+    nf_token_id: Fr254,
+) -> Result<Fr254, TransactionHandlerError> {
     db.get_all_commitments()
         .await
         .ok()
@@ -257,7 +260,9 @@ async fn resolve_target_slot_id_from_token_id(db: &mongodb::Client, nf_token_id:
             })
         })
         .map(|entry| entry.get_nf_slot_id())
-        .unwrap_or(nf_token_id)
+        .ok_or_else(|| {
+            TransactionHandlerError::CustomError("Requested token is not yet deposited".to_string())
+        })
 }
 
 pub fn cancel_swap_request(
@@ -881,7 +886,7 @@ where
 }
 
 /// handle_client_deposit_request is the entry point for deposit requests from the client.
-pub async fn handle_deposit<N: NightfallContract>(
+pub async fn deposit<N: NightfallContract>(
     req: NF3DepositRequest,
     id: &str,
 ) -> Result<NotificationPayload, TransactionHandlerError> {
@@ -1378,7 +1383,7 @@ where
     {
         let db = get_db_connection().await;
         let fee_token_id = get_fee_token_id();
-        let nf_slot_id = resolve_target_slot_id_from_token_id(db, nf_token_id).await;
+        let nf_slot_id = resolve_target_slot_id_from_token_id(db, nf_token_id).await?;
         let spend_value_commitments = find_usable_commitments(nf_slot_id, value, db)
             .await
             .map_err(|e| {
@@ -1596,7 +1601,7 @@ where
 
     {
         let fee_token_id = get_fee_token_id();
-        let nf_slot_id = resolve_target_slot_id_from_token_id(db, nf_token_id).await;
+        let nf_slot_id = resolve_target_slot_id_from_token_id(db, nf_token_id).await?;
         let spend_value_commitments = find_usable_commitments(nf_slot_id, value, db)
             .await
             .map_err(|e| {
@@ -1919,7 +1924,7 @@ where
         let db = get_db_connection().await;
         let fee_token_id = get_fee_token_id();
 
-        let nf_slot_id = resolve_target_slot_id_from_token_id(db, nf_token_id).await;
+        let nf_slot_id = resolve_target_slot_id_from_token_id(db, nf_token_id).await?;
         let spend_value_commitments = find_usable_commitments(nf_slot_id, value, db)
             .await
             .map_err(|e| {

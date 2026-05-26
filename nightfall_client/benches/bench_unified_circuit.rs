@@ -27,7 +27,7 @@ use lib::{
     nf_token_id::{to_nf_slot_id_from_str, to_nf_token_id_from_str},
     plonk_prover::circuits::unified_circuit::unified_circuit_builder,
     secret_hash::SecretHash,
-    shared_entities::{DepositData, DepositSecret, Preimage, Salt},
+    shared_entities::{DepositData, DepositSecret, Preimage, Salt, TokenType},
 };
 use nf_curves::ed_on_bn254::{BabyJubjub, Fq as Fr254, Fr as BJJScalar};
 use nightfall_client::driven::primitives::kemdem_functions::kemdem_encrypt;
@@ -187,7 +187,13 @@ fn build_valid_transfer_inputs() -> CircuitTestInfo {
     let token_id_string = Fr254::to_hex_string(&token_id_fr);
 
     let nf_token_id = to_nf_token_id_from_str(&erc_address_string, &token_id_string).unwrap();
-    let nf_slot_id = to_nf_slot_id_from_str(&erc_address_string, &token_id_string).unwrap();
+    let nf_slot_id = to_nf_slot_id_from_str(
+        &erc_address_string,
+        &token_id_string,
+        &token_id_string,
+        TokenType::ERC20,
+    )
+    .unwrap();
 
     let token_id = Fr254::from_hex_string(&token_id_string).unwrap();
 

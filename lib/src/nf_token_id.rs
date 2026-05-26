@@ -58,35 +58,34 @@ pub fn to_nf_token_id_from_str(
 }
 
 #[allow(dead_code)]
-pub fn to_nf_slot_id_from_str(erc_address: &str, slot_id: &str) -> Result<Fr254, ConversionError> {
-    let mut erc_vec =
-        Vec::<u8>::from_hex_string(erc_address).map_err(|_| ConversionError::ParseFailed)?;
-
-    while erc_vec.len() < 32 {
-        erc_vec.insert(0, 0);
+pub fn to_nf_slot_id_from_str(
+    erc_address: &str,
+    token_id: &str,
+    slot_id: &str,
+    token_type: TokenType,
+) -> Result<Fr254, ConversionError> {
+    if token_type != TokenType::ERC3525 {
+        return to_nf_token_id_from_str(erc_address, token_id);
     }
 
-    let mut slot_vec =
+    let solidity_erc_address = Address::from_slice(
+        &Vec::<u8>::from_hex_string(erc_address).map_err(|_| ConversionError::ParseFailed)?,
+    );
+    let mut slot_bytes =
         Vec::<u8>::from_hex_string(slot_id).map_err(|_| ConversionError::ParseFailed)?;
-    while slot_vec.len() < 32 {
-        slot_vec.insert(0, 0);
+    while slot_bytes.len() < 32 {
+        slot_bytes.insert(0, 0);
     }
+    let solidity_slot_id = U256::from_be_slice(&slot_bytes);
 
-    let mut input_bytes = Vec::new();
-    input_bytes.extend_from_slice(&erc_vec);
-    input_bytes.extend_from_slice(&domain_bytes(NF_SLOT_ID_DOMAIN));
-    input_bytes.extend_from_slice(&slot_vec);
+    let erc_token = solidity_erc_address.tokenize();
+    let slot_id_token = solidity_slot_id.tokenize();
+    let domain_token = U256::from(u64::from(NF_SLOT_ID_DOMAIN)).tokenize();
+    let nf_slot_id_biguint = BigUint::from_bytes_be(
+        keccak256(encode(&(erc_token, domain_token, slot_id_token))).as_slice(),
+    ) >> 4;
 
-    // Hash the result
-    let mut hasher = Sha256::new();
-    hasher.update(&input_bytes);
-    let digest = hasher.finalize();
-
-    // Shift digest right by 4 bits as in Solidity implementation (to fit into Fr)
-    let mut nf_slot_id = BigUint::from_bytes_be(&digest);
-    nf_slot_id >>= 4;
-
-    Ok(Fr254::from(nf_slot_id))
+    Ok(Fr254::from(nf_slot_id_biguint))
 }
 
 pub fn to_nf_token_id_from_fr254(erc_address: Fr254, token_id: Fr254) -> Fr254 {
@@ -253,7 +252,7 @@ mod tests {
     }
 
     #[test]
-    fn test_nf_token_id_and_slot_id_are_domain_separated() {
+    fn test_nf_slot_id_from_str_reuses_nf_token_id_for_non_erc3525() {
         for _ in 0..10 {
             let mut rng = rand::thread_rng();
             let erc_address: [u8; 20] = rng.gen();
@@ -263,11 +262,17 @@ mod tests {
             let raw_id_string = Fr254::to_hex_string(&raw_id);
 
             let nf_token_id = to_nf_token_id_from_str(&erc_address_string, &raw_id_string).unwrap();
-            let nf_slot_id = to_nf_slot_id_from_str(&erc_address_string, &raw_id_string).unwrap();
+            let nf_slot_id = to_nf_slot_id_from_str(
+                &erc_address_string,
+                &raw_id_string,
+                &raw_id_string,
+                TokenType::ERC20,
+            )
+            .unwrap();
 
-            assert_ne!(
+            assert_eq!(
                 nf_token_id, nf_slot_id,
-                "Token and slot IDs should remain distinct even when raw values match"
+                "Non-ERC3525 slot IDs should reuse the NF token ID"
             );
         }
     }
@@ -346,6 +351,53 @@ mod tests {
             slot_id,
             TokenType::ERC3525,
         );
+
+        assert_eq!(expected, nf_slot_id);
+    }
+
+    #[test]
+    fn test_nf_slot_id_from_str_hashes_erc3525_slot_when_slot_matches_token() {
+        let mut rng = rand::thread_rng();
+        let erc_address: [u8; 20] = rng.gen();
+        let erc_address_string = format!("0x{}", hex::encode(erc_address));
+        let solidity_erc_address = Address::from_slice(&erc_address);
+
+        let token_id = U256::from(7u64);
+        let token_id_string = Fr254::to_hex_string(&Fr254::from(7u64));
+        let expected = expected_erc3525_nf_slot_id(solidity_erc_address, token_id);
+
+        let nf_token_id = to_nf_token_id_from_str(&erc_address_string, &token_id_string).unwrap();
+        let nf_slot_id = to_nf_slot_id_from_str(
+            &erc_address_string,
+            &token_id_string,
+            &token_id_string,
+            TokenType::ERC3525,
+        )
+        .unwrap();
+
+        assert_eq!(expected, nf_slot_id);
+        assert_ne!(nf_token_id, nf_slot_id);
+    }
+
+    #[test]
+    fn test_nf_slot_id_from_str_hashes_erc3525_slot_when_slot_differs_from_token() {
+        let mut rng = rand::thread_rng();
+        let erc_address: [u8; 20] = rng.gen();
+        let erc_address_string = format!("0x{}", hex::encode(erc_address));
+        let solidity_erc_address = Address::from_slice(&erc_address);
+
+        let slot_id = U256::from(8u64);
+        let token_id_string = Fr254::to_hex_string(&Fr254::from(7u64));
+        let slot_id_string = Fr254::to_hex_string(&Fr254::from(8u64));
+        let expected = expected_erc3525_nf_slot_id(solidity_erc_address, slot_id);
+
+        let nf_slot_id = to_nf_slot_id_from_str(
+            &erc_address_string,
+            &token_id_string,
+            &slot_id_string,
+            TokenType::ERC3525,
+        )
+        .unwrap();
 
         assert_eq!(expected, nf_slot_id);
     }

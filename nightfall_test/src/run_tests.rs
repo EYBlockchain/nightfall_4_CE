@@ -1783,19 +1783,17 @@ pub async fn run_tests(
     )
     .await;
     let client2_erc20_after =
-        get_erc20_balance(&http_client, Url::parse("http://client2:3000").unwrap()).await;
-
-    assert_eq!(
-        client1_erc3525_slot7_after + client1_erc3525_slot8_after,
-        client1_erc3525_slot7_before + client1_erc3525_slot8_before
-    );
-    assert_eq!(
-        client2_erc3525_slot7_after + client2_erc3525_slot8_after,
-        client2_erc3525_slot7_before + client2_erc3525_slot8_before
-    );
-    assert_eq!(client1_erc20_after, client1_erc20_before);
-    assert_eq!(client2_erc20_after, client2_erc20_before);
-
+        get_erc20_balance(&http_client, Url::parse("http://client2:3000").unwrap()).await;        assert_eq!(
+            client1_erc3525_slot7_after + client1_erc3525_slot8_after,
+            client1_erc3525_slot7_before + client1_erc3525_slot8_before
+        );
+        assert_eq!(
+            client2_erc3525_slot7_after + client2_erc3525_slot8_after,
+            client2_erc3525_slot7_before + client2_erc3525_slot8_before
+        );
+        assert_eq!(client1_erc20_after, client1_erc20_before);
+        assert_eq!(client2_erc20_after, client2_erc20_before);
+    
     // ERC1155 swap.
     info!("Sending ERC1155 swap transactions");
     let raw_swap_nonce = (Uuid::new_v4().as_u128() & u128::from(u64::MAX)).max(1);

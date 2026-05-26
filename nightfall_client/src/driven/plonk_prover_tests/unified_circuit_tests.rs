@@ -35,7 +35,7 @@ mod tests {
         nf_token_id::{to_nf_slot_id_from_str, to_nf_token_id_from_str},
         plonk_prover::circuits::{unified_circuit::unified_circuit_builder, DOMAIN_SHARED_SALT},
         secret_hash::SecretHash,
-        shared_entities::{DepositData, DepositSecret, Preimage, Salt},
+        shared_entities::{DepositData, DepositSecret, Preimage, Salt, TokenType},
     };
     use nf_curves::ed_on_bn254::{BabyJubjub, Fq as Fr254, Fr as BJJScalar};
     use num_bigint::BigUint;
@@ -283,7 +283,13 @@ mod tests {
         let token_id_string = Fr254::to_hex_string(&token_id_fr);
 
         let nf_token_id = to_nf_token_id_from_str(&erc_address_string, &token_id_string).unwrap();
-        let nf_slot_id = to_nf_slot_id_from_str(&erc_address_string, &token_id_string).unwrap();
+        let nf_slot_id = to_nf_slot_id_from_str(
+            &erc_address_string,
+            &token_id_string,
+            &token_id_string,
+            TokenType::ERC20,
+        )
+        .unwrap();
 
         // make a random Nightfall address
         let mut bytes = rand::thread_rng();
@@ -545,7 +551,13 @@ mod tests {
         let token_id_string = Fr254::to_hex_string(&token_id_fr);
 
         let nf_token_id = to_nf_token_id_from_str(&erc_address_string, &token_id_string).unwrap();
-        let nf_slot_id = to_nf_slot_id_from_str(&erc_address_string, &token_id_string).unwrap();
+        let nf_slot_id = to_nf_slot_id_from_str(
+            &erc_address_string,
+            &token_id_string,
+            &token_id_string,
+            TokenType::ERC20,
+        )
+        .unwrap();
 
         let mut bytes = rand::thread_rng();
         let nf_address_h160 = Address::new(bytes.gen());
@@ -723,7 +735,13 @@ mod tests {
         let token_id_string = Fr254::to_hex_string(&token_id_fr);
 
         let nf_token_id = to_nf_token_id_from_str(&erc_address_string, &token_id_string).unwrap();
-        let nf_slot_id = to_nf_slot_id_from_str(&erc_address_string, &token_id_string).unwrap();
+        let nf_slot_id = to_nf_slot_id_from_str(
+            &erc_address_string,
+            &token_id_string,
+            &token_id_string,
+            TokenType::ERC20,
+        )
+        .unwrap();
 
         // Generate a random withdraw address
         let mut withdraw_address_bytes: [u8; 20] = [0; 20]; // Initialize with zeros
@@ -986,8 +1004,13 @@ mod tests {
         let token_id_a_string = Fr254::to_hex_string(&token_id_a_fr);
         let nf_token_a_id =
             to_nf_token_id_from_str(&erc_address_a_string, &token_id_a_string).unwrap();
-        let nf_slot_a_id =
-            to_nf_slot_id_from_str(&erc_address_a_string, &token_id_a_string).unwrap();
+        let nf_slot_a_id = to_nf_slot_id_from_str(
+            &erc_address_a_string,
+            &token_id_a_string,
+            &token_id_a_string,
+            TokenType::ERC20,
+        )
+        .unwrap();
 
         let erc_address_b: [u8; 20] = rand::thread_rng().gen();
         let erc_address_b_string = format!("0x{}", hex::encode(erc_address_b));
@@ -1295,8 +1318,13 @@ mod tests {
         let token_id_b_string = Fr254::to_hex_string(&token_id_b_fr);
         let nf_token_b_id =
             to_nf_token_id_from_str(&erc_address_b_string, &token_id_b_string).unwrap();
-        let nf_slot_b_id =
-            to_nf_slot_id_from_str(&erc_address_b_string, &token_id_b_string).unwrap();
+        let nf_slot_b_id = to_nf_slot_id_from_str(
+            &erc_address_b_string,
+            &token_id_b_string,
+            &token_id_b_string,
+            TokenType::ERC20,
+        )
+        .unwrap();
 
         // Fee setup
         let nf_address_h160 = Address::new(rand::thread_rng().gen());
@@ -2646,9 +2674,13 @@ mod tests {
         let nf_token_a_id =
             to_nf_token_id_from_str(&erc_address_a_string, &Fr254::to_hex_string(&token_id_a))
                 .unwrap();
-        let nf_slot_a_id =
-            to_nf_slot_id_from_str(&erc_address_a_string, &Fr254::to_hex_string(&token_id_a))
-                .unwrap();
+        let nf_slot_a_id = to_nf_slot_id_from_str(
+            &erc_address_a_string,
+            &Fr254::to_hex_string(&token_id_a),
+            &Fr254::to_hex_string(&token_id_a),
+            TokenType::ERC20,
+        )
+        .unwrap();
 
         let erc_address_b: [u8; 20] = rand::thread_rng().gen();
         let erc_address_b_string = format!("0x{}", hex::encode(erc_address_b));
@@ -2656,9 +2688,13 @@ mod tests {
         let nf_token_b_id =
             to_nf_token_id_from_str(&erc_address_b_string, &Fr254::to_hex_string(&token_id_b))
                 .unwrap();
-        let nf_slot_b_id =
-            to_nf_slot_id_from_str(&erc_address_b_string, &Fr254::to_hex_string(&token_id_b))
-                .unwrap();
+        let nf_slot_b_id = to_nf_slot_id_from_str(
+            &erc_address_b_string,
+            &Fr254::to_hex_string(&token_id_b),
+            &Fr254::to_hex_string(&token_id_b),
+            TokenType::ERC20,
+        )
+        .unwrap();
 
         let nf_address_h160 = Address::new(rand::thread_rng().gen());
         let nf_address_token = nf_address_h160.tokenize();

@@ -5,7 +5,7 @@ use crate::{
     nf_client_proof::{PrivateInputs, PublicInputs},
     nf_token_id::{to_nf_slot_id_from_str, to_nf_token_id_from_str},
     secret_hash::SecretHash,
-    shared_entities::{DepositData, DepositSecret, Preimage, Salt},
+    shared_entities::{DepositData, DepositSecret, Preimage, Salt, TokenType},
 };
 use alloy::primitives::{hex, keccak256};
 use ark_bn254::Fr as Fr254;
@@ -93,7 +93,13 @@ pub fn build_valid_transfer_inputs(rng: &mut impl Rng) -> (PublicInputs, Private
     let token_id_string = Fr254::to_hex_string(&token_id_fr);
 
     let nf_token_id = to_nf_token_id_from_str(&erc_address_string, &token_id_string).unwrap();
-    let nf_slot_id = to_nf_slot_id_from_str(&erc_address_string, &token_id_string).unwrap();
+    let nf_slot_id = to_nf_slot_id_from_str(
+        &erc_address_string,
+        &token_id_string,
+        &token_id_string,
+        TokenType::ERC20,
+    )
+    .unwrap();
 
     // generate a 'random' fee token ID (we just use the keccak hash of 1)
     let fee_token_id = Fr254::from(BigUint::from_bytes_be(keccak256([1]).as_slice()) >> 4);
