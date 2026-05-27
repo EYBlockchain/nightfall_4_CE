@@ -2121,14 +2121,8 @@ mod test {
         },
         time::Duration,
     };
-    use tokio::sync::{Mutex, OnceCell};
-
     pub(crate) async fn snapshot_test_lock() -> tokio::sync::MutexGuard<'static, ()> {
-        static LOCK: OnceCell<Mutex<()>> = OnceCell::const_new();
-        LOCK.get_or_init(|| async { Mutex::new(()) })
-            .await
-            .lock()
-            .await
+        super::snapshot_test_lock().await
     }
 
     #[derive(Clone, Debug, Default, Deserialize, Serialize)]
