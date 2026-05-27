@@ -528,3 +528,42 @@ A robust follow-up should either:
 - persist sufficient canonical per-block nullifier accounting to derive an exact expected bound, or
 - persist explicit canonical tree progress counters alongside `sync_state` for startup and restore
   validation
+
+## Deferred Follow-Up: Destructive Replay Auxiliary Cleanup
+
+Destructive replay currently reuses the journaled `startup_replay_reset_marker` flow for canonical
+state and proposer tree reset, but ordinary proposer mempool client transaction cleanup still runs
+after that flow completes.
+
+This ordinary mempool cleanup is currently best-effort. A crash or DB failure after the
+`startup_replay_reset_marker` is cleared but before ordinary mempool cleanup completes can leave
+stale proposer mempool transactions with no automatic resume path.
+
+The intended follow-up is:
+
+- move ordinary proposer mempool client transaction cleanup into the
+  `AuxiliaryCleanupPending` phase
+- make that cleanup fail-closed and return `Result`
+- clear the `startup_replay_reset_marker` only after canonical state reset, tree reset, reserved
+  deposit cleanup, active transaction lifecycle cleanup, and ordinary mempool cleanup have all
+  succeeded
+
+This would make destructive replay recovery fully crash-resumable across both canonical and
+auxiliary proposer state.
+
+## Deferred Follow-Up: Local Docker Snapshot Mount Ownership
+
+Local `docker-compose` currently defaults proposer snapshots to a host bind mount under
+`./data/proposer_snapshots`.
+
+Because the proposer container runs as root, this can leave root-owned snapshot files in the local
+workspace.
+
+The intended follow-up is one of:
+
+- use a named Docker volume as the default snapshot mount, or
+- run the proposer container as a non-root user
+
+This is operational rather than protocol-critical, but it would avoid local workspace pollution and
+reduce cleanup friction on developer machines or self-hosted runners that use the bind-mount
+default.
