@@ -18,6 +18,8 @@ mod db;
 mod runtime_listener;
 
 pub use bootstrap::bootstrap_proposer_startup_state;
+#[cfg(test)]
+pub(crate) use cleanup::TestStartupReplayResetFailpointGuard;
 pub(crate) use cleanup::{begin_startup_replay_reset, complete_startup_replay_reset};
 pub(crate) use consistency::{
     validate_live_proposer_state_consistency, validate_snapshotted_live_proposer_state_consistency,

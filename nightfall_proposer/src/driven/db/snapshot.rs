@@ -54,6 +54,14 @@ fn enabled_failpoints() -> &'static Mutex<HashSet<String>> {
     ENABLED_FAILPOINTS.get_or_init(|| Mutex::new(HashSet::new()))
 }
 
+#[cfg(test)]
+pub(crate) fn clear_all_test_failpoints() {
+    enabled_failpoints()
+        .lock()
+        .expect("failpoint lock poisoned")
+        .clear();
+}
+
 fn maybe_crash_at_failpoint(_name: &str) {
     #[cfg(test)]
     {

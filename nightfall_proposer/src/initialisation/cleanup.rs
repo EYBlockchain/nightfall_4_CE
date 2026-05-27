@@ -22,6 +22,60 @@ use mongodb::{
 };
 use std::collections::HashSet;
 
+#[cfg(test)]
+use std::sync::{Mutex, OnceLock};
+
+#[cfg(test)]
+static ENABLED_STARTUP_REPLAY_RESET_FAILPOINTS: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+
+#[cfg(test)]
+fn enabled_startup_replay_reset_failpoints() -> &'static Mutex<HashSet<String>> {
+    ENABLED_STARTUP_REPLAY_RESET_FAILPOINTS.get_or_init(|| Mutex::new(HashSet::new()))
+}
+
+#[cfg(test)]
+fn maybe_fail_startup_replay_reset(name: &str) -> Result<(), String> {
+    if enabled_startup_replay_reset_failpoints()
+        .lock()
+        .expect("startup replay reset failpoint lock poisoned")
+        .contains(name)
+    {
+        return Err(startup_local_state_cleanup_error(&format!(
+            "Simulated startup replay reset failure at {name}"
+        )));
+    }
+
+    Ok(())
+}
+
+#[cfg(test)]
+pub(crate) struct TestStartupReplayResetFailpointGuard {
+    name: String,
+}
+
+#[cfg(test)]
+impl TestStartupReplayResetFailpointGuard {
+    pub(crate) fn enable(name: &str) -> Self {
+        enabled_startup_replay_reset_failpoints()
+            .lock()
+            .expect("startup replay reset failpoint lock poisoned")
+            .insert(name.to_string());
+        Self {
+            name: name.to_string(),
+        }
+    }
+}
+
+#[cfg(test)]
+impl Drop for TestStartupReplayResetFailpointGuard {
+    fn drop(&mut self) {
+        enabled_startup_replay_reset_failpoints()
+            .lock()
+            .expect("startup replay reset failpoint lock poisoned")
+            .remove(&self.name);
+    }
+}
+
 pub(super) async fn tree_sub_tree_count(client: &Client, tree_name: &str) -> Result<u64, String> {
     let metadata_collection_name = format!("{tree_name}_metadata");
     let metadata = client
@@ -182,6 +236,9 @@ pub(super) async fn startup_tree_replay_reset_candidate(
 }
 
 async fn reset_trees_for_startup_replay(client: &Client) -> Result<(), String> {
+    #[cfg(test)]
+    maybe_fail_startup_replay_reset("reset_commitment_tree_before_drop")?;
+
     <Client as MutableTree<Fr254>>::reset_mutable_tree(
         client,
         <Client as CommitmentTree<Fr254>>::TREE_NAME,

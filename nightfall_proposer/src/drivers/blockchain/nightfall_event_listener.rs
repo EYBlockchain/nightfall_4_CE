@@ -883,13 +883,13 @@ mod tests {
             ensure_deposit_indexes, StoredBlock, DB, PROPOSED_BLOCKS_COLLECTION,
         },
         driven::db::snapshot::{
-            create_proposer_snapshot, load_proposer_snapshot_into_shadow, snapshot_test_lock,
-            swap_proposer_shadow_into_live,
+            clear_all_test_failpoints, create_proposer_snapshot,
+            load_proposer_snapshot_into_shadow, snapshot_test_lock, swap_proposer_shadow_into_live,
         },
         drivers::blockchain::block_assembly::{
             pending_blocks_queue_len_for_test, push_pending_block_for_test,
         },
-        initialisation::get_runtime_listener_start_block,
+        initialisation::{get_runtime_listener_start_block, TestStartupReplayResetFailpointGuard},
         ports::db::{
             BlockStorageDB, PendingBlockDB, RestoreJournalDB, SyncStateDB, TransactionsDB,
         },
@@ -1478,6 +1478,7 @@ mod tests {
     async fn continue_after_failed_snapshot_restore_aborts_when_recovery_leaves_restore_state() {
         let _lock = event_listener_test_lock().await;
         let _snapshot_lock = snapshot_test_lock().await;
+        clear_all_test_failpoints();
         let container = get_mongo().await;
         let client = get_db_connection(&container).await;
 
@@ -1607,7 +1608,8 @@ mod tests {
         );
         persist_sync_state(&client, &sync_state).await;
 
-        let _failpoint = TestReplayResetFailpointGuard::enable("reset_commitment_tree_before_drop");
+        let _failpoint =
+            TestStartupReplayResetFailpointGuard::enable("reset_commitment_tree_before_drop");
         let error = reset_proposer_state_for_replay::<MockProof>(&client)
             .await
             .expect_err("tree reset failure should abort replay fallback");
@@ -1863,7 +1865,7 @@ mod tests {
             .expect_err("sync_state delete failure should abort replay fallback");
 
         assert!(
-            matches!(error, EventHandlerError::IOError(message) if message.contains("canonical state"))
+            matches!(error, EventHandlerError::IOError(message) if message.contains("delete_sync_state_before_delete"))
         );
         assert_eq!(client.get_sync_state().await, Some(sync_state));
 
