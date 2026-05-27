@@ -13,7 +13,7 @@ jobs:
     runs-on: self-hosted
     environment: DEV
     env:
-      NF4_NIGHTFALL_PROPOSER__SNAPSHOT_ROOT_DIR: ${{ runner.temp }}/proposer_snapshots/build
+      NF4_NIGHTFALL_PROPOSER__SNAPSHOT_ROOT_DIR: /tmp/proposer_snapshots/build
     steps:
       - name: Cleanup stale proposer snapshots
         shell: bash
@@ -210,7 +210,7 @@ jobs:
     needs: [build]
     runs-on: self-hosted
     env:
-      NF4_NIGHTFALL_PROPOSER__SNAPSHOT_ROOT_DIR: ${{ runner.temp }}/proposer_snapshots/forge
+      NF4_NIGHTFALL_PROPOSER__SNAPSHOT_ROOT_DIR: /tmp/proposer_snapshots/forge
     steps:
       - name: Cleanup stale proposer snapshots
         shell: bash
