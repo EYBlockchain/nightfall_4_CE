@@ -258,7 +258,7 @@ pub async fn get_synchronisation_status<N: NightfallContract>(
                         )
                     })?;
             let store_block_pending = StoredBlock {
-                layer2_block_number: expected_u64,
+                layer2_block_number: latest_confirmed_block_u64,
                 commitments: block_onchain
                     .transactions
                     .iter()
