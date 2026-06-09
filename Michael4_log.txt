@@ -1,0 +1,1020 @@
+Attaching to anvil, nf4_client, nf4_client2, nf4_configuration, nf4_db_client, nf4_db_client2, nf4_db_proposer, nf4_deployer, nf4_proposer, nf4_test
+anvil  | 
+anvil  | 
+anvil  |                              _   _
+anvil  |                             (_) | |
+anvil  |       __ _   _ __   __   __  _  | |
+anvil  |      / _` | | '_ \  \ \ / / | | | |
+anvil  |     | (_| | | | | |  \ V /  | | | |
+anvil  |      \__,_| |_| |_|   \_/   |_| |_|
+anvil  | 
+anvil  |     1.1.0-v1.1.0 (d484a00089 2025-04-28T08:23:11.904011989Z)
+anvil  |     https://github.com/foundry-rs/foundry
+anvil  | 
+anvil  | Available Accounts
+anvil  | ==================
+anvil  | 
+anvil  | (0) 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 (10000.000000000000000000 ETH)
+anvil  | (1) 0x70997970C51812dc3A010C7d01b50e0d17dc79C8 (10000.000000000000000000 ETH)
+anvil  | (2) 0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC (10000.000000000000000000 ETH)
+anvil  | (3) 0x90F79bf6EB2c4f870365E785982E1f101E93b906 (10000.000000000000000000 ETH)
+anvil  | (4) 0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65 (10000.000000000000000000 ETH)
+anvil  | (5) 0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc (10000.000000000000000000 ETH)
+anvil  | (6) 0x976EA74026E726554dB657fA54763abd0C3a0aa9 (10000.000000000000000000 ETH)
+anvil  | (7) 0x14dC79964da2C08b23698B3D3cc7Ca32193d9955 (10000.000000000000000000 ETH)
+anvil  | (8) 0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f (10000.000000000000000000 ETH)
+anvil  | (9) 0xa0Ee7A142d267C1f36714E4a8F75612F20a79720 (10000.000000000000000000 ETH)
+anvil  | 
+anvil  | Private Keys
+anvil  | ==================
+anvil  | 
+anvil  | (0) 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+anvil  | (1) 0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d
+anvil  | (2) 0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a
+anvil  | (3) 0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6
+anvil  | (4) 0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a
+anvil  | (5) 0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba
+anvil  | (6) 0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e
+anvil  | (7) 0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356
+anvil  | (8) 0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97
+anvil  | (9) 0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6
+anvil  | 
+anvil  | Wallet
+anvil  | ==================
+anvil  | Mnemonic:          test test test test test test test test test test test junk
+anvil  | Derivation path:   m/44'/60'/0'/0/
+anvil  | 
+anvil  | 
+anvil  | Chain ID
+anvil  | ==================
+anvil  | 
+anvil  | 31337
+anvil  | 
+anvil  | Base Fee
+anvil  | ==================
+anvil  | 
+anvil  | 58000000000
+anvil  | 
+anvil  | Gas Limit
+anvil  | ==================
+anvil  | 
+anvil  | 500000000
+anvil  | 
+anvil  | Genesis Timestamp
+anvil  | ==================
+anvil  | 
+anvil  | 1781002051
+anvil  | 
+anvil  | Genesis Number
+anvil  | ==================
+anvil  | 
+anvil  | 0
+anvil  | 
+anvil  | Listening on 0.0.0.0:8545
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: using the "epoll" event method
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: nginx/1.31.1
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: built by gcc 14.2.0 (Debian 14.2.0-19) 
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: OS: Linux 6.8.0-1052-azure
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: getrlimit(RLIMIT_NOFILE): 1024:524288
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker processes
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 28
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 29
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 30
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 31
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 32
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 33
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 34
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 35
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 36
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 37
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 38
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 39
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 40
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 41
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 42
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 43
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 44
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 45
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 46
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 47
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 48
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 49
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 50
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 51
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 52
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 53
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 54
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 55
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 56
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 57
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 58
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 59
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 60
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 61
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 62
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 63
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 64
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 65
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 66
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 67
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 68
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 69
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 70
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 71
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 72
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 73
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 74
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 75
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 76
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 77
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 78
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 79
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 80
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 81
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 82
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 83
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 84
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 85
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 86
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 87
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 88
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 89
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 90
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 91
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 92
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 93
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 94
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 95
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 96
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 97
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 98
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 99
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 100
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 101
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 102
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 103
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 104
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 105
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 106
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 107
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 108
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 109
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 110
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 111
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 112
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 113
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 114
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 115
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 116
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 117
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 118
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 119
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 120
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 121
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 122
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 123
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 124
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 125
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 126
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 127
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 128
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 129
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 130
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 131
+anvil              | eth_chainId
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 132
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 133
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 134
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 135
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 136
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 137
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 138
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 139
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 140
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 141
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 142
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 143
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 144
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 145
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 146
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 147
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 148
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 149
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 150
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 151
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 152
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 153
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 154
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 155
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 156
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 157
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 158
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 159
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 160
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 161
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 162
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 163
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 164
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 165
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 166
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 167
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 168
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 169
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 170
+nf4_configuration  | 2026/06/09 10:47:31 [notice] 1#1: start worker process 171
+anvil              | eth_getTransactionCount
+anvil              | Compiling 96 files with Solc 0.8.29
+anvil              | installing solc version "0.8.29"
+anvil              | Successfully installed solc 0.8.29
+anvil              | 
+anvil              |     Block Number: 1
+anvil              |     Block Hash: 0xbcd56cb8367baec17bfd17230e88395a0005c68f548f8416836ff2b26b1b7402
+anvil              |     Block Time: "Tue, 9 Jun 2026 10:47:36 +0000"
+anvil              | 
+anvil              | Solc 0.8.29 finished in 6.84s
+anvil              | Compiler run successful with warnings:
+anvil              | Warning (2072): Unused local variable.
+anvil              |    --> blockchain_assets/contracts/Nightfall.sol:642:13:
+anvil              |     |
+anvil              | 642 |             uint256 id = IERC3525(original.erc_address).transferFrom(
+anvil              |     |             ^^^^^^^^^^
+anvil              | 
+anvil              | eth_getCode
+anvil              | eth_blockNumber
+anvil              | eth_gasPrice
+anvil              | eth_chainId
+anvil              | eth_getBlockByNumber
+anvil              | eth_blockNumber
+anvil              | eth_gasPrice
+anvil              | eth_getBlockByNumber
+anvil              | eth_chainId
+anvil              | eth_getBalance
+anvil              | eth_getTransactionCount
+anvil              | eth_getCode
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_chainId
+anvil              | eth_chainId
+anvil              | Script ran successfully.
+anvil              | 
+anvil              | == Logs ==
+anvil              |   Deployed ERC20Mock to: 0x5FbDB2315678afecb367f032d93F642f64180aa3
+anvil              |   Deployed ERC721Mock to: 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+anvil              |   Deployed ERC1155Mock to: 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0
+anvil              |   Deployed ERC3525Mock to: 0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9
+anvil              | 
+anvil              | ## Setting up 1 EVM.
+anvil              | eth_blockNumber
+anvil              | eth_gasPrice
+anvil              | eth_getBlockByNumber
+anvil              | eth_chainId
+anvil              | eth_chainId
+anvil              | eth_feeHistory
+anvil              | 
+anvil              | ==========================
+anvil              | 
+anvil              | Chain 31337
+anvil              | 
+anvil              | Estimated gas price: 116.000000001 gwei
+anvil              | 
+anvil              | Estimated total gas used for script: 7851400
+anvil              | 
+anvil              | Estimated amount required: 0.9107624000078514 ETH
+anvil              | 
+anvil              | ==========================
+anvil              | eth_feeHistory
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_blockNumber
+anvil              | eth_getBlockByNumber
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_blockNumber
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_blockNumber
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_blockNumber
+anvil              | 
+anvil              |     Transaction: 0xbb95c39048a0213ec7b1825dec3c0674c8f208ceba1b44f5ea31b0b0f66a8082
+anvil              |     Contract created: 0x5FbDB2315678afecb367f032d93F642f64180aa3
+anvil              |     Gas used: 645110
+anvil              | 
+anvil              |     Transaction: 0xdeea68bbe84e177d5ba6e1f8dd82009e74bc229f0fff8b7680d7e15b54d9e0db
+anvil              |     Contract created: 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+anvil              |     Gas used: 1678724
+anvil              | 
+anvil              |     Transaction: 0xb07f2d0610242861673bd3cfb533dd9cf87d4b0078800c57896ca246d651992f
+anvil              |     Contract created: 0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0
+anvil              |     Gas used: 2804558
+anvil              | 
+anvil              |     Transaction: 0x291a794c9f3c6ff95159a771f37d84a0bb03a41c5a2ca05d09b5ffdc5b5ad0e1
+anvil              |     Contract created: 0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9
+anvil              |     Gas used: 6039539
+anvil              | 
+anvil              |     Block Number: 2
+anvil              |     Block Hash: 0x2545cacad51cff49373817f8f50e7b22d9f2acb0f6079706a15fc167186d65b3
+anvil              |     Block Time: "Tue, 9 Jun 2026 10:47:41 +0000"
+anvil              | 
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | 
+anvil              | 
+anvil              | ==========================
+anvil              | 
+anvil              | ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+anvil              | 
+anvil              | Transactions saved to: /blockchain_assets/logs/mock_deployment.s.sol/31337/run-latest.json
+anvil              | 
+anvil              | Sensitive values saved to: /blockchain_assets/cache/mock_deployment.s.sol/31337/run-latest.json
+anvil              | 
+nf4_deployer       | 
+nf4_deployer       | ███╗   ██╗██╗ ██████╗ ██╗  ██╗████████╗███████╗ █████╗ ██╗     ██╗        ██╗  ██╗
+nf4_deployer       | ████╗  ██║██║██╔════╝ ██║  ██║╚══██╔══╝██╔════╝██╔══██╗██║     ██║        ██║  ██║
+nf4_deployer       | ██╔██╗ ██║██║██║  ███╗███████║   ██║   █████╗  ███████║██║     ██║        ███████║
+nf4_deployer       | ██║╚██╗██║██║██║   ██║██╔══██║   ██║   ██╔══╝  ██╔══██║██║     ██║        ╚════██║
+nf4_deployer       | ██║ ╚████║██║╚██████╔╝██║  ██║   ██║   ██║     ██║  ██║███████╗███████╗███████╗██║
+nf4_deployer       | ╚═╝  ╚═══╝╚═╝╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚═╝     ╚═╝  ╚═╝╚══════╝╚══════╝╚══════╝╚═╝
+nf4_deployer       | 
+nf4_deployer       | A Zero-Knowledge Proof (ZKP) based application that enables private transfers of ERC20, ERC721, ERC1155, and ERC3525 tokens on public blockchains, 
+nf4_deployer       | leveraging a Layer 2 ZK-ZK rollup architecture to combine scalability with enterprise-grade privacy.
+nf4_deployer       | https://github.com/EYBlockchain/nightfall_4_CE
+nf4_deployer       | 
+nf4_deployer       | [0m[38;5;8m[[0m2026-06-09T10:47:41Z [0m[32mINFO [0m nightfall_deployer[0m[38;5;8m][0m Deployer has started
+nf4_deployer       | [0m[38;5;8m[[0m2026-06-09T10:47:41Z [0m[32mINFO [0m nightfall_deployer[0m[38;5;8m][0m Deploying contracts
+nf4_deployer       | [0m[38;5;8m[[0m2026-06-09T10:47:41Z [0m[32mINFO [0m nightfall_deployer::deployment[0m[38;5;8m][0m Cleaning build-info directory to ensure fresh compilation
+nf4_deployer       | [0m[38;5;8m[[0m2026-06-09T10:47:41Z [0m[32mINFO [0m nightfall_deployer::deployment[0m[38;5;8m][0m Cleaning cache directory
+nf4_deployer       | [0m[38;5;8m[[0m2026-06-09T10:47:41Z [0m[32mINFO [0m nightfall_deployer::deployment[0m[38;5;8m][0m Building contracts with forge
+anvil              | 
+anvil              |     Block Number: 3
+anvil              |     Block Hash: 0xff9814a98cbb90dfd973467fbcdb177d97709404092f9ba4a21c737495695236
+anvil              |     Block Time: "Tue, 9 Jun 2026 10:47:46 +0000"
+anvil              | 
+anvil              | 
+anvil              |     Block Number: 4
+anvil              |     Block Hash: 0xab8de160834f80320bbfafab7580140e2149a4584607a1f133781f6230ed3f54
+anvil              |     Block Time: "Tue, 9 Jun 2026 10:47:51 +0000"
+anvil              | 
+nf4_deployer       | [0m[38;5;8m[[0m2026-06-09T10:47:53Z [0m[32mINFO [0m nightfall_deployer::deployment[0m[38;5;8m][0m Command 'forge ["build", "--force"]' executed successfully: Compiling 135 files with Solc 0.8.29
+nf4_deployer       |     installing solc version "0.8.29"
+nf4_deployer       |     Successfully installed solc 0.8.29
+nf4_deployer       |     Solc 0.8.29 finished in 10.57s
+nf4_deployer       |     Compiler run successful with warnings:
+nf4_deployer       |     Warning (2072): Unused local variable.
+nf4_deployer       |        --> blockchain_assets/contracts/Nightfall.sol:642:13:
+nf4_deployer       |         |
+nf4_deployer       |     642 |             uint256 id = IERC3525(original.erc_address).transferFrom(
+nf4_deployer       |         |             ^^^^^^^^^^
+nf4_deployer       |     
+nf4_deployer       |     Warning (2018): Function state mutability can be restricted to pure
+nf4_deployer       |       --> blockchain_assets/solidity_lib/openzeppelin-foundry-upgrades/src/internal/StringFinder.sol:15:5:
+nf4_deployer       |        |
+nf4_deployer       |     15 |     function contains(string memory subject, string memory search) internal returns (bool) {
+nf4_deployer       |        |     ^ (Relevant source part starts here and spans across multiple lines).
+nf4_deployer       |     
+nf4_deployer       |     Warning (2018): Function state mutability can be restricted to pure
+nf4_deployer       |        --> blockchain_assets/solidity_lib/openzeppelin-foundry-upgrades/src/internal/DefenderDeploy.sol:226:5:
+nf4_deployer       |         |
+nf4_deployer       |     226 |     function _parseLine(
+nf4_deployer       |         |     ^ (Relevant source part starts here and spans across multiple lines).
+nf4_deployer       |     
+nf4_deployer       |     
+nf4_deployer       | [0m[38;5;8m[[0m2026-06-09T10:47:53Z [0m[32mINFO [0m nightfall_deployer::deployment[0m[38;5;8m][0m Deploying contracts with forge script
+anvil              | eth_getTransactionCount
+anvil              | eth_getCode
+anvil              | eth_blockNumber
+anvil              | eth_gasPrice
+anvil              | eth_getBlockByNumber
+anvil              | eth_chainId
+anvil              | eth_blockNumber
+anvil              | eth_gasPrice
+anvil              | eth_getBlockByNumber
+anvil              | eth_chainId
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | 
+anvil              |     Block Number: 5
+anvil              |     Block Hash: 0xe6f1b486957d0d575bea0231ace29e1deae0e635d1d7f6c6190136cc03f5a453
+anvil              |     Block Time: "Tue, 9 Jun 2026 10:47:56 +0000"
+anvil              | 
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_getBalance
+anvil              | eth_getCode
+anvil              | eth_getTransactionCount
+anvil              | eth_chainId
+anvil              | eth_chainId
+anvil              | eth_blockNumber
+anvil              | eth_gasPrice
+anvil              | eth_getBlockByNumber
+anvil              | eth_chainId
+anvil              | eth_chainId
+anvil              | eth_feeHistory
+anvil              | eth_feeHistory
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_sendRawTransaction
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_blockNumber
+anvil              | eth_getBlockByNumber
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | Bootstrapping default proposer...
+anvil              | defaultProposerAddress:  0xa0Ee7A142d267C1f36714E4a8F75612F20a79720
+anvil              | defaultProposerUrl:  http://proposer:3000
+anvil              | nightfallAddress:  0x4ed7c70F96B99c776995fB64377f0d4aB3B0e1C1
+anvil              | 
+anvil              |     Transaction: 0xf4c9b901fd99561ef4d2a1d5460a93186fde5d15f602064dd2984969aae51a3e
+anvil              |     Contract created: 0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9
+anvil              |     Gas used: 1928152
+anvil              | 
+anvil              |     Transaction: 0x32ab635d77f9940a32ce176ac2be4b1a4ade259f2946ff9385e1b3054bdb16ae
+anvil              |     Contract created: 0x5FC8d32690cc91D4c39d9d3abcBD16989F875707
+anvil              |     Gas used: 3905775
+anvil              | 
+anvil              |     Transaction: 0x0d8cad7333ad2b40b9e766bfdcc0eb4dc99efa33f37136dd23688316d77e05c0
+anvil              |     Gas used: 3939363
+anvil              | 
+anvil              |     Transaction: 0x9a26ee7c803adb2802d9a31a54f31079ac9f173c18c3b0b76e99e55729161a0a
+anvil              |     Contract created: 0xa513E6E4b8f2a923D98304ec87F64353C4D5C853
+anvil              |     Gas used: 4062561
+anvil              | 
+anvil              |     Transaction: 0x0f26aad351a04b0ceb03e2e7fb9a7d22212cc07899753351a06454409dbf9249
+anvil              |     Contract created: 0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6
+anvil              |     Gas used: 9331143
+anvil              | 
+anvil              |     Transaction: 0xc47ad3341bee2b1d5a630afb5b2d70fd1820d44d3eb6c125e9cc2e81371ec1a0
+anvil              |     Contract created: 0x8A791620dd6260079BF849Dc5567aDC3F2FdC318
+anvil              |     Gas used: 9554174
+anvil              | 
+anvil              |     Transaction: 0xdcb9bb279ffa5192b8124d69748993ef434c8413091d542012654e10cc829d40
+anvil              |     Contract created: 0x610178dA211FEF7D417bC0e6FeD39F05609AD788
+anvil              |     Gas used: 10644672
+anvil              | 
+anvil              |     Transaction: 0x2ac2d00ece36cad91f59d7a0f5fcdd597b31c220472edcf16f142f639c4c4c2a
+anvil              |     Contract created: 0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e
+anvil              |     Gas used: 15923656
+anvil              | 
+anvil              |     Transaction: 0xeaf256e90246c1fce8b7b84ccee7a2289b7f69bdbac1735eefc56af91fe36ad4
+anvil              |     Contract created: 0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0
+anvil              |     Gas used: 16122644
+anvil              | 
+anvil              |     Transaction: 0x7f8caad5cd137fce817adc35c8e6e3b771c2fc7e4ff672acffeb6a214d5315d8
+anvil              |     Gas used: 16156556
+anvil              | 
+anvil              |     Transaction: 0xba26864a8f8bae542cc3aae7587d8f40cad29c8af2559f12beb2c5e8617cb553
+anvil              |     Gas used: 16616465
+anvil              | 
+anvil              |     Transaction: 0xfb1edf74808938bd67709ec0b5659eb0764d47982973b88586def0c4077596bf
+anvil              |     Gas used: 16645325
+anvil              | 
+anvil              |     Transaction: 0xaeb3be65c2a629168f6000a90530d2ce21766e74b98b6d40a8e5d2d280b026fc
+anvil              |     Gas used: 16763457
+anvil              | 
+anvil              |     Transaction: 0xec49b49fafd4bced8bc5615d0070fb2e38cd7791b7fe2dd88314a5d05657864b
+anvil              |     Gas used: 16859171
+anvil              | 
+anvil              |     Transaction: 0x1b1d33cf8f8802e4367518c262983fffea191f8e693dea0461668136fd1d5c60
+anvil              |     Gas used: 16890399
+anvil              | 
+anvil              |     Transaction: 0xac94d7836fc4807bb8e0bf397c224318351a2eee158d519bbec37d6f81a70045
+anvil              |     Gas used: 21301412
+anvil              | 
+anvil              |     Transaction: 0x944f7f259d7e26c37ba9e31709eeeac6a46e5f4ca2f01ce51c30e72b5c5edf55
+anvil              |     Gas used: 21333377
+anvil              | 
+anvil              |     Transaction: 0x2998120e39f92670853b9703f298904752dcc048402c07ea835d2a422da5558f
+anvil              |     Contract created: 0x59b670e9fA9D0A427751Af201D676719a970857b
+anvil              |     Gas used: 24772528
+anvil              | 
+anvil              |     Transaction: 0x9586ac4f2523060bb571759fca7afef189e304a9c1e947221c4bb685c4516935
+anvil              |     Contract created: 0x4ed7c70F96B99c776995fB64377f0d4aB3B0e1C1
+anvil              |     Gas used: 25188172
+anvil              | 
+anvil              |     Transaction: 0xe2ebfa98e22afb28b8d720e018993909df63f462a889965d1388191a5787b6db
+anvil              |     Contract created: 0x322813Fd9A801c5507c9de605d63CEA4f2CE6c44
+anvil              |     Gas used: 28278437
+anvil              | 
+anvil              |     Transaction: 0xfeb5dd0310a3d0ad182281ed7a72fbcef7993ca8ac8cdf90fee3edb773206291
+anvil              |     Contract created: 0xa85233C63b9Ee964Add6F2cffe00Fd84eb32338f
+anvil              |     Gas used: 28661920
+anvil              | 
+anvil              |     Transaction: 0x72f07c798e8bda90fd65c3e53ef8d6527d5fb6251c7e968b2c70f9f2ee124bac
+anvil              |     Gas used: 28712955
+anvil              | 
+anvil              |     Transaction: 0x9f1bf3a0ce1c608cdeea8e9b4fc833c3d64b355e42f247b618246c6bba04c07c
+anvil              |     Gas used: 29086223
+anvil              | 
+anvil              |     Transaction: 0x0d10327cf9cb46a633b68b5896f2052454cb24d429134adfc2527c832fc35a01
+anvil              |     Gas used: 29137194
+anvil              | 
+anvil              |     Transaction: 0xf447a507f7687923cedb98e33842fbc7f31ff2aebadde9b8b95e94564fdddf71
+anvil              |     Gas used: 29170786
+anvil              | 
+anvil              |     Transaction: 0xb1f563456500f220477018154670e5eaff6dd0e1d9cea944b81be5a2a54fe65e
+anvil              |     Gas used: 29204428
+anvil              | 
+anvil              |     Block Number: 6
+anvil              |     Block Hash: 0x49d489313b60f2ed1f46e7ac9d55469ea09bc258a30ca0439d4d0fddea17d45d
+anvil              |     Block Time: "Tue, 9 Jun 2026 10:48:01 +0000"
+anvil              | 
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_blockNumber
+anvil              | eth_getBlockByNumber
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+nf4_deployer       | [0m[38;5;8m[[0m2026-06-09T10:48:01Z [0m[32mINFO [0m nightfall_deployer::deployment[0m[38;5;8m][0m Command 'forge ["script", "Deployer", "--fork-url", "ws://anvil:8545", "--broadcast"]' executed successfully: No files changed, compilation skipped
+nf4_deployer       |     Script ran successfully.
+nf4_deployer       |     
+nf4_deployer       |     == Logs ==
+nf4_deployer       |       Using NF4_MOCK_PROVER from environment: false
+nf4_deployer       |       inside _configureX509locally
+nf4_deployer       |       Warning: Potentially unsafe deployment of blockchain_assets/contracts/Nightfall.sol:Nightfall
+nf4_deployer       |     
+nf4_deployer       |         blockchain_assets/contracts/Nightfall.sol:151: Incorrect order of parent initializer calls.
+nf4_deployer       |         - Found initializer calls to parent contracts in the following order: ReentrancyGuardUpgradeable, Certified
+nf4_deployer       |         - Expected: Certified, ReentrancyGuardUpgradeable
+nf4_deployer       |             Call parent initializers in linearized order
+nf4_deployer       |     
+nf4_deployer       |     
+nf4_deployer       |       Bootstrapping default proposer...
+nf4_deployer       |       defaultProposerAddress:  0xa0Ee7A142d267C1f36714E4a8F75612F20a79720
+nf4_deployer       |       defaultProposerUrl:  http://proposer:3000
+nf4_deployer       |       nightfallAddress:  0x4ed7c70F96B99c776995fB64377f0d4aB3B0e1C1
+nf4_deployer       |       Nightfall proxy:        0x4ed7c70F96B99c776995fB64377f0d4aB3B0e1C1
+nf4_deployer       |       Nightfall owner:        0xa0Ee7A142d267C1f36714E4a8F75612F20a79720
+nf4_deployer       |       RoundRobin proxy:       0xa85233C63b9Ee964Add6F2cffe00Fd84eb32338f
+nf4_deployer       |       RoundRobin owner:       0xa0Ee7A142d267C1f36714E4a8F75612F20a79720
+nf4_deployer       |       X509 proxy:             0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0
+nf4_deployer       |       X509 owner:             0xa0Ee7A142d267C1f36714E4a8F75612F20a79720
+nf4_deployer       |       VK provider proxy:      0x5FC8d32690cc91D4c39d9d3abcBD16989F875707
+nf4_deployer       |       Verifier proxy:         0x8A791620dd6260079BF849Dc5567aDC3F2FdC318
+nf4_deployer       |       Verifier owner:         0xa0Ee7A142d267C1f36714E4a8F75612F20a79720
+nf4_deployer       |     
+nf4_deployer       |     ## Setting up 1 EVM.
+nf4_deployer       |     
+nf4_deployer       |     ==========================
+nf4_deployer       |     
+nf4_deployer       |     Chain 31337
+nf4_deployer       |     
+nf4_deployer       |     Estimated gas price: 68.231739437 gwei
+nf4_deployer       |     
+nf4_deployer       |     Estimated total gas used for script: 2878870647
+nf4_deployer       |     
+nf4_deployer       |     Estimated amount required: 196.430351858931605739 ETH
+nf4_deployer       |     
+nf4_deployer       |     ==========================
+nf4_deployer       |     
+nf4_deployer       |     
+nf4_deployer       |     ==========================
+nf4_deployer       |     
+nf4_deployer       |     ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+nf4_deployer       |     
+nf4_deployer       |     Transactions saved to: /app/blockchain_assets/logs/deployer.s.sol/31337/run-latest.json
+nf4_deployer       |     
+nf4_deployer       |     Sensitive values saved to: /app/blockchain_assets/cache/deployer.s.sol/31337/run-latest.json
+nf4_deployer       |     
+nf4_deployer       |     
+nf4_deployer       | [0m[38;5;8m[[0m2026-06-09T10:48:01Z [0m[32mINFO [0m nightfall_deployer::deployment[0m[38;5;8m][0m Extracted proxy addresses: nightfall=0x4ed7c70f96b99c776995fb64377f0d4ab3b0e1c1, round_robin=0xa85233c63b9ee964add6f2cffe00fd84eb32338f, x509=0xa51c1fc2f0d1a1b8494ed1fe312d7c3a78ed91c0, verifier=0x8a791620dd6260079bf849dc5567adc3f2fdc318
+nf4_deployer       | [0m[38;5;8m[[0m2026-06-09T10:48:01Z [0m[32mINFO [0m nightfall_deployer::deployment[0m[38;5;8m][0m Saving addresses for chain_id: 31337
+nf4_deployer       | [0m[38;5;8m[[0m2026-06-09T10:48:01Z [0m[32mINFO [0m nightfall_deployer::deployment[0m[38;5;8m][0m Addresses saved successfully
+nf4_deployer       | [0m[38;5;8m[[0m2026-06-09T10:48:01Z [0m[32mINFO [0m nightfall_deployer::deployment[0m[38;5;8m][0m Calculating deployed contract hashes for verification
+nf4_deployer       | [0m[38;5;8m[[0m2026-06-09T10:48:01Z [0m[32mINFO [0m lib::wallets[0m[38;5;8m][0m Creating local wallet for role Client
+anvil              | eth_getStorageAt
+anvil              | eth_getStorageAt
+anvil              | eth_getStorageAt
+anvil              | eth_getCode
+anvil              | eth_getCode
+anvil              | eth_getCode
+nf4_deployer       | [0m[38;5;8m[[0m2026-06-09T10:48:01Z [0m[32mINFO [0m nightfall_deployer::deployment[0m[38;5;8m][0m Nightfall implementation hash: 0x19519004b5cd5b1587fbdf47e7afdd0d11d70ba2e2e44309a235fec25a92a207
+nf4_deployer       | [0m[38;5;8m[[0m2026-06-09T10:48:01Z [0m[32mINFO [0m nightfall_deployer::deployment[0m[38;5;8m][0m RoundRobin implementation hash: 0x60206f08cf8284b649bb0a3a71f0855b303b12827a7403e156808f6e92ef0f57
+nf4_deployer       | [0m[38;5;8m[[0m2026-06-09T10:48:01Z [0m[32mINFO [0m nightfall_deployer::deployment[0m[38;5;8m][0m X509 implementation hash: 0x95df831866d2c3b242f2d71aac2c14414f95acd71d81783a142a5045b2c089cf
+nf4_deployer       | [0m[38;5;8m[[0m2026-06-09T10:48:01Z [0m[32mINFO [0m nightfall_deployer::deployment[0m[38;5;8m][0m Contract hashes saved to "/app/configuration/toml/contract_hashes.toml"
+[Knf4_deployer exited with code 0
+nf4_proposer       | [0m[38;5;8m[[0m2026-06-09T10:48:02Z [0m[32mINFO [0m nightfall_proposer[0m[38;5;8m][0m Dropping database: nightfall
+nf4_proposer       | [0m[38;5;8m[[0m2026-06-09T10:48:02Z [0m[32mINFO [0m nightfall_proposer[0m[38;5;8m][0m Using RollupProver
+nf4_proposer       | [0m[38;5;8m[[0m2026-06-09T10:48:02Z [0m[32mINFO [0m nightfall_proposer::drivers::blockchain::event_listener_manager[0m[38;5;8m][0m Event listener started.
+nf4_proposer       | [0m[38;5;8m[[0m2026-06-09T10:48:02Z [0m[32mINFO [0m nightfall_proposer::drivers::blockchain::nightfall_event_listener[0m[38;5;8m][0m Proposer event listener (attempt 1)...
+nf4_proposer       | [0m[38;5;8m[[0m2026-06-09T10:48:02Z [0m[32mINFO [0m lib::wallets[0m[38;5;8m][0m Creating local wallet for role Proposer
+nf4_proposer       | [0m[38;5;8m[[0m2026-06-09T10:48:02Z [0m[32mINFO [0m nightfall_proposer[0m[38;5;8m][0m Starting warp server, block assembler and event_handler threads
+nf4_proposer       | [0m[38;5;8m[[0m2026-06-09T10:48:02Z [0m[32mINFO [0m configuration::addresses[0m[38;5;8m][0m Loaded contract addresses from local file
+anvil              | eth_getStorageAt
+anvil              | eth_getCode
+anvil              | eth_blockNumber
+anvil              | eth_getStorageAt
+anvil              | eth_getCode
+nf4_proposer       | [0m[38;5;8m[[0m2026-06-09T10:48:02Z [0m[32mINFO [0m nightfall_proposer::drivers::blockchain::nightfall_event_listener[0m[38;5;8m][0m Fetching past events from block 0 to 6
+anvil              | eth_getLogs
+anvil              | eth_getStorageAt
+nf4_proposer       | [0m[38;5;8m[[0m2026-06-09T10:48:02Z [0m[32mINFO [0m nightfall_proposer::drivers::blockchain::nightfall_event_listener[0m[38;5;8m][0m Found 5 past events to process
+nf4_proposer       | [0m[38;5;8m[[0m2026-06-09T10:48:02Z [0m[32mINFO [0m nightfall_proposer::driven::nightfall_event[0m[38;5;8m][0m Received Upgraded event
+nf4_proposer       | [0m[38;5;8m[[0m2026-06-09T10:48:02Z [0m[32mINFO [0m nightfall_proposer::driven::nightfall_event[0m[38;5;8m][0m Received OwnershipTransferred event
+nf4_proposer       | [0m[38;5;8m[[0m2026-06-09T10:48:02Z [0m[32mINFO [0m nightfall_proposer::driven::nightfall_event[0m[38;5;8m][0m Received AuthoritiesUpdated event
+nf4_proposer       | [0m[38;5;8m[[0m2026-06-09T10:48:02Z [0m[32mINFO [0m nightfall_proposer::driven::nightfall_event[0m[38;5;8m][0m Received Initialized event
+nf4_proposer       | [0m[38;5;8m[[0m2026-06-09T10:48:02Z [0m[32mINFO [0m nightfall_proposer::driven::nightfall_event[0m[38;5;8m][0m Received OwnershipTransferred event
+anvil              | eth_getCode
+anvil              | eth_getCode
+anvil              | eth_getStorageAt
+nf4_proposer       | [0m[38;5;8m[[0m2026-06-09T10:48:02Z [0m[33mWARN [0m nightfall_proposer::drivers::blockchain::block_assembly[0m[38;5;8m][0m RoundRobin address: 0xa85233c63b9ee964add6f2cffe00fd84eb32338f, bytecode_len: 163
+nf4_proposer       | [0m[38;5;8m[[0m2026-06-09T10:48:02Z [0m[33mWARN [0m nightfall_proposer::drivers::blockchain::block_assembly[0m[38;5;8m][0m EIP-1967 impl at RR addr: 0x551c809afd132832000000000000000000000000
+nf4_proposer       | [0m[38;5;8m[[0m2026-06-09T10:48:02Z [0m[32mINFO [0m nightfall_proposer::drivers::blockchain::block_assembly[0m[38;5;8m][0m Using addresses — nightfall: 0x4ed7c70f96b99c776995fb64377f0d4ab3b0e1c1, round_robin: 0xa85233c63b9ee964add6f2cffe00fd84eb32338f, x509: 0xa51c1fc2f0d1a1b8494ed1fe312d7c3a78ed91c0
+anvil              | eth_call
+nf4_proposer       | [0m[38;5;8m[[0m2026-06-09T10:48:03Z [0m[32mINFO [0m nightfall_proposer::drivers::blockchain::block_assembly[0m[38;5;8m][0m We are the current proposer. Awaiting trigger...
+anvil              | eth_call
+nf4_proposer       | [0m[38;5;8m[[0m2026-06-09T10:48:03Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 0s, remaining: 30s, will wait for more txs or until timeout (30s).
+anvil              | eth_call
+nf4_proposer       | [0m[38;5;8m[[0m2026-06-09T10:48:03Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 0s, remaining: 30s, will wait for more txs or until timeout (30s).
+anvil              | 
+anvil              |     Block Number: 7
+anvil              |     Block Hash: 0x7d27350c08b7da948fcfcc04ba13fd5d55c6978393d5f8793ba0208b1b74e5dc
+anvil              |     Block Time: "Tue, 9 Jun 2026 10:48:06 +0000"
+anvil              | 
+nf4_client2        | [0m[38;5;8m[[0m2026-06-09T10:48:08Z [0m[32mINFO [0m nightfall_client::drivers::blockchain::event_listener_manager[0m[38;5;8m][0m Event listener started
+nf4_client         | [0m[38;5;8m[[0m2026-06-09T10:48:08Z [0m[32mINFO [0m nightfall_client::drivers::blockchain::event_listener_manager[0m[38;5;8m][0m Event listener started
+nf4_client         | [0m[38;5;8m[[0m2026-06-09T10:48:08Z [0m[32mINFO [0m nightfall_client::drivers::blockchain::nightfall_event_listener[0m[38;5;8m][0m Client event listener (attempt 1)...
+nf4_client2        | [0m[38;5;8m[[0m2026-06-09T10:48:08Z [0m[32mINFO [0m nightfall_client::drivers::blockchain::nightfall_event_listener[0m[38;5;8m][0m Client event listener (attempt 1)...
+nf4_client2        | inside loop to call listen for events on thread
+nf4_client         | inside loop to call listen for events on thread
+nf4_client         | [0m[38;5;8m[[0m2026-06-09T10:48:08Z [0m[32mINFO [0m lib::wallets[0m[38;5;8m][0m Creating local wallet for role Client
+nf4_client2        | [0m[38;5;8m[[0m2026-06-09T10:48:08Z [0m[32mINFO [0m lib::wallets[0m[38;5;8m][0m Creating local wallet for role Client
+nf4_client         | [0m[38;5;8m[[0m2026-06-09T10:48:08Z [0m[32mINFO [0m nightfall_client[0m[38;5;8m][0m Starting warp server and request queue (event listener managed separately)
+nf4_client2        | [0m[38;5;8m[[0m2026-06-09T10:48:08Z [0m[32mINFO [0m nightfall_client[0m[38;5;8m][0m Starting warp server and request queue (event listener managed separately)
+nf4_client2        | [0m[38;5;8m[[0m2026-06-09T10:48:08Z [0m[32mINFO [0m configuration::addresses[0m[38;5;8m][0m Loaded contract addresses from local file
+nf4_client2        | [0m[38;5;8m[[0m2026-06-09T10:48:08Z [0m[32mINFO [0m nightfall_client::drivers::blockchain::nightfall_event_listener[0m[38;5;8m][0m Listening for events on the Nightfall contract at address: 0x4ed7c70F96B99c776995fB64377f0d4aB3B0e1C1
+nf4_client         | [0m[38;5;8m[[0m2026-06-09T10:48:08Z [0m[32mINFO [0m configuration::addresses[0m[38;5;8m][0m Loaded contract addresses from local file
+nf4_client         | [0m[38;5;8m[[0m2026-06-09T10:48:08Z [0m[32mINFO [0m nightfall_client::drivers::blockchain::nightfall_event_listener[0m[38;5;8m][0m Listening for events on the Nightfall contract at address: 0x4ed7c70F96B99c776995fB64377f0d4aB3B0e1C1
+anvil              | eth_blockNumber
+anvil              | eth_blockNumber
+anvil              | eth_getLogs
+anvil              | eth_getLogs
+nf4_client         | [0m[38;5;8m[[0m2026-06-09T10:48:08Z [0m[32mINFO [0m nightfall_client::drivers::blockchain::nightfall_event_listener[0m[38;5;8m][0m Fetching past events from block 0 to 7
+nf4_client2        | [0m[38;5;8m[[0m2026-06-09T10:48:08Z [0m[32mINFO [0m nightfall_client::drivers::blockchain::nightfall_event_listener[0m[38;5;8m][0m Fetching past events from block 0 to 7
+nf4_client2        | [0m[38;5;8m[[0m2026-06-09T10:48:08Z [0m[32mINFO [0m nightfall_client::drivers::blockchain::nightfall_event_listener[0m[38;5;8m][0m Found 5 past events to process
+nf4_client2        | [0m[38;5;8m[[0m2026-06-09T10:48:08Z [0m[32mINFO [0m nightfall_client::driven::event_handlers::nightfall_event[0m[38;5;8m][0m Received Upgraded event
+nf4_client         | [0m[38;5;8m[[0m2026-06-09T10:48:08Z [0m[32mINFO [0m nightfall_client::drivers::blockchain::nightfall_event_listener[0m[38;5;8m][0m Found 5 past events to process
+nf4_client         | [0m[38;5;8m[[0m2026-06-09T10:48:08Z [0m[32mINFO [0m nightfall_client::driven::event_handlers::nightfall_event[0m[38;5;8m][0m Received Upgraded event
+nf4_client2        | [0m[38;5;8m[[0m2026-06-09T10:48:08Z [0m[32mINFO [0m nightfall_client::driven::event_handlers::nightfall_event[0m[38;5;8m][0m Received OwnershipTransferred event
+nf4_client2        | [0m[38;5;8m[[0m2026-06-09T10:48:08Z [0m[32mINFO [0m nightfall_client::driven::event_handlers::nightfall_event[0m[38;5;8m][0m Received AuthoritiesUpdated event
+nf4_client2        | [0m[38;5;8m[[0m2026-06-09T10:48:08Z [0m[32mINFO [0m nightfall_client::driven::event_handlers::nightfall_event[0m[38;5;8m][0m Received Initialized event
+nf4_client2        | [0m[38;5;8m[[0m2026-06-09T10:48:08Z [0m[32mINFO [0m nightfall_client::driven::event_handlers::nightfall_event[0m[38;5;8m][0m Received OwnershipTransferred event
+nf4_client2        | [0m[38;5;8m[[0m2026-06-09T10:48:08Z [0m[32mINFO [0m nightfall_client::drivers::blockchain::nightfall_event_listener[0m[38;5;8m][0m Subscribed to events.
+nf4_client         | [0m[38;5;8m[[0m2026-06-09T10:48:08Z [0m[32mINFO [0m nightfall_client::driven::event_handlers::nightfall_event[0m[38;5;8m][0m Received OwnershipTransferred event
+nf4_client         | [0m[38;5;8m[[0m2026-06-09T10:48:08Z [0m[32mINFO [0m nightfall_client::driven::event_handlers::nightfall_event[0m[38;5;8m][0m Received AuthoritiesUpdated event
+nf4_client         | [0m[38;5;8m[[0m2026-06-09T10:48:08Z [0m[32mINFO [0m nightfall_client::driven::event_handlers::nightfall_event[0m[38;5;8m][0m Received Initialized event
+nf4_client         | [0m[38;5;8m[[0m2026-06-09T10:48:08Z [0m[32mINFO [0m nightfall_client::driven::event_handlers::nightfall_event[0m[38;5;8m][0m Received OwnershipTransferred event
+nf4_client         | [0m[38;5;8m[[0m2026-06-09T10:48:08Z [0m[32mINFO [0m nightfall_client::drivers::blockchain::nightfall_event_listener[0m[38;5;8m][0m Subscribed to events.
+anvil              | eth_call
+nf4_proposer       | [0m[38;5;8m[[0m2026-06-09T10:48:08Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 5s, remaining: 25s, will wait for more txs or until timeout (30s).
+anvil              | 
+anvil              |     Block Number: 8
+anvil              |     Block Hash: 0xda3babcaf799daa997241ddd3e3e96909a2b1e6aa4f5d6a18e683320265ea850
+anvil              |     Block Time: "Tue, 9 Jun 2026 10:48:11 +0000"
+anvil              | 
+anvil              | eth_call
+nf4_proposer       | [0m[38;5;8m[[0m2026-06-09T10:48:13Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 10s, remaining: 20s, will wait for more txs or until timeout (30s).
+nf4_test           | [0m[38;5;8m[[0m2026-06-09T10:48:14Z [0m[32mINFO [0m nightfall_test[0m[38;5;8m][0m Starting webhook server...
+nf4_test           | [0m[38;5;8m[[0m2026-06-09T10:48:14Z [0m[32mINFO [0m nightfall_test[0m[38;5;8m][0m Running tests...
+nf4_test           | [0m[38;5;8m[[0m2026-06-09T10:48:14Z [0m[32mINFO [0m nightfall_test[0m[38;5;8m][0m Waiting for client services to be ready...
+nf4_test           | [0m[38;5;8m[[0m2026-06-09T10:48:14Z [0m[32mINFO [0m nightfall_test::run_tests[0m[38;5;8m][0m Running tests on nightall_client http:// interface
+nf4_test           | [0m[38;5;8m[[0m2026-06-09T10:48:14Z [0m[32mINFO [0m nightfall_test[0m[38;5;8m][0m Service http://client:3000/v1/health is ready!
+anvil              | evm_setAutomine
+anvil              | evm_setIntervalMining
+nf4_test           | [0m[38;5;8m[[0m2026-06-09T10:48:14Z [0m[32mINFO [0m nightfall_test[0m[38;5;8m][0m Service http://client2:3000/v1/health is ready!
+nf4_test           | [0m[38;5;8m[[0m2026-06-09T10:48:14Z [0m[32mINFO [0m nightfall_test[0m[38;5;8m][0m Starting queue polling...
+nf4_test           | [0m[38;5;8m[[0m2026-06-09T10:48:14Z [0m[32mINFO [0m nightfall_test::run_tests[0m[38;5;8m][0m * zkp keys created
+nf4_test           | [0m[38;5;8m[[0m2026-06-09T10:48:14Z [0m[32mINFO [0m configuration::addresses[0m[38;5;8m][0m Loaded contract addresses from local file
+nf4_test           | [0m[38;5;8m[[0m2026-06-09T10:48:14Z [0m[32mINFO [0m nightfall_test::run_tests[0m[38;5;8m][0m * contract addresses obtained
+nf4_test           | [0m[38;5;8m[[0m2026-06-09T10:48:14Z [0m[32mINFO [0m nightfall_test::validate_certs[0m[38;5;8m][0m Validating Client 1's certificate
+anvil              | eth_chainId
+anvil              | eth_getStorageAt
+anvil              | eth_getCode
+anvil              | eth_getStorageAt
+anvil              | eth_getCode
+anvil              | eth_getStorageAt
+anvil              | eth_getCode
+anvil              | eth_getStorageAt
+anvil              | eth_getCode
+anvil              | eth_getStorageAt
+anvil              | eth_getCode
+anvil              | eth_getStorageAt
+anvil              | eth_getCode
+anvil              | eth_call
+anvil              | eth_getTransactionCount
+anvil              | eth_gasPrice
+anvil              | eth_sendRawTransaction
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_call
+nf4_proposer       | [0m[38;5;8m[[0m2026-06-09T10:48:18Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 15s, remaining: 15s, will wait for more txs or until timeout (30s).
+anvil              | 
+anvil              |     Transaction: 0xdcabb75a35f69d412c48faf395afcc3eeb9c93a57e7ecb1e6c2c1fc4547dee35
+anvil              |     Gas used: 4801445
+anvil              | 
+anvil              |     Block Number: 9
+anvil              |     Block Hash: 0x078a133defbb11aae8e15cbac62e3a080b2dee59885afebb2c211989612c7e19
+anvil              |     Block Time: "Tue, 9 Jun 2026 10:48:19 +0000"
+anvil              | 
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+anvil              | eth_getTransactionReceipt
+anvil              | eth_call
+nf4_test           | [0m[38;5;8m[[0m2026-06-09T10:48:19Z [0m[32mINFO [0m nightfall_test::validate_certs[0m[38;5;8m][0m Validating Client 2's certificate
+anvil              | eth_chainId
+anvil              | eth_getStorageAt
+anvil              | eth_getCode
+anvil              | eth_getStorageAt
+anvil              | eth_getCode
+anvil              | eth_getStorageAt
+anvil              | eth_getCode
+anvil              | eth_getStorageAt
+anvil              | eth_getCode
+anvil              | eth_getStorageAt
+anvil              | eth_getCode
+anvil              | eth_getStorageAt
+anvil              | eth_getCode
+anvil              | eth_call
+anvil              | eth_getTransactionCount
+anvil              | eth_gasPrice
+anvil              | eth_sendRawTransaction
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_call
+nf4_proposer       | [0m[38;5;8m[[0m2026-06-09T10:48:23Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 20s, remaining: 10s, will wait for more txs or until timeout (30s).
+anvil              | 
+anvil              |     Transaction: 0xfc93a7eced25294180509fc900a735fc87500419dce6775421efba4331916364
+anvil              |     Gas used: 4801445
+anvil              | 
+anvil              |     Block Number: 10
+anvil              |     Block Hash: 0xaa6e8d496e369ed4904a52512f53802ac738ecdaa6d369e622a6d5120c2db615
+anvil              |     Block Time: "Tue, 9 Jun 2026 10:48:24 +0000"
+anvil              | 
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+anvil              | eth_getTransactionReceipt
+anvil              | eth_call
+nf4_test           | [0m[38;5;8m[[0m2026-06-09T10:48:24Z [0m[32mINFO [0m nightfall_test::validate_certs[0m[38;5;8m][0m Validating Proposer's certificate
+nf4_proposer       | [0m[38;5;8m[[0m2026-06-09T10:48:24Z [0m[32mINFO [0m lib::wallets[0m[38;5;8m][0m Creating local wallet for role Proposer
+anvil              | eth_chainId
+anvil              | eth_getStorageAt
+anvil              | eth_getCode
+anvil              | eth_getStorageAt
+anvil              | eth_getCode
+anvil              | eth_getStorageAt
+anvil              | eth_getCode
+anvil              | eth_getStorageAt
+anvil              | eth_getCode
+anvil              | eth_getStorageAt
+anvil              | eth_getCode
+anvil              | eth_getStorageAt
+anvil              | eth_getCode
+anvil              | eth_call
+anvil              | eth_getTransactionCount
+anvil              | eth_gasPrice
+anvil              | eth_sendRawTransaction
+anvil              | eth_getTransactionReceipt
+anvil              | eth_getTransactionReceipt
+anvil              | eth_call
+nf4_proposer       | [0m[38;5;8m[[0m2026-06-09T10:48:28Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 25s, remaining: 5s, will wait for more txs or until timeout (30s).
+anvil              | 
+anvil              |     Transaction: 0x39e8ea26c9563942f5e263bdb3872908ae3ca6c147492c6bc705bc943541aeec
+anvil              |     Gas used: 4801469
+anvil              | 
+anvil              |     Block Number: 11
+anvil              |     Block Hash: 0x7da0063444f7c1c12c7f983a9352239f925e9dc34d4e68cf52a989978ee68a36
+anvil              |     Block Time: "Tue, 9 Jun 2026 10:48:29 +0000"
+anvil              | 
+anvil              | eth_getBlockByNumber
+anvil              | eth_getBlockByNumber
+anvil              | eth_getTransactionReceipt
+anvil              | eth_call
+nf4_test           | [0m[38;5;8m[[0m2026-06-09T10:48:29Z [0m[32mINFO [0m alloy_transport_http::reqwest_transport[0m[38;5;8m][0m request; method_names=eth_call
+anvil              | eth_call
+nf4_test           | [0m[38;5;8m[[0m2026-06-09T10:48:29Z [0m[32mINFO [0m alloy_transport_http::reqwest_transport[0m[38;5;8m][0m request; method_names=eth_call
+anvil              | eth_call
+nf4_test           | [0m[38;5;8m[[0m2026-06-09T10:48:29Z [0m[32mINFO [0m alloy_transport_http::reqwest_transport[0m[38;5;8m][0m request; method_names=eth_call
+anvil              | eth_call
+anvil              | eth_call
+nf4_test           | [0m[38;5;8m[[0m2026-06-09T10:48:29Z [0m[32mINFO [0m alloy_transport_http::reqwest_transport[0m[38;5;8m][0m request; method_names=eth_call
+nf4_test           | [0m[38;5;8m[[0m2026-06-09T10:48:29Z [0m[32mINFO [0m alloy_transport_http::reqwest_transport[0m[38;5;8m][0m request; method_names=eth_call
+anvil              | eth_call
+anvil              | eth_call
+nf4_test           | [0m[38;5;8m[[0m2026-06-09T10:48:29Z [0m[32mINFO [0m alloy_transport_http::reqwest_transport[0m[38;5;8m][0m request; method_names=eth_call
+nf4_test           | [0m[38;5;8m[[0m2026-06-09T10:48:29Z [0m[32mINFO [0m nightfall_test::run_tests[0m[38;5;8m][0m Commencing tests using the client_nf_3 API
+nf4_test           | [0m[38;5;8m[[0m2026-06-09T10:48:29Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Creating deposit transaction onchain 99a31e1b-df7a-4f0f-b95b-b266b9da84ed
+nf4_test           | [0m[38;5;8m[[0m2026-06-09T10:48:29Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Creating deposit transaction onchain 6020bc75-f0e3-4e68-97e4-262161d80476
+nf4_test           | [0m[38;5;8m[[0m2026-06-09T10:48:29Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Creating deposit transaction onchain 52b400ba-37c3-4cf1-bd6e-4e83d02ab1a4
+nf4_test           | [0m[38;5;8m[[0m2026-06-09T10:48:29Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Creating deposit transaction onchain 97d1d42b-484b-4d93-8e9e-f5a3e02e66a9
+nf4_test           | [0m[38;5;8m[[0m2026-06-09T10:48:29Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Creating deposit transaction onchain b96ff859-c368-44e7-b933-2f54e3f219e2
+nf4_test           | [0m[38;5;8m[[0m2026-06-09T10:48:29Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Creating deposit transaction onchain a70f074f-6328-41c2-96de-f7531cae7e15
+nf4_test           | [0m[38;5;8m[[0m2026-06-09T10:48:29Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Creating deposit transaction onchain d340213f-58cd-4f9f-9bf4-e7d79e3f581c
+nf4_test           | [0m[38;5;8m[[0m2026-06-09T10:48:29Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Creating deposit transaction onchain a9a624b4-a35f-49b3-802b-e1dff990af4a
+nf4_test           | [0m[38;5;8m[[0m2026-06-09T10:48:29Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Creating deposit transaction onchain 04c251d9-1e5b-42a9-82c5-80758db9aa43
+nf4_test           | [0m[38;5;8m[[0m2026-06-09T10:48:29Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Creating deposit transaction onchain 11c51595-735a-407b-ad77-9225867082c1
+nf4_test           | [0m[38;5;8m[[0m2026-06-09T10:48:29Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Deposit transaction ddc13db2-6d28-43da-8ec6-5471865ec28a has been accepted by the client
+nf4_test           | [0m[38;5;8m[[0m2026-06-09T10:48:29Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Deposit transaction b3410808-ee37-46a4-a5c0-f6f9d92418a0 has been accepted by the client
+nf4_test           | [0m[38;5;8m[[0m2026-06-09T10:48:29Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Deposit transaction 12a3cabf-2e6c-4c80-863f-67594bd9e4a0 has been accepted by the client
+nf4_test           | [0m[38;5;8m[[0m2026-06-09T10:48:29Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Deposit transaction 4e274310-367b-45a0-8cdc-e8a80c84e91c has been accepted by the client
+nf4_test           | [0m[38;5;8m[[0m2026-06-09T10:48:29Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Deposit transaction 580e7314-b377-40ab-a7ae-f133f9c394f6 has been accepted by the client
+nf4_test           | [0m[38;5;8m[[0m2026-06-09T10:48:29Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Deposit transaction 8b23ba24-aa68-4389-b4b5-3a91f200ffb8 has been accepted by the client
+nf4_test           | [0m[38;5;8m[[0m2026-06-09T10:48:29Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Deposit transaction de231933-a00e-49f9-b869-d0a245f05b9a has been accepted by the client
+nf4_test           | [0m[38;5;8m[[0m2026-06-09T10:48:29Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Deposit transaction bf3abc1a-acaf-4034-a735-78cbdb9dce6b has been accepted by the client
+nf4_test           | [0m[38;5;8m[[0m2026-06-09T10:48:29Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Deposit transaction 3f0c59ff-123a-469d-a89c-79f4eae8f34c has been accepted by the client
+nf4_test           | [0m[38;5;8m[[0m2026-06-09T10:48:29Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Deposit transaction 738761d2-f311-4bc0-a055-4fde257303e9 has been accepted by the client
+nf4_test           | [0m[38;5;8m[[0m2026-06-09T10:48:29Z [0m[32mINFO [0m nightfall_test::test[0m[38;5;8m][0m Have 10 IDs and 0 processed client transactions
+nf4_client         | [0m[38;5;8m[[0m2026-06-09T10:48:29Z [0m[32mINFO [0m nightfall_client::driven::queue[0m[38;5;8m][0m Processing request: ddc13db2-6d28-43da-8ec6-5471865ec28a
+anvil              | eth_getStorageAt
+anvil              | eth_getCode
+anvil              | eth_getStorageAt
+anvil              | eth_getCode
+anvil              | eth_getStorageAt
+anvil              | eth_getCode
+anvil              | eth_call
+anvil              | eth_blockNumber
+anvil              | eth_getLogs
+nf4_client         | [0m[38;5;8m[[0m2026-06-09T10:48:29Z [0m[1m[31mERROR[0m panic[0m[38;5;8m][0m thread 'tokio-runtime-worker' panicked at 'called `Result::unwrap()` on an `Err` value: BigIntConversionError': /app/nightfall_client/src/driven/contract_functions/nightfall_contract.rs:373
+anvil              | eth_call
+nf4_proposer       | [0m[38;5;8m[[0m2026-06-09T10:48:33Z [0m[33mWARN [0m nightfall_proposer::driven::block_assembler[0m[38;5;8m][0m Not enough transactions to assemble a block yet. Elapsed: 30s, remaining: 0s, will wait for more txs or until timeout (30s).
+anvil              | 
+anvil              |     Block Number: 12
+anvil              |     Block Hash: 0x3ad61fcb42264de1e289e69e0511129c409430e2cafe97784f368b28b325639b
+anvil              |     Block Time: "Tue, 9 Jun 2026 10:48:34 +0000"
+anvil              | 
