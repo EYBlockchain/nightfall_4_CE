@@ -226,24 +226,31 @@ pub async fn get_synchronisation_status<N: NightfallContract>(
         ));
     }
 
-    // expected == current
+    // expected == current, so the latest on-chain block is current - 1.
     let i256_val = *expected_block_number;
     assert!(
         i256_val >= I256::ZERO,
         "expected_block_number is negative: {i256_val}"
     );
 
-    let expected_u64: u64 = i256_val
+    if current_block_number == I256::ZERO {
+        return Ok(SynchronisationStatus::new(
+            SynchronisationPhase::Synchronized,
+        ));
+    }
+
+    let latest_confirmed_block_number = current_block_number - I256::ONE;
+    let latest_confirmed_block_u64: u64 = latest_confirmed_block_number
         .try_into()
-        .expect("expected_block_number must be within u64 range");
+        .expect("latest confirmed block number must be within u64 range");
 
     let db = get_db_connection().await;
 
-    match db.get_block_by_number(expected_u64).await {
+    match db.get_block_by_number(latest_confirmed_block_u64).await {
         Some(stored_block) => {
             let stored_hash = stored_block.hash();
             let (proposer_address, block_onchain) =
-                N::get_layer2_block_by_number(current_block_number)
+                N::get_layer2_block_by_number(latest_confirmed_block_number)
                     .await
                     .map_err(|_| {
                         EventHandlerError::IOError(
@@ -270,20 +277,20 @@ pub async fn get_synchronisation_status<N: NightfallContract>(
 
             if expected_hash != stored_hash {
                 warn!(
-                    "Hash mismatch at block {expected_u64}: expected {expected_hash}, found {stored_hash}"
+                    "Hash mismatch at block {latest_confirmed_block_u64}: expected {expected_hash}, found {stored_hash}"
                 );
                 return Ok(SynchronisationStatus::new(
                     SynchronisationPhase::Desynchronized,
                 ));
             }
             // If hashes match, fall through and return Synchronized
-            debug!("Block {expected_u64} verified in local DB with matching hash.");
+            debug!("Block {latest_confirmed_block_u64} verified in local DB with matching hash.");
             Ok(SynchronisationStatus::new(
                 SynchronisationPhase::Synchronized,
             ))
         }
         None => {
-            debug!("Block {expected_u64} not found in local DB. Assuming client is still in sync.");
+            debug!("Block {latest_confirmed_block_u64} not found in local DB. Assuming client is still in sync.");
             Ok(SynchronisationStatus::new(
                 SynchronisationPhase::Synchronized,
             ))

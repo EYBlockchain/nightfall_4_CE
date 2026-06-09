@@ -389,7 +389,12 @@ impl NightfallContract for Nightfall::NightfallCalls {
     async fn get_layer2_block_by_number(
         block_number: I256,
     ) -> Result<(Address, Nightfall::Block), NightfallContractError> {
-        let block_number = block_number - I256::ONE;
+        if block_number < I256::ZERO {
+            return Err(NightfallContractError::ProviderError(format!(
+                "Layer 2 block number must be non-negative: {block_number}"
+            )));
+        }
+
         let blockchain_client = get_blockchain_client_connection()
             .await
             .read()
