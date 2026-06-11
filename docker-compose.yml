@@ -431,14 +431,8 @@ services:
     volumes:
       - ./blockchain_assets/test_contracts:/test_contracts
       - ./blockchain_assets/logs:/app/blockchain_assets/logs # to be able to see deployed contract addresses locally
-      - type: volume
-        source: key_data
-        target: /app/configuration/bin/keys
-        read_only: false
-      - type: volume
-        source: toml_data
-        target: /app/configuration/toml
-        read_only: false
+      - ./configuration/bin/keys:/app/configuration/bin/keys:ro
+      - ./configuration/toml:/app/configuration/toml
     stdin_open: true # keep stdin open, so we can print things in docker compose up
     tty: true # required for logs to print in colour
     environment:
@@ -466,14 +460,8 @@ services:
     #   - "8080:80"     replace with a port that is exposed for configuration service if required
     platform: linux/amd64 # Required for building on M1 Macs
     volumes:
-      - type: volume
-        source: toml_data
-        target: /var/www/html/configuration/toml
-        read_only: true
-      - type: volume
-        source: key_data
-        target: /var/www/html/configuration/bin/keys
-        read_only: true
+      - ./configuration/toml:/var/www/html/configuration/toml
+      - ./configuration/bin/keys:/var/www/html/configuration/bin/keys:ro
     networks:
       - nightfall_network
     stdin_open: true # keep stdin open, so we can print things in docker compose up

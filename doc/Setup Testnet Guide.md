@@ -202,9 +202,9 @@ curl -v [host-chain]-configuration_url:8080/<key_name> -o configuration/bin/keys
 ```
 where you need to it for following keys `base_bn254_pk`, `base_grumpkin_pk`, `decider_pk`, `merge_bn254_pk_0`, `merge_grumpkin_pk_0`, `merge_grumpkin_pk_1`, and `proving_key`. use `ls -lh`to check the key size, it should match the size mentioned before.
 
-2. `curl [host-chain]-configuration_url/configuration/toml/addresses.toml` to get addresses for `nightfall`, `round_robin`, `x509` and `verifier`.
+2. `curl [host-chain]-configuration_url:8080/configuration/toml/addresses.toml` to get addresses for `nightfall`, `round_robin`, `x509` and `verifier`.
 
-3. `curl [host-chain]-configuration_url/configuration/toml/contract_hashes.toml` to get contract hashes for `nightfall_hash`, `round_robin_hash`, `x509_hash`.
+3. `curl [host-chain]-configuration_url:8080/configuration/toml/contract_hashes.toml` to get contract hashes for `nightfall_hash`, `round_robin_hash`, `x509_hash`.
 
 
 ------
