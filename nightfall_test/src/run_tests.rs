@@ -172,163 +172,163 @@ pub async fn run_tests(
     assert_eq!(my_balance, U256::from(2));
 
     //see if the NF4_LARGE_BLOCK_TEST environment variable is set to 'true' and run the large block test only if it is
-    let (
-        client1_starting_balance,
-        client2_starting_balance,
-        client1_starting_fee_balance,
-        nullified_count,
-    ) = if std::env::var("NF4_LARGE_BLOCK_TEST").is_ok()
-        && std::env::var("NF4_LARGE_BLOCK_TEST").unwrap() == "true"
-    {
-        warn!("Running large block test");
-        let block_size = match get_block_size() {
-            Ok(size) => size,
-            Err(e) => {
-                log::warn!("Falling back to default block size 64 due to error: {e:?}");
-                64
-            }
-        };
-        let n_large_block: usize = block_size;
-        const DEPOSIT_FEE: &str = "0x06";
-        // work out how much we'll change the balance of the two clients by making the large block deposits
-        let client2_starting_balance = n_large_block as i64
-            * i64::from_hex_string(&test_settings.erc20_transfer_large_block.value).unwrap();
-        let client1_starting_balance = n_large_block as i64
-            * 2
-            * i64::from_hex_string(&test_settings.erc20_deposit_large_block.value).unwrap()
-            - client2_starting_balance;
-        let client2_starting_fee_balance = n_large_block as i64
-            * i64::from_hex_string(&test_settings.erc20_transfer_large_block.fee).unwrap();
-        let client1_starting_fee_balance =
-            n_large_block as i64 * 2 * i64::from_hex_string(DEPOSIT_FEE).unwrap()
-                - client2_starting_fee_balance;
+    // let (
+    //     client1_starting_balance,
+    //     client2_starting_balance,
+    //     client1_starting_fee_balance,
+    //     nullified_count,
+    // ) = if std::env::var("NF4_LARGE_BLOCK_TEST").is_ok()
+    //     && std::env::var("NF4_LARGE_BLOCK_TEST").unwrap() == "true"
+    // {
+    //     warn!("Running large block test");
+    //     let block_size = match get_block_size() {
+    //         Ok(size) => size,
+    //         Err(e) => {
+    //             log::warn!("Falling back to default block size 64 due to error: {e:?}");
+    //             64
+    //         }
+    //     };
+    //     let n_large_block: usize = block_size;
+    //     const DEPOSIT_FEE: &str = "0x06";
+    //     // work out how much we'll change the balance of the two clients by making the large block deposits
+    //     let client2_starting_balance = n_large_block as i64
+    //         * i64::from_hex_string(&test_settings.erc20_transfer_large_block.value).unwrap();
+    //     let client1_starting_balance = n_large_block as i64
+    //         * 2
+    //         * i64::from_hex_string(&test_settings.erc20_deposit_large_block.value).unwrap()
+    //         - client2_starting_balance;
+    //     let client2_starting_fee_balance = n_large_block as i64
+    //         * i64::from_hex_string(&test_settings.erc20_transfer_large_block.fee).unwrap();
+    //     let client1_starting_fee_balance =
+    //         n_large_block as i64 * 2 * i64::from_hex_string(DEPOSIT_FEE).unwrap()
+    //             - client2_starting_fee_balance;
 
-        // make up to 64 deposits so that we can test a large block (reuse deposit 2 data)
-        //first we need to pause block assembly so that we can make all the deposits in the same block
-        let pause_url = Url::parse(&settings.nightfall_proposer.url)
-            .unwrap()
-            .join("v1/pause")
-            .unwrap();
-        let res = http_client.get(pause_url).send().await.unwrap();
-        assert!(res.status().is_success());
-        // create deposit transactions first
-        info!("Making {} deposit transactions", block_size * 4);
-        let url = Url::parse(&settings.nightfall_client.url)
-            .unwrap()
-            .join("v1/deposit")
-            .unwrap();
-        let mut large_block_deposit_ids = vec![];
-        for _ in 0..n_large_block * 2 {
-            let large_block_deposit_id = create_nf3_deposit_transaction(
-                &http_client,
-                url.clone(),
-                TokenType::ERC20,
-                test_settings.erc20_deposit_large_block.clone(),
-                DEPOSIT_FEE.to_string(), //deposit_fee
-            );
-            // save the IDs of the deposits so that we can wait for them to be on-chain
-            large_block_deposit_ids.push(large_block_deposit_id);
-        }
+    //     // make up to 64 deposits so that we can test a large block (reuse deposit 2 data)
+    //     //first we need to pause block assembly so that we can make all the deposits in the same block
+    //     let pause_url = Url::parse(&settings.nightfall_proposer.url)
+    //         .unwrap()
+    //         .join("v1/pause")
+    //         .unwrap();
+    //     let res = http_client.get(pause_url).send().await.unwrap();
+    //     assert!(res.status().is_success());
+    //     // create deposit transactions first
+    //     info!("Making {} deposit transactions", block_size * 4);
+    //     let url = Url::parse(&settings.nightfall_client.url)
+    //         .unwrap()
+    //         .join("v1/deposit")
+    //         .unwrap();
+    //     let mut large_block_deposit_ids = vec![];
+    //     for _ in 0..n_large_block * 2 {
+    //         let large_block_deposit_id = create_nf3_deposit_transaction(
+    //             &http_client,
+    //             url.clone(),
+    //             TokenType::ERC20,
+    //             test_settings.erc20_deposit_large_block.clone(),
+    //             DEPOSIT_FEE.to_string(), //deposit_fee
+    //         );
+    //         // save the IDs of the deposits so that we can wait for them to be on-chain
+    //         large_block_deposit_ids.push(large_block_deposit_id);
+    //     }
 
-        // throw all the transactions at the client as fast as we can
-        let large_block_deposit_ids = try_join_all(large_block_deposit_ids).await.unwrap();
-        let large_block_deposit_ids = large_block_deposit_ids
-            .iter()
-            .map(|(uuid, _)| *uuid)
-            .collect::<Vec<_>>();
+    //     // throw all the transactions at the client as fast as we can
+    //     let large_block_deposit_ids = try_join_all(large_block_deposit_ids).await.unwrap();
+    //     let large_block_deposit_ids = large_block_deposit_ids
+    //         .iter()
+    //         .map(|(uuid, _)| *uuid)
+    //         .collect::<Vec<_>>();
 
-        // wait for all the responses to come back and convert the json responses to a vector of Fr254 commitments
-        info!("Waiting for deposit responses");
-        let large_block_deposits =
-            wait_for_all_responses(&large_block_deposit_ids, responses.clone())
-                .await
-                .into_iter()
-                .flat_map(|(_, l)| {
-                    serde_json::from_str::<Vec<String>>(&l).expect("Failed to parse response")
-                })
-                .map(|l| Fr254::from_hex_string(&l).unwrap())
-                .collect::<Vec<_>>();
-        // note that the responses vector is now empty
+    //     // wait for all the responses to come back and convert the json responses to a vector of Fr254 commitments
+    //     info!("Waiting for deposit responses");
+    //     let large_block_deposits =
+    //         wait_for_all_responses(&large_block_deposit_ids, responses.clone())
+    //             .await
+    //             .into_iter()
+    //             .flat_map(|(_, l)| {
+    //                 serde_json::from_str::<Vec<String>>(&l).expect("Failed to parse response")
+    //             })
+    //             .map(|l| Fr254::from_hex_string(&l).unwrap())
+    //             .collect::<Vec<_>>();
+    //     // note that the responses vector is now empty
 
-        //Block assembly should be resumed now as the block has been filled with the deposit transactions.
-        info!("Waiting for deposits to be on-chain");
-        wait_on_chain(&large_block_deposits, &get_settings().nightfall_client.url)
-            .await
-            .unwrap();
+    //     //Block assembly should be resumed now as the block has been filled with the deposit transactions.
+    //     info!("Waiting for deposits to be on-chain");
+    //     wait_on_chain(&large_block_deposits, &get_settings().nightfall_client.url)
+    //         .await
+    //         .unwrap();
 
-        info!("A large block full of ERC20 Deposits is now on-chain");
+    //     info!("A large block full of ERC20 Deposits is now on-chain");
 
-        // next, we'll do transfers
-        // but first we need to pause block assembly so that we can make all the transfers in the same block
-        let pause_url = Url::parse(&settings.nightfall_proposer.url)
-            .unwrap()
-            .join("v1/pause")
-            .unwrap();
-        let res = http_client.get(pause_url).send().await.unwrap();
-        assert!(res.status().is_success());
-        let url = Url::parse(&settings.nightfall_client.url)
-            .unwrap()
-            .join("v1/transfer")
-            .unwrap();
-        // then make n transfers
-        info!("Making {block_size} transfer transactions");
-        let mut large_block_transfer_ids = vec![];
-        for _ in 0..n_large_block {
-            let large_block_transfer_id = create_nf3_transfer_transaction(
-                zkp_key2.clone(),
-                &http_client,
-                url.clone(),
-                TokenType::ERC20,
-                test_settings.erc20_transfer_large_block.clone(),
-            );
-            large_block_transfer_ids.push(large_block_transfer_id);
-        }
+    //     // next, we'll do transfers
+    //     // but first we need to pause block assembly so that we can make all the transfers in the same block
+    //     let pause_url = Url::parse(&settings.nightfall_proposer.url)
+    //         .unwrap()
+    //         .join("v1/pause")
+    //         .unwrap();
+    //     let res = http_client.get(pause_url).send().await.unwrap();
+    //     assert!(res.status().is_success());
+    //     let url = Url::parse(&settings.nightfall_client.url)
+    //         .unwrap()
+    //         .join("v1/transfer")
+    //         .unwrap();
+    //     // then make n transfers
+    //     info!("Making {block_size} transfer transactions");
+    //     let mut large_block_transfer_ids = vec![];
+    //     for _ in 0..n_large_block {
+    //         let large_block_transfer_id = create_nf3_transfer_transaction(
+    //             zkp_key2.clone(),
+    //             &http_client,
+    //             url.clone(),
+    //             TokenType::ERC20,
+    //             test_settings.erc20_transfer_large_block.clone(),
+    //         );
+    //         large_block_transfer_ids.push(large_block_transfer_id);
+    //     }
 
-        // throw all the transactions at the client as fast as we can
-        let large_block_transfer_ids = try_join_all(large_block_transfer_ids).await.unwrap();
+    //     // throw all the transactions at the client as fast as we can
+    //     let large_block_transfer_ids = try_join_all(large_block_transfer_ids).await.unwrap();
 
-        // wait for responses to the transfer requests
-        info!("Waiting for transfer responses");
-        let large_block_transfers =
-            wait_for_all_responses(&large_block_transfer_ids, responses.clone())
-                .await
-                .into_iter()
-                .map(|(_, l)| {
-                    serde_json::from_str::<(Value, Option<TransactionReceipt>)>(&l)
-                        .expect("Failed to parse response")
-                })
-                .map(|l| l.0)
-                .collect::<Vec<_>>();
+    //     // wait for responses to the transfer requests
+    //     info!("Waiting for transfer responses");
+    //     let large_block_transfers =
+    //         wait_for_all_responses(&large_block_transfer_ids, responses.clone())
+    //             .await
+    //             .into_iter()
+    //             .map(|(_, l)| {
+    //                 serde_json::from_str::<(Value, Option<TransactionReceipt>)>(&l)
+    //                     .expect("Failed to parse response")
+    //             })
+    //             .map(|l| l.0)
+    //             .collect::<Vec<_>>();
 
-        // work out how many nullifiers we spent
-        let nullifier_count: usize = large_block_transfers
-            .iter()
-            .flat_map(|l| l["nullifiers"].as_array().unwrap())
-            .filter(|n| !((Fr254::from_hex_string(n.as_str().unwrap()).unwrap()).is_zero()))
-            .count();
+    //     // work out how many nullifiers we spent
+    //     let nullifier_count: usize = large_block_transfers
+    //         .iter()
+    //         .flat_map(|l| l["nullifiers"].as_array().unwrap())
+    //         .filter(|n| !((Fr254::from_hex_string(n.as_str().unwrap()).unwrap()).is_zero()))
+    //         .count();
 
-        //Block assembly should be resumed now as the block has been filled with the transfer transactions.
-        info!("Waiting for transfers to be on-chain");
-        wait_on_chain(
-            large_block_transfers
-                .iter()
-                .map(|l| Fr254::from_hex_string(l["commitments"][0].as_str().unwrap()).unwrap())
-                .collect::<Vec<_>>()
-                .as_slice(),
-            "http://client2:3000",
-        )
-        .await
-        .unwrap();
-        info!("A large block full of ERC20 Transfers is now on-chain");
-        (
-            client1_starting_balance,
-            client2_starting_balance,
-            client1_starting_fee_balance,
-            nullifier_count,
-        )
-    } else {
-        (0, 0, 0, 0)
-    };
+    //     //Block assembly should be resumed now as the block has been filled with the transfer transactions.
+    //     info!("Waiting for transfers to be on-chain");
+    //     wait_on_chain(
+    //         large_block_transfers
+    //             .iter()
+    //             .map(|l| Fr254::from_hex_string(l["commitments"][0].as_str().unwrap()).unwrap())
+    //             .collect::<Vec<_>>()
+    //             .as_slice(),
+    //         "http://client2:3000",
+    //     )
+    //     .await
+    //     .unwrap();
+    //     info!("A large block full of ERC20 Transfers is now on-chain");
+    //     (
+    //         client1_starting_balance,
+    //         client2_starting_balance,
+    //         client1_starting_fee_balance,
+    //         nullifier_count,
+    //     )
+    // } else {
+    //     (0, 0, 0, 0)
+    // };
 
     /***********************************************************************************************
      * Tests using the client_nf_3 API
@@ -504,1170 +504,1170 @@ pub async fn run_tests(
         .unwrap();
     info!("Deposit commitments for client 1 are now on-chain");
 
-    // get the balance of the ERC721 token we just deposited
-    let balance = get_erc721_balance(
-        &http_client,
-        Url::parse(&settings.nightfall_client.url).unwrap(),
-        test_settings.erc721_deposit.token_id,
-    )
-    .await;
-    assert!(balance.is_some_and(|balance| balance.is_zero()));
-
-    let my_balance = erc20_contract
-        .balanceOf(client_1_address)
-        .call()
-        .await
-        .expect("balanceOf() call failed");
-    assert!(my_balance < U256::from(erc20_mint_value));
-
-    let my_balance = erc721_contract
-        .balanceOf(client_1_address)
-        .call()
-        .await
-        .expect("balanceOf() call failed");
-    assert_eq!(my_balance, U256::from(0));
-
-    let my_balance = erc1155_contract
-        .balanceOf(
-            client_1_address,
-            U256::from_hex_string(&erc1155_deposit_1_token_id).unwrap(),
-        )
-        .call()
-        .await
-        .expect("balanceOf() call failed");
-    assert_eq!(
-        my_balance,
-        U256::from(erc1155_mint_value)
-            - U256::from_hex_string(&test_settings.erc1155_deposit_1.value).unwrap()
-            - U256::from_hex_string(&test_settings.erc1155_deposit_2.value).unwrap()
-    );
-
-    let my_balance = erc3525_contract
-        .balanceOf_0(client_1_address)
-        .call()
-        .await
-        .expect("balanceOf() call failed");
-    assert_eq!(my_balance, U256::from(0));
-
-    // get the fee balance
-    let fee_balance = get_fee_balance(
-        &http_client,
-        Url::parse(&settings.nightfall_client.url).unwrap(),
-    )
-    .await;
-    info!("Fee Commitment Balance  held as layer 2 commitments by client1: {fee_balance}");
-    assert_eq!(fee_balance, 137 + client1_starting_fee_balance);
-    // call verify_deposit_commitments_nf_token_id
-    info!("Verifying deposit commitments");
-
-    // check that we can find one of our commitments
-    // Query the commitment endpoint to return the CommitmEntry of commitment_hashes[0]
-    info!("Querying commitment endpoint");
-    // Cache for token info lookup
-    let uuid_to_commitments: HashMap<Uuid, Vec<Fr254>> = responses_by_uuid
-        .clone()
-        .iter()
-        .map(|(uuid, l)| {
-            let commitments: Vec<Fr254> = serde_json::from_str::<Vec<String>>(l)
-                .expect("Failed to parse commitment response")
-                .into_iter()
-                .map(|s| Fr254::from_hex_string(&s).unwrap())
-                .collect();
-            (*uuid, commitments)
-        })
-        .collect();
-    verify_deposit_commitments_nf_token_id(
-        &http_client,
-        &uuid_to_commitments,
-        &expected_token_data,
-        &settings,
-    )
-    .await;
-
-    info!("Making client2 fee commitments so that it can withdraw");
-    // give client 2 some deposit fee commitments so that it can transact
-    // we need up to seven commitments because we'll want to do up to seven withdraws in
-    // the same block (we don't control when a block is computed), so we can't use a single commitment
-    // even if it has enough value because the change won't be available until the next block.
-    let pause_url = Url::parse(&settings.nightfall_proposer.url)
-        .unwrap()
-        .join("v1/pause")
-        .unwrap();
-    let res = http_client.get(pause_url).send().await.unwrap();
-    assert!(res.status().is_success());
-
-    let url2 = Url::parse("http://client2:3000")
-        .unwrap()
-        .join("v1/deposit")
-        .unwrap();
-
-    let mut transaction_ids = vec![];
-
-    for _ in 0..7 {
-        transaction_ids.push(create_nf3_deposit_transaction(
-            &http_client,
-            url2.clone(),
-            TokenType::ERC20,
-            test_settings.erc20_deposit_4.clone(),
-            "0x20".to_string(), //deposit_fee
-        ));
-        debug!("transaction_erc20_deposit_4 has been created");
-    }
-
-    // throw all the transactions at the client as fast as we can
-    let transaction_ids = try_join_all(transaction_ids).await.unwrap();
-    let transaction_ids = transaction_ids
-        .iter()
-        .map(|(uuid, _)| *uuid)
-        .collect::<Vec<_>>();
-
-    // wait for the responses to the deposit requests to come back to the webhook server
-    let commitment_hashes = wait_for_all_responses(&transaction_ids, responses.clone())
-        .await
-        .into_iter()
-        .flat_map(|(_, l)| {
-            serde_json::from_str::<Vec<String>>(&l).expect("Failed to parse response")
-        })
-        .map(|l| Fr254::from_hex_string(&l).unwrap())
-        .collect::<Vec<_>>();
-
-    let resume_url = Url::parse(&settings.nightfall_proposer.url)
-        .unwrap()
-        .join("v1/resume")
-        .unwrap();
-    let res = http_client.get(resume_url).send().await.unwrap();
-    assert!(res.status().is_success());
-
-    // wait for the client2 fee commitments to appear on-chain
-    wait_on_chain(&commitment_hashes, "http://client2:3000")
-        .await
-        .unwrap();
-    info!("Client2 ERC20 fee commitments are now on-chain");
-
-    // get the balance of the ERC20 tokens we just deposited
-    let balance = get_erc20_balance(
-        &http_client,
-        Url::parse(&settings.nightfall_client.url).unwrap(),
-    )
-    .await;
-    info!("Balance of ERC20 tokens held as layer 2 commitments by client 1: {balance}");
-    assert_eq!(balance, 14 + client1_starting_balance);
-
-    let balance = get_erc20_balance(&http_client, Url::parse("http://client2:3000").unwrap()).await;
-    info!("Balance of ERC20 tokens held as layer 2 commitments by client 2: {balance}");
-    assert_eq!(balance, 7 + client2_starting_balance);
-
-    info!("Sending transfer transactions");
-    let pause_url = Url::parse(&settings.nightfall_proposer.url)
-        .unwrap()
-        .join("v1/pause")
-        .unwrap();
-    let res = http_client.get(pause_url).send().await.unwrap();
-    assert!(res.status().is_success());
-
-    // create transfer requests
-    let mut transaction_ids = vec![];
-
-    let url = Url::parse(&settings.nightfall_client.url)
-        .unwrap()
-        .join("v1/transfer")
-        .unwrap();
-
-    transaction_ids.push(create_nf3_transfer_transaction(
-        zkp_key2.clone(),
-        &http_client,
-        url.clone(),
-        TokenType::ERC20,
-        test_settings.erc20_transfer_0,
-    ));
-
-    transaction_ids.push(create_nf3_transfer_transaction(
-        zkp_key2.clone(),
-        &http_client,
-        url.clone(),
-        TokenType::ERC20,
-        test_settings.erc20_transfer_1,
-    ));
-
-    debug!("transaction_erc20_transfer_1 has been created");
-    transaction_ids.push(create_nf3_transfer_transaction(
-        zkp_key2.clone(),
-        &http_client,
-        url.clone(),
-        TokenType::ERC20,
-        test_settings.erc20_transfer_2,
-    ));
-
-    // throw all the transactions at the client as fast as we can
-    let transaction_ids = try_join_all(transaction_ids).await.unwrap();
-
-    // wait for the responses to the transfer requests to come back to the webhook server
-    let transactions = wait_for_all_responses(&transaction_ids, responses.clone())
-        .await
-        .into_iter()
-        .map(|(_, l)| {
-            serde_json::from_str::<(Value, Option<TransactionReceipt>)>(&l)
-                .expect("Failed to parse response")
-        })
-        .map(|l| l.0)
-        .collect::<Vec<_>>();
-
-    info!("Starting chain reorg, {} blocks reorged", 200);
-
-    anvil_reorg(
-        &http_client,
-        &Url::parse("http://anvil:8545").unwrap(),
-        200,
-        true,
-        5,
-    )
-    .await
-    .unwrap();
-
-    info!("====== Chain reorg completed =========");
-
-    // compute the commmitments for the transactions
-    let commitment_hashes = transactions
-        .iter()
-        .map(|l| Fr254::from_hex_string(l["commitments"][0].as_str().unwrap()).unwrap())
-        .collect::<Vec<_>>();
-
-    debug!("transaction_erc20_transfer_2 has been created");
-    let resume_url = Url::parse(&settings.nightfall_proposer.url)
-        .unwrap()
-        .join("v1/resume")
-        .unwrap();
-    let res = http_client.get(resume_url).send().await.unwrap();
-    assert!(res.status().is_success());
-
-    wait_on_chain(&commitment_hashes, "http://client2:3000")
-        .await
-        .unwrap();
-    info!("ERC20 Transfer commitments are now on-chain");
-
-    // check that we have nullified the correct number of commitments
-    let nullifier_count = transactions
-        .iter()
-        .flat_map(|l| l["nullifiers"].as_array().unwrap())
-        .map(|n| Fr254::from_hex_string(n.as_str().unwrap()).unwrap())
-        .filter(|&n| !n.is_zero())
-        .count()
-        + nullified_count;
-
-    info!("Expected spent commitment count: {nullifier_count}");
-    let spent_commitments = count_spent_commitments(&http_client, url.clone())
-        .await
-        .unwrap();
-    assert_eq!(spent_commitments, nullifier_count);
-
-    // create transfer requests for the other token types
-    let mut transaction_ids = vec![];
-
-    transaction_ids.push(create_nf3_transfer_transaction(
-        zkp_key2.clone(),
-        &http_client,
-        url.clone(),
-        TokenType::ERC721,
-        test_settings.erc721_transfer,
-    ));
-    debug!("transaction_erc721_transfer has been created");
-
-    transaction_ids.push(create_nf3_transfer_transaction(
-        zkp_key2.clone(),
-        &http_client,
-        url.clone(),
-        TokenType::ERC3525,
-        test_settings.erc3525_transfer_1,
-    ));
-    debug!("transaction_erc3525_transfer_1 has been created");
-
-    transaction_ids.push(create_nf3_transfer_transaction(
-        zkp_key2.clone(),
-        &http_client,
-        url.clone(),
-        TokenType::ERC3525,
-        test_settings.erc3525_transfer_2,
-    ));
-    debug!("transaction_erc3525_transfer_2 has been created");
-
-    transaction_ids.push(create_nf3_transfer_transaction(
-        zkp_key2.clone(),
-        &http_client,
-        url.clone(),
-        TokenType::ERC1155,
-        test_settings.erc1155_transfer_1,
-    ));
-    debug!("transaction_erc1155_transfer_1 has been created");
-
-    transaction_ids.push(create_nf3_transfer_transaction(
-        zkp_key2.clone(),
-        &http_client,
-        url.clone(),
-        TokenType::ERC1155,
-        test_settings.erc1155_transfer_2_nft,
-    ));
-    debug!("transaction_erc1155_transfer_2 has been created");
-
-    // throw all the transactions at the client as fast as we can
-    let transaction_ids = try_join_all(transaction_ids).await.unwrap();
-
-    // wait for the responses to the transfer requests to come back to the webhook server
-    let transactions = wait_for_all_responses(&transaction_ids, responses.clone())
-        .await
-        .into_iter()
-        .map(|(_, l)| {
-            serde_json::from_str::<(Value, Option<TransactionReceipt>)>(&l)
-                .expect("Failed to parse response")
-        })
-        .map(|l| l.0)
-        .collect::<Vec<_>>();
-
-    // compute the commmitments for the transactions
-    let commitment_hashes = transactions
-        .iter()
-        .map(|l| Fr254::from_hex_string(l["commitments"][0].as_str().unwrap()).unwrap())
-        .collect::<Vec<_>>();
-
-    wait_on_chain(&commitment_hashes, "http://client2:3000")
-        .await
-        .unwrap();
-    info!("Transfer commitments are now on-chain");
-
-    //check that the new balances are as expected
-    let balance = get_erc20_balance(
-        &http_client,
-        Url::parse(&settings.nightfall_client.url).unwrap(),
-    )
-    .await;
-    info!("Balance of ERC20 tokens held as layer 2 commitments by client 1: {balance}");
-
-    assert_eq!(balance, 1 + client1_starting_balance);
-
-    let balance = get_erc20_balance(&http_client, Url::parse("http://client2:3000").unwrap()).await;
-    info!("Balance of ERC20 tokens held as layer 2 commitments by client2: {balance}");
-    assert_eq!(balance, 20 + client2_starting_balance);
-
-    // create swap requests (same party ordering in both legs)
-    info!("Sending ERC20 swap transactions");
-    let raw_swap_nonce = (Uuid::new_v4().as_u128() & u128::from(u64::MAX)).max(1);
-    let swap_nonce = format!("0x{raw_swap_nonce:x}");
-    let deadline = "0x1000".to_string();
-    let fee = "0x00".to_string();
-
-    let swap_request = create_nf3_swap_request(
-        zkp_key.clone(),
-        zkp_key2.clone(),
-        TokenType::ERC20,
-        "0x00".to_string(),
-        "0x01".to_string(),
-        TokenType::ERC20,
-        "0x00".to_string(),
-        "0x02".to_string(),
-        fee.clone(),
-        swap_nonce.clone(),
-        deadline.clone(),
-    );
-
-    let swap_url_client1 = Url::parse(&settings.nightfall_client.url)
-        .unwrap()
-        .join("v1/swap")
-        .unwrap();
-    let swap_url_client2 = Url::parse("http://client2:3000")
-        .unwrap()
-        .join("v1/swap")
-        .unwrap();
-
-    let swap_request_client1 = swap_request;
-    let swap_request_client2 = create_nf3_swap_request(
-        zkp_key.clone(),
-        zkp_key2.clone(),
-        TokenType::ERC20,
-        "0x00".to_string(),
-        "0x01".to_string(),
-        TokenType::ERC20,
-        "0x00".to_string(),
-        "0x02".to_string(),
-        fee,
-        swap_nonce,
-        deadline,
-    );
-    submit_swap_pair_and_assert_paired(
-        &http_client,
-        &swap_url_client1,
-        &swap_url_client2,
-        swap_request_client1,
-        swap_request_client2,
-        responses.clone(),
-        &settings.nightfall_client.url,
-        "http://client2:3000",
-        "ERC20 swap",
-    )
-    .await
-    .expect("ERC20 swap legs should pair end to end");
-    info!("ERC20 swap commitments are now on-chain");
-
-    // ERC721 swap (roundtrip): first move ERC721 to client1, then return it to client2.
-    info!("Sending ERC721 swap transactions");
-    let raw_swap_nonce = (Uuid::new_v4().as_u128() & u128::from(u64::MAX)).max(1);
-    let swap_nonce = format!("0x{raw_swap_nonce:x}");
-    let deadline = "0x1000".to_string();
-    let fee = "0x00".to_string();
-
-    let swap_request = create_nf3_swap_request(
-        zkp_key2.clone(),
-        zkp_key.clone(),
-        TokenType::ERC721,
-        test_settings.erc721_withdraw.token_id.clone(),
-        "0x00".to_string(),
-        TokenType::ERC20,
-        "0x00".to_string(),
-        "0x01".to_string(),
-        fee.clone(),
-        swap_nonce.clone(),
-        deadline.clone(),
-    );
-    let swap_request_client1 = swap_request;
-    let swap_request_client2 = create_nf3_swap_request(
-        zkp_key2.clone(),
-        zkp_key.clone(),
-        TokenType::ERC721,
-        test_settings.erc721_withdraw.token_id.clone(),
-        "0x00".to_string(),
-        TokenType::ERC20,
-        "0x00".to_string(),
-        "0x01".to_string(),
-        fee,
-        swap_nonce,
-        deadline,
-    );
-    submit_swap_pair_and_assert_paired(
-        &http_client,
-        &swap_url_client1,
-        &swap_url_client2,
-        swap_request_client1,
-        swap_request_client2,
-        responses.clone(),
-        &settings.nightfall_client.url,
-        "http://client2:3000",
-        "ERC721 outbound swap",
-    )
-    .await
-    .expect("ERC721 outbound swap legs should pair end to end");
-
-    let raw_swap_nonce = (Uuid::new_v4().as_u128() & u128::from(u64::MAX)).max(1);
-    let swap_nonce = format!("0x{raw_swap_nonce:x}");
-    let deadline = "0x1000".to_string();
-    let fee = "0x00".to_string();
-
-    let swap_request = create_nf3_swap_request(
-        zkp_key.clone(),
-        zkp_key2.clone(),
-        TokenType::ERC721,
-        test_settings.erc721_withdraw.token_id.clone(),
-        "0x00".to_string(),
-        TokenType::ERC20,
-        "0x00".to_string(),
-        "0x01".to_string(),
-        fee.clone(),
-        swap_nonce.clone(),
-        deadline.clone(),
-    );
-    let swap_request_client1 = swap_request;
-    let swap_request_client2 = create_nf3_swap_request(
-        zkp_key.clone(),
-        zkp_key2.clone(),
-        TokenType::ERC721,
-        test_settings.erc721_withdraw.token_id.clone(),
-        "0x00".to_string(),
-        TokenType::ERC20,
-        "0x00".to_string(),
-        "0x01".to_string(),
-        fee,
-        swap_nonce,
-        deadline,
-    );
-    submit_swap_pair_and_assert_paired(
-        &http_client,
-        &swap_url_client1,
-        &swap_url_client2,
-        swap_request_client1,
-        swap_request_client2,
-        responses.clone(),
-        &settings.nightfall_client.url,
-        "http://client2:3000",
-        "ERC721 return swap",
-    )
-    .await
-    .expect("ERC721 return swap legs should pair end to end");
-    info!("ERC721 swap commitments are now on-chain");
-
-    // ERC3525 swap scenarios:
-    // 1. ERC3525<->ERC3525 (slot 7 vs slot 8)
-    // 2. ERC3525<->ERC3525 reverse (slot 8 vs slot 7)
-    // 3. ERC3525<->ERC20 roundtrip
-    let parse_balance_hex = |balance_hex: &str| {
-        i64::from_str_radix(balance_hex.trim_start_matches("0x"), 16)
-            .expect("Balance should be valid hex")
-    };
-
-    let client1_balance_url = Url::parse(&settings.nightfall_client.url)
-        .unwrap()
-        .join("v1/balance/")
-        .unwrap();
-    let client2_balance_url = Url::parse("http://client2:3000")
-        .unwrap()
-        .join("v1/balance/")
-        .unwrap();
-
-    let client1_erc3525_slot7_before = parse_balance_hex(
-        &get_balance(
-            &http_client,
-            client1_balance_url.clone(),
-            TokenType::ERC3525,
-            erc3525_slot_7_token_id.clone(),
-        )
-        .await
-        .expect("Failed to read client1 ERC3525 slot7 balance"),
-    );
-    let client1_erc3525_slot8_before = parse_balance_hex(
-        &get_balance(
-            &http_client,
-            client1_balance_url.clone(),
-            TokenType::ERC3525,
-            erc3525_slot_8_token_id.clone(),
-        )
-        .await
-        .expect("Failed to read client1 ERC3525 slot8 balance"),
-    );
-    let client2_erc3525_slot7_before = parse_balance_hex(
-        &get_balance(
-            &http_client,
-            client2_balance_url.clone(),
-            TokenType::ERC3525,
-            erc3525_slot_7_token_id.clone(),
-        )
-        .await
-        .expect("Failed to read client2 ERC3525 slot7 balance"),
-    );
-    let client2_erc3525_slot8_before = parse_balance_hex(
-        &get_balance(
-            &http_client,
-            client2_balance_url.clone(),
-            TokenType::ERC3525,
-            erc3525_slot_8_token_id.clone(),
-        )
-        .await
-        .expect("Failed to read client2 ERC3525 slot8 balance"),
-    );
-    let client1_erc20_before = get_erc20_balance(
-        &http_client,
-        Url::parse(&settings.nightfall_client.url).unwrap(),
-    )
-    .await;
-    let client2_erc20_before =
-        get_erc20_balance(&http_client, Url::parse("http://client2:3000").unwrap()).await;
-
-    info!("Sending ERC3525<->ERC3525 swap transactions (slot7 vs slot8)");
-    let raw_swap_nonce = (Uuid::new_v4().as_u128() & u128::from(u64::MAX)).max(1);
-    let swap_nonce = format!("0x{raw_swap_nonce:x}");
-    let deadline = "0x1000".to_string();
-    let fee = "0x00".to_string();
-
-    let swap_request = create_nf3_swap_request(
-        zkp_key.clone(),
-        zkp_key2.clone(),
-        TokenType::ERC3525,
-        erc3525_slot_7_token_id.clone(),
-        "0x01".to_string(),
-        TokenType::ERC3525,
-        erc3525_slot_8_token_id.clone(),
-        "0x01".to_string(),
-        fee.clone(),
-        swap_nonce.clone(),
-        deadline.clone(),
-    );
-    let swap_request_client1 = swap_request;
-    let swap_request_client2 = create_nf3_swap_request(
-        zkp_key.clone(),
-        zkp_key2.clone(),
-        TokenType::ERC3525,
-        erc3525_slot_7_token_id.clone(),
-        "0x01".to_string(),
-        TokenType::ERC3525,
-        erc3525_slot_8_token_id.clone(),
-        "0x01".to_string(),
-        fee,
-        swap_nonce,
-        deadline,
-    );
-    submit_swap_pair_and_assert_paired(
-        &http_client,
-        &swap_url_client1,
-        &swap_url_client2,
-        swap_request_client1,
-        swap_request_client2,
-        responses.clone(),
-        &settings.nightfall_client.url,
-        "http://client2:3000",
-        "ERC3525 slot7/slot8 swap",
-    )
-    .await
-    .expect("ERC3525 slot7/slot8 swap legs should pair end to end");
-
-    info!("Sending ERC3525<->ERC3525 reverse swap transactions (slot8 vs slot7)");
-    let raw_swap_nonce = (Uuid::new_v4().as_u128() & u128::from(u64::MAX)).max(1);
-    let swap_nonce = format!("0x{raw_swap_nonce:x}");
-    let deadline = "0x1000".to_string();
-    let fee = "0x00".to_string();
-
-    let swap_request = create_nf3_swap_request(
-        zkp_key.clone(),
-        zkp_key2.clone(),
-        TokenType::ERC3525,
-        erc3525_slot_8_token_id.clone(),
-        "0x01".to_string(),
-        TokenType::ERC3525,
-        erc3525_slot_7_token_id.clone(),
-        "0x01".to_string(),
-        fee.clone(),
-        swap_nonce.clone(),
-        deadline.clone(),
-    );
-    let swap_request_client1 = swap_request;
-    let swap_request_client2 = create_nf3_swap_request(
-        zkp_key.clone(),
-        zkp_key2.clone(),
-        TokenType::ERC3525,
-        erc3525_slot_8_token_id.clone(),
-        "0x01".to_string(),
-        TokenType::ERC3525,
-        erc3525_slot_7_token_id.clone(),
-        "0x01".to_string(),
-        fee,
-        swap_nonce,
-        deadline,
-    );
-    submit_swap_pair_and_assert_paired(
-        &http_client,
-        &swap_url_client1,
-        &swap_url_client2,
-        swap_request_client1,
-        swap_request_client2,
-        responses.clone(),
-        &settings.nightfall_client.url,
-        "http://client2:3000",
-        "ERC3525 slot8/slot7 reverse swap",
-    )
-    .await
-    .expect("ERC3525 slot8/slot7 reverse swap legs should pair end to end");
-
-    info!("Sending ERC3525<->ERC20 swap transactions (roundtrip)");
-    let raw_swap_nonce = (Uuid::new_v4().as_u128() & u128::from(u64::MAX)).max(1);
-    let swap_nonce = format!("0x{raw_swap_nonce:x}");
-    let deadline = "0x1000".to_string();
-    let fee = "0x00".to_string();
-
-    let swap_request = create_nf3_swap_request(
-        zkp_key.clone(),
-        zkp_key2.clone(),
-        TokenType::ERC3525,
-        erc3525_slot_7_token_id.clone(),
-        "0x01".to_string(),
-        TokenType::ERC20,
-        "0x00".to_string(),
-        "0x01".to_string(),
-        fee.clone(),
-        swap_nonce.clone(),
-        deadline.clone(),
-    );
-    let swap_request_client1 = swap_request;
-    let swap_request_client2 = create_nf3_swap_request(
-        zkp_key.clone(),
-        zkp_key2.clone(),
-        TokenType::ERC3525,
-        erc3525_slot_7_token_id.clone(),
-        "0x01".to_string(),
-        TokenType::ERC20,
-        "0x00".to_string(),
-        "0x01".to_string(),
-        fee,
-        swap_nonce,
-        deadline,
-    );
-    submit_swap_pair_and_assert_paired(
-        &http_client,
-        &swap_url_client1,
-        &swap_url_client2,
-        swap_request_client1,
-        swap_request_client2,
-        responses.clone(),
-        &settings.nightfall_client.url,
-        "http://client2:3000",
-        "ERC3525/ERC20 outbound swap",
-    )
-    .await
-    .expect("ERC3525/ERC20 outbound swap legs should pair end to end");
-
-    let raw_swap_nonce = (Uuid::new_v4().as_u128() & u128::from(u64::MAX)).max(1);
-    let swap_nonce = format!("0x{raw_swap_nonce:x}");
-    let deadline = "0x1000".to_string();
-    let fee = "0x00".to_string();
-
-    let swap_request = create_nf3_swap_request(
-        zkp_key2.clone(),
-        zkp_key.clone(),
-        TokenType::ERC3525,
-        erc3525_slot_7_token_id.clone(),
-        "0x01".to_string(),
-        TokenType::ERC20,
-        "0x00".to_string(),
-        "0x01".to_string(),
-        fee.clone(),
-        swap_nonce.clone(),
-        deadline.clone(),
-    );
-    let swap_request_client1 = swap_request;
-    let swap_request_client2 = create_nf3_swap_request(
-        zkp_key2.clone(),
-        zkp_key.clone(),
-        TokenType::ERC3525,
-        erc3525_slot_7_token_id.clone(),
-        "0x01".to_string(),
-        TokenType::ERC20,
-        "0x00".to_string(),
-        "0x01".to_string(),
-        fee,
-        swap_nonce,
-        deadline,
-    );
-    submit_swap_pair_and_assert_paired(
-        &http_client,
-        &swap_url_client1,
-        &swap_url_client2,
-        swap_request_client1,
-        swap_request_client2,
-        responses.clone(),
-        &settings.nightfall_client.url,
-        "http://client2:3000",
-        "ERC3525/ERC20 return swap",
-    )
-    .await
-    .expect("ERC3525/ERC20 return swap legs should pair end to end");
-    info!("ERC3525 swap commitments are now on-chain");
-
-    // Ensure all added ERC3525 scenarios preserve final balances expected by later withdraw checks.
-    let client1_erc3525_slot7_after = parse_balance_hex(
-        &get_balance(
-            &http_client,
-            client1_balance_url.clone(),
-            TokenType::ERC3525,
-            erc3525_slot_7_token_id.clone(),
-        )
-        .await
-        .expect("Failed to read client1 ERC3525 slot7 balance after swaps"),
-    );
-    let client1_erc3525_slot8_after = parse_balance_hex(
-        &get_balance(
-            &http_client,
-            client1_balance_url.clone(),
-            TokenType::ERC3525,
-            erc3525_slot_8_token_id.clone(),
-        )
-        .await
-        .expect("Failed to read client1 ERC3525 slot8 balance after swaps"),
-    );
-    let client2_erc3525_slot7_after = parse_balance_hex(
-        &get_balance(
-            &http_client,
-            client2_balance_url.clone(),
-            TokenType::ERC3525,
-            erc3525_slot_7_token_id.clone(),
-        )
-        .await
-        .expect("Failed to read client2 ERC3525 slot7 balance after swaps"),
-    );
-    let client2_erc3525_slot8_after = parse_balance_hex(
-        &get_balance(
-            &http_client,
-            client2_balance_url.clone(),
-            TokenType::ERC3525,
-            erc3525_slot_8_token_id.clone(),
-        )
-        .await
-        .expect("Failed to read client2 ERC3525 slot8 balance after swaps"),
-    );
-    let client1_erc20_after = get_erc20_balance(
-        &http_client,
-        Url::parse(&settings.nightfall_client.url).unwrap(),
-    )
-    .await;
-    let client2_erc20_after =
-        get_erc20_balance(&http_client, Url::parse("http://client2:3000").unwrap()).await;
-
-    assert_eq!(client1_erc3525_slot7_after, client1_erc3525_slot7_before);
-    assert_eq!(client1_erc3525_slot8_after, client1_erc3525_slot8_before);
-    assert_eq!(client2_erc3525_slot7_after, client2_erc3525_slot7_before);
-    assert_eq!(client2_erc3525_slot8_after, client2_erc3525_slot8_before);
-    assert_eq!(client1_erc20_after, client1_erc20_before);
-    assert_eq!(client2_erc20_after, client2_erc20_before);
-
-    // ERC1155 swap.
-    info!("Sending ERC1155 swap transactions");
-    let raw_swap_nonce = (Uuid::new_v4().as_u128() & u128::from(u64::MAX)).max(1);
-    let swap_nonce = format!("0x{raw_swap_nonce:x}");
-    let deadline = "0x1000".to_string();
-    let fee = "0x00".to_string();
-
-    let swap_request = create_nf3_swap_request(
-        zkp_key.clone(),
-        zkp_key2.clone(),
-        TokenType::ERC1155,
-        test_settings.erc1155_withdraw_1.token_id.clone(),
-        "0x01".to_string(),
-        TokenType::ERC20,
-        "0x00".to_string(),
-        "0x01".to_string(),
-        fee.clone(),
-        swap_nonce.clone(),
-        deadline.clone(),
-    );
-    let swap_request_client1 = swap_request;
-    let swap_request_client2 = create_nf3_swap_request(
-        zkp_key.clone(),
-        zkp_key2.clone(),
-        TokenType::ERC1155,
-        test_settings.erc1155_withdraw_1.token_id.clone(),
-        "0x01".to_string(),
-        TokenType::ERC20,
-        "0x00".to_string(),
-        "0x01".to_string(),
-        fee,
-        swap_nonce,
-        deadline,
-    );
-    submit_swap_pair_and_assert_paired(
-        &http_client,
-        &swap_url_client1,
-        &swap_url_client2,
-        swap_request_client1,
-        swap_request_client2,
-        responses.clone(),
-        &settings.nightfall_client.url,
-        "http://client2:3000",
-        "ERC1155 swap",
-    )
-    .await
-    .expect("ERC1155 swap legs should pair end to end");
-    info!("ERC1155 swap commitments are now on-chain");
-    let my_balance = erc20_contract
-        .balanceOf(recipient_addr)
-        .call()
-        .await
-        .expect("balanceOf() call failed");
-
-    assert_eq!(my_balance, U256::from(0));
-
-    let my_balance = erc721_contract
-        .balanceOf(recipient_addr)
-        .call()
-        .await
-        .expect("balanceOf() call failed");
-
-    assert_eq!(my_balance, U256::from(0));
-
-    let my_balance = erc1155_contract
-        .balanceOf(
-            recipient_addr,
-            U256::from_hex_string(&test_settings.erc1155_withdraw_1.token_id).unwrap(),
-        )
-        .call()
-        .await
-        .expect("balanceOf() call failed");
-
-    assert_eq!(my_balance, U256::from(0));
-
-    let my_balance = erc3525_contract
-        .balanceOf_0(recipient_addr)
-        .call()
-        .await
-        .expect("balanceOf() call failed");
-
-    assert_eq!(my_balance, U256::from(0));
-
-    // create withdraw requests
-    let mut withdraw_data = vec![];
-    let client2_url = Url::parse("http://client2:3000").unwrap();
-
-    info!("Sending withdraw transactions");
-    let url = client2_url.clone().join("v1/withdraw").unwrap();
-    // compute the recipient address from the signing key (we will reuse the deployer key here to withdraw it to ourselves)
-    let recipient_address = get_recipient_address(&settings).unwrap();
-
-    withdraw_data.push(create_nf3_withdraw_transaction(
-        &http_client,
-        url.clone(),
-        TokenType::ERC20,
-        test_settings.erc20_withdraw_0,
-        recipient_address.clone(),
-    ));
-    debug!("transaction_erc20_withdraw_0 has been created");
-
-    withdraw_data.push(create_nf3_withdraw_transaction(
-        &http_client,
-        url.clone(),
-        TokenType::ERC20,
-        test_settings.erc20_withdraw_1,
-        recipient_address.clone(),
-    ));
-    debug!("transaction_erc20_withdraw_1 has been created");
-
-    withdraw_data.push(create_nf3_withdraw_transaction(
-        &http_client,
-        url.clone(),
-        TokenType::ERC20,
-        test_settings.erc20_withdraw_2,
-        recipient_address.clone(),
-    ));
-    debug!("transaction_erc20_withdraw_2 has been created");
-
-    // throw all the transactions at the client as fast as we can
-    let mut withdraw_data = try_join_all(withdraw_data).await.unwrap();
-    // sort by Uuid
-    withdraw_data.sort_by_key(|(uuid, _)| *uuid);
-
-    // create a vector of withdraw ids to wait for responses
-    let withdraw_ids = withdraw_data
-        .iter()
-        .map(|(uuid, _)| *uuid)
-        .collect::<Vec<_>>();
-
-    // wait for the responses to the withdraw requests to come back to the webhook server
-    let withdraw_responses = wait_for_all_responses(&withdraw_ids, responses.clone()).await;
-
-    // convert the withdraw_responses into a vector of (Uuid, WithdrawResponse)
-    let withdraw_responses = withdraw_responses
-        .into_iter()
-        .map(|(u, l)| {
-            (
-                u,
-                serde_json::from_str::<WithdrawResponse>(&l).expect("Failed to parse response"),
-            )
-        })
-        .collect::<Vec<_>>();
-
-    // we should have the same set of Uuids in the withdraw_responses as in the withdraw_data and they should be in the same order
-    for (i, response) in withdraw_responses.iter().enumerate() {
-        assert_eq!(
-            response.0, withdraw_data[i].0,
-            "{i}th Withdraw response Uuid does not match withdraw data Uuid"
-        );
-    }
-
-    //replace the empty withdraw_fund_salts in the withdraw_data with the salts from the withdraw_responses
-    for (i, response) in withdraw_responses.iter().enumerate() {
-        withdraw_data[i].1.withdraw_fund_salt = response.1.withdraw_fund_salt.clone();
-    }
-
-    let erc20_de_escrow_requests = withdraw_data
-        .iter()
-        .map(|(_, data)| DeEscrowDataReq {
-            token_id: data.token_id.clone(),
-            erc_address: data.erc_address.clone(),
-            recipient_address: data.recipient_address.clone(),
-            value: data.value.clone(),
-            token_type: data.token_type.clone(),
-            withdraw_fund_salt: data.withdraw_fund_salt.clone(),
-        })
-        .collect::<Vec<_>>();
-
-    wait_for_withdraws_on_chain(&erc20_de_escrow_requests, client2_url.as_str())
-        .await
-        .unwrap();
-
-    //check the balance of the ERC20 tokens after the withdraws
-    let balance = get_erc20_balance(&http_client, client2_url.clone()).await;
-    info!("Balance of ERC20 tokens held as layer 2 commitments by client2: {balance}");
-    assert_eq!(balance, 15 + client2_starting_balance);
-
-    // withdraw the other token types
-    let mut withdraw_data = vec![];
-
-    let erc721_withdraw = test_settings.erc721_withdraw.clone();
-    withdraw_data.push(create_nf3_withdraw_transaction(
-        &http_client,
-        url.clone(),
-        TokenType::ERC721,
-        erc721_withdraw.clone(),
-        recipient_address.clone(),
-    ));
-    debug!("transaction_erc721_withdraw has been created");
-
-    let erc3525_withdraw = test_settings.erc3525_withdraw.clone();
-    withdraw_data.push(create_nf3_withdraw_transaction(
-        &http_client,
-        url.clone(),
-        TokenType::ERC3525,
-        erc3525_withdraw.clone(),
-        recipient_address.clone(),
-    ));
-    debug!("transaction_erc3525_withdraw has been created");
-
-    let erc1155_withdraw_1_value = test_settings.erc1155_withdraw_1.value.clone();
-    withdraw_data.push(create_nf3_withdraw_transaction(
-        &http_client,
-        url.clone(),
-        TokenType::ERC1155,
-        test_settings.erc1155_withdraw_1,
-        recipient_address.clone(),
-    ));
-    debug!("transaction_erc1155_withdraw_1 has been created");
-
-    let erc1155_withdraw_0_value = test_settings.erc1155_withdraw_2_nft.value.clone();
-    withdraw_data.push(create_nf3_withdraw_transaction(
-        &http_client,
-        url.clone(),
-        TokenType::ERC1155,
-        test_settings.erc1155_withdraw_2_nft,
-        recipient_address.clone(),
-    ));
-    debug!("transaction_erc1155_withdraw_2 has been created");
-
-    // throw all the transactions at the client as fast as we can
-    let mut withdraw_data = try_join_all(withdraw_data).await.unwrap();
-    // sort by Uuid
-    withdraw_data.sort_by_key(|(uuid, _)| *uuid);
-
-    // create a vector of withdraw ids to wait for responses
-    let withdraw_ids = withdraw_data
-        .iter()
-        .map(|(uuid, _)| *uuid)
-        .collect::<Vec<_>>();
-
-    // wait for the responses to the withdraw requests to come back to the webhook server
-    let withdraw_responses = wait_for_all_responses(&withdraw_ids, responses.clone()).await;
-
-    // convert the withdraw_responses into a vector of (Uuid, WithdrawResponse)
-    let withdraw_responses = withdraw_responses
-        .into_iter()
-        .map(|(u, l)| {
-            (
-                u,
-                serde_json::from_str::<WithdrawResponse>(&l).expect("Failed to parse response"),
-            )
-        })
-        .collect::<Vec<_>>();
-
-    // we should have the same set of Uuids in the withdraw_responses as in the withdraw_data and they should be in the same order
-    for (i, response) in withdraw_responses.iter().enumerate() {
-        assert_eq!(
-            response.0, withdraw_data[i].0,
-            "{i}th Withdraw response Uuid does not match withdraw data Uuid"
-        );
-    }
-
-    //replace the empty withdraw_fund_salts in the withdraw_data with the salts from the withdraw_responses
-    for (i, response) in withdraw_responses.iter().enumerate() {
-        withdraw_data[i].1.withdraw_fund_salt = response.1.withdraw_fund_salt.clone();
-    }
-
-    let other_de_escrow_requests = withdraw_data
-        .iter()
-        .map(|(_, data)| DeEscrowDataReq {
-            token_id: data.token_id.clone(),
-            erc_address: data.erc_address.clone(),
-            recipient_address: data.recipient_address.clone(),
-            value: data.value.clone(),
-            token_type: data.token_type.clone(),
-            withdraw_fund_salt: data.withdraw_fund_salt.clone(),
-        })
-        .collect::<Vec<_>>();
-
-    wait_for_withdraws_on_chain(&other_de_escrow_requests, client2_url.as_str())
-        .await
-        .unwrap();
-
-    // get the final balance of all the addresses used. As these are all addresses funded by Anvil,
-    // we can simple print those balances
-    let client = get_blockchain_client_connection()
-        .await
-        .read()
-        .await
-        .get_client();
-    let accounts = client.get_accounts().await.unwrap();
-    let initial_balance: U256 = parse_units("10000.0", "ether").unwrap().into();
-    let final_balances = futures::future::join_all(
-        accounts
-            .iter()
-            .map(|a| async { client.get_balance(*a).await.unwrap() }),
-    )
-    .await
-    .iter()
-    .map(|b| initial_balance - b)
-    .collect::<Vec<_>>();
-    let final_balances_str = final_balances
-        .iter()
-        .map(|b| format_units(*b, "ether").unwrap())
-        .collect::<Vec<_>>();
-    let total = final_balances.iter().fold(U256::ZERO, |acc, b| acc + b);
-    info!("Eth spent was {final_balances_str:#?}");
-    info!(
-        "Total spent was {:#?}",
-        format_units(total, "ether").unwrap()
-    );
-    info!("Waiting for withdraw be on-chain");
-    let mut recipient_erc1155_balance = U256::ZERO;
-    let mut recipient_erc20_balance = U256::ZERO;
-    let mut recipient_erc721_balance = U256::ZERO;
-    let mut recipient_erc3525_balance = U256::ZERO;
-
-    while recipient_erc1155_balance.is_zero()
-        || recipient_erc20_balance.is_zero()
-        || recipient_erc721_balance.is_zero()
-        || recipient_erc3525_balance.is_zero()
-    {
-        recipient_erc1155_balance = erc1155_contract
-            .balanceOf(
-                recipient_addr,
-                U256::from_hex_string(&erc1155_withdraw_1_token_id).unwrap(),
-            )
-            .call()
-            .await
-            .expect("balanceOf() call failed");
-
-        recipient_erc20_balance = erc20_contract
-            .balanceOf(recipient_addr)
-            .call()
-            .await
-            .expect("balanceOf() call failed");
-
-        recipient_erc721_balance = erc721_contract
-            .balanceOf(recipient_addr)
-            .call()
-            .await
-            .expect("balanceOf() call failed");
-
-        recipient_erc3525_balance = erc3525_contract
-            .balanceOf_0(recipient_addr)
-            .call()
-            .await
-            .expect("balanceOf() call failed");
-
-        if recipient_erc1155_balance.is_zero()
-            || recipient_erc20_balance > 1
-            || recipient_erc721_balance.is_zero()
-            || recipient_erc3525_balance.is_zero()
-        {
-            tokio::time::sleep(std::time::Duration::from_secs(10)).await;
-        }
-    }
-    assert!(recipient_erc20_balance > U256::ZERO);
-
-    assert_eq!(
-        recipient_erc1155_balance,
-        U256::from_hex_string(&erc1155_withdraw_0_value).unwrap()
-            + U256::from_hex_string(&erc1155_withdraw_1_value).unwrap()
-    );
-
-    assert_eq!(recipient_erc721_balance, 1);
-    assert_eq!(recipient_erc3525_balance, 1);
+    // // get the balance of the ERC721 token we just deposited
+    // let balance = get_erc721_balance(
+    //     &http_client,
+    //     Url::parse(&settings.nightfall_client.url).unwrap(),
+    //     test_settings.erc721_deposit.token_id,
+    // )
+    // .await;
+    // assert!(balance.is_some_and(|balance| balance.is_zero()));
+
+    // let my_balance = erc20_contract
+    //     .balanceOf(client_1_address)
+    //     .call()
+    //     .await
+    //     .expect("balanceOf() call failed");
+    // assert!(my_balance < U256::from(erc20_mint_value));
+
+    // let my_balance = erc721_contract
+    //     .balanceOf(client_1_address)
+    //     .call()
+    //     .await
+    //     .expect("balanceOf() call failed");
+    // assert_eq!(my_balance, U256::from(0));
+
+    // let my_balance = erc1155_contract
+    //     .balanceOf(
+    //         client_1_address,
+    //         U256::from_hex_string(&erc1155_deposit_1_token_id).unwrap(),
+    //     )
+    //     .call()
+    //     .await
+    //     .expect("balanceOf() call failed");
+    // assert_eq!(
+    //     my_balance,
+    //     U256::from(erc1155_mint_value)
+    //         - U256::from_hex_string(&test_settings.erc1155_deposit_1.value).unwrap()
+    //         - U256::from_hex_string(&test_settings.erc1155_deposit_2.value).unwrap()
+    // );
+
+    // let my_balance = erc3525_contract
+    //     .balanceOf_0(client_1_address)
+    //     .call()
+    //     .await
+    //     .expect("balanceOf() call failed");
+    // assert_eq!(my_balance, U256::from(0));
+
+    // // get the fee balance
+    // let fee_balance = get_fee_balance(
+    //     &http_client,
+    //     Url::parse(&settings.nightfall_client.url).unwrap(),
+    // )
+    // .await;
+    // info!("Fee Commitment Balance  held as layer 2 commitments by client1: {fee_balance}");
+    // assert_eq!(fee_balance, 137 + client1_starting_fee_balance);
+    // // call verify_deposit_commitments_nf_token_id
+    // info!("Verifying deposit commitments");
+
+    // // check that we can find one of our commitments
+    // // Query the commitment endpoint to return the CommitmEntry of commitment_hashes[0]
+    // info!("Querying commitment endpoint");
+    // // Cache for token info lookup
+    // let uuid_to_commitments: HashMap<Uuid, Vec<Fr254>> = responses_by_uuid
+    //     .clone()
+    //     .iter()
+    //     .map(|(uuid, l)| {
+    //         let commitments: Vec<Fr254> = serde_json::from_str::<Vec<String>>(l)
+    //             .expect("Failed to parse commitment response")
+    //             .into_iter()
+    //             .map(|s| Fr254::from_hex_string(&s).unwrap())
+    //             .collect();
+    //         (*uuid, commitments)
+    //     })
+    //     .collect();
+    // verify_deposit_commitments_nf_token_id(
+    //     &http_client,
+    //     &uuid_to_commitments,
+    //     &expected_token_data,
+    //     &settings,
+    // )
+    // .await;
+
+    // info!("Making client2 fee commitments so that it can withdraw");
+    // // give client 2 some deposit fee commitments so that it can transact
+    // // we need up to seven commitments because we'll want to do up to seven withdraws in
+    // // the same block (we don't control when a block is computed), so we can't use a single commitment
+    // // even if it has enough value because the change won't be available until the next block.
+    // let pause_url = Url::parse(&settings.nightfall_proposer.url)
+    //     .unwrap()
+    //     .join("v1/pause")
+    //     .unwrap();
+    // let res = http_client.get(pause_url).send().await.unwrap();
+    // assert!(res.status().is_success());
+
+    // let url2 = Url::parse("http://client2:3000")
+    //     .unwrap()
+    //     .join("v1/deposit")
+    //     .unwrap();
+
+    // let mut transaction_ids = vec![];
+
+    // for _ in 0..7 {
+    //     transaction_ids.push(create_nf3_deposit_transaction(
+    //         &http_client,
+    //         url2.clone(),
+    //         TokenType::ERC20,
+    //         test_settings.erc20_deposit_4.clone(),
+    //         "0x20".to_string(), //deposit_fee
+    //     ));
+    //     debug!("transaction_erc20_deposit_4 has been created");
+    // }
+
+    // // throw all the transactions at the client as fast as we can
+    // let transaction_ids = try_join_all(transaction_ids).await.unwrap();
+    // let transaction_ids = transaction_ids
+    //     .iter()
+    //     .map(|(uuid, _)| *uuid)
+    //     .collect::<Vec<_>>();
+
+    // // wait for the responses to the deposit requests to come back to the webhook server
+    // let commitment_hashes = wait_for_all_responses(&transaction_ids, responses.clone())
+    //     .await
+    //     .into_iter()
+    //     .flat_map(|(_, l)| {
+    //         serde_json::from_str::<Vec<String>>(&l).expect("Failed to parse response")
+    //     })
+    //     .map(|l| Fr254::from_hex_string(&l).unwrap())
+    //     .collect::<Vec<_>>();
+
+    // let resume_url = Url::parse(&settings.nightfall_proposer.url)
+    //     .unwrap()
+    //     .join("v1/resume")
+    //     .unwrap();
+    // let res = http_client.get(resume_url).send().await.unwrap();
+    // assert!(res.status().is_success());
+
+    // // wait for the client2 fee commitments to appear on-chain
+    // wait_on_chain(&commitment_hashes, "http://client2:3000")
+    //     .await
+    //     .unwrap();
+    // info!("Client2 ERC20 fee commitments are now on-chain");
+
+    // // get the balance of the ERC20 tokens we just deposited
+    // let balance = get_erc20_balance(
+    //     &http_client,
+    //     Url::parse(&settings.nightfall_client.url).unwrap(),
+    // )
+    // .await;
+    // info!("Balance of ERC20 tokens held as layer 2 commitments by client 1: {balance}");
+    // assert_eq!(balance, 14 + client1_starting_balance);
+
+    // let balance = get_erc20_balance(&http_client, Url::parse("http://client2:3000").unwrap()).await;
+    // info!("Balance of ERC20 tokens held as layer 2 commitments by client 2: {balance}");
+    // assert_eq!(balance, 7 + client2_starting_balance);
+
+    // info!("Sending transfer transactions");
+    // let pause_url = Url::parse(&settings.nightfall_proposer.url)
+    //     .unwrap()
+    //     .join("v1/pause")
+    //     .unwrap();
+    // let res = http_client.get(pause_url).send().await.unwrap();
+    // assert!(res.status().is_success());
+
+    // // create transfer requests
+    // let mut transaction_ids = vec![];
+
+    // let url = Url::parse(&settings.nightfall_client.url)
+    //     .unwrap()
+    //     .join("v1/transfer")
+    //     .unwrap();
+
+    // transaction_ids.push(create_nf3_transfer_transaction(
+    //     zkp_key2.clone(),
+    //     &http_client,
+    //     url.clone(),
+    //     TokenType::ERC20,
+    //     test_settings.erc20_transfer_0,
+    // ));
+
+    // transaction_ids.push(create_nf3_transfer_transaction(
+    //     zkp_key2.clone(),
+    //     &http_client,
+    //     url.clone(),
+    //     TokenType::ERC20,
+    //     test_settings.erc20_transfer_1,
+    // ));
+
+    // debug!("transaction_erc20_transfer_1 has been created");
+    // transaction_ids.push(create_nf3_transfer_transaction(
+    //     zkp_key2.clone(),
+    //     &http_client,
+    //     url.clone(),
+    //     TokenType::ERC20,
+    //     test_settings.erc20_transfer_2,
+    // ));
+
+    // // throw all the transactions at the client as fast as we can
+    // let transaction_ids = try_join_all(transaction_ids).await.unwrap();
+
+    // // wait for the responses to the transfer requests to come back to the webhook server
+    // let transactions = wait_for_all_responses(&transaction_ids, responses.clone())
+    //     .await
+    //     .into_iter()
+    //     .map(|(_, l)| {
+    //         serde_json::from_str::<(Value, Option<TransactionReceipt>)>(&l)
+    //             .expect("Failed to parse response")
+    //     })
+    //     .map(|l| l.0)
+    //     .collect::<Vec<_>>();
+
+    // info!("Starting chain reorg, {} blocks reorged", 200);
+
+    // anvil_reorg(
+    //     &http_client,
+    //     &Url::parse("http://anvil:8545").unwrap(),
+    //     200,
+    //     true,
+    //     5,
+    // )
+    // .await
+    // .unwrap();
+
+    // info!("====== Chain reorg completed =========");
+
+    // // compute the commmitments for the transactions
+    // let commitment_hashes = transactions
+    //     .iter()
+    //     .map(|l| Fr254::from_hex_string(l["commitments"][0].as_str().unwrap()).unwrap())
+    //     .collect::<Vec<_>>();
+
+    // debug!("transaction_erc20_transfer_2 has been created");
+    // let resume_url = Url::parse(&settings.nightfall_proposer.url)
+    //     .unwrap()
+    //     .join("v1/resume")
+    //     .unwrap();
+    // let res = http_client.get(resume_url).send().await.unwrap();
+    // assert!(res.status().is_success());
+
+    // wait_on_chain(&commitment_hashes, "http://client2:3000")
+    //     .await
+    //     .unwrap();
+    // info!("ERC20 Transfer commitments are now on-chain");
+
+    // // check that we have nullified the correct number of commitments
+    // let nullifier_count = transactions
+    //     .iter()
+    //     .flat_map(|l| l["nullifiers"].as_array().unwrap())
+    //     .map(|n| Fr254::from_hex_string(n.as_str().unwrap()).unwrap())
+    //     .filter(|&n| !n.is_zero())
+    //     .count()
+    //     + nullified_count;
+
+    // info!("Expected spent commitment count: {nullifier_count}");
+    // let spent_commitments = count_spent_commitments(&http_client, url.clone())
+    //     .await
+    //     .unwrap();
+    // assert_eq!(spent_commitments, nullifier_count);
+
+    // // create transfer requests for the other token types
+    // let mut transaction_ids = vec![];
+
+    // transaction_ids.push(create_nf3_transfer_transaction(
+    //     zkp_key2.clone(),
+    //     &http_client,
+    //     url.clone(),
+    //     TokenType::ERC721,
+    //     test_settings.erc721_transfer,
+    // ));
+    // debug!("transaction_erc721_transfer has been created");
+
+    // transaction_ids.push(create_nf3_transfer_transaction(
+    //     zkp_key2.clone(),
+    //     &http_client,
+    //     url.clone(),
+    //     TokenType::ERC3525,
+    //     test_settings.erc3525_transfer_1,
+    // ));
+    // debug!("transaction_erc3525_transfer_1 has been created");
+
+    // transaction_ids.push(create_nf3_transfer_transaction(
+    //     zkp_key2.clone(),
+    //     &http_client,
+    //     url.clone(),
+    //     TokenType::ERC3525,
+    //     test_settings.erc3525_transfer_2,
+    // ));
+    // debug!("transaction_erc3525_transfer_2 has been created");
+
+    // transaction_ids.push(create_nf3_transfer_transaction(
+    //     zkp_key2.clone(),
+    //     &http_client,
+    //     url.clone(),
+    //     TokenType::ERC1155,
+    //     test_settings.erc1155_transfer_1,
+    // ));
+    // debug!("transaction_erc1155_transfer_1 has been created");
+
+    // transaction_ids.push(create_nf3_transfer_transaction(
+    //     zkp_key2.clone(),
+    //     &http_client,
+    //     url.clone(),
+    //     TokenType::ERC1155,
+    //     test_settings.erc1155_transfer_2_nft,
+    // ));
+    // debug!("transaction_erc1155_transfer_2 has been created");
+
+    // // throw all the transactions at the client as fast as we can
+    // let transaction_ids = try_join_all(transaction_ids).await.unwrap();
+
+    // // wait for the responses to the transfer requests to come back to the webhook server
+    // let transactions = wait_for_all_responses(&transaction_ids, responses.clone())
+    //     .await
+    //     .into_iter()
+    //     .map(|(_, l)| {
+    //         serde_json::from_str::<(Value, Option<TransactionReceipt>)>(&l)
+    //             .expect("Failed to parse response")
+    //     })
+    //     .map(|l| l.0)
+    //     .collect::<Vec<_>>();
+
+    // // compute the commmitments for the transactions
+    // let commitment_hashes = transactions
+    //     .iter()
+    //     .map(|l| Fr254::from_hex_string(l["commitments"][0].as_str().unwrap()).unwrap())
+    //     .collect::<Vec<_>>();
+
+    // wait_on_chain(&commitment_hashes, "http://client2:3000")
+    //     .await
+    //     .unwrap();
+    // info!("Transfer commitments are now on-chain");
+
+    // //check that the new balances are as expected
+    // let balance = get_erc20_balance(
+    //     &http_client,
+    //     Url::parse(&settings.nightfall_client.url).unwrap(),
+    // )
+    // .await;
+    // info!("Balance of ERC20 tokens held as layer 2 commitments by client 1: {balance}");
+
+    // assert_eq!(balance, 1 + client1_starting_balance);
+
+    // let balance = get_erc20_balance(&http_client, Url::parse("http://client2:3000").unwrap()).await;
+    // info!("Balance of ERC20 tokens held as layer 2 commitments by client2: {balance}");
+    // assert_eq!(balance, 20 + client2_starting_balance);
+
+    // // create swap requests (same party ordering in both legs)
+    // info!("Sending ERC20 swap transactions");
+    // let raw_swap_nonce = (Uuid::new_v4().as_u128() & u128::from(u64::MAX)).max(1);
+    // let swap_nonce = format!("0x{raw_swap_nonce:x}");
+    // let deadline = "0x1000".to_string();
+    // let fee = "0x00".to_string();
+
+    // let swap_request = create_nf3_swap_request(
+    //     zkp_key.clone(),
+    //     zkp_key2.clone(),
+    //     TokenType::ERC20,
+    //     "0x00".to_string(),
+    //     "0x01".to_string(),
+    //     TokenType::ERC20,
+    //     "0x00".to_string(),
+    //     "0x02".to_string(),
+    //     fee.clone(),
+    //     swap_nonce.clone(),
+    //     deadline.clone(),
+    // );
+
+    // let swap_url_client1 = Url::parse(&settings.nightfall_client.url)
+    //     .unwrap()
+    //     .join("v1/swap")
+    //     .unwrap();
+    // let swap_url_client2 = Url::parse("http://client2:3000")
+    //     .unwrap()
+    //     .join("v1/swap")
+    //     .unwrap();
+
+    // let swap_request_client1 = swap_request;
+    // let swap_request_client2 = create_nf3_swap_request(
+    //     zkp_key.clone(),
+    //     zkp_key2.clone(),
+    //     TokenType::ERC20,
+    //     "0x00".to_string(),
+    //     "0x01".to_string(),
+    //     TokenType::ERC20,
+    //     "0x00".to_string(),
+    //     "0x02".to_string(),
+    //     fee,
+    //     swap_nonce,
+    //     deadline,
+    // );
+    // submit_swap_pair_and_assert_paired(
+    //     &http_client,
+    //     &swap_url_client1,
+    //     &swap_url_client2,
+    //     swap_request_client1,
+    //     swap_request_client2,
+    //     responses.clone(),
+    //     &settings.nightfall_client.url,
+    //     "http://client2:3000",
+    //     "ERC20 swap",
+    // )
+    // .await
+    // .expect("ERC20 swap legs should pair end to end");
+    // info!("ERC20 swap commitments are now on-chain");
+
+    // // ERC721 swap (roundtrip): first move ERC721 to client1, then return it to client2.
+    // info!("Sending ERC721 swap transactions");
+    // let raw_swap_nonce = (Uuid::new_v4().as_u128() & u128::from(u64::MAX)).max(1);
+    // let swap_nonce = format!("0x{raw_swap_nonce:x}");
+    // let deadline = "0x1000".to_string();
+    // let fee = "0x00".to_string();
+
+    // let swap_request = create_nf3_swap_request(
+    //     zkp_key2.clone(),
+    //     zkp_key.clone(),
+    //     TokenType::ERC721,
+    //     test_settings.erc721_withdraw.token_id.clone(),
+    //     "0x00".to_string(),
+    //     TokenType::ERC20,
+    //     "0x00".to_string(),
+    //     "0x01".to_string(),
+    //     fee.clone(),
+    //     swap_nonce.clone(),
+    //     deadline.clone(),
+    // );
+    // let swap_request_client1 = swap_request;
+    // let swap_request_client2 = create_nf3_swap_request(
+    //     zkp_key2.clone(),
+    //     zkp_key.clone(),
+    //     TokenType::ERC721,
+    //     test_settings.erc721_withdraw.token_id.clone(),
+    //     "0x00".to_string(),
+    //     TokenType::ERC20,
+    //     "0x00".to_string(),
+    //     "0x01".to_string(),
+    //     fee,
+    //     swap_nonce,
+    //     deadline,
+    // );
+    // submit_swap_pair_and_assert_paired(
+    //     &http_client,
+    //     &swap_url_client1,
+    //     &swap_url_client2,
+    //     swap_request_client1,
+    //     swap_request_client2,
+    //     responses.clone(),
+    //     &settings.nightfall_client.url,
+    //     "http://client2:3000",
+    //     "ERC721 outbound swap",
+    // )
+    // .await
+    // .expect("ERC721 outbound swap legs should pair end to end");
+
+    // let raw_swap_nonce = (Uuid::new_v4().as_u128() & u128::from(u64::MAX)).max(1);
+    // let swap_nonce = format!("0x{raw_swap_nonce:x}");
+    // let deadline = "0x1000".to_string();
+    // let fee = "0x00".to_string();
+
+    // let swap_request = create_nf3_swap_request(
+    //     zkp_key.clone(),
+    //     zkp_key2.clone(),
+    //     TokenType::ERC721,
+    //     test_settings.erc721_withdraw.token_id.clone(),
+    //     "0x00".to_string(),
+    //     TokenType::ERC20,
+    //     "0x00".to_string(),
+    //     "0x01".to_string(),
+    //     fee.clone(),
+    //     swap_nonce.clone(),
+    //     deadline.clone(),
+    // );
+    // let swap_request_client1 = swap_request;
+    // let swap_request_client2 = create_nf3_swap_request(
+    //     zkp_key.clone(),
+    //     zkp_key2.clone(),
+    //     TokenType::ERC721,
+    //     test_settings.erc721_withdraw.token_id.clone(),
+    //     "0x00".to_string(),
+    //     TokenType::ERC20,
+    //     "0x00".to_string(),
+    //     "0x01".to_string(),
+    //     fee,
+    //     swap_nonce,
+    //     deadline,
+    // );
+    // submit_swap_pair_and_assert_paired(
+    //     &http_client,
+    //     &swap_url_client1,
+    //     &swap_url_client2,
+    //     swap_request_client1,
+    //     swap_request_client2,
+    //     responses.clone(),
+    //     &settings.nightfall_client.url,
+    //     "http://client2:3000",
+    //     "ERC721 return swap",
+    // )
+    // .await
+    // .expect("ERC721 return swap legs should pair end to end");
+    // info!("ERC721 swap commitments are now on-chain");
+
+    // // ERC3525 swap scenarios:
+    // // 1. ERC3525<->ERC3525 (slot 7 vs slot 8)
+    // // 2. ERC3525<->ERC3525 reverse (slot 8 vs slot 7)
+    // // 3. ERC3525<->ERC20 roundtrip
+    // let parse_balance_hex = |balance_hex: &str| {
+    //     i64::from_str_radix(balance_hex.trim_start_matches("0x"), 16)
+    //         .expect("Balance should be valid hex")
+    // };
+
+    // let client1_balance_url = Url::parse(&settings.nightfall_client.url)
+    //     .unwrap()
+    //     .join("v1/balance/")
+    //     .unwrap();
+    // let client2_balance_url = Url::parse("http://client2:3000")
+    //     .unwrap()
+    //     .join("v1/balance/")
+    //     .unwrap();
+
+    // let client1_erc3525_slot7_before = parse_balance_hex(
+    //     &get_balance(
+    //         &http_client,
+    //         client1_balance_url.clone(),
+    //         TokenType::ERC3525,
+    //         erc3525_slot_7_token_id.clone(),
+    //     )
+    //     .await
+    //     .expect("Failed to read client1 ERC3525 slot7 balance"),
+    // );
+    // let client1_erc3525_slot8_before = parse_balance_hex(
+    //     &get_balance(
+    //         &http_client,
+    //         client1_balance_url.clone(),
+    //         TokenType::ERC3525,
+    //         erc3525_slot_8_token_id.clone(),
+    //     )
+    //     .await
+    //     .expect("Failed to read client1 ERC3525 slot8 balance"),
+    // );
+    // let client2_erc3525_slot7_before = parse_balance_hex(
+    //     &get_balance(
+    //         &http_client,
+    //         client2_balance_url.clone(),
+    //         TokenType::ERC3525,
+    //         erc3525_slot_7_token_id.clone(),
+    //     )
+    //     .await
+    //     .expect("Failed to read client2 ERC3525 slot7 balance"),
+    // );
+    // let client2_erc3525_slot8_before = parse_balance_hex(
+    //     &get_balance(
+    //         &http_client,
+    //         client2_balance_url.clone(),
+    //         TokenType::ERC3525,
+    //         erc3525_slot_8_token_id.clone(),
+    //     )
+    //     .await
+    //     .expect("Failed to read client2 ERC3525 slot8 balance"),
+    // );
+    // let client1_erc20_before = get_erc20_balance(
+    //     &http_client,
+    //     Url::parse(&settings.nightfall_client.url).unwrap(),
+    // )
+    // .await;
+    // let client2_erc20_before =
+    //     get_erc20_balance(&http_client, Url::parse("http://client2:3000").unwrap()).await;
+
+    // info!("Sending ERC3525<->ERC3525 swap transactions (slot7 vs slot8)");
+    // let raw_swap_nonce = (Uuid::new_v4().as_u128() & u128::from(u64::MAX)).max(1);
+    // let swap_nonce = format!("0x{raw_swap_nonce:x}");
+    // let deadline = "0x1000".to_string();
+    // let fee = "0x00".to_string();
+
+    // let swap_request = create_nf3_swap_request(
+    //     zkp_key.clone(),
+    //     zkp_key2.clone(),
+    //     TokenType::ERC3525,
+    //     erc3525_slot_7_token_id.clone(),
+    //     "0x01".to_string(),
+    //     TokenType::ERC3525,
+    //     erc3525_slot_8_token_id.clone(),
+    //     "0x01".to_string(),
+    //     fee.clone(),
+    //     swap_nonce.clone(),
+    //     deadline.clone(),
+    // );
+    // let swap_request_client1 = swap_request;
+    // let swap_request_client2 = create_nf3_swap_request(
+    //     zkp_key.clone(),
+    //     zkp_key2.clone(),
+    //     TokenType::ERC3525,
+    //     erc3525_slot_7_token_id.clone(),
+    //     "0x01".to_string(),
+    //     TokenType::ERC3525,
+    //     erc3525_slot_8_token_id.clone(),
+    //     "0x01".to_string(),
+    //     fee,
+    //     swap_nonce,
+    //     deadline,
+    // );
+    // submit_swap_pair_and_assert_paired(
+    //     &http_client,
+    //     &swap_url_client1,
+    //     &swap_url_client2,
+    //     swap_request_client1,
+    //     swap_request_client2,
+    //     responses.clone(),
+    //     &settings.nightfall_client.url,
+    //     "http://client2:3000",
+    //     "ERC3525 slot7/slot8 swap",
+    // )
+    // .await
+    // .expect("ERC3525 slot7/slot8 swap legs should pair end to end");
+
+    // info!("Sending ERC3525<->ERC3525 reverse swap transactions (slot8 vs slot7)");
+    // let raw_swap_nonce = (Uuid::new_v4().as_u128() & u128::from(u64::MAX)).max(1);
+    // let swap_nonce = format!("0x{raw_swap_nonce:x}");
+    // let deadline = "0x1000".to_string();
+    // let fee = "0x00".to_string();
+
+    // let swap_request = create_nf3_swap_request(
+    //     zkp_key.clone(),
+    //     zkp_key2.clone(),
+    //     TokenType::ERC3525,
+    //     erc3525_slot_8_token_id.clone(),
+    //     "0x01".to_string(),
+    //     TokenType::ERC3525,
+    //     erc3525_slot_7_token_id.clone(),
+    //     "0x01".to_string(),
+    //     fee.clone(),
+    //     swap_nonce.clone(),
+    //     deadline.clone(),
+    // );
+    // let swap_request_client1 = swap_request;
+    // let swap_request_client2 = create_nf3_swap_request(
+    //     zkp_key.clone(),
+    //     zkp_key2.clone(),
+    //     TokenType::ERC3525,
+    //     erc3525_slot_8_token_id.clone(),
+    //     "0x01".to_string(),
+    //     TokenType::ERC3525,
+    //     erc3525_slot_7_token_id.clone(),
+    //     "0x01".to_string(),
+    //     fee,
+    //     swap_nonce,
+    //     deadline,
+    // );
+    // submit_swap_pair_and_assert_paired(
+    //     &http_client,
+    //     &swap_url_client1,
+    //     &swap_url_client2,
+    //     swap_request_client1,
+    //     swap_request_client2,
+    //     responses.clone(),
+    //     &settings.nightfall_client.url,
+    //     "http://client2:3000",
+    //     "ERC3525 slot8/slot7 reverse swap",
+    // )
+    // .await
+    // .expect("ERC3525 slot8/slot7 reverse swap legs should pair end to end");
+
+    // info!("Sending ERC3525<->ERC20 swap transactions (roundtrip)");
+    // let raw_swap_nonce = (Uuid::new_v4().as_u128() & u128::from(u64::MAX)).max(1);
+    // let swap_nonce = format!("0x{raw_swap_nonce:x}");
+    // let deadline = "0x1000".to_string();
+    // let fee = "0x00".to_string();
+
+    // let swap_request = create_nf3_swap_request(
+    //     zkp_key.clone(),
+    //     zkp_key2.clone(),
+    //     TokenType::ERC3525,
+    //     erc3525_slot_7_token_id.clone(),
+    //     "0x01".to_string(),
+    //     TokenType::ERC20,
+    //     "0x00".to_string(),
+    //     "0x01".to_string(),
+    //     fee.clone(),
+    //     swap_nonce.clone(),
+    //     deadline.clone(),
+    // );
+    // let swap_request_client1 = swap_request;
+    // let swap_request_client2 = create_nf3_swap_request(
+    //     zkp_key.clone(),
+    //     zkp_key2.clone(),
+    //     TokenType::ERC3525,
+    //     erc3525_slot_7_token_id.clone(),
+    //     "0x01".to_string(),
+    //     TokenType::ERC20,
+    //     "0x00".to_string(),
+    //     "0x01".to_string(),
+    //     fee,
+    //     swap_nonce,
+    //     deadline,
+    // );
+    // submit_swap_pair_and_assert_paired(
+    //     &http_client,
+    //     &swap_url_client1,
+    //     &swap_url_client2,
+    //     swap_request_client1,
+    //     swap_request_client2,
+    //     responses.clone(),
+    //     &settings.nightfall_client.url,
+    //     "http://client2:3000",
+    //     "ERC3525/ERC20 outbound swap",
+    // )
+    // .await
+    // .expect("ERC3525/ERC20 outbound swap legs should pair end to end");
+
+    // let raw_swap_nonce = (Uuid::new_v4().as_u128() & u128::from(u64::MAX)).max(1);
+    // let swap_nonce = format!("0x{raw_swap_nonce:x}");
+    // let deadline = "0x1000".to_string();
+    // let fee = "0x00".to_string();
+
+    // let swap_request = create_nf3_swap_request(
+    //     zkp_key2.clone(),
+    //     zkp_key.clone(),
+    //     TokenType::ERC3525,
+    //     erc3525_slot_7_token_id.clone(),
+    //     "0x01".to_string(),
+    //     TokenType::ERC20,
+    //     "0x00".to_string(),
+    //     "0x01".to_string(),
+    //     fee.clone(),
+    //     swap_nonce.clone(),
+    //     deadline.clone(),
+    // );
+    // let swap_request_client1 = swap_request;
+    // let swap_request_client2 = create_nf3_swap_request(
+    //     zkp_key2.clone(),
+    //     zkp_key.clone(),
+    //     TokenType::ERC3525,
+    //     erc3525_slot_7_token_id.clone(),
+    //     "0x01".to_string(),
+    //     TokenType::ERC20,
+    //     "0x00".to_string(),
+    //     "0x01".to_string(),
+    //     fee,
+    //     swap_nonce,
+    //     deadline,
+    // );
+    // submit_swap_pair_and_assert_paired(
+    //     &http_client,
+    //     &swap_url_client1,
+    //     &swap_url_client2,
+    //     swap_request_client1,
+    //     swap_request_client2,
+    //     responses.clone(),
+    //     &settings.nightfall_client.url,
+    //     "http://client2:3000",
+    //     "ERC3525/ERC20 return swap",
+    // )
+    // .await
+    // .expect("ERC3525/ERC20 return swap legs should pair end to end");
+    // info!("ERC3525 swap commitments are now on-chain");
+
+    // // Ensure all added ERC3525 scenarios preserve final balances expected by later withdraw checks.
+    // let client1_erc3525_slot7_after = parse_balance_hex(
+    //     &get_balance(
+    //         &http_client,
+    //         client1_balance_url.clone(),
+    //         TokenType::ERC3525,
+    //         erc3525_slot_7_token_id.clone(),
+    //     )
+    //     .await
+    //     .expect("Failed to read client1 ERC3525 slot7 balance after swaps"),
+    // );
+    // let client1_erc3525_slot8_after = parse_balance_hex(
+    //     &get_balance(
+    //         &http_client,
+    //         client1_balance_url.clone(),
+    //         TokenType::ERC3525,
+    //         erc3525_slot_8_token_id.clone(),
+    //     )
+    //     .await
+    //     .expect("Failed to read client1 ERC3525 slot8 balance after swaps"),
+    // );
+    // let client2_erc3525_slot7_after = parse_balance_hex(
+    //     &get_balance(
+    //         &http_client,
+    //         client2_balance_url.clone(),
+    //         TokenType::ERC3525,
+    //         erc3525_slot_7_token_id.clone(),
+    //     )
+    //     .await
+    //     .expect("Failed to read client2 ERC3525 slot7 balance after swaps"),
+    // );
+    // let client2_erc3525_slot8_after = parse_balance_hex(
+    //     &get_balance(
+    //         &http_client,
+    //         client2_balance_url.clone(),
+    //         TokenType::ERC3525,
+    //         erc3525_slot_8_token_id.clone(),
+    //     )
+    //     .await
+    //     .expect("Failed to read client2 ERC3525 slot8 balance after swaps"),
+    // );
+    // let client1_erc20_after = get_erc20_balance(
+    //     &http_client,
+    //     Url::parse(&settings.nightfall_client.url).unwrap(),
+    // )
+    // .await;
+    // let client2_erc20_after =
+    //     get_erc20_balance(&http_client, Url::parse("http://client2:3000").unwrap()).await;
+
+    // assert_eq!(client1_erc3525_slot7_after, client1_erc3525_slot7_before);
+    // assert_eq!(client1_erc3525_slot8_after, client1_erc3525_slot8_before);
+    // assert_eq!(client2_erc3525_slot7_after, client2_erc3525_slot7_before);
+    // assert_eq!(client2_erc3525_slot8_after, client2_erc3525_slot8_before);
+    // assert_eq!(client1_erc20_after, client1_erc20_before);
+    // assert_eq!(client2_erc20_after, client2_erc20_before);
+
+    // // ERC1155 swap.
+    // info!("Sending ERC1155 swap transactions");
+    // let raw_swap_nonce = (Uuid::new_v4().as_u128() & u128::from(u64::MAX)).max(1);
+    // let swap_nonce = format!("0x{raw_swap_nonce:x}");
+    // let deadline = "0x1000".to_string();
+    // let fee = "0x00".to_string();
+
+    // let swap_request = create_nf3_swap_request(
+    //     zkp_key.clone(),
+    //     zkp_key2.clone(),
+    //     TokenType::ERC1155,
+    //     test_settings.erc1155_withdraw_1.token_id.clone(),
+    //     "0x01".to_string(),
+    //     TokenType::ERC20,
+    //     "0x00".to_string(),
+    //     "0x01".to_string(),
+    //     fee.clone(),
+    //     swap_nonce.clone(),
+    //     deadline.clone(),
+    // );
+    // let swap_request_client1 = swap_request;
+    // let swap_request_client2 = create_nf3_swap_request(
+    //     zkp_key.clone(),
+    //     zkp_key2.clone(),
+    //     TokenType::ERC1155,
+    //     test_settings.erc1155_withdraw_1.token_id.clone(),
+    //     "0x01".to_string(),
+    //     TokenType::ERC20,
+    //     "0x00".to_string(),
+    //     "0x01".to_string(),
+    //     fee,
+    //     swap_nonce,
+    //     deadline,
+    // );
+    // submit_swap_pair_and_assert_paired(
+    //     &http_client,
+    //     &swap_url_client1,
+    //     &swap_url_client2,
+    //     swap_request_client1,
+    //     swap_request_client2,
+    //     responses.clone(),
+    //     &settings.nightfall_client.url,
+    //     "http://client2:3000",
+    //     "ERC1155 swap",
+    // )
+    // .await
+    // .expect("ERC1155 swap legs should pair end to end");
+    // info!("ERC1155 swap commitments are now on-chain");
+    // let my_balance = erc20_contract
+    //     .balanceOf(recipient_addr)
+    //     .call()
+    //     .await
+    //     .expect("balanceOf() call failed");
+
+    // assert_eq!(my_balance, U256::from(0));
+
+    // let my_balance = erc721_contract
+    //     .balanceOf(recipient_addr)
+    //     .call()
+    //     .await
+    //     .expect("balanceOf() call failed");
+
+    // assert_eq!(my_balance, U256::from(0));
+
+    // let my_balance = erc1155_contract
+    //     .balanceOf(
+    //         recipient_addr,
+    //         U256::from_hex_string(&test_settings.erc1155_withdraw_1.token_id).unwrap(),
+    //     )
+    //     .call()
+    //     .await
+    //     .expect("balanceOf() call failed");
+
+    // assert_eq!(my_balance, U256::from(0));
+
+    // let my_balance = erc3525_contract
+    //     .balanceOf_0(recipient_addr)
+    //     .call()
+    //     .await
+    //     .expect("balanceOf() call failed");
+
+    // assert_eq!(my_balance, U256::from(0));
+
+    // // create withdraw requests
+    // let mut withdraw_data = vec![];
+    // let client2_url = Url::parse("http://client2:3000").unwrap();
+
+    // info!("Sending withdraw transactions");
+    // let url = client2_url.clone().join("v1/withdraw").unwrap();
+    // // compute the recipient address from the signing key (we will reuse the deployer key here to withdraw it to ourselves)
+    // let recipient_address = get_recipient_address(&settings).unwrap();
+
+    // withdraw_data.push(create_nf3_withdraw_transaction(
+    //     &http_client,
+    //     url.clone(),
+    //     TokenType::ERC20,
+    //     test_settings.erc20_withdraw_0,
+    //     recipient_address.clone(),
+    // ));
+    // debug!("transaction_erc20_withdraw_0 has been created");
+
+    // withdraw_data.push(create_nf3_withdraw_transaction(
+    //     &http_client,
+    //     url.clone(),
+    //     TokenType::ERC20,
+    //     test_settings.erc20_withdraw_1,
+    //     recipient_address.clone(),
+    // ));
+    // debug!("transaction_erc20_withdraw_1 has been created");
+
+    // withdraw_data.push(create_nf3_withdraw_transaction(
+    //     &http_client,
+    //     url.clone(),
+    //     TokenType::ERC20,
+    //     test_settings.erc20_withdraw_2,
+    //     recipient_address.clone(),
+    // ));
+    // debug!("transaction_erc20_withdraw_2 has been created");
+
+    // // throw all the transactions at the client as fast as we can
+    // let mut withdraw_data = try_join_all(withdraw_data).await.unwrap();
+    // // sort by Uuid
+    // withdraw_data.sort_by_key(|(uuid, _)| *uuid);
+
+    // // create a vector of withdraw ids to wait for responses
+    // let withdraw_ids = withdraw_data
+    //     .iter()
+    //     .map(|(uuid, _)| *uuid)
+    //     .collect::<Vec<_>>();
+
+    // // wait for the responses to the withdraw requests to come back to the webhook server
+    // let withdraw_responses = wait_for_all_responses(&withdraw_ids, responses.clone()).await;
+
+    // // convert the withdraw_responses into a vector of (Uuid, WithdrawResponse)
+    // let withdraw_responses = withdraw_responses
+    //     .into_iter()
+    //     .map(|(u, l)| {
+    //         (
+    //             u,
+    //             serde_json::from_str::<WithdrawResponse>(&l).expect("Failed to parse response"),
+    //         )
+    //     })
+    //     .collect::<Vec<_>>();
+
+    // // we should have the same set of Uuids in the withdraw_responses as in the withdraw_data and they should be in the same order
+    // for (i, response) in withdraw_responses.iter().enumerate() {
+    //     assert_eq!(
+    //         response.0, withdraw_data[i].0,
+    //         "{i}th Withdraw response Uuid does not match withdraw data Uuid"
+    //     );
+    // }
+
+    // //replace the empty withdraw_fund_salts in the withdraw_data with the salts from the withdraw_responses
+    // for (i, response) in withdraw_responses.iter().enumerate() {
+    //     withdraw_data[i].1.withdraw_fund_salt = response.1.withdraw_fund_salt.clone();
+    // }
+
+    // let erc20_de_escrow_requests = withdraw_data
+    //     .iter()
+    //     .map(|(_, data)| DeEscrowDataReq {
+    //         token_id: data.token_id.clone(),
+    //         erc_address: data.erc_address.clone(),
+    //         recipient_address: data.recipient_address.clone(),
+    //         value: data.value.clone(),
+    //         token_type: data.token_type.clone(),
+    //         withdraw_fund_salt: data.withdraw_fund_salt.clone(),
+    //     })
+    //     .collect::<Vec<_>>();
+
+    // wait_for_withdraws_on_chain(&erc20_de_escrow_requests, client2_url.as_str())
+    //     .await
+    //     .unwrap();
+
+    // //check the balance of the ERC20 tokens after the withdraws
+    // let balance = get_erc20_balance(&http_client, client2_url.clone()).await;
+    // info!("Balance of ERC20 tokens held as layer 2 commitments by client2: {balance}");
+    // assert_eq!(balance, 15 + client2_starting_balance);
+
+    // // withdraw the other token types
+    // let mut withdraw_data = vec![];
+
+    // let erc721_withdraw = test_settings.erc721_withdraw.clone();
+    // withdraw_data.push(create_nf3_withdraw_transaction(
+    //     &http_client,
+    //     url.clone(),
+    //     TokenType::ERC721,
+    //     erc721_withdraw.clone(),
+    //     recipient_address.clone(),
+    // ));
+    // debug!("transaction_erc721_withdraw has been created");
+
+    // let erc3525_withdraw = test_settings.erc3525_withdraw.clone();
+    // withdraw_data.push(create_nf3_withdraw_transaction(
+    //     &http_client,
+    //     url.clone(),
+    //     TokenType::ERC3525,
+    //     erc3525_withdraw.clone(),
+    //     recipient_address.clone(),
+    // ));
+    // debug!("transaction_erc3525_withdraw has been created");
+
+    // let erc1155_withdraw_1_value = test_settings.erc1155_withdraw_1.value.clone();
+    // withdraw_data.push(create_nf3_withdraw_transaction(
+    //     &http_client,
+    //     url.clone(),
+    //     TokenType::ERC1155,
+    //     test_settings.erc1155_withdraw_1,
+    //     recipient_address.clone(),
+    // ));
+    // debug!("transaction_erc1155_withdraw_1 has been created");
+
+    // let erc1155_withdraw_0_value = test_settings.erc1155_withdraw_2_nft.value.clone();
+    // withdraw_data.push(create_nf3_withdraw_transaction(
+    //     &http_client,
+    //     url.clone(),
+    //     TokenType::ERC1155,
+    //     test_settings.erc1155_withdraw_2_nft,
+    //     recipient_address.clone(),
+    // ));
+    // debug!("transaction_erc1155_withdraw_2 has been created");
+
+    // // throw all the transactions at the client as fast as we can
+    // let mut withdraw_data = try_join_all(withdraw_data).await.unwrap();
+    // // sort by Uuid
+    // withdraw_data.sort_by_key(|(uuid, _)| *uuid);
+
+    // // create a vector of withdraw ids to wait for responses
+    // let withdraw_ids = withdraw_data
+    //     .iter()
+    //     .map(|(uuid, _)| *uuid)
+    //     .collect::<Vec<_>>();
+
+    // // wait for the responses to the withdraw requests to come back to the webhook server
+    // let withdraw_responses = wait_for_all_responses(&withdraw_ids, responses.clone()).await;
+
+    // // convert the withdraw_responses into a vector of (Uuid, WithdrawResponse)
+    // let withdraw_responses = withdraw_responses
+    //     .into_iter()
+    //     .map(|(u, l)| {
+    //         (
+    //             u,
+    //             serde_json::from_str::<WithdrawResponse>(&l).expect("Failed to parse response"),
+    //         )
+    //     })
+    //     .collect::<Vec<_>>();
+
+    // // we should have the same set of Uuids in the withdraw_responses as in the withdraw_data and they should be in the same order
+    // for (i, response) in withdraw_responses.iter().enumerate() {
+    //     assert_eq!(
+    //         response.0, withdraw_data[i].0,
+    //         "{i}th Withdraw response Uuid does not match withdraw data Uuid"
+    //     );
+    // }
+
+    // //replace the empty withdraw_fund_salts in the withdraw_data with the salts from the withdraw_responses
+    // for (i, response) in withdraw_responses.iter().enumerate() {
+    //     withdraw_data[i].1.withdraw_fund_salt = response.1.withdraw_fund_salt.clone();
+    // }
+
+    // let other_de_escrow_requests = withdraw_data
+    //     .iter()
+    //     .map(|(_, data)| DeEscrowDataReq {
+    //         token_id: data.token_id.clone(),
+    //         erc_address: data.erc_address.clone(),
+    //         recipient_address: data.recipient_address.clone(),
+    //         value: data.value.clone(),
+    //         token_type: data.token_type.clone(),
+    //         withdraw_fund_salt: data.withdraw_fund_salt.clone(),
+    //     })
+    //     .collect::<Vec<_>>();
+
+    // wait_for_withdraws_on_chain(&other_de_escrow_requests, client2_url.as_str())
+    //     .await
+    //     .unwrap();
+
+    // // get the final balance of all the addresses used. As these are all addresses funded by Anvil,
+    // // we can simple print those balances
+    // let client = get_blockchain_client_connection()
+    //     .await
+    //     .read()
+    //     .await
+    //     .get_client();
+    // let accounts = client.get_accounts().await.unwrap();
+    // let initial_balance: U256 = parse_units("10000.0", "ether").unwrap().into();
+    // let final_balances = futures::future::join_all(
+    //     accounts
+    //         .iter()
+    //         .map(|a| async { client.get_balance(*a).await.unwrap() }),
+    // )
+    // .await
+    // .iter()
+    // .map(|b| initial_balance - b)
+    // .collect::<Vec<_>>();
+    // let final_balances_str = final_balances
+    //     .iter()
+    //     .map(|b| format_units(*b, "ether").unwrap())
+    //     .collect::<Vec<_>>();
+    // let total = final_balances.iter().fold(U256::ZERO, |acc, b| acc + b);
+    // info!("Eth spent was {final_balances_str:#?}");
+    // info!(
+    //     "Total spent was {:#?}",
+    //     format_units(total, "ether").unwrap()
+    // );
+    // info!("Waiting for withdraw be on-chain");
+    // let mut recipient_erc1155_balance = U256::ZERO;
+    // let mut recipient_erc20_balance = U256::ZERO;
+    // let mut recipient_erc721_balance = U256::ZERO;
+    // let mut recipient_erc3525_balance = U256::ZERO;
+
+    // while recipient_erc1155_balance.is_zero()
+    //     || recipient_erc20_balance.is_zero()
+    //     || recipient_erc721_balance.is_zero()
+    //     || recipient_erc3525_balance.is_zero()
+    // {
+    //     recipient_erc1155_balance = erc1155_contract
+    //         .balanceOf(
+    //             recipient_addr,
+    //             U256::from_hex_string(&erc1155_withdraw_1_token_id).unwrap(),
+    //         )
+    //         .call()
+    //         .await
+    //         .expect("balanceOf() call failed");
+
+    //     recipient_erc20_balance = erc20_contract
+    //         .balanceOf(recipient_addr)
+    //         .call()
+    //         .await
+    //         .expect("balanceOf() call failed");
+
+    //     recipient_erc721_balance = erc721_contract
+    //         .balanceOf(recipient_addr)
+    //         .call()
+    //         .await
+    //         .expect("balanceOf() call failed");
+
+    //     recipient_erc3525_balance = erc3525_contract
+    //         .balanceOf_0(recipient_addr)
+    //         .call()
+    //         .await
+    //         .expect("balanceOf() call failed");
+
+    //     if recipient_erc1155_balance.is_zero()
+    //         || recipient_erc20_balance > 1
+    //         || recipient_erc721_balance.is_zero()
+    //         || recipient_erc3525_balance.is_zero()
+    //     {
+    //         tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+    //     }
+    // }
+    // assert!(recipient_erc20_balance > U256::ZERO);
+
+    // assert_eq!(
+    //     recipient_erc1155_balance,
+    //     U256::from_hex_string(&erc1155_withdraw_0_value).unwrap()
+    //         + U256::from_hex_string(&erc1155_withdraw_1_value).unwrap()
+    // );
+
+    // assert_eq!(recipient_erc721_balance, 1);
+    // assert_eq!(recipient_erc3525_balance, 1);
 }
