@@ -77,7 +77,7 @@ services:
         condition: service_healthy
     tty: true # required for logs to print in colour
     environment:
-      - NF4_RUN_MODE=${NF4_RUN_MODE:-base_sepolia}
+      - NF4_RUN_MODE=${NF4_RUN_MODE:-sepolia}
       - RUST_BACKTRACE=${RUST_BACKTRACE:-0}
       - NF4_SIGNING_KEY=${CLIENT_SIGNING_KEY}
       - NF4_NIGHTFALL_CLIENT__DB_URL=mongodb://nf4_db_client:27017
@@ -216,7 +216,7 @@ services:
     stdin_open: true # keep stdin open, so we can print things in docker compose up
     tty: true # required for logs to print in colour
     environment:
-      - NF4_RUN_MODE=${NF4_RUN_MODE:-base_sepolia}
+      - NF4_RUN_MODE=${NF4_RUN_MODE:-sepolia}
       - RUST_BACKTRACE=${RUST_BACKTRACE:-0}
       - NF4_SIGNING_KEY=${PROPOSER_SIGNING_KEY}
       - NF4_MOCK_PROVER=${NF4_MOCK_PROVER:-false}
@@ -436,7 +436,7 @@ services:
     stdin_open: true # keep stdin open, so we can print things in docker compose up
     tty: true # required for logs to print in colour
     environment:
-      - NF4_RUN_MODE=${NF4_RUN_MODE:-base_sepolia}
+      - NF4_RUN_MODE=${NF4_RUN_MODE:-sepolia}
       - NF4_CONTRACTS__DEPLOY_CONTRACTS=${NF4_CONTRACTS__DEPLOY_CONTRACTS:-true}
       - RUST_BACKTRACE=${RUST_BACKTRACE:-0}
       - NF4_SIGNING_KEY=${DEPLOYER_SIGNING_KEY}
