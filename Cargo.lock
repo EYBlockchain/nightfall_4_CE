@@ -5662,6 +5662,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "nightfall_ops"
+version = "0.1.0"
+
+[[package]]
 name = "nightfall_proposer"
 version = "0.1.0"
 dependencies = [

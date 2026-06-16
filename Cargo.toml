@@ -8,6 +8,7 @@ members = [
     "nightfall_sync_test",
     "lib",
     "nightfall_bindings",
+    "nightfall_ops",
 ]
 resolver = "2"
 

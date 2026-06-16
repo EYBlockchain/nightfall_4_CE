@@ -1,0 +1,8 @@
+[package]
+name = "nightfall_ops"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "nf4"
+path = "src/main.rs"
