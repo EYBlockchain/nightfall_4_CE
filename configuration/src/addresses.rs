@@ -352,17 +352,18 @@ impl Addresses {
                 // Resolve and validate IPs once
                 let port = u.port_or_known_default().unwrap_or(443);
 
-                // Get run mode to determine if private IPs are allowed
+                // Get run mode to determine if private IPs are allowed.
+                // Only the production profile blocks private/internal addresses.
                 let run_mode = std::env::var("NF4_RUN_MODE").unwrap_or_default();
-                let is_dev = matches!(run_mode.as_str(), "development" | "sync_test");
+                let is_production = matches!(run_mode.as_str(), "production");
 
                 let addrs: Vec<_> = (host, port)
                     .to_socket_addrs()
                     .map_err(|_| AddressesError::CouldNotGetUrl)?
                     .map(|sa| sa.ip())
                     .filter(|ip| {
-                        // Allow private IPs in development, block in production
-                        is_dev || !is_private_ip(*ip)
+                        // Allow private IPs for testnet/local profiles, block in production.
+                        !is_production || !is_private_ip(*ip)
                     })
                     .collect();
 
