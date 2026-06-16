@@ -84,7 +84,8 @@ fn deny_if_dns_private(host: &str) -> Result<(), AddressesError> {
 }
 
 /// Validates configuration URLs with security enforcement.
-/// Production: HTTPS. Debug: HTTP allowed for localhost/test containers.
+/// Production requires HTTPS and blocks private/internal destinations.
+/// Non-production profiles may use local, LAN, Docker service, or testnet URLs.
 pub fn validate_config_url(raw: &str) -> Result<Url, AddressesError> {
     let url = Url::parse(raw).map_err(|_| AddressesError::Toml(format!("Invalid URL: {raw}")))?;
 
@@ -98,17 +99,17 @@ pub fn validate_config_url(raw: &str) -> Result<Url, AddressesError> {
         AddressesError::Toml("NF4_RUN_MODE environment variable must be set".into())
     })?;
 
-    let is_development = matches!(run_mode.as_str(), "development" | "sync_test");
+    let is_production = matches!(run_mode.as_str(), "production");
 
-    if is_development {
-        // Debug/dev: allow localhost and docker service "configuration"
-        let ok_local = matches!(host, "localhost" | "127.0.0.1" | "::1" | "configuration");
-        if !ok_local {
+    if is_production {
+        if url.scheme() != "https" {
+            let scheme = url.scheme();
+            warn!("HTTP not allowed in production, use HTTPS");
             return Err(AddressesError::Toml(format!(
-                "Untrusted host in debug mode: {host}"
+                "Insecure scheme not allowed in production: {scheme}"
             )));
         }
-    } else {
+
         // Production checks
         // Block raw IPs that are private/loopback
         if let Ok(ip) = host.parse::<IpAddr>() {
@@ -136,15 +137,6 @@ pub fn validate_config_url(raw: &str) -> Result<Url, AddressesError> {
         }
     }
 
-    // Scheme enforcement: HTTPS only in production
-    let is_production = matches!(run_mode.as_str(), "production");
-    if url.scheme() != "https" && is_production {
-        let scheme = url.scheme();
-        warn!("HTTP not allowed in production, use HTTPS");
-        return Err(AddressesError::Toml(format!(
-            "Insecure scheme not allowed in production: {scheme}"
-        )));
-    }
     log::info!("Validated configuration URL: {url}");
     Ok(url)
 }
@@ -532,23 +524,23 @@ mod tests {
         assert!(validate_config_url("http://example.com").is_err());
         assert!(validate_config_url("not-a-url").is_err());
 
-        // Set ONCE and keep it for all development tests
-        std::env::set_var("NF4_RUN_MODE", "development");
+        std::env::set_var("NF4_RUN_MODE", "sepolia");
         assert!(validate_config_url("http://localhost:8080").is_ok());
+        assert!(validate_config_url("http://127.0.0.1:8080").is_ok());
+        assert!(validate_config_url("http://10.0.0.8:8080").is_ok());
         assert!(validate_config_url("http://configuration:80").is_ok());
 
-        // Cleanup only at the very end
         std::env::remove_var("NF4_RUN_MODE");
     }
 
     #[tokio::test]
     #[serial]
-    async fn test_path_injection_protection() {
-        std::env::set_var("NF4_RUN_MODE", "development");
+    async fn test_production_config_url_validation() {
+        std::env::set_var("NF4_RUN_MODE", "production");
 
-        // attack.com should fail
-        assert!(validate_config_url("https://attack.com/configuration").is_err());
-        assert!(validate_config_url("https://configuration/some/path").is_ok());
+        assert!(validate_config_url("http://example.com").is_err());
+        assert!(validate_config_url("https://127.0.0.1:8080").is_err());
+        assert!(validate_config_url("https://10.0.0.8:8080").is_err());
 
         std::env::remove_var("NF4_RUN_MODE");
     }
