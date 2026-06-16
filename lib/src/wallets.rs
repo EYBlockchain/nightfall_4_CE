@@ -3,7 +3,7 @@ use crate::{
 };
 use alloy::{
     consensus::SignableTransaction,
-    network::{Ethereum, NetworkWallet, TxSigner},
+    network::{Ethereum, EthereumWallet, IntoWallet, NetworkWallet, TxSigner},
     primitives::{Address, Signature},
     providers::{Provider, ProviderBuilder, WsConnect},
     signers::{local::PrivateKeySigner, utils::public_key_to_address},
@@ -11,18 +11,65 @@ use alloy::{
 use async_trait::async_trait;
 use azure_identity;
 use azure_security_keyvault::{prelude::*, KeyClient};
-use base64::prelude::*;
-use configuration::settings::WalletTypeConfig;
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+use configuration::settings::{WalletRole, WalletTypeConfig};
 use k256::ecdsa::{RecoveryId, Signature as K256Signature, VerifyingKey};
 use k256::EncodedPoint;
 use log::{debug, info};
 use std::sync::Arc;
 use url::Url;
 
+pub(crate) fn validate_azure_vault_url(
+    vault_url: &str,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let url = Url::parse(vault_url)?;
+
+    // Refuse non-HTTPS endpoints
+    if url.scheme() != "https" {
+        return Err("Vault URL must use HTTPS".into());
+    }
+
+    // Enforce vault_url allow-list (*.vault.azure.net)
+    let host = url.host_str().ok_or("Invalid host")?;
+    if !host.ends_with(".vault.azure.net") {
+        return Err("Vault URL must be *.vault.azure.net".into());
+    }
+
+    Ok(())
+}
+
 #[derive(Clone, Debug)]
 pub enum WalletType {
     Local(Box<PrivateKeySigner>),
     Azure(AzureWallet),
+}
+
+#[async_trait]
+impl TxSigner<Signature> for WalletType {
+    fn address(&self) -> Address {
+        match self {
+            Self::Local(signer) => signer.address(),
+            Self::Azure(wallet) => wallet.address(),
+        }
+    }
+
+    async fn sign_transaction(
+        &self,
+        tx: &mut dyn SignableTransaction<Signature>,
+    ) -> Result<Signature, alloy::signers::Error> {
+        match self {
+            Self::Local(signer) => TxSigner::sign_transaction(&**signer, tx).await,
+            Self::Azure(wallet) => TxSigner::sign_transaction(wallet, tx).await,
+        }
+    }
+}
+
+impl IntoWallet<Ethereum> for WalletType {
+    type NetworkWallet = EthereumWallet;
+
+    fn into_wallet(self) -> Self::NetworkWallet {
+        EthereumWallet::new(self)
+    }
 }
 
 /// AzureWallet
@@ -51,7 +98,7 @@ impl AzureWallet {
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         info!(" Creating Azure Wallet");
 
-        Self::validate_vault_url(vault_url)?;
+        validate_azure_vault_url(vault_url)?;
         // Create credential and KeyClient to communicate with Azure
         let credential = azure_identity::create_credential()?;
         let key_client = KeyClient::new(vault_url, credential)?;
@@ -74,27 +121,6 @@ impl AzureWallet {
         })
     }
 
-    /// Validates Azure Key Vault URL to prevent security vulnerabilities
-    ///
-    /// Added strict vault_url validation (HTTPS + *.vault.azure.net allow-list)
-    /// to prevent token exfiltration or key substitution attacks.
-    fn validate_vault_url(vault_url: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let url = Url::parse(vault_url)?;
-
-        // Refuse non-HTTPS endpoints
-        if url.scheme() != "https" {
-            return Err("Vault URL must use HTTPS".into());
-        }
-
-        // Enforce vault_url allow-list (*.vault.azure.net)
-        let host = url.host_str().ok_or("Invalid host")?;
-        if !host.ends_with(".vault.azure.net") {
-            return Err("Vault URL must be *.vault.azure.net".into());
-        }
-
-        Ok(())
-    }
-
     /// Sign a message hash using the Azure Key Vault key
     /// ---------------------------------------------------
     /// The private key never leaves the HSM. The signature returned is Ethereum-compatible.
@@ -103,8 +129,8 @@ impl AzureWallet {
         message_hash: &[u8; 32],
     ) -> Result<Signature, Box<dyn std::error::Error + Send + Sync>> {
         info!(" Signing with Azure Key Vault");
-        // Encode message hash in Base64 (required by Azure
-        let digest_base64 = BASE64_STANDARD.encode(message_hash);
+        // Encode the digest in JWA-style base64url before sending it to Key Vault.
+        let digest_base64 = URL_SAFE_NO_PAD.encode(message_hash);
 
         // Request signature from Azure Key Vault
         let sign_result = self
@@ -319,26 +345,15 @@ impl BlockchainClientConnection for LocalWsClient {
         &self.wallet
     }
 
-    /// Get the PrivateKeySigner if using a local wallet
-    fn get_signer(&self) -> Arc<PrivateKeySigner> {
-        match &self.wallet {
-            WalletType::Local(signer) => Arc::from(signer.clone()),
-            WalletType::Azure(_) => {
-                panic!(
-                    "Cannot get PrivateKeySigner for Azure wallet - use provider methods instead"
-                )
-            }
-        }
-    }
-
     /// Create a new instance from configuration settings
     async fn try_from_settings(
         settings: &Self::S,
+        role: WalletRole,
     ) -> Result<Self, BlockchainClientConnectionError> {
-        match settings.nightfall_client.wallet_type {
+        match settings.wallet_type_for_role(role) {
             // Handle different wallet types
             WalletTypeConfig::Local => {
-                info!("Creating local wallet");
+                info!("Creating local wallet for role {role:?}");
                 // Parse the private key from settings
                 let local_signer = settings
                     .signing_key
@@ -358,9 +373,13 @@ impl BlockchainClientConnection for LocalWsClient {
                 })
             }
             WalletTypeConfig::Azure => {
+                info!("Creating Azure wallet for role {role:?}");
                 // Initialize AzureWallet
+                let azure_key_name = settings
+                    .azure_key_name_for_role(role)
+                    .map_err(BlockchainClientConnectionError::InvalidWalletType)?;
                 let azure_wallet =
-                    AzureWallet::new(&settings.azure_vault_url, &settings.azure_key_name).await?;
+                    AzureWallet::new(&settings.azure_vault_url, azure_key_name).await?;
 
                 let ws = WsConnect::new(settings.ethereum_client_url.clone());
                 let provider = ProviderBuilder::new()

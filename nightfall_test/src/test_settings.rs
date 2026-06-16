@@ -78,6 +78,7 @@ pub struct TestSettings {
     pub erc3525_deposit_1: TransactionDetails,
     pub erc3525_deposit_2: TransactionDetails,
     pub erc3525_transfer_1: TransactionDetails,
+    pub erc3525_transfer_same_slot: TransactionDetails,
     pub erc3525_transfer_2: TransactionDetails,
     pub erc3525_withdraw: TransactionDetails,
     pub erc1155_deposit_1: TransactionDetails,

@@ -17,6 +17,8 @@ pub trait RequestDB {
     async fn update_request(&self, id: &str, status: RequestStatus) -> Option<()>;
     async fn update_request_child_args(&self, id: &str, child_args: &str) -> Option<()>;
     async fn clear_request_child_args(&self, id: &str) -> Option<()>;
+    async fn set_request_tx_hash(&self, id: &str, tx_hash: &str) -> Option<()>;
+    async fn set_request_receipt_token(&self, id: &str, receipt_token: &str) -> Option<()>;
 }
 
 #[async_trait]
@@ -43,7 +45,7 @@ where
         &self,
         commitment_ids: Vec<K>,
     ) -> Result<Vec<V>, &'static str>;
-    async fn get_available_commitments(&self, nf_token_id: Fr254) -> Option<Vec<V>>;
+    async fn get_available_commitments(&self, nf_slot_id: Fr254) -> Option<Vec<V>>;
     async fn mark_commitments_pending_creation(&self, commitments: Vec<K>) -> Option<()>;
     async fn mark_commitments_unspent(
         &self,

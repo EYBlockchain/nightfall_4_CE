@@ -12,7 +12,15 @@ jobs:
     name: Check + Lint
     runs-on: self-hosted
     environment: DEV
+    env:
+      NF4_NIGHTFALL_PROPOSER__SNAPSHOT_ROOT_DIR: /tmp/proposer_snapshots/build
     steps:
+      - name: Cleanup stale proposer snapshots
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${NF4_NIGHTFALL_PROPOSER__SNAPSHOT_ROOT_DIR:-}"
+          rm -rf "$NF4_NIGHTFALL_PROPOSER__SNAPSHOT_ROOT_DIR"
       - name: Checkout
         uses: actions/checkout@v4
         # Add Node so npx exists for OZ upgrades validation
@@ -42,6 +50,13 @@ jobs:
         env:
           RUST_BACKTRACE: "1"
           RUST_MIN_STACK: "8388608"
+      - name: Cleanup snapshots after tests
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${NF4_NIGHTFALL_PROPOSER__SNAPSHOT_ROOT_DIR:-}"
+          rm -rf "$NF4_NIGHTFALL_PROPOSER__SNAPSHOT_ROOT_DIR"
   resync:
     name: Synchronisation Test with Mock Prover
     needs: [build]
@@ -49,11 +64,12 @@ jobs:
     env:
       NF4_MOCK_PROVER: "true"
       NF4_CONTRACTS__DEPLOY_CONTRACTS: "true"
+      NF4_PROPOSER_SNAPSHOT_MOUNT: proposer_snapshots_data
     steps:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Clear previous run
-        run: docker compose --profile sync_test down -v
+        run: docker compose --profile sync_test down -v --remove-orphans
       - name: Build
         run: cargo build
       - name: Generate keys
@@ -61,14 +77,17 @@ jobs:
       - name: Build Docker Image
         run: docker compose --profile sync_test build
       - name: Run Integration Test
-        run: docker compose --profile sync_test run test
+        run: docker compose --profile sync_test run --rm test
       - name: Print logs
-        run: docker compose --profile sync_test logs
+        if: always()
+        run: docker compose --profile sync_test logs || true
       - name: Remove databases
-        run: docker compose --profile sync_test rm -fvs client client2 proposer db_client db_client2 db_proposer
+        if: always()
+        run: docker compose --profile sync_test rm -fvs client client2 proposer db_client db_client2 db_proposer || true
       - name: Shut Down Containers
+        if: always()
         run: |
-          docker compose --profile sync_test down -v
+          docker compose --profile sync_test down -v --remove-orphans || true
 
   rollup-prover:
     name: Rollup prover integration Test
@@ -79,6 +98,7 @@ jobs:
     env:
       NF4_MOCK_PROVER: "false"
       NF4_CONTRACTS__DEPLOY_CONTRACTS: "true"
+      NF4_PROPOSER_SNAPSHOT_MOUNT: proposer_snapshots_data
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -143,7 +163,7 @@ jobs:
             ls -l "$CACHE_FILE" "$TARGET"
           fi      
       - name: Clear previous run
-        run: docker compose --profile sync_test down -v
+        run: docker compose --profile sync_test down -v --remove-orphans
       - name: Build
         run: cargo build
       - name: Generate keys
@@ -177,19 +197,35 @@ jobs:
       - name: Build Docker Image
         run: docker compose --profile sync_test build
       - name: Run Integration Test
-        run: docker compose --profile development run test
+        run: docker compose --profile sync_test run --rm test
       - name: Print logs
-        run: docker compose --profile development logs
+        if: always()
+        run: docker compose --profile sync_test logs || true
       - name: Shut Down Containers
+        if: always()
         run: |
-          docker compose --profile sync_test down -v
-
+          docker compose --profile sync_test down -v --remove-orphans || true
   forge:
     name: Smart Contract Unit Tests
     needs: [build]
     runs-on: self-hosted
+    env:
+      NF4_NIGHTFALL_PROPOSER__SNAPSHOT_ROOT_DIR: /tmp/proposer_snapshots/forge
     steps:
+      - name: Cleanup stale proposer snapshots
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${NF4_NIGHTFALL_PROPOSER__SNAPSHOT_ROOT_DIR:-}"
+          rm -rf "$NF4_NIGHTFALL_PROPOSER__SNAPSHOT_ROOT_DIR"
       - name: Checkout
         uses: actions/checkout@v4
       - name: Run Forge Tests
         run: forge test
+      - name: Cleanup snapshots after tests
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${NF4_NIGHTFALL_PROPOSER__SNAPSHOT_ROOT_DIR:-}"
+          rm -rf "$NF4_NIGHTFALL_PROPOSER__SNAPSHOT_ROOT_DIR"

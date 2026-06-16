@@ -16,5 +16,5 @@ where
     E: ProvingEngine<P>,
     N: NightfallContract,
 {
-    e.handle_event(log.transaction_hash.unwrap()).await
+    e.handle_event(log).await
 }

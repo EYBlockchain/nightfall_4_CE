@@ -81,7 +81,7 @@ impl<E: ProvingEngine<P>, P: Proof> reject::Reject for ClientTransactionError<E,
 /// This function checks a client transaction that has been received from a client, either directly or via a blockchain event.
 pub async fn process_nightfall_client_transaction<P, E>(
     client_transaction: ClientTransaction<P>,
-) -> Result<(), ClientTransactionError<E, P>>
+) -> Result<Option<String>, ClientTransactionError<E, P>>
 where
     E: ProvingEngine<P>,
     P: Proof,
@@ -140,11 +140,18 @@ where
 
     // 5) Validate that we can convert the transaction into a form suitable for the nightfall contract bindings
     let _: OnChainTransaction = (&client_transaction).into();
+
+    // Pass the sender-supplied receipt_token through unchanged.  A token is
+    // only meaningful for transfer transactions; for deposits and withdrawals
+    // the client never sets this field and we store None.
+    let receipt_token = client_transaction.receipt_token.clone();
+
     let client_transaction_with_metadata = ClientTransactionWithMetaData::<P> {
         client_transaction: client_transaction.clone(),
         lifecycle: TxLifecycle::Mempool,
         hash: hash.to_vec(),
         historic_roots: vec![client_transaction.historic_commitment_root],
+        receipt_token: receipt_token.clone(),
     };
 
     // 6) Validate that the first nullifier is not zero (we must nullify the first spent commitment)
@@ -156,7 +163,7 @@ where
     info!("Client Transaction is valid, storing in database");
     let key = db.store_transaction(client_transaction_with_metadata).await;
     match key {
-        Some(_key) => Ok(()),
+        Some(_key) => Ok(receipt_token),
         None => Err(ClientTransactionError::CouldNotStoreTransaction),
     }
 }
@@ -175,7 +182,8 @@ where
     let ctx = <mongodb::Client as TransactionsDB<P>>::find_deposit(db, &deposit_data).await;
     // if it is, we should return an error
     if ctx.is_some() {
-        return Err(ClientTransactionError::TransactionAlreadyExists);
+        info!("Deposit transaction already exists in mempool, treating replay as a no-op");
+        return Ok(());
     }
     info!("Deposit Transaction is valid, storing in database");
     let key =

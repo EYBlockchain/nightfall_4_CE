@@ -183,6 +183,8 @@ pub struct PrivateInputs {
     // so we make it private input
     pub nf_address: Address,
     pub nf_slot_id: Fr254,
+    /// Token ids for the two value commitments being nullified.
+    pub spent_nf_token_ids: [Fr254; 2],
     pub nullifiers_values: [Fr254; 4],
     pub nullifiers_salts: [Fr254; 4],
     pub membership_proofs: [MembershipProof<Fr254>; 4],
@@ -227,6 +229,7 @@ impl Default for PrivateInputs {
             fee_token_id: Fr254::zero(),
             nf_address: Address::ZERO,
             nf_slot_id: Fr254::zero(),
+            spent_nf_token_ids: [Fr254::zero(); 2],
             nullifiers_values: [Fr254::zero(); 4],
             nullifiers_salts: [Fr254::zero(); 4],
             membership_proofs: [mproof.clone(), mproof.clone(), mproof.clone(), mproof],
@@ -280,6 +283,11 @@ impl PrivateInputs {
 
     pub fn root_key(&mut self, root_key: Fr254) -> &mut Self {
         self.root_key = root_key;
+        self
+    }
+
+    pub fn spent_nf_token_ids(&mut self, token_ids: [Fr254; 2]) -> &mut Self {
+        self.spent_nf_token_ids = token_ids;
         self
     }
 
@@ -389,6 +397,7 @@ impl PrivateInputs {
             fee_token_id: self.fee_token_id,
             nf_address: self.nf_address,
             nf_slot_id: self.nf_slot_id,
+            spent_nf_token_ids: self.spent_nf_token_ids,
             nullifiers_values: self.nullifiers_values,
             nullifiers_salts: self.nullifiers_salts,
             membership_proofs: self.membership_proofs.clone(),
@@ -420,6 +429,8 @@ pub struct PrivateInputsVar {
     pub nf_address: Variable,
     /// Slot Id of transaction tokens,
     pub nf_slot_id: Variable,
+    /// Token ids for the two value commitments being nullified.
+    pub spent_nf_token_ids: [Variable; 2],
     /// Nullifiers values
     pub nullifiers_values: [Variable; 4],
     /// Nullifiers salts
@@ -470,6 +481,15 @@ impl PrivateInputsVar {
             Fr254::from(BigUint::from_bytes_be(private_inputs.nf_address.as_slice()));
         let nf_address = circuit.create_variable(nf_address_field)?;
         let nf_slot_id = circuit.create_variable(private_inputs.nf_slot_id)?;
+        let spent_nf_token_ids = private_inputs
+            .spent_nf_token_ids
+            .iter()
+            .map(|ntid| circuit.create_variable(*ntid))
+            .collect::<Result<Vec<Variable>, CircuitError>>()?
+            .try_into()
+            .map_err(|_| {
+                CircuitError::ParameterError("Couldn't convert to fixed length array".to_string())
+            })?;
         let nullifiers_values = private_inputs
             .nullifiers_values
             .iter()
@@ -660,6 +680,7 @@ impl PrivateInputsVar {
             fee_token_id,
             nf_address,
             nf_slot_id,
+            spent_nf_token_ids,
             nullifiers_values,
             nullifiers_salts,
             membership_proofs,

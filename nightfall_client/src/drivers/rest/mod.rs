@@ -1,5 +1,6 @@
 use crate::ports::contracts::NightfallContract;
 use balance::{get_balance, get_fee_balance, get_l1_balance};
+use configuration::settings::WalletRole;
 use lib::{
     health_check::health_route, nf_client_proof::Proof,
     validate_certificate::certification_validation_request, validate_keys::keys_validation_request,
@@ -27,6 +28,7 @@ use self::{
     request_status::{get_queue_length, get_request_status},
     synchronisation::synchronisation,
     token_info::get_token_info,
+    transfer_receipts::submit_transfer_receipt,
 };
 
 pub mod balance;
@@ -38,6 +40,7 @@ pub mod proposers;
 pub(crate) mod request_status;
 mod synchronisation;
 mod token_info;
+pub mod transfer_receipts;
 pub mod withdraw;
 
 pub fn routes<P, N>() -> impl Filter<Extract = (impl warp::Reply,)> + Clone
@@ -52,13 +55,14 @@ where
         .or(swap_request::<P>())
         .or(cancel_swap_request())
         .or(settle_expired_swap_request())
+        .or(submit_transfer_receipt())
         .or(get_commitment())
         .or(get_all_commitments())
         .or(get_commitments_by_token_type())
         .or(get_max_transferable_amount_by_token_type())
         .or(derive_key_mnemonic())
         .or(get_proposers())
-        .or(certification_validation_request())
+        .or(certification_validation_request(WalletRole::Client))
         .or(keys_validation_request())
         .or(get_balance())
         .or(get_fee_balance())
@@ -117,6 +121,26 @@ async fn handle_rejection(err: Rejection) -> Result<impl Reply, std::convert::In
             )),
             SynchronisationUnavailable => Ok(reply::with_status(
                 "Synchronisation service unavailable",
+                StatusCode::SERVICE_UNAVAILABLE,
+            )),
+            ReceiptUnauthorized => Ok(reply::with_status(
+                "Invalid or missing receipt_token",
+                StatusCode::UNAUTHORIZED,
+            )),
+            ReceiptConflict => Ok(reply::with_status(
+                "Receipt already exists with different ciphertext",
+                StatusCode::CONFLICT,
+            )),
+            ReceiptTxNotFound => Ok(reply::with_status(
+                "Transaction not found on proposer",
+                StatusCode::BAD_REQUEST,
+            )),
+            ReceiptValidationFailed => Ok(reply::with_status(
+                "Transfer receipt request failed validation",
+                StatusCode::BAD_REQUEST,
+            )),
+            ReceiptSubmissionFailed => Ok(reply::with_status(
+                "Receipt submission failed: no proposer accepted the receipt",
                 StatusCode::SERVICE_UNAVAILABLE,
             )),
             InvalidTokenType => Ok(reply::with_status(

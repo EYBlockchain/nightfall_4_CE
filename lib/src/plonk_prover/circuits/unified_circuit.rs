@@ -72,6 +72,7 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
             fee_token_id,
             nf_address,
             nf_slot_id,
+            spent_nf_token_ids,
             nullifiers_values,
             nullifiers_salts,
             membership_proofs,
@@ -169,7 +170,7 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
         let is_deposit = self.is_zero(nullifiers_salts[0])?;
 
         // ROLE DETECTION & DERIVED VALUES
-        // Determines caller's role and derives value, nf_token_id,
+        // Determines caller's role and derives value, output token ids,
         // and recipient_public_key from swap parameters.
         //
         // For swap:
@@ -193,7 +194,8 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
 
         // Swap-specific: derive from role
         let swap_value = self.conditional_select(is_party_a, value_b, value_a)?;
-        let swap_nf_token_id = self.conditional_select(is_party_a, nf_token_b_id, nf_token_a_id)?;
+        let swap_output_nf_token_id =
+            self.conditional_select(is_party_a, nf_token_b_id, nf_token_a_id)?;
         let swap_recipient_x = self.conditional_select(
             is_party_a,
             party_a_public_key.get_x(),
@@ -207,7 +209,9 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
 
         // Final: for transfer use value_a/party_b directly, for swap use role-based
         let value = self.conditional_select(is_swap, value_a, swap_value)?;
-        let nf_token_id = self.conditional_select(is_swap, nf_token_a_id, swap_nf_token_id)?;
+        let recipient_output_nf_token_id =
+            self.conditional_select(is_swap, nf_token_a_id, swap_output_nf_token_id)?;
+        let change_output_nf_token_id = spent_nf_token_ids[0];
         let recipient_x =
             self.conditional_select(is_swap, party_b_public_key.get_x(), swap_recipient_x)?;
         let recipient_y =
@@ -258,7 +262,7 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
         // OWNERSHIP VERIFICATION (for all: transfer, withdraw, swap)
         for i in 0..4 {
             let is_neutral = self.is_neutral_point::<BabyJubjub>(&public_keys[i])?;
-            let is_zero_value = self.is_zero(nullifiers_values[i])?;
+            let is_zero_value = self.is_zero(nullifiers_salts[i])?;
 
             let x_matches = self.is_equal(zkp_pub_key.get_x(), public_keys[i].get_x())?;
             let y_matches = self.is_equal(zkp_pub_key.get_y(), public_keys[i].get_y())?;
@@ -361,7 +365,8 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
         let commitments = self.verify_commitments(
             fee_token_id,
             nf_address,
-            nf_token_id,
+            recipient_output_nf_token_id,
+            change_output_nf_token_id,
             nf_slot_id,
             value,
             fee,
@@ -390,7 +395,7 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
         // Calculate nullifiers
         let nullifiers = self.verify_nullifiers::<BabyJubjub>(
             fee_token_id,
-            nf_token_id,
+            spent_nf_token_ids,
             nf_slot_id,
             nullifier_key,
             &public_keys,
@@ -406,7 +411,7 @@ impl UnifiedCircuit for PlonkCircuit<Fr254> {
 
         // Verify encryption of recipient's commitment preimage
         let public_data = self.verify_encryption(
-            nf_token_id,
+            recipient_output_nf_token_id,
             nf_slot_id,
             value,
             &shared_secret,

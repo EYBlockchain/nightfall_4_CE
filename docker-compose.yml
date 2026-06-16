@@ -45,9 +45,11 @@ services:
       - NF4_NETWORK__LOG_CHUNK_SIZE=${NF4_NETWORK__LOG_CHUNK_SIZE:-}
       - NF4_SIGNING_KEY=${CLIENT_SIGNING_KEY}
       - NF4_NIGHTFALL_CLIENT__DB_URL=mongodb://nf4_db_client:27017
+      - NF4_NIGHTFALL_CLIENT__WALLET_TYPE=${NF4_NIGHTFALL_CLIENT__WALLET_TYPE:-local}
+      - NF4_NIGHTFALL_CLIENT__X509_SIGNER_TYPE=${NF4_NIGHTFALL_CLIENT__X509_SIGNER_TYPE:-local}
       - AZURE_VAULT_URL=${AZURE_VAULT_URL}
-      - AZURE_KEY_NAME=${CLIENT_SIGNING_KEY_NAME}
-      - CLIENT_SIGNING_KEY_NAME=${CLIENT_SIGNING_KEY_NAME}          
+      - CLIENT_SIGNING_KEY_NAME=${CLIENT_SIGNING_KEY_NAME}
+      - CLIENT_X509_SIGNING_KEY_NAME=${CLIENT_X509_SIGNING_KEY_NAME}
       - AZURE_CLIENT_ID=${AZURE_CLIENT_ID}
       - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
       - AZURE_TENANT_ID=${AZURE_TENANT_ID}
@@ -130,9 +132,11 @@ services:
       - NF4_SIGNING_KEY=${CLIENT2_SIGNING_KEY}      
       - NF4_NIGHTFALL_CLIENT__DB_URL=mongodb://nf4_db_client2:27017      
       - NF4_NIGHTFALL_CLIENT__LOG_LEVEL=info # Mostly the client2 logs are a repeat of client1 logs, so we can reduce the log level to error
-      - AZURE_VAULT_URL=${AZURE_VAULT_URL}    
-      - AZURE_KEY_NAME=${CLIENT_SIGNING_KEY_NAME}    
+      - NF4_NIGHTFALL_CLIENT__WALLET_TYPE=${NF4_NIGHTFALL_CLIENT2__WALLET_TYPE:-local}
+      - NF4_NIGHTFALL_CLIENT__X509_SIGNER_TYPE=${NF4_NIGHTFALL_CLIENT2__X509_SIGNER_TYPE:-local}
+      - AZURE_VAULT_URL=${AZURE_VAULT_URL}
       - CLIENT_SIGNING_KEY_NAME=${CLIENT2_SIGNING_KEY_NAME}
+      - CLIENT_X509_SIGNING_KEY_NAME=${CLIENT2_X509_SIGNING_KEY_NAME}
       - AZURE_CLIENT_ID=${AZURE_CLIENT_ID}
       - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
       - AZURE_TENANT_ID=${AZURE_TENANT_ID}
@@ -165,6 +169,7 @@ services:
         target: /app/configuration/toml
         read_only: true
       - ./configuration/bin/keys:/app/configuration/bin/keys:ro
+      - ${NF4_PROPOSER_SNAPSHOT_MOUNT:-./data/proposer_snapshots}:/app/data/proposer_snapshots
     depends_on:
       db_proposer:
         condition: service_healthy
@@ -184,8 +189,12 @@ services:
       - NF4_NIGHTFALL_PROPOSER__BLOCK_ASSEMBLY_MAX_WAIT_SECS=30
       - NF4_NIGHTFALL_PROPOSER__BLOCK_ASSEMBLY_TARGET_FILL_RATIO=0.10
       - NF4_NIGHTFALL_PROPOSER__BLOCK_ASSEMBLY_INITIAL_INTERVAL_SECS=5
+      - NF4_NIGHTFALL_PROPOSER__SNAPSHOT_ROOT_DIR=/app/data/proposer_snapshots/${NF4_RUN_MODE:-development}/proposer
+      - NF4_NIGHTFALL_PROPOSER__WALLET_TYPE=${NF4_NIGHTFALL_PROPOSER__WALLET_TYPE:-local}
+      - NF4_NIGHTFALL_PROPOSER__X509_SIGNER_TYPE=${NF4_NIGHTFALL_PROPOSER__X509_SIGNER_TYPE:-local}
       - AZURE_VAULT_URL=${AZURE_VAULT_URL}
       - PROPOSER_SIGNING_KEY_NAME=${PROPOSER_SIGNING_KEY_NAME}
+      - PROPOSER_X509_SIGNING_KEY_NAME=${PROPOSER_X509_SIGNING_KEY_NAME}
       - AZURE_CLIENT_ID=${AZURE_CLIENT_ID}
       - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
       - AZURE_TENANT_ID=${AZURE_TENANT_ID}
@@ -210,6 +219,8 @@ services:
       start_period: 0s
     networks:
       - nightfall_network
+    volumes:
+      - ${NF4_PROPOSER_SNAPSHOT_MOUNT:-./data/proposer_snapshots}:/app/data/proposer_snapshots
     depends_on:
       db_proposer:
         condition: service_healthy
@@ -220,6 +231,7 @@ services:
       - RUST_BACKTRACE=${RUST_BACKTRACE:-0}
       - NF4_SIGNING_KEY=${PROPOSER_SIGNING_KEY}
       - NF4_MOCK_PROVER=${NF4_MOCK_PROVER:-false}
+      - NF4_NIGHTFALL_PROPOSER__SNAPSHOT_ROOT_DIR=/app/data/proposer_snapshots/${NF4_RUN_MODE:-base_sepolia}/proposer
       - NF4_ETHEREUM_CLIENT_URL
       - NF4_CONTRACTS__DEPLOY_CONTRACTS=${NF4_CONTRACTS__DEPLOY_CONTRACTS:-false}
 
@@ -249,6 +261,7 @@ services:
         target: /app/configuration/toml
         read_only: true
       - ./configuration/bin/keys:/app/configuration/bin/keys:ro
+      - ${NF4_PROPOSER_SNAPSHOT_MOUNT:-./data/proposer_snapshots}:/app/data/proposer_snapshots
     depends_on:
       db_proposer2:
         condition: service_healthy
@@ -265,13 +278,17 @@ services:
       - NF4_NIGHTFALL_PROPOSER__BLOCK_ASSEMBLY_MAX_WAIT_SECS=30
       - NF4_NIGHTFALL_PROPOSER__BLOCK_ASSEMBLY_TARGET_FILL_RATIO=0.10
       - NF4_NIGHTFALL_PROPOSER__BLOCK_ASSEMBLY_INITIAL_INTERVAL_SECS=5
+      - NF4_NIGHTFALL_PROPOSER__SNAPSHOT_ROOT_DIR=/app/data/proposer_snapshots/${NF4_RUN_MODE:-development}/proposer2
+      - NF4_NIGHTFALL_PROPOSER__WALLET_TYPE=${NF4_NIGHTFALL_PROPOSER__WALLET_TYPE:-local}
+      - NF4_NIGHTFALL_PROPOSER__X509_SIGNER_TYPE=${NF4_NIGHTFALL_PROPOSER__X509_SIGNER_TYPE:-local}
       - AZURE_VAULT_URL=${AZURE_VAULT_URL}
       - PROPOSER_SIGNING_KEY_NAME=${PROPOSER_2_SIGNING_KEY_NAME}
+      - PROPOSER_X509_SIGNING_KEY_NAME=${PROPOSER_X509_SIGNING_KEY_NAME}
       - AZURE_CLIENT_ID=${AZURE_CLIENT_ID}
       - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
       - AZURE_TENANT_ID=${AZURE_TENANT_ID}
       - NF4_NIGHTFALL_PROPOSER__URL=http://proposer2:3000
-      - NF4_NIGHTFALL_PROPOSER__DB_URL=mongodb://nf4_db_proposer2:27017
+      - NF4_NIGHTFALL_PROPOSER__DB_URL=mongodb://nf4_db_proposer2:27017/?replicaSet=nf4-rs-proposer2&directConnection=true
 
   db_client:
     container_name: nf4_db_client
@@ -326,6 +343,7 @@ services:
 
   db_proposer:
     container_name: nf4_db_proposer
+    hostname: nf4_db_proposer
     stop_grace_period: 3s
     profiles:
       - proposer
@@ -338,12 +356,16 @@ services:
     ports:
       - "27018:27017"    
     healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017 --quiet || exit 1
+      test:
+        [
+          "CMD-SHELL",
+          "echo 'try { rs.status(); } catch (e) { rs.initiate({_id: \"nf4-rs-proposer\", members: [{ _id: 0, host: \"nf4_db_proposer:27017\" }]}); } const hello = db.hello(); if (!(hello.isWritablePrimary || hello.ismaster)) { quit(1); }' | mongosh localhost:27017 --quiet || exit 1",
+        ]
       interval: 10s
       timeout: 90s
       retries: 10
       start_period: 0s
-    command: mongod --quiet --logpath /dev/null 
+    command: mongod --replSet nf4-rs-proposer --bind_ip_all --quiet --logpath /dev/null
     networks:
       - nightfall_network
   #  volumes:
@@ -353,6 +375,7 @@ services:
 
   db_proposer2:
     container_name: nf4_db_proposer2
+    hostname: nf4_db_proposer2
     stop_grace_period: 3s
     profiles:
       - sync_test
@@ -360,12 +383,16 @@ services:
     ports:
       - "27019:27017"    
     healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017 --quiet || exit 1
+      test:
+        [
+          "CMD-SHELL",
+          "echo 'try { rs.status(); } catch (e) { rs.initiate({_id: \"nf4-rs-proposer2\", members: [{ _id: 0, host: \"nf4_db_proposer2:27017\" }]}); } const hello = db.hello(); if (!(hello.isWritablePrimary || hello.ismaster)) { quit(1); }' | mongosh localhost:27017 --quiet || exit 1",
+        ]
       interval: 10s
       timeout: 90s
       retries: 10
       start_period: 0s
-    command: mongod --quiet --logpath /dev/null 
+    command: mongod --replSet nf4-rs-proposer2 --bind_ip_all --quiet --logpath /dev/null
     networks:
       - nightfall_network
     environment:
@@ -530,7 +557,6 @@ services:
       - CLIENT_ADDRESS=${CLIENT_ADDRESS}
       - NF4_LARGE_BLOCK_TEST=${NF4_LARGE_BLOCK_TEST:-false} # Set to true to run large block tests
       - AZURE_VAULT_URL=${AZURE_VAULT_URL}
-      - AZURE_KEY_NAME=${CLIENT_SIGNING_KEY_NAME}
       - AZURE_CLIENT_ID=${AZURE_CLIENT_ID}
       - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
       - AZURE_TENANT_ID=${AZURE_TENANT_ID}
@@ -581,6 +607,7 @@ volumes:
   address_data:
   key_data:
   toml_data:
+  proposer_snapshots_data:
 
 networks:
    nightfall_network:

@@ -1,8 +1,18 @@
 use crate::{
     domain::entities::{
-        ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot, TxLifecycle,
+        ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot, PendingBlock,
+        RestoreJournal, StartupReplayResetMarker, SyncState, TransferReceipt,
+        TransferReceiptStatus, TxHashBytes, TxLifecycle,
     },
-    ports::db::{BlockStorageDB, HistoricRootsDB, TransactionsDB},
+    driven::db::client_transaction_state::{
+        selected_or_included_transactions_filter, selected_transactions_filter,
+        selected_transactions_filter_for_block,
+    },
+    ports::db::{
+        BlockStorageDB, HistoricRootsDB, PendingBlockDB, RestoreJournalDB,
+        StartupReplayResetMarkerDB, SyncStateDB, TransactionsDB, TransferReceiptDB,
+        TransferReceiptStoreError,
+    },
 };
 use alloy::primitives::Address;
 use ark_bn254::Fr as Fr254;
@@ -12,6 +22,7 @@ use lib::{
     error::ConversionError, hex_conversion::HexConvertible, nf_client_proof::Proof,
     shared_entities::ClientTransaction,
 };
+use log::warn;
 use mongodb::bson::{doc, Bson, Document};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -20,22 +31,13 @@ fn lifecycle_bson(lifecycle: &TxLifecycle) -> Bson {
     mongodb::bson::to_bson(lifecycle).expect("TxLifecycle should serialize to BSON")
 }
 
-// Temporary migration support: queries must match both the new explicit
-// lifecycle document and the legacy triplet {in_mempool, block_l2,
-// cancelled_explicitly} until existing proposer data has been backfilled.
+// Startup migration backfills legacy client transaction lifecycle fields. The
+// remaining legacy query branches below are only retained for mempool and
+// cancelled-state compatibility while older data drains out of the system.
 fn legacy_mempool_filter() -> Document {
     doc! {
         "lifecycle": { "$exists": false },
         "in_mempool": true,
-        "cancelled_explicitly": { "$ne": true }
-    }
-}
-
-fn legacy_selected_filter() -> Document {
-    doc! {
-        "lifecycle": { "$exists": false },
-        "in_mempool": { "$ne": true },
-        "block_l2": { "$exists": true, "$ne": Bson::Null },
         "cancelled_explicitly": { "$ne": true }
     }
 }
@@ -49,35 +51,16 @@ fn mempool_state_filter() -> Document {
     }
 }
 
-fn selected_state_filter() -> Document {
-    doc! {
-        "$or": [
-            doc! { "lifecycle.state": "selected" },
-            legacy_selected_filter()
-        ]
-    }
-}
-
-fn selected_state_filter_for_block(block_l2: i64) -> Document {
-    doc! {
-        "$or": [
-            doc! {
-                "lifecycle.state": "selected",
-                "lifecycle.block_l2": Bson::Int64(block_l2)
-            },
-            doc! {
-                "lifecycle": { "$exists": false },
-                "in_mempool": { "$ne": true },
-                "block_l2": Bson::Int64(block_l2),
-                "cancelled_explicitly": { "$ne": true }
-            }
-        ]
-    }
-}
-
 fn swap_link_filter(swap_link: &Fr254) -> Document {
     doc! {
         "client_transaction.swap_link": swap_link.to_hex_string()
+    }
+}
+
+fn deposit_identity_filter(deposit: &DepositDatawithFee) -> Document {
+    doc! {
+        "deposit_data.secret_hash": deposit.deposit_data.secret_hash.to_hex_string(),
+        "deposit_data.nf_slot_id": deposit.deposit_data.nf_slot_id.to_hex_string(),
     }
 }
 
@@ -95,8 +78,26 @@ fn cancelled_state_filter() -> Document {
 
 pub const DB: &str = "nightfall";
 const COLLECTION: &str = "ClientTransactions";
-const DEPOSIT_COLLECTION: &str = "Deposits";
+pub const DEPOSIT_COLLECTION: &str = "Deposits";
 pub const PROPOSED_BLOCKS_COLLECTION: &str = "ProposedBlocks";
+pub const SYNC_STATE_COLLECTION: &str = "sync_state";
+pub const RESTORE_JOURNAL_COLLECTION: &str = "restore_journal";
+pub const STARTUP_REPLAY_RESET_MARKER_COLLECTION: &str = "startup_replay_reset_marker";
+const TRANSFER_RECEIPTS_COLLECTION: &str = "TransferReceipts";
+const PENDING_BLOCKS_COLLECTION: &str = "PendingBlocks";
+
+fn deposit_filters(deposits: &[DepositDatawithFee]) -> Vec<Document> {
+    deposits.iter().map(deposit_identity_filter).collect()
+}
+
+fn available_deposits_filter() -> Document {
+    doc! {
+        "$or": [
+            { "reserved": false },
+            { "reserved": { "$exists": false } }
+        ]
+    }
+}
 
 #[async_trait::async_trait]
 impl<'a, P> TransactionsDB<'a, P> for mongodb::Client
@@ -160,7 +161,25 @@ where
     async fn get_all_selected_client_transactions(
         &self,
     ) -> Option<Vec<(Vec<u32>, ClientTransactionWithMetaData<P>)>> {
-        let filter = selected_state_filter();
+        let filter = selected_transactions_filter();
+        let mut cursor: mongodb::Cursor<ClientTransactionWithMetaData<P>> = self
+            .database(DB)
+            .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
+            .find(filter)
+            .await
+            .ok()?;
+        let mut result: Vec<(Vec<u32>, ClientTransactionWithMetaData<P>)> = Vec::new();
+        while cursor.advance().await.ok()? {
+            let v: ClientTransactionWithMetaData<P> = cursor.deserialize_current().ok()?;
+            result.push((v.hash.clone(), v));
+        }
+        Some(result)
+    }
+
+    async fn get_all_selected_or_included_client_transactions(
+        &self,
+    ) -> Option<Vec<(Vec<u32>, ClientTransactionWithMetaData<P>)>> {
+        let filter = selected_or_included_transactions_filter();
         let mut cursor: mongodb::Cursor<ClientTransactionWithMetaData<P>> = self
             .database(DB)
             .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
@@ -202,7 +221,7 @@ where
         swap_link: &Fr254,
     ) -> Result<u64, mongodb::error::Error> {
         let mut filter = swap_link_filter(swap_link);
-        filter.extend(selected_state_filter());
+        filter.extend(selected_or_included_transactions_filter());
         self.database(DB)
             .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
             .count_documents(filter)
@@ -226,6 +245,33 @@ where
         filter.extend(mempool_state_filter());
         let update = doc! {"$set": {
             "lifecycle": lifecycle_bson(&TxLifecycle::Cancelled)
+        }};
+        let result = self
+            .database(DB)
+            .collection::<ClientTransactionWithMetaData<P>>(COLLECTION)
+            .update_many(filter, update)
+            .await
+            .ok()?;
+        Some(result.modified_count)
+    }
+
+    async fn set_client_transactions_in_mempool_by_hashes(
+        &self,
+        transaction_hashes: &[Vec<u32>],
+        in_mempool: bool,
+    ) -> Option<u64> {
+        if transaction_hashes.is_empty() {
+            return Some(0);
+        }
+
+        let lifecycle = if in_mempool {
+            TxLifecycle::Mempool
+        } else {
+            TxLifecycle::Dropped
+        };
+        let filter = doc! {"hash": { "$in": transaction_hashes }};
+        let update = doc! {"$set": {
+            "lifecycle": lifecycle_bson(&lifecycle)
         }};
         let result = self
             .database(DB)
@@ -275,7 +321,7 @@ where
         let mut filter = doc! {
             "hash": { "$in": k }
         };
-        filter.extend(selected_state_filter_for_block(block_l2));
+        filter.extend(selected_transactions_filter_for_block(block_l2));
         let update = doc! {"$set": {
             "lifecycle": lifecycle_bson(&TxLifecycle::Mempool)
         }};
@@ -286,6 +332,54 @@ where
             .await
             .ok()?;
         Some(result.modified_count)
+    }
+
+    async fn mark_transactions_included_by_hashes(
+        &self,
+        transaction_hashes: &[Vec<u32>],
+    ) -> Option<u64> {
+        if transaction_hashes.is_empty() {
+            return Some(0);
+        }
+
+        let collection = self
+            .database(DB)
+            .collection::<ClientTransactionWithMetaData<P>>(COLLECTION);
+        let mut modified = 0u64;
+
+        for hash in transaction_hashes {
+            let Some(transaction) =
+                <mongodb::Client as TransactionsDB<P>>::get_transaction(self, hash).await
+            else {
+                continue;
+            };
+            let Some(block_l2) = transaction.lifecycle.block_l2() else {
+                continue;
+            };
+            let Ok(block_l2_i64) = i64::try_from(block_l2) else {
+                continue;
+            };
+
+            let mut filter = doc! { "hash": hash };
+            filter.extend(selected_transactions_filter_for_block(block_l2_i64));
+            let update = doc! {"$set": {
+                "lifecycle": lifecycle_bson(&TxLifecycle::Included { block_l2 })
+            }};
+
+            let result = match collection.update_one(filter, update).await {
+                Ok(result) => result,
+                Err(error) => {
+                    warn!(
+                        "Failed lifecycle promotion to Included for proposer client transaction \
+                         {hash:?} at L2 block {block_l2}: {error}"
+                    );
+                    return None;
+                }
+            };
+            modified += result.modified_count;
+        }
+
+        Some(modified)
     }
 
     async fn drop_transactions(&self, txs: &[ClientTransactionWithMetaData<P>]) -> Option<u64> {
@@ -328,12 +422,9 @@ where
     }
 
     async fn find_deposit(&self, v: &DepositDatawithFee) -> Option<DepositDatawithFee> {
-        // we'll compute the hash of the transaction and then look it up in the database
-        let hash = v.hash().ok()?;
-        let filter = doc! {"hash": hash};
         self.database(DB)
-            .collection::<DepositDatawithFee>(COLLECTION)
-            .find_one(filter)
+            .collection::<DepositDatawithFee>(DEPOSIT_COLLECTION)
+            .find_one(deposit_identity_filter(v))
             .await
             .expect("Database error") // we can't really proceed at this point
     }
@@ -347,11 +438,22 @@ where
         let collection = self
             .database(DB)
             .collection::<DepositDatawithFee>(DEPOSIT_COLLECTION);
+        let mut inserted_count = 0_u64;
 
-        // Directly insert Vec<DepositInfo> instead of converting to Document
-        let result = collection.insert_many(deposits).await.ok()?;
+        for deposit in deposits {
+            let filter = deposit_identity_filter(&deposit);
+            let update = doc! {
+                "$setOnInsert": mongodb::bson::to_document(&deposit).ok()?
+            };
+            let result = collection
+                .update_one(filter, update)
+                .upsert(true)
+                .await
+                .ok()?;
+            inserted_count += result.upserted_id.is_some() as u64;
+        }
 
-        Some(result.inserted_ids.len() as u64)
+        Some(inserted_count)
     }
 
     // Retrieve deposits from the mempool
@@ -359,7 +461,7 @@ where
         let collection = self
             .database(DB)
             .collection::<DepositDatawithFee>(DEPOSIT_COLLECTION);
-        let mut cursor = collection.find(doc! {}).await.ok()?;
+        let mut cursor = collection.find(available_deposits_filter()).await.ok()?;
 
         let mut result: Vec<DepositDatawithFee> = Vec::new();
         while cursor.advance().await.ok()? {
@@ -377,7 +479,7 @@ where
     async fn count_mempool_deposits(&self) -> Result<u64, mongodb::error::Error> {
         self.database(DB)
             .collection::<DepositDatawithFee>(DEPOSIT_COLLECTION)
-            .count_documents(doc! {})
+            .count_documents(available_deposits_filter())
             .await
     }
 
@@ -395,22 +497,49 @@ where
             .database(DB)
             .collection::<DepositDatawithFee>(DEPOSIT_COLLECTION);
 
-        // Fetch all documents in the collection
-        let delete_conditions: Vec<_> = used_deposits
-            .iter()
-            .map(|d| {
-                doc! {
-                    "deposit_data.secret_hash": d.deposit_data.secret_hash.to_hex_string(),
-                    "deposit_data.nf_slot_id": d.deposit_data.nf_slot_id.to_hex_string(),
-                }
-            })
-            .collect();
+        let delete_conditions = deposit_filters(&used_deposits);
         let filter = doc! {
             "$or": delete_conditions
         };
         // Delete matching documents
         let result = collection.delete_many(filter).await.ok()?;
         Some(result.deleted_count)
+    }
+
+    async fn set_mempool_deposits_reserved(
+        &self,
+        deposits: Vec<Vec<DepositDatawithFee>>,
+        reserved: bool,
+    ) -> Option<u64> {
+        let deposits: Vec<DepositDatawithFee> = deposits.into_iter().flatten().collect();
+        if deposits.is_empty() {
+            return Some(0);
+        }
+
+        let filter = doc! {
+            "$or": deposit_filters(&deposits)
+        };
+        let update = doc! {"$set": { "reserved": reserved }};
+        let result = self
+            .database(DB)
+            .collection::<DepositDatawithFee>(DEPOSIT_COLLECTION)
+            .update_many(filter, update)
+            .await
+            .ok()?;
+        Some(result.modified_count)
+    }
+
+    async fn clear_all_mempool_deposit_reservations(&self) -> Option<u64> {
+        let result = self
+            .database(DB)
+            .collection::<DepositDatawithFee>(DEPOSIT_COLLECTION)
+            .update_many(
+                doc! { "reserved": true },
+                doc! { "$set": { "reserved": false } },
+            )
+            .await
+            .ok()?;
+        Some(result.modified_count)
     }
 
     // Remove all deposits from the mempool
@@ -521,31 +650,41 @@ impl StoredBlock {
 #[async_trait::async_trait]
 impl BlockStorageDB for mongodb::Client {
     async fn store_block(&self, block: &StoredBlock) -> Option<()> {
-        // check if the block already exists
         let filter = doc! { "layer2_block_number": block.layer2_block_number as i64 };
-        let existing_block = self
+        let collection = self
             .database(DB)
-            .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
-            .find_one(filter.clone())
+            .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION);
+        let result = collection
+            .replace_one(filter, block)
+            .upsert(true)
             .await
             .ok()?;
-        if existing_block.is_some() {
-            // if the block already exists, we need to update it
-            let update = doc! { "$set": { "commitments": block.commitments.clone() } };
-            self.database(DB)
-                .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
-                .update_one(filter, update)
-                .await
-                .ok()?;
-            return Some(());
+        if result.matched_count == 0 && result.upserted_id.is_none() {
+            return None;
         }
-        // if the block doesn't exist, we need to insert it
-        self.database(DB)
-            .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
-            .insert_one(block)
-            .await
-            .ok()?;
         Some(())
+    }
+
+    async fn store_block_with_session(
+        &self,
+        block: &StoredBlock,
+        session: &mut mongodb::ClientSession,
+    ) -> Result<(), mongodb::error::Error> {
+        let filter = doc! { "layer2_block_number": block.layer2_block_number as i64 };
+        let collection = self
+            .database(DB)
+            .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION);
+        let result = collection
+            .replace_one(filter, block)
+            .upsert(true)
+            .session(&mut *session)
+            .await?;
+        if result.matched_count == 0 && result.upserted_id.is_none() {
+            return Err(mongodb::error::Error::custom(
+                "Failed to upsert proposed block",
+            ));
+        }
+        Ok(())
     }
 
     async fn get_block_by_number(&self, block_number: u64) -> Option<StoredBlock> {
@@ -575,12 +714,427 @@ impl BlockStorageDB for mongodb::Client {
             .ok()?;
         Some(())
     }
+
+    async fn delete_all_blocks(&self) -> Option<u64> {
+        let result = self
+            .database(DB)
+            .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
+            .delete_many(doc! {})
+            .await
+            .ok()?;
+        Some(result.deleted_count)
+    }
+
+    async fn delete_block_by_number_with_session(
+        &self,
+        block_number: u64,
+        session: &mut mongodb::ClientSession,
+    ) -> Result<(), mongodb::error::Error> {
+        let filter = doc! { "layer2_block_number": block_number as i64 };
+        self.database(DB)
+            .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
+            .delete_one(filter)
+            .session(&mut *session)
+            .await?;
+        Ok(())
+    }
+
+    async fn delete_all_blocks_with_session(
+        &self,
+        session: &mut mongodb::ClientSession,
+    ) -> Result<u64, mongodb::error::Error> {
+        let result = self
+            .database(DB)
+            .collection::<StoredBlock>(PROPOSED_BLOCKS_COLLECTION)
+            .delete_many(doc! {})
+            .session(&mut *session)
+            .await?;
+        Ok(result.deleted_count)
+    }
+}
+
+#[async_trait::async_trait]
+impl SyncStateDB for mongodb::Client {
+    async fn update_sync_state_with_session(
+        &self,
+        state: &SyncState,
+        session: &mut mongodb::ClientSession,
+    ) -> Result<(), mongodb::error::Error> {
+        let filter = doc! { "_id": SyncState::DOCUMENT_ID };
+        let collection = self
+            .database(DB)
+            .collection::<SyncState>(SYNC_STATE_COLLECTION);
+        let result = collection
+            .replace_one(filter, state)
+            .upsert(true)
+            .session(&mut *session)
+            .await?;
+
+        if result.matched_count == 0 && result.upserted_id.is_none() {
+            return Err(mongodb::error::Error::custom(
+                "Failed to upsert proposer sync_state",
+            ));
+        }
+
+        Ok(())
+    }
+
+    async fn get_sync_state(&self) -> Option<SyncState> {
+        self.database(DB)
+            .collection::<SyncState>(SYNC_STATE_COLLECTION)
+            .find_one(doc! { "_id": SyncState::DOCUMENT_ID })
+            .await
+            .ok()?
+    }
+
+    async fn delete_sync_state_with_session(
+        &self,
+        session: &mut mongodb::ClientSession,
+    ) -> Result<(), mongodb::error::Error> {
+        self.database(DB)
+            .collection::<SyncState>(SYNC_STATE_COLLECTION)
+            .delete_one(doc! { "_id": SyncState::DOCUMENT_ID })
+            .session(&mut *session)
+            .await?;
+        Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl RestoreJournalDB for mongodb::Client {
+    async fn upsert_restore_journal(
+        &self,
+        journal: &RestoreJournal,
+    ) -> Result<(), mongodb::error::Error> {
+        let result = self
+            .database(DB)
+            .collection::<RestoreJournal>(RESTORE_JOURNAL_COLLECTION)
+            .replace_one(doc! { "_id": RestoreJournal::DOCUMENT_ID }, journal)
+            .upsert(true)
+            .await?;
+
+        if result.matched_count == 0 && result.upserted_id.is_none() {
+            return Err(mongodb::error::Error::custom(
+                "Failed to upsert proposer restore_journal",
+            ));
+        }
+
+        Ok(())
+    }
+
+    async fn get_restore_journal(&self) -> Option<RestoreJournal> {
+        self.database(DB)
+            .collection::<RestoreJournal>(RESTORE_JOURNAL_COLLECTION)
+            .find_one(doc! { "_id": RestoreJournal::DOCUMENT_ID })
+            .await
+            .ok()?
+    }
+
+    async fn delete_restore_journal(&self) -> Result<(), mongodb::error::Error> {
+        self.database(DB)
+            .collection::<RestoreJournal>(RESTORE_JOURNAL_COLLECTION)
+            .delete_one(doc! { "_id": RestoreJournal::DOCUMENT_ID })
+            .await?;
+        Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl StartupReplayResetMarkerDB for mongodb::Client {
+    async fn upsert_startup_replay_reset_marker(
+        &self,
+        marker: &StartupReplayResetMarker,
+    ) -> Result<(), mongodb::error::Error> {
+        let result = self
+            .database(DB)
+            .collection::<StartupReplayResetMarker>(STARTUP_REPLAY_RESET_MARKER_COLLECTION)
+            .replace_one(
+                doc! { "_id": StartupReplayResetMarker::DOCUMENT_ID },
+                marker,
+            )
+            .upsert(true)
+            .await?;
+
+        if result.matched_count == 0 && result.upserted_id.is_none() {
+            return Err(mongodb::error::Error::custom(
+                "Failed to upsert proposer startup_replay_reset_marker",
+            ));
+        }
+
+        Ok(())
+    }
+
+    async fn upsert_startup_replay_reset_marker_with_session(
+        &self,
+        marker: &StartupReplayResetMarker,
+        session: &mut mongodb::ClientSession,
+    ) -> Result<(), mongodb::error::Error> {
+        let result = self
+            .database(DB)
+            .collection::<StartupReplayResetMarker>(STARTUP_REPLAY_RESET_MARKER_COLLECTION)
+            .replace_one(
+                doc! { "_id": StartupReplayResetMarker::DOCUMENT_ID },
+                marker,
+            )
+            .upsert(true)
+            .session(&mut *session)
+            .await?;
+
+        if result.matched_count == 0 && result.upserted_id.is_none() {
+            return Err(mongodb::error::Error::custom(
+                "Failed to upsert proposer startup_replay_reset_marker",
+            ));
+        }
+
+        Ok(())
+    }
+
+    async fn get_startup_replay_reset_marker(&self) -> Option<StartupReplayResetMarker> {
+        self.database(DB)
+            .collection::<StartupReplayResetMarker>(STARTUP_REPLAY_RESET_MARKER_COLLECTION)
+            .find_one(doc! { "_id": StartupReplayResetMarker::DOCUMENT_ID })
+            .await
+            .ok()?
+    }
+
+    async fn delete_startup_replay_reset_marker(&self) -> Result<(), mongodb::error::Error> {
+        self.database(DB)
+            .collection::<StartupReplayResetMarker>(STARTUP_REPLAY_RESET_MARKER_COLLECTION)
+            .delete_one(doc! { "_id": StartupReplayResetMarker::DOCUMENT_ID })
+            .await?;
+        Ok(())
+    }
+}
+
+/// Creates a unique index for proposer deposit replay identity.
+/// Must be called once at proposer startup.
+pub async fn ensure_deposit_indexes(client: &mongodb::Client) -> Result<(), mongodb::error::Error> {
+    use mongodb::options::IndexOptions;
+    use mongodb::IndexModel;
+
+    let database = client.database(DB);
+    let existing_collections = database.list_collection_names().await?;
+    if !existing_collections
+        .iter()
+        .any(|name| name == DEPOSIT_COLLECTION)
+    {
+        database.create_collection(DEPOSIT_COLLECTION).await?;
+    }
+
+    let collection = database.collection::<DepositDatawithFee>(DEPOSIT_COLLECTION);
+
+    let deposit_identity_index = IndexModel::builder()
+        .keys(doc! {
+            "deposit_data.secret_hash": 1,
+            "deposit_data.nf_slot_id": 1,
+        })
+        .options(IndexOptions::builder().unique(true).build())
+        .build();
+
+    collection.create_index(deposit_identity_index).await?;
+    Ok(())
+}
+
+/// Creates unique indexes on `receipt_id` and `tx_hash` in the TransferReceipts collection.
+/// Must be called once at proposer startup.
+pub async fn ensure_transfer_receipt_indexes(
+    client: &mongodb::Client,
+) -> Result<(), mongodb::error::Error> {
+    use mongodb::options::IndexOptions;
+    use mongodb::IndexModel;
+
+    let collection = client
+        .database(DB)
+        .collection::<TransferReceipt>(TRANSFER_RECEIPTS_COLLECTION);
+
+    let receipt_id_index = IndexModel::builder()
+        .keys(doc! { "receipt_id": 1 })
+        .options(IndexOptions::builder().unique(true).build())
+        .build();
+
+    let tx_hash_hex_index = IndexModel::builder()
+        .keys(doc! { "tx_hash": 1 })
+        .options(IndexOptions::builder().unique(true).build())
+        .build();
+
+    collection.create_index(receipt_id_index).await?;
+    collection.create_index(tx_hash_hex_index).await?;
+    Ok(())
+}
+
+#[async_trait::async_trait]
+impl TransferReceiptDB for mongodb::Client {
+    async fn store_transfer_receipt(
+        &self,
+        receipt: TransferReceipt,
+    ) -> Result<(), TransferReceiptStoreError> {
+        let result = self
+            .database(DB)
+            .collection::<TransferReceipt>(TRANSFER_RECEIPTS_COLLECTION)
+            .insert_one(receipt)
+            .await;
+
+        match result {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                // MongoDB duplicate key error code is 11000.
+                let is_dup = matches!(
+                    *e.kind,
+                    mongodb::error::ErrorKind::Write(
+                        mongodb::error::WriteFailure::WriteError(ref we)
+                    ) if we.code == 11000
+                );
+                if is_dup {
+                    Err(TransferReceiptStoreError::DuplicateKey)
+                } else {
+                    Err(TransferReceiptStoreError::Other(e.to_string()))
+                }
+            }
+        }
+    }
+
+    async fn get_transfer_receipt(&self, receipt_id: &str) -> Option<TransferReceipt> {
+        let filter = doc! { "receipt_id": receipt_id };
+        match self
+            .database(DB)
+            .collection::<TransferReceipt>(TRANSFER_RECEIPTS_COLLECTION)
+            .find_one(filter)
+            .await
+        {
+            Ok(result) => result,
+            Err(e) => {
+                log::warn!("Failed to query transfer receipt by id={receipt_id}: {e}");
+                None
+            }
+        }
+    }
+
+    async fn get_transfer_receipt_by_tx_hash(
+        &self,
+        tx_hash: &TxHashBytes,
+    ) -> Option<TransferReceipt> {
+        let filter = doc! { "tx_hash": tx_hash.as_hex() };
+        match self
+            .database(DB)
+            .collection::<TransferReceipt>(TRANSFER_RECEIPTS_COLLECTION)
+            .find_one(filter)
+            .await
+        {
+            Ok(result) => result,
+            Err(e) => {
+                log::warn!(
+                    "Failed to query transfer receipt by tx_hash={}: {e}",
+                    tx_hash.as_hex()
+                );
+                None
+            }
+        }
+    }
+
+    async fn set_transfer_receipt_status(
+        &self,
+        receipt_id: &str,
+        status: TransferReceiptStatus,
+        updated_at_unix: i64,
+    ) -> Option<()> {
+        let filter = doc! { "receipt_id": receipt_id };
+        let status_bson = match mongodb::bson::to_bson(&status) {
+            Ok(b) => b,
+            Err(e) => {
+                log::warn!("Failed to serialize receipt status for id={receipt_id}: {e}");
+                return None;
+            }
+        };
+        let update = doc! {
+            "$set": {
+                "status": status_bson,
+                "updated_at_unix": updated_at_unix,
+            }
+        };
+        match self
+            .database(DB)
+            .collection::<TransferReceipt>(TRANSFER_RECEIPTS_COLLECTION)
+            .update_one(filter, update)
+            .await
+        {
+            Ok(_) => Some(()),
+            Err(e) => {
+                log::warn!("Failed to update transfer receipt status for id={receipt_id}: {e}");
+                None
+            }
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl PendingBlockDB for mongodb::Client {
+    async fn store_pending_block(&self, pending_block: &PendingBlock) -> Option<()> {
+        let filter = doc! { "layer2_block_number": pending_block.layer2_block_number as i64 };
+        self.database(DB)
+            .collection::<PendingBlock>(PENDING_BLOCKS_COLLECTION)
+            .replace_one(filter, pending_block)
+            .upsert(true)
+            .await
+            .ok()?;
+        Some(())
+    }
+
+    async fn get_pending_block(&self, block_number: u64) -> Option<PendingBlock> {
+        let filter = doc! { "layer2_block_number": block_number as i64 };
+        self.database(DB)
+            .collection::<PendingBlock>(PENDING_BLOCKS_COLLECTION)
+            .find_one(filter)
+            .await
+            .ok()?
+    }
+
+    async fn get_all_pending_blocks(&self) -> Option<Vec<PendingBlock>> {
+        let cursor = self
+            .database(DB)
+            .collection::<PendingBlock>(PENDING_BLOCKS_COLLECTION)
+            .find(doc! {})
+            .await
+            .ok()?;
+        cursor.try_collect().await.ok()
+    }
+
+    async fn delete_pending_block(&self, block_number: u64) -> Option<()> {
+        let filter = doc! { "layer2_block_number": block_number as i64 };
+        self.database(DB)
+            .collection::<PendingBlock>(PENDING_BLOCKS_COLLECTION)
+            .delete_one(filter)
+            .await
+            .ok()?;
+        Some(())
+    }
+
+    async fn delete_all_pending_blocks(&self) -> Option<u64> {
+        let result = self
+            .database(DB)
+            .collection::<PendingBlock>(PENDING_BLOCKS_COLLECTION)
+            .delete_many(doc! {})
+            .await
+            .ok()?;
+        Some(result.deleted_count)
+    }
+
+    async fn delete_all_pending_blocks_with_session(
+        &self,
+        session: &mut mongodb::ClientSession,
+    ) -> Result<u64, mongodb::error::Error> {
+        let result = self
+            .database(DB)
+            .collection::<PendingBlock>(PENDING_BLOCKS_COLLECTION)
+            .delete_many(doc! {})
+            .session(&mut *session)
+            .await?;
+        Ok(result.deleted_count)
+    }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
-    use ark_bn254::Fr as Fr254;
     use ark_std::UniformRand;
 
     #[test]
@@ -610,29 +1164,26 @@ mod test {
     }
 
     #[test]
-    fn selected_filter_matches_new_and_legacy_shapes() {
-        let filter = selected_state_filter();
-        let branches = filter
-            .get_array("$or")
-            .expect("selected filter should contain transitional branches");
+    fn selected_filter_matches_only_explicit_selected_lifecycle_state() {
+        let filter = selected_transactions_filter();
 
-        assert_eq!(branches.len(), 2);
         assert_eq!(
-            branches[0]
-                .as_document()
-                .and_then(|doc| doc.get_str("lifecycle.state").ok()),
-            Some("selected")
+            filter.get_str("lifecycle.state"),
+            Ok("selected"),
+            "selected filter should only match the explicit Selected lifecycle state"
         );
-        let legacy = branches[1]
-            .as_document()
-            .expect("legacy selected branch should be a document");
+    }
+
+    #[test]
+    fn selected_or_included_filter_matches_explicit_lifecycle_states_only() {
+        let filter = selected_or_included_transactions_filter();
+        let lifecycle_state = filter
+            .get_document("lifecycle.state")
+            .expect("selected-or-included filter should match multiple explicit lifecycle states");
         assert_eq!(
-            legacy
-                .get_document("lifecycle")
-                .and_then(|doc| doc.get_bool("$exists")),
-            Ok(false)
+            lifecycle_state.get_array("$in").expect("$in states").len(),
+            2
         );
-        assert!(legacy.get("block_l2").is_some());
     }
 
     #[test]

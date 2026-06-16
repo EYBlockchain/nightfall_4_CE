@@ -161,7 +161,11 @@ where
         .map_err(|_| "Transaction could not be completed due to an invalid root key.")?;
     // Construct Private Inputs [ Commitment value, salt, recipient public_key];
     let nf_address = get_addresses().nightfall();
-    let nf_token_id = spend_commitments[0].get_nf_token_id();
+    let spent_nf_token_ids = [
+        spend_commitments[0].get_nf_token_id(),
+        spend_commitments[1].get_nf_token_id(),
+    ];
+    let nf_token_a_id = new_commitments[0].get_nf_token_id();
     let fee_token_id = get_fee_token_id();
     let (mut public_inputs, mut private_inputs) = (
         PublicInputs::new()
@@ -171,7 +175,8 @@ where
         PrivateInputs::new()
             .nf_address(nf_address)
             .value_a(new_commitments[0].get_value())
-            .nf_token_a_id(nf_token_id)
+            .spent_nf_token_ids(spent_nf_token_ids)
+            .nf_token_a_id(nf_token_a_id)
             .nf_slot_id(nf_slot_id)
             .fee_token_id(fee_token_id)
             .nullifiers_values(&spend_commitments.map(|c| c.get_value()))
@@ -219,6 +224,9 @@ where
             deadline: public_inputs.deadline,
             swap_side: public_inputs.swap_side,
             proof,
+            // receipt_token is set by the caller (drivers layer) after
+            // proof generation and before the transaction is sent to proposers.
+            receipt_token: None,
         }),
         Err(e) => {
             error!("{id} Proving error {e:?}");
@@ -276,6 +284,10 @@ where
         warn!("{id} Value or fee not conserved in this transaction: rejecting");
         return Err("Value or fee not conserved in this transaction: rejecting");
     }
+    let spent_nf_token_ids = [
+        spend_commitments[0].get_nf_token_id(),
+        spend_commitments[1].get_nf_token_id(),
+    ];
 
     // Collect the public keys from the nullified commitments
     let public_keys: [TEAffine<BabyJubJub>; 4] = spend_commitments
@@ -304,6 +316,7 @@ where
             .party_a_public_key(party_a_public_key)
             .party_b_public_key(party_b_public_key)
             .value_a(value_a)
+            .spent_nf_token_ids(spent_nf_token_ids)
             .nf_token_a_id(nf_token_a_id)
             .nf_token_b_id(nf_token_b_id)
             .value_b(value_b)
@@ -353,6 +366,7 @@ where
             deadline: public_inputs.deadline,
             swap_side: public_inputs.swap_side,
             proof,
+            receipt_token: None,
         }),
         Err(e) => {
             error!("{id} Swap proving error {e:?}");

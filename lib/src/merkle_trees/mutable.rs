@@ -18,6 +18,7 @@ use log::debug;
 use mongodb::{
     bson::{doc, to_bson},
     options::{UpdateOneModel, WriteModel},
+    ClientSession,
 };
 use serde::{Deserialize, Serialize};
 
@@ -80,29 +81,58 @@ where
     }
 
     async fn get_root(&self, tree_id: &str) -> Result<F, Self::Error> {
+        self.get_root_with_session(tree_id, None).await
+    }
+
+    async fn get_root_with_session(
+        &self,
+        tree_id: &str,
+        session: Option<&mut ClientSession>,
+    ) -> Result<F, Self::Error> {
         let metadata_collection_name = format!("{}_{}", tree_id, "metadata");
         let metadata_collection = self
             .database(<Self as MutableTree<F>>::MUT_DB_NAME)
             .collection::<TreeMetadata<F>>(&metadata_collection_name);
-        let metadata = metadata_collection
-            .find_one(doc! {"_id": 0})
-            .await
-            .map_err(MerkleTreeError::DatabaseError)?
-            .ok_or(MerkleTreeError::TreeNotFound)?;
+        let metadata = if let Some(session) = session {
+            metadata_collection
+                .find_one(doc! {"_id": 0})
+                .session(session)
+                .await
+        } else {
+            metadata_collection.find_one(doc! {"_id": 0}).await
+        }
+        .map_err(MerkleTreeError::DatabaseError)?
+        .ok_or(MerkleTreeError::TreeNotFound)?;
         Ok(metadata.root)
     }
 
     async fn get_node(&self, index: u64, tree_id: &str) -> Result<F, Self::Error> {
+        self.get_node_with_session(index, tree_id, None).await
+    }
+
+    async fn get_node_with_session(
+        &self,
+        index: u64,
+        tree_id: &str,
+        mut session: Option<&mut ClientSession>,
+    ) -> Result<F, Self::Error> {
         // first, check if the node is in the temporary cache. This is used for when we don't want to write to the db
         let bson_index = to_bson(&index).map_err(|e| MerkleTreeError::DatabaseError(e.into()))?;
         let cache_collection_name = format!("{}_{}", tree_id, "cache");
         let cache_collection = self
             .database(<Self as MutableTree<F>>::MUT_DB_NAME)
             .collection::<Node<F>>(&cache_collection_name);
-        let node = cache_collection
-            .find_one(doc! {"_id": bson_index.clone()})
-            .await
-            .map_err(MerkleTreeError::DatabaseError)?;
+        let node = if let Some(session) = session.as_deref_mut() {
+            cache_collection
+                .find_one(doc! {"_id": bson_index.clone()})
+                .session(session)
+                .await
+        } else {
+            cache_collection
+                .find_one(doc! {"_id": bson_index.clone()})
+                .await
+        }
+        .map_err(MerkleTreeError::DatabaseError)?;
         match node {
             // if the node is in the cache, return it
             Some(node) => Ok(node.value),
@@ -112,10 +142,15 @@ where
                 let node_collection = self
                     .database(<Self as MutableTree<F>>::MUT_DB_NAME)
                     .collection::<Node<F>>(&node_collection_name);
-                let node = node_collection
-                    .find_one(doc! {"_id": bson_index})
-                    .await
-                    .map_err(MerkleTreeError::DatabaseError)?;
+                let node = if let Some(session) = session {
+                    node_collection
+                        .find_one(doc! {"_id": bson_index})
+                        .session(session)
+                        .await
+                } else {
+                    node_collection.find_one(doc! {"_id": bson_index}).await
+                }
+                .map_err(MerkleTreeError::DatabaseError)?;
                 // nodes that aren't in the database are returned as zero
                 match node {
                     Some(node) => Ok(node.value),
@@ -126,17 +161,20 @@ where
     }
 
     async fn flush_cache(&self, tree_id: &str) -> Result<(), Self::Error> {
+        <Self as MutableTree<F>>::flush_cache_with_session(self, tree_id, None).await
+    }
+
+    async fn flush_cache_with_session(
+        &self,
+        tree_id: &str,
+        mut session: Option<&mut ClientSession>,
+    ) -> Result<(), Self::Error> {
         let cache_collection_name = format!("{}_{}", tree_id, "cache");
         let cache_collection = self
             .database(<Self as MutableTree<F>>::MUT_DB_NAME)
             .collection::<Node<F>>(&cache_collection_name);
 
         // Stream all cached nodes
-        let mut cache_cursor = cache_collection
-            .find(doc! {})
-            .await
-            .map_err(MerkleTreeError::DatabaseError)?;
-
         // Target collection for persisted nodes
         let node_collection_name = format!("{}_{}", tree_id, "nodes");
         let node_collection = self
@@ -147,34 +185,74 @@ where
         let mut models: Vec<WriteModel> = Vec::new();
         let mut cached_entries: u64 = 0;
 
-        while let Some(node) = cache_cursor
-            .try_next()
-            .await
-            .map_err(MerkleTreeError::DatabaseError)?
-        {
-            cached_entries += 1;
-
-            let bson_id =
-                to_bson(&node._id).map_err(|e| MerkleTreeError::DatabaseError(e.into()))?;
-            let value_padded_hex = fr_to_bson_padded(&node.value)?;
-
-            // Build an UpdateOneModel for this node
-            let update_model = UpdateOneModel::builder()
-                .namespace(node_collection.namespace())
-                .filter(doc! { "_id": bson_id })
-                .update(doc! { "$set": { "value": value_padded_hex } })
-                .upsert(true)
-                .build();
-
-            models.push(WriteModel::UpdateOne(update_model));
-        }
-
-        // If there is nothing to flush, we can safely drop the cache and return.
-        if models.is_empty() {
-            cache_collection
-                .drop()
+        if let Some(session) = session.as_deref_mut() {
+            let mut cache_cursor = cache_collection
+                .find(doc! {})
+                .session(&mut *session)
                 .await
                 .map_err(MerkleTreeError::DatabaseError)?;
+
+            while let Some(node) = cache_cursor
+                .next(session)
+                .await
+                .transpose()
+                .map_err(MerkleTreeError::DatabaseError)?
+            {
+                cached_entries += 1;
+
+                let bson_id =
+                    to_bson(&node._id).map_err(|e| MerkleTreeError::DatabaseError(e.into()))?;
+                let value_padded_hex = fr_to_bson_padded(&node.value)?;
+
+                let update_model = UpdateOneModel::builder()
+                    .namespace(node_collection.namespace())
+                    .filter(doc! { "_id": bson_id })
+                    .update(doc! { "$set": { "value": value_padded_hex } })
+                    .upsert(true)
+                    .build();
+
+                models.push(WriteModel::UpdateOne(update_model));
+            }
+        } else {
+            let mut cache_cursor = cache_collection
+                .find(doc! {})
+                .await
+                .map_err(MerkleTreeError::DatabaseError)?;
+
+            while let Some(node) = cache_cursor
+                .try_next()
+                .await
+                .map_err(MerkleTreeError::DatabaseError)?
+            {
+                cached_entries += 1;
+
+                let bson_id =
+                    to_bson(&node._id).map_err(|e| MerkleTreeError::DatabaseError(e.into()))?;
+                let value_padded_hex = fr_to_bson_padded(&node.value)?;
+
+                let update_model = UpdateOneModel::builder()
+                    .namespace(node_collection.namespace())
+                    .filter(doc! { "_id": bson_id })
+                    .update(doc! { "$set": { "value": value_padded_hex } })
+                    .upsert(true)
+                    .build();
+
+                models.push(WriteModel::UpdateOne(update_model));
+            }
+        }
+
+        // If there is nothing to flush, we can safely clear the cache and return.
+        if models.is_empty() {
+            if let Some(session) = session.as_deref_mut() {
+                cache_collection
+                    .delete_many(doc! {})
+                    .session(session)
+                    .await
+                    .map(|_| ())
+            } else {
+                cache_collection.drop().await
+            }
+            .map_err(MerkleTreeError::DatabaseError)?;
             return Ok(());
         }
 
@@ -186,18 +264,13 @@ where
             ))
         })?;
 
-        if expected < 1 {
-            return Err(MerkleTreeError::Error(
-                "Invalid cached_entries count: must be positive".to_string(),
-            ));
-        }
-
         // Execute ordered bulk write so that on the first error, remaining operations are not applied.
-        let result = self
-            .bulk_write(models)
-            .ordered(true) // stop on first failure
-            .await
-            .map_err(MerkleTreeError::DatabaseError)?;
+        let result = if let Some(session) = session.as_deref_mut() {
+            self.bulk_write(models).ordered(true).session(session).await
+        } else {
+            self.bulk_write(models).ordered(true).await
+        }
+        .map_err(MerkleTreeError::DatabaseError)?;
 
         // For updates, "success" is counted as matched + upserted.
         let applied = result.matched_count + result.upserted_count;
@@ -209,11 +282,17 @@ where
             )));
         }
 
-        // Only now that we know all writes were acknowledged do we drop the cache.
-        cache_collection
-            .drop()
-            .await
-            .map_err(MerkleTreeError::DatabaseError)?;
+        // Only now that we know all writes were acknowledged do we clear the cache.
+        if let Some(session) = session {
+            cache_collection
+                .delete_many(doc! {})
+                .session(session)
+                .await
+                .map(|_| ())
+        } else {
+            cache_collection.drop().await
+        }
+        .map_err(MerkleTreeError::DatabaseError)?;
 
         Ok(())
     }
@@ -252,6 +331,18 @@ where
         update_tree: bool,
         tree_id: &str,
     ) -> Result<(), Self::Error> {
+        self.set_node_with_session(index, value, update_tree, tree_id, None)
+            .await
+    }
+
+    async fn set_node_with_session(
+        &self,
+        index: u64,
+        value: F,
+        update_tree: bool,
+        tree_id: &str,
+        session: Option<&mut ClientSession>,
+    ) -> Result<(), Self::Error> {
         let update_value = fr_to_bson_padded(&value)?;
         let bson_index = to_bson(&index).map_err(|e| MerkleTreeError::DatabaseError(e.into()))?;
         if !update_tree {
@@ -259,14 +350,25 @@ where
             let cache_collection = self
                 .database(<Self as MutableTree<F>>::MUT_DB_NAME)
                 .collection::<Node<F>>(&cache_collection_name);
-            let update = cache_collection
-                .update_one(
-                    doc! {"_id": bson_index},
-                    doc! {"$set": {"value": update_value}},
-                )
-                .upsert(true)
-                .await
-                .map_err(MerkleTreeError::DatabaseError)?;
+            let update = if let Some(session) = session {
+                cache_collection
+                    .update_one(
+                        doc! {"_id": bson_index},
+                        doc! {"$set": {"value": update_value}},
+                    )
+                    .upsert(true)
+                    .session(session)
+                    .await
+            } else {
+                cache_collection
+                    .update_one(
+                        doc! {"_id": bson_index},
+                        doc! {"$set": {"value": update_value}},
+                    )
+                    .upsert(true)
+                    .await
+            }
+            .map_err(MerkleTreeError::DatabaseError)?;
             // Check if the update succeeded
             if update.matched_count == 0 && update.upserted_id.is_none() {
                 return Err(MerkleTreeError::Error(
@@ -279,14 +381,25 @@ where
             let node_collection = self
                 .database(<Self as MutableTree<F>>::MUT_DB_NAME)
                 .collection::<Node<F>>(&node_collection_name);
-            let update = node_collection
-                .update_one(
-                    doc! {"_id": bson_index},
-                    doc! {"$set": {"value": update_value}},
-                )
-                .upsert(true)
-                .await
-                .map_err(MerkleTreeError::DatabaseError)?;
+            let update = if let Some(session) = session {
+                node_collection
+                    .update_one(
+                        doc! {"_id": bson_index},
+                        doc! {"$set": {"value": update_value}},
+                    )
+                    .upsert(true)
+                    .session(session)
+                    .await
+            } else {
+                node_collection
+                    .update_one(
+                        doc! {"_id": bson_index},
+                        doc! {"$set": {"value": update_value}},
+                    )
+                    .upsert(true)
+                    .await
+            }
+            .map_err(MerkleTreeError::DatabaseError)?;
             // Check if the update succeeded
             if update.matched_count == 0 && update.upserted_id.is_none() {
                 return Err(MerkleTreeError::Error(
@@ -310,16 +423,32 @@ where
         update_tree: bool,
         tree_id: &str,
     ) -> Result<F, Self::Error> {
+        self.insert_leaf_with_session(leaf, update_tree, tree_id, None)
+            .await
+    }
+
+    async fn insert_leaf_with_session(
+        &self,
+        leaf: F,
+        update_tree: bool,
+        tree_id: &str,
+        mut session: Option<&mut ClientSession>,
+    ) -> Result<F, Self::Error> {
         // get the tree metadata
         let metadata_collection_name = format!("{}_{}", tree_id, "metadata");
         let metadata_collection = self
             .database(<Self as MutableTree<F>>::MUT_DB_NAME)
             .collection::<TreeMetadata<F>>(&metadata_collection_name);
-        let metadata = metadata_collection
-            .find_one(doc! {"_id": 0})
-            .await
-            .map_err(MerkleTreeError::DatabaseError)?
-            .ok_or(MerkleTreeError::TreeNotFound)?;
+        let metadata = if let Some(session) = session.as_deref_mut() {
+            metadata_collection
+                .find_one(doc! {"_id": 0})
+                .session(session)
+                .await
+        } else {
+            metadata_collection.find_one(doc! {"_id": 0}).await
+        }
+        .map_err(MerkleTreeError::DatabaseError)?
+        .ok_or(MerkleTreeError::TreeNotFound)?;
         let sub_tree_count = metadata.sub_tree_count;
 
         // we'll 'add' each sub tree in turn but only write everything to the db at the end. This will be much
@@ -356,24 +485,48 @@ where
             MerkleTreeError::Error("node index computation overflowed".to_string())
         })?; // this is the index where we are going to put the sub_tree
         let mut node_index = sub_tree_node_index;
-        let mut updates = vec![self.set_node(node_index, leaf, update_tree, tree_id)]; // this will store all the hash values in the path from the leaf to the root
+        let mut pending_updates = vec![(node_index, leaf)]; // this will store all the hash values in the path from the leaf to the root
 
         for _i in 0..metadata.tree_height + metadata.sub_tree_height {
             hash = if node_index % 2 == 0 {
                 hasher
-                    .tree_hash(&[self.get_node(node_index - 1, tree_id).await?, hash])
+                    .tree_hash(&[
+                        self.get_node_with_session(node_index - 1, tree_id, session.as_deref_mut())
+                            .await?,
+                        hash,
+                    ])
                     .expect("Could not hash nodes together")
             } else {
                 hasher
-                    .tree_hash(&[hash, self.get_node(node_index + 1, tree_id).await?])
+                    .tree_hash(&[
+                        hash,
+                        self.get_node_with_session(node_index + 1, tree_id, session.as_deref_mut())
+                            .await?,
+                    ])
                     .expect("Could not hash nodes together")
             };
             node_index = (node_index - 1) / 2;
-            updates.push(self.set_node(node_index, hash, update_tree, tree_id));
-            // save the updated nodes
+            pending_updates.push((node_index, hash));
         }
 
-        try_join_all(updates).await?;
+        if session.is_some() {
+            for (index, value) in pending_updates {
+                self.set_node_with_session(
+                    index,
+                    value,
+                    update_tree,
+                    tree_id,
+                    session.as_deref_mut(),
+                )
+                .await?;
+            }
+        } else {
+            let updates = pending_updates
+                .into_iter()
+                .map(|(index, value)| self.set_node(index, value, update_tree, tree_id))
+                .collect::<Vec<_>>();
+            try_join_all(updates).await?;
+        }
 
         // store the updated sub tree count
         if update_tree {
@@ -387,17 +540,24 @@ where
                 _id: 0,
                 root: hash,
             };
-            let result = metadata_collection
-                .replace_one(doc! {"_id": 0}, new_metadata)
-                .await
-                .map_err(MerkleTreeError::DatabaseError)?;
+            let result = if let Some(session) = session.as_deref_mut() {
+                metadata_collection
+                    .replace_one(doc! {"_id": 0}, new_metadata)
+                    .session(session)
+                    .await
+            } else {
+                metadata_collection
+                    .replace_one(doc! {"_id": 0}, new_metadata)
+                    .await
+            }
+            .map_err(MerkleTreeError::DatabaseError)?;
             if result.matched_count == 0 && result.upserted_id.is_none() {
                 return Err(MerkleTreeError::Error(
                     "Failed to update the tree metadata in the database".to_string(),
                 ));
             }
             // save the cached nodes
-            <Self as MutableTree<F>>::flush_cache(self, tree_id).await?;
+            <Self as MutableTree<F>>::flush_cache_with_session(self, tree_id, session).await?;
         }
         // return the final root and the new sub tree count (from which leaf indices can be derived)
         Ok(hash)
@@ -409,16 +569,32 @@ where
         update_tree: bool,
         tree_id: &str,
     ) -> Result<(F, u64), Self::Error> {
+        self.append_sub_trees_with_session(leaves, update_tree, tree_id, None)
+            .await
+    }
+
+    async fn append_sub_trees_with_session(
+        &self,
+        leaves: &[F],
+        update_tree: bool,
+        tree_id: &str,
+        mut session: Option<&mut ClientSession>,
+    ) -> Result<(F, u64), Self::Error> {
         // get the tree metadata
         let metadata_collection_name = format!("{}_{}", tree_id, "metadata");
         let metadata_collection = self
             .database(<Self as MutableTree<F>>::MUT_DB_NAME)
             .collection::<TreeMetadata<F>>(&metadata_collection_name);
-        let metadata = metadata_collection
-            .find_one(doc! {"_id": 0})
-            .await
-            .map_err(MerkleTreeError::DatabaseError)?
-            .ok_or(MerkleTreeError::TreeNotFound)?;
+        let metadata = if let Some(session) = session.as_deref_mut() {
+            metadata_collection
+                .find_one(doc! {"_id": 0})
+                .session(session)
+                .await
+        } else {
+            metadata_collection.find_one(doc! {"_id": 0}).await
+        }
+        .map_err(MerkleTreeError::DatabaseError)?
+        .ok_or(MerkleTreeError::TreeNotFound)?;
         let mut sub_tree_count = metadata.sub_tree_count;
         let old_sub_tree_count = sub_tree_count;
         // Basic data validation
@@ -472,22 +648,37 @@ where
                     Self::Error::Error("sub tree index too large to compute node index".to_string())
                 })?; // this is the index where we're going to put the sub_tree
             let mut node_index = sub_tree_node_index;
-            let mut updates = vec![self.set_node(node_index, sub_tree_root, update_tree, tree_id)]; // this will store all the hash values in the path from the leaf to the root
+            let mut pending_updates = vec![(node_index, sub_tree_root)]; // this will store all the hash values in the path from the leaf to the root
             hash = sub_tree_root; // the main tree leaf value is the starting hash
                                   // hash to get the path up the tree, store the updated nodes as we go
             for _i in 0..metadata.tree_height {
                 hash = if node_index % 2 == 0 {
                     hasher
-                        .tree_hash(&[self.get_node(node_index - 1, tree_id).await?, hash])
+                        .tree_hash(&[
+                            self.get_node_with_session(
+                                node_index - 1,
+                                tree_id,
+                                session.as_deref_mut(),
+                            )
+                            .await?,
+                            hash,
+                        ])
                         .expect("Could not hash nodes together")
                 } else {
                     hasher
-                        .tree_hash(&[hash, self.get_node(node_index + 1, tree_id).await?])
+                        .tree_hash(&[
+                            hash,
+                            self.get_node_with_session(
+                                node_index + 1,
+                                tree_id,
+                                session.as_deref_mut(),
+                            )
+                            .await?,
+                        ])
                         .expect("Could not hash nodes together")
                 };
                 node_index = (node_index - 1) / 2;
-                updates.push(self.set_node(node_index, hash, update_tree, tree_id));
-                // save the updated nodes
+                pending_updates.push((node_index, hash));
             }
 
             // for the nodes in the sub tree we count downwards, ignoring the root because we already counted that
@@ -500,17 +691,28 @@ where
                 span *= 2;
                 for j in node_index..(node_index + span) {
                     sub_tree_node_index += 1;
-                    updates.push(self.set_node(
-                        j,
-                        sub_tree[sub_tree_node_index],
-                        update_tree,
-                        tree_id,
-                    ));
+                    pending_updates.push((j, sub_tree[sub_tree_node_index]));
                 }
             }
 
-            // run the set functions concurrently to update the nodes we changed
-            try_join_all(updates).await?;
+            if session.is_some() {
+                for (index, value) in pending_updates {
+                    self.set_node_with_session(
+                        index,
+                        value,
+                        update_tree,
+                        tree_id,
+                        session.as_deref_mut(),
+                    )
+                    .await?;
+                }
+            } else {
+                let updates = pending_updates
+                    .into_iter()
+                    .map(|(index, value)| self.set_node(index, value, update_tree, tree_id))
+                    .collect::<Vec<_>>();
+                try_join_all(updates).await?;
+            }
             sub_tree_count = sub_tree_count
                 .checked_add(1)
                 .ok_or_else(|| Self::Error::Error("sub_tree_count overflowed".to_string()))?;
@@ -524,12 +726,19 @@ where
                 _id: 0,
                 root: hash,
             };
-            metadata_collection
-                .replace_one(doc! {"_id": 0}, new_metadata)
-                .await
-                .map_err(MerkleTreeError::DatabaseError)?;
+            if let Some(session) = session.as_deref_mut() {
+                metadata_collection
+                    .replace_one(doc! {"_id": 0}, new_metadata)
+                    .session(session)
+                    .await
+            } else {
+                metadata_collection
+                    .replace_one(doc! {"_id": 0}, new_metadata)
+                    .await
+            }
+            .map_err(MerkleTreeError::DatabaseError)?;
             // save the cached nodes
-            <Self as MutableTree<F>>::flush_cache(self, tree_id).await?;
+            <Self as MutableTree<F>>::flush_cache_with_session(self, tree_id, session).await?;
         } else {
             sub_tree_count = old_sub_tree_count;
         }
@@ -673,16 +882,33 @@ where
         update_tree: bool,
         tree_id: &str,
     ) -> Result<F, Self::Error> {
+        self.update_sub_tree_with_session(sub_tree_index, leaves, update_tree, tree_id, None)
+            .await
+    }
+
+    async fn update_sub_tree_with_session(
+        &self,
+        sub_tree_index: u64,
+        leaves: &[F],
+        update_tree: bool,
+        tree_id: &str,
+        mut session: Option<&mut ClientSession>,
+    ) -> Result<F, Self::Error> {
         // get the tree metadata
         let metadata_collection_name = format!("{}_{}", tree_id, "metadata");
         let metadata_collection = self
             .database(<Self as MutableTree<F>>::MUT_DB_NAME)
             .collection::<TreeMetadata<F>>(&metadata_collection_name);
-        let metadata = metadata_collection
-            .find_one(doc! {"_id": 0})
-            .await
-            .map_err(MerkleTreeError::DatabaseError)?
-            .ok_or(MerkleTreeError::TreeNotFound)?;
+        let metadata = if let Some(session) = session.as_deref_mut() {
+            metadata_collection
+                .find_one(doc! {"_id": 0})
+                .session(session)
+                .await
+        } else {
+            metadata_collection.find_one(doc! {"_id": 0}).await
+        }
+        .map_err(MerkleTreeError::DatabaseError)?
+        .ok_or(MerkleTreeError::TreeNotFound)?;
         // Basic data validation
 
         let total_height = metadata
@@ -734,22 +960,29 @@ where
                 Self::Error::Error("subtree index too large to compute node index".to_string())
             })?; // this is the index where we're going to put the sub_tree
         let mut node_index = sub_tree_node_index;
-        let mut updates = vec![self.set_node(node_index, sub_tree_root, update_tree, tree_id)]; // this will store all the hash values in the path from the leaf to the root
+        let mut pending_updates = vec![(node_index, sub_tree_root)]; // this will store all the hash values in the path from the leaf to the root
         let mut hash = sub_tree_root; // the main tree leaf value is the starting hash
                                       // hash to get the path up the tree, store the updated nodes as we go
         for _i in 0..height_to_use {
             hash = if node_index % 2 == 0 {
                 hasher
-                    .tree_hash(&[self.get_node(node_index - 1, tree_id).await?, hash])
+                    .tree_hash(&[
+                        self.get_node_with_session(node_index - 1, tree_id, session.as_deref_mut())
+                            .await?,
+                        hash,
+                    ])
                     .expect("Could not hash nodes together")
             } else {
                 hasher
-                    .tree_hash(&[hash, self.get_node(node_index + 1, tree_id).await?])
+                    .tree_hash(&[
+                        hash,
+                        self.get_node_with_session(node_index + 1, tree_id, session.as_deref_mut())
+                            .await?,
+                    ])
                     .expect("Could not hash nodes together")
             };
             node_index = (node_index - 1) / 2;
-            updates.push(self.set_node(node_index, hash, update_tree, tree_id));
-            // save the updated nodes
+            pending_updates.push((node_index, hash));
         }
         // for the nodes in the sub tree we count downwards, ignoring the root because we already counted that
         // i is the row in the sub tree, counting from the top
@@ -762,20 +995,36 @@ where
                 span *= 2;
                 for j in node_index..(node_index + span) {
                     sub_tree_node_index += 1;
-                    updates.push(self.set_node(
-                        j,
-                        sub_tree[sub_tree_node_index],
-                        update_tree,
-                        tree_id,
-                    ));
+                    pending_updates.push((j, sub_tree[sub_tree_node_index]));
                 }
             }
         };
-        // run the set functions concurrently to update the nodes we changed
-        try_join_all(updates).await?;
+        if session.is_some() {
+            for (index, value) in pending_updates {
+                self.set_node_with_session(
+                    index,
+                    value,
+                    update_tree,
+                    tree_id,
+                    session.as_deref_mut(),
+                )
+                .await?;
+            }
+        } else {
+            let updates = pending_updates
+                .into_iter()
+                .map(|(index, value)| self.set_node(index, value, update_tree, tree_id))
+                .collect::<Vec<_>>();
+            try_join_all(updates).await?;
+        }
         if update_tree {
             // save the cached nodes
-            <Self as MutableTree<F>>::flush_cache(self, tree_id).await?
+            <Self as MutableTree<F>>::flush_cache_with_session(
+                self,
+                tree_id,
+                session.as_deref_mut(),
+            )
+            .await?
         }
         // save the updated root
         let new_metadata = TreeMetadata {
@@ -785,10 +1034,17 @@ where
             _id: 0,
             root: hash,
         };
-        metadata_collection
-            .replace_one(doc! {"_id": 0}, new_metadata)
-            .await
-            .map_err(MerkleTreeError::DatabaseError)?;
+        if let Some(session) = session {
+            metadata_collection
+                .replace_one(doc! {"_id": 0}, new_metadata)
+                .session(session)
+                .await
+        } else {
+            metadata_collection
+                .replace_one(doc! {"_id": 0}, new_metadata)
+                .await
+        }
+        .map_err(MerkleTreeError::DatabaseError)?;
         // return the updated root
         Ok(hash)
     }
@@ -1215,5 +1471,49 @@ mod test {
             result,
             Err(MerkleTreeError::Error(msg)) if msg.contains("sub_tree_height too large")
         ));
+    }
+
+    #[tokio::test]
+    async fn flush_cache_with_session_succeeds_inside_transaction() {
+        let container = get_mongo().await;
+        let client = get_db_connection(&container).await;
+        let tree_id = "flush_cache_transaction_safe";
+
+        <mongodb::Client as MutableTree<Fr254>>::new_mutable_tree(&client, 3, 1, tree_id)
+            .await
+            .expect("create mutable tree");
+
+        let cache_collection = client
+            .database(<mongodb::Client as MutableTree<Fr254>>::MUT_DB_NAME)
+            .collection::<Node<Fr254>>(&format!("{tree_id}_cache"));
+        cache_collection
+            .insert_one(Node {
+                value: Fr254::one(),
+                _id: 0,
+            })
+            .await
+            .expect("seed cache entry");
+
+        let mut session = client.start_session().await.expect("start session");
+        session
+            .start_transaction()
+            .and_run2(async |session| {
+                <mongodb::Client as MutableTree<Fr254>>::flush_cache_with_session(
+                    &client,
+                    tree_id,
+                    Some(session),
+                )
+                .await
+                .map_err(|error| mongodb::error::Error::custom(error.to_string()))?;
+                Ok::<(), mongodb::error::Error>(())
+            })
+            .await
+            .expect("flush cache in transaction should commit");
+
+        let remaining_cache_docs = cache_collection
+            .count_documents(mongodb::bson::doc! {})
+            .await
+            .expect("count cache docs");
+        assert_eq!(remaining_cache_docs, 0);
     }
 }

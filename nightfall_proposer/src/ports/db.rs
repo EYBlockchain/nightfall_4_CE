@@ -1,5 +1,9 @@
 use crate::{
-    domain::entities::{ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot},
+    domain::entities::{
+        ClientTransactionWithMetaData, DepositDatawithFee, HistoricRoot, PendingBlock,
+        RestoreJournal, StartupReplayResetMarker, SyncState, TransferReceipt,
+        TransferReceiptStatus, TxHashBytes,
+    },
     driven::db::mongo_db::StoredBlock,
 };
 use ark_bn254::Fr as Fr254;
@@ -12,10 +16,137 @@ use serde::{Deserialize, Serialize};
 #[async_trait::async_trait]
 pub trait BlockStorageDB {
     async fn store_block(&self, block: &StoredBlock) -> Option<()>;
+    async fn store_block_with_session(
+        &self,
+        _block: &StoredBlock,
+        _session: &mut mongodb::ClientSession,
+    ) -> Result<(), mongodb::error::Error> {
+        Err(mongodb::error::Error::custom(
+            "store_block_with_session must be implemented with session-aware writes",
+        ))
+    }
     async fn get_block_by_number(&self, block_number: u64) -> Option<StoredBlock>;
     async fn get_all_blocks(&self) -> Option<Vec<StoredBlock>>;
     async fn delete_block_by_number(&self, block_number: u64) -> Option<()>;
+    async fn delete_all_blocks(&self) -> Option<u64> {
+        let blocks = self.get_all_blocks().await?;
+        let mut deleted = 0_u64;
+        for block in blocks {
+            self.delete_block_by_number(block.layer2_block_number)
+                .await?;
+            deleted += 1;
+        }
+        Some(deleted)
+    }
+    async fn delete_block_by_number_with_session(
+        &self,
+        _block_number: u64,
+        session: &mut mongodb::ClientSession,
+    ) -> Result<(), mongodb::error::Error> {
+        let _ = session;
+        Err(mongodb::error::Error::custom(
+            "delete_block_by_number_with_session must be implemented with session-aware deletes",
+        ))
+    }
+    async fn delete_all_blocks_with_session(
+        &self,
+        session: &mut mongodb::ClientSession,
+    ) -> Result<u64, mongodb::error::Error> {
+        let blocks = self
+            .get_all_blocks()
+            .await
+            .ok_or_else(|| mongodb::error::Error::custom("Could not list proposed blocks"))?;
+        let mut deleted = 0_u64;
+        for block in blocks {
+            self.delete_block_by_number_with_session(block.layer2_block_number, session)
+                .await?;
+            deleted += 1;
+        }
+        Ok(deleted)
+    }
 }
+
+#[async_trait::async_trait]
+pub trait SyncStateDB {
+    async fn update_sync_state_with_session(
+        &self,
+        state: &SyncState,
+        session: &mut mongodb::ClientSession,
+    ) -> Result<(), mongodb::error::Error>;
+
+    async fn get_sync_state(&self) -> Option<SyncState>;
+
+    async fn delete_sync_state_with_session(
+        &self,
+        _session: &mut mongodb::ClientSession,
+    ) -> Result<(), mongodb::error::Error> {
+        Err(mongodb::error::Error::custom(
+            "delete_sync_state_with_session must be implemented with session-aware deletes",
+        ))
+    }
+}
+
+#[async_trait::async_trait]
+pub trait RestoreJournalDB {
+    async fn upsert_restore_journal(
+        &self,
+        journal: &RestoreJournal,
+    ) -> Result<(), mongodb::error::Error>;
+
+    async fn get_restore_journal(&self) -> Option<RestoreJournal>;
+
+    async fn delete_restore_journal(&self) -> Result<(), mongodb::error::Error>;
+}
+
+#[async_trait::async_trait]
+pub trait StartupReplayResetMarkerDB {
+    async fn upsert_startup_replay_reset_marker(
+        &self,
+        marker: &StartupReplayResetMarker,
+    ) -> Result<(), mongodb::error::Error>;
+
+    async fn upsert_startup_replay_reset_marker_with_session(
+        &self,
+        _marker: &StartupReplayResetMarker,
+        _session: &mut mongodb::ClientSession,
+    ) -> Result<(), mongodb::error::Error> {
+        Err(mongodb::error::Error::custom(
+            "upsert_startup_replay_reset_marker_with_session must be implemented with session-aware writes",
+        ))
+    }
+
+    async fn get_startup_replay_reset_marker(&self) -> Option<StartupReplayResetMarker>;
+
+    async fn delete_startup_replay_reset_marker(&self) -> Result<(), mongodb::error::Error>;
+}
+
+#[async_trait::async_trait]
+pub trait PendingBlockDB {
+    async fn store_pending_block(&self, pending_block: &PendingBlock) -> Option<()>;
+    async fn get_pending_block(&self, block_number: u64) -> Option<PendingBlock>;
+    async fn get_all_pending_blocks(&self) -> Option<Vec<PendingBlock>>;
+    async fn delete_pending_block(&self, block_number: u64) -> Option<()>;
+    async fn delete_all_pending_blocks(&self) -> Option<u64> {
+        let pending_blocks = self.get_all_pending_blocks().await?;
+        let mut deleted = 0_u64;
+        for pending_block in pending_blocks {
+            self.delete_pending_block(pending_block.layer2_block_number)
+                .await?;
+            deleted += 1;
+        }
+        Some(deleted)
+    }
+    async fn delete_all_pending_blocks_with_session(
+        &self,
+        session: &mut mongodb::ClientSession,
+    ) -> Result<u64, mongodb::error::Error> {
+        let _ = session;
+        Err(mongodb::error::Error::custom(
+            "delete_all_pending_blocks_with_session must be implemented with session-aware deletes",
+        ))
+    }
+}
+
 /// Used to store transactions that are on chain. Can be queried to see if a nullifier or commitment is on chain.
 #[async_trait::async_trait]
 pub trait TransactionsDB<'a, P> {
@@ -28,6 +159,9 @@ pub trait TransactionsDB<'a, P> {
         &self,
     ) -> Option<Vec<(Vec<u32>, ClientTransactionWithMetaData<P>)>>;
     async fn get_all_selected_client_transactions(
+        &self,
+    ) -> Option<Vec<(Vec<u32>, ClientTransactionWithMetaData<P>)>>;
+    async fn get_all_selected_or_included_client_transactions(
         &self,
     ) -> Option<Vec<(Vec<u32>, ClientTransactionWithMetaData<P>)>>;
     async fn count_mempool_client_transactions(&self) -> Result<u64, mongodb::error::Error>;
@@ -54,9 +188,18 @@ pub trait TransactionsDB<'a, P> {
         transactions: &[ClientTransactionWithMetaData<P>],
         block_l2: u64,
     ) -> Option<u64>;
+    async fn mark_transactions_included_by_hashes(
+        &self,
+        transaction_hashes: &[Vec<u32>],
+    ) -> Option<u64>;
     async fn drop_transactions(
         &self,
         transactions: &[ClientTransactionWithMetaData<P>],
+    ) -> Option<u64>;
+    async fn set_client_transactions_in_mempool_by_hashes(
+        &self,
+        transaction_hashes: &[Vec<u32>],
+        in_mempool: bool,
     ) -> Option<u64>;
     async fn find_transaction(
         &self,
@@ -70,6 +213,12 @@ pub trait TransactionsDB<'a, P> {
         &self,
         used_deposits: Vec<Vec<DepositDatawithFee>>,
     ) -> Option<u64>;
+    async fn set_mempool_deposits_reserved(
+        &self,
+        deposits: Vec<Vec<DepositDatawithFee>>,
+        reserved: bool,
+    ) -> Option<u64>;
+    async fn clear_all_mempool_deposit_reservations(&self) -> Option<u64>;
     async fn remove_all_mempool_deposits(&self) -> Option<u64>;
     async fn remove_all_mempool_client_transactions(&self) -> Option<u64>;
 }
@@ -177,4 +326,36 @@ pub trait MerkleTreeDB<F> {
     ) -> Result<Vec<F>, Self::Error>;
     async fn new_tree(&mut self, tree_height: u32, tree_name: &str) -> Result<(), Self::Error>;
     async fn get_tree_height(&self, tree_name: &str) -> Result<u32, Self::Error>;
+}
+
+/// Error type for transfer receipt storage operations.
+#[derive(Debug)]
+pub enum TransferReceiptStoreError {
+    /// Duplicate unique key (receipt_id or tx_hash already exists).
+    DuplicateKey,
+    /// Any other storage error.
+    Other(String),
+}
+
+/// Trait for a DB that stores and retrieves transfer receipts.
+#[async_trait::async_trait]
+pub trait TransferReceiptDB {
+    async fn store_transfer_receipt(
+        &self,
+        receipt: TransferReceipt,
+    ) -> Result<(), TransferReceiptStoreError>;
+
+    async fn get_transfer_receipt(&self, receipt_id: &str) -> Option<TransferReceipt>;
+
+    async fn get_transfer_receipt_by_tx_hash(
+        &self,
+        tx_hash: &TxHashBytes,
+    ) -> Option<TransferReceipt>;
+
+    async fn set_transfer_receipt_status(
+        &self,
+        receipt_id: &str,
+        status: TransferReceiptStatus,
+        updated_at_unix: i64,
+    ) -> Option<()>;
 }

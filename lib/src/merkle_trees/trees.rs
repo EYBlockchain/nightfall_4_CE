@@ -203,6 +203,16 @@ where
         update_tree: bool,
         tree_id: &str,
     ) -> Result<(F, u64), Self::Error>;
+    /// appends one or more subtrees using the provided MongoDB session when present
+    async fn append_sub_trees_with_session(
+        &self,
+        leaves: &[F],
+        update_tree: bool,
+        tree_id: &str,
+        _session: Option<&mut mongodb::ClientSession>,
+    ) -> Result<(F, u64), Self::Error> {
+        self.append_sub_trees(leaves, update_tree, tree_id).await
+    }
     /// Allows on e to insert a single leaf into the tree regardless of the specified subtree size.
     async fn insert_leaf(
         &self,
@@ -210,6 +220,16 @@ where
         update_tree: bool,
         tree_id: &str,
     ) -> Result<F, Self::Error>;
+    /// inserts a single leaf using the provided MongoDB session when present
+    async fn insert_leaf_with_session(
+        &self,
+        leaf: F,
+        update_tree: bool,
+        tree_id: &str,
+        _session: Option<&mut mongodb::ClientSession>,
+    ) -> Result<F, Self::Error> {
+        self.insert_leaf(leaf, update_tree, tree_id).await
+    }
     /// allows one to update a sub-tree
     async fn update_sub_tree(
         &self,
@@ -218,6 +238,18 @@ where
         update_tree: bool,
         tree_id: &str,
     ) -> Result<F, Self::Error>;
+    /// updates a subtree using the provided MongoDB session when present
+    async fn update_sub_tree_with_session(
+        &self,
+        sub_tree_index: u64,
+        leaves: &[F],
+        update_tree: bool,
+        tree_id: &str,
+        _session: Option<&mut mongodb::ClientSession>,
+    ) -> Result<F, Self::Error> {
+        self.update_sub_tree(sub_tree_index, leaves, update_tree, tree_id)
+            .await
+    }
     /// get a membership proof
     async fn get_membership_proof(
         &self,
@@ -227,6 +259,15 @@ where
     ) -> Result<MembershipProof<F>, Self::Error>;
     /// returns the node value at the given index
     async fn get_node(&self, index: u64, tree_id: &str) -> Result<F, Self::Error>;
+    /// returns the node value at the given index using the provided MongoDB session when present
+    async fn get_node_with_session(
+        &self,
+        index: u64,
+        tree_id: &str,
+        _session: Option<&mut mongodb::ClientSession>,
+    ) -> Result<F, Self::Error> {
+        self.get_node(index, tree_id).await
+    }
     /// sets the node value at the given index
     async fn set_node(
         &self,
@@ -235,12 +276,39 @@ where
         update_tree: bool,
         tree_id: &str,
     ) -> Result<(), Self::Error>;
+    /// sets the node value using the provided MongoDB session when present
+    async fn set_node_with_session(
+        &self,
+        index: u64,
+        value: F,
+        update_tree: bool,
+        tree_id: &str,
+        _session: Option<&mut mongodb::ClientSession>,
+    ) -> Result<(), Self::Error> {
+        self.set_node(index, value, update_tree, tree_id).await
+    }
     /// determines if a leaf is in the tree
     async fn is_leaf(&self, leaf: &F, tree_id: &str) -> Result<bool, Self::Error>;
     /// writes the temporary node cache to the database and clears the cache. This is normally done automatically.
     async fn flush_cache(&self, tree_id: &str) -> Result<(), Self::Error>;
+    /// flushes the node cache using the provided MongoDB session when present
+    async fn flush_cache_with_session(
+        &self,
+        tree_id: &str,
+        _session: Option<&mut mongodb::ClientSession>,
+    ) -> Result<(), Self::Error> {
+        self.flush_cache(tree_id).await
+    }
     /// returns the current root of the tree
     async fn get_root(&self, tree_id: &str) -> Result<F, Self::Error>;
+    /// returns the current root using the provided MongoDB session when present
+    async fn get_root_with_session(
+        &self,
+        tree_id: &str,
+        _session: Option<&mut mongodb::ClientSession>,
+    ) -> Result<F, Self::Error> {
+        self.get_root(tree_id).await
+    }
     /// Inserts leaves into the tree and returns information allowing us to verify in a circuit.
     async fn insert_for_circuit(
         &self,
@@ -289,6 +357,15 @@ where
         inner_leaf_values: &[F],
         tree_id: &str,
     ) -> Result<F, <Self as MutableTree<F>>::Error>;
+    /// inserts leaves using the provided MongoDB session when present
+    async fn insert_leaves_with_session(
+        &self,
+        inner_leaf_values: &[F],
+        tree_id: &str,
+        _session: Option<&mut mongodb::ClientSession>,
+    ) -> Result<F, <Self as MutableTree<F>>::Error> {
+        self.insert_leaves(inner_leaf_values, tree_id).await
+    }
     /// Inserts leaves into the tree and returns information allowing us to verify in a circuit.
     async fn insert_nullifiers_for_circuit(
         &self,
@@ -321,6 +398,16 @@ pub trait IndexedLeaves<F: PrimeField> {
         index: Option<u64>,
         tree_id: &str,
     ) -> Result<Option<()>, Self::Error>;
+    /// stores a leaf using the provided MongoDB session when present
+    async fn store_leaf_with_session(
+        &self,
+        leaf: F,
+        index: Option<u64>,
+        tree_id: &str,
+        _session: Option<&mut mongodb::ClientSession>,
+    ) -> Result<Option<()>, Self::Error> {
+        self.store_leaf(leaf, index, tree_id).await
+    }
     /// Searches the database for a leaf with the supplied fields. If it finds one, it returns it.
     async fn get_leaf(
         &self,
@@ -328,6 +415,16 @@ pub trait IndexedLeaves<F: PrimeField> {
         next_value: Option<F>,
         tree_id: &str,
     ) -> Result<Option<IndexedLeaf<F>>, Self::Error>;
+    /// retrieves a leaf using the provided MongoDB session when present
+    async fn get_leaf_with_session(
+        &self,
+        leaf_value: Option<F>,
+        next_value: Option<F>,
+        tree_id: &str,
+        _session: Option<&mut mongodb::ClientSession>,
+    ) -> Result<Option<IndexedLeaf<F>>, Self::Error> {
+        self.get_leaf(leaf_value, next_value, tree_id).await
+    }
     /// Searches the database for the leaf that skips over the supplied value. That is finds the leaf such that
     /// `low_leaf.value` < `leaf_value` < `low_leaf.next_value`. If it finds one, it returns it.
     async fn get_low_leaf(
@@ -335,6 +432,15 @@ pub trait IndexedLeaves<F: PrimeField> {
         leaf_value: &F,
         tree_id: &str,
     ) -> Result<Option<IndexedLeaf<F>>, Self::Error>;
+    /// retrieves the low leaf using the provided MongoDB session when present
+    async fn get_low_leaf_with_session(
+        &self,
+        leaf_value: &F,
+        tree_id: &str,
+        _session: Option<&mut mongodb::ClientSession>,
+    ) -> Result<Option<IndexedLeaf<F>>, Self::Error> {
+        self.get_low_leaf(leaf_value, tree_id).await
+    }
     /// Updates the leaf entry stored with value `leaf` with the new `next_value`.
     async fn update_leaf(
         &self,
@@ -343,6 +449,18 @@ pub trait IndexedLeaves<F: PrimeField> {
         new_next_value: F,
         tree_id: &str,
     ) -> Result<(), Self::Error>;
+    /// updates a leaf using the provided MongoDB session when present
+    async fn update_leaf_with_session(
+        &self,
+        leaf: F,
+        new_next_index: u64,
+        new_next_value: F,
+        tree_id: &str,
+        _session: Option<&mut mongodb::ClientSession>,
+    ) -> Result<(), Self::Error> {
+        self.update_leaf(leaf, new_next_index, new_next_value, tree_id)
+            .await
+    }
 }
 
 pub(crate) mod helper_functions {

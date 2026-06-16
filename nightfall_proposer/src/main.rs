@@ -6,6 +6,8 @@ use nightfall_proposer::drivers::blockchain::event_listener_manager::ensure_runn
 use nightfall_proposer::{
     driven::{db::mongo_db::DB, mock_prover::MockProver, rollup_prover::RollupProver},
     drivers::{blockchain::block_assembly::start_block_assembly, rest::routes},
+    initialisation::bootstrap_proposer_startup_state,
+    services::snapshot_scheduler::run_snapshot_scheduler,
 };
 use std::error::Error;
 
@@ -22,10 +24,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
         settings.log_app_only,
     );
 
-    // drop any existing database
-    let db_url = &settings.nightfall_proposer.db_url;
-    info!("Dropping database: {DB}");
-    let _ = lib::utils::drop_database(db_url, DB).await;
+    info!("Bootstrapping proposer startup state from {DB}");
+    bootstrap_proposer_startup_state::<N>()
+        .await
+        .map_err(|e| format!("Proposer startup bootstrap failed: {e}"))?;
+
+    // start the event listener
+    ensure_running::<P, E, N>().await;
+    let _snapshot_scheduler_task = tokio::spawn(run_snapshot_scheduler());
 
     let task_0 = if settings.mock_prover {
         info!("Using MockProver");
@@ -34,10 +40,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
         info!("Using RollupProver");
         tokio::spawn(start_block_assembly::<P, RollupProver, N>())
     };
-
-    // start the event listener
-    // ── start the (owned) event listener once ─────────────────────────────────
-    ensure_running::<P, E, N>().await;
 
     let routes = routes::<P, E>();
     let task_2 = tokio::spawn(warp::serve(routes).run(([0, 0, 0, 0], 3000)));
