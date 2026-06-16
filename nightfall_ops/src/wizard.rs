@@ -1,4 +1,4 @@
-use crate::config;
+use crate::{checks, config};
 
 pub fn deploy() -> Result<(), String> {
     if !config::required_repo_files_exist() {
@@ -12,6 +12,8 @@ pub fn deploy() -> Result<(), String> {
     println!("- deployed contract hashes");
     println!("- proving keys");
     println!();
-    println!("Fresh deployment wizard is not implemented yet.");
+    checks::deployer()?;
+    println!();
+    println!("Fresh deployment configuration collection is not implemented yet.");
     Ok(())
 }
