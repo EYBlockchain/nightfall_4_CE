@@ -1,4 +1,4 @@
-use std::process::Command;
+use std::{process::Command, thread, time::Duration};
 
 const CONFIGURATION_ENDPOINTS: &[(&str, &str)] = &[
     ("addresses.toml", "configuration/toml/addresses.toml"),
@@ -19,8 +19,22 @@ pub struct EndpointCheck {
 pub fn configuration_endpoints(configuration_url: &str) -> Result<(), String> {
     println!("Checking configuration service...");
 
+    let mut checks = Vec::new();
+    for attempt in 1..=10 {
+        checks = configuration_endpoint_checks_with_timeout(configuration_url, "5");
+        if checks.iter().all(|check| check.ok) {
+            break;
+        }
+        if attempt == 1 {
+            println!("  Configuration service is starting; waiting for endpoints...");
+        }
+        if attempt < 10 {
+            thread::sleep(Duration::from_secs(3));
+        }
+    }
+
     let mut failures = Vec::new();
-    for check in configuration_endpoint_checks_with_timeout(configuration_url, "20") {
+    for check in checks {
         if check.ok {
             println!("  {}: OK", check.label);
         } else {

@@ -158,8 +158,8 @@ fn cast_value(command: &str, rpc_url: &str) -> Result<u64, String> {
         return Err(command_detail(&output).unwrap_or_else(|| format!("cast {command} failed")));
     }
 
-    command_detail(&output)
-        .ok_or_else(|| format!("cast {command} returned no output"))?
+    numeric_line(&output.stdout)
+        .ok_or_else(|| format!("cast {command} returned no numeric output"))?
         .parse::<u64>()
         .map_err(|err| format!("failed to parse cast {command} output: {err}"))
 }
@@ -178,7 +178,7 @@ fn contract_has_code(address: &str, rpc_url: &str) -> Result<bool, String> {
         return Err(command_detail(&output).unwrap_or_else(|| "cast code failed".to_string()));
     }
 
-    let code = command_detail(&output).unwrap_or_default();
+    let code = first_stdout_line(&output.stdout).unwrap_or_default();
     Ok(!code.is_empty() && code != "0x")
 }
 
@@ -319,6 +319,22 @@ fn command_detail(output: &std::process::Output) -> Option<String> {
         .map(ToString::to_string)
 }
 
+fn first_stdout_line(bytes: &[u8]) -> Option<String> {
+    String::from_utf8_lossy(bytes)
+        .lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty())
+        .map(ToString::to_string)
+}
+
+fn numeric_line(bytes: &[u8]) -> Option<String> {
+    String::from_utf8_lossy(bytes)
+        .lines()
+        .map(str::trim)
+        .find(|line| line.chars().all(|ch| ch.is_ascii_digit()))
+        .map(ToString::to_string)
+}
+
 fn is_non_zero_address(address: &str) -> bool {
     let address = address.strip_prefix("0x").unwrap_or(address);
     address.len() == 40 && address.chars().any(|ch| ch != '0')
@@ -333,7 +349,7 @@ struct ProfileConfig {
 
 #[cfg(test)]
 mod tests {
-    use super::{is_non_zero_address, parse_env_text, strip_quotes};
+    use super::{is_non_zero_address, numeric_line, parse_env_text, strip_quotes};
 
     #[test]
     fn parses_local_env_values() {
@@ -366,5 +382,16 @@ export NF4_MOCK_PROVER=false
             "0x0000000000000000000000000000000000000000"
         ));
         assert!(!is_non_zero_address(""));
+    }
+
+    #[test]
+    fn parses_numeric_cast_output_after_warnings() {
+        assert_eq!(
+            numeric_line(
+                b"Warning: Found unknown `debug` config for profile `default` defined in foundry.toml.\n11155111\n"
+            )
+            .unwrap(),
+            "11155111"
+        );
     }
 }

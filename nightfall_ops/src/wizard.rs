@@ -54,21 +54,28 @@ fn collect_inputs() -> Result<DeploymentConfig, String> {
     let configuration_url = prompt_configuration_url(configuration_port)?;
     let default_proposer_url = default_proposer_url(&configuration_url);
 
-    let deployer_signing_key = Password::new("Deployer private key")
+    println!();
+    println!("Paste the funded L1 testnet deployer private key.");
+    println!("Input is hidden for safety, so nothing will appear while typing.");
+    println!("Include 0x if your key has it, then press Enter.");
+    println!("Never share this key in chat or commit local.env.");
+    let deployer_signing_key = Password::new("Deployer private key [hidden input]")
         .without_confirmation()
         .prompt()
         .map_err(|err| err.to_string())?;
     let deployer_address = cast_wallet_address(&deployer_signing_key)?;
     println!("Derived deployer address: {deployer_address}");
 
-    let default_proposer_address = Text::new("Default proposer address")
-        .with_default(&deployer_address)
-        .prompt()
-        .map_err(|err| err.to_string())?;
-    let default_proposer_url = Text::new("Default proposer public URL")
-        .with_default(&default_proposer_url)
-        .prompt()
-        .map_err(|err| err.to_string())?;
+    let default_proposer_address =
+        Text::new("Default proposer address [press Enter to use deployer address]")
+            .with_default(&deployer_address)
+            .prompt()
+            .map_err(|err| err.to_string())?;
+    let default_proposer_url =
+        Text::new("Default proposer public URL [press Enter to use detected host with port 3001]")
+            .with_default(&default_proposer_url)
+            .prompt()
+            .map_err(|err| err.to_string())?;
 
     let real_prover = Confirm::new("Use real prover mode?")
         .with_default(true)
@@ -110,7 +117,7 @@ fn collect_inputs() -> Result<DeploymentConfig, String> {
 }
 
 fn prompt_profile() -> Result<String, String> {
-    let profile = Text::new("Profile name")
+    let profile = Text::new("Profile name [default: sepolia, press Enter to use default]")
         .with_default("sepolia")
         .prompt()
         .map_err(|err| err.to_string())?;
@@ -138,7 +145,8 @@ fn prompt_rpc_url() -> Result<String, String> {
 }
 
 fn prompt_port(label: &str, default: u16) -> Result<u16, String> {
-    let value = Text::new(label)
+    let prompt = format!("{label} [default: {default}, press Enter to use default]");
+    let value = Text::new(&prompt)
         .with_default(&default.to_string())
         .prompt()
         .map_err(|err| err.to_string())?;
@@ -150,7 +158,7 @@ fn prompt_port(label: &str, default: u16) -> Result<u16, String> {
 
 fn prompt_configuration_url(port: u16) -> Result<String, String> {
     let default = format!("http://127.0.0.1:{port}");
-    let url = Text::new("Configuration service URL, including port")
+    let url = Text::new("Configuration service URL, including port [press Enter to use default]")
         .with_default(&default)
         .prompt()
         .map_err(|err| err.to_string())?;
