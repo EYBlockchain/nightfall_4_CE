@@ -6,9 +6,11 @@ mod status;
 mod wizard;
 
 use cli::Command;
+use std::io::Write;
 
 fn main() {
     if let Err(err) = run(std::env::args().skip(1)) {
+        let _ = std::io::stdout().flush();
         eprintln!("{err}");
         std::process::exit(1);
     }
