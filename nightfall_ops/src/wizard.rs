@@ -253,24 +253,28 @@ fn run_deployment(config: &DeploymentConfig) -> Result<(), String> {
     )?;
     run_command("Building contracts", "forge", &["build"], &[])?;
 
-    if !config.mock_prover {
-        run_command(
-            "Generating real proving keys",
-            "cargo",
-            &[
-                "run",
-                "--release",
-                "-p",
-                "nightfall_deployer",
-                "--bin",
-                "key_generation",
-            ],
-            &[
-                ("NF4_RUN_MODE", config.profile.as_str()),
-                ("NF4_MOCK_PROVER", "false"),
-            ],
-        )?;
-    }
+    let key_generation_title = if config.mock_prover {
+        "Generating mock proving key"
+    } else {
+        "Generating real proving keys"
+    };
+    let mock_prover = config.mock_prover.to_string();
+    run_command(
+        key_generation_title,
+        "cargo",
+        &[
+            "run",
+            "--release",
+            "-p",
+            "nightfall_deployer",
+            "--bin",
+            "key_generation",
+        ],
+        &[
+            ("NF4_RUN_MODE", config.profile.as_str()),
+            ("NF4_MOCK_PROVER", mock_prover.as_str()),
+        ],
+    )?;
 
     compose::build_indie_deployer()?;
     compose::up_indie_deployer()?;
