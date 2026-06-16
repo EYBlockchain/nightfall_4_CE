@@ -2,11 +2,14 @@
 pub enum Command {
     Help,
     WizardDeploy,
+    WizardProposer,
     CheckDeployer,
     CheckProver,
     UpConfiguration,
+    UpProposer,
     Status,
     LogsConfiguration,
+    LogsProposer,
 }
 
 pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Command, String> {
@@ -16,11 +19,14 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Command, String> 
     match parts.as_slice() {
         [] | ["help"] | ["--help"] | ["-h"] => Ok(Command::Help),
         ["wizard", "deploy"] => Ok(Command::WizardDeploy),
+        ["wizard", "proposer"] => Ok(Command::WizardProposer),
         ["check", "deployer"] => Ok(Command::CheckDeployer),
         ["check", "prover"] => Ok(Command::CheckProver),
         ["up", "configuration"] => Ok(Command::UpConfiguration),
+        ["up", "proposer"] => Ok(Command::UpProposer),
         ["status"] => Ok(Command::Status),
         ["logs", "configuration"] => Ok(Command::LogsConfiguration),
+        ["logs", "proposer"] => Ok(Command::LogsProposer),
         _ => Err(format!(
             "Unknown command: {}\n\n{}",
             args.join(" "),
@@ -34,19 +40,25 @@ pub fn usage() -> &'static str {
 
 Usage:
   nf4 wizard deploy
+  nf4 wizard proposer
   nf4 check deployer
   nf4 check prover
   nf4 up configuration
+  nf4 up proposer
   nf4 status
   nf4 logs configuration
+  nf4 logs proposer
 
 Commands:
-  nf4 wizard deploy      Collects required inputs, writes config, deploys contracts, starts configuration, and validates hosted metadata.
-  nf4 check deployer     Checks local tools required before deployment.
-  nf4 check prover       Runs the pinned Nightfish recursive prover capability test.
-  nf4 up configuration   Starts only the configuration service.
-  nf4 status             Prints deployment, service, metadata, RPC, and contract checks.
-  nf4 logs configuration Shows configuration service logs.
+  nf4 wizard deploy       Collects required inputs, writes config, deploys contracts, starts configuration, and validates hosted metadata.
+  nf4 wizard proposer     Reuses deployment metadata, configures proposer values, starts indie-proposer, and validates health.
+  nf4 check deployer      Checks local tools required before deployment.
+  nf4 check prover        Runs the pinned Nightfish recursive prover capability test.
+  nf4 up configuration    Starts only the configuration service.
+  nf4 up proposer         Starts only the proposer service.
+  nf4 status              Prints deployment, service, metadata, RPC, and contract checks.
+  nf4 logs configuration  Shows configuration service logs.
+  nf4 logs proposer       Shows proposer service logs.
 
 The main operator command is:
   nf4 wizard deploy
@@ -68,6 +80,10 @@ mod tests {
             Ok(Command::WizardDeploy)
         );
         assert_eq!(
+            parse(args(&["wizard", "proposer"])),
+            Ok(Command::WizardProposer)
+        );
+        assert_eq!(
             parse(args(&["check", "deployer"])),
             Ok(Command::CheckDeployer)
         );
@@ -76,10 +92,15 @@ mod tests {
             parse(args(&["up", "configuration"])),
             Ok(Command::UpConfiguration)
         );
+        assert_eq!(parse(args(&["up", "proposer"])), Ok(Command::UpProposer));
         assert_eq!(parse(args(&["status"])), Ok(Command::Status));
         assert_eq!(
             parse(args(&["logs", "configuration"])),
             Ok(Command::LogsConfiguration)
+        );
+        assert_eq!(
+            parse(args(&["logs", "proposer"])),
+            Ok(Command::LogsProposer)
         );
     }
 

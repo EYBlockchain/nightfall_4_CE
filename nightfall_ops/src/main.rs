@@ -3,6 +3,7 @@ mod cli;
 mod compose;
 mod config;
 mod model;
+mod proposer;
 mod status;
 mod validation;
 mod wizard;
@@ -25,10 +26,13 @@ fn run(args: impl IntoIterator<Item = String>) -> Result<(), String> {
             Ok(())
         }
         Command::WizardDeploy => wizard::deploy(),
+        Command::WizardProposer => proposer::wizard(),
         Command::CheckDeployer => checks::deployer(),
         Command::CheckProver => checks::prover(),
         Command::UpConfiguration => compose::up_configuration(),
+        Command::UpProposer => compose::up_proposer(),
         Command::Status => status::print(),
         Command::LogsConfiguration => compose::logs_configuration(),
+        Command::LogsProposer => compose::logs_proposer(),
     }
 }
