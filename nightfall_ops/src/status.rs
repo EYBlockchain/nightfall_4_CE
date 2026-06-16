@@ -62,9 +62,13 @@ pub fn print() -> Result<(), String> {
     print_container_status("Deployer", "nf4_indie_deployer");
     print_container_status("Configuration", "nf4_configuration");
     print_container_status("Proposer", "nf4_indie_proposer");
+    print_container_status("Client", "nf4_indie_client");
 
     if let Some(url) = env_value(&env, "NF4_NIGHTFALL_PROPOSER__URL") {
         print_http_health("Proposer health", &endpoint_url(&url, "v1/health"));
+    }
+    if let Some(url) = env_value(&env, "CLIENT_API_URL") {
+        print_http_health("Client health", &endpoint_url(&url, "v1/health"));
     }
 
     println!();
