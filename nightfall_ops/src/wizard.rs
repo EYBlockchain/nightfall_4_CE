@@ -75,7 +75,12 @@ fn collect_inputs() -> Result<DeploymentConfig, String> {
         .prompt()
         .map_err(|err| err.to_string())?;
     if real_prover {
-        Confirm::new("Real prover mode is expensive. Continue?")
+        println!();
+        println!("Real prover mode is expensive.");
+        println!("Key generation can take a long time and requires large RAM/disk.");
+        println!("Generating keys successfully does not prove this machine can prove a block.");
+        println!("Run nf4 check prover to run the pinned Nightfish recursive prover test.");
+        Confirm::new("Continue with real prover key generation?")
             .with_default(false)
             .prompt()
             .map_err(|err| err.to_string())?

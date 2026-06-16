@@ -40,6 +40,14 @@ Usage:
   nf4 status
   nf4 logs configuration
 
+Commands:
+  nf4 wizard deploy      Collects required inputs, writes config, deploys contracts, starts configuration, and validates hosted metadata.
+  nf4 check deployer     Checks local tools required before deployment.
+  nf4 check prover       Runs the pinned Nightfish recursive prover capability test.
+  nf4 up configuration   Starts only the configuration service.
+  nf4 status             Prints deployment, service, metadata, RPC, and contract checks.
+  nf4 logs configuration Shows configuration service logs.
+
 The main operator command is:
   nf4 wizard deploy
 "#
