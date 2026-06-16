@@ -311,9 +311,7 @@ fn env_line_name(line: &str) -> Option<&str> {
 }
 
 fn env_key(env: &str) -> &str {
-    env.split_once('=')
-        .map(|(key, _)| key)
-        .unwrap_or(env)
+    env.split_once('=').map(|(key, _)| key).unwrap_or(env)
 }
 
 fn ensure_configuration_port(source: &str, port: u16) -> String {
