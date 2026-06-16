@@ -1,4 +1,5 @@
 use std::{
+    collections::{BTreeMap, BTreeSet},
     fs,
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
@@ -20,6 +21,20 @@ pub fn required_repo_files_exist() -> bool {
 
 pub fn local_env_exists() -> bool {
     Path::new(LOCAL_ENV).is_file()
+}
+
+pub fn read_local_env() -> BTreeMap<String, String> {
+    fs::read_to_string(LOCAL_ENV)
+        .map(|source| parse_env_text(&source))
+        .unwrap_or_default()
+}
+
+pub fn merge_local_env(values: &[(&str, String)]) -> Result<(), String> {
+    let source = fs::read_to_string(LOCAL_ENV).unwrap_or_default();
+    let updated = merge_local_env_text(&source, values);
+    fs::write(LOCAL_ENV, updated).map_err(|err| format!("Failed to write {LOCAL_ENV}: {err}"))?;
+    restrict_local_env_permissions()?;
+    Ok(())
 }
 
 pub fn backup_config_files() -> Result<PathBuf, String> {
@@ -60,6 +75,14 @@ pub fn update_docker_compose(config: &DeploymentConfig) -> Result<(), String> {
     let source = fs::read_to_string(DOCKER_COMPOSE_YML)
         .map_err(|err| format!("Failed to read {DOCKER_COMPOSE_YML}: {err}"))?;
     let updated = update_docker_compose_text(&source, &config.profile, config.configuration_port);
+    fs::write(DOCKER_COMPOSE_YML, updated)
+        .map_err(|err| format!("Failed to write {DOCKER_COMPOSE_YML}: {err}"))
+}
+
+pub fn update_proposer_docker_compose(profile: &str, proposer_port: u16) -> Result<(), String> {
+    let source = fs::read_to_string(DOCKER_COMPOSE_YML)
+        .map_err(|err| format!("Failed to read {DOCKER_COMPOSE_YML}: {err}"))?;
+    let updated = update_proposer_docker_compose_text(&source, profile, proposer_port);
     fs::write(DOCKER_COMPOSE_YML, updated)
         .map_err(|err| format!("Failed to write {DOCKER_COMPOSE_YML}: {err}"))
 }
@@ -120,6 +143,22 @@ fn update_docker_compose_text(source: &str, profile: &str, configuration_port: u
     output
 }
 
+fn update_proposer_docker_compose_text(source: &str, profile: &str, proposer_port: u16) -> String {
+    let mut output = source.to_string();
+    output = replace_service_run_mode(&output, "indie-proposer", profile);
+    output = ensure_service_port(&output, "indie-proposer", proposer_port, 3000);
+    output = ensure_service_envs(
+        &output,
+        "indie-proposer",
+        &[
+            "NF4_ETHEREUM_CLIENT_URL",
+            "NF4_CONFIGURATION_URL=${NF4_CONFIGURATION_URL}",
+            "NF4_CONTRACTS__DEPLOY_CONTRACTS=${NF4_CONTRACTS__DEPLOY_CONTRACTS:-false}",
+        ],
+    );
+    output
+}
+
 fn replace_service_run_mode(source: &str, service: &str, profile: &str) -> String {
     let mut output = Vec::new();
     let mut in_service = false;
@@ -144,6 +183,137 @@ fn replace_service_run_mode(source: &str, service: &str, profile: &str) -> Strin
     }
 
     preserve_trailing_newline(source, output.join("\n"))
+}
+
+fn ensure_service_port(source: &str, service: &str, host_port: u16, container_port: u16) -> String {
+    let mut output = Vec::new();
+    let mut in_service = false;
+    let mut in_ports = false;
+    let mut inserted = false;
+    let service_header = format!("  {service}:");
+    let port_line = format!("      - \"{host_port}:{container_port}\"");
+
+    for line in source.lines() {
+        if line.starts_with("  ") && !line.starts_with("    ") {
+            if in_service && !inserted {
+                output.push("    ports:".to_string());
+                output.push(port_line.clone());
+                inserted = true;
+            }
+            in_service = line == service_header;
+            in_ports = false;
+        }
+
+        if in_service {
+            let trimmed = line.trim_start();
+            if trimmed.starts_with("ports:") {
+                in_ports = true;
+                output.push(line.to_string());
+                continue;
+            }
+
+            if in_ports {
+                if trimmed.starts_with("- \"") || trimmed.starts_with("- '") {
+                    if trimmed.contains(&format!(":{container_port}\""))
+                        || trimmed.contains(&format!(":{container_port}'"))
+                    {
+                        if !inserted {
+                            output.push(port_line.clone());
+                            inserted = true;
+                        }
+                        continue;
+                    }
+                } else if line.starts_with("    ") && !line.starts_with("      ") {
+                    if !inserted {
+                        output.push(port_line.clone());
+                        inserted = true;
+                    }
+                    in_ports = false;
+                }
+            }
+        }
+
+        output.push(line.to_string());
+    }
+
+    if in_service && !inserted {
+        output.push("    ports:".to_string());
+        output.push(port_line);
+    }
+
+    preserve_trailing_newline(source, output.join("\n"))
+}
+
+fn ensure_service_envs(source: &str, service: &str, envs: &[&str]) -> String {
+    let mut output = Vec::new();
+    let mut in_service = false;
+    let mut in_environment = false;
+    let mut seen = BTreeSet::new();
+    let service_header = format!("  {service}:");
+
+    for line in source.lines() {
+        if line.starts_with("  ") && !line.starts_with("    ") {
+            if in_service && in_environment {
+                append_missing_envs(&mut output, envs, &seen);
+            }
+            in_service = line == service_header;
+            in_environment = false;
+            seen.clear();
+        }
+
+        if in_service {
+            let trimmed = line.trim_start();
+            if trimmed.starts_with("environment:") {
+                in_environment = true;
+                output.push(line.to_string());
+                continue;
+            }
+
+            if in_environment {
+                if let Some(env_name) = env_line_name(trimmed) {
+                    seen.insert(env_name.to_string());
+                    if let Some(replacement) = envs.iter().find(|env| env_name == env_key(env)) {
+                        let indent = line
+                            .chars()
+                            .take_while(|ch| ch.is_whitespace())
+                            .collect::<String>();
+                        output.push(format!("{indent}- {replacement}"));
+                        continue;
+                    }
+                } else if line.starts_with("    ") && !line.starts_with("      ") {
+                    append_missing_envs(&mut output, envs, &seen);
+                    in_environment = false;
+                }
+            }
+        }
+
+        output.push(line.to_string());
+    }
+
+    if in_service && in_environment {
+        append_missing_envs(&mut output, envs, &seen);
+    }
+
+    preserve_trailing_newline(source, output.join("\n"))
+}
+
+fn append_missing_envs(output: &mut Vec<String>, envs: &[&str], seen: &BTreeSet<String>) {
+    for env in envs {
+        if !seen.contains(env_key(env)) {
+            output.push(format!("      - {env}"));
+        }
+    }
+}
+
+fn env_line_name(line: &str) -> Option<&str> {
+    line.strip_prefix("- ")
+        .and_then(|env| env.split_once('=').map(|(key, _)| key).or(Some(env)))
+}
+
+fn env_key(env: &str) -> &str {
+    env.split_once('=')
+        .map(|(key, _)| key)
+        .unwrap_or(env)
 }
 
 fn ensure_configuration_port(source: &str, port: u16) -> String {
@@ -201,6 +371,69 @@ fn timestamp() -> u64 {
         .unwrap_or(0)
 }
 
+fn parse_env_text(source: &str) -> BTreeMap<String, String> {
+    let mut values = BTreeMap::new();
+    for line in source.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let line = line.strip_prefix("export ").unwrap_or(line);
+        let Some((key, value)) = line.split_once('=') else {
+            continue;
+        };
+        values.insert(
+            key.trim().to_string(),
+            strip_quotes(value.trim()).to_string(),
+        );
+    }
+    values
+}
+
+fn merge_local_env_text(source: &str, values: &[(&str, String)]) -> String {
+    let mut output = Vec::new();
+    let mut written = BTreeSet::new();
+
+    for line in source.lines() {
+        let trimmed = line.trim();
+        let comparable = trimmed.strip_prefix("export ").unwrap_or(trimmed);
+        let key = comparable
+            .split_once('=')
+            .map(|(key, _)| key.trim())
+            .unwrap_or("");
+
+        if let Some((_, value)) = values.iter().find(|(candidate, _)| *candidate == key) {
+            output.push(format!("{key}={}", quote_env_value(value)));
+            written.insert(key.to_string());
+        } else {
+            output.push(line.to_string());
+        }
+    }
+
+    for (key, value) in values {
+        if !written.contains(*key) {
+            output.push(format!("{key}={}", quote_env_value(value)));
+        }
+    }
+
+    preserve_trailing_newline(source, output.join("\n"))
+}
+
+fn strip_quotes(value: &str) -> &str {
+    if value.len() >= 2
+        && ((value.starts_with('"') && value.ends_with('"'))
+            || (value.starts_with('\'') && value.ends_with('\'')))
+    {
+        &value[1..value.len() - 1]
+    } else {
+        value
+    }
+}
+
+fn quote_env_value(value: &str) -> String {
+    format!("\"{}\"", value.replace('\\', "\\\\").replace('"', "\\\""))
+}
+
 #[cfg(unix)]
 fn restrict_local_env_permissions() -> Result<(), String> {
     use std::os::unix::fs::PermissionsExt;
@@ -217,7 +450,10 @@ fn restrict_local_env_permissions() -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{update_docker_compose_text, update_nightfall_toml_text};
+    use super::{
+        merge_local_env_text, parse_env_text, update_docker_compose_text,
+        update_nightfall_toml_text, update_proposer_docker_compose_text,
+    };
     use crate::model::DeploymentConfig;
 
     fn sample_config() -> DeploymentConfig {
@@ -302,5 +538,63 @@ verifier = "0x123"
         assert!(updated.contains("restart: unless-stopped"));
         assert!(updated.contains("- \"9090:80\""));
         assert!(!updated.contains("# ports:"));
+    }
+
+    #[test]
+    fn merges_local_env_without_dropping_existing_values() {
+        let source = r#"DEPLOYER_SIGNING_KEY="0xaaa"
+NF4_RUN_MODE="sepolia"
+PROPOSER_SIGNING_KEY="old"
+"#;
+
+        let updated = merge_local_env_text(
+            source,
+            &[
+                ("PROPOSER_SIGNING_KEY", "0xbbb".to_string()),
+                ("NF4_CONFIGURATION_URL", "http://10.0.0.8:8080".to_string()),
+            ],
+        );
+
+        assert!(updated.contains("DEPLOYER_SIGNING_KEY=\"0xaaa\""));
+        assert!(updated.contains("NF4_RUN_MODE=\"sepolia\""));
+        assert!(updated.contains("PROPOSER_SIGNING_KEY=\"0xbbb\""));
+        assert!(updated.contains("NF4_CONFIGURATION_URL=\"http://10.0.0.8:8080\""));
+    }
+
+    #[test]
+    fn parses_local_env_values() {
+        let values = parse_env_text(
+            r#"
+export NF4_RUN_MODE="sepolia"
+NF4_MOCK_PROVER='true'
+"#,
+        );
+
+        assert_eq!(values.get("NF4_RUN_MODE").unwrap(), "sepolia");
+        assert_eq!(values.get("NF4_MOCK_PROVER").unwrap(), "true");
+    }
+
+    #[test]
+    fn updates_proposer_compose_defaults() {
+        let source = r#"services:
+  indie-proposer:
+    ports:
+      - "3001:3000"
+    environment:
+      - NF4_RUN_MODE=${NF4_RUN_MODE:-base_sepolia}
+      - NF4_CONFIGURATION_URL=${NF4_CONFIGURATION_URL:-http://configuration:80}
+  db:
+    image: mongo
+"#;
+
+        let updated = update_proposer_docker_compose_text(source, "sepolia", 4001);
+
+        assert!(updated.contains("- \"4001:3000\""));
+        assert!(updated.contains("- NF4_RUN_MODE=${NF4_RUN_MODE:-sepolia}"));
+        assert!(updated.contains("- NF4_CONFIGURATION_URL=${NF4_CONFIGURATION_URL}"));
+        assert!(updated.contains("- NF4_ETHEREUM_CLIENT_URL"));
+        assert!(updated.contains(
+            "- NF4_CONTRACTS__DEPLOY_CONTRACTS=${NF4_CONTRACTS__DEPLOY_CONTRACTS:-false}"
+        ));
     }
 }
