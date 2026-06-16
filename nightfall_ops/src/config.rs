@@ -475,8 +475,8 @@ fn restrict_local_env_permissions() -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        merge_local_env_text, parse_env_text, update_docker_compose_text,
-        update_client_docker_compose_text, update_nightfall_toml_text,
+        merge_local_env_text, parse_env_text, update_client_docker_compose_text,
+        update_docker_compose_text, update_nightfall_toml_text,
         update_proposer_docker_compose_text,
     };
     use crate::model::DeploymentConfig;
@@ -642,9 +642,7 @@ NF4_MOCK_PROVER='true'
         assert!(updated.contains("- NF4_RUN_MODE=${NF4_RUN_MODE:-sepolia}"));
         assert!(updated.contains("- NF4_SIGNING_KEY=${CLIENT_SIGNING_KEY}"));
         assert!(updated.contains("- NF4_CONFIGURATION_URL=${NF4_CONFIGURATION_URL}"));
-        assert!(
-            updated.contains("- NF4_NIGHTFALL_PROPOSER__URL=${NF4_NIGHTFALL_PROPOSER__URL}")
-        );
+        assert!(updated.contains("- NF4_NIGHTFALL_PROPOSER__URL=${NF4_NIGHTFALL_PROPOSER__URL}"));
         assert!(updated.contains("- NF4_ETHEREUM_CLIENT_URL"));
     }
 }

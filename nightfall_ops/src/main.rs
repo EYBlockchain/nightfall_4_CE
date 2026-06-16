@@ -1,6 +1,6 @@
 mod checks;
-mod client;
 mod cli;
+mod client;
 mod compose;
 mod config;
 mod model;
