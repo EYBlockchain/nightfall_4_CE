@@ -61,6 +61,11 @@ pub fn print() -> Result<(), String> {
     println!("Services:");
     print_container_status("Deployer", "nf4_indie_deployer");
     print_container_status("Configuration", "nf4_configuration");
+    print_container_status("Proposer", "nf4_indie_proposer");
+
+    if let Some(url) = env_value(&env, "NF4_NIGHTFALL_PROPOSER__URL") {
+        print_http_health("Proposer health", &endpoint_url(&url, "v1/health"));
+    }
 
     println!();
     println!("Deployment metadata:");
@@ -118,6 +123,14 @@ fn print_container_status(label: &str, container_name: &str) {
     match docker_container_status(container_name) {
         Ok(Some(status)) => println!("  {label}: {status}"),
         Ok(None) => println!("  {label}: not found"),
+        Err(err) => println!("  {label}: UNCHECKED - {err}"),
+    }
+}
+
+fn print_http_health(label: &str, url: &str) {
+    match curl_health(url) {
+        Ok(true) => println!("  {label}: OK ({url})"),
+        Ok(false) => println!("  {label}: FAILED ({url})"),
         Err(err) => println!("  {label}: UNCHECKED - {err}"),
     }
 }
@@ -205,6 +218,19 @@ fn docker_container_status(container_name: &str) -> Result<Option<String>, Strin
     }
 
     Ok(command_detail(&output))
+}
+
+fn curl_health(url: &str) -> Result<bool, String> {
+    let output = Command::new("curl")
+        .args(["-fsS", "--max-time", "5", "-o", "/dev/null", url])
+        .output()
+        .map_err(|err| format!("failed to run curl: {err}"))?;
+
+    Ok(output.status.success())
+}
+
+fn endpoint_url(base_url: &str, path: &str) -> String {
+    format!("{}/{}", base_url.trim_end_matches('/'), path)
 }
 
 fn read_addresses() -> Result<Vec<(&'static str, String)>, String> {
@@ -354,7 +380,7 @@ struct ProfileConfig {
 
 #[cfg(test)]
 mod tests {
-    use super::{is_non_zero_address, numeric_line, parse_env_text, strip_quotes};
+    use super::{endpoint_url, is_non_zero_address, numeric_line, parse_env_text, strip_quotes};
 
     #[test]
     fn parses_local_env_values() {
@@ -397,6 +423,14 @@ export NF4_MOCK_PROVER=false
             )
             .unwrap(),
             "11155111"
+        );
+    }
+
+    #[test]
+    fn joins_endpoint_url_without_double_slash() {
+        assert_eq!(
+            endpoint_url("http://127.0.0.1:3001/", "v1/health"),
+            "http://127.0.0.1:3001/v1/health"
         );
     }
 }
