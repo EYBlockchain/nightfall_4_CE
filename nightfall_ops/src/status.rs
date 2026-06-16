@@ -70,7 +70,7 @@ pub fn print() -> Result<(), String> {
 
     println!();
     println!("Contracts:");
-    print_contracts(&rpc_url);
+    print_contracts(&rpc_url, mock_prover == Some(true));
 
     if let Some(url) = configuration_url {
         println!();
@@ -122,10 +122,15 @@ fn print_container_status(label: &str, container_name: &str) {
     }
 }
 
-fn print_contracts(rpc_url: &Option<String>) {
+fn print_contracts(rpc_url: &Option<String>, mock_prover: bool) {
     match read_addresses() {
         Ok(addresses) => {
             for (label, address) in addresses {
+                if mock_prover && label == "verifier" && !is_non_zero_address(&address) {
+                    println!("  verifier: SKIPPED, not deployed in mock prover mode");
+                    continue;
+                }
+
                 let local_status = if is_non_zero_address(&address) {
                     "OK"
                 } else {
