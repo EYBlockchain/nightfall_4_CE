@@ -53,12 +53,38 @@ The proposer wizard should assume the current repo already contains:
 - `local.env` with deployment environment values.
 - `configuration/toml/addresses.toml`.
 - `configuration/toml/contract_hashes.toml`.
-- `configuration/bin/keys/proving_key`.
+- Required files under `configuration/bin/keys/`.
 
 If these files exist and validate, the proposer wizard should reuse them automatically. It should only ask for values that cannot be inferred safely:
 
 - Proposer private key.
 - Public proposer URL, defaulting to `http://<detected-lan-ip>:3001`.
+
+After the proposer is running, the same assistant should help start a client node:
+
+```bash
+nf4 wizard client
+```
+
+This command should reuse the existing deployment and proposer configuration. The normal same-machine client flow should not ask the user to copy addresses, hashes, keys, TOML sections, or Docker Compose settings manually.
+
+The client wizard should assume the current repo already contains:
+
+- `nightfall.toml` with the active deployment profile.
+- `docker-compose.yml` updated for the active profile.
+- `local.env` with deployment and proposer environment values.
+- `configuration/toml/addresses.toml`.
+- `configuration/toml/contract_hashes.toml`.
+- `configuration/bin/keys/proving_key`.
+
+If these files exist and validate, the client wizard should reuse them automatically. It should only ask for values that cannot be inferred safely:
+
+- Client private key.
+- Client address, defaulting to the address derived from the client private key.
+- Client API port, defaulting to `3000`.
+- Proposer URL, defaulting to the existing proposer URL in `local.env` or `http://<detected-lan-ip>:3001`.
+
+For client API calls, the assistant should make common operational calls easier, but it should not become a full application wallet. The client APIs still require transaction-specific values such as token address, token type, token ID, value, recipient, and fee. The assistant should reduce copy/paste risk by validating inputs, sending JSON files, and printing request IDs/status clearly.
 
 ## Implementation Shape
 
@@ -68,9 +94,12 @@ User-facing commands:
 
 - `nf4 wizard deploy`: Main operator command. It asks only for required deployment decisions, uses defaults or detected values where possible, applies file changes, runs checks, starts required services, and prints the final summary.
 - `nf4 wizard proposer`: Starts a proposer node from an existing local deployment. It reuses generated deployment config, asks only for proposer-specific inputs, validates configuration metadata, starts `indie-proposer`, and checks proposer health.
+- `nf4 wizard client`: Starts a client node from an existing local deployment and running proposer. It reuses generated deployment config, asks only for client-specific inputs, validates configuration metadata and proposer reachability, starts `indie-client`, and checks client health.
 - `nf4 status`: Checks the current deployment state, including RPC, chain ID, configuration service, addresses, hashes, keys, and prover check result.
 - `nf4 logs configuration`: Shows configuration service logs.
 - `nf4 logs proposer`: Shows proposer service logs.
+- `nf4 logs client`: Shows client service logs.
+- `nf4 client ...`: Sends common client API calls using validated URLs and JSON payloads.
 
 Supporting commands used by `nf4 wizard deploy`, and also available for troubleshooting:
 
@@ -78,6 +107,7 @@ Supporting commands used by `nf4 wizard deploy`, and also available for troubles
 - `nf4 check prover`: Runs the prover capability test.
 - `nf4 up configuration`: Starts only the configuration service. The main wizard calls this automatically after deployment succeeds.
 - `nf4 up proposer`: Starts only the proposer service. The proposer wizard calls this automatically after proposer config is valid.
+- `nf4 up client`: Starts only the client service. The client wizard calls this automatically after client config is valid.
 
 Rust is preferred because the assistant needs structured TOML/YAML handling, private-key validation, URL validation, JSON parsing, and reliable status output.
 
@@ -93,6 +123,8 @@ nightfall_ops/
   src/compose.rs
   src/status.rs
   src/proposer.rs
+  src/client.rs
+  src/client_api.rs
 scripts/nf4
 ```
 
@@ -128,6 +160,8 @@ Proposed file responsibilities:
 - `nightfall_ops/src/compose.rs`: Reads and updates `docker-compose.yml`, runs Docker Compose commands, starts the configuration service, and fetches service logs.
 - `nightfall_ops/src/status.rs`: Builds the `nf4 status` health summary by checking RPC, metadata files, contract code, configuration service endpoints, keys, and recorded prover-check results.
 - `nightfall_ops/src/proposer.rs`: Implements proposer-node setup. Reuses existing deployment config, writes proposer-specific `local.env` values, starts the `indie-proposer` Compose profile, checks health, and prints the next client-facing URL.
+- `nightfall_ops/src/client.rs`: Implements client-node setup. Reuses existing deployment/proposer config, writes client-specific `local.env` values, starts the `indie-client` Compose profile, checks health, and prints next API options.
+- `nightfall_ops/src/client_api.rs`: Implements thin helpers around client REST APIs. It validates URLs and JSON payload files, sends requests, prints request IDs/status, and avoids requiring users to hand-write long `curl` commands for common operations.
 - `scripts/nf4`: Thin shell wrapper that lets users run `nf4 ...` from the repo without typing the full `cargo run -p nightfall_ops -- ...` command.
 
 ## Config Strategy
@@ -142,10 +176,14 @@ local.env
 
 Rules:
 
-- Create timestamped backups before editing.
+- Create timestamped backups before editing non-secret config files.
 - Show planned changes before writing.
 - Never store private keys in `nightfall.toml` or `docker-compose.yml`.
 - Store secrets only in `local.env`.
+- Merge updates into `local.env`; do not overwrite unrelated existing values.
+- Do not print private keys or secret environment values back to the terminal.
+- Do not create ordinary plaintext backups of `local.env`.
+- If a secret-bearing backup is required for recovery, store it under `.nightfall/backups/`, set file permissions to `0600`, and ensure `.nightfall/` is ignored by git.
 - Update only known fields.
 - Run validation after edits.
 
@@ -157,6 +195,8 @@ docker-compose.yml.bak.20260612-143000
 ```
 
 This design uses the current `nightfall.toml` because the current settings loader reads that file directly.
+
+The assistant should also verify that generated runtime files are ignored by git before writing them. At minimum, `local.env` and `.nightfall/` should not be committed.
 
 ## Interaction Model
 
@@ -388,6 +428,7 @@ Validation:
 Reaction:
 
 - Set `configuration_url`.
+- Write `NF4_CONFIGURATION_URL` when Docker services need a runtime override.
 - Verify configuration endpoints after service startup and print the result.
 
 ### Deployer Private Key
@@ -403,11 +444,12 @@ Validation:
 Reaction:
 
 - Write `DEPLOYER_SIGNING_KEY` to `local.env` only.
+- Preserve any existing non-deployer values in `local.env`.
 - Do not print the key back to the terminal.
 
 ### Default Proposer Address
 
-Default: derived from proposer key if provided, otherwise user-provided.
+Default: derived from the proposer key if the deployer provides one, otherwise user-provided.
 
 Validation:
 
@@ -416,6 +458,7 @@ Validation:
 Reaction:
 
 - Set `default_proposer_address`.
+- Record that this address is the proposer registered during deployment.
 
 ### Default Proposer URL
 
@@ -429,6 +472,23 @@ Validation:
 Reaction:
 
 - Set `default_proposer_url`.
+- Record that this URL is the proposer URL registered during deployment.
+
+### Designated Proposer Identity
+
+During fresh deployment, the deployer registers one designated proposer in the RoundRobin contract:
+
+```text
+default_proposer_address
+default_proposer_url
+```
+
+This matters for the proposer assistant later:
+
+- If `nf4 wizard proposer` uses the same private key/address, the proposer is already registered as the designated proposer.
+- If `nf4 wizard proposer` uses a different private key/address, it is an additional proposer and must register and rotate before it can propose blocks.
+
+The deployment wizard should make this visible in the review summary. If the user does not provide a separate proposer address during deployment, the wizard may default to the deployer address, but it must clearly say that the deployer key/address is also being registered as the initial proposer.
 
 ### Proposer API Port
 
@@ -482,6 +542,12 @@ Reaction:
 
 Default: enabled.
 
+Prompt behavior:
+
+- Ask only once whether X509 allowlisting should be enabled.
+- Explain that when allowlisting is enabled, proposer and client operators must call `/v1/certification` before submitting certified actions.
+- If allowlisting is disabled, proposer/client certification steps should be skipped in the final output.
+
 Reaction:
 
 - Should be controlled by config, not by editing Solidity source.
@@ -491,6 +557,7 @@ Required implementation behavior:
 - Deployment must read this setting from config.
 - The assistant must not edit Solidity source to enable or disable X509 allowlisting.
 - If the current deployer does not support this setting yet, add config support as part of this work.
+- The final config field name must be explicit in implementation docs. If the existing `test_x509_certificates` field is reused, document exactly that it controls test certificate setup and allowlisting behavior. Otherwise, add a clearer field such as `x509_allowlisting_enabled`.
 
 ## Real Prover
 
@@ -621,25 +688,39 @@ At proposer wizard start, show a short explanation:
 ```text
 This command starts an indie proposer node for the existing local deployment.
 
-It will reuse the current nightfall.toml, docker-compose.yml, addresses, contract hashes, and proving key.
+It will reuse the current nightfall.toml, docker-compose.yml, addresses, contract hashes, and proving keys.
 
 You only need to provide the proposer private key and confirm the proposer URL that clients will use.
 ```
 
 ### Same-Machine URL Rules
 
-The same-machine flow has two different URL contexts:
+The proposer flow has two different URL contexts:
 
-- Host/LAN users reach the configuration service at the exposed host URL, for example `http://127.0.0.1:8080` or `http://<lan-ip>:8080`.
-- Docker containers should usually reach the configuration service through the Docker service name, `http://configuration:80`.
+- The configuration URL written in `nightfall.toml` is the deployment metadata URL. It is the URL other actors may use to fetch addresses, hashes, and keys.
+- The runtime `NF4_CONFIGURATION_URL` is the URL the proposer container actually uses when it starts.
 
-For the proposer container, the assistant should set:
+The assistant should not blindly hard-code one URL for every case.
+
+Valid runtime choices:
 
 ```bash
 NF4_CONFIGURATION_URL="http://configuration:80"
+NF4_CONFIGURATION_URL="http://<lan-ip>:8080"
+NF4_CONFIGURATION_URL="https://<public-domain>"
 ```
 
-This avoids using `127.0.0.1` from inside the proposer container, where it would point back to the proposer container itself.
+- `http://configuration:80` can work when the proposer runs in the same Docker Compose project and can reach the configuration service by Docker service name.
+- `http://<lan-ip>:8080` or a public URL should be used when proposer/client nodes may run from another machine or when the same URL should work outside Docker.
+- `http://127.0.0.1:8080` works from the host machine, but it usually does not work from inside the proposer container because `127.0.0.1` points to the container itself.
+
+The proposer wizard should select a sensible default, show it in the review, and validate that the chosen URL can fetch:
+
+```text
+configuration/toml/addresses.toml
+configuration/toml/contract_hashes.toml
+configuration/bin/keys/proving_key
+```
 
 For clients or external actors to reach the proposer, the assistant should default to:
 
@@ -656,6 +737,12 @@ The proposer wizard should ask only for:
 ```text
 Proposer private key [hidden input]
 Public proposer URL [default: http://<detected-lan-ip>:3001, press Enter to use default]
+```
+
+It may ask for the configuration runtime URL only if the existing value is missing or fails validation:
+
+```text
+Configuration URL for proposer runtime [default: http://<lan-ip>:8080]
 ```
 
 Private-key prompt guidance:
@@ -681,10 +768,13 @@ The proposer wizard should reuse:
 - `NF4_RUN_MODE` from `local.env`.
 - `NF4_ETHEREUM_CLIENT_URL` from `local.env`.
 - `NF4_MOCK_PROVER` from `local.env`.
+- `NF4_CONFIGURATION_URL` from `local.env` if it exists and validates.
 - `[profile.nightfall_proposer].block_size` from `nightfall.toml`.
+- `[profile.nightfall_deployer].default_proposer_address` from `nightfall.toml`.
+- `[profile.nightfall_deployer].default_proposer_url` from `nightfall.toml`.
 - Contract addresses from `configuration/toml/addresses.toml`.
 - Contract hashes from `configuration/toml/contract_hashes.toml`.
-- Proving key from `configuration/bin/keys/proving_key`.
+- Required key files from `configuration/bin/keys/`.
 
 The wizard should not modify deployer-only fields.
 
@@ -694,8 +784,9 @@ Update `local.env` with:
 
 ```bash
 PROPOSER_SIGNING_KEY="<hidden>"
-NF4_CONFIGURATION_URL="http://configuration:80"
+NF4_CONFIGURATION_URL="<configuration-runtime-url>"
 NF4_NIGHTFALL_PROPOSER__URL="http://<host-or-lan-ip>:3001"
+NF4_CONTRACTS__DEPLOY_CONTRACTS="false"
 ```
 
 Keep existing deployer values in `local.env`; do not remove them.
@@ -706,6 +797,8 @@ Update `docker-compose.yml` only if needed:
 - Ensure proposer port `3001:3000` is exposed.
 - Ensure `NF4_MOCK_PROVER` is passed through.
 - Ensure `NF4_ETHEREUM_CLIENT_URL` is passed through.
+- Ensure `NF4_CONFIGURATION_URL` is passed through.
+- Ensure `NF4_CONTRACTS__DEPLOY_CONTRACTS=false` is passed through.
 
 The assistant should show a short review before writing:
 
@@ -713,9 +806,10 @@ The assistant should show a short review before writing:
 Review proposer settings
   profile: sepolia
   prover_mode: mock
-  configuration_url_inside_docker: http://configuration:80
+  configuration_runtime_url: http://10.0.0.8:8080
   proposer_public_url: http://10.0.0.8:3001
   proposer_address: 0x...
+  proposer_role: designated proposer
 ```
 
 ### Proposer Validation
@@ -724,13 +818,28 @@ Before starting proposer:
 
 - Confirm `local.env` exists.
 - Confirm the active profile exists in `nightfall.toml`.
+- Confirm `NF4_ETHEREUM_CLIENT_URL` exists and is reachable.
+- Confirm `NF4_CONFIGURATION_URL` exists or can be derived from the deployment configuration.
 - Confirm `addresses.toml` exists and contains non-zero `nightfall`, `round_robin`, and `x509`.
 - In real-prover mode, confirm `verifier` is non-zero.
 - In mock-prover mode, allow `verifier = 0x0000000000000000000000000000000000000000`.
 - Confirm `contract_hashes.toml` exists.
-- Confirm `proving_key` exists.
+- In mock-prover mode, confirm `configuration/bin/keys/proving_key` exists.
+- In real-prover mode, confirm the required proving keys exist:
+  - `base_bn254_pk`
+  - `base_grumpkin_pk`
+  - `decider_pk`
+  - `decider_vk`
+  - `merge_bn254_pk_0`
+  - `merge_grumpkin_pk_0`
+  - `merge_grumpkin_pk_1`
+  - `proving_key`
 - Confirm `docker` and `docker compose` work.
 - Confirm proposer port `3001` is available or warn if already in use.
+- Confirm the proposer public URL is valid and includes a scheme and port.
+- Warn if the proposer public URL uses `127.0.0.1` or `localhost` while clients may run from another machine.
+- Confirm `NF4_CONTRACTS__DEPLOY_CONTRACTS=false` for proposer startup.
+- Derive the proposer address from `PROPOSER_SIGNING_KEY` and compare it with `[profile.nightfall_deployer].default_proposer_address`.
 
 The assistant should validate configuration metadata itself:
 
@@ -739,6 +848,22 @@ Checking local deployment metadata...
   addresses.toml: OK
   contract_hashes.toml: OK
   proving_key: OK
+```
+
+The assistant should also validate the runtime configuration URL that the proposer will use:
+
+```text
+Checking proposer configuration URL...
+  addresses.toml: OK
+  contract_hashes.toml: OK
+  proving_key: OK
+```
+
+If the proposer address differs from the deployed default proposer address, print:
+
+```text
+This proposer is not the designated proposer registered during deployment.
+It must register and rotate before it can propose blocks.
 ```
 
 ### Proposer Start Flow
@@ -750,12 +875,14 @@ The proposer wizard should run:
 2. Validate deployment metadata.
 3. Ask for proposer private key if missing or replacement is requested.
 4. Derive proposer address from the private key.
-5. Ask for public proposer URL, with default.
-6. Write proposer-specific values to local.env.
-7. Build indie-proposer image.
-8. Start indie-proposer detached.
-9. Poll proposer health endpoint.
-10. Print proposer status and next step.
+5. Compare proposer address with the deployed default proposer address.
+6. Ask for public proposer URL, with default.
+7. Validate or ask for the configuration runtime URL.
+8. Write proposer-specific values to local.env.
+9. Build indie-proposer image.
+10. Start indie-proposer detached.
+11. Poll proposer health endpoint.
+12. Print proposer status and next step.
 ```
 
 Commands called internally:
@@ -777,11 +904,25 @@ Proposer OK
 Profile: <profile>
 Mode: mock
 Proposer address: <address>
+Role: designated proposer
 Proposer URL: http://<host-or-lan-ip>:3001
-Configuration inside Docker: http://configuration:80
+Configuration runtime URL: http://<host-or-lan-ip>:8080
 
 Next:
   Start a client node and point it at the proposer URL above.
+```
+
+If the proposer is not the deployed designated proposer, print:
+
+```text
+Proposer OK
+
+Role: additional proposer
+Registration: required before this proposer can be active
+
+Next:
+  Register this proposer using its public URL.
+  Rotate when the contract allows proposer rotation.
 ```
 
 If proposer health fails:
@@ -810,6 +951,308 @@ docker compose --profile indie-proposer --env-file local.env logs -f indie-propo
 
 Use this command for troubleshooting only. `nf4 wizard proposer` should start the proposer and check health automatically.
 
+## Client Node Assistant
+
+The client assistant starts a client node from an existing local deployment and reachable proposer.
+
+Primary command:
+
+```bash
+nf4 wizard client
+```
+
+This command is intended for the common case where deployer, configuration service, proposer, and client are running from the same repo on the same machine. It should also support a LAN/public proposer URL when the proposer runs elsewhere.
+
+The assistant should not ask the user to re-enter deployment data that already exists locally. It should read the active profile and deployment data from:
+
+```text
+local.env
+nightfall.toml
+docker-compose.yml
+configuration/toml/addresses.toml
+configuration/toml/contract_hashes.toml
+configuration/bin/keys/proving_key
+```
+
+### Client Startup Explanation
+
+At client wizard start, show a short explanation:
+
+```text
+This command starts an indie client node for the existing deployment.
+
+It will reuse the current deployment metadata and proposer URL.
+
+You only need to provide the client private key, confirm the client address, and confirm where the client should reach the proposer.
+```
+
+### Client Inputs
+
+The client wizard should ask only for:
+
+```text
+Client private key [hidden input]
+Client address [default: address derived from client private key]
+Client API port [default: 3000]
+Proposer URL [default: existing NF4_NIGHTFALL_PROPOSER__URL or http://<detected-lan-ip>:3001]
+```
+
+It may ask for the configuration runtime URL only if the existing value is missing or fails validation:
+
+```text
+Configuration URL for client runtime [default: http://<lan-ip>:8080]
+```
+
+Private-key prompt guidance:
+
+```text
+Paste the funded L1 testnet client private key.
+Input is hidden for safety, so nothing will appear while typing.
+Include 0x if your key has it, then press Enter.
+Never share this key in chat or commit local.env.
+```
+
+If `CLIENT_SIGNING_KEY` already exists in `local.env`, the wizard should not print it. It may say:
+
+```text
+Existing client signing key found in local.env.
+Press Enter to reuse it, or paste a replacement.
+```
+
+### Client Reused Settings
+
+The client wizard should reuse:
+
+- `NF4_RUN_MODE` from `local.env`.
+- `NF4_ETHEREUM_CLIENT_URL` from `local.env`.
+- `NF4_MOCK_PROVER` from `local.env`.
+- `NF4_CONFIGURATION_URL` from `local.env` if it exists and validates.
+- `NF4_NIGHTFALL_PROPOSER__URL` from `local.env` if it exists and validates.
+- `[profile.nightfall_proposer].url` from `nightfall.toml` as a fallback proposer URL.
+- Contract addresses from `configuration/toml/addresses.toml`.
+- Contract hashes from `configuration/toml/contract_hashes.toml`.
+- `configuration/bin/keys/proving_key`.
+
+The wizard should not modify deployer-only or proposer-only fields.
+
+### Client File Reactions
+
+Update `local.env` with:
+
+```bash
+CLIENT_SIGNING_KEY="<hidden>"
+CLIENT_ADDRESS="<derived-or-confirmed-client-address>"
+CLIENT_API_URL="http://127.0.0.1:<client-port>"
+NF4_CONFIGURATION_URL="<configuration-runtime-url>"
+NF4_NIGHTFALL_PROPOSER__URL="<proposer-url>"
+```
+
+For Docker client startup, `CLIENT_SIGNING_KEY` is the user-facing value and Docker Compose maps it into the client container as `NF4_SIGNING_KEY`. If a host-side helper needs to run Forge scripts, it may set or temporarily export `NF4_SIGNING_KEY` using the same key.
+
+Keep existing deployer and proposer values in `local.env`; do not remove them.
+
+Update `docker-compose.yml` only if needed:
+
+- Ensure `indie-client` uses the active `NF4_RUN_MODE` default.
+- Ensure client API port `<client-port>:3000` is exposed.
+- Ensure `NF4_SIGNING_KEY=${CLIENT_SIGNING_KEY}` is passed through.
+- Ensure `NF4_MOCK_PROVER` is passed through.
+- Ensure `NF4_ETHEREUM_CLIENT_URL` is passed through.
+- Ensure `NF4_CONFIGURATION_URL` is passed through.
+- Ensure `NF4_NIGHTFALL_PROPOSER__URL` is passed through and includes a URL scheme.
+
+The assistant should show a short review before writing:
+
+```text
+Review client settings
+  profile: sepolia
+  prover_mode: mock
+  client_address: 0x...
+  client_api_url: http://127.0.0.1:3000
+  proposer_url: http://10.0.0.8:3001
+  configuration_runtime_url: http://10.0.0.8:8080
+```
+
+### Client Validation
+
+Before starting client:
+
+- Confirm `local.env` exists.
+- Confirm the active profile exists in `nightfall.toml`.
+- Confirm `NF4_ETHEREUM_CLIENT_URL` exists and is reachable.
+- Confirm `NF4_CONFIGURATION_URL` exists or can be derived from the deployment configuration.
+- Confirm `NF4_NIGHTFALL_PROPOSER__URL` exists, includes `http://` or `https://`, and is reachable.
+- Confirm `CLIENT_API_URL` is valid, or derive it from the selected client API port.
+- Confirm proposer `/v1/health` is reachable.
+- Confirm `addresses.toml` exists and contains non-zero `nightfall`, `round_robin`, and `x509`.
+- In real-prover mode, confirm `verifier` is non-zero.
+- In mock-prover mode, allow `verifier = 0x0000000000000000000000000000000000000000`.
+- Confirm `contract_hashes.toml` exists.
+- Confirm `configuration/bin/keys/proving_key` exists locally or is reachable from the configuration URL.
+- Confirm `docker` and `docker compose` work.
+- Confirm client port `3000` is available or warn if already in use.
+- Derive the client address from `CLIENT_SIGNING_KEY` and compare it with `CLIENT_ADDRESS`.
+
+The assistant should validate client-facing dependencies itself:
+
+```text
+Checking client dependencies...
+  addresses.toml: OK
+  contract_hashes.toml: OK
+  proving_key: OK
+  proposer health: OK
+```
+
+### Client Start Flow
+
+The client wizard should run:
+
+```text
+1. Read existing deployment profile from local.env.
+2. Validate deployment metadata.
+3. Ask for client private key if missing or replacement is requested.
+4. Derive client address from the private key.
+5. Ask the user to confirm or replace the client address.
+6. Validate or ask for the proposer URL.
+7. Validate or ask for the configuration runtime URL.
+8. Write client-specific values to local.env.
+9. Build indie-client image.
+10. Start indie-client detached.
+11. Poll client health endpoint.
+12. Print client status and next API options.
+```
+
+Commands called internally:
+
+```bash
+docker compose --profile indie-client --env-file local.env build
+docker compose --profile indie-client --env-file local.env up -d
+```
+
+The user should not need to run those Docker commands manually in the normal flow.
+
+### Client Output Summary
+
+After successful client startup, print:
+
+```text
+Client OK
+
+Profile: <profile>
+Mode: mock
+Client address: <address>
+Client API: http://127.0.0.1:3000
+Proposer URL: http://<host-or-lan-ip>:3001
+Configuration runtime URL: http://<host-or-lan-ip>:8080
+
+Next:
+  Run nf4 client health
+  Run nf4 client certify if X509 allowlisting is enabled.
+  Use nf4 client post with a JSON file for deposit, transfer, or withdraw requests.
+```
+
+If client health fails:
+
+```text
+Client health check failed
+
+Suggested checks:
+  nf4 logs client
+  nf4 status
+```
+
+## Client API Helpers
+
+The assistant should make common API calls easier, but it should not hide transaction-specific decisions from the user.
+
+Recommended commands:
+
+```text
+nf4 client health
+nf4 client proposers
+nf4 client sync
+nf4 client certify --certificate <path> --certificate-key <path>
+nf4 client derive-key
+nf4 client commitments
+nf4 client balances
+nf4 client request <uuid>
+nf4 client deploy-mock-tokens
+nf4 client post deposit --json-file <path>
+nf4 client post transfer --json-file <path>
+nf4 client post withdraw --json-file <path>
+nf4 client post raw --path /v1/<endpoint> --json-file <path>
+```
+
+The helper should:
+
+- Use `CLIENT_API_URL` from `local.env` if present, otherwise default to `http://127.0.0.1:<client-port>`.
+- Validate that the client health endpoint is reachable before sending mutating requests.
+- Validate JSON files before sending them.
+- Generate an `X-Request-ID` for transaction requests if the user does not provide one.
+- Print the request ID, HTTP status, and response body.
+- For `202 Accepted` responses, print the follow-up command:
+
+```text
+nf4 client request <uuid>
+```
+
+For X509 testing deployments, `nf4 client certify` may offer defaults for the repo's test certificates:
+
+```text
+blockchain_assets/test_contracts/X509/_certificates/user/user-3.der
+blockchain_assets/test_contracts/X509/_certificates/user/user-3.priv_key
+```
+
+For real deployments, the assistant must ask for certificate paths and must not assume the test certificates are valid.
+
+The first API helper set should focus on operational clarity:
+
+- Health and synchronisation checks.
+- X509 certification.
+- Listing proposers and commitments.
+- Checking balances.
+- Deploying mock ERC contracts for local testnet testing.
+- Sending prepared deposit/transfer/withdraw JSON payloads.
+- Polling request status.
+
+It should not try to build a full interactive transaction builder until the basic client startup and JSON-file flow are reliable.
+
+### Mock ERC Token Helper
+
+For local testnet testing, users often need ERC contracts before they can call deposit APIs. The assistant can make the existing mock deployment flow easier:
+
+```bash
+nf4 client deploy-mock-tokens
+```
+
+This helper should:
+
+- Read the Nightfall contract address from `configuration/toml/addresses.toml`.
+- Use `CLIENT_SIGNING_KEY` for the host-side `NF4_SIGNING_KEY` expected by the Forge script.
+- Use `CLIENT_ADDRESS` as the mock token owner.
+- Ask for `CLIENT2_ADDRESS` only if it is missing; default to `CLIENT_ADDRESS` for simple testing.
+- Run the existing `blockchain_assets/script/mock_deployment.s.sol` script.
+- Parse and print the deployed ERC20, ERC721, ERC1155, and ERC3525 addresses.
+- Store the result in `.nightfall/deployments/<profile>/mock-tokens.toml`.
+
+The helper should not run automatically during `nf4 wizard client`; not every client deployment needs mock tokens.
+
+## Client Logs
+
+Add:
+
+```bash
+nf4 logs client
+```
+
+This should run:
+
+```bash
+docker compose --profile indie-client --env-file local.env logs -f indie-client
+```
+
+Use this command for troubleshooting only. `nf4 wizard client` should start the client and check health automatically.
+
 ## Post-Deployment Validation
 
 `nf4 status` should check:
@@ -828,6 +1271,7 @@ Use this command for troubleshooting only. `nf4 wizard proposer` should start th
 - Configuration service is reachable.
 - Required proving keys are reachable.
 - Proposer health endpoint is reachable if proposer is running.
+- Client health endpoint is reachable if client is running.
 - Prover check result is available, if real prover mode was selected.
 
 Example status output:
@@ -862,6 +1306,7 @@ Services:
   Deployer: completed successfully
   Configuration: running
   Proposer: running
+  Client: running
 
 Next:
   Configuration metadata is available at the configured URL.
@@ -908,18 +1353,30 @@ The assistant should implement these commands:
 ```text
 nf4 wizard deploy
 nf4 wizard proposer
+nf4 wizard client
 nf4 check deployer
 nf4 check prover
 nf4 up configuration
 nf4 up proposer
+nf4 up client
 nf4 status
 nf4 logs configuration
 nf4 logs proposer
+nf4 logs client
+nf4 client health
+nf4 client certify --certificate <path> --certificate-key <path>
+nf4 client post deposit --json-file <path>
+nf4 client post transfer --json-file <path>
+nf4 client post withdraw --json-file <path>
 ```
 
 `nf4 wizard deploy` is the normal operator entrypoint. It should call the lower-level checks and service commands internally when needed.
 
 `nf4 wizard proposer` is the normal proposer entrypoint for same-machine proposer startup after deployment. It should reuse the current deployment config and call lower-level proposer checks and service commands internally.
+
+`nf4 wizard client` is the normal client entrypoint after deployment and proposer startup. It should reuse the current deployment and proposer config, then call lower-level client checks and service commands internally.
+
+`nf4 client ...` commands are convenience wrappers around the client REST API. They should make common calls safer and easier, but users still provide transaction-specific values through JSON payloads or explicit flags.
 
 The standalone lower-level commands exist so users can troubleshoot or rerun one part of the flow without repeating the whole wizard.
 
@@ -931,3 +1388,5 @@ The standalone lower-level commands exist so users can troubleshoot or rerun one
 - The deployer balance check uses `0.1 ETH` as the default minimum warning threshold.
 - Public configuration URLs should use HTTPS when available. HTTP is allowed for testnet if the user explicitly confirms.
 - In real prover mode, `nf4 wizard deploy` should recommend `nf4 check prover`. If the user skips it, require explicit confirmation and record that it was skipped in deployment status.
+- `nf4 wizard client` should not require users to manually write curl commands for health, certification, request status, or prepared deposit/transfer/withdraw payloads.
+- Client API helpers should prefer JSON files for transaction requests so users can review payloads before sending them.
