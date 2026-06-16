@@ -87,6 +87,14 @@ pub fn update_proposer_docker_compose(profile: &str, proposer_port: u16) -> Resu
         .map_err(|err| format!("Failed to write {DOCKER_COMPOSE_YML}: {err}"))
 }
 
+pub fn update_client_docker_compose(profile: &str, client_port: u16) -> Result<(), String> {
+    let source = fs::read_to_string(DOCKER_COMPOSE_YML)
+        .map_err(|err| format!("Failed to read {DOCKER_COMPOSE_YML}: {err}"))?;
+    let updated = update_client_docker_compose_text(&source, profile, client_port);
+    fs::write(DOCKER_COMPOSE_YML, updated)
+        .map_err(|err| format!("Failed to write {DOCKER_COMPOSE_YML}: {err}"))
+}
+
 fn update_nightfall_toml_text(source: &str, config: &DeploymentConfig) -> Result<String, String> {
     let mut doc = source
         .parse::<DocumentMut>()
@@ -154,6 +162,24 @@ fn update_proposer_docker_compose_text(source: &str, profile: &str, proposer_por
             "NF4_ETHEREUM_CLIENT_URL",
             "NF4_CONFIGURATION_URL=${NF4_CONFIGURATION_URL}",
             "NF4_CONTRACTS__DEPLOY_CONTRACTS=${NF4_CONTRACTS__DEPLOY_CONTRACTS:-false}",
+        ],
+    );
+    output
+}
+
+fn update_client_docker_compose_text(source: &str, profile: &str, client_port: u16) -> String {
+    let mut output = source.to_string();
+    output = replace_service_run_mode(&output, "indie-client", profile);
+    output = ensure_service_port(&output, "indie-client", client_port, 3000);
+    output = ensure_service_envs(
+        &output,
+        "indie-client",
+        &[
+            "NF4_SIGNING_KEY=${CLIENT_SIGNING_KEY}",
+            "NF4_ETHEREUM_CLIENT_URL",
+            "NF4_CONFIGURATION_URL=${NF4_CONFIGURATION_URL}",
+            "NF4_NIGHTFALL_PROPOSER__URL=${NF4_NIGHTFALL_PROPOSER__URL}",
+            "NF4_MOCK_PROVER=${NF4_MOCK_PROVER:-false}",
         ],
     );
     output
@@ -450,7 +476,8 @@ fn restrict_local_env_permissions() -> Result<(), String> {
 mod tests {
     use super::{
         merge_local_env_text, parse_env_text, update_docker_compose_text,
-        update_nightfall_toml_text, update_proposer_docker_compose_text,
+        update_client_docker_compose_text, update_nightfall_toml_text,
+        update_proposer_docker_compose_text,
     };
     use crate::model::DeploymentConfig;
 
@@ -594,5 +621,30 @@ NF4_MOCK_PROVER='true'
         assert!(updated.contains(
             "- NF4_CONTRACTS__DEPLOY_CONTRACTS=${NF4_CONTRACTS__DEPLOY_CONTRACTS:-false}"
         ));
+    }
+
+    #[test]
+    fn updates_client_compose_defaults() {
+        let source = r#"services:
+  indie-client:
+    ports:
+      - "3000:3000"
+    environment:
+      - NF4_RUN_MODE=${NF4_RUN_MODE:-base_sepolia}
+      - NF4_NIGHTFALL_PROPOSER__URL=${NF4_NIGHTFALL_PROPOSER__URL:-localhost:3001}
+  db:
+    image: mongo
+"#;
+
+        let updated = update_client_docker_compose_text(source, "sepolia", 4000);
+
+        assert!(updated.contains("- \"4000:3000\""));
+        assert!(updated.contains("- NF4_RUN_MODE=${NF4_RUN_MODE:-sepolia}"));
+        assert!(updated.contains("- NF4_SIGNING_KEY=${CLIENT_SIGNING_KEY}"));
+        assert!(updated.contains("- NF4_CONFIGURATION_URL=${NF4_CONFIGURATION_URL}"));
+        assert!(
+            updated.contains("- NF4_NIGHTFALL_PROPOSER__URL=${NF4_NIGHTFALL_PROPOSER__URL}")
+        );
+        assert!(updated.contains("- NF4_ETHEREUM_CLIENT_URL"));
     }
 }
