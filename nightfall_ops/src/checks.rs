@@ -14,6 +14,7 @@ pub fn deployer() -> Result<(), String> {
         command_check("docker", "docker", &["--version"]),
         command_check("docker compose", "docker", &["compose", "version"]),
         command_check("forge", "forge", &["--version"]),
+        command_check("cast", "cast", &["--version"]),
         command_check("cargo", "cargo", &["--version"]),
         command_check("curl", "curl", &["--version"]),
     ];

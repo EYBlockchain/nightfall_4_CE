@@ -6,3 +6,7 @@ edition.workspace = true
 [[bin]]
 name = "nf4"
 path = "src/main.rs"
+
+[dependencies]
+inquire = "0.7.5"
+toml_edit = "0.22.27"

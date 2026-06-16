@@ -5664,6 +5664,10 @@ dependencies = [
 [[package]]
 name = "nightfall_ops"
 version = "0.1.0"
+dependencies = [
+ "inquire",
+ "toml_edit 0.22.27",
+]
 
 [[package]]
 name = "nightfall_proposer"

@@ -2,6 +2,7 @@ mod checks;
 mod cli;
 mod compose;
 mod config;
+mod model;
 mod status;
 mod wizard;
 
