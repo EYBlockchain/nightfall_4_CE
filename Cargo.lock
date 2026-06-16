@@ -5666,6 +5666,7 @@ name = "nightfall_ops"
 version = "0.1.0"
 dependencies = [
  "inquire",
+ "serde_json",
  "toml_edit 0.22.27",
 ]
 

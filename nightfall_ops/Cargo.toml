@@ -9,4 +9,5 @@ path = "src/main.rs"
 
 [dependencies]
 inquire = "0.7.5"
+serde_json = "1.0.143"
 toml_edit = "0.22.27"
