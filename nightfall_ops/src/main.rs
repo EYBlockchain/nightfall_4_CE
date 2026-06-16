@@ -4,6 +4,7 @@ mod compose;
 mod config;
 mod model;
 mod status;
+mod validation;
 mod wizard;
 
 use cli::Command;

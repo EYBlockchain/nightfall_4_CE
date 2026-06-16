@@ -2,7 +2,7 @@ use std::process::Command;
 
 use inquire::{Confirm, Password, Select, Text};
 
-use crate::{checks, config, model::DeploymentConfig};
+use crate::{checks, compose, config, model::DeploymentConfig, validation};
 
 pub fn deploy() -> Result<(), String> {
     if !config::required_repo_files_exist() {
@@ -38,7 +38,7 @@ pub fn deploy() -> Result<(), String> {
 
     println!();
     println!("Deployment configuration generated.");
-    println!("Next command: nf4 up configuration");
+    run_deployment(&deployment)?;
     Ok(())
 }
 
@@ -237,6 +237,74 @@ fn print_review(config: &DeploymentConfig) {
     println!("  default_proposer_url: {}", config.default_proposer_url);
     println!("  prover_mode: {}", config.prover_mode());
     println!("  block_size: {}", config.block_size);
+}
+
+fn run_deployment(config: &DeploymentConfig) -> Result<(), String> {
+    run_command(
+        "Cleaning contract build artifacts",
+        "forge",
+        &["clean"],
+        &[],
+    )?;
+    run_command("Building contracts", "forge", &["build"], &[])?;
+
+    if !config.mock_prover {
+        run_command(
+            "Generating real proving keys",
+            "cargo",
+            &[
+                "run",
+                "--release",
+                "-p",
+                "nightfall_deployer",
+                "--bin",
+                "key_generation",
+            ],
+            &[
+                ("NF4_RUN_MODE", config.profile.as_str()),
+                ("NF4_MOCK_PROVER", "false"),
+            ],
+        )?;
+    }
+
+    compose::build_indie_deployer()?;
+    compose::up_indie_deployer()?;
+    compose::build_configuration()?;
+    compose::up_configuration()?;
+    validation::configuration_endpoints(&config.configuration_url)?;
+
+    println!();
+    println!("Deployment OK");
+    println!("  profile: {}", config.profile);
+    println!("  chain_id: {}", config.chain_id);
+    println!("  configuration_url: {}", config.configuration_url);
+    Ok(())
+}
+
+fn run_command(
+    title: &str,
+    program: &str,
+    args: &[&str],
+    envs: &[(&str, &str)],
+) -> Result<(), String> {
+    println!("{title}...");
+    println!("  {program} {}", args.join(" "));
+
+    let mut command = Command::new(program);
+    command.args(args);
+    for (key, value) in envs {
+        command.env(key, value);
+    }
+
+    let status = command
+        .status()
+        .map_err(|err| format!("Failed to run {program}: {err}"))?;
+
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("{program} exited with {status}"))
+    }
 }
 
 #[cfg(test)]

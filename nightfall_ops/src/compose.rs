@@ -3,13 +3,32 @@ use std::process::Command;
 use crate::config;
 
 pub fn up_configuration() -> Result<(), String> {
-    let args = compose_args(config::local_env_exists(), &["up", "-d", "configuration"]);
+    let args = compose_args("configuration", config::local_env_exists(), &["up", "-d"]);
     run_docker_compose("Starting configuration service", &args)
 }
 
 pub fn logs_configuration() -> Result<(), String> {
-    let args = compose_args(config::local_env_exists(), &["logs", "configuration"]);
+    let args = compose_args(
+        "configuration",
+        config::local_env_exists(),
+        &["logs", "configuration"],
+    );
     run_docker_compose("Showing configuration service logs", &args)
+}
+
+pub fn build_indie_deployer() -> Result<(), String> {
+    let args = compose_args("indie-deployer", false, &["build"]);
+    run_docker_compose("Building indie deployer image", &args)
+}
+
+pub fn up_indie_deployer() -> Result<(), String> {
+    let args = compose_args("indie-deployer", true, &["up"]);
+    run_docker_compose("Running indie deployer", &args)
+}
+
+pub fn build_configuration() -> Result<(), String> {
+    let args = compose_args("configuration", false, &["build"]);
+    run_docker_compose("Building configuration service image", &args)
 }
 
 fn run_docker_compose(title: &str, args: &[String]) -> Result<(), String> {
@@ -28,11 +47,11 @@ fn run_docker_compose(title: &str, args: &[String]) -> Result<(), String> {
     }
 }
 
-fn compose_args(include_env_file: bool, command_args: &[&str]) -> Vec<String> {
+fn compose_args(profile: &str, include_env_file: bool, command_args: &[&str]) -> Vec<String> {
     let mut args = vec![
         "compose".to_string(),
         "--profile".to_string(),
-        "configuration".to_string(),
+        profile.to_string(),
     ];
 
     if include_env_file {
@@ -50,22 +69,15 @@ mod tests {
     #[test]
     fn builds_configuration_compose_args_without_env_file() {
         assert_eq!(
-            compose_args(false, &["up", "-d", "configuration"]),
-            vec![
-                "compose",
-                "--profile",
-                "configuration",
-                "up",
-                "-d",
-                "configuration"
-            ]
+            compose_args("configuration", false, &["up", "-d"]),
+            vec!["compose", "--profile", "configuration", "up", "-d"]
         );
     }
 
     #[test]
     fn builds_configuration_compose_args_with_env_file() {
         assert_eq!(
-            compose_args(true, &["logs", "configuration"]),
+            compose_args("configuration", true, &["logs", "configuration"]),
             vec![
                 "compose",
                 "--profile",
