@@ -8,6 +8,12 @@ Create a guided deployment assistant for Nightfall testnet deployments. The assi
 
 Users should not need to manually edit `nightfall.toml` or `docker-compose.yml`.
 
+## Deployment Model Assumption
+
+This design assumes the deployer, proposer, and client user run from the same machine and the same local repository.
+
+The assistant may still ask for LAN or public URLs because Docker containers, host processes, and future remote nodes do not always share the same network context. However, the primary flow in this document is the same-machine flow.
+
 ## User Model
 
 The assistant focuses on the operator/deployer workflow. The user normally runs one command:
