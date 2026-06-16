@@ -3,13 +3,16 @@ pub enum Command {
     Help,
     WizardDeploy,
     WizardProposer,
+    WizardClient,
     CheckDeployer,
     CheckProver,
     UpConfiguration,
     UpProposer,
+    UpClient,
     Status,
     LogsConfiguration,
     LogsProposer,
+    LogsClient,
 }
 
 pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Command, String> {
@@ -20,13 +23,16 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Command, String> 
         [] | ["help"] | ["--help"] | ["-h"] => Ok(Command::Help),
         ["wizard", "deploy"] => Ok(Command::WizardDeploy),
         ["wizard", "proposer"] => Ok(Command::WizardProposer),
+        ["wizard", "client"] => Ok(Command::WizardClient),
         ["check", "deployer"] => Ok(Command::CheckDeployer),
         ["check", "prover"] => Ok(Command::CheckProver),
         ["up", "configuration"] => Ok(Command::UpConfiguration),
         ["up", "proposer"] => Ok(Command::UpProposer),
+        ["up", "client"] => Ok(Command::UpClient),
         ["status"] => Ok(Command::Status),
         ["logs", "configuration"] => Ok(Command::LogsConfiguration),
         ["logs", "proposer"] => Ok(Command::LogsProposer),
+        ["logs", "client"] => Ok(Command::LogsClient),
         _ => Err(format!(
             "Unknown command: {}\n\n{}",
             args.join(" "),
@@ -41,24 +47,30 @@ pub fn usage() -> &'static str {
 Usage:
   nf4 wizard deploy
   nf4 wizard proposer
+  nf4 wizard client
   nf4 check deployer
   nf4 check prover
   nf4 up configuration
   nf4 up proposer
+  nf4 up client
   nf4 status
   nf4 logs configuration
   nf4 logs proposer
+  nf4 logs client
 
 Commands:
   nf4 wizard deploy       Collects required inputs, writes config, deploys contracts, starts configuration, and validates hosted metadata.
   nf4 wizard proposer     Reuses deployment metadata, configures proposer values, starts indie-proposer, and validates health.
+  nf4 wizard client       Reuses deployment/proposer metadata, configures client values, starts indie-client, and validates health.
   nf4 check deployer      Checks local tools required before deployment.
   nf4 check prover        Runs the pinned Nightfish recursive prover capability test.
   nf4 up configuration    Starts only the configuration service.
   nf4 up proposer         Starts only the proposer service.
+  nf4 up client           Starts only the client service.
   nf4 status              Prints deployment, service, metadata, RPC, and contract checks.
   nf4 logs configuration  Shows configuration service logs.
   nf4 logs proposer       Shows proposer service logs.
+  nf4 logs client         Shows client service logs.
 
 The main operator command is:
   nf4 wizard deploy
@@ -84,6 +96,10 @@ mod tests {
             Ok(Command::WizardProposer)
         );
         assert_eq!(
+            parse(args(&["wizard", "client"])),
+            Ok(Command::WizardClient)
+        );
+        assert_eq!(
             parse(args(&["check", "deployer"])),
             Ok(Command::CheckDeployer)
         );
@@ -93,6 +109,7 @@ mod tests {
             Ok(Command::UpConfiguration)
         );
         assert_eq!(parse(args(&["up", "proposer"])), Ok(Command::UpProposer));
+        assert_eq!(parse(args(&["up", "client"])), Ok(Command::UpClient));
         assert_eq!(parse(args(&["status"])), Ok(Command::Status));
         assert_eq!(
             parse(args(&["logs", "configuration"])),
@@ -102,6 +119,7 @@ mod tests {
             parse(args(&["logs", "proposer"])),
             Ok(Command::LogsProposer)
         );
+        assert_eq!(parse(args(&["logs", "client"])), Ok(Command::LogsClient));
     }
 
     #[test]
@@ -113,6 +131,6 @@ mod tests {
     #[test]
     fn rejects_unknown_commands() {
         assert!(parse(args(&["wizard"])).is_err());
-        assert!(parse(args(&["up", "client"])).is_err());
+        assert!(parse(args(&["up", "unknown"])).is_err());
     }
 }

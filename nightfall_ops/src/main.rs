@@ -1,4 +1,5 @@
 mod checks;
+mod client;
 mod cli;
 mod compose;
 mod config;
@@ -27,12 +28,15 @@ fn run(args: impl IntoIterator<Item = String>) -> Result<(), String> {
         }
         Command::WizardDeploy => wizard::deploy(),
         Command::WizardProposer => proposer::wizard(),
+        Command::WizardClient => client::wizard(),
         Command::CheckDeployer => checks::deployer(),
         Command::CheckProver => checks::prover(),
         Command::UpConfiguration => compose::up_configuration(),
         Command::UpProposer => compose::up_proposer(),
+        Command::UpClient => compose::up_client(),
         Command::Status => status::print(),
         Command::LogsConfiguration => compose::logs_configuration(),
         Command::LogsProposer => compose::logs_proposer(),
+        Command::LogsClient => compose::logs_client(),
     }
 }

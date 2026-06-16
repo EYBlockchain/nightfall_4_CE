@@ -30,6 +30,20 @@ pub fn logs_proposer() -> Result<(), String> {
     run_docker_compose("Showing proposer service logs", &args)
 }
 
+pub fn up_client() -> Result<(), String> {
+    let args = compose_args("indie-client", true, &["up", "-d"]);
+    run_docker_compose("Starting indie client service", &args)
+}
+
+pub fn logs_client() -> Result<(), String> {
+    let args = compose_args(
+        "indie-client",
+        config::local_env_exists(),
+        &["logs", "-f", "indie-client"],
+    );
+    run_docker_compose("Showing client service logs", &args)
+}
+
 pub fn build_indie_deployer() -> Result<(), String> {
     let args = compose_args("indie-deployer", false, &["build"]);
     run_docker_compose("Building indie deployer image", &args)
@@ -38,6 +52,11 @@ pub fn build_indie_deployer() -> Result<(), String> {
 pub fn build_indie_proposer() -> Result<(), String> {
     let args = compose_args("indie-proposer", true, &["build"]);
     run_docker_compose("Building indie proposer image", &args)
+}
+
+pub fn build_indie_client() -> Result<(), String> {
+    let args = compose_args("indie-client", true, &["build"]);
+    run_docker_compose("Building indie client image", &args)
 }
 
 pub fn up_indie_deployer() -> Result<(), String> {
@@ -117,6 +136,22 @@ mod tests {
                 "compose",
                 "--profile",
                 "indie-proposer",
+                "--env-file",
+                "local.env",
+                "up",
+                "-d"
+            ]
+        );
+    }
+
+    #[test]
+    fn builds_client_compose_args_with_env_file() {
+        assert_eq!(
+            compose_args("indie-client", true, &["up", "-d"]),
+            vec![
+                "compose",
+                "--profile",
+                "indie-client",
                 "--env-file",
                 "local.env",
                 "up",
