@@ -106,9 +106,18 @@ The client wizard asks for:
 - client address
 - proposer URL
 - configuration URL
+- local testing webhook setup
 - client API port
 
 Use the same LAN configuration URL and proposer URL that were used above.
+
+For the local testing webhook, press Enter to use the default:
+
+```text
+http://<server-lan-ip>:8081/webhook
+```
+
+The assistant starts this webhook for you and stores received webhook events under `.nightfall/webhook/events.jsonl`.
 
 Check client status and logs:
 
@@ -143,6 +152,18 @@ Follow client logs:
 ./scripts/nf4 logs client
 ```
 
+Show stored webhook events:
+
+```bash
+./scripts/nf4 webhook events
+```
+
+Show withdraw fund salts found in webhook events:
+
+```bash
+./scripts/nf4 webhook salts
+```
+
 ## Expected Result
 
 After all three wizards succeed:
@@ -151,6 +172,7 @@ After all three wizards succeed:
 - configuration service is running
 - proposer service is healthy
 - client service is healthy
+- local testing webhook is running if you accepted the default client wizard option
 - `./scripts/nf4 status` reports deployed contracts and reachable configuration files
 
 At that point, the local testnet is ready for client API testing.
