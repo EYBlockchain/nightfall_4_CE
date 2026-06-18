@@ -47,10 +47,17 @@ pub fn wizard() -> Result<(), String> {
 
     println!("Checking client deployment metadata...");
     validate_metadata(mock_prover)?;
+    let nightfall_address = read_addresses()?
+        .get("nightfall")
+        .cloned()
+        .ok_or_else(|| format!("{ADDRESSES_TOML} is missing nightfall"))?;
 
     let client_key = prompt_client_key(env.get("CLIENT_SIGNING_KEY"))?;
     let derived_client_address = cast_wallet_address(&client_key)?;
     let client_address = prompt_client_address(env.get("CLIENT_ADDRESS"), &derived_client_address)?;
+    let client2_address = env_value(&env, "CLIENT2_ADDRESS")
+        .filter(|address| is_non_zero_address(address))
+        .unwrap_or_else(|| client_address.clone());
 
     let proposer_url_default = default_proposer_url(&env, &profile_config);
     let proposer_url = prompt_url(
@@ -97,8 +104,11 @@ pub fn wizard() -> Result<(), String> {
     println!("Backed up config files to {}", backup_dir.display());
 
     config::merge_local_env(&[
-        ("CLIENT_SIGNING_KEY", client_key),
+        ("CLIENT_SIGNING_KEY", client_key.clone()),
+        ("NF4_SIGNING_KEY", client_key),
         ("CLIENT_ADDRESS", client_address.clone()),
+        ("CLIENT2_ADDRESS", client2_address.clone()),
+        ("NIGHTFALL_ADDRESS", nightfall_address.clone()),
         ("CLIENT_API_URL", client_api_url.clone()),
         ("NF4_CONFIGURATION_URL", configuration_url.clone()),
         ("NF4_NIGHTFALL_PROPOSER__URL", proposer_url.clone()),
@@ -110,6 +120,9 @@ pub fn wizard() -> Result<(), String> {
     ])?;
     config::update_client_docker_compose(&profile, client_port)?;
 
+    run_command("Cleaning contract build artifacts", "forge", &["clean"])?;
+    run_command("Building contracts", "forge", &["build"])?;
+
     compose::build_indie_client()?;
     compose::up_client()?;
     poll_client_health(client_port)?;
@@ -119,6 +132,8 @@ pub fn wizard() -> Result<(), String> {
     println!("  profile: {profile}");
     println!("  mode: {}", if mock_prover { "mock" } else { "real" });
     println!("  client_address: {client_address}");
+    println!("  client2_address: {client2_address}");
+    println!("  nightfall_address: {nightfall_address}");
     println!("  client_api_url: {client_api_url}");
     println!("  proposer_url: {proposer_url}");
     println!("  configuration_runtime_url: {configuration_url}");
@@ -132,6 +147,9 @@ pub fn wizard() -> Result<(), String> {
     println!("  ./scripts/nf4 logs client");
     println!("  ./scripts/nf4 webhook events");
     println!("  ./scripts/nf4 webhook salts");
+    println!(
+        "  forge script blockchain_assets/script/mock_deployment.s.sol:MockDeployer --rpc-url <host-chain-rpc-url> --broadcast --legacy --slow"
+    );
     Ok(())
 }
 
@@ -143,6 +161,7 @@ fn check_prerequisites() -> Result<(), String> {
             command_ok("docker", &["compose", "version"]),
         ),
         ("cast", command_ok("cast", &["--version"])),
+        ("forge", command_ok("forge", &["--version"])),
         ("curl", command_ok("curl", &["--version"])),
     ];
 
@@ -163,6 +182,22 @@ fn command_ok(program: &str, args: &[&str]) -> bool {
         .args(args)
         .output()
         .is_ok_and(|output| output.status.success())
+}
+
+fn run_command(title: &str, program: &str, args: &[&str]) -> Result<(), String> {
+    println!("{title}...");
+    println!("  {program} {}", args.join(" "));
+
+    let status = Command::new(program)
+        .args(args)
+        .status()
+        .map_err(|err| format!("Failed to run {program}: {err}"))?;
+
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("{program} exited with {status}"))
+    }
 }
 
 fn validate_metadata(mock_prover: bool) -> Result<(), String> {
