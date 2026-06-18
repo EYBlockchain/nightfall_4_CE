@@ -13,6 +13,12 @@ pub enum Command {
     LogsConfiguration,
     LogsProposer,
     LogsClient,
+    WebhookStart { port: Option<u16> },
+    WebhookServe { port: u16 },
+    WebhookStatus,
+    WebhookLogs,
+    WebhookEvents,
+    WebhookSalts,
 }
 
 pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Command, String> {
@@ -33,12 +39,29 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Command, String> 
         ["logs", "configuration"] => Ok(Command::LogsConfiguration),
         ["logs", "proposer"] => Ok(Command::LogsProposer),
         ["logs", "client"] => Ok(Command::LogsClient),
+        ["webhook", "start"] => Ok(Command::WebhookStart { port: None }),
+        ["webhook", "start", port] => Ok(Command::WebhookStart {
+            port: Some(parse_port(port)?),
+        }),
+        ["webhook", "serve", port] => Ok(Command::WebhookServe {
+            port: parse_port(port)?,
+        }),
+        ["webhook", "status"] => Ok(Command::WebhookStatus),
+        ["webhook", "logs"] => Ok(Command::WebhookLogs),
+        ["webhook", "events"] => Ok(Command::WebhookEvents),
+        ["webhook", "salts"] => Ok(Command::WebhookSalts),
         _ => Err(format!(
             "Unknown command: {}\n\n{}",
             args.join(" "),
             usage()
         )),
     }
+}
+
+fn parse_port(value: &str) -> Result<u16, String> {
+    value
+        .parse::<u16>()
+        .map_err(|_| format!("Invalid port: {value}"))
 }
 
 pub fn usage() -> &'static str {
@@ -57,6 +80,11 @@ Usage:
   nf4 logs configuration
   nf4 logs proposer
   nf4 logs client
+  nf4 webhook start [port]
+  nf4 webhook status
+  nf4 webhook logs
+  nf4 webhook events
+  nf4 webhook salts
 
 Commands:
   nf4 wizard deploy       Collects required inputs, writes config, deploys contracts, starts configuration, and validates hosted metadata.
@@ -71,6 +99,11 @@ Commands:
   nf4 logs configuration  Shows configuration service logs.
   nf4 logs proposer       Shows proposer service logs.
   nf4 logs client         Shows client service logs.
+  nf4 webhook start       Starts the local testing webhook on port 8081, or the supplied port.
+  nf4 webhook status      Shows local testing webhook status and event storage path.
+  nf4 webhook logs        Prints local testing webhook process logs.
+  nf4 webhook events      Prints stored webhook events.
+  nf4 webhook salts       Prints withdraw_fund_salt values found in stored webhook events.
 
 The main operator command is:
   nf4 wizard deploy
@@ -120,6 +153,31 @@ mod tests {
             Ok(Command::LogsProposer)
         );
         assert_eq!(parse(args(&["logs", "client"])), Ok(Command::LogsClient));
+        assert_eq!(
+            parse(args(&["webhook", "start"])),
+            Ok(Command::WebhookStart { port: None })
+        );
+        assert_eq!(
+            parse(args(&["webhook", "start", "8082"])),
+            Ok(Command::WebhookStart { port: Some(8082) })
+        );
+        assert_eq!(
+            parse(args(&["webhook", "serve", "8082"])),
+            Ok(Command::WebhookServe { port: 8082 })
+        );
+        assert_eq!(
+            parse(args(&["webhook", "status"])),
+            Ok(Command::WebhookStatus)
+        );
+        assert_eq!(parse(args(&["webhook", "logs"])), Ok(Command::WebhookLogs));
+        assert_eq!(
+            parse(args(&["webhook", "events"])),
+            Ok(Command::WebhookEvents)
+        );
+        assert_eq!(
+            parse(args(&["webhook", "salts"])),
+            Ok(Command::WebhookSalts)
+        );
     }
 
     #[test]

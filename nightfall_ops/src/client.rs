@@ -1,9 +1,16 @@
-use std::{collections::BTreeMap, fs, path::Path, process::Command, thread, time::Duration};
+use std::{
+    collections::BTreeMap,
+    fs,
+    path::{Path, PathBuf},
+    process::Command,
+    thread,
+    time::Duration,
+};
 
 use inquire::{Confirm, Password, Text};
 use toml_edit::{DocumentMut, Item};
 
-use crate::{compose, config, validation};
+use crate::{compose, config, validation, webhook};
 
 const ADDRESSES_TOML: &str = "configuration/toml/addresses.toml";
 const CONTRACT_HASHES_TOML: &str = "configuration/toml/contract_hashes.toml";
@@ -61,6 +68,8 @@ pub fn wizard() -> Result<(), String> {
     )?;
     validate_configuration_runtime_url(&configuration_url)?;
 
+    let webhook_setup = configure_webhook(&env)?;
+
     let client_port = prompt_port("Client API port", client_api_port(&env).unwrap_or(3000))?;
     let client_api_url = format!("http://127.0.0.1:{client_port}");
 
@@ -72,6 +81,7 @@ pub fn wizard() -> Result<(), String> {
         client_api_url: &client_api_url,
         proposer_url: &proposer_url,
         configuration_url: &configuration_url,
+        webhook_url: &webhook_setup.url,
         client_port,
     });
 
@@ -92,6 +102,11 @@ pub fn wizard() -> Result<(), String> {
         ("CLIENT_API_URL", client_api_url.clone()),
         ("NF4_CONFIGURATION_URL", configuration_url.clone()),
         ("NF4_NIGHTFALL_PROPOSER__URL", proposer_url.clone()),
+        (
+            "NF4_NIGHTFALL_CLIENT__WEBHOOK_URL",
+            webhook_setup.url.clone(),
+        ),
+        ("WEBHOOK_URL", webhook_setup.url.clone()),
     ])?;
     config::update_client_docker_compose(&profile, client_port)?;
 
@@ -107,10 +122,16 @@ pub fn wizard() -> Result<(), String> {
     println!("  client_api_url: {client_api_url}");
     println!("  proposer_url: {proposer_url}");
     println!("  configuration_runtime_url: {configuration_url}");
+    println!("  webhook_url: {}", webhook_setup.url);
+    if let Some(events_path) = webhook_setup.events_path {
+        println!("  webhook_events: {}", events_path.display());
+    }
     println!();
     println!("Next:");
     println!("  ./scripts/nf4 status");
     println!("  ./scripts/nf4 logs client");
+    println!("  ./scripts/nf4 webhook events");
+    println!("  ./scripts/nf4 webhook salts");
     Ok(())
 }
 
@@ -259,6 +280,33 @@ fn prompt_url(label: &str, default: &str) -> Result<String, String> {
         Ok(url)
     } else {
         Err("URL must start with http:// or https:// and include a host.".to_string())
+    }
+}
+
+fn configure_webhook(env: &BTreeMap<String, String>) -> Result<WebhookSetup, String> {
+    let existing_url = env_value(env, "NF4_NIGHTFALL_CLIENT__WEBHOOK_URL")
+        .or_else(|| env_value(env, "WEBHOOK_URL"));
+    let default_url =
+        existing_url.unwrap_or_else(|| format!("http://{}:8081/webhook", detected_host()));
+
+    let start_local = Confirm::new("Start local testing webhook?")
+        .with_default(true)
+        .prompt()
+        .map_err(|err| err.to_string())?;
+
+    if start_local {
+        let port = prompt_port("Webhook port", url_port(&default_url).unwrap_or(8081))?;
+        let local = webhook::ensure_local(port)?;
+        Ok(WebhookSetup {
+            url: format!("http://{}:{port}/webhook", detected_host()),
+            events_path: Some(local.events_path),
+        })
+    } else {
+        let url = prompt_url("Webhook URL [press Enter to use default]", &default_url)?;
+        Ok(WebhookSetup {
+            url,
+            events_path: None,
+        })
     }
 }
 
@@ -528,6 +576,7 @@ fn print_review(review: &ClientReview<'_>) {
     println!("  client_api_url: {}", review.client_api_url);
     println!("  proposer_url: {}", review.proposer_url);
     println!("  configuration_runtime_url: {}", review.configuration_url);
+    println!("  webhook_url: {}", review.webhook_url);
     println!("  client_port: {}", review.client_port);
 }
 
@@ -547,7 +596,13 @@ struct ClientReview<'a> {
     client_api_url: &'a str,
     proposer_url: &'a str,
     configuration_url: &'a str,
+    webhook_url: &'a str,
     client_port: u16,
+}
+
+struct WebhookSetup {
+    url: String,
+    events_path: Option<PathBuf>,
 }
 
 #[cfg(test)]

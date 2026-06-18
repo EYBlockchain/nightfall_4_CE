@@ -179,6 +179,7 @@ fn update_client_docker_compose_text(source: &str, profile: &str, client_port: u
             "NF4_ETHEREUM_CLIENT_URL",
             "NF4_CONFIGURATION_URL=${NF4_CONFIGURATION_URL}",
             "NF4_NIGHTFALL_PROPOSER__URL=${NF4_NIGHTFALL_PROPOSER__URL}",
+            "NF4_NIGHTFALL_CLIENT__WEBHOOK_URL=${NF4_NIGHTFALL_CLIENT__WEBHOOK_URL}",
             "NF4_MOCK_PROVER=${NF4_MOCK_PROVER:-false}",
         ],
     );
@@ -643,6 +644,11 @@ NF4_MOCK_PROVER='true'
         assert!(updated.contains("- NF4_SIGNING_KEY=${CLIENT_SIGNING_KEY}"));
         assert!(updated.contains("- NF4_CONFIGURATION_URL=${NF4_CONFIGURATION_URL}"));
         assert!(updated.contains("- NF4_NIGHTFALL_PROPOSER__URL=${NF4_NIGHTFALL_PROPOSER__URL}"));
+        assert!(
+            updated.contains(
+                "- NF4_NIGHTFALL_CLIENT__WEBHOOK_URL=${NF4_NIGHTFALL_CLIENT__WEBHOOK_URL}"
+            )
+        );
         assert!(updated.contains("- NF4_ETHEREUM_CLIENT_URL"));
     }
 }
