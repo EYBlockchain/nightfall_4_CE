@@ -195,13 +195,15 @@ Token type values:
 - `3`: ERC3525.
 - `4`: Fee token, used internally.
 
-Useful function names to look for on the block explorer:
+Useful function names and Method values to look for on the block explorer:
 
-- X509 certification calls `X509.validateCertificate(...)`.
-- Deposit calls `Nightfall.escrow_funds(...)`.
-- Transfer is first submitted to the proposer; when included in an L2 block, the proposer calls `Nightfall.propose_block(...)`.
-- Withdraw is first submitted to the proposer; when included in an L2 block, the proposer calls `Nightfall.propose_block(...)`.
-- After withdraw inclusion, de-escrow calls `Nightfall.descrow_funds(...)`.
+- X509 certification calls `X509.validateCertificate(...)`; Method: `0x4e5805d3`.
+- Deposit first calls `Nightfall.escrow_funds(...)`; Method: `0xe6d5abe5`.
+- When a deposit is included in an L2 block, the proposer calls `Nightfall.propose_block(...)`; Method: `0x55420851`.
+- Transfer is first submitted to the proposer; when included in an L2 block, the proposer calls `Nightfall.propose_block(...)`; Method: `0x55420851`.
+- Withdraw is first submitted to the proposer; when included in an L2 block, the proposer calls `Nightfall.propose_block(...)`; Method: `0x55420851`.
+- After withdraw inclusion, de-escrow calls `Nightfall.descrow_funds(...)`; Method: `0xf3b85fc2`.
+- During deployment, `Nightfall.set_proposer_manager(address)` may also appear; Method: `0xe3178c86`.
 
 If X509 allowlisting is enabled, certify the proposer:
 
