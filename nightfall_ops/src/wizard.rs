@@ -157,17 +157,23 @@ fn prompt_port(label: &str, default: u16) -> Result<u16, String> {
 }
 
 fn prompt_configuration_url(port: u16) -> Result<String, String> {
-    let default = format!("http://127.0.0.1:{port}");
-    let url = Text::new("Configuration service URL, including port [press Enter to use default]")
+    let default = default_configuration_url(port);
+    let url = Text::new(
+        "Configuration service URL, including port [press Enter to use detected LAN default]",
+    )
         .with_default(&default)
         .prompt()
         .map_err(|err| err.to_string())?;
 
-    if (url.starts_with("http://") || url.starts_with("https://")) && url.contains(':') {
+    if valid_http_url_with_port(&url) {
         Ok(url)
     } else {
         Err("Configuration URL must include http:// or https:// and the exposed port.".to_string())
     }
+}
+
+fn default_configuration_url(port: u16) -> String {
+    format!("http://{}:{port}", detected_host())
 }
 
 fn cast_rpc_u64(command: &str, rpc_url: &str) -> Result<u64, String> {
@@ -221,7 +227,7 @@ fn command_error(command: &str, output: &std::process::Output) -> String {
 
 fn default_proposer_url(configuration_url: &str) -> String {
     let Some((scheme, rest)) = configuration_url.split_once("://") else {
-        return "http://127.0.0.1:3001".to_string();
+        return format!("http://{}:3001", detected_host());
     };
     let host = rest
         .split('/')
@@ -229,8 +235,53 @@ fn default_proposer_url(configuration_url: &str) -> String {
         .unwrap_or(rest)
         .split(':')
         .next()
-        .unwrap_or("127.0.0.1");
+        .filter(|host| !host.is_empty())
+        .map(ToString::to_string)
+        .unwrap_or_else(detected_host);
     format!("{scheme}://{host}:3001")
+}
+
+fn valid_http_url_with_port(url: &str) -> bool {
+    (url.starts_with("http://") || url.starts_with("https://")) && url_port(url).is_some()
+}
+
+fn url_port(url: &str) -> Option<u16> {
+    let (_, rest) = url.split_once("://")?;
+    let authority = rest.split('/').next().unwrap_or(rest);
+    authority.rsplit_once(':')?.1.parse().ok()
+}
+
+fn detected_host() -> String {
+    hostname_ip()
+        .or_else(|| ipconfig_ip("en0"))
+        .or_else(|| ipconfig_ip("en1"))
+        .unwrap_or_else(|| "127.0.0.1".to_string())
+}
+
+fn hostname_ip() -> Option<String> {
+    let output = Command::new("hostname").arg("-I").output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    host_from_hostname_output(&String::from_utf8_lossy(&output.stdout))
+}
+
+fn host_from_hostname_output(output: &str) -> Option<String> {
+    output
+        .split_whitespace()
+        .find(|ip| !ip.starts_with("127.") && !ip.starts_with("172."))
+        .map(ToString::to_string)
+}
+
+fn ipconfig_ip(interface: &str) -> Option<String> {
+    let output = Command::new("ipconfig")
+        .args(["getifaddr", interface])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    first_line(&output.stdout).ok().filter(|ip| !ip.starts_with("127."))
 }
 
 fn print_review(config: &DeploymentConfig) {
@@ -326,7 +377,7 @@ fn run_command(
 
 #[cfg(test)]
 mod tests {
-    use super::default_proposer_url;
+    use super::{default_proposer_url, host_from_hostname_output, valid_http_url_with_port};
 
     #[test]
     fn derives_default_proposer_url_from_configuration_url() {
@@ -338,5 +389,21 @@ mod tests {
             default_proposer_url("https://config.example.com:8080"),
             "https://config.example.com:3001"
         );
+    }
+
+    #[test]
+    fn selects_lan_ip_from_hostname_output() {
+        assert_eq!(
+            host_from_hostname_output("10.0.0.8 172.17.0.1 172.18.0.1"),
+            Some("10.0.0.8".to_string())
+        );
+        assert_eq!(host_from_hostname_output("127.0.0.1 172.17.0.1"), None);
+    }
+
+    #[test]
+    fn configuration_url_requires_explicit_port() {
+        assert!(valid_http_url_with_port("http://10.0.0.8:8080"));
+        assert!(valid_http_url_with_port("https://config.example.com:8443"));
+        assert!(!valid_http_url_with_port("http://10.0.0.8"));
     }
 }
