@@ -119,6 +119,13 @@ http://<server-lan-ip>:8081/webhook
 
 The assistant starts this webhook for you and stores received webhook events under `.nightfall/webhook/events.jsonl`.
 
+The client wizard also prepares the local mock token deployment environment. It writes `NF4_SIGNING_KEY`, `CLIENT2_ADDRESS`, and `NIGHTFALL_ADDRESS` to `local.env`, then runs:
+
+```bash
+forge clean
+forge build
+```
+
 Check client status and logs:
 
 ```bash
@@ -162,6 +169,16 @@ Show withdraw fund salts found in webhook events:
 
 ```bash
 ./scripts/nf4 webhook salts
+```
+
+Deploy local mock ERC contracts for deposit testing:
+
+```bash
+forge script blockchain_assets/script/mock_deployment.s.sol:MockDeployer \
+  --rpc-url <host-chain-rpc-url> \
+  --broadcast \
+  --legacy \
+  --slow
 ```
 
 ## Expected Result
