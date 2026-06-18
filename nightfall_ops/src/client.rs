@@ -15,6 +15,7 @@ use crate::{compose, config, validation, webhook};
 const ADDRESSES_TOML: &str = "configuration/toml/addresses.toml";
 const CONTRACT_HASHES_TOML: &str = "configuration/toml/contract_hashes.toml";
 const PROVING_KEY: &str = "configuration/bin/keys/proving_key";
+const MOCK_DEPLOYER_SCRIPT: &str = "blockchain_assets/script/mock_deployment.s.sol:MockDeployer";
 
 pub fn wizard() -> Result<(), String> {
     if !config::required_repo_files_exist() {
@@ -148,11 +149,92 @@ pub fn wizard() -> Result<(), String> {
     println!("  ./scripts/nf4 webhook events");
     println!("  ./scripts/nf4 webhook salts");
     println!();
-    println!("If you want to do mock ERC deployments so you will have some tokens to play with, run:");
     println!(
-        "  env $(grep -v '^#' local.env | xargs) forge script blockchain_assets/script/mock_deployment.s.sol:MockDeployer --rpc-url {rpc_url} --broadcast --legacy --slow"
+        "If you want to do mock ERC deployments so you will have some tokens to play with, run:"
     );
+    println!("  ./scripts/nf4 client deploy-mock-tokens");
     Ok(())
+}
+
+pub fn deploy_mock_tokens() -> Result<(), String> {
+    if !config::required_repo_files_exist() {
+        return Err("Run this command from the nightfall_4_CE repository root.".to_string());
+    }
+    if !config::local_env_exists() {
+        return Err("local.env was not found. Run nf4 wizard client first.".to_string());
+    }
+
+    let mut env = config::read_local_env();
+    let profile = env_value(&env, "NF4_RUN_MODE").unwrap_or_else(|| "development".to_string());
+    let profile_config = read_profile_config(&profile)?;
+    let rpc_url = env_value(&env, "NF4_ETHEREUM_CLIENT_URL")
+        .or_else(|| profile_config.ethereum_client_url.clone())
+        .ok_or_else(|| {
+            "NF4_ETHEREUM_CLIENT_URL was not found in local.env or nightfall.toml.".to_string()
+        })?;
+
+    let addresses = read_addresses()?;
+    let nightfall_address = addresses
+        .get("nightfall")
+        .cloned()
+        .ok_or_else(|| format!("{ADDRESSES_TOML} is missing nightfall"))?;
+    if !is_non_zero_address(&nightfall_address) {
+        return Err(format!(
+            "{ADDRESSES_TOML} has zero or invalid nightfall address."
+        ));
+    }
+
+    let signing_key = env_value(&env, "NF4_SIGNING_KEY")
+        .or_else(|| env_value(&env, "CLIENT_SIGNING_KEY"))
+        .ok_or_else(|| {
+            "NF4_SIGNING_KEY or CLIENT_SIGNING_KEY was not found in local.env.".to_string()
+        })?;
+    let client_address =
+        match env_value(&env, "CLIENT_ADDRESS").filter(|address| is_non_zero_address(address)) {
+            Some(address) => address,
+            None => cast_wallet_address(&signing_key)?,
+        };
+    if !is_non_zero_address(&client_address) {
+        return Err("CLIENT_ADDRESS is missing or invalid, and could not be derived.".to_string());
+    }
+    let client2_address = env_value(&env, "CLIENT2_ADDRESS")
+        .filter(|address| is_non_zero_address(address))
+        .unwrap_or_else(|| client_address.clone());
+
+    config::merge_local_env(&[
+        ("NF4_SIGNING_KEY", signing_key.clone()),
+        ("CLIENT_ADDRESS", client_address.clone()),
+        ("CLIENT2_ADDRESS", client2_address.clone()),
+        ("NIGHTFALL_ADDRESS", nightfall_address.clone()),
+    ])?;
+
+    env.insert("NF4_SIGNING_KEY".to_string(), signing_key);
+    env.insert("CLIENT_ADDRESS".to_string(), client_address.clone());
+    env.insert("CLIENT2_ADDRESS".to_string(), client2_address.clone());
+    env.insert("NIGHTFALL_ADDRESS".to_string(), nightfall_address.clone());
+
+    println!("Deploying mock ERC contracts for local testing...");
+    println!("  rpc_url: {rpc_url}");
+    println!("  owner: {client_address}");
+    println!("  client2: {client2_address}");
+    println!("  nightfall: {nightfall_address}");
+
+    run_command("Cleaning contract build artifacts", "forge", &["clean"])?;
+    run_command("Building contracts", "forge", &["build"])?;
+    run_command_with_env(
+        "Deploying mock ERC contracts",
+        "forge",
+        &[
+            "script",
+            MOCK_DEPLOYER_SCRIPT,
+            "--rpc-url",
+            &rpc_url,
+            "--broadcast",
+            "--legacy",
+            "--slow",
+        ],
+        &env,
+    )
 }
 
 fn check_prerequisites() -> Result<(), String> {
@@ -192,6 +274,28 @@ fn run_command(title: &str, program: &str, args: &[&str]) -> Result<(), String> 
 
     let status = Command::new(program)
         .args(args)
+        .status()
+        .map_err(|err| format!("Failed to run {program}: {err}"))?;
+
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("{program} exited with {status}"))
+    }
+}
+
+fn run_command_with_env(
+    title: &str,
+    program: &str,
+    args: &[&str],
+    env: &BTreeMap<String, String>,
+) -> Result<(), String> {
+    println!("{title}...");
+    println!("  {program} {}", args.join(" "));
+
+    let status = Command::new(program)
+        .args(args)
+        .envs(env)
         .status()
         .map_err(|err| format!("Failed to run {program}: {err}"))?;
 

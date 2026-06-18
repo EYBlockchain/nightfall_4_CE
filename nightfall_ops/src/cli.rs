@@ -13,6 +13,7 @@ pub enum Command {
     LogsConfiguration,
     LogsProposer,
     LogsClient,
+    ClientDeployMockTokens,
     WebhookStart { port: Option<u16> },
     WebhookServe { port: u16 },
     WebhookStatus,
@@ -39,6 +40,7 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Command, String> 
         ["logs", "configuration"] => Ok(Command::LogsConfiguration),
         ["logs", "proposer"] => Ok(Command::LogsProposer),
         ["logs", "client"] => Ok(Command::LogsClient),
+        ["client", "deploy-mock-tokens"] => Ok(Command::ClientDeployMockTokens),
         ["webhook", "start"] => Ok(Command::WebhookStart { port: None }),
         ["webhook", "start", port] => Ok(Command::WebhookStart {
             port: Some(parse_port(port)?),
@@ -80,6 +82,7 @@ Usage:
   nf4 logs configuration
   nf4 logs proposer
   nf4 logs client
+  nf4 client deploy-mock-tokens
   nf4 webhook start [port]
   nf4 webhook status
   nf4 webhook logs
@@ -99,6 +102,8 @@ Commands:
   nf4 logs configuration  Shows configuration service logs.
   nf4 logs proposer       Shows proposer service logs.
   nf4 logs client         Shows client service logs.
+  nf4 client deploy-mock-tokens
+                           Deploys local mock ERC contracts using local.env and the configured RPC URL.
   nf4 webhook start       Starts the local testing webhook on port 8081, or the supplied port.
   nf4 webhook status      Shows local testing webhook status and event storage path.
   nf4 webhook logs        Prints local testing webhook process logs.
@@ -153,6 +158,10 @@ mod tests {
             Ok(Command::LogsProposer)
         );
         assert_eq!(parse(args(&["logs", "client"])), Ok(Command::LogsClient));
+        assert_eq!(
+            parse(args(&["client", "deploy-mock-tokens"])),
+            Ok(Command::ClientDeployMockTokens)
+        );
         assert_eq!(
             parse(args(&["webhook", "start"])),
             Ok(Command::WebhookStart { port: None })

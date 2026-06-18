@@ -39,6 +39,7 @@ fn run(args: impl IntoIterator<Item = String>) -> Result<(), String> {
         Command::LogsConfiguration => compose::logs_configuration(),
         Command::LogsProposer => compose::logs_proposer(),
         Command::LogsClient => compose::logs_client(),
+        Command::ClientDeployMockTokens => client::deploy_mock_tokens(),
         Command::WebhookStart { port } => webhook::start_command(port),
         Command::WebhookServe { port } => webhook::serve(port),
         Command::WebhookStatus => webhook::status(),

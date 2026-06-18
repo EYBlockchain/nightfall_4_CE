@@ -171,14 +171,10 @@ Show withdraw fund salts found in webhook events:
 ./scripts/nf4 webhook salts
 ```
 
-Deploy local mock ERC contracts for deposit testing. The client wizard prints this command with your configured host-chain RPC URL filled in. The `env $(...)` prefix passes the values from `local.env` to Forge for this command:
+Deploy local mock ERC contracts for deposit testing. This helper reads `local.env`, fills the required Forge environment values, and uses the configured host-chain RPC URL:
 
 ```bash
-env $(grep -v '^#' local.env | xargs) forge script blockchain_assets/script/mock_deployment.s.sol:MockDeployer \
-  --rpc-url <host-chain-rpc-url> \
-  --broadcast \
-  --legacy \
-  --slow
+./scripts/nf4 client deploy-mock-tokens
 ```
 
 ## Expected Result
