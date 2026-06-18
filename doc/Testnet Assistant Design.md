@@ -1121,11 +1121,12 @@ The client wizard should run:
 5. Ask the user to confirm or replace the client address.
 6. Validate or ask for the proposer URL.
 7. Validate or ask for the configuration runtime URL.
-8. Write client-specific values to local.env.
-9. Build indie-client image.
-10. Start indie-client detached.
-11. Poll client health endpoint.
-12. Print client status and next API options.
+8. Configure the client webhook URL.
+9. Write client-specific values to local.env.
+10. Build indie-client image.
+11. Start indie-client detached.
+12. Poll client health endpoint.
+13. Print client status and next API options.
 ```
 
 Commands called internally:
@@ -1150,6 +1151,7 @@ Client address: <address>
 Client API: http://127.0.0.1:3000
 Proposer URL: http://<host-or-lan-ip>:3001
 Configuration runtime URL: http://<host-or-lan-ip>:8080
+Webhook URL: http://<host-or-lan-ip>:8081/webhook
 
 Next:
   Run nf4 client health
@@ -1166,6 +1168,39 @@ Suggested checks:
   nf4 logs client
   nf4 status
 ```
+
+### Client Webhook
+
+The client processes deposit, transfer, and withdraw requests asynchronously. It should have a reachable webhook URL so users can inspect transaction completion events. For withdraw testing, the webhook response is also where users can find the `withdraw_fund_salt` needed to follow de-escrow progress.
+
+The normal `nf4 wizard client` flow should offer webhook setup before starting the client:
+
+```text
+Start local testing webhook? [default: yes]
+Webhook port [default: 8081]
+Webhook URL: http://<host-or-lan-ip>:8081/webhook
+```
+
+If the user accepts the local testing webhook, the assistant should:
+
+- Start a small local webhook process before starting `indie-client`.
+- Store webhook payloads as JSON lines under `.nightfall/webhook/events.jsonl`.
+- Set `NF4_NIGHTFALL_CLIENT__WEBHOOK_URL` or the existing client webhook env wiring to `http://<host-or-lan-ip>:8081/webhook`.
+- Print where webhook events are being stored.
+
+If the user already has a webhook, the assistant should accept that URL instead and skip starting the local testing webhook.
+
+Recommended webhook helper commands:
+
+```text
+nf4 webhook start
+nf4 webhook status
+nf4 webhook logs
+nf4 webhook events
+nf4 webhook salts
+```
+
+`nf4 webhook salts` should scan stored webhook events and print any `withdraw_fund_salt` values it can find.
 
 ## Client API Helpers
 
