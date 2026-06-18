@@ -147,8 +147,10 @@ pub fn wizard() -> Result<(), String> {
     println!("  ./scripts/nf4 logs client");
     println!("  ./scripts/nf4 webhook events");
     println!("  ./scripts/nf4 webhook salts");
+    println!();
+    println!("If you want to do mock ERC deployments so you will have some tokens to play with, run:");
     println!(
-        "  forge script blockchain_assets/script/mock_deployment.s.sol:MockDeployer --rpc-url <host-chain-rpc-url> --broadcast --legacy --slow"
+        "  forge script blockchain_assets/script/mock_deployment.s.sol:MockDeployer --rpc-url {rpc_url} --broadcast --legacy --slow"
     );
     Ok(())
 }

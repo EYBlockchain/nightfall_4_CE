@@ -171,7 +171,7 @@ Show withdraw fund salts found in webhook events:
 ./scripts/nf4 webhook salts
 ```
 
-Deploy local mock ERC contracts for deposit testing:
+Deploy local mock ERC contracts for deposit testing. The client wizard prints this command with your configured host-chain RPC URL filled in:
 
 ```bash
 forge script blockchain_assets/script/mock_deployment.s.sol:MockDeployer \
