@@ -77,14 +77,16 @@ services:
         condition: service_healthy
     tty: true # required for logs to print in colour
     environment:
-      - NF4_RUN_MODE=${NF4_RUN_MODE:-base_sepolia}
+      - NF4_RUN_MODE=${NF4_RUN_MODE:-sepolia}
       - RUST_BACKTRACE=${RUST_BACKTRACE:-0}
       - NF4_SIGNING_KEY=${CLIENT_SIGNING_KEY}
       - NF4_NIGHTFALL_CLIENT__DB_URL=mongodb://nf4_db_client:27017
       - NF4_ETHEREUM_CLIENT_URL
       - NF4_MOCK_PROVER=${NF4_MOCK_PROVER:-false}
-      - NF4_NIGHTFALL_PROPOSER__URL=${NF4_NIGHTFALL_PROPOSER__URL:-localhost:3001}
+      - NF4_NIGHTFALL_PROPOSER__URL=${NF4_NIGHTFALL_PROPOSER__URL}
 
+      - NF4_CONFIGURATION_URL=${NF4_CONFIGURATION_URL}
+      - NF4_NIGHTFALL_CLIENT__WEBHOOK_URL=${NF4_NIGHTFALL_CLIENT__WEBHOOK_URL}
   client2:
     container_name: nf4_client2
     stop_grace_period: 3s
@@ -210,13 +212,16 @@ services:
       start_period: 0s
     networks:
       - nightfall_network
+    volumes:
+      - ./configuration/bin/keys:/app/configuration/bin/keys
+      - ./configuration/toml:/app/configuration/toml
     depends_on:
       db_proposer:
         condition: service_healthy
     stdin_open: true # keep stdin open, so we can print things in docker compose up
     tty: true # required for logs to print in colour
     environment:
-      - NF4_RUN_MODE=${NF4_RUN_MODE:-base_sepolia}
+      - NF4_RUN_MODE=${NF4_RUN_MODE:-sepolia}
       - RUST_BACKTRACE=${RUST_BACKTRACE:-0}
       - NF4_SIGNING_KEY=${PROPOSER_SIGNING_KEY}
       - NF4_MOCK_PROVER=${NF4_MOCK_PROVER:-false}
@@ -224,6 +229,7 @@ services:
       - NF4_CONTRACTS__DEPLOY_CONTRACTS=${NF4_CONTRACTS__DEPLOY_CONTRACTS:-false}
 
 
+      - NF4_CONFIGURATION_URL=${NF4_CONFIGURATION_URL}
   proposer2:
     container_name: nf4_proposer2
     stop_grace_period: 3s
@@ -436,7 +442,7 @@ services:
     stdin_open: true # keep stdin open, so we can print things in docker compose up
     tty: true # required for logs to print in colour
     environment:
-      - NF4_RUN_MODE=${NF4_RUN_MODE:-base_sepolia}
+      - NF4_RUN_MODE=${NF4_RUN_MODE:-sepolia}
       - NF4_CONTRACTS__DEPLOY_CONTRACTS=${NF4_CONTRACTS__DEPLOY_CONTRACTS:-true}
       - RUST_BACKTRACE=${RUST_BACKTRACE:-0}
       - NF4_SIGNING_KEY=${DEPLOYER_SIGNING_KEY}
@@ -455,22 +461,22 @@ services:
     build:
       dockerfile: configuration/Dockerfile
       context: .
-    # restart: unless-stopped
-    # ports:
-    #   - "8080:80"     replace with a port that is exposed for configuration service if required
     platform: linux/amd64 # Required for building on M1 Macs
     volumes:
       - ./configuration/toml:/var/www/html/configuration/toml
-      - ./configuration/bin/keys:/var/www/html/configuration/bin/keys:ro
+      - ./configuration/bin/keys:/var/www/html/configuration/bin/keys
     networks:
       - nightfall_network
     stdin_open: true # keep stdin open, so we can print things in docker compose up
     tty: true # required for logs to print in colour
     environment:
-      - NF4_RUN_MODE=${NF4_RUN_MODE:-development}
+      - NF4_RUN_MODE=${NF4_RUN_MODE:-sepolia}
       - RUST_BACKTRACE=${RUST_BACKTRACE:-0}
       - NGINX_ENTRYPOINT_QUIET_LOGS=1
 
+    restart: unless-stopped
+    ports:
+      - "8080:80"
   anvil:
     container_name: anvil
     stop_grace_period: 3s
