@@ -1,5 +1,8 @@
+use crate::network::NetworkKind;
+
 #[derive(Debug, Clone)]
 pub struct DeploymentConfig {
+    pub network: NetworkKind,
     pub profile: String,
     pub rpc_url: String,
     pub chain_id: u64,

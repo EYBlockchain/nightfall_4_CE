@@ -20,3 +20,5 @@ configuration/toml
 remappings.txt
 local.env
 .nightfall/
+reports/
+temp/

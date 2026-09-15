@@ -7,17 +7,25 @@ use std::{
     time::Duration,
 };
 
-use inquire::{Confirm, Password, Text};
+use inquire::{Confirm, Text};
 use toml_edit::{DocumentMut, Item};
 
-use crate::{compose, config, validation, webhook};
+use crate::{
+    compose, config,
+    network::{
+        self, detect_lan_host, host_reachable_rpc_url, validate_published_configuration_url,
+        with_lan_host, LOCAL_ANVIL_ACCOUNT0_KEY, LOCAL_ANVIL_ACCOUNT1_ADDRESS,
+        LOCAL_ANVIL_ACCOUNT1_KEY,
+    },
+    validation, webhook,
+};
 
 const ADDRESSES_TOML: &str = "configuration/toml/addresses.toml";
 const CONTRACT_HASHES_TOML: &str = "configuration/toml/contract_hashes.toml";
 const PROVING_KEY: &str = "configuration/bin/keys/proving_key";
 const MOCK_DEPLOYER_SCRIPT: &str = "blockchain_assets/script/mock_deployment.s.sol:MockDeployer";
 
-pub fn wizard() -> Result<(), String> {
+pub fn wizard(yes: bool) -> Result<(), String> {
     if !config::required_repo_files_exist() {
         return Err("Run this command from the nightfall_4_CE repository root.".to_string());
     }
@@ -32,10 +40,13 @@ pub fn wizard() -> Result<(), String> {
     println!();
 
     check_prerequisites()?;
+    config::refresh_local_lan_urls()?;
 
     let env = config::read_local_env();
     let profile = env_value(&env, "NF4_RUN_MODE").unwrap_or_else(|| "development".to_string());
     let profile_config = read_profile_config(&profile)?;
+    let resolved = network::resolve_network_from_env(&env, profile_config.chain_id);
+    println!("Network: {} ({})", resolved.label(), resolved.source);
     let rpc_url = env_value(&env, "NF4_ETHEREUM_CLIENT_URL")
         .or_else(|| profile_config.ethereum_client_url.clone())
         .ok_or_else(|| {
@@ -48,40 +59,105 @@ pub fn wizard() -> Result<(), String> {
 
     println!("Checking client deployment metadata...");
     validate_metadata(mock_prover)?;
+    if yes && resolved.kind != Some(network::NetworkKind::Local) {
+        return Err(
+            "--yes is only supported when NF4_NETWORK=local. Run wizard deploy --network local first."
+                .to_string(),
+        );
+    }
     let nightfall_address = read_addresses()?
         .get("nightfall")
         .cloned()
         .ok_or_else(|| format!("{ADDRESSES_TOML} is missing nightfall"))?;
 
-    let client_key = prompt_client_key(env.get("CLIENT_SIGNING_KEY"))?;
-    let derived_client_address = cast_wallet_address(&client_key)?;
-    let client_address = prompt_client_address(env.get("CLIENT_ADDRESS"), &derived_client_address)?;
-    let client2_address = env_value(&env, "CLIENT2_ADDRESS")
-        .filter(|address| is_non_zero_address(address))
-        .unwrap_or_else(|| client_address.clone());
+    let lan_host = detect_lan_host();
+    let proposer_url_default =
+        with_lan_host(&default_proposer_url(&env, &profile_config), &lan_host);
+    let configuration_url_default = with_lan_host(
+        &env_value(&env, "NF4_CONFIGURATION_URL")
+            .or_else(|| profile_config.configuration_url.clone())
+            .unwrap_or_else(|| format!("http://{lan_host}:8080")),
+        &lan_host,
+    );
 
-    let proposer_url_default = default_proposer_url(&env, &profile_config);
-    let proposer_url = prompt_url(
-        "Proposer URL [press Enter to use default]",
-        &proposer_url_default,
-    )?;
+    let (client_key, client_address, client2_address, client2_signing_key, proposer_url, configuration_url, webhook_setup, client_port) =
+        if yes {
+            println!("Using local --yes defaults (Anvil account 0 / local.env, webhook 8081).");
+            let key = env
+                .get("CLIENT_SIGNING_KEY")
+                .cloned()
+                .filter(|value| !value.trim().is_empty())
+                .unwrap_or_else(|| LOCAL_ANVIL_ACCOUNT0_KEY.to_string());
+            let derived = cast_wallet_address(&key)?;
+            let address = env_value(&env, "CLIENT_ADDRESS")
+                .filter(|value| is_non_zero_address(value))
+                .unwrap_or(derived);
+            let client2 = env_value(&env, "CLIENT2_ADDRESS")
+                .filter(|value| is_non_zero_address(value))
+                .unwrap_or_else(|| LOCAL_ANVIL_ACCOUNT1_ADDRESS.to_string());
+            let client2_key = env_value(&env, "CLIENT2_SIGNING_KEY")
+                .filter(|value| !value.trim().is_empty())
+                .unwrap_or_else(|| LOCAL_ANVIL_ACCOUNT1_KEY.to_string());
+            let webhook = configure_webhook_yes(&env, &lan_host)?;
+            let port = client_api_port(&env).unwrap_or(3000);
+            (
+                key,
+                address,
+                client2,
+                Some(client2_key),
+                proposer_url_default,
+                configuration_url_default,
+                webhook,
+                port,
+            )
+        } else {
+            let network = resolved.kind.unwrap_or(network::NetworkKind::Local);
+            let key = network::prompt_l1_signing_key(
+                "Client",
+                network,
+                env.get("CLIENT_SIGNING_KEY").map(String::as_str),
+                &rpc_url,
+            )?;
+            let derived = cast_wallet_address(&key)?;
+            let address = prompt_client_address(env.get("CLIENT_ADDRESS"), &derived)?;
+            let (client2_key, client2) = prompt_optional_local_client2(
+                network,
+                &address,
+                env.get("CLIENT2_SIGNING_KEY").map(String::as_str),
+                env.get("CLIENT2_ADDRESS").map(String::as_str),
+                &rpc_url,
+            )?;
+            let proposer_url = prompt_url(
+                "Proposer URL [press Enter to use default]",
+                &proposer_url_default,
+            )?;
+            let configuration_url = prompt_url(
+                "Configuration URL for client runtime [press Enter to use default]",
+                &configuration_url_default,
+            )?;
+            let webhook = configure_webhook(&env)?;
+            let port = prompt_port("Client API port", client_api_port(&env).unwrap_or(3000))?;
+            (
+                key,
+                address,
+                client2,
+                client2_key,
+                proposer_url,
+                configuration_url,
+                webhook,
+                port,
+            )
+        };
+    println!("Derived/using client address: {client_address}");
     validate_proposer_health(&proposer_url)?;
-
-    let configuration_url_default = env_value(&env, "NF4_CONFIGURATION_URL")
-        .or_else(|| profile_config.configuration_url.clone())
-        .unwrap_or_else(|| format!("http://{}:8080", detected_host()));
-    let configuration_url = prompt_url(
-        "Configuration URL for client runtime [press Enter to use default]",
-        &configuration_url_default,
-    )?;
+    if let Some(kind) = resolved.kind {
+        validate_published_configuration_url(kind, &configuration_url)?;
+    }
     validate_configuration_runtime_url(&configuration_url)?;
-
-    let webhook_setup = configure_webhook(&env)?;
-
-    let client_port = prompt_port("Client API port", client_api_port(&env).unwrap_or(3000))?;
     let client_api_url = format!("http://127.0.0.1:{client_port}");
 
     print_review(&ClientReview {
+        network: resolved.label(),
         profile: &profile,
         rpc_url: &rpc_url,
         mock_prover,
@@ -93,10 +169,11 @@ pub fn wizard() -> Result<(), String> {
         client_port,
     });
 
-    if !Confirm::new("Apply these changes and start indie-client?")
-        .with_default(true)
-        .prompt()
-        .map_err(|err| err.to_string())?
+    if !yes
+        && !Confirm::new("Apply these changes and start indie-client?")
+            .with_default(true)
+            .prompt()
+            .map_err(|err| err.to_string())?
     {
         return Err("Client setup cancelled before writing files.".to_string());
     }
@@ -119,6 +196,9 @@ pub fn wizard() -> Result<(), String> {
         ),
         ("WEBHOOK_URL", webhook_setup.url.clone()),
     ])?;
+    if let Some(client2_signing_key) = client2_signing_key {
+        config::merge_local_env(&[("CLIENT2_SIGNING_KEY", client2_signing_key)])?;
+    }
     config::update_client_docker_compose(&profile, client_port)?;
 
     run_command("Cleaning contract build artifacts", "forge", &["clean"])?;
@@ -130,6 +210,7 @@ pub fn wizard() -> Result<(), String> {
 
     println!();
     println!("Client OK");
+    println!("  network: {}", resolved.label());
     println!("  profile: {profile}");
     println!("  mode: {}", if mock_prover { "mock" } else { "real" });
     println!("  client_address: {client_address}");
@@ -167,11 +248,14 @@ pub fn deploy_mock_tokens() -> Result<(), String> {
     let mut env = config::read_local_env();
     let profile = env_value(&env, "NF4_RUN_MODE").unwrap_or_else(|| "development".to_string());
     let profile_config = read_profile_config(&profile)?;
-    let rpc_url = env_value(&env, "NF4_ETHEREUM_CLIENT_URL")
-        .or_else(|| profile_config.ethereum_client_url.clone())
-        .ok_or_else(|| {
-            "NF4_ETHEREUM_CLIENT_URL was not found in local.env or nightfall.toml.".to_string()
-        })?;
+    let rpc_url = host_reachable_rpc_url(
+        &env_value(&env, "NF4_ETHEREUM_CLIENT_URL")
+            .or_else(|| profile_config.ethereum_client_url.clone())
+            .ok_or_else(|| {
+                "NF4_ETHEREUM_CLIENT_URL was not found in local.env or nightfall.toml."
+                    .to_string()
+            })?,
+    );
 
     let addresses = read_addresses()?;
     let nightfall_address = addresses
@@ -359,31 +443,49 @@ fn read_addresses() -> Result<BTreeMap<String, String>, String> {
     Ok(addresses)
 }
 
-fn prompt_client_key(existing: Option<&String>) -> Result<String, String> {
+fn prompt_optional_local_client2(
+    network: network::NetworkKind,
+    client_address: &str,
+    existing_key: Option<&str>,
+    existing_address: Option<&str>,
+    rpc_url: &str,
+) -> Result<(Option<String>, String), String> {
+    let existing_address = existing_address
+        .map(str::trim)
+        .filter(|value| is_non_zero_address(value));
+    let existing_key = existing_key.map(str::trim).filter(|value| !value.is_empty());
+
+    if network != network::NetworkKind::Testnet {
+        let client2 = existing_address
+            .map(ToString::to_string)
+            .unwrap_or_else(|| client_address.to_string());
+        return Ok((existing_key.map(ToString::to_string), client2));
+    }
+
     println!();
-    println!("Paste the funded L1 testnet client private key.");
-    println!("Input is hidden for safety, so nothing will appear while typing.");
-    println!("Include 0x if your key has it, then press Enter.");
-    println!("Never share this key in chat or commit local.env.");
-
-    let prompt = if existing.is_some() {
-        "Client private key [hidden input, press Enter to reuse local.env]"
-    } else {
-        "Client private key [hidden input]"
-    };
-
-    let value = Password::new(prompt)
-        .without_confirmation()
+    println!("Client 2 should run `nf4 wizard client` on its own VM.");
+    println!("Only say yes here if Client 2 will share this machine (`nf4 up client2`).");
+    let local_client2 = Confirm::new("Will Client 2 also run on this machine?")
+        .with_default(false)
         .prompt()
         .map_err(|err| err.to_string())?;
-
-    if value.trim().is_empty() {
-        existing
-            .cloned()
-            .ok_or_else(|| "Client private key is required.".to_string())
-    } else {
-        Ok(value)
+    if !local_client2 {
+        let client2 = existing_address
+            .map(ToString::to_string)
+            .unwrap_or_else(|| client_address.to_string());
+        if existing_address.is_none() {
+            println!(
+                "Set CLIENT2_ADDRESS in local.env to Client 2's L1 address before mock-token minting."
+            );
+        }
+        return Ok((None, client2));
     }
+
+    let client2_key =
+        network::prompt_l1_signing_key("Client 2", network, existing_key, rpc_url)?;
+    let client2 = cast_wallet_address(&client2_key)?;
+    println!("Client 2 address: {client2}");
+    Ok((Some(client2_key), client2))
 }
 
 fn prompt_client_address(
@@ -422,6 +524,21 @@ fn prompt_url(label: &str, default: &str) -> Result<String, String> {
     } else {
         Err("URL must start with http:// or https:// and include a host.".to_string())
     }
+}
+
+fn configure_webhook_yes(
+    env: &BTreeMap<String, String>,
+    lan_host: &str,
+) -> Result<WebhookSetup, String> {
+    let port = env_value(env, "NF4_NIGHTFALL_CLIENT__WEBHOOK_URL")
+        .and_then(|url| url_port(&url))
+        .or_else(|| env_value(env, "WEBHOOK_URL").and_then(|url| url_port(&url)))
+        .unwrap_or(8081);
+    let local = webhook::ensure_local(port)?;
+    Ok(WebhookSetup {
+        url: format!("http://{lan_host}:{port}/webhook"),
+        events_path: Some(local.events_path),
+    })
 }
 
 fn configure_webhook(env: &BTreeMap<String, String>) -> Result<WebhookSetup, String> {
@@ -558,6 +675,7 @@ fn read_profile_config(profile: &str) -> Result<ProfileConfig, String> {
     Ok(ProfileConfig {
         ethereum_client_url: get_str(item, &["ethereum_client_url"]),
         configuration_url: get_str(item, &["configuration_url"]),
+        chain_id: get_i64(item, &["network", "chain_id"]).map(|value| value as u64),
         mock_prover: get_bool(item, &["mock_prover"]),
         nightfall_proposer_url: get_str(item, &["nightfall_proposer", "url"]),
     })
@@ -577,6 +695,14 @@ fn get_bool(item: &Item, path: &[&str]) -> Option<bool> {
         current = current.get(key)?;
     }
     current.as_bool()
+}
+
+fn get_i64(item: &Item, path: &[&str]) -> Option<i64> {
+    let mut current = item;
+    for key in path {
+        current = current.get(key)?;
+    }
+    current.as_integer()
 }
 
 fn env_value(values: &BTreeMap<String, String>, key: &str) -> Option<String> {
@@ -707,6 +833,7 @@ fn is_non_zero_address(address: &str) -> bool {
 fn print_review(review: &ClientReview<'_>) {
     println!();
     println!("Review client settings");
+    println!("  network: {}", review.network);
     println!("  profile: {}", review.profile);
     println!("  rpc_url: {}", review.rpc_url);
     println!(
@@ -725,11 +852,13 @@ fn print_review(review: &ClientReview<'_>) {
 struct ProfileConfig {
     ethereum_client_url: Option<String>,
     configuration_url: Option<String>,
+    chain_id: Option<u64>,
     mock_prover: Option<bool>,
     nightfall_proposer_url: Option<String>,
 }
 
 struct ClientReview<'a> {
+    network: &'a str,
     profile: &'a str,
     rpc_url: &'a str,
     mock_prover: bool,

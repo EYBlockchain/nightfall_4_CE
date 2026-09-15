@@ -4,6 +4,7 @@ mod client;
 mod compose;
 mod config;
 mod model;
+mod network;
 mod proposer;
 mod status;
 mod validation;
@@ -27,18 +28,20 @@ fn run(args: impl IntoIterator<Item = String>) -> Result<(), String> {
             println!("{}", cli::usage());
             Ok(())
         }
-        Command::WizardDeploy => wizard::deploy(),
-        Command::WizardProposer => proposer::wizard(),
-        Command::WizardClient => client::wizard(),
+        Command::WizardDeploy { network, yes } => wizard::deploy(network, yes),
+        Command::WizardProposer { yes } => proposer::wizard(yes),
+        Command::WizardClient { yes } => client::wizard(yes),
         Command::CheckDeployer => checks::deployer(),
         Command::CheckProver => checks::prover(),
         Command::UpConfiguration => compose::up_configuration(),
         Command::UpProposer => compose::up_proposer(),
         Command::UpClient => compose::up_client(),
+        Command::UpClient2 => compose::up_client2(),
         Command::Status => status::print(),
         Command::LogsConfiguration => compose::logs_configuration(),
         Command::LogsProposer => compose::logs_proposer(),
         Command::LogsClient => compose::logs_client(),
+        Command::LogsClient2 => compose::logs_client2(),
         Command::ClientDeployMockTokens => client::deploy_mock_tokens(),
         Command::WebhookStart { port } => webhook::start_command(port),
         Command::WebhookServe { port } => webhook::serve(port),

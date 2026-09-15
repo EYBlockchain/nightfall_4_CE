@@ -2,13 +2,21 @@ use std::{collections::BTreeMap, fs, path::Path, process::Command};
 
 use toml_edit::{DocumentMut, Item};
 
-use crate::{config, validation};
+use crate::{
+    config,
+    network::{
+        self, command_failure_detail, explain_rpc_error, host_reachable_rpc_url,
+        host_reachable_url, is_container_only_host, parse_u64_output, NetworkKind,
+    },
+    validation,
+};
 
 const ADDRESSES_TOML: &str = "configuration/toml/addresses.toml";
 const CONTRACT_HASHES_TOML: &str = "configuration/toml/contract_hashes.toml";
 const PROVING_KEY: &str = "configuration/bin/keys/proving_key";
 
 pub fn print() -> Result<(), String> {
+    config::refresh_local_lan_urls()?;
     let env = read_local_env().unwrap_or_default();
     let profile = env_value(&env, "NF4_RUN_MODE").unwrap_or_else(|| "development".to_string());
     let profile_config = read_profile_config(&profile);
@@ -17,10 +25,13 @@ pub fn print() -> Result<(), String> {
             .as_ref()
             .and_then(|config| config.rpc_url.clone())
     });
-    let configuration_url = profile_config
-        .as_ref()
-        .and_then(|config| config.configuration_url.clone());
+    let configuration_url = env_value(&env, "NF4_CONFIGURATION_URL").or_else(|| {
+        profile_config
+            .as_ref()
+            .and_then(|config| config.configuration_url.clone())
+    });
     let expected_chain_id = profile_config.as_ref().and_then(|config| config.chain_id);
+    let resolved = network::resolve_network_from_env(&env, expected_chain_id);
     let mock_prover = env_value(&env, "NF4_MOCK_PROVER")
         .and_then(|value| parse_bool(&value))
         .or_else(|| {
@@ -29,9 +40,16 @@ pub fn print() -> Result<(), String> {
                 .and_then(|config| config.mock_prover)
         });
 
-    println!("Nightfall testnet status");
+    match resolved.kind {
+        Some(kind) => println!("Nightfall {} status", kind.as_str()),
+        None => println!("Nightfall status"),
+    }
     println!();
+    println!("Network: {} ({})", resolved.label(), resolved.source);
     println!("Profile: {profile}");
+    if resolved.kind.is_none() && profile == "development" {
+        println!("  this is the local/dev default, not a wizard testnet deploy");
+    }
     println!(
         "Prover: {}",
         match mock_prover {
@@ -42,7 +60,7 @@ pub fn print() -> Result<(), String> {
     );
 
     match &rpc_url {
-        Some(url) => print_rpc_status(url, expected_chain_id),
+        Some(url) => print_rpc_status(url, expected_chain_id, resolved.kind),
         None => println!("RPC: UNCHECKED, NF4_ETHEREUM_CLIENT_URL was not found"),
     }
 
@@ -58,11 +76,7 @@ pub fn print() -> Result<(), String> {
     print_file_check("local.env", config::LOCAL_ENV);
 
     println!();
-    println!("Services:");
-    print_container_status("Deployer", "nf4_indie_deployer");
-    print_container_status("Configuration", "nf4_configuration");
-    print_container_status("Proposer", "nf4_indie_proposer");
-    print_container_status("Client", "nf4_indie_client");
+    print_services();
 
     if let Some(url) = env_value(&env, "NF4_NIGHTFALL_PROPOSER__URL") {
         print_http_health("Proposer health", &endpoint_url(&url, "v1/health"));
@@ -84,12 +98,30 @@ pub fn print() -> Result<(), String> {
     if let Some(url) = configuration_url {
         println!();
         println!("Configuration endpoint checks:");
-        let checks = validation::configuration_endpoint_checks(&url);
-        for check in checks {
-            if check.ok {
-                println!("  {}: OK ({})", check.label, check.url);
-            } else {
-                println!("  {}: FAILED - {}", check.label, check.detail);
+        let check_url = host_reachable_url(&url);
+        if check_url != url {
+            println!("  URL {url} is not reachable from the host; checking {check_url}");
+        }
+        if is_container_only_host_url(&url) && check_url == url {
+            println!("  skipped host-side curl for Docker-internal URL {url}");
+        } else {
+            let mut checks = validation::configuration_endpoint_checks(&check_url);
+            let localhost_url = rewrite_url_host_to_localhost(&check_url);
+            if !checks.iter().all(|check| check.ok) {
+                if let Some(localhost_url) = localhost_url.filter(|candidate| candidate != &check_url)
+                {
+                    println!(
+                        "  stored URL failed from this host; retrying {localhost_url}"
+                    );
+                    checks = validation::configuration_endpoint_checks(&localhost_url);
+                }
+            }
+            for check in checks {
+                if check.ok {
+                    println!("  {}: OK ({})", check.label, check.url);
+                } else {
+                    println!("  {}: FAILED - {}", check.label, check.detail);
+                }
             }
         }
     }
@@ -106,9 +138,63 @@ fn print_file_check(label: &str, path: &str) {
     println!("  {label}: {status} ({path})");
 }
 
-fn print_rpc_status(rpc_url: &str, expected_chain_id: Option<u64>) {
-    let block = cast_value("block-number", rpc_url);
-    let chain = cast_value("chain-id", rpc_url);
+fn print_services() {
+    println!("Services:");
+    if let Some(err) = docker_daemon_error() {
+        println!("  Docker: not running ({err})");
+        println!("  Deployer, Configuration, Proposer, Client: skipped");
+        return;
+    }
+    print_container_status("Deployer", "nf4_indie_deployer");
+    print_container_status("Configuration", "nf4_configuration");
+    print_container_status("Proposer", "nf4_indie_proposer");
+    print_container_status("Client", "nf4_indie_client");
+    print_container_status("Client 2", "nf4_indie_client2");
+}
+
+fn docker_daemon_error() -> Option<String> {
+    match Command::new("docker").args(["ps", "-q"]).output() {
+        Err(err) => Some(err.to_string()),
+        Ok(output) if !output.status.success() => command_failure_detail(&output),
+        Ok(_) => None,
+    }
+}
+
+fn is_container_only_host_url(url: &str) -> bool {
+    url_host(url).is_some_and(is_container_only_host)
+}
+
+fn rewrite_url_host_to_localhost(url: &str) -> Option<String> {
+    let host = url_host(url)?;
+    if host == "127.0.0.1" || host == "localhost" {
+        return None;
+    }
+    Some(url.replacen(host, "127.0.0.1", 1))
+}
+
+fn url_host(url: &str) -> Option<&str> {
+    let (_, rest) = url.split_once("://")?;
+    let authority = rest.split('/').next().unwrap_or(rest);
+    match authority.rsplit_once(':') {
+        Some((host, port)) if port.chars().all(|ch| ch.is_ascii_digit()) && !host.is_empty() => {
+            Some(host)
+        }
+        _ if !authority.is_empty() => Some(authority),
+        _ => None,
+    }
+}
+
+fn print_rpc_status(
+    rpc_url: &str,
+    expected_chain_id: Option<u64>,
+    network: Option<NetworkKind>,
+) {
+    let host_url = host_reachable_rpc_url(rpc_url);
+    if host_url != rpc_url {
+        println!("RPC URL {rpc_url} is Docker-internal; checking {host_url} from the host");
+    }
+    let block = cast_value("block-number", &host_url);
+    let chain = cast_value("chain-id", &host_url);
 
     match (block, chain) {
         (Ok(block), Ok(chain)) => {
@@ -119,7 +205,10 @@ fn print_rpc_status(rpc_url: &str, expected_chain_id: Option<u64>) {
             };
             println!("RPC: OK, latest block {block}, {chain_label}");
         }
-        (Err(err), _) | (_, Err(err)) => println!("RPC: FAILED, {err}"),
+        (Err(err), _) | (_, Err(err)) => {
+            println!("RPC: FAILED");
+            println!("{}", explain_rpc_error(network, &host_url, &err));
+        }
     }
 }
 
@@ -156,7 +245,7 @@ fn print_contracts(rpc_url: &Option<String>, mock_prover: bool) {
                 print!("  {label}: {local_status}, {address}");
 
                 if let Some(rpc_url) = rpc_url {
-                    match contract_has_code(&address, rpc_url) {
+                    match contract_has_code(&address, &host_reachable_rpc_url(rpc_url)) {
                         Ok(true) => println!(", code OK"),
                         Ok(false) => println!(", code MISSING"),
                         Err(err) => println!(", code UNCHECKED - {err}"),
@@ -177,12 +266,12 @@ fn cast_value(command: &str, rpc_url: &str) -> Result<u64, String> {
         .map_err(|err| format!("failed to run cast {command}: {err}"))?;
 
     if !output.status.success() {
-        return Err(command_detail(&output).unwrap_or_else(|| format!("cast {command} failed")));
+        return Err(
+            command_failure_detail(&output).unwrap_or_else(|| format!("cast {command} failed"))
+        );
     }
 
-    numeric_line(&output.stdout)
-        .ok_or_else(|| format!("cast {command} returned no numeric output"))?
-        .parse::<u64>()
+    parse_u64_output(&output.stdout)
         .map_err(|err| format!("failed to parse cast {command} output: {err}"))
 }
 
@@ -196,12 +285,20 @@ fn contract_has_code(address: &str, rpc_url: &str) -> Result<bool, String> {
         .output()
         .map_err(|err| format!("failed to run cast code: {err}"))?;
 
-    if !output.status.success() {
-        return Err(command_detail(&output).unwrap_or_else(|| "cast code failed".to_string()));
+    let code = bytecode_line(&output.stdout).unwrap_or_default();
+    if output.status.success() || (!code.is_empty() && code.starts_with("0x")) {
+        return Ok(!code.is_empty() && code != "0x");
     }
 
-    let code = first_stdout_line(&output.stdout).unwrap_or_default();
-    Ok(!code.is_empty() && code != "0x")
+    Err(command_failure_detail(&output).unwrap_or_else(|| "cast code failed".to_string()))
+}
+
+fn bytecode_line(bytes: &[u8]) -> Option<String> {
+    String::from_utf8_lossy(bytes)
+        .lines()
+        .map(str::trim)
+        .find(|line| line.starts_with("0x"))
+        .map(ToString::to_string)
 }
 
 fn docker_container_status(container_name: &str) -> Result<Option<String>, String> {
@@ -354,22 +451,6 @@ fn command_detail(output: &std::process::Output) -> Option<String> {
         .map(ToString::to_string)
 }
 
-fn first_stdout_line(bytes: &[u8]) -> Option<String> {
-    String::from_utf8_lossy(bytes)
-        .lines()
-        .map(str::trim)
-        .find(|line| !line.is_empty())
-        .map(ToString::to_string)
-}
-
-fn numeric_line(bytes: &[u8]) -> Option<String> {
-    String::from_utf8_lossy(bytes)
-        .lines()
-        .map(str::trim)
-        .find(|line| line.chars().all(|ch| ch.is_ascii_digit()))
-        .map(ToString::to_string)
-}
-
 fn is_non_zero_address(address: &str) -> bool {
     let address = address.strip_prefix("0x").unwrap_or(address);
     address.len() == 40 && address.chars().any(|ch| ch != '0')
@@ -384,7 +465,8 @@ struct ProfileConfig {
 
 #[cfg(test)]
 mod tests {
-    use super::{endpoint_url, is_non_zero_address, numeric_line, parse_env_text, strip_quotes};
+    use super::{endpoint_url, is_non_zero_address, parse_env_text, strip_quotes};
+    use crate::network::parse_u64_output;
 
     #[test]
     fn parses_local_env_values() {
@@ -422,11 +504,11 @@ export NF4_MOCK_PROVER=false
     #[test]
     fn parses_numeric_cast_output_after_warnings() {
         assert_eq!(
-            numeric_line(
+            parse_u64_output(
                 b"Warning: Found unknown `debug` config for profile `default` defined in foundry.toml.\n11155111\n"
             )
             .unwrap(),
-            "11155111"
+            11155111
         );
     }
 

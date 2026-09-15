@@ -1,284 +1,237 @@
 # Testnet Assistant Quick Start
 
-This guide explains how to use the `nf4` helper script to start a local testnet deployment with deployer, proposer, and client nodes on the same machine.
+Stand up Nightfall on Ethereum Sepolia (or another wizard testnet) with `nf4`. The same steps work on one machine or on separate VMs: **Client 1 is one client process, Client 2 is another.** They never share a wallet.
 
-The assistant edits local configuration files, starts Docker services, and runs basic checks for you. You should run these commands from the repository root.
+For the ordered Sepolia report (deposits, late join, transfers, recover, soak), use `doc/Sepolia Assistant Quick Start.md` after the nodes below are up. That guide uses the API variables defined here.
 
-## Before You Start
+Work from the repository root on `auto/testnet`. Do not put private keys, mnemonics, or RPC secrets in reports.
 
-Make sure the machine has:
+## Roles
 
-- Docker and Docker Compose
-- Foundry tools, including `forge` and `cast`
-- Rust/Cargo
-- A funded testnet private key
-- A WebSocket RPC URL for the host chain
+```text
+                    wss:// Sepolia
+                           ^
+                           |
+        +------------------+------------------+
+        |                  |                  |
+   Operator VM        Client 1 VM        Client 2 VM
+   deploy once        wizard client      wizard client
+   configuration      API :3000          API :3000
+   proposer :3001     own key, Mongo     own key, Mongo
+```
 
-Update your branch before testing:
+| Role | What runs | Typical host |
+|---|---|---|
+| Operator | `wizard deploy`, configuration `:8080`, `wizard proposer` `:3001` | VM-A (or your laptop) |
+| Client 1 | `wizard client` on `:3000` | VM-B |
+| Client 2 | `wizard client` on `:3000` | VM-C |
+
+Same machine: collapse all three roles onto one host. Client 2 then uses port **3002** and `./scripts/nf4 up client2` instead of a second `wizard client`. The curls stay the same if you set the API variables below.
+
+Do **not** use `--network local`, Anvil keys, or `./scripts/nf4-local-e2e.sh` here.
+
+## What must be reachable
+
+Clients do not talk to each other. Both must reach:
+
+1. Sepolia `wss://` RPC
+2. Configuration service (`http://<operator>:8080`)
+3. The **on-chain** proposer URL (`http://<operator>:3001` unless you registered something else)
+
+Pick those URLs **before** `wizard deploy`. They are written on chain and into config. `127.0.0.1` and `indie-proposer` only work on one host. Use the Operator VM’s LAN or public IP.
+
+Open Operator ports `8080` and `3001` to the client VMs. Client API ports stay local unless you want to curl a client from another box.
+
+`nf4` does **not** rewrite LAN URLs when `NF4_NETWORK=testnet`. If the Operator IP changes, transfers break until you deploy again.
+
+## API variables (same curls everywhere)
+
+Set these in the shell where you run curls. On a VM, `127.0.0.1` is **that** VM.
+
+```bash
+# Split VMs (run each export on the VM that owns the process)
+export PROP_API=http://127.0.0.1:3001    # Operator
+export C1_API=http://127.0.0.1:3000      # Client 1 VM
+export C2_API=http://127.0.0.1:3000      # Client 2 VM
+export C1_CONTAINER=nf4_indie_client
+export C2_CONTAINER=nf4_indie_client
+export C1_DB=nf4_db_client
+export C2_DB=nf4_db_client
+export PROP_CONTAINER=nf4_indie_proposer
+export PROP_DB=nf4_db_proposer
+```
+
+Same machine, all roles:
+
+```bash
+export PROP_API=http://127.0.0.1:3001
+export C1_API=http://127.0.0.1:3000
+export C2_API=http://127.0.0.1:3002
+export C1_CONTAINER=nf4_indie_client
+export C2_CONTAINER=nf4_indie_client2
+export C1_DB=nf4_db_client
+export C2_DB=nf4_db_client2
+export PROP_CONTAINER=nf4_indie_proposer
+export PROP_DB=nf4_db_proposer
+```
+
+Cross-VM data you **do** copy (not secrets): configuration URL, on-chain proposer URL, Nightfall/token addresses, Client 2 L1 address (for minting), compressed ZKP public keys for transfers. Never copy `local.env` private keys between VMs.
+
+## Every VM
 
 ```bash
 git switch auto/testnet
 git pull
-```
-
-Run the assistant tests:
-
-```bash
 cargo test -p nightfall_ops
+./scripts/nf4 check deployer
 ```
 
-## The Helper Script
-
-Use the script from the repository root:
+Need Docker, `forge`, `cast`, `cargo`, `curl`, and a Sepolia `wss://` RPC (`http://` will fail).
 
 ```bash
-./scripts/nf4 <command>
+export RPC_WSS=wss://YOUR_SEPOLIA_WEBSOCKET_URL
+export RPC_HTTP=https://YOUR_SEPOLIA_HTTPS_URL
+cast chain-id --rpc-url "$RPC_WSS"
 ```
 
-The script runs the `nightfall_ops` helper from Cargo and passes your command through to it.
+Expect `11155111` for Ethereum Sepolia. `84532` is Base Sepolia; start over and choose `sepolia`.
 
-## 1. Deploy Contracts And Configuration
+On testnet, key prompts: paste a funded key, or press Enter to generate an account, fund the printed address, then recheck balance. Generated accounts start at 0 ETH.
 
-Start a fresh deployment:
+## Operator VM — deploy and proposer
 
 ```bash
-./scripts/nf4 wizard deploy
+./scripts/nf4 wizard deploy --network testnet
 ```
 
-The deploy wizard asks for the main deployment settings, including:
-
-- profile name
-- host-chain WebSocket RPC URL
-- configuration service URL
-- deployer private key
-- default proposer address and URL
-- mock prover or real prover mode
-- block size
-
-For same-machine testing, use the LAN IP default for the configuration URL, for example:
-
-```text
-http://10.0.0.8:8080
-```
-
-For mock prover testing, answer `no` when asked whether to use real prover mode.
-
-When the deploy wizard succeeds, check the deployment:
-
-```bash
-./scripts/nf4 status
-```
-
-## 2. Start The Proposer
-
-Start the proposer node:
+| Prompt | Enter |
+|---|---|
+| Testnet chain | `sepolia` |
+| Profile | `sepolia` |
+| RPC | `$RPC_WSS` |
+| Configuration port | `8080` |
+| Configuration URL | `http://<operator-ip>:8080` — must be reachable from **both client VMs** |
+| Deployer key | Paste, or Enter to generate and fund |
+| Default proposer address | Enter (deployer) |
+| Default proposer URL | `http://<operator-ip>:3001` — this is written **on chain**. Not `indie-proposer` |
+| Real prover? | `no` for a laptop-sized Operator |
+| Block size | `64` |
+| Apply? | `yes` if review shows `network: testnet`, `chain_id: 11155111` |
 
 ```bash
 ./scripts/nf4 wizard proposer
 ```
 
-For the first same-machine test, use the same private key/address that was registered as the default proposer during deployment.
-
-Use the LAN proposer URL, for example:
-
-```text
-http://10.0.0.8:3001
-```
-
-Check proposer status and logs:
+Use the same key as the default proposer (Enter reuses `local.env`). Certify the proposer on the Operator:
 
 ```bash
-./scripts/nf4 status
-./scripts/nf4 logs proposer
+curl -sS -i "$PROP_API/v1/health"
+curl -i --request POST "$PROP_API/v1/certification" \
+  --form 'certificate=@blockchain_assets/test_contracts/X509/_certificates/user/user-2.der;type=application/pkix-cert' \
+  --form 'priv_key=@blockchain_assets/test_contracts/X509/_certificates/user/user-2.priv_key;type=application/octet-stream'
 ```
 
-## 3. Start The Client
+Health must be `200` `Healthy`. Publish these three strings to the client VMs:
 
-Start the client node:
+```text
+CONFIG_URL=http://<operator-ip>:8080
+PROPOSER_URL=http://<operator-ip>:3001
+RPC_WSS=wss://...
+```
+
+`--yes` is local-only.
+
+## Client VM — bootstrap, then wizard
+
+Each client VM clones the repo independently. Do **not** run `wizard deploy` again (that would deploy new contracts).
+
+On the client VM, after Operator `Deployment OK`:
+
+```bash
+# reachable config (replace host)
+export CONFIG_URL=http://<operator-ip>:8080
+export PROPOSER_URL=http://<operator-ip>:3001
+
+# profile + metadata (no private keys)
+scp user@operator:path/to/nightfall_4_CE/nightfall.toml ./nightfall.toml
+mkdir -p configuration/toml configuration/bin/keys
+curl -sS "$CONFIG_URL/configuration/toml/addresses.toml" -o configuration/toml/addresses.toml
+curl -sS "$CONFIG_URL/configuration/toml/contract_hashes.toml" -o configuration/toml/contract_hashes.toml
+curl -sS "$CONFIG_URL/configuration/bin/keys/proving_key" -o configuration/bin/keys/proving_key
+```
+
+Create `local.env` on **this** VM only (`NF4_CONTRACTS__DEPLOY_CONTRACTS=false`):
+
+```bash
+cat > local.env <<EOF
+NF4_RUN_MODE=sepolia
+NF4_NETWORK=testnet
+NF4_MOCK_PROVER=true
+NF4_CONTRACTS__DEPLOY_CONTRACTS=false
+NF4_ETHEREUM_CLIENT_URL=${RPC_WSS}
+NF4_CONFIGURATION_URL=${CONFIG_URL}
+NF4_NIGHTFALL_PROPOSER__URL=${PROPOSER_URL}
+EOF
+```
 
 ```bash
 ./scripts/nf4 wizard client
 ```
 
-The client wizard asks for:
+| Prompt | Enter |
+|---|---|
+| Client key | This VM’s key (paste or Enter to generate and fund) |
+| Client address | Enter |
+| Client 2 on this machine? | **No** (Client 2 is the other VM) |
+| Proposer URL | `$PROPOSER_URL` |
+| Configuration URL | `$CONFIG_URL` |
+| Webhook | Accept default (this VM’s LAN IP, port 8081) |
+| Client API port | `3000` |
 
-- client private key
-- client address
-- proposer URL
-- configuration URL
-- local testing webhook setup
-- client API port
+Same-machine Client 2: on the Operator/Client 1 host, answer **Yes** to “Will Client 2 also run on this machine?”, then later `./scripts/nf4 up client2`.
 
-Use the same LAN configuration URL and proposer URL that were used above.
-
-For the local testing webhook, press Enter to use the default:
-
-```text
-http://<server-lan-ip>:8081/webhook
-```
-
-The assistant starts this webhook for you and stores received webhook events under `.nightfall/webhook/events.jsonl`.
-
-The client wizard also prepares the local mock token deployment environment. It writes `NF4_SIGNING_KEY`, `CLIENT2_ADDRESS`, and `NIGHTFALL_ADDRESS` to `local.env`, then runs:
+Certify with a **different** test cert per client (`user-3` on Client 1, `user-4` on Client 2):
 
 ```bash
-forge clean
-forge build
-```
-
-Check client status and logs:
-
-```bash
-./scripts/nf4 status
-./scripts/nf4 logs client
-```
-
-## Useful Commands
-
-Check the whole local testnet:
-
-```bash
-./scripts/nf4 status
-```
-
-Follow configuration service logs:
-
-```bash
-./scripts/nf4 logs configuration
-```
-
-Follow proposer logs:
-
-```bash
-./scripts/nf4 logs proposer
-```
-
-Follow client logs:
-
-```bash
-./scripts/nf4 logs client
-```
-
-Show stored webhook events:
-
-```bash
-./scripts/nf4 webhook events
-```
-
-Show withdraw fund salts found in webhook events:
-
-```bash
-./scripts/nf4 webhook salts
-```
-
-Deploy local mock ERC contracts for deposit testing. This helper reads `local.env`, fills the required Forge environment values, and uses the configured host-chain RPC URL:
-
-```bash
-./scripts/nf4 client deploy-mock-tokens
-```
-
-## 4. Try Client APIs
-
-After mock ERC deployment, copy the printed mock ERC addresses. The examples below use one ERC20 mock address:
-
-```text
-0x99Ed986BB66CC72365b712b0277b1C019146CE6d
-```
-
-Replace this address with your deployed `ERC20Mock` address if yours is different.
-
-Token type values:
-
-- `0`: ERC20. Use `tokenId: "0x00"`.
-- `1`: ERC1155.
-- `2`: ERC721.
-- `3`: ERC3525.
-- `4`: Fee token, used internally.
-
-Useful function names and Method values to look for on the block explorer:
-
-- X509 certification calls `X509.validateCertificate(...)`; Method: `0x4e5805d3`.
-- Deposit first calls `Nightfall.escrow_funds(...)`; Method: `0xe6d5abe5`.
-- When a deposit is included in an L2 block, the proposer calls `Nightfall.propose_block(...)`; Method: `0x55420851`.
-- Transfer is first submitted to the proposer; when included in an L2 block, the proposer calls `Nightfall.propose_block(...)`; Method: `0x55420851`.
-- Withdraw is first submitted to the proposer; when included in an L2 block, the proposer calls `Nightfall.propose_block(...)`; Method: `0x55420851`.
-- After withdraw inclusion, de-escrow calls `Nightfall.descrow_funds(...)`; Method: `0xf3b85fc2`.
-- During deployment, `Nightfall.set_proposer_manager(address)` may also appear; Method: `0xe3178c86`.
-
-If X509 allowlisting is enabled, certify the proposer:
-
-```bash
-curl -i --request POST 'http://localhost:3001/v1/certification' \
-  --form 'certificate=@blockchain_assets/test_contracts/X509/_certificates/user/user-2.der;type=application/pkix-cert' \
-  --form 'priv_key=@blockchain_assets/test_contracts/X509/_certificates/user/user-2.priv_key;type=application/octet-stream'
-```
-
-Certify the client:
-
-```bash
-curl -i --request POST 'http://localhost:3000/v1/certification' \
+curl -sS -i "$C1_API/v1/health"
+curl -i --request POST "$C1_API/v1/certification" \
   --form 'certificate=@blockchain_assets/test_contracts/X509/_certificates/user/user-3.der;type=application/pkix-cert' \
   --form 'certificate_private_key=@blockchain_assets/test_contracts/X509/_certificates/user/user-3.priv_key;type=application/octet-stream'
 ```
 
-Deposit ERC20 tokens:
+On Client 2 VM use `$C2_API` and `user-4`.
+
+Late join: keep Client 2’s **process** stopped until Client 1’s deposit block is confirmed. You can still create and fund Client 2’s L1 account earlier (`cast wallet new`) and send that **address** (not the key) to Client 1 for mock-token minting.
+
+## Mock tokens
+
+Run once, from Client 1 or Operator, **before** Client 2 starts. Put Client 2’s L1 address in Client 1’s `local.env`:
 
 ```bash
-curl -i \
-  -H 'Content-Type: application/json' \
-  -X POST 'http://localhost:3000/v1/deposit' \
-  --data-raw '{
-    "ercAddress": "0x99Ed986BB66CC72365b712b0277b1C019146CE6d",
-    "tokenId": "0x00",
-    "tokenType": "0",
-    "value": "0x05",
-    "fee": "0x00",
-    "deposit_fee": "0x09"
-  }'
+# CLIENT2_ADDRESS=0x...   # from Client 2 VM; no Client 2 private key on this VM
+./scripts/nf4 client deploy-mock-tokens
 ```
 
-Transfer ERC20 tokens:
+Share the four token addresses with Client 2. Mint report IDs with Client 1’s key to both L1 addresses (see the Sepolia guide).
+
+## Next
+
+Run `doc/Sepolia Assistant Quick Start.md` from **Report step 1** using `$C1_API`, `$C2_API`, and `$PROP_API`. Start Client 2 only after Client 1’s deposit block (on a Client 2 VM: `wizard client` or `docker start $C2_CONTAINER`; same machine: `./scripts/nf4 up client2`).
+
+## Useful commands
 
 ```bash
-curl -i \
-  -H 'Content-Type: application/json' \
-  -X POST 'http://localhost:3000/v1/transfer' \
-  --data-raw '{
-    "ercAddress": "0x99Ed986BB66CC72365b712b0277b1C019146CE6d",
-    "tokenId": "0x00",
-    "tokenType": "0",
-    "recipientData": {
-      "values": ["0x01"],
-      "recipientCompressedZkpPublicKeys": ["0572aa70f4e62bcb8f53a28a1c259bd6d3538818afcccc0d8598486973ec2f2a"]
-    },
-    "fee": "0x00"
-  }'
-```
-
-Withdraw ERC20 tokens:
-
-```bash
-curl -i -X POST 'http://localhost:3000/v1/withdraw' \
-  -H 'Content-Type: application/json' \
-  -d '{"ercAddress":"0x99Ed986BB66CC72365b712b0277b1C019146CE6d","tokenId":"0x00","tokenType":"0","value":"0x02","recipientAddress":"0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266","fee":"0x00"}'
-```
-
-After submitting requests, check webhook events:
-
-```bash
+./scripts/nf4 status
+./scripts/nf4 logs configuration    # Operator
+./scripts/nf4 logs proposer         # Operator
+./scripts/nf4 logs client           # that VM’s client
 ./scripts/nf4 webhook events
 ./scripts/nf4 webhook salts
 ```
 
-## Expected Result
+## Expected result
 
-After all three wizards succeed:
-
-- deployer has exited successfully
-- configuration service is running
-- proposer service is healthy
-- client service is healthy
-- local testing webhook is running if you accepted the default client wizard option
-- `./scripts/nf4 status` reports deployed contracts and reachable configuration files
-
-At that point, the local testnet is ready for client API testing.
+- Operator: deployer exited 0, configuration up, proposer `Healthy`
+- Each client VM: `GET $C*_API/v1/health` is `200` `Healthy`
+- Both clients reach `$CONFIG_URL/configuration/toml/addresses.toml`
+- Transfers use the on-chain proposer URL, not `localhost` from inside Docker

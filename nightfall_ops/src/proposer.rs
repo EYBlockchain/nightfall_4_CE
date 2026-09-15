@@ -1,9 +1,16 @@
 use std::{collections::BTreeMap, fs, path::Path, process::Command, thread, time::Duration};
 
-use inquire::{Confirm, Password, Text};
+use inquire::{Confirm, Text};
 use toml_edit::{DocumentMut, Item};
 
-use crate::{compose, config, validation};
+use crate::{
+    compose, config,
+    network::{
+        self, detect_lan_host, is_docker_internal_host, validate_published_configuration_url,
+        with_lan_host, LOCAL_ANVIL_ACCOUNT0_KEY,
+    },
+    validation,
+};
 
 const ADDRESSES_TOML: &str = "configuration/toml/addresses.toml";
 const CONTRACT_HASHES_TOML: &str = "configuration/toml/contract_hashes.toml";
@@ -20,7 +27,7 @@ const REAL_KEYS: &[&str] = &[
     "proving_key",
 ];
 
-pub fn wizard() -> Result<(), String> {
+pub fn wizard(yes: bool) -> Result<(), String> {
     if !config::required_repo_files_exist() {
         return Err("Run this command from the nightfall_4_CE repository root.".to_string());
     }
@@ -37,10 +44,13 @@ pub fn wizard() -> Result<(), String> {
     println!();
 
     check_prerequisites()?;
+    config::refresh_local_lan_urls()?;
 
     let env = config::read_local_env();
     let profile = env_value(&env, "NF4_RUN_MODE").unwrap_or_else(|| "development".to_string());
     let profile_config = read_profile_config(&profile)?;
+    let resolved = network::resolve_network_from_env(&env, profile_config.chain_id);
+    println!("Network: {} ({})", resolved.label(), resolved.source);
     let rpc_url = env_value(&env, "NF4_ETHEREUM_CLIENT_URL")
         .or_else(|| profile_config.ethereum_client_url.clone())
         .ok_or_else(|| {
@@ -53,8 +63,48 @@ pub fn wizard() -> Result<(), String> {
 
     println!("Checking local deployment metadata...");
     validate_metadata(mock_prover)?;
+    if yes && resolved.kind != Some(network::NetworkKind::Local) {
+        return Err(
+            "--yes is only supported when NF4_NETWORK=local. Run wizard deploy --network local first."
+                .to_string(),
+        );
+    }
 
-    let proposer_key = prompt_proposer_key(env.get("PROPOSER_SIGNING_KEY"))?;
+    let lan_host = detect_lan_host();
+    let proposer_url_default =
+        with_lan_host(&default_proposer_url(&env, &profile_config), &lan_host);
+    let configuration_url_default = with_lan_host(
+        &env_value(&env, "NF4_CONFIGURATION_URL")
+            .or_else(|| profile_config.configuration_url.clone())
+            .unwrap_or_else(|| format!("http://{lan_host}:8080")),
+        &lan_host,
+    );
+
+    let (proposer_key, proposer_url, configuration_url) = if yes {
+        println!("Using local --yes defaults (Anvil account 0 / local.env, no prompts).");
+        let key = env
+            .get("PROPOSER_SIGNING_KEY")
+            .cloned()
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or_else(|| LOCAL_ANVIL_ACCOUNT0_KEY.to_string());
+        (key, proposer_url_default, configuration_url_default)
+    } else {
+        let key = network::prompt_l1_signing_key(
+            "Proposer",
+            resolved.kind.unwrap_or(network::NetworkKind::Local),
+            env.get("PROPOSER_SIGNING_KEY").map(String::as_str),
+            &rpc_url,
+        )?;
+        let proposer_url = prompt_url(
+            "Public proposer URL [press Enter to use default]",
+            &proposer_url_default,
+        )?;
+        let configuration_url = prompt_url(
+            "Configuration URL for proposer runtime [press Enter to use default]",
+            &configuration_url_default,
+        )?;
+        (key, proposer_url, configuration_url)
+    };
     let proposer_address = cast_wallet_address(&proposer_key)?;
     println!("Derived proposer address: {proposer_address}");
 
@@ -62,25 +112,15 @@ pub fn wizard() -> Result<(), String> {
         &proposer_address,
         profile_config.default_proposer_address.as_deref(),
     );
-
-    let proposer_url_default = default_proposer_url(&env, &profile_config);
-    let proposer_url = prompt_url(
-        "Public proposer URL [press Enter to use default]",
-        &proposer_url_default,
-    )?;
     let proposer_port = url_port(&proposer_url).unwrap_or(3001);
 
-    let configuration_url_default = env_value(&env, "NF4_CONFIGURATION_URL")
-        .or_else(|| profile_config.configuration_url.clone())
-        .unwrap_or_else(|| format!("http://{}:8080", detected_host()));
-    let configuration_url = prompt_url(
-        "Configuration URL for proposer runtime [press Enter to use default]",
-        &configuration_url_default,
-    )?;
-
+    if let Some(kind) = resolved.kind {
+        validate_published_configuration_url(kind, &configuration_url)?;
+    }
     validate_configuration_runtime_url(&configuration_url)?;
 
     print_review(&ProposerReview {
+        network: resolved.label(),
         profile: &profile,
         rpc_url: &rpc_url,
         mock_prover,
@@ -91,10 +131,11 @@ pub fn wizard() -> Result<(), String> {
         proposer_port,
     });
 
-    if !Confirm::new("Apply these changes and start indie-proposer?")
-        .with_default(true)
-        .prompt()
-        .map_err(|err| err.to_string())?
+    if !yes
+        && !Confirm::new("Apply these changes and start indie-proposer?")
+            .with_default(true)
+            .prompt()
+            .map_err(|err| err.to_string())?
     {
         return Err("Proposer setup cancelled before writing files.".to_string());
     }
@@ -116,6 +157,7 @@ pub fn wizard() -> Result<(), String> {
 
     println!();
     println!("Proposer OK");
+    println!("  network: {}", resolved.label());
     println!("  profile: {profile}");
     println!("  mode: {}", if mock_prover { "mock" } else { "real" });
     println!("  proposer_address: {proposer_address}");
@@ -256,33 +298,6 @@ fn docker_service_url(url: &str) -> bool {
     url_host(url).is_some_and(|host| matches!(host, "configuration" | "nf4_configuration"))
 }
 
-fn prompt_proposer_key(existing: Option<&String>) -> Result<String, String> {
-    println!();
-    println!("Paste the funded L1 testnet proposer private key.");
-    println!("Input is hidden for safety, so nothing will appear while typing.");
-    println!("Include 0x if your key has it, then press Enter.");
-    println!("Never share this key in chat or commit local.env.");
-
-    let prompt = if existing.is_some() {
-        "Proposer private key [hidden input, press Enter to reuse local.env]"
-    } else {
-        "Proposer private key [hidden input]"
-    };
-
-    let value = Password::new(prompt)
-        .without_confirmation()
-        .prompt()
-        .map_err(|err| err.to_string())?;
-
-    if value.trim().is_empty() {
-        existing
-            .cloned()
-            .ok_or_else(|| "Proposer private key is required.".to_string())
-    } else {
-        Ok(value)
-    }
-}
-
 fn prompt_url(label: &str, default: &str) -> Result<String, String> {
     let url = Text::new(label)
         .with_default(default)
@@ -368,6 +383,7 @@ fn read_profile_config(profile: &str) -> Result<ProfileConfig, String> {
     Ok(ProfileConfig {
         ethereum_client_url: get_str(item, &["ethereum_client_url"]),
         configuration_url: get_str(item, &["configuration_url"]),
+        chain_id: get_i64(item, &["network", "chain_id"]).map(|value| value as u64),
         mock_prover: get_bool(item, &["mock_prover"]),
         default_proposer_address: get_str(
             item,
@@ -393,6 +409,14 @@ fn get_bool(item: &Item, path: &[&str]) -> Option<bool> {
     current.as_bool()
 }
 
+fn get_i64(item: &Item, path: &[&str]) -> Option<i64> {
+    let mut current = item;
+    for key in path {
+        current = current.get(key)?;
+    }
+    current.as_integer()
+}
+
 fn env_value(values: &BTreeMap<String, String>, key: &str) -> Option<String> {
     values
         .get(key)
@@ -412,10 +436,10 @@ fn parse_bool(value: &str) -> Option<bool> {
 fn default_proposer_url(env: &BTreeMap<String, String>, profile: &ProfileConfig) -> String {
     env_value(env, "NF4_NIGHTFALL_PROPOSER__URL")
         .or_else(|| {
-            profile
-                .default_proposer_url
-                .clone()
-                .filter(|url| valid_http_url(url) && url_host(url) != Some("proposer"))
+            profile.default_proposer_url.clone().filter(|url| {
+                valid_http_url(url)
+                    && url_host(url).is_none_or(|host| !is_docker_internal_host(host))
+            })
         })
         .unwrap_or_else(|| format!("http://{}:3001", detected_host()))
 }
@@ -491,6 +515,7 @@ fn proposer_role(proposer_address: &str, default_proposer_address: Option<&str>)
 fn print_review(review: &ProposerReview<'_>) {
     println!();
     println!("Review proposer settings");
+    println!("  network: {}", review.network);
     println!("  profile: {}", review.profile);
     println!("  rpc_url: {}", review.rpc_url);
     println!(
@@ -508,12 +533,14 @@ fn print_review(review: &ProposerReview<'_>) {
 struct ProfileConfig {
     ethereum_client_url: Option<String>,
     configuration_url: Option<String>,
+    chain_id: Option<u64>,
     mock_prover: Option<bool>,
     default_proposer_address: Option<String>,
     default_proposer_url: Option<String>,
 }
 
 struct ProposerReview<'a> {
+    network: &'a str,
     profile: &'a str,
     rpc_url: &'a str,
     mock_prover: bool,

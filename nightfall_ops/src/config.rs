@@ -8,6 +8,7 @@ use std::{
 use toml_edit::{DocumentMut, Item, value};
 
 use crate::model::DeploymentConfig;
+use crate::network::{compose_rpc_url, detect_lan_host, with_lan_host, NetworkKind};
 
 pub const NIGHTFALL_TOML: &str = "nightfall.toml";
 pub const DOCKER_COMPOSE_YML: &str = "docker-compose.yml";
@@ -53,14 +54,69 @@ pub fn backup_config_files() -> Result<PathBuf, String> {
 }
 
 pub fn write_local_env(config: &DeploymentConfig) -> Result<(), String> {
-    let contents = format!(
-        "DEPLOYER_SIGNING_KEY=\"{}\"\nNF4_ETHEREUM_CLIENT_URL=\"{}\"\nNF4_RUN_MODE=\"{}\"\nNF4_CONTRACTS__DEPLOY_CONTRACTS=\"true\"\nNF4_MOCK_PROVER=\"{}\"\n",
-        config.deployer_signing_key, config.rpc_url, config.profile, config.mock_prover
-    );
+    merge_local_env(&[
+        ("DEPLOYER_SIGNING_KEY", config.deployer_signing_key.clone()),
+        (
+            "NF4_ETHEREUM_CLIENT_URL",
+            compose_rpc_url(config.network, &config.rpc_url),
+        ),
+        ("NF4_RUN_MODE", config.profile.clone()),
+        ("NF4_NETWORK", config.network.as_str().to_string()),
+        ("NF4_CONTRACTS__DEPLOY_CONTRACTS", "true".to_string()),
+        ("NF4_MOCK_PROVER", config.mock_prover.to_string()),
+        (
+            "NF4_CONFIGURATION_URL",
+            local_configuration_url(config),
+        ),
+    ])
+}
 
-    fs::write(LOCAL_ENV, contents).map_err(|err| format!("Failed to write {LOCAL_ENV}: {err}"))?;
-    restrict_local_env_permissions()?;
-    Ok(())
+fn local_configuration_url(config: &DeploymentConfig) -> String {
+    if config.network == NetworkKind::Local {
+        with_lan_host(&config.configuration_url, &detect_lan_host())
+    } else {
+        config.configuration_url.clone()
+    }
+}
+
+const LOCAL_LAN_URL_KEYS: &[&str] = &[
+    "NF4_CONFIGURATION_URL",
+    "NF4_NIGHTFALL_PROPOSER__URL",
+    "NF4_NIGHTFALL_CLIENT__WEBHOOK_URL",
+    "WEBHOOK_URL",
+];
+
+/// Rewrite stored local URLs to the current LAN IP. No-op unless `NF4_NETWORK=local`.
+pub fn refresh_local_lan_urls() -> Result<(), String> {
+    if !local_env_exists() {
+        return Ok(());
+    }
+    let env = read_local_env();
+    if env.get("NF4_NETWORK").map(String::as_str) != Some("local") {
+        return Ok(());
+    }
+    let lan = detect_lan_host();
+    if lan.starts_with("127.") {
+        return Ok(());
+    }
+    let mut updates = Vec::new();
+    for key in LOCAL_LAN_URL_KEYS {
+        let Some(value) = env.get(*key) else {
+            continue;
+        };
+        let updated = with_lan_host(value, &lan);
+        if updated != *value {
+            updates.push((*key, updated));
+        }
+    }
+    if updates.is_empty() {
+        return Ok(());
+    }
+    println!("Updated local LAN URLs to {lan}");
+    for (key, value) in &updates {
+        println!("  {key}={value}");
+    }
+    merge_local_env(&updates)
 }
 
 pub fn update_nightfall_toml(config: &DeploymentConfig) -> Result<(), String> {
@@ -100,11 +156,17 @@ fn update_nightfall_toml_text(source: &str, config: &DeploymentConfig) -> Result
         .parse::<DocumentMut>()
         .map_err(|err| format!("Failed to parse {NIGHTFALL_TOML}: {err}"))?;
 
+    let template_name = config.network.template_profile();
     let template = doc
-        .get("base_sepolia")
+        .get(template_name)
         .cloned()
+        .or_else(|| doc.get("base_sepolia").cloned())
         .or_else(|| doc.get("development").cloned())
-        .ok_or_else(|| "nightfall.toml must contain [base_sepolia] or [development]".to_string())?;
+        .ok_or_else(|| {
+            format!(
+                "nightfall.toml must contain [{template_name}], [base_sepolia], or [development]"
+            )
+        })?;
 
     doc[&config.profile] = template;
     doc[&config.profile]["signing_key"] = value("Key not set");
@@ -481,9 +543,11 @@ mod tests {
         update_proposer_docker_compose_text,
     };
     use crate::model::DeploymentConfig;
+    use crate::network::NetworkKind;
 
     fn sample_config() -> DeploymentConfig {
         DeploymentConfig {
+            network: NetworkKind::Testnet,
             profile: "sepolia".to_string(),
             rpc_url: "wss://example.test".to_string(),
             chain_id: 11155111,
@@ -541,6 +605,80 @@ verifier = "0x123"
         assert!(updated.contains("chain_id = 11155111"));
         assert!(updated.contains("deploy_contracts = true"));
         assert!(updated.contains("nightfall = \"\""));
+    }
+
+    #[test]
+    fn local_network_clones_development_template() {
+        let source = r#"
+[development]
+mock_prover = true
+ethereum_client_url = "ws://anvil:8545"
+configuration_url = "http://configuration:80"
+
+[development.network]
+chain_id = 31337
+
+[development.owners]
+nightfall_owner = "0x0"
+
+[development.nightfall_deployer]
+default_proposer_address = "0x0"
+default_proposer_url = "http://proposer:3000"
+
+[development.nightfall_proposer]
+block_size = 64
+
+[development.contracts]
+deploy_contracts = true
+
+[development.contracts.contract_addresses]
+nightfall = "0x123"
+round_robin = "0x123"
+x509 = "0x123"
+verifier = "0x123"
+
+[base_sepolia]
+mock_prover = false
+ethereum_client_url = "ws://old"
+configuration_url = "http://old"
+
+[base_sepolia.network]
+chain_id = 84532
+
+[base_sepolia.owners]
+nightfall_owner = "0x0"
+
+[base_sepolia.nightfall_deployer]
+default_proposer_address = "0x0"
+default_proposer_url = "http://old"
+
+[base_sepolia.nightfall_proposer]
+block_size = 256
+
+[base_sepolia.contracts]
+deploy_contracts = false
+
+[base_sepolia.contracts.contract_addresses]
+nightfall = "0xabc"
+round_robin = "0xabc"
+x509 = "0xabc"
+verifier = "0xabc"
+"#;
+
+        let mut config = sample_config();
+        config.network = NetworkKind::Local;
+        config.profile = "local".to_string();
+        config.rpc_url = "ws://127.0.0.1:8545".to_string();
+        config.configuration_url = "http://127.0.0.1:8080".to_string();
+        config.chain_id = 31337;
+        config.mock_prover = true;
+
+        let updated = update_nightfall_toml_text(source, &config).unwrap();
+        assert!(updated.contains("[local]"));
+        assert!(updated.contains("ethereum_client_url = \"ws://127.0.0.1:8545\""));
+        assert!(updated.contains("configuration_url = \"http://127.0.0.1:8080\""));
+        assert!(updated.contains("chain_id = 31337"));
+        assert!(updated.contains("mock_prover = true"));
     }
 
     #[test]

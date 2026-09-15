@@ -3,6 +3,7 @@ use std::process::Command;
 use crate::config;
 
 pub fn up_configuration() -> Result<(), String> {
+    config::refresh_local_lan_urls()?;
     let args = compose_args("configuration", config::local_env_exists(), &["up", "-d"]);
     run_docker_compose("Starting configuration service", &args)
 }
@@ -17,6 +18,7 @@ pub fn logs_configuration() -> Result<(), String> {
 }
 
 pub fn up_proposer() -> Result<(), String> {
+    config::refresh_local_lan_urls()?;
     let args = compose_args("indie-proposer", true, &["up", "-d"]);
     run_docker_compose("Starting indie proposer service", &args)
 }
@@ -31,6 +33,7 @@ pub fn logs_proposer() -> Result<(), String> {
 }
 
 pub fn up_client() -> Result<(), String> {
+    config::refresh_local_lan_urls()?;
     let args = compose_args("indie-client", true, &["up", "-d"]);
     run_docker_compose("Starting indie client service", &args)
 }
@@ -42,6 +45,64 @@ pub fn logs_client() -> Result<(), String> {
         &["logs", "-f", "indie-client"],
     );
     run_docker_compose("Showing client service logs", &args)
+}
+
+const ANVIL_ACCOUNT1_KEY: &str =
+    "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d";
+const ANVIL_ACCOUNT1_ADDRESS: &str = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
+
+pub fn build_indie_client2() -> Result<(), String> {
+    let args = compose_args("indie-client2", true, &["build"]);
+    run_docker_compose("Building indie client 2 image", &args)
+}
+
+pub fn up_client2() -> Result<(), String> {
+    if !config::local_env_exists() {
+        return Err("local.env was not found. Run nf4 wizard client first.".to_string());
+    }
+    config::refresh_local_lan_urls()?;
+    ensure_client2_signing_key()?;
+    // Client 2 is a separate image; without a rebuild it keeps a stale proving_key
+    // from an earlier keygen and the proposer rejects transfers (zk proof is wrong).
+    build_indie_client2()?;
+    let args = compose_args(
+        "indie-client2",
+        true,
+        &["up", "-d", "--force-recreate", "--no-deps"],
+    );
+    run_docker_compose("Starting indie client 2 service", &args)
+}
+
+pub fn logs_client2() -> Result<(), String> {
+    let args = compose_args(
+        "indie-client2",
+        config::local_env_exists(),
+        &["logs", "-f", "indie-client2"],
+    );
+    run_docker_compose("Showing client 2 service logs", &args)
+}
+
+fn ensure_client2_signing_key() -> Result<(), String> {
+    let env = config::read_local_env();
+    let has_key = env
+        .get("CLIENT2_SIGNING_KEY")
+        .map(|value| !value.trim().is_empty())
+        .unwrap_or(false);
+    if has_key {
+        return Ok(());
+    }
+    if env.get("NF4_NETWORK").map(String::as_str) != Some("local") {
+        return Err(
+            "CLIENT2_SIGNING_KEY is missing in local.env. Set it before starting client 2."
+                .to_string(),
+        );
+    }
+
+    println!("CLIENT2_SIGNING_KEY was empty; using Anvil account 1 for local client 2");
+    config::merge_local_env(&[
+        ("CLIENT2_SIGNING_KEY", ANVIL_ACCOUNT1_KEY.to_string()),
+        ("CLIENT2_ADDRESS", ANVIL_ACCOUNT1_ADDRESS.to_string()),
+    ])
 }
 
 pub fn build_indie_deployer() -> Result<(), String> {
@@ -60,6 +121,7 @@ pub fn build_indie_client() -> Result<(), String> {
 }
 
 pub fn up_indie_deployer() -> Result<(), String> {
+    config::refresh_local_lan_urls()?;
     let args = compose_args("indie-deployer", true, &["up"]);
     run_docker_compose("Running indie deployer", &args)
 }
@@ -152,6 +214,22 @@ mod tests {
                 "compose",
                 "--profile",
                 "indie-client",
+                "--env-file",
+                "local.env",
+                "up",
+                "-d"
+            ]
+        );
+    }
+
+    #[test]
+    fn builds_client2_compose_args_with_env_file() {
+        assert_eq!(
+            compose_args("indie-client2", true, &["up", "-d"]),
+            vec![
+                "compose",
+                "--profile",
+                "indie-client2",
                 "--env-file",
                 "local.env",
                 "up",
