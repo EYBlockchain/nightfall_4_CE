@@ -122,7 +122,7 @@ pub fn build_indie_client() -> Result<(), String> {
 
 pub fn up_indie_deployer() -> Result<(), String> {
     config::refresh_local_lan_urls()?;
-    let args = compose_args("indie-deployer", true, &["up"]);
+    let args = compose_args("indie-deployer", true, &["up", "--no-recreate"]);
     run_docker_compose("Running indie deployer", &args)
 }
 
@@ -234,6 +234,22 @@ mod tests {
                 "local.env",
                 "up",
                 "-d"
+            ]
+        );
+    }
+
+    #[test]
+    fn builds_indie_deployer_compose_args_with_no_recreate() {
+        assert_eq!(
+            compose_args("indie-deployer", true, &["up", "--no-recreate"]),
+            vec![
+                "compose",
+                "--profile",
+                "indie-deployer",
+                "--env-file",
+                "local.env",
+                "up",
+                "--no-recreate"
             ]
         );
     }
