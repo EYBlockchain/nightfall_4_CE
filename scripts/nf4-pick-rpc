@@ -1,0 +1,101 @@
+#!/usr/bin/env python3
+"""Pick the fastest working HTTP and WSS RPCs from chainlist.org.
+
+Prints `export RPC_HTTP=...` and `export RPC_WSS=...` on stdout for:
+
+    eval "$(./scripts/nf4-pick-rpc --network sepolia)"
+
+Default network is sepolia. Probe log goes to stderr.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import subprocess
+import sys
+import time
+import urllib.request
+
+CHAIN_IDS = {
+    "sepolia": 11155111,
+    "base_sepolia": 84532,
+}
+CHAINLIST = "https://chainlist.org/rpcs.json"
+SKIP = ("${", "API_KEY", "/demo")
+PROBE_TIMEOUT = 8
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Pick Sepolia (default) HTTP and WSS RPCs from chainlist.org"
+    )
+    parser.add_argument(
+        "--network",
+        default="sepolia",
+        choices=sorted(CHAIN_IDS),
+        help="chainlist network (default: sepolia)",
+    )
+    return parser.parse_args()
+
+
+def rpc_urls(chain_id: int) -> list[str]:
+    with urllib.request.urlopen(CHAINLIST, timeout=30) as response:
+        chains = json.load(response)
+    chain = next((item for item in chains if item.get("chainId") == chain_id), None)
+    if chain is None:
+        raise SystemExit(f"chainId {chain_id} not in {CHAINLIST}")
+    urls: list[str] = []
+    for item in chain.get("rpc", []):
+        url = item["url"] if isinstance(item, dict) else item
+        if any(token in url for token in SKIP):
+            continue
+        urls.append(url)
+    return urls
+
+
+def probe(url: str, chain_id: int) -> tuple[bool, float]:
+    started = time.time()
+    try:
+        result = subprocess.run(
+            ["cast", "chain-id", "--rpc-url", url],
+            capture_output=True,
+            text=True,
+            timeout=PROBE_TIMEOUT,
+        )
+        ok = result.returncode == 0 and result.stdout.strip() == str(chain_id)
+        return ok, time.time() - started
+    except FileNotFoundError:
+        raise SystemExit("cast not found; install Foundry") from None
+    except subprocess.TimeoutExpired:
+        return False, float(PROBE_TIMEOUT)
+
+
+def fastest(urls: list[str], prefix: str, chain_id: int) -> str:
+    ranked: list[tuple[float, str]] = []
+    for url in urls:
+        if not url.startswith(prefix):
+            continue
+        ok, elapsed = probe(url, chain_id)
+        status = "OK" if ok else "NO"
+        print(f"{status} {elapsed:5.2f}s {url}", file=sys.stderr)
+        if ok:
+            ranked.append((elapsed, url))
+    ranked.sort()
+    return ranked[0][1] if ranked else ""
+
+
+def main() -> None:
+    args = parse_args()
+    chain_id = CHAIN_IDS[args.network]
+    urls = rpc_urls(chain_id)
+    http = fastest(urls, "https://", chain_id)
+    wss = fastest(urls, "wss://", chain_id)
+    if not http or not wss:
+        raise SystemExit(f"no working {args.network} HTTP+WSS RPC from chainlist")
+    print(f"export RPC_HTTP={http}")
+    print(f"export RPC_WSS={wss}")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,117 +1,39 @@
 # Sepolia Assistant Quick Start
 
-Run a complete Nightfall check on **Ethereum Sepolia** with `nf4`. The sequence matches `doc/sepolia_testing_report_template.md`: one deployer, one proposer, two clients, all four token standards, late Client 2 join, Client 1 stop/recover, proposer restart, then a post-recovery deposit.
+Two-VM Sepolia run with `nf4`. Fill `temp/sepolia_testing_report_template.md` as you go. Real prover. Chain ID `11155111`. Branch `auto/testnet`. No Anvil, no `--yes`, no `--network local`.
 
-Client 1 and Client 2 are separate client processes. Put them on two VMs, or on one host with different ports. Stand-up (deploy, proposer, bootstrap a client VM) is `doc/Testnet Assistant Quick Start.md`. This file is the ordered report using those nodes.
-
-This is not Anvil and not Base Sepolia. Chain ID must be `11155111`. Do not use `--network local`, Anvil’s well-known keys, or `./scripts/nf4-local-e2e.sh`. `--yes` is refused on testnet.
-
-Work from the repository root on `auto/testnet`. Record evidence as you go (command output, logs, `cast` receipts, explorer links). Do not put private keys, mnemonics, or RPC secrets in the report.
-
-For the Anvil dry run of the same sequence, see `doc/Local Assistant Quick Start.md`.
-
-## Report values
-
-| Report field | Sepolia value |
-|---|---|
-| Environment | Ethereum Sepolia |
-| Chain ID | `11155111` |
-| RPC | Host and containers: your `wss://` URL. `cast send` / `cast call` / `cast balance`: matching `https://` URL from the same provider |
-| Run mode | `sepolia` (`NF4_RUN_MODE=sepolia`) |
-| Network | `testnet` (`NF4_NETWORK=testnet`) |
-| Prover | `mock` in this walkthrough (wizard default). Official report wants `real`; see **Real prover** under step 2 |
-| Explorer | `https://sepolia.etherscan.io` |
-| Client 1 API | `$C1_API` (`http://127.0.0.1:3000` on the Client 1 VM) |
-| Client 2 API | `$C2_API` (`http://127.0.0.1:3000` on the Client 2 VM; same machine `:3002`) |
-| Proposer API | `$PROP_API` (`http://127.0.0.1:3001` on the Operator VM) |
-| Configuration | `http://<operator-ip>:8080` from every VM. On Operator, host checks can use `http://127.0.0.1:8080`. Do not type `host.docker.internal`, `http://configuration:80`, or `http://indie-proposer:3000` |
-| 48-hour soak | Required for the official report. Note the actual duration if you stop early |
-
-Out of scope, same as the Sepolia template: second proposer, rotation, proposer failover.
-
-There is no unattended copy of this guide. `--yes` is local-only. On testnet, key prompts accept a paste **or** Enter to generate a new account.
-
-## Where to run each command
-
-Copy the matching block from `doc/Testnet Assistant Quick Start.md`.
-
-Split VMs:
-
-```bash
-export PROP_API=http://127.0.0.1:3001    # Operator VM shells
-export C1_API=http://127.0.0.1:3000      # Client 1 VM shells
-export C2_API=http://127.0.0.1:3000      # Client 2 VM shells
-export C1_CONTAINER=nf4_indie_client
-export C2_CONTAINER=nf4_indie_client
-export C1_DB=nf4_db_client
-export C2_DB=nf4_db_client
-export PROP_CONTAINER=nf4_indie_proposer
-export PROP_DB=nf4_db_proposer
+```text
+VM-A                              VM-B
+deploy once                       Client 2 :3000
+configuration :8080               db_client
+proposer :3001                    own key, own Mongo
+Client 1 :3000
 ```
 
-Same machine:
+VM-B uses `indie-client` on `:3000`, not `indie-client2`. VM-B never runs `wizard deploy`. Do not copy `local.env` or private keys. Request id is the `x-request-id` header (`curl -D -`). Token IDs must be even-length hex (`0x03ea` not `0x3ea`). Fees `"0x00"`. ERC721 `value` is `"0x00"`. `deriveKey` uses the 24-word phrases below, not L1 keys. Do not put keys, mnemonics, or RPC URLs in the report.
 
-```bash
-export PROP_API=http://127.0.0.1:3001
-export C1_API=http://127.0.0.1:3000
-export C2_API=http://127.0.0.1:3002
-export C1_CONTAINER=nf4_indie_client
-export C2_CONTAINER=nf4_indie_client2
-export C1_DB=nf4_db_client
-export C2_DB=nf4_db_client2
-export PROP_CONTAINER=nf4_indie_proposer
-export PROP_DB=nf4_db_proposer
-```
-
-Run Operator steps on the Operator VM, Client 1 curls on the Client 1 VM, Client 2 curls on the Client 2 VM. Share token addresses, `C2` (L1 address), and ZKP public keys across VMs. Do not copy private keys.
-
-## Accounts
-
-Do **not** use Foundry Anvil keys. Those accounts have no Sepolia ETH and must never be used on a public chain.
-
-You need two Ethereum Sepolia accounts (same split as the local guide):
-
-| Role | How to get it |
-|---|---|
-| Deployer / default proposer / Client 1 L1 | Paste a funded key, or press Enter in `wizard deploy` / Client 1 `wizard client` |
-| Client 2 L1 | On the Client 2 VM: paste a funded key, or press Enter in **that** VM’s `wizard client`. Or `cast wallet new` there early, fund it, and share only the address with Client 1 for minting |
-
-A generated account starts at **0 ETH**. The wizard prints the address and private key once, writes the key to **that VM’s** `local.env` (gitignored), and waits until `cast balance` is non-zero (or you skip the recheck). Fund about **0.5 Sepolia ETH per account** before continuing. Never paste keys into the report or into chat.
-
-If you already have keys, export them in this shell only (they stay in history; do not screenshot):
-
-```bash
-export C1=0xYOUR_CLIENT1_ADDRESS
-export C2=0xYOUR_CLIENT2_ADDRESS
-export KEY1=0xYOUR_CLIENT1_PRIVATE_KEY
-export KEY2=0xYOUR_CLIENT2_PRIVATE_KEY
-export RPC_WSS=wss://YOUR_SEPOLIA_WEBSOCKET_URL
-export RPC_HTTP=https://YOUR_SEPOLIA_HTTPS_URL
-export EXPLORER=https://sepolia.etherscan.io
-```
-
-If the wizard generated the accounts, copy `C1` / `C2` / `KEY1` / `KEY2` from its output (or from `local.env`) for the `cast send` mint steps. Still set `RPC_WSS`, `RPC_HTTP`, and `EXPLORER`.
-
-Wizard key prompts hide input when you paste. Include `0x` if the key has it.
-
-ZKP `deriveKey` still uses the 24-word test mnemonics from `nightfall_test.toml`. Those are not L1 keys and do not replace `KEY1` / `KEY2`.
-
-## Fixed test data (report table)
-
-Use these values. Hex is what the client API wants. Token IDs must be even-length hex (`0x03e9` not `0x3e9`, `0x03ea` not `0x3ea`). Odd length returns `Invalid tokenId: Invalid hex format`. Export the padded IDs in step 5 and interpolate `${ID…}` in every curl; do not type a shortened form.
-
-| Standard | `tokenType` | Token ID | Client 1 deposit | Client 2 deposit | Transfer C1→C2 | Withdraw C1 | Withdraw C2 |
+| Token | type | id | C1 deposit | C2 deposit | C1→C2 | C1 withdraw | C2 withdraw |
 |---|---|---|---|---|---|---|---|
-| ERC20 | `0` | `0x00` (`ID20`) | `0x64` (100) | none | `0x28` (40) | `0x3c` (60) | `0x28` (40) |
-| ERC721 | `2` | C1 `0x03e9` (`ID721_C1`, 1001); C2 `0x03ea` (`ID721_C2`, 1002) | `1001` | `1002` | `1001` to C2, then back | `1001` | `1002` |
-| ERC1155 | `1` | `0x07d1` (`ID1155`, 2001) | `0x14` (20) | `0x0a` (10) | `0x08` (8) | `0x0c` (12) | `0x12` (18) |
-| ERC3525 | `3` | C1 `0x0bb9` (`ID3525_C1`, 3001); C2 `0x0bba` (`ID3525_C2`, 3002); same slot `0x01` | value `0x64` | value `0x64` | value `0x28` from `3001` | remaining `0x3c` | received `0x28` plus original `3002` |
+| ERC20 | `0` | `ID20=0x00` | `0x64` (100) | — | `0x28` (40) | `0x3c` (60) | `0x28` (40) |
+| ERC721 | `2` | C1 `ID721_C1=0x03e9` (1001); C2 `ID721_C2=0x03ea` (1002) | 1001 | 1002 | 1001, then back | 1001 | 1002 |
+| ERC1155 | `1` | `ID1155=0x07d1` (2001) | `0x14` (20) | `0x0a` (10) | `0x08` (8) | `0x0c` (12) | `0x12` (18) |
+| ERC3525 | `3` | C1 `ID3525_C1=0x0bb9` (3001); C2 `ID3525_C2=0x0bba` (3002); slot `1` | `0x64` | `0x64` | `0x28` from 3001 | `0x3c` | `0x28` + original 3002 |
 
-Fees: send `"fee": "0x00"` and `"deposit_fee": "0x00"`. If the API requires a fee, keep using one value for every call and record post-fee balances from the API and Mongo. Expected balances in the table are pre-fee.
+Balances in that table are pre-fee. Record post-fee values from the API and Mongo.
 
-ERC721 deposit, transfer, and withdraw `value` is `0x00`. The NFT is identified by `tokenId`.
+Client 1 `deriveKey` mnemonic (`key_request`):
 
-## 0. Tools
+`spice split denial symbol resemble knock hunt trial make buzz attitude mom slice define clinic kid crawl guilt frozen there cage light secret work`
+
+Client 2 `deriveKey` mnemonic (`key_request2`):
+
+`wink shell monkey fiscal exit great friend motor arrange file coffee leg catch drip amateur simple plastic win seat circle couch differ stomach law`
+
+---
+
+## 1. Prep — both VMs
+
+Need Docker, `forge`, `cast`, `cargo`, `curl`. ~0.5 Sepolia ETH per L1 account. VM-A is the proving box.
 
 ```bash
 git switch auto/testnet
@@ -120,19 +42,13 @@ cargo test -p nightfall_ops
 ./scripts/nf4 check deployer
 ```
 
-Need Docker running, `forge`, `cast`, `cargo`, `curl`. All `check deployer` lines must be `OK`.
-
-Confirm you are on Sepolia and both accounts have ETH:
+All `check deployer` lines `OK`. On VM-A also:
 
 ```bash
-cast chain-id --rpc-url "$RPC_WSS"
-cast balance "$C1" --rpc-url "$RPC_HTTP"
-cast balance "$C2" --rpc-url "$RPC_HTTP"
+./scripts/nf4 check prover
 ```
 
-Expect `11155111` and non-zero balances. An `http://` RPC will fail later in the wizard; Nightfall subscribes to logs and needs `ws://` or `wss://`. Public Sepolia should be `wss://`.
-
-If a previous **local Anvil** stack is still up, stop it first. Do not mix `NF4_NETWORK=local` with this run.
+Stop a leftover Anvil stack if present (`docker compose down` does **not** undeploy Sepolia contracts):
 
 ```bash
 docker compose --profile anvil --profile configuration --profile indie-deployer \
@@ -140,49 +56,105 @@ docker compose --profile anvil --profile configuration --profile indie-deployer 
   down --remove-orphans
 ```
 
-That only stops local containers. It does **not** remove anything already deployed on Sepolia.
+---
 
-## Do not “reset the chain”
+## 2. VM-A IP — VM-A, then VM-B
 
-Sepolia is persistent. `docker compose down` does not undeploy contracts. Old Nightfall addresses stay on chain and keep costing nothing until you abandon them.
+`$VM_A_IP` is the IPv4 VM-B uses to reach VM-A `:8080` and `:3001`. Not `127.0.0.1`, not `localhost`, not a Docker bridge (`172.17.` / `172.28.`).
 
-| Intent | What to do |
-|---|---|
-| Reuse contracts from a deploy that already exited 0 | Do **not** run `wizard deploy` again. Continue at proposer/client. `NF4_CONTRACTS__DEPLOY_CONTRACTS` must be `false` after the first successful deploy |
-| Wizard failed before deployer exited 0 | Fix the prompt/RPC/key, run `wizard deploy --network testnet` again |
-| Proposer/client wizard failed | Re-run that wizard only |
-| Client 2 container bad | Split VM: `docker rm -f "$C2_CONTAINER"` then `wizard client` on that VM. Same machine: then `./scripts/nf4 up client2` |
-| Want **new** Sepolia contracts | `wizard deploy --network testnet` again. You pay gas. Previous addresses are left on chain. Update the report with the new ones |
+Linux: `hostname -I` — first address that is not `127.*` or `172.*`. If several remain, pick the one VM-B can reach (LAN/VPC, or the cloud public IPv4).
 
-Leave `nightfall.toml` and `local.env` in place when reusing. Confirm `local.env` is gitignored.
+macOS: `ipconfig getifaddr en0 || ipconfig getifaddr en1`
 
-`nf4` does **not** rewrite LAN URLs when `NF4_NETWORK=testnet`. If Wi-Fi/VPN changes the laptop IP mid-run, the on-chain proposer URL (`http://<old-lan-ip>:3001`) stops working. Stay on one network for the run.
+Cloud across the internet: provider public IPv4. Open TCP `8080` and `3001` to VM-B.
 
-Partial retries (do **not** treat this like Anvil full reset):
+```bash
+export VM_A_IP=<that address>
+printf '%s\n' "$VM_A_IP"
+```
 
-| Stuck at | Retry |
-|---|---|
-| RPC / chain ID | Step 0. Do not deploy until `cast chain-id` is `11155111` |
-| Deploy wizard | `./scripts/nf4 wizard deploy --network testnet` |
-| Proposer wizard failed | `./scripts/nf4 wizard proposer` again |
-| Client 1 wizard failed | `./scripts/nf4 wizard client` again |
-| Client 2 missing key | On the Client 2 VM run `wizard client` (or same-machine: Yes to local Client 2, then `nf4 up client2`) |
-| Deploy, proposer, and client already healthy | Skip to cert/keys/mock tokens. Do not run `wizard deploy` again |
+On VM-B, export the **same** value and `ping -c 1 "$VM_A_IP"`. If ping is blocked, step 5’s `curl` from VM-B is the check. Do not change this IP mid-run; it is written on chain.
 
-## 1. RPC check (no Anvil)
+---
 
-There is no Anvil step. The host chain is public Sepolia.
+## 3. Shell env — RPC and URLs
+
+You do not have Nightfall accounts yet. Export only what you already know. `127.0.0.1` is this VM.
+
+**Both VMs.** `./scripts/nf4-pick-rpc` reads chainlist.org, probes `eth_chainId` with `cast`, and prints the fastest working `https://` and `wss://` pair. Default `--network sepolia`. A passing chain-id does not prove `eth_subscribe` will hold; if the event listener drops, use a keyed provider.
+
+```bash
+eval "$(./scripts/nf4-pick-rpc --network sepolia)"
+export RPC="$RPC_HTTP"
+export EXPLORER=https://sepolia.etherscan.io
+export CONFIG_URL=http://${VM_A_IP}:8080
+export PROPOSER_URL=http://${VM_A_IP}:3001
+printf '%s\n' "$RPC_HTTP" "$RPC_WSS"
+```
+
+**VM-A**
+
+```bash
+export PROP_API=http://127.0.0.1:3001
+export C1_API=http://127.0.0.1:3000
+export C1_CONTAINER=nf4_indie_client
+export C1_DB=nf4_db_client
+export PROP_CONTAINER=nf4_indie_proposer
+export PROP_DB=nf4_db_proposer
+```
+
+**VM-B** — `nf4_indie_client` here is Client 2.
+
+```bash
+export C2_API=http://127.0.0.1:3000
+export C2_CONTAINER=nf4_indie_client
+export C2_DB=nf4_db_client
+```
 
 ```bash
 cast chain-id --rpc-url "$RPC_WSS"
 cast block-number --rpc-url "$RPC_WSS"
 ```
 
-Record the block number. The deploy wizard uses the current block as `genesis_block` so clients do not scan from genesis.
+Expect `11155111`. Nightfall needs `wss://`. Use `https://` only for `cast`.
 
-Optional, if the provider rate-limits (Alchemy free tier is tight): after deploy, add `NF4_RPC_RATE_LIMIT=8` to `local.env` and recreate proposer/client. Do not put the RPC URL in the report.
+---
 
-## 2. Deploy Nightfall (report: deployer, contracts, config)
+## 4. L1 accounts
+
+Create and fund wallets **before** deploy. Do not use Anvil keys.
+
+**VM-B** (Client 2 only — keep the key here):
+
+```bash
+cast wallet new
+export C2=0x<address from cast>
+export KEY2=0x<private key from cast>
+```
+
+Send `$C2` (address only) to VM-A.
+
+**VM-A** (deployer = proposer = Client 1):
+
+```bash
+cast wallet new
+export C1=0x<address from cast>
+export KEY1=0x<private key from cast>
+export C2=0x<address received from VM-B>
+```
+
+Fund each address with about 0.5 Sepolia ETH, then:
+
+```bash
+cast balance "$C1" --rpc-url "$RPC_HTTP"   # VM-A
+cast balance "$C2" --rpc-url "$RPC_HTTP"   # both VMs
+```
+
+Expect non-zero. The deploy wizard will ask you to paste `KEY1`.
+
+---
+
+## 5. Deploy — VM-A (report: contracts)
 
 ```bash
 ./scripts/nf4 wizard deploy --network testnet
@@ -190,70 +162,35 @@ Optional, if the provider rate-limits (Alchemy free tier is tight): after deploy
 
 | Prompt | Enter |
 |---|---|
-| Testnet chain | `sepolia` (not `base_sepolia`) |
+| Testnet chain | `sepolia` |
 | Profile | `sepolia` |
-| RPC | `$RPC_WSS` (`wss://…`). No `http://`, no Anvil `ws://127.0.0.1:8545` |
+| RPC | `$RPC_WSS` |
 | Configuration port | `8080` |
-| Configuration URL | Accept the default (`http://<detected-lan-ip>:8080`). Do not use `host.docker.internal` |
-| Deployer key | Paste `KEY1` (hidden), or Enter to generate a new account, fund the printed address, then recheck balance |
-| Default proposer address | Enter (deployer / Client 1) |
-| Default proposer URL | Accept `http://<lan-ip>:3001`. This is written **on chain**. Do not use `http://indie-proposer:3000` (that default is local-only). Host health is still `${PROP_API}` |
-| Real prover? | `no` for this walkthrough |
+| Configuration URL | `http://$VM_A_IP:8080` |
+| Deployer key | paste `$KEY1` |
+| Default proposer address | Enter |
+| Default proposer URL | `http://$VM_A_IP:3001` (on chain) |
+| Real prover? | `yes`, then confirm key generation |
 | Block size | `64` |
-| Apply changes? | `yes` after the review shows `network: testnet`, `profile: sepolia`, `chain_id: 11155111` |
+| Apply? | `yes` if review is `network: testnet`, `profile: sepolia`, `chain_id: 11155111` |
 
-`--yes` is not accepted here. There is no typed “deploy to sepolia” phrase; that exists only for mainnet.
-
-`nf4` clones the `[base_sepolia]` TOML template into `[sepolia]` and sets `chain_id` from the RPC. Containers get `NF4_ETHEREUM_CLIENT_URL` as the same `wss://` URL (not rewritten to `anvil`).
-
-After `Deployment OK`:
+Key generation is slow. After `Deployment OK`:
 
 ```bash
-./scripts/nf4 status
-curl -sS http://127.0.0.1:8080/configuration/toml/addresses.toml
-curl -sS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8080/configuration/toml/contract_hashes.toml
-curl -sS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8080/configuration/bin/keys/proving_key
-docker inspect -f '{{.State.Status}} {{.State.ExitCode}}' nf4_indie_deployer
-```
-
-Record:
-
-- `NF4_RUN_MODE=sepolia`, `NF4_NETWORK=testnet`, `NF4_MOCK_PROVER=true`, `NF4_CONTRACTS__DEPLOY_CONTRACTS` was `true` for this run
-- Nightfall, Round Robin, X509 addresses, `code OK`, and explorer links (`$EXPLORER/address/<addr>`)
-- Verifier skipped in mock mode (report: Verifier `not deployed / mock`)
-- VK provider if present in `addresses.toml`
-- Deployer container exited `0`
-- Deploy transactions on the explorer
-
-```bash
+# VM-A
 grep -E 'NF4_RUN_MODE|NF4_NETWORK|NF4_MOCK_PROVER|NF4_CONTRACTS__DEPLOY_CONTRACTS' local.env
+curl -sS http://127.0.0.1:8080/configuration/toml/addresses.toml
+docker inspect -f '{{.State.Status}} {{.State.ExitCode}}' nf4_indie_deployer
+
+# VM-B
+curl -sS -o /dev/null -w '%{http_code}\n' "$CONFIG_URL/configuration/toml/addresses.toml"
 ```
 
-Do not attach `local.env` to the report. After a successful first deploy, later proposer/client restarts must keep `NF4_CONTRACTS__DEPLOY_CONTRACTS=false` (the proposer wizard already writes that).
+Expect `NF4_MOCK_PROVER=false`, deployer exit `0`, VM-B HTTP `200`, non-zero Verifier address. Record Nightfall / Round Robin / X509 / Verifier and explorer links. After this, keep `NF4_CONTRACTS__DEPLOY_CONTRACTS=false`. If this profile was deployed with mock prover, deploy a new profile; do not flip the flag.
 
-If deployer, proposer, and client are already `healthy` and `curl http://127.0.0.1:8080/configuration/toml/addresses.toml` is 200, skip to **Client 1 cert + keys** (after step 4). First:
+---
 
-```bash
-./scripts/nf4 status
-docker compose --profile indie-proposer --profile indie-client --env-file local.env up -d
-curl -sS ${PROP_API}/v1/health
-curl -sS ${C1_API}/v1/health
-```
-
-### Real prover
-
-`doc/sepolia_testing_report_template.md` asks for prover mode `real`. This walkthrough uses mock so a laptop can finish the sequence.
-
-To match the official report instead:
-
-1. `./scripts/nf4 check prover` must pass before you treat the machine as capable
-2. At “Use real prover mode?” answer `yes`, then confirm key generation
-3. Key generation needs large RAM/disk and can take a long time. Success generating keys does not prove this machine can prove a block
-4. Record a non-zero Verifier address
-
-Do not switch prover mode on an already-deployed Sepolia profile mid-run.
-
-## 3. Proposer (report: one proposer, health, cert)
+## 6. Proposer — VM-A (report: one proposer)
 
 ```bash
 ./scripts/nf4 wizard proposer
@@ -261,9 +198,9 @@ Do not switch prover mode on an already-deployed Sepolia profile mid-run.
 
 | Prompt | Enter |
 |---|---|
-| Proposer key | Paste `KEY1` (hidden), or Enter to reuse `local.env`. If `local.env` has no proposer key, Enter generates a new account |
-| Public proposer URL | Accept the default (current LAN IP, port 3001). Health on the Mac is `${PROP_API}` |
-| Configuration URL | Accept the default (current LAN IP, port 8080) |
+| Proposer key | paste `$KEY1`, or Enter to reuse `local.env` |
+| Public proposer URL | `http://$VM_A_IP:3001` |
+| Configuration URL | `http://$VM_A_IP:8080` |
 
 ```bash
 curl -sS -i ${PROP_API}/v1/health
@@ -274,13 +211,15 @@ curl -sS ${PROP_API}/v1/proposers
 ./scripts/nf4 logs proposer
 ```
 
-Health must be HTTP 200 and body `Healthy`. Exactly one proposer registered. Save a log excerpt that it connected to chain `11155111`, plus the certification L1 tx on the explorer.
+On VM-B: `curl -sS -o /dev/null -w '%{http_code}\n' "$PROPOSER_URL/v1/health"`
 
-## 4. Client 1 only (report step 1: Client 2 still stopped)
+Expect HTTP 200 `Healthy`, exactly one proposer, VM-B `200`. Record cert L1 tx.
 
-On the **Client 1 VM** (see `doc/Testnet Assistant Quick Start.md` to bootstrap a second machine). Client 2 stays down.
+---
 
-If Client 2 already has an L1 address, set `CLIENT2_ADDRESS` in Client 1’s `local.env` before mock tokens. Do not copy Client 2’s private key onto this VM.
+## 7. Client 1 — VM-A (report step 1: Client 2 down)
+
+Do not run `wizard client` on VM-B yet. Put `CLIENT2_ADDRESS=$C2` in VM-A `local.env`.
 
 ```bash
 ./scripts/nf4 wizard client
@@ -288,19 +227,17 @@ If Client 2 already has an L1 address, set `CLIENT2_ADDRESS` in Client 1’s `lo
 
 | Prompt | Enter |
 |---|---|
-| Client key | Paste `KEY1` (hidden), or Enter to reuse `local.env` / generate if empty |
-| Client address | Enter (derived Client 1) |
-| Will Client 2 also run on this machine? | **No** on a Client 1 VM. **Yes** only if this host will also run `nf4 up client2` |
-| Proposer URL | Operator URL `http://<operator-ip>:3001`. If proposer is not up, stop and run `wizard proposer` on Operator |
-| Configuration URL | `http://<operator-ip>:8080` |
-| Webhook | Accept the default (this VM’s LAN IP, port 8081) |
+| Client key | paste `$KEY1` |
+| Client address | Enter |
+| Will Client 2 also run on this machine? | **No** |
+| Proposer URL | `$PROPOSER_URL` |
+| Configuration URL | `$CONFIG_URL` |
+| Webhook | default (VM-A, port 8081) |
 | Client API port | `3000` |
 
-Host checks always use `127.0.0.1` even when `local.env` has the LAN IP.
-
-### Client 1 cert + keys
-
 ```bash
+docker exec "$C1_CONTAINER" wget -q -S -O /dev/null "$CONFIG_URL/configuration/toml/addresses.toml"
+docker exec "$C1_CONTAINER" wget -q -S -O /dev/null "$PROPOSER_URL/v1/health"
 curl -sS -i ${C1_API}/v1/health
 curl -i --request POST "${C1_API}/v1/certification" \
   --form 'certificate=@blockchain_assets/test_contracts/X509/_certificates/user/user-3.der;type=application/pkix-cert' \
@@ -308,39 +245,23 @@ curl -i --request POST "${C1_API}/v1/certification" \
 curl -sS -X POST ${C1_API}/v1/deriveKey \
   -H 'Content-Type: application/json' \
   -d '{"mnemonic":"spice split denial symbol resemble knock hunt trial make buzz attitude mom slice define clinic kid crawl guilt frozen there cage light secret work","child_path":"m/44'\''/60'\''/0'\''/0/0"}'
-curl -sS ${C1_API}/v1/synchronisation
-curl -sS ${C1_API}/v1/commitments
-curl -sS ${C1_API}/v1/l1_balance
-```
-
-This is the 24-word `key_request` mnemonic from `nightfall_test.toml`, not `KEY1`. Export Client 1’s compressed ZKP public key from the stored result (64 hex chars, no `0x`). Do not paste the name `C1_ZKP` into later JSON.
-
-```bash
 export C1_ZKP=$(curl -sS -X POST ${C1_API}/v1/deriveKey \
   -H 'Content-Type: application/json' -d '{}' \
   | sed -n 's/.*"zkp_public_key":"\([^"]*\)".*/\1/p')
 printf '%s\n' "$C1_ZKP"
 ```
 
-Save L2 sync payload as the baseline block. Record the certification tx on the explorer.
+Expect wget/health 200, 64 hex chars in `C1_ZKP` (no `0x`). Copy `C1_ZKP` to VM-B before step 17.
 
-Confirm Client 2 is not running:
+On **VM-B**: `docker ps --filter name=nf4_indie_client` must be empty. Do not run that check on VM-A.
 
-```bash
-docker ps --filter name="$C2_CONTAINER" --format '{{.Names}} {{.Status}}'
-```
+---
 
-Empty is correct.
-
-## 5. Mock tokens and mint the report IDs
-
-Point ERC20’s second allocation at Client 2, then deploy mocks **on Sepolia** (this costs gas):
+## 8. Mock tokens — VM-A
 
 ```bash
 ./scripts/nf4 client deploy-mock-tokens
 ```
-
-Copy the four printed addresses and the broadcast txs. Export them:
 
 ```bash
 export TOKEN20=<ERC20Mock>
@@ -348,8 +269,6 @@ export TOKEN721=<ERC721Mock>
 export TOKEN1155=<ERC1155Mock>
 export TOKEN3525=<ERC3525Mock>
 export NF=$(awk -F'"' '/^nightfall *=/{print $2}' configuration/toml/addresses.toml)
-export RPC="$RPC_HTTP"
-# even-length hex for the client API (0x03ea not 0x3ea)
 export ID20=0x00
 export ID721_C1=0x03e9
 export ID721_C2=0x03ea
@@ -358,25 +277,24 @@ export ID3525_C1=0x0bb9
 export ID3525_C2=0x0bba
 ```
 
-Mocks mint leftover IDs (ERC721 `426`, ERC1155 `2`/`73`, ERC3525 `7`/`8`). Mint the report IDs with `KEY1` (Client 1 pays):
+Copy those exports to VM-B before step 11.
 
 ```bash
-# ERC721 1001 -> C1, 1002 -> C2
 cast send "$TOKEN721" "mint(address,address,uint256)" "$C1" "$NF" 1001 --private-key "$KEY1" --rpc-url "$RPC"
 cast send "$TOKEN721" "mint(address,address,uint256)" "$C2" "$NF" 1002 --private-key "$KEY1" --rpc-url "$RPC"
-# ERC1155 2001: 20 to C1, 10 to C2
 cast send "$TOKEN1155" "mint(address,address,uint256,uint256)" "$C1" "$NF" 2001 20 --private-key "$KEY1" --rpc-url "$RPC"
 cast send "$TOKEN1155" "mint(address,address,uint256,uint256)" "$C2" "$NF" 2001 10 --private-key "$KEY1" --rpc-url "$RPC"
-# ERC3525 same slot 1: 3001 value 100 to C1, 3002 value 100 to C2
 cast send "$TOKEN3525" "mint(address,address,uint256,uint256,uint256)" "$NF" "$C1" 3001 1 100 --private-key "$KEY1" --rpc-url "$RPC"
 cast send "$TOKEN3525" "mint(address,address,uint256,uint256,uint256)" "$NF" "$C2" 3002 1 100 --private-key "$KEY1" --rpc-url "$RPC"
 ```
 
-Wait for each receipt. Record `$EXPLORER/tx/<hash>` and `$EXPLORER/address/$TOKENxx`.
+Wait for receipts. Record explorer txs.
 
-## 6. Report step 1 — baseline
+---
 
-Keep Client 2 stopped.
+## 9. Baseline — VM-A (report step 1)
+
+Client 2 still down on VM-B.
 
 ```bash
 curl -sS ${PROP_API}/v1/health
@@ -389,28 +307,24 @@ docker exec "$C1_DB" mongosh --quiet --eval 'db.getSiblingDB("nightfall").commit
 docker exec "$PROP_DB" mongosh --quiet --eval 'db.getSiblingDB("nightfall").ProposedBlocks.find().toArray()'
 ```
 
-Record the Sepolia block as the explorer reference.
+Record Sepolia block and L2 sync payload.
 
-## 7. Report steps 2–4 — Client 1 deposits, wait for a block
+---
 
-Sepolia L1 is ~12s per block. The proposer may wait up to `block_assembly_max_wait_secs` (120s in the cloned template), then prove, then wait for L1 confirmation. Poll; do not assume Anvil timing.
+## 10. Client 1 deposits — VM-A (report steps 2–4)
+
+Poll. Assembly can wait ~120s, then real proving (tens of minutes), then L1 (~12s/block).
 
 ```bash
-# ERC20 100
 curl -sS -D - -H 'Content-Type: application/json' -X POST ${C1_API}/v1/deposit \
   --data-raw "{\"ercAddress\":\"${TOKEN20}\",\"tokenId\":\"${ID20}\",\"tokenType\":\"0\",\"value\":\"0x64\",\"fee\":\"0x00\",\"deposit_fee\":\"0x00\"}"
-# ERC721 1001
 curl -sS -D - -H 'Content-Type: application/json' -X POST ${C1_API}/v1/deposit \
   --data-raw "{\"ercAddress\":\"${TOKEN721}\",\"tokenId\":\"${ID721_C1}\",\"tokenType\":\"2\",\"value\":\"0x00\",\"fee\":\"0x00\",\"deposit_fee\":\"0x00\"}"
-# ERC1155 2001 x 20
 curl -sS -D - -H 'Content-Type: application/json' -X POST ${C1_API}/v1/deposit \
   --data-raw "{\"ercAddress\":\"${TOKEN1155}\",\"tokenId\":\"${ID1155}\",\"tokenType\":\"1\",\"value\":\"0x14\",\"fee\":\"0x00\",\"deposit_fee\":\"0x00\"}"
-# ERC3525 3001 value 100
 curl -sS -D - -H 'Content-Type: application/json' -X POST ${C1_API}/v1/deposit \
   --data-raw "{\"ercAddress\":\"${TOKEN3525}\",\"tokenId\":\"${ID3525_C1}\",\"tokenType\":\"3\",\"value\":\"0x64\",\"fee\":\"0x00\",\"deposit_fee\":\"0x00\"}"
 ```
-
-The id is the `x-request-id` header, not the `"Request queued"` body. `-D -` prints headers. Poll until confirmed:
 
 ```bash
 curl -sS ${C1_API}/v1/request/<REQUEST_ID>
@@ -418,9 +332,7 @@ curl -sS ${C1_API}/v1/request/<REQUEST_ID>
 ./scripts/nf4 logs proposer
 ```
 
-For each deposit, record request ID, L1 escrow tx, and `$EXPLORER/tx/<hash>`. X509 validate is `0x4e5805d3`. Escrow is `Nightfall.escrow_funds` / `0xe6d5abe5`. A proposed L2 block is `Nightfall.propose_block` / `0x55420851`.
-
-Then:
+Escrow `0xe6d5abe5`. Propose block `0x55420851`. X509 validate `0x4e5805d3`.
 
 ```bash
 curl -sS ${C1_API}/v1/synchronisation
@@ -428,20 +340,48 @@ curl -sS "${C1_API}/v1/balance/${TOKEN20}/${ID20}"
 curl -sS "${C1_API}/v1/balance/${TOKEN721}/${ID721_C1}"
 curl -sS "${C1_API}/v1/balance/${TOKEN1155}/${ID1155}"
 curl -sS "${C1_API}/v1/balance/${TOKEN3525}/${ID3525_C1}"
-curl -sS ${C1_API}/v1/commitments
 docker exec "$C1_DB" mongosh --quiet --eval 'db.getSiblingDB("nightfall").commitments.find().toArray()'
 ```
 
-Expect Client 1: ERC20 `100`, ERC721 `1001`, ERC1155 `2001:20`, ERC3525 `3001:100` (hex `0x64`, `01`, `0x14`, `0x64` if no fees). ERC721 `/v1/balance` is ownership count (`01` if held), not the on-chain value field. Record L2 block number.
+Expect ERC20 100, ERC721 1001 (balance `01` = held), ERC1155 20, ERC3525 100. Record L2 block.
 
-## 8. Report steps 5–7 — Client 2 joins late, then deposits
+---
 
-Start Client 2 after the deposit block is confirmed.
+## 11. Client 2 late join — VM-B (report steps 5–7)
 
-- **Client 2 VM:** bootstrap as in the Testnet guide (if not already), then `./scripts/nf4 wizard client` with Client 2’s key. Answer **No** to “Will Client 2 also run on this machine?”. API port `3000`.
-- **Same machine:** `CLIENT2_SIGNING_KEY` must be in `local.env`, then `./scripts/nf4 up client2`. If an old container exists, `docker rm -f "$C2_CONTAINER"` first.
+Only after step 10’s deposit block is confirmed. Copy `$TOKEN*`, `$ID*`, `$NF`, `$RPC`, `$CONFIG_URL`, `$PROPOSER_URL` from VM-A.
 
 ```bash
+scp user@vm-a:path/to/nightfall_4_CE/nightfall.toml ./nightfall.toml
+mkdir -p configuration/toml configuration/bin/keys
+curl -sS "$CONFIG_URL/configuration/toml/addresses.toml" -o configuration/toml/addresses.toml
+curl -sS "$CONFIG_URL/configuration/toml/contract_hashes.toml" -o configuration/toml/contract_hashes.toml
+curl -sS "$CONFIG_URL/configuration/bin/keys/proving_key" -o configuration/bin/keys/proving_key
+cat > local.env <<EOF
+NF4_RUN_MODE=sepolia
+NF4_NETWORK=testnet
+NF4_MOCK_PROVER=false
+NF4_CONTRACTS__DEPLOY_CONTRACTS=false
+NF4_ETHEREUM_CLIENT_URL=${RPC_WSS}
+NF4_CONFIGURATION_URL=${CONFIG_URL}
+NF4_NIGHTFALL_PROPOSER__URL=${PROPOSER_URL}
+EOF
+./scripts/nf4 wizard client
+```
+
+| Prompt | Enter |
+|---|---|
+| Client key | paste `$KEY2` |
+| Client address | Enter |
+| Will Client 2 also run on this machine? | **No** |
+| Proposer URL | `$PROPOSER_URL` |
+| Configuration URL | `$CONFIG_URL` |
+| Webhook | default (VM-B, port 8081) |
+| Client API port | `3000` |
+
+```bash
+docker exec "$C2_CONTAINER" wget -q -S -O /dev/null "$CONFIG_URL/configuration/toml/addresses.toml"
+docker exec "$C2_CONTAINER" wget -q -S -O /dev/null "$PROPOSER_URL/v1/health"
 curl -sS -i ${C2_API}/v1/health
 curl -i --request POST "${C2_API}/v1/certification" \
   --form 'certificate=@blockchain_assets/test_contracts/X509/_certificates/user/user-4.der;type=application/pkix-cert' \
@@ -449,22 +389,14 @@ curl -i --request POST "${C2_API}/v1/certification" \
 curl -sS -X POST ${C2_API}/v1/deriveKey \
   -H 'Content-Type: application/json' \
   -d '{"mnemonic":"wink shell monkey fiscal exit great friend motor arrange file coffee leg catch drip amateur simple plastic win seat circle couch differ stomach law","child_path":"m/44'\''/60'\''/0'\''/0/0"}'
-curl -sS ${C2_API}/v1/synchronisation
-curl -sS ${C2_API}/v1/commitments
-```
-
-`deriveKey` uses the 24-word `key_request2` mnemonic from `nightfall_test.toml`. Do not use a Foundry 12-word L1 phrase; that returns `500`.
-
-Client 2 must reach the same confirmed L2 block as Client 1 without error. Export Client 2’s compressed ZKP public key from the stored result (64 hex chars, no `0x`). Do not paste the name `C2_ZKP` into later JSON.
-
-```bash
 export C2_ZKP=$(curl -sS -X POST ${C2_API}/v1/deriveKey \
   -H 'Content-Type: application/json' -d '{}' \
   | sed -n 's/.*"zkp_public_key":"\([^"]*\)".*/\1/p')
 printf '%s\n' "$C2_ZKP"
+curl -sS ${C2_API}/v1/synchronisation
 ```
 
-Client 2 deposits:
+Paste `C2_ZKP` onto VM-A. Client 2 L2 block must match Client 1.
 
 ```bash
 curl -sS -D - -H 'Content-Type: application/json' -X POST ${C2_API}/v1/deposit \
@@ -475,11 +407,13 @@ curl -sS -D - -H 'Content-Type: application/json' -X POST ${C2_API}/v1/deposit \
   --data-raw "{\"ercAddress\":\"${TOKEN3525}\",\"tokenId\":\"${ID3525_C2}\",\"tokenType\":\"3\",\"value\":\"0x64\",\"fee\":\"0x00\",\"deposit_fee\":\"0x00\"}"
 ```
 
-Wait for the next proposed block and explorer confirmation, then verify Client 2 Mongo/API: `1002`, `2001:10`, `3002:100`.
+After the next L2 block: Client 2 has 1002, `2001:10`, `3002:100`.
 
-## 9. Report step 8 — transfers from Client 1, Client 2 still up
+---
 
-`C2_ZKP` and the `$ID*` values must already be exported. The curls interpolate `${C2_ZKP}` and `${ID…}`; do not leave those names as JSON strings.
+## 12. Transfers — VM-A (report step 8)
+
+`C2_ZKP` must be the hex string, not the characters `C2_ZKP`.
 
 ```bash
 curl -sS -D - -H 'Content-Type: application/json' -X POST ${C1_API}/v1/transfer \
@@ -492,9 +426,13 @@ curl -sS -D - -H 'Content-Type: application/json' -X POST ${C1_API}/v1/transfer 
   --data-raw "{\"ercAddress\":\"${TOKEN3525}\",\"tokenId\":\"${ID3525_C1}\",\"tokenType\":\"3\",\"recipientData\":{\"values\":[\"0x28\"],\"recipientCompressedZkpPublicKeys\":[\"${C2_ZKP}\"]},\"fee\":\"0x00\"}"
 ```
 
-Use `-D -` so you get `x-request-id`. Poll `/v1/request/<id>` until accepted for **all four** transfers. Do **not** wait for L2 confirmation yet. Do not stop Client 1 if a transfer returned `Invalid recipient public key` or never queued. Proposer logs should show client transactions in the mempool (`Found N client transactions`, N > 0) before you continue.
+Poll `/v1/request/<id>` until all four are accepted. Do not wait for L2 yet. Proposer log `Found N client transactions` with N > 0. Do not stop Client 1 if a transfer failed.
 
-## 10. Report step 9 — stop Client 1 before the transfer block confirms
+---
+
+## 13. Stop Client 1 — VM-A (report step 9)
+
+Do not stop VM-B.
 
 ```bash
 curl -sS ${C1_API}/v1/synchronisation
@@ -503,16 +441,21 @@ docker stop "$C1_CONTAINER"
 date -u
 ```
 
-Record timestamp, last Client 1 L2 block, and DB dump.
+Record timestamp, last L2 block, DB dump.
 
-## 11. Report step 10 — proposer confirms transfers; Client 2 stays up
+---
 
-`/v1/balance` returns `No such token` (404) when there are no unspent commitments for that token, not `00`. Client 2 never deposits ERC20, so `${TOKEN20}/${ID20}` 404s until the C1→C2 transfer is in an L2 block. That is not a bad token address.
+## 14. Confirm transfers — VM-A logs, VM-B balances (report step 10)
 
-If proposer logs show `Found 0 client transactions` / `No transactions pending`, the transfers never left Client 1. Start Client 1, re-run `deriveKey` (keys are in-memory), resubmit any still-`Unspent` transfers, poll until accepted, then `docker stop nf4_indie_client` again if you still need that report beat.
+Client 2 ERC20 `/v1/balance` is 404 until this block (`No such token`). That is expected.
+
+If proposer says `Found 0 client transactions`, start Client 1, `deriveKey`, resubmit, then `docker stop "$C1_CONTAINER"` again.
 
 ```bash
+# VM-A
 ./scripts/nf4 logs proposer
+
+# VM-B
 curl -sS ${C2_API}/v1/synchronisation
 curl -sS ${C2_API}/v1/commitments
 curl -sS "${C2_API}/v1/balance/${TOKEN20}/${ID20}"
@@ -521,11 +464,13 @@ curl -sS "${C2_API}/v1/balance/${TOKEN1155}/${ID1155}"
 docker exec "$C2_DB" mongosh --quiet --eval 'db.getSiblingDB("nightfall").commitments.find().toArray()'
 ```
 
-Client 2 must show received ERC20 `40`, ERC721 `1001`, ERC1155 `18` (`10+8`), ERC3525 received value `40`. Record the propose tx on the explorer.
+Expect Client 2: ERC20 40, ERC721 1001, ERC1155 18, ERC3525 received 40.
 
-## 12. Report step 11 — restart Client 1
+---
 
-ZKP keys are in-memory. After `docker start`, run Client 1 `deriveKey` again (same 24-word `key_request` mnemonic) before checking commitments.
+## 15. Restart Client 1 — VM-A (report step 11)
+
+Keys are in-memory. `deriveKey` again before reading commitments.
 
 ```bash
 docker start "$C1_CONTAINER"
@@ -538,43 +483,53 @@ curl -sS ${C1_API}/v1/commitments
 docker exec "$C1_DB" mongosh --quiet --eval 'db.getSiblingDB("nightfall").commitments.find().toArray()'
 ```
 
-Client 1 must catch up to the transfer block. Spent commitments for the transferred assets; remaining ERC20 `60`, ERC1155 `12`, ERC3525 `60`; ERC721 `1001` spent.
+Expect Client 1 caught up: ERC20 60, ERC1155 12, ERC3525 60, ERC721 1001 spent.
 
-## 13. Report step 12 — compare both clients and proposer
+---
 
-```bash
-curl -sS ${C1_API}/v1/synchronisation
-curl -sS ${C2_API}/v1/synchronisation
-docker exec "$C1_DB" mongosh --quiet --eval 'db.getSiblingDB("nightfall").ProposedBlocks.find().toArray()'
-docker exec "$C2_DB" mongosh --quiet --eval 'db.getSiblingDB("nightfall").ProposedBlocks.find().toArray()'
-docker exec "$PROP_DB" mongosh --quiet --eval 'db.getSiblingDB("nightfall").ProposedBlocks.find().toArray()'
-```
+## 16. Compare DBs (report step 12)
 
 L2 block numbers must match.
+
+```bash
+# VM-A
+curl -sS ${C1_API}/v1/synchronisation
+docker exec "$C1_DB" mongosh --quiet --eval 'db.getSiblingDB("nightfall").ProposedBlocks.find().toArray()'
+docker exec "$PROP_DB" mongosh --quiet --eval 'db.getSiblingDB("nightfall").ProposedBlocks.find().toArray()'
+
+# VM-B
+curl -sS ${C2_API}/v1/synchronisation
+docker exec "$C2_DB" mongosh --quiet --eval 'db.getSiblingDB("nightfall").ProposedBlocks.find().toArray()'
+```
 
 | | Client 1 | Client 2 |
 |---|---|---|
 | ERC20 | 60 | 40 |
-| ERC721 | `1001` spent | `1001` held, `1002` held |
-| ERC1155 `2001` | 12 | 18 |
-| ERC3525 | remaining 60 on `3001` | received 40 plus original `3002` |
+| ERC721 | 1001 spent | 1001 and 1002 held |
+| ERC1155 2001 | 12 | 18 |
+| ERC3525 | 60 on 3001 | 40 received + 3002 |
 
-## 14. Report step 13 — Client 2 returns ERC721 `1001`
+---
 
-`C1_ZKP` and `$ID721_C1` must already be exported. Interpolate `${C1_ZKP}` and `${ID721_C1}`; do not leave those names as JSON strings.
+## 17. Return ERC721 1001 — VM-B (report step 13)
+
+Needs `C1_ZKP` from VM-A.
 
 ```bash
 curl -sS -H 'Content-Type: application/json' -X POST ${C2_API}/v1/transfer \
   --data-raw "{\"ercAddress\":\"${TOKEN721}\",\"tokenId\":\"${ID721_C1}\",\"tokenType\":\"2\",\"recipientData\":{\"values\":[\"0x00\"],\"recipientCompressedZkpPublicKeys\":[\"${C1_ZKP}\"]},\"fee\":\"0x00\"}"
 ```
 
-Wait for a block and explorer confirmation. Both DBs: Client 1 holds `1001` again; Client 2 does not.
+After the block: Client 1 holds 1001; Client 2 does not.
 
-## 15. Report step 14 — withdrawals
+---
 
-Client 1:
+## 18. Withdraw — C1 on VM-A, C2 on VM-B (report step 14)
+
+Webhook commands on the VM that owns that client.
 
 ```bash
+# VM-A
 curl -sS -H 'Content-Type: application/json' -X POST ${C1_API}/v1/withdraw \
   --data-raw "{\"ercAddress\":\"${TOKEN20}\",\"tokenId\":\"${ID20}\",\"tokenType\":\"0\",\"value\":\"0x3c\",\"recipientAddress\":\"${C1}\",\"fee\":\"0x00\"}"
 curl -sS -D - -H 'Content-Type: application/json' -X POST ${C1_API}/v1/withdraw \
@@ -585,9 +540,8 @@ curl -sS -D - -H 'Content-Type: application/json' -X POST ${C1_API}/v1/withdraw 
   --data-raw "{\"ercAddress\":\"${TOKEN3525}\",\"tokenId\":\"${ID3525_C1}\",\"tokenType\":\"3\",\"value\":\"0x3c\",\"recipientAddress\":\"${C1}\",\"fee\":\"0x00\"}"
 ```
 
-Client 2:
-
 ```bash
+# VM-B
 curl -sS -H 'Content-Type: application/json' -X POST ${C2_API}/v1/withdraw \
   --data-raw "{\"ercAddress\":\"${TOKEN20}\",\"tokenId\":\"${ID20}\",\"tokenType\":\"0\",\"value\":\"0x28\",\"recipientAddress\":\"${C2}\",\"fee\":\"0x00\"}"
 curl -sS -D - -H 'Content-Type: application/json' -X POST ${C2_API}/v1/withdraw \
@@ -598,18 +552,21 @@ curl -sS -H 'Content-Type: application/json' -X POST ${C2_API}/v1/withdraw \
   --data-raw "{\"ercAddress\":\"${TOKEN3525}\",\"tokenId\":\"${ID3525_C2}\",\"tokenType\":\"3\",\"value\":\"0x28\",\"recipientAddress\":\"${C2}\",\"fee\":\"0x00\"}"
 ```
 
-Wait for L2 inclusion **and** L1 descrow (`Nightfall.descrow_funds` / `0xf3b85fc2`). For each request id, save `/v1/request/<id>`, webhook events, explorer hashes, and:
+Wait for L2 **and** L1 descrow (`0xf3b85fc2`). Then on that client’s VM:
 
 ```bash
 ./scripts/nf4 webhook salts
-cast balance "$C1" --rpc-url "$RPC"
 cast call "$TOKEN20" "balanceOf(address)(uint256)" "$C1" --rpc-url "$RPC"
 cast call "$TOKEN20" "balanceOf(address)(uint256)" "$C2" --rpc-url "$RPC"
 ```
 
-Do not mark the step pass until L1 balances move.
+Pass only when L1 balances move.
 
-## 16. Report steps 15–16 — restart proposer
+---
+
+## 19. Restart proposer — VM-A (report steps 15–16)
+
+`docker stop` the proposer only. Not `compose down`. VM-B stays up. `NF4_CONTRACTS__DEPLOY_CONTRACTS` stays `false`.
 
 ```bash
 curl -sS ${C1_API}/v1/synchronisation
@@ -622,77 +579,71 @@ curl -sS -i ${PROP_API}/v1/health
 ./scripts/nf4 logs proposer
 docker exec "$PROP_DB" mongosh --quiet --eval 'db.getSiblingDB("nightfall").ProposedBlocks.find().toArray()'
 curl -sS ${C1_API}/v1/synchronisation
-curl -sS ${C2_API}/v1/synchronisation
 ```
 
-Record downtime. After restart, health `Healthy`, prior L2 history still in proposer Mongo, both clients agree on the same L2 block.
+VM-B: `curl -sS ${C2_API}/v1/synchronisation`
 
-`NF4_CONTRACTS__DEPLOY_CONTRACTS` must stay `false` on restart (the proposer wizard already wrote that).
+Expect `Healthy`, prior L2 still in proposer Mongo, both clients on the same L2 block. Record downtime.
 
-## 17. Report step 17 — deposit after recovery
+---
 
-Client 1 ERC20 `10` (`0x0a`):
+## 20. Deposit after recovery — VM-A (report step 17)
 
 ```bash
 curl -sS -H 'Content-Type: application/json' -X POST ${C1_API}/v1/deposit \
   --data-raw "{\"ercAddress\":\"${TOKEN20}\",\"tokenId\":\"${ID20}\",\"tokenType\":\"0\",\"value\":\"0x0a\",\"fee\":\"0x00\",\"deposit_fee\":\"0x00\"}"
 ```
 
-Wait for a new block and explorer confirmation. Client 1 commitments must include the new `10`.
+Expect a new L2 block and Client 1 commitment `10`.
 
-## 18. Report steps 18–19 — soak (48 hours for the official report)
+---
 
-Leave the proposer running. At start, +24h, and end:
+## 21. Soak 48h, then Client 2 deposit (report steps 18–19)
+
+Leave the proposer up. At start, +24h, and end:
 
 ```bash
+# VM-A
 date -u
 curl -sS -i ${PROP_API}/v1/health
 curl -sS ${C1_API}/v1/synchronisation
-docker stats --no-stream "$PROP_CONTAINER" "$C1_CONTAINER" "$C2_CONTAINER"
+docker stats --no-stream "$PROP_CONTAINER" "$C1_CONTAINER"
+
+# VM-B
+date -u
+curl -sS ${C2_API}/v1/health
+curl -sS ${C2_API}/v1/synchronisation
+docker stats --no-stream "$C2_CONTAINER"
 ```
 
-Official target is 48 hours. If you stop early, write the actual duration and mark soak skipped/blocked in the report. After soak, Client 2 deposits ERC20 `10` and the proposer must produce a block while still `Healthy`.
+Proposer host resources = VM-A. If you stop early, record the actual duration as skipped/blocked.
 
-## Status snapshot
+Then on **VM-B**, deposit ERC20 `10` and wait for a block while proposer is `Healthy`.
 
-```bash
-./scripts/nf4 status
-docker ps -a --filter name=nf4_ --format '{{.Names}}\t{{.Status}}'
-```
+Fill `temp/sepolia_testing_report_template.md`. Hosts: deployer / config / proposer / Client 1 = VM-A; Client 2 = VM-B.
 
-When the run is complete:
-
-- Status shows `Network: testnet`, `NF4_RUN_MODE=sepolia`, chain `11155111`
-- Deployer exited 0; configuration, proposer, both clients running
-- Health 200 `Healthy` on `$C1_API`, `$PROP_API`, `$C2_API`
-- Configuration files reachable on `http://127.0.0.1:8080`
-- Mongo `nightfall.commitments` and `nightfall.ProposedBlocks` populated on client1, client2, and proposer
-- Fill `doc/sepolia_testing_report_template.md` (redact keys, mnemonics, RPC URLs)
+---
 
 ## Failures
 
 | Symptom | Action |
 |---|---|
-| `cast chain-id` is `31337` | You are on Anvil. Stop. This document is Sepolia only |
-| `cast chain-id` is `84532` | That is Base Sepolia. Restart deploy and choose `sepolia` |
-| RPC `http://` rejected / no subscriptions | Use `wss://` in the wizard. Keep `https://` only for `cast send` / `cast call` |
-| RPC 401/403 | Bad or missing API key. Do not paste the URL into the report |
-| RPC 429 / timeouts | Provider limit. Set `NF4_RPC_RATE_LIMIT=8` in `local.env`, recreate proposer/client |
-| `--yes is only supported with --network local` | Drop `--yes`. Review the prompts |
-| Anvil key / zero Sepolia balance | Fund real accounts. Never use `0xac0974…` / `0x59c6995e…` |
-| `CLIENT2_SIGNING_KEY is missing` | Same-machine only. Run `wizard client`, answer Yes to local Client 2, or start Client 2 on its own VM with `wizard client` |
-| Wizard failed on `host.docker.internal`, but `127.0.0.1:8080` returns 200 and deployer exited 0 | Do not redeploy (you would pay for new contracts). Continue at proposer |
-| Transfers fail with connection refused to an old LAN `:3001` | Client posts to the **on-chain** Round Robin URL. Testnet deploy registers `http://<lan-ip>:3001`. Recreating containers does not update Sepolia. Stay on one network, or you need a new deploy |
-| Need new contracts | `wizard deploy --network testnet` again. Docker down does not undeploy Sepolia |
-| `dependency failed to start: container nf4_db_proposer is unhealthy` | Docker Linux kernel is too new for `mongo:8.0`. This repo uses `mongo:8.2`. Recreate the DB container, then rerun `wizard proposer` (do not redeploy contracts) |
-| `development` / `production` profile rejected | Use `sepolia` |
-| Client 2 cannot reach config/proposer | Do not use `127.0.0.1` as the configuration or on-chain proposer URL. Use the Operator IP. On a Client 2 VM run `wizard client` with those URLs |
-| Deposits sit in mempool | Proposer logs; wait for assembly interval and L1 confirm. Mock prove is fast; L1 is not |
-| Balances off by fee | Record actuals; do not change the intended asset amounts mid-run |
-| `deriveKey` 500 `INTERNAL_SERVER_ERROR` | Use the 24-word mnemonic from `nightfall_test.toml` (`key_request` Client 1, `key_request2` Client 2). L1 keys are `KEY1` / `KEY2` only |
-| `Invalid recipient public key: Invalid string` | The JSON still has the literal `C2_ZKP` / `C1_ZKP`. Export the hex key, then use `\"${C2_ZKP}\"` so the shell interpolates it |
-| `Invalid tokenId: Invalid hex format` | Token IDs must be even-length hex. Use the exported `$ID*` values (`0x03ea` / `0x0bba`), not `0x3ea` / `0xbba` |
-| `/v1/balance` `No such token` | No unspent commitments for that token. Client 2 ERC20 404s until the transfer block. If proposer has `Found 0 client transactions`, restart Client 1, `deriveKey`, resubmit transfers |
-| Withdraw L2 done, L1 unchanged | Wait for descrow; check `webhook salts`, explorer `descrow_funds`, and Nightfall L1 balances |
-
-Do not run `--network local` in this document.
+| chain-id `31337` / `84532` | Wrong chain. Sepolia is `11155111` |
+| RPC `http://` | Use `wss://` for Nightfall; `https://` only for `cast` |
+| RPC 429 | `NF4_RPC_RATE_LIMIT=8` in `local.env`, recreate that VM’s containers |
+| `--yes is only supported with --network local` | Drop `--yes` |
+| Anvil key / 0 balance | Fund real Sepolia accounts |
+| `CLIENT2_SIGNING_KEY is missing` | You used `indie-client2`. On VM-B use `wizard client` |
+| Wizard failed on `host.docker.internal`, config `:8080` is 200, deployer exit 0 | Do not redeploy. Continue at proposer |
+| Connection refused to old `:3001` | On-chain URL is `http://$VM_A_IP:3001`. New containers do not update it |
+| Client 1 cannot reach `$VM_A_IP:3001` from Docker | Hairpin failed. Fix routing. Do not use `indie-proposer` |
+| Client 2 cannot reach config/proposer | URLs must be `$CONFIG_URL` / `$PROPOSER_URL`, not `127.0.0.1` |
+| `docker ps` Client 2 on VM-A | That is Client 1. Check Client 2 on VM-B |
+| `nf4_db_proposer is unhealthy` | Need `mongo:8.2`. Recreate DB, rerun `wizard proposer` |
+| Deposits sit in mempool | Wait for assembly + real prove + L1 |
+| `deriveKey` 500 | 24-word `key_request` / `key_request2`, not the L1 key |
+| `Invalid recipient public key` | JSON still has literal `C2_ZKP` / `C1_ZKP`. Paste the hex |
+| `Invalid tokenId` | Use `$ID*` even-length hex |
+| `/v1/balance` `No such token` | No unspent commitments. C2 ERC20 404s until the transfer block |
+| Withdraw L2 done, L1 unchanged | Wait for descrow; `webhook salts` on that client’s VM |
+| Need new contracts | `wizard deploy --network testnet` on VM-A again. You pay gas |
