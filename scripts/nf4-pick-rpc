@@ -22,6 +22,7 @@ CHAIN_IDS = {
     "base_sepolia": 84532,
 }
 CHAINLIST = "https://chainlist.org/rpcs.json"
+USER_AGENT = "Mozilla/5.0 (compatible; nf4-pick-rpc/1.0)"
 SKIP = ("${", "API_KEY", "/demo")
 PROBE_TIMEOUT = 8
 
@@ -39,9 +40,37 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def fetch_chains() -> list:
+    try:
+        result = subprocess.run(
+            [
+                "curl",
+                "-fsS",
+                "-A",
+                USER_AGENT,
+                "--max-time",
+                "30",
+                CHAINLIST,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=35,
+        )
+        if result.returncode == 0 and result.stdout:
+            return json.loads(result.stdout)
+        err = (result.stderr or result.stdout or f"curl exit {result.returncode}").strip()
+    except FileNotFoundError:
+        err = "curl not found"
+    request = urllib.request.Request(CHAINLIST, headers={"User-Agent": USER_AGENT})
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            return json.load(response)
+    except Exception as exc:
+        raise SystemExit(f"failed to fetch {CHAINLIST}: {err}; urllib: {exc}") from exc
+
+
 def rpc_urls(chain_id: int) -> list[str]:
-    with urllib.request.urlopen(CHAINLIST, timeout=30) as response:
-        chains = json.load(response)
+    chains = fetch_chains()
     chain = next((item for item in chains if item.get("chainId") == chain_id), None)
     if chain is None:
         raise SystemExit(f"chainId {chain_id} not in {CHAINLIST}")
