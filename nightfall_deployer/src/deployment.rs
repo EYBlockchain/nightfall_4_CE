@@ -98,6 +98,7 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn std::er
         "--fork-url",
         &settings.ethereum_client_url,
         "--broadcast",
+        "--slow",
     ]);
 
     // -------- read Foundry broadcast --------
