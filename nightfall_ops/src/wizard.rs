@@ -501,6 +501,11 @@ fn print_review(config: &DeploymentConfig) {
 }
 
 fn run_deployment(config: &DeploymentConfig) -> Result<(), String> {
+    if config.network != NetworkKind::Local {
+        println!("Checking deployer account mempool on RPC...");
+        crate::network::verify_clean_mempool(&config.rpc_url, &config.deployer_address)?;
+    }
+
     run_command(
         "Cleaning contract build artifacts",
         "forge",

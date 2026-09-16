@@ -607,6 +607,33 @@ pub fn account_balance_wei(rpc_url: &str, address: &str) -> Result<String, Strin
         .ok_or_else(|| "cast balance returned no output.".to_string())
 }
 
+pub fn account_nonce(rpc_url: &str, address: &str, block_tag: &str) -> Result<u64, String> {
+    let rpc = host_reachable_rpc_url(rpc_url);
+    let output = Command::new("cast")
+        .args(["nonce", address, "--block", block_tag, "--rpc-url", &rpc])
+        .output()
+        .map_err(|err| format!("Failed to run cast nonce: {err}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "cast nonce failed: {}",
+            command_failure_detail(&output).unwrap_or_else(|| "no output".to_string())
+        ));
+    }
+    parse_u64_output(&output.stdout).map_err(|err| format!("Failed to parse cast nonce: {err}"))
+}
+
+pub fn verify_clean_mempool(rpc_url: &str, address: &str) -> Result<(), String> {
+    let latest = account_nonce(rpc_url, address, "latest")?;
+    let pending = account_nonce(rpc_url, address, "pending")?;
+    if pending > latest {
+        return Err(format!(
+            "Deployer address {address} has pending transactions in mempool (confirmed nonce: {latest}, pending nonce: {pending}). \
+             Wait for pending transactions to confirm or clear them before deploying."
+        ));
+    }
+    Ok(())
+}
+
 fn balance_is_zero(balance: &str) -> bool {
     let digits = balance.trim().trim_start_matches("0x").trim_start_matches('0');
     digits.is_empty()

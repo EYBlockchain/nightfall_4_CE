@@ -123,7 +123,43 @@ pub fn build_indie_client() -> Result<(), String> {
 pub fn up_indie_deployer() -> Result<(), String> {
     config::refresh_local_lan_urls()?;
     let args = compose_args("indie-deployer", true, &["up", "--no-recreate"]);
-    run_docker_compose("Running indie deployer", &args)
+    run_docker_compose("Running indie deployer", &args)?;
+    verify_deployer_container_success()
+}
+
+pub fn verify_deployer_container_success() -> Result<(), String> {
+    let container = "nf4_indie_deployer";
+    let output = Command::new("docker")
+        .args([
+            "inspect",
+            "-f",
+            "{{.State.Status}} {{.State.ExitCode}}",
+            container,
+        ])
+        .output()
+        .map_err(|err| format!("Failed to inspect {container}: {err}"))?;
+
+    if !output.status.success() {
+        return Err(format!("Could not inspect {container} container status"));
+    }
+
+    let text = String::from_utf8_lossy(&output.stdout);
+    let parts: Vec<&str> = text.split_whitespace().collect();
+    if parts.len() < 2 {
+        return Err(format!("Unexpected inspect output for {container}: {text}"));
+    }
+
+    let status = parts[0];
+    let exit_code = parts[1];
+
+    if exit_code != "0" {
+        return Err(format!(
+            "{container} failed with exit code {exit_code} (status: {status}). \
+             Check logs with `docker logs {container}`."
+        ));
+    }
+
+    Ok(())
 }
 
 pub fn build_configuration() -> Result<(), String> {
