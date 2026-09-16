@@ -35,6 +35,21 @@ Client 2 `deriveKey` mnemonic (`key_request2`):
 
 Need Docker, `forge`, `cast`, `cargo`, `curl`. ~0.5 Sepolia ETH per L1 account. VM-A is the proving box.
 
+### Optional: tmux session
+
+For remote VMs, running inside `tmux` protects long runs (like proving key generation and the 48h soak) from SSH disconnects:
+
+```bash
+# Start a named tmux session on VM-A or VM-B
+tmux new -s nf4
+
+# Useful shortcuts:
+#   Detach:        Ctrl-b then d
+#   Reattach:      tmux attach -t nf4
+#   Split window:  Ctrl-b % (vertical) or Ctrl-b " (horizontal)
+#   Switch pane:   Ctrl-b <arrow key>
+```
+
 ```bash
 git switch auto/testnet
 git pull
@@ -80,6 +95,8 @@ On VM-B, export the **same** value and `ping -c 1 "$VM_A_IP"`. If ping is blocke
 ## 3. Shell env — RPC and URLs
 
 You do not have Nightfall accounts yet. Export only what you already know. `127.0.0.1` is this VM.
+
+> **Optional tmux tip:** In tmux, new panes or windows do not automatically inherit exports from other panes. Run the `export` blocks below in every pane/window you open, or save them to a file (e.g. `source env.sh`).
 
 **Both VMs.** `./scripts/nf4-pick-rpc` reads chainlist.org, probes `eth_chainId` with `cast`, and prints the fastest working `https://` and `wss://` pair. Default `--network sepolia`. A passing chain-id does not prove `eth_subscribe` will hold; if the event listener drops, use a keyed provider.
 
@@ -600,7 +617,17 @@ Expect a new L2 block and Client 1 commitment `10`.
 
 ## 21. Soak 48h, then Client 2 deposit (report steps 18–19)
 
-Leave the proposer up. At start, +24h, and end:
+Leave the proposer up. If using `tmux`, you can safely detach (`Ctrl-b d`) and leave the session running on the VM:
+
+```bash
+# Detach from tmux while the stack and soak run
+# Press Ctrl-b, then press d
+
+# When returning to check status:
+tmux attach -t nf4
+```
+
+At start, +24h, and end:
 
 ```bash
 # VM-A

@@ -626,9 +626,7 @@ volumes:
   toml_data:
 
 networks:
-   nightfall_network:
-    ipam:
-      driver: default
-      config:
-        - subnet: "172.28.0.0/24"
+  nightfall_network:
+    name: nightfall_4_ce_nightfall_network
+    external: true
           

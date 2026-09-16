@@ -131,7 +131,39 @@ pub fn build_configuration() -> Result<(), String> {
     run_docker_compose("Building configuration service image", &args)
 }
 
+pub fn ensure_nightfall_network() -> Result<(), String> {
+    let network_name = "nightfall_4_ce_nightfall_network";
+    let check = Command::new("docker")
+        .args(["network", "inspect", network_name])
+        .output()
+        .map_err(|err| format!("Failed to inspect docker network {network_name}: {err}"))?;
+
+    if check.status.success() {
+        return Ok(());
+    }
+
+    println!("Creating external docker network {network_name}...");
+    let create = Command::new("docker")
+        .args([
+            "network",
+            "create",
+            "--driver",
+            "bridge",
+            "--subnet=172.28.0.0/24",
+            network_name,
+        ])
+        .status()
+        .map_err(|err| format!("Failed to create docker network {network_name}: {err}"))?;
+
+    if create.success() {
+        Ok(())
+    } else {
+        Err(format!("Failed to create docker network {network_name}"))
+    }
+}
+
 fn run_docker_compose(title: &str, args: &[String]) -> Result<(), String> {
+    ensure_nightfall_network()?;
     println!("{title}...");
     println!("  docker {}", args.join(" "));
 
