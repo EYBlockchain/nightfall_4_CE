@@ -506,6 +506,11 @@ fn run_deployment(config: &DeploymentConfig) -> Result<(), String> {
         crate::network::verify_clean_mempool(&config.rpc_url, &config.deployer_address)?;
     }
 
+    // Clean stale Foundry broadcast and cache files so deployer doesn't resubmit old nonces
+    let stale_chain_logs = format!("blockchain_assets/logs/deployer.s.sol/{}", config.chain_id);
+    let _ = std::fs::remove_dir_all(&stale_chain_logs);
+    let _ = std::fs::remove_dir_all("blockchain_assets/cache");
+
     run_command(
         "Cleaning contract build artifacts",
         "forge",
