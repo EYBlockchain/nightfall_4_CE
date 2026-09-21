@@ -91,6 +91,17 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn std::er
     info!("Building contracts with forge");
     forge_command(&["build", "--force"]);
 
+    // If there is an existing broadcast log for this chain, clean it before fresh broadcast
+    // so forge script does not attempt to resume or collide with old broadcast transactions
+    let cwd = std::env::current_dir()?;
+    let chain_logs = cwd
+        .join(&settings.contracts.deployment_file)
+        .join(settings.network.chain_id.to_string());
+    if chain_logs.exists() {
+        info!("Removing stale broadcast logs from {chain_logs:?}");
+        std::fs::remove_dir_all(&chain_logs).ok();
+    }
+
     info!("Deploying contracts with forge script");
     forge_command(&[
         "script",
@@ -102,11 +113,7 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn std::er
     ]);
 
     // -------- read Foundry broadcast --------
-    let cwd = std::env::current_dir()?;
-    let path_out = cwd
-        .join(&settings.contracts.deployment_file)
-        .join(settings.network.chain_id.to_string())
-        .join("run-latest.json");
+    let path_out = chain_logs.join("run-latest.json");
 
     if !path_out.is_file() {
         return Err(format!("Deployment log file not found: {path_out:?}").into());
