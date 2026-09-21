@@ -263,6 +263,20 @@ pub fn host_reachable_rpc_url(rpc_url: &str) -> String {
     host_reachable_url(rpc_url)
 }
 
+/// Convert ws/wss RPC URLs to http/https for Foundry broadcast.
+/// Nightfall event listeners still require WebSocket; forge script does not.
+pub fn http_rpc_url(url: &str) -> String {
+    let scheme_end = url.find("://").map(|i| i + 3).unwrap_or(0);
+    let scheme = url[..scheme_end.min(url.len())].to_ascii_lowercase();
+    if scheme == "wss://" {
+        format!("https://{}", &url[scheme_end..])
+    } else if scheme == "ws://" {
+        format!("http://{}", &url[scheme_end..])
+    } else {
+        url.to_string()
+    }
+}
+
 pub fn host_reachable_url(url: &str) -> String {
     match url_host(url) {
         Some(host) if is_container_only_host(host) => rewrite_url_host(url, "127.0.0.1"),
@@ -799,7 +813,8 @@ mod tests {
     use super::{
         ChainIdMatch, NetworkKind, RpcFailure, classify_rpc_failure,
         command_failure_detail_from_bytes, compose_rpc_url, explain_rpc_error,
-        host_reachable_rpc_url, host_reachable_url, kind_for_chain_id, parse_cast_wallet_new,
+        host_reachable_rpc_url, host_reachable_url, http_rpc_url, kind_for_chain_id,
+        parse_cast_wallet_new,
         parse_u64_output, published_url_for_lan, resolve_network, with_lan_host,
         validate_profile_name, validate_published_configuration_url, validate_rpc_scheme,
     };
@@ -950,6 +965,16 @@ mod tests {
             with_lan_host("https://config.example.com:8080", "10.173.191.159"),
             "https://config.example.com:8080"
         );
+    }
+
+    #[test]
+    fn converts_websocket_rpc_urls_to_http() {
+        assert_eq!(
+            http_rpc_url("wss://eth-sepolia.example/v2/key"),
+            "https://eth-sepolia.example/v2/key"
+        );
+        assert_eq!(http_rpc_url("ws://anvil:8545"), "http://anvil:8545");
+        assert_eq!(http_rpc_url("https://rpc.example"), "https://rpc.example");
     }
 
     #[test]

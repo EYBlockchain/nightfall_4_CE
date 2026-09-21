@@ -102,12 +102,20 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn std::er
         std::fs::remove_dir_all(&chain_logs).ok();
     }
 
+    // Forge's alloy WS transport can drop/retry the same nonce when a provider sends a
+    // malformed JSON-RPC message (`missing field params`), which surfaces as
+    // `replacement transaction underpriced`. Broadcast over HTTP instead.
+    let broadcast_rpc_url = http_rpc_url_for_broadcast(&settings.ethereum_client_url);
+    if broadcast_rpc_url != settings.ethereum_client_url {
+        info!("Using HTTP RPC for forge broadcast: {broadcast_rpc_url}");
+    }
+
     info!("Deploying contracts with forge script");
     forge_command(&[
         "script",
         "Deployer",
         "--fork-url",
-        &settings.ethereum_client_url,
+        &broadcast_rpc_url,
         "--broadcast",
         "--slow",
     ]);
@@ -230,6 +238,20 @@ async fn save_deployed_hashes(addresses: &Addresses) -> Result<(), Box<dyn std::
     Ok(())
 }
 
+/// Convert a WebSocket RPC URL to HTTP for Foundry broadcast.
+/// Nightfall itself still uses ws/wss for event subscriptions.
+fn http_rpc_url_for_broadcast(url: &str) -> String {
+    let scheme_end = url.find("://").map(|i| i + 3).unwrap_or(0);
+    let scheme = url[..scheme_end.min(url.len())].to_ascii_lowercase();
+    if scheme == "wss://" {
+        format!("https://{}", &url[scheme_end..])
+    } else if scheme == "ws://" {
+        format!("http://{}", &url[scheme_end..])
+    } else {
+        url.to_string()
+    }
+}
+
 /// Function should only be called after we have checked forge is installed by running 'which forge'
 pub fn forge_command(command: &[&str]) {
     debug!("DEBUG: Running forge command: {command:?}"); // Use info! as forge_command already uses info!
@@ -316,3 +338,32 @@ pub fn forge_command(command: &[&str]) {
 //         fs::remove_dir_all(Path::new("configuration/toml")).unwrap();
 //     }
 // }
+
+#[cfg(test)]
+mod tests {
+    use super::http_rpc_url_for_broadcast;
+
+    #[test]
+    fn converts_websocket_rpc_urls_to_http_for_broadcast() {
+        assert_eq!(
+            http_rpc_url_for_broadcast("wss://eth-sepolia.example/v2/key"),
+            "https://eth-sepolia.example/v2/key"
+        );
+        assert_eq!(
+            http_rpc_url_for_broadcast("ws://anvil:8545"),
+            "http://anvil:8545"
+        );
+        assert_eq!(
+            http_rpc_url_for_broadcast("WSS://rpc.example"),
+            "https://rpc.example"
+        );
+        assert_eq!(
+            http_rpc_url_for_broadcast("https://rpc.example"),
+            "https://rpc.example"
+        );
+        assert_eq!(
+            http_rpc_url_for_broadcast("http://127.0.0.1:8545"),
+            "http://127.0.0.1:8545"
+        );
+    }
+}

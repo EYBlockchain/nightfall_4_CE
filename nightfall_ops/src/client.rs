@@ -13,9 +13,9 @@ use toml_edit::{DocumentMut, Item};
 use crate::{
     compose, config,
     network::{
-        self, detect_lan_host, host_reachable_rpc_url, validate_published_configuration_url,
-        with_lan_host, LOCAL_ANVIL_ACCOUNT0_KEY, LOCAL_ANVIL_ACCOUNT1_ADDRESS,
-        LOCAL_ANVIL_ACCOUNT1_KEY,
+        self, detect_lan_host, host_reachable_rpc_url, http_rpc_url,
+        validate_published_configuration_url, with_lan_host, LOCAL_ANVIL_ACCOUNT0_KEY,
+        LOCAL_ANVIL_ACCOUNT1_ADDRESS, LOCAL_ANVIL_ACCOUNT1_KEY,
     },
     validation, webhook,
 };
@@ -248,14 +248,14 @@ pub fn deploy_mock_tokens() -> Result<(), String> {
     let mut env = config::read_local_env();
     let profile = env_value(&env, "NF4_RUN_MODE").unwrap_or_else(|| "development".to_string());
     let profile_config = read_profile_config(&profile)?;
-    let rpc_url = host_reachable_rpc_url(
+    let rpc_url = http_rpc_url(&host_reachable_rpc_url(
         &env_value(&env, "NF4_ETHEREUM_CLIENT_URL")
             .or_else(|| profile_config.ethereum_client_url.clone())
             .ok_or_else(|| {
                 "NF4_ETHEREUM_CLIENT_URL was not found in local.env or nightfall.toml."
                     .to_string()
             })?,
-    );
+    ));
 
     let addresses = read_addresses()?;
     let nightfall_address = addresses
