@@ -5,8 +5,8 @@ use toml_edit::{DocumentMut, Item};
 use crate::{
     config,
     network::{
-        self, command_failure_detail, explain_rpc_error, host_reachable_rpc_url,
-        host_reachable_url, is_container_only_host, parse_u64_output, NetworkKind,
+        self, NetworkKind, command_failure_detail, explain_rpc_error, host_reachable_rpc_url,
+        host_reachable_url, is_container_only_host, parse_u64_output,
     },
     validation,
 };
@@ -108,11 +108,10 @@ pub fn print() -> Result<(), String> {
             let mut checks = validation::configuration_endpoint_checks(&check_url);
             let localhost_url = rewrite_url_host_to_localhost(&check_url);
             if !checks.iter().all(|check| check.ok) {
-                if let Some(localhost_url) = localhost_url.filter(|candidate| candidate != &check_url)
+                if let Some(localhost_url) =
+                    localhost_url.filter(|candidate| candidate != &check_url)
                 {
-                    println!(
-                        "  stored URL failed from this host; retrying {localhost_url}"
-                    );
+                    println!("  stored URL failed from this host; retrying {localhost_url}");
                     checks = validation::configuration_endpoint_checks(&localhost_url);
                 }
             }
@@ -184,11 +183,7 @@ fn url_host(url: &str) -> Option<&str> {
     }
 }
 
-fn print_rpc_status(
-    rpc_url: &str,
-    expected_chain_id: Option<u64>,
-    network: Option<NetworkKind>,
-) {
+fn print_rpc_status(rpc_url: &str, expected_chain_id: Option<u64>, network: Option<NetworkKind>) {
     let host_url = host_reachable_rpc_url(rpc_url);
     if host_url != rpc_url {
         println!("RPC URL {rpc_url} is Docker-internal; checking {host_url} from the host");

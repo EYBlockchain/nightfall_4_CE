@@ -199,6 +199,15 @@ pub fn ensure_nightfall_network() -> Result<(), String> {
 }
 
 fn run_docker_compose(title: &str, args: &[String]) -> Result<(), String> {
+    // Create the bind-mount source as this user. If it is missing, Docker
+    // creates it as root and the host forge can no longer write broadcast logs.
+    let broadcast_logs = std::path::Path::new("blockchain_assets/logs");
+    if let Err(err) = std::fs::create_dir_all(broadcast_logs) {
+        println!(
+            "Could not create {}: {err}. Docker may create it as root.",
+            broadcast_logs.display()
+        );
+    }
     ensure_nightfall_network()?;
     println!("{title}...");
     println!("  docker {}", args.join(" "));

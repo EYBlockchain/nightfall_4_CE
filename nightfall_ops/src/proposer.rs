@@ -6,8 +6,8 @@ use toml_edit::{DocumentMut, Item};
 use crate::{
     compose, config,
     network::{
-        self, detect_lan_host, is_docker_internal_host, validate_published_configuration_url,
-        with_lan_host, LOCAL_ANVIL_ACCOUNT0_KEY,
+        self, LOCAL_ANVIL_ACCOUNT0_KEY, detect_lan_host, is_docker_internal_host,
+        validate_published_configuration_url, with_lan_host,
     },
     validation,
 };

@@ -91,6 +91,10 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn std::er
         let _ = write_vk_to_nightfall_toml(&vk);
     }
 
+    // Containers run as root and bind-mount this directory. Make it writable by
+    // the host user before and after forge creates chain-id folders.
+    share_broadcast_logs_with_host(Path::new("blockchain_assets/logs"));
+
     // Force a clean rebuild to generate proper build-info files for OpenZeppelin validation
     info!("Building contracts with forge");
     forge_command(&["build", "--force"]);
@@ -210,7 +214,38 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn std::er
     info!("Addresses saved successfully");
 
     save_deployed_hashes(&addresses).await?;
+    share_broadcast_logs_with_host(Path::new("blockchain_assets/logs"));
 
+    Ok(())
+}
+
+fn share_broadcast_logs_with_host(logs: &Path) {
+    if let Err(err) = relax_broadcast_tree(logs) {
+        warn!(
+            "Could not make {} writable for the host user: {err}",
+            logs.display()
+        );
+    }
+}
+
+fn relax_broadcast_tree(path: &Path) -> std::io::Result<()> {
+    if !path.exists() {
+        std::fs::create_dir_all(path)?;
+    }
+    let mut stack = vec![path.to_path_buf()];
+    while let Some(current) = stack.pop() {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = if current.is_dir() { 0o777 } else { 0o666 };
+            std::fs::set_permissions(&current, std::fs::Permissions::from_mode(mode))?;
+        }
+        if current.is_dir() {
+            for entry in std::fs::read_dir(&current)? {
+                stack.push(entry?.path());
+            }
+        }
+    }
     Ok(())
 }
 
@@ -442,7 +477,9 @@ fn try_forge_command(command: &[&str]) -> Result<(), String> {
 mod tests {
     use super::{
         http_rpc_url_for_broadcast, is_recoverable_broadcast_failure, nonce_drift_summary,
+        relax_broadcast_tree,
     };
+    use std::fs;
 
     #[test]
     fn converts_websocket_rpc_urls_to_http_for_broadcast() {
@@ -482,5 +519,37 @@ mod tests {
         assert!(!is_recoverable_broadcast_failure(
             "Error: script failed: execution reverted"
         ));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn makes_broadcast_tree_writable_by_others() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = std::env::temp_dir().join(format!(
+            "nf4-relax-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let logs = root.join("logs");
+        let chain = logs.join("mock_deployment.s.sol").join("11155111");
+        fs::create_dir_all(&chain).unwrap();
+        fs::write(chain.join("run-latest.json"), b"{}").unwrap();
+        fs::set_permissions(&chain, fs::Permissions::from_mode(0o755)).unwrap();
+
+        relax_broadcast_tree(&logs).unwrap();
+
+        let mode = fs::metadata(&chain).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o777);
+        let file_mode = fs::metadata(chain.join("run-latest.json"))
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(file_mode, 0o666);
+        let _ = fs::remove_dir_all(&root);
     }
 }

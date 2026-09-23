@@ -13,9 +13,9 @@ use toml_edit::{DocumentMut, Item};
 use crate::{
     compose, config,
     network::{
-        self, detect_lan_host, host_reachable_rpc_url, http_rpc_url,
-        validate_published_configuration_url, with_lan_host, LOCAL_ANVIL_ACCOUNT0_KEY,
-        LOCAL_ANVIL_ACCOUNT1_ADDRESS, LOCAL_ANVIL_ACCOUNT1_KEY,
+        self, LOCAL_ANVIL_ACCOUNT0_KEY, LOCAL_ANVIL_ACCOUNT1_ADDRESS, LOCAL_ANVIL_ACCOUNT1_KEY,
+        detect_lan_host, host_reachable_rpc_url, http_rpc_url,
+        validate_published_configuration_url, with_lan_host,
     },
     validation, webhook,
 };
@@ -80,74 +80,82 @@ pub fn wizard(yes: bool) -> Result<(), String> {
         &lan_host,
     );
 
-    let (client_key, client_address, client2_address, client2_signing_key, proposer_url, configuration_url, webhook_setup, client_port) =
-        if yes {
-            println!("Using local --yes defaults (Anvil account 0 / local.env, webhook 8081).");
-            let key = env
-                .get("CLIENT_SIGNING_KEY")
-                .cloned()
-                .filter(|value| !value.trim().is_empty())
-                .unwrap_or_else(|| LOCAL_ANVIL_ACCOUNT0_KEY.to_string());
-            let derived = cast_wallet_address(&key)?;
-            let address = env_value(&env, "CLIENT_ADDRESS")
-                .filter(|value| is_non_zero_address(value))
-                .unwrap_or(derived);
-            let client2 = env_value(&env, "CLIENT2_ADDRESS")
-                .filter(|value| is_non_zero_address(value))
-                .unwrap_or_else(|| LOCAL_ANVIL_ACCOUNT1_ADDRESS.to_string());
-            let client2_key = env_value(&env, "CLIENT2_SIGNING_KEY")
-                .filter(|value| !value.trim().is_empty())
-                .unwrap_or_else(|| LOCAL_ANVIL_ACCOUNT1_KEY.to_string());
-            let webhook = configure_webhook_yes(&env, &lan_host)?;
-            let port = client_api_port(&env).unwrap_or(3000);
-            (
-                key,
-                address,
-                client2,
-                Some(client2_key),
-                proposer_url_default,
-                configuration_url_default,
-                webhook,
-                port,
-            )
-        } else {
-            let network = resolved.kind.unwrap_or(network::NetworkKind::Local);
-            let key = network::prompt_l1_signing_key(
-                "Client",
-                network,
-                env.get("CLIENT_SIGNING_KEY").map(String::as_str),
-                &rpc_url,
-            )?;
-            let derived = cast_wallet_address(&key)?;
-            let address = prompt_client_address(env.get("CLIENT_ADDRESS"), &derived)?;
-            let (client2_key, client2) = prompt_optional_local_client2(
-                network,
-                &address,
-                env.get("CLIENT2_SIGNING_KEY").map(String::as_str),
-                env.get("CLIENT2_ADDRESS").map(String::as_str),
-                &rpc_url,
-            )?;
-            let proposer_url = prompt_url(
-                "Proposer URL [press Enter to use default]",
-                &proposer_url_default,
-            )?;
-            let configuration_url = prompt_url(
-                "Configuration URL for client runtime [press Enter to use default]",
-                &configuration_url_default,
-            )?;
-            let webhook = configure_webhook(&env)?;
-            let port = prompt_port("Client API port", client_api_port(&env).unwrap_or(3000))?;
-            (
-                key,
-                address,
-                client2,
-                client2_key,
-                proposer_url,
-                configuration_url,
-                webhook,
-                port,
-            )
-        };
+    let (
+        client_key,
+        client_address,
+        client2_address,
+        client2_signing_key,
+        proposer_url,
+        configuration_url,
+        webhook_setup,
+        client_port,
+    ) = if yes {
+        println!("Using local --yes defaults (Anvil account 0 / local.env, webhook 8081).");
+        let key = env
+            .get("CLIENT_SIGNING_KEY")
+            .cloned()
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or_else(|| LOCAL_ANVIL_ACCOUNT0_KEY.to_string());
+        let derived = cast_wallet_address(&key)?;
+        let address = env_value(&env, "CLIENT_ADDRESS")
+            .filter(|value| is_non_zero_address(value))
+            .unwrap_or(derived);
+        let client2 = env_value(&env, "CLIENT2_ADDRESS")
+            .filter(|value| is_non_zero_address(value))
+            .unwrap_or_else(|| LOCAL_ANVIL_ACCOUNT1_ADDRESS.to_string());
+        let client2_key = env_value(&env, "CLIENT2_SIGNING_KEY")
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or_else(|| LOCAL_ANVIL_ACCOUNT1_KEY.to_string());
+        let webhook = configure_webhook_yes(&env, &lan_host)?;
+        let port = client_api_port(&env).unwrap_or(3000);
+        (
+            key,
+            address,
+            client2,
+            Some(client2_key),
+            proposer_url_default,
+            configuration_url_default,
+            webhook,
+            port,
+        )
+    } else {
+        let network = resolved.kind.unwrap_or(network::NetworkKind::Local);
+        let key = network::prompt_l1_signing_key(
+            "Client",
+            network,
+            env.get("CLIENT_SIGNING_KEY").map(String::as_str),
+            &rpc_url,
+        )?;
+        let derived = cast_wallet_address(&key)?;
+        let address = prompt_client_address(env.get("CLIENT_ADDRESS"), &derived)?;
+        let (client2_key, client2) = prompt_optional_local_client2(
+            network,
+            &address,
+            env.get("CLIENT2_SIGNING_KEY").map(String::as_str),
+            env.get("CLIENT2_ADDRESS").map(String::as_str),
+            &rpc_url,
+        )?;
+        let proposer_url = prompt_url(
+            "Proposer URL [press Enter to use default]",
+            &proposer_url_default,
+        )?;
+        let configuration_url = prompt_url(
+            "Configuration URL for client runtime [press Enter to use default]",
+            &configuration_url_default,
+        )?;
+        let webhook = configure_webhook(&env)?;
+        let port = prompt_port("Client API port", client_api_port(&env).unwrap_or(3000))?;
+        (
+            key,
+            address,
+            client2,
+            client2_key,
+            proposer_url,
+            configuration_url,
+            webhook,
+            port,
+        )
+    };
     println!("Derived/using client address: {client_address}");
     validate_proposer_health(&proposer_url)?;
     if let Some(kind) = resolved.kind {
@@ -252,8 +260,7 @@ pub fn deploy_mock_tokens() -> Result<(), String> {
         &env_value(&env, "NF4_ETHEREUM_CLIENT_URL")
             .or_else(|| profile_config.ethereum_client_url.clone())
             .ok_or_else(|| {
-                "NF4_ETHEREUM_CLIENT_URL was not found in local.env or nightfall.toml."
-                    .to_string()
+                "NF4_ETHEREUM_CLIENT_URL was not found in local.env or nightfall.toml.".to_string()
             })?,
     ));
 
@@ -297,11 +304,24 @@ pub fn deploy_mock_tokens() -> Result<(), String> {
     env.insert("CLIENT2_ADDRESS".to_string(), client2_address.clone());
     env.insert("NIGHTFALL_ADDRESS".to_string(), nightfall_address.clone());
 
+    // Forge writes the broadcast log after the transactions are already on chain.
+    // Prepare a directory this user can create before spending gas. Docker often
+    // leaves blockchain_assets/logs owned by root; replacing that directory does
+    // not require root when its parent is writable.
+    let broadcast = prepare_mock_broadcast_dir()?;
+    if broadcast.override_env {
+        env.insert(
+            "FOUNDRY_BROADCAST".to_string(),
+            broadcast.path.display().to_string(),
+        );
+    }
+
     println!("Deploying mock ERC contracts for local testing...");
     println!("  rpc_url: {rpc_url}");
     println!("  owner: {client_address}");
     println!("  client2: {client2_address}");
     println!("  nightfall: {nightfall_address}");
+    println!("  broadcast_dir: {}", broadcast.path.display());
 
     run_command("Cleaning contract build artifacts", "forge", &["clean"])?;
     run_command("Building contracts", "forge", &["build"])?;
@@ -343,6 +363,185 @@ fn check_prerequisites() -> Result<(), String> {
     } else {
         Err("Client prerequisite checks failed.".to_string())
     }
+}
+
+const CANONICAL_BROADCAST_DIR: &str = "blockchain_assets/logs";
+const MOCK_BROADCAST_SCRIPT_DIR: &str = "mock_deployment.s.sol";
+
+struct BroadcastDir {
+    path: PathBuf,
+    override_env: bool,
+}
+
+fn prepare_mock_broadcast_dir() -> Result<BroadcastDir, String> {
+    prepare_broadcast_dir_at(
+        Path::new(CANONICAL_BROADCAST_DIR),
+        MOCK_BROADCAST_SCRIPT_DIR,
+        &user_broadcast_dir(),
+    )
+}
+
+fn prepare_broadcast_dir_at(
+    logs: &Path,
+    script_dir_name: &str,
+    fallback: &Path,
+) -> Result<BroadcastDir, String> {
+    match make_script_broadcast_writable(logs, script_dir_name) {
+        Ok(()) => Ok(BroadcastDir {
+            path: logs.to_path_buf(),
+            override_env: false,
+        }),
+        Err(err) => {
+            fs::create_dir_all(fallback).map_err(|create_err| {
+                format!(
+                    "{err}. Also failed to create fallback broadcast directory {}: {create_err}",
+                    fallback.display()
+                )
+            })?;
+            let script_dir = fallback.join(script_dir_name);
+            fs::create_dir_all(&script_dir).map_err(|create_err| {
+                format!(
+                    "Failed to create fallback script directory {}: {create_err}",
+                    script_dir.display()
+                )
+            })?;
+            println!("{err}");
+            println!(
+                "Writing broadcast logs to {} instead. No root access is required.",
+                fallback.display()
+            );
+            Ok(BroadcastDir {
+                path: fallback.to_path_buf(),
+                override_env: true,
+            })
+        }
+    }
+}
+
+fn user_broadcast_dir() -> PathBuf {
+    std::env::var_os("HOME")
+        .filter(|home| !home.is_empty())
+        .map(PathBuf::from)
+        .unwrap_or_else(std::env::temp_dir)
+        .join(".nightfall")
+        .join("broadcast")
+}
+
+fn make_script_broadcast_writable(logs: &Path, script_dir_name: &str) -> Result<(), String> {
+    if !is_writable_dir(logs) {
+        if logs.exists() {
+            return Err(format!(
+                "{} is not writable by this user. Leaving it in place because it also holds deployer broadcast logs",
+                logs.display()
+            ));
+        }
+        ensure_writable_dir(logs)?;
+    }
+    let script_dir = logs.join(script_dir_name);
+    ensure_writable_dir(&script_dir)?;
+    reclaim_unwritable_children(&script_dir)?;
+    Ok(())
+}
+
+/// Make `dir` exist and writable by the current user.
+///
+/// A root-owned directory can be replaced without root when its parent is
+/// writable: rename only needs write permission on the parent.
+fn ensure_writable_dir(dir: &Path) -> Result<(), String> {
+    if is_writable_dir(dir) {
+        return Ok(());
+    }
+    if dir.exists() {
+        let parent = dir
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+            .ok_or_else(|| {
+                format!(
+                    "{} is not writable and has no parent that can be updated",
+                    dir.display()
+                )
+            })?;
+        if !parent.exists() {
+            fs::create_dir_all(parent)
+                .map_err(|err| format!("Failed to create {}: {err}", parent.display()))?;
+        }
+        if !is_writable_dir(parent) {
+            return Err(format!(
+                "{} is not writable, and its parent {} is not writable, so it cannot be replaced without root",
+                dir.display(),
+                parent.display()
+            ));
+        }
+        let aside = aside_path(dir);
+        fs::rename(dir, &aside).map_err(|err| {
+            format!(
+                "Failed to move unwritable {} to {}: {err}",
+                dir.display(),
+                aside.display()
+            )
+        })?;
+        println!(
+            "Moved unwritable {} to {} and recreating it as the current user.",
+            dir.display(),
+            aside.display()
+        );
+    }
+    fs::create_dir_all(dir).map_err(|err| format!("Failed to create {}: {err}", dir.display()))?;
+    if !is_writable_dir(dir) {
+        return Err(format!(
+            "Created {} but it is still not writable",
+            dir.display()
+        ));
+    }
+    Ok(())
+}
+
+fn reclaim_unwritable_children(dir: &Path) -> Result<(), String> {
+    let mut children = Vec::new();
+    for entry in
+        fs::read_dir(dir).map_err(|err| format!("Failed to read {}: {err}", dir.display()))?
+    {
+        let entry = entry.map_err(|err| format!("Failed to read {}: {err}", dir.display()))?;
+        if entry.path().is_dir() {
+            children.push(entry.path());
+        }
+    }
+    for child in children {
+        if !is_writable_dir(&child) {
+            ensure_writable_dir(&child)?;
+        }
+    }
+    Ok(())
+}
+
+fn is_writable_dir(dir: &Path) -> bool {
+    if !dir.is_dir() {
+        return false;
+    }
+    let probe = dir.join(".nf4-write-probe");
+    let written = fs::write(&probe, b"ok").is_ok();
+    if written {
+        let _ = fs::remove_file(&probe);
+    }
+    written
+}
+
+fn aside_path(path: &Path) -> PathBuf {
+    let name = path
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "dir".to_string());
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .unwrap_or(0);
+    let mut candidate = path.with_file_name(format!("{name}.unwritable-{secs}"));
+    let mut n = 1;
+    while candidate.exists() {
+        candidate = path.with_file_name(format!("{name}.unwritable-{secs}-{n}"));
+        n += 1;
+    }
+    candidate
 }
 
 fn command_ok(program: &str, args: &[&str]) -> bool {
@@ -453,7 +652,9 @@ fn prompt_optional_local_client2(
     let existing_address = existing_address
         .map(str::trim)
         .filter(|value| is_non_zero_address(value));
-    let existing_key = existing_key.map(str::trim).filter(|value| !value.is_empty());
+    let existing_key = existing_key
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
 
     if network != network::NetworkKind::Testnet {
         let client2 = existing_address
@@ -481,8 +682,7 @@ fn prompt_optional_local_client2(
         return Ok((None, client2));
     }
 
-    let client2_key =
-        network::prompt_l1_signing_key("Client 2", network, existing_key, rpc_url)?;
+    let client2_key = network::prompt_l1_signing_key("Client 2", network, existing_key, rpc_url)?;
     let client2 = cast_wallet_address(&client2_key)?;
     println!("Client 2 address: {client2}");
     Ok((Some(client2_key), client2))
@@ -878,10 +1078,13 @@ struct WebhookSetup {
 #[cfg(test)]
 mod tests {
     use super::{
-        client_api_port, docker_service_url, endpoint_url, is_non_zero_address,
-        normalize_or_reject_url, parse_bool, url_host, url_port, valid_http_url,
+        client_api_port, docker_service_url, endpoint_url, is_non_zero_address, is_writable_dir,
+        make_script_broadcast_writable, normalize_or_reject_url, parse_bool,
+        prepare_broadcast_dir_at, url_host, url_port, valid_http_url,
     };
     use std::collections::BTreeMap;
+    use std::fs;
+    use std::path::PathBuf;
 
     #[test]
     fn parses_bool_values() {
@@ -935,5 +1138,134 @@ mod tests {
             "http://127.0.0.1:4000".to_string(),
         );
         assert_eq!(client_api_port(&env), Some(4000));
+    }
+
+    #[cfg(unix)]
+    fn temp_case(name: &str) -> PathBuf {
+        let path = std::env::temp_dir().join(format!(
+            "nf4-broadcast-{name}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&path).unwrap();
+        path
+    }
+
+    #[cfg(unix)]
+    struct ResetMode {
+        path: PathBuf,
+        mode: u32,
+    }
+
+    #[cfg(unix)]
+    impl Drop for ResetMode {
+        fn drop(&mut self) {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = fs::set_permissions(&self.path, fs::Permissions::from_mode(self.mode));
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn reclaims_unwritable_broadcast_child_without_root() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = temp_case("reclaim");
+        let logs = root.join("logs");
+        let script_dir = logs.join("mock_deployment.s.sol");
+        let chain_dir = script_dir.join("11155111");
+        fs::create_dir_all(&chain_dir).unwrap();
+        fs::set_permissions(&script_dir, fs::Permissions::from_mode(0o555)).unwrap();
+        let _reset_script = ResetMode {
+            path: script_dir.clone(),
+            mode: 0o755,
+        };
+
+        make_script_broadcast_writable(&logs, "mock_deployment.s.sol").unwrap();
+
+        let recreated = logs.join("mock_deployment.s.sol");
+        assert!(is_writable_dir(&recreated));
+        assert!(
+            fs::read_dir(&logs)
+                .unwrap()
+                .flatten()
+                .any(|entry| entry.file_name().to_string_lossy().contains("unwritable"))
+        );
+        restore_tree(&root);
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn does_not_move_unwritable_logs_root() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = temp_case("keep-logs");
+        let logs = root.join("logs");
+        fs::create_dir_all(logs.join("deployer.s.sol")).unwrap();
+        fs::set_permissions(&logs, fs::Permissions::from_mode(0o555)).unwrap();
+        let fallback = root.join("fallback");
+
+        let prepared = prepare_broadcast_dir_at(&logs, "mock_deployment.s.sol", &fallback).unwrap();
+
+        assert!(prepared.override_env);
+        assert!(logs.join("deployer.s.sol").exists());
+        assert!(
+            !fs::read_dir(&root)
+                .unwrap()
+                .flatten()
+                .any(|entry| entry.file_name().to_string_lossy().contains("unwritable"))
+        );
+        restore_tree(&root);
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn falls_back_when_broadcast_parent_is_not_writable() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = temp_case("fallback");
+        let blocked = root.join("blocked");
+        let logs = blocked.join("logs");
+        fs::create_dir_all(&logs).unwrap();
+        fs::set_permissions(&logs, fs::Permissions::from_mode(0o555)).unwrap();
+        fs::set_permissions(&blocked, fs::Permissions::from_mode(0o555)).unwrap();
+        let _reset_logs = ResetMode {
+            path: logs.clone(),
+            mode: 0o755,
+        };
+        let _reset_blocked = ResetMode {
+            path: blocked.clone(),
+            mode: 0o755,
+        };
+        let fallback = root.join("fallback");
+
+        let prepared = prepare_broadcast_dir_at(&logs, "mock_deployment.s.sol", &fallback).unwrap();
+
+        assert!(prepared.override_env);
+        assert_eq!(prepared.path, fallback);
+        assert!(is_writable_dir(&fallback.join("mock_deployment.s.sol")));
+        assert!(logs.exists());
+        restore_tree(&root);
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[cfg(unix)]
+    fn restore_tree(path: &std::path::Path) {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = fs::set_permissions(path, fs::Permissions::from_mode(0o755));
+        let Ok(entries) = fs::read_dir(path) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let child = entry.path();
+            if child.is_dir() {
+                restore_tree(&child);
+            }
+        }
     }
 }

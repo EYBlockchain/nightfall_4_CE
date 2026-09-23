@@ -25,8 +25,12 @@ pub enum Command {
     LogsClient,
     LogsClient2,
     ClientDeployMockTokens,
-    WebhookStart { port: Option<u16> },
-    WebhookServe { port: u16 },
+    WebhookStart {
+        port: Option<u16>,
+    },
+    WebhookServe {
+        port: u16,
+    },
     WebhookStatus,
     WebhookLogs,
     WebhookEvents,
@@ -263,10 +267,7 @@ mod tests {
             Ok(Command::LogsProposer)
         );
         assert_eq!(parse(args(&["logs", "client"])), Ok(Command::LogsClient));
-        assert_eq!(
-            parse(args(&["logs", "client2"])),
-            Ok(Command::LogsClient2)
-        );
+        assert_eq!(parse(args(&["logs", "client2"])), Ok(Command::LogsClient2));
         assert_eq!(
             parse(args(&["client", "deploy-mock-tokens"])),
             Ok(Command::ClientDeployMockTokens)

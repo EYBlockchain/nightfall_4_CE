@@ -6,13 +6,11 @@ use inquire::{Confirm, Password};
 /// Foundry Anvil account 0. Local --yes and the local e2e script only.
 pub const LOCAL_ANVIL_ACCOUNT0_KEY: &str =
     "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
-pub const LOCAL_ANVIL_ACCOUNT0_ADDRESS: &str =
-    "0xf39Fd6e51aad88F6F4ce6ab8827279cffFb92266";
+pub const LOCAL_ANVIL_ACCOUNT0_ADDRESS: &str = "0xf39Fd6e51aad88F6F4ce6ab8827279cffFb92266";
 /// Foundry Anvil account 1 (Client 2 L1).
 pub const LOCAL_ANVIL_ACCOUNT1_KEY: &str =
     "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d";
-pub const LOCAL_ANVIL_ACCOUNT1_ADDRESS: &str =
-    "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
+pub const LOCAL_ANVIL_ACCOUNT1_ADDRESS: &str = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum NetworkKind {
@@ -397,7 +395,12 @@ pub fn classify_rpc_failure(rpc_url: &str, detail: &str) -> RpcFailure {
     let detail = detail.to_ascii_lowercase();
     if contains_any(
         &detail,
-        &["connection refused", "econnrefused", "os error 61", "actively refused"],
+        &[
+            "connection refused",
+            "econnrefused",
+            "os error 61",
+            "actively refused",
+        ],
     ) {
         return RpcFailure::ConnectionRefused;
     }
@@ -421,21 +424,25 @@ pub fn classify_rpc_failure(rpc_url: &str, detail: &str) -> RpcFailure {
     }
     if contains_any(
         &detail,
-        &["unauthorized", "invalid api key", "status code: 401", "status code: 403"],
+        &[
+            "unauthorized",
+            "invalid api key",
+            "status code: 401",
+            "status code: 403",
+        ],
     ) {
         return RpcFailure::Unauthorized;
     }
-    if contains_any(&detail, &["rate limit", "too many requests", "status code: 429"]) {
+    if contains_any(
+        &detail,
+        &["rate limit", "too many requests", "status code: 429"],
+    ) {
         return RpcFailure::RateLimited;
     }
     RpcFailure::Unknown
 }
 
-pub fn explain_rpc_error(
-    network: Option<NetworkKind>,
-    rpc_url: &str,
-    detail: &str,
-) -> String {
+pub fn explain_rpc_error(network: Option<NetworkKind>, rpc_url: &str, detail: &str) -> String {
     let failure = classify_rpc_failure(rpc_url, detail);
     format!(
         "{}\n\nNext:\n{}\n\nDetail: {detail}",
@@ -444,11 +451,7 @@ pub fn explain_rpc_error(
     )
 }
 
-fn rpc_failure_summary(
-    failure: RpcFailure,
-    network: Option<NetworkKind>,
-    rpc_url: &str,
-) -> String {
+fn rpc_failure_summary(failure: RpcFailure, network: Option<NetworkKind>, rpc_url: &str) -> String {
     match failure {
         RpcFailure::ConnectionRefused if network == Some(NetworkKind::Local) => {
             format!("Could not reach the local Anvil RPC at {rpc_url}.")
@@ -465,9 +468,7 @@ fn rpc_failure_summary(
         RpcFailure::Tls => {
             format!("TLS/SSL failed for the RPC at {rpc_url}.")
         }
-        RpcFailure::Unauthorized => {
-            "The RPC rejected this request (auth or API key).".to_string()
-        }
+        RpcFailure::Unauthorized => "The RPC rejected this request (auth or API key).".to_string(),
         RpcFailure::RateLimited => "The RPC rate-limited this request.".to_string(),
         RpcFailure::DockerInternal => {
             format!("{rpc_url} is a Docker-internal name and is not reachable from the host.")
@@ -649,7 +650,10 @@ pub fn verify_clean_mempool(rpc_url: &str, address: &str) -> Result<(), String> 
 }
 
 fn balance_is_zero(balance: &str) -> bool {
-    let digits = balance.trim().trim_start_matches("0x").trim_start_matches('0');
+    let digits = balance
+        .trim()
+        .trim_start_matches("0x")
+        .trim_start_matches('0');
     digits.is_empty()
 }
 
@@ -814,9 +818,9 @@ mod tests {
         ChainIdMatch, NetworkKind, RpcFailure, classify_rpc_failure,
         command_failure_detail_from_bytes, compose_rpc_url, explain_rpc_error,
         host_reachable_rpc_url, host_reachable_url, http_rpc_url, kind_for_chain_id,
-        parse_cast_wallet_new,
-        parse_u64_output, published_url_for_lan, resolve_network, with_lan_host,
+        parse_cast_wallet_new, parse_u64_output, published_url_for_lan, resolve_network,
         validate_profile_name, validate_published_configuration_url, validate_rpc_scheme,
+        with_lan_host,
     };
 
     #[test]
@@ -1029,11 +1033,7 @@ mod tests {
             classify_rpc_failure("ws://127.0.0.1:8545", detail),
             RpcFailure::ConnectionRefused
         );
-        let message = explain_rpc_error(
-            Some(NetworkKind::Local),
-            "ws://127.0.0.1:8545",
-            detail,
-        );
+        let message = explain_rpc_error(Some(NetworkKind::Local), "ws://127.0.0.1:8545", detail);
         assert!(message.starts_with("Could not reach the local Anvil RPC"));
         assert!(message.contains("docker compose --profile anvil up -d"));
         assert!(message.contains("Detail: "));
@@ -1051,7 +1051,9 @@ mod tests {
             wallet.private_key,
             "0x2222222222222222222222222222222222222222222222222222222222222222"
         );
-        assert!(parse_cast_wallet_new("Address: 0x1111111111111111111111111111111111111111").is_err());
+        assert!(
+            parse_cast_wallet_new("Address: 0x1111111111111111111111111111111111111111").is_err()
+        );
     }
 
     #[test]

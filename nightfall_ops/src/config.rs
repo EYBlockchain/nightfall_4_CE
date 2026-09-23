@@ -8,7 +8,7 @@ use std::{
 use toml_edit::{DocumentMut, Item, value};
 
 use crate::model::DeploymentConfig;
-use crate::network::{compose_rpc_url, detect_lan_host, with_lan_host, NetworkKind};
+use crate::network::{NetworkKind, compose_rpc_url, detect_lan_host, with_lan_host};
 
 pub const NIGHTFALL_TOML: &str = "nightfall.toml";
 pub const DOCKER_COMPOSE_YML: &str = "docker-compose.yml";
@@ -64,10 +64,7 @@ pub fn write_local_env(config: &DeploymentConfig) -> Result<(), String> {
         ("NF4_NETWORK", config.network.as_str().to_string()),
         ("NF4_CONTRACTS__DEPLOY_CONTRACTS", "true".to_string()),
         ("NF4_MOCK_PROVER", config.mock_prover.to_string()),
-        (
-            "NF4_CONFIGURATION_URL",
-            local_configuration_url(config),
-        ),
+        ("NF4_CONFIGURATION_URL", local_configuration_url(config)),
     ])
 }
 

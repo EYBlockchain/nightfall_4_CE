@@ -6,10 +6,10 @@ use crate::{
     checks, compose, config,
     model::DeploymentConfig,
     network::{
-        ChainIdMatch, NetworkKind, chain_id_description, command_failure_detail, compose_rpc_url,
-        explain_rpc_error, parse_u64_output, validate_profile_name,
-        validate_published_configuration_url, validate_rpc_scheme, LOCAL_ANVIL_ACCOUNT0_ADDRESS,
-        LOCAL_ANVIL_ACCOUNT0_KEY,
+        ChainIdMatch, LOCAL_ANVIL_ACCOUNT0_ADDRESS, LOCAL_ANVIL_ACCOUNT0_KEY, NetworkKind,
+        chain_id_description, command_failure_detail, compose_rpc_url, explain_rpc_error,
+        parse_u64_output, validate_profile_name, validate_published_configuration_url,
+        validate_rpc_scheme,
     },
     validation,
 };
@@ -173,7 +173,9 @@ fn collect_inputs(selected_network: Option<NetworkKind>) -> Result<DeploymentCon
     if network == NetworkKind::Local {
         println!();
         println!("Local transfers use the on-chain proposer URL, not NF4_NIGHTFALL_PROPOSER__URL.");
-        println!("Register the docker service name so a laptop LAN/VPN change cannot break transfers.");
+        println!(
+            "Register the docker service name so a laptop LAN/VPN change cannot break transfers."
+        );
         println!("Host health checks stay http://127.0.0.1:3001.");
     }
     let proposer_url_prompt = if network == NetworkKind::Local {
