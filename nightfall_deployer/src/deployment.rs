@@ -1,5 +1,10 @@
 use crate::vk_contract::write_vk_to_nightfall_toml;
-use alloy::{hex, primitives::Address};
+use alloy::{
+    hex,
+    primitives::Address,
+    providers::{Provider, ProviderBuilder},
+    signers::local::PrivateKeySigner,
+};
 use configuration::{
     addresses::{Addresses, Sources},
     settings::Settings,
@@ -7,13 +12,12 @@ use configuration::{
 use jf_plonk::recursion::RecursiveProver;
 
 use lib::blockchain_client::BlockchainClientConnection;
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use nightfall_proposer::driven::rollup_prover::RollupProver;
 use serde_json::Value;
 use std::{
     collections::HashMap,
     fs::File,
-    os::unix::process::ExitStatusExt,
     path::{Path, PathBuf},
 };
 
@@ -92,15 +96,13 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn std::er
     forge_command(&["build", "--force"]);
 
     // If there is an existing broadcast log for this chain, clean it before fresh broadcast
-    // so forge script does not attempt to resume or collide with old broadcast transactions
+    // so forge script does not attempt to resume or collide with old broadcast transactions.
+    // Resume would also be wrong after a nonce drift: it resends the old nonce instead of
+    // re-simulating.
     let cwd = std::env::current_dir()?;
     let chain_logs = cwd
         .join(&settings.contracts.deployment_file)
         .join(settings.network.chain_id.to_string());
-    if chain_logs.exists() {
-        info!("Removing stale broadcast logs from {chain_logs:?}");
-        std::fs::remove_dir_all(&chain_logs).ok();
-    }
 
     // Forge's alloy WS transport can drop/retry the same nonce when a provider sends a
     // malformed JSON-RPC message (`missing field params`), which surfaces as
@@ -110,15 +112,34 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn std::er
         info!("Using HTTP RPC for forge broadcast: {broadcast_rpc_url}");
     }
 
-    info!("Deploying contracts with forge script");
-    forge_command(&[
-        "script",
-        "Deployer",
-        "--fork-url",
-        &broadcast_rpc_url,
-        "--broadcast",
-        "--slow",
-    ]);
+    // `--slow` makes forge compare each script nonce with eth_getTransactionCount before
+    // sending, and abort if the chain is ahead (`Expected 50 got 51`). That happens when a
+    // pending tx confirms during simulation, or another process spends the deployer key.
+    // Wait until pending == latest, then retry a fresh simulation if it still drifts.
+    const BROADCAST_ATTEMPTS: u32 = 3;
+    for attempt in 1..=BROADCAST_ATTEMPTS {
+        clear_broadcast_logs(&chain_logs);
+        wait_for_stable_deployer_nonce(&broadcast_rpc_url, &settings.signing_key).await?;
+        info!("Deploying contracts with forge script (attempt {attempt}/{BROADCAST_ATTEMPTS})");
+        match try_forge_command(&[
+            "script",
+            "Deployer",
+            "--fork-url",
+            &broadcast_rpc_url,
+            "--broadcast",
+            "--slow",
+        ]) {
+            Ok(()) => break,
+            Err(err) if is_recoverable_broadcast_failure(&err) && attempt < BROADCAST_ATTEMPTS => {
+                warn!(
+                    "Forge broadcast hit a deployer nonce race ({}); waiting and retrying with a fresh simulation",
+                    nonce_drift_summary(&err)
+                );
+                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            }
+            Err(err) => return Err(err.into()),
+        }
+    }
 
     // -------- read Foundry broadcast --------
     let path_out = chain_logs.join("run-latest.json");
@@ -252,32 +273,110 @@ fn http_rpc_url_for_broadcast(url: &str) -> String {
     }
 }
 
-/// Function should only be called after we have checked forge is installed by running 'which forge'
-pub fn forge_command(command: &[&str]) {
-    debug!("DEBUG: Running forge command: {command:?}"); // Use info! as forge_command already uses info!
-    let output = std::process::Command::new("forge").args(command).output();
+fn clear_broadcast_logs(chain_logs: &Path) {
+    if chain_logs.exists() {
+        info!("Removing stale broadcast logs from {chain_logs:?}");
+        std::fs::remove_dir_all(chain_logs).ok();
+    }
+}
 
-    match output {
-        Ok(o) => {
-            if o.status.success() {
-                info!(
-                    "Command 'forge {:?}' executed successfully: {}",
-                    command,
-                    String::from_utf8_lossy(&o.stdout)
+/// Block until the deployer has no in-flight transactions, so forge's nonce snapshot is not
+/// already stale. RPCs that do not support the `pending` tag are treated as stable.
+async fn wait_for_stable_deployer_nonce(
+    rpc_url: &str,
+    signing_key: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let signer: PrivateKeySigner = signing_key
+        .parse()
+        .map_err(|e| format!("Invalid deployer signing key: {e}"))?;
+    let url = url::Url::parse(rpc_url)?;
+    let provider = ProviderBuilder::new()
+        .disable_recommended_fillers()
+        .connect_http(url);
+    let address = signer.address();
+
+    for attempt in 1..=10 {
+        let latest = provider
+            .get_transaction_count(address)
+            .latest()
+            .await
+            .map_err(|e| format!("Failed to read latest deployer nonce: {e}"))?;
+        match provider.get_transaction_count(address).pending().await {
+            Ok(pending) if pending <= latest => {
+                info!("Deployer {address} nonce is stable at {latest}");
+                return Ok(());
+            }
+            Ok(pending) => {
+                warn!(
+                    "Deployer {address} has in-flight transactions (latest nonce {latest}, pending nonce {pending}); waiting before broadcast ({attempt}/10)"
                 );
-            } else {
-                panic!(
-                "Command 'forge {:?}' executed with failing error code: {:?}\nStandard Output: {}\nStandard Error: {}",
-                command,
-                o.status.signal(),
-                String::from_utf8_lossy(&o.stdout),
-                String::from_utf8_lossy(&o.stderr)
-            );
+            }
+            Err(err) => {
+                warn!(
+                    "Pending nonce unavailable for {address} ({err}); continuing with latest nonce {latest}"
+                );
+                return Ok(());
             }
         }
+        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+    }
+
+    Err(format!(
+        "Deployer {address} still has pending transactions. Stop any other process using this key and retry."
+    )
+    .into())
+}
+
+fn is_recoverable_broadcast_failure(output: &str) -> bool {
+    output.contains("EOA nonce changed unexpectedly")
+        || output.contains("replacement transaction underpriced")
+        || output.contains("nonce too low")
+}
+
+fn nonce_drift_summary(output: &str) -> String {
+    output
+        .lines()
+        .find(|line| {
+            line.contains("EOA nonce changed unexpectedly")
+                || line.contains("replacement transaction underpriced")
+                || line.contains("nonce too low")
+        })
+        .unwrap_or("deployer nonce changed during broadcast")
+        .trim()
+        .to_string()
+}
+
+/// Function should only be called after we have checked forge is installed by running 'which forge'
+pub fn forge_command(command: &[&str]) {
+    if let Err(err) = try_forge_command(command) {
+        panic!("{err}");
+    }
+}
+
+fn try_forge_command(command: &[&str]) -> Result<(), String> {
+    debug!("DEBUG: Running forge command: {command:?}");
+    let output = match std::process::Command::new("forge").args(command).output() {
+        Ok(output) => output,
         Err(e) => {
-            panic!("Command 'forge {command:?}' ran into an error without executing: {e}");
+            return Err(format!(
+                "Command 'forge {command:?}' ran into an error without executing: {e}"
+            ));
         }
+    };
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if output.status.success() {
+        info!(
+            "Command 'forge {:?}' executed successfully: {stdout}",
+            command
+        );
+        Ok(())
+    } else {
+        Err(format!(
+            "Command 'forge {:?}' failed with status {}:\nStandard Output: {stdout}\nStandard Error: {stderr}",
+            command, output.status
+        ))
     }
 }
 
@@ -341,7 +440,9 @@ pub fn forge_command(command: &[&str]) {
 
 #[cfg(test)]
 mod tests {
-    use super::http_rpc_url_for_broadcast;
+    use super::{
+        http_rpc_url_for_broadcast, is_recoverable_broadcast_failure, nonce_drift_summary,
+    };
 
     #[test]
     fn converts_websocket_rpc_urls_to_http_for_broadcast() {
@@ -365,5 +466,21 @@ mod tests {
             http_rpc_url_for_broadcast("http://127.0.0.1:8545"),
             "http://127.0.0.1:8545"
         );
+    }
+
+    #[test]
+    fn retries_only_nonce_races() {
+        let drift = "Error: Failed to send transaction\n\nContext:\n- EOA nonce changed unexpectedly while sending transactions. Expected 50 got 51 from provider.\n";
+        assert!(is_recoverable_broadcast_failure(drift));
+        assert!(nonce_drift_summary(drift).contains("Expected 50 got 51"));
+        assert!(is_recoverable_broadcast_failure(
+            "server returned an error response: nonce too low"
+        ));
+        assert!(is_recoverable_broadcast_failure(
+            "replacement transaction underpriced"
+        ));
+        assert!(!is_recoverable_broadcast_failure(
+            "Error: script failed: execution reverted"
+        ));
     }
 }
