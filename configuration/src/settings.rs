@@ -189,7 +189,15 @@ impl Settings {
         let figment = Figment::new()
             .join(("run_mode", &run_mode))
             .merge(Toml::file("nightfall.toml").nested())
-            .merge(Env::prefixed("NF4_").profile(run_mode.as_str()).split("__"))
+            .merge(
+                Env::prefixed("NF4_")
+                    .profile(run_mode.as_str())
+                    .split("__")
+                    // Ops stores a deployment label here (`local` / `testnet` / `mainnet`).
+                    // That is not the `network` struct. Nested overrides such as
+                    // `NF4_NETWORK__CHAIN_ID` and `NF4_NETWORK__LOG_CHUNK_SIZE` still apply.
+                    .ignore(&["network"]),
+            )
             .select(run_mode);
 
         let mut settings: Settings = figment.extract().map_err(|e| format!("{e}"))?;
@@ -320,6 +328,35 @@ mod tests {
             None => env::remove_var("NF4_NIGHTFALL_CLIENT__DB_URL"),
         }
 
+        match tmp_run_mode {
+            Some(val) => env::set_var("NF4_RUN_MODE", val),
+            None => env::remove_var("NF4_RUN_MODE"),
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn test_network_label_does_not_replace_network_struct() {
+        let tmp_network = env::var("NF4_NETWORK").ok();
+        let tmp_chunk = env::var("NF4_NETWORK__LOG_CHUNK_SIZE").ok();
+        let tmp_run_mode = env::var("NF4_RUN_MODE").ok();
+
+        env::set_var("NF4_NETWORK", "testnet");
+        env::set_var("NF4_NETWORK__LOG_CHUNK_SIZE", "42");
+        env::set_var("NF4_RUN_MODE", "development");
+
+        let s = Settings::new().expect("scalar NF4_NETWORK must not fail extraction");
+        assert_eq!(s.network.chain_id, 31337);
+        assert_eq!(s.network.log_chunk_size, Some(42));
+
+        match tmp_network {
+            Some(val) => env::set_var("NF4_NETWORK", val),
+            None => env::remove_var("NF4_NETWORK"),
+        }
+        match tmp_chunk {
+            Some(val) => env::set_var("NF4_NETWORK__LOG_CHUNK_SIZE", val),
+            None => env::remove_var("NF4_NETWORK__LOG_CHUNK_SIZE"),
+        }
         match tmp_run_mode {
             Some(val) => env::set_var("NF4_RUN_MODE", val),
             None => env::remove_var("NF4_RUN_MODE"),
