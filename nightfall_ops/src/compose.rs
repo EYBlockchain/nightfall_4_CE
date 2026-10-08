@@ -122,7 +122,10 @@ pub fn build_indie_client() -> Result<(), String> {
 
 pub fn up_indie_deployer() -> Result<(), String> {
     config::refresh_local_lan_urls()?;
-    let args = compose_args("indie-deployer", true, &["up", "--no-recreate"]);
+    // Always called immediately after build_indie_deployer. --no-recreate would
+    // start the existing container and ignore the image just built, so a gas-limit
+    // fix in the binary never reaches Sepolia.
+    let args = compose_args("indie-deployer", true, &["up", "--force-recreate"]);
     run_docker_compose("Running indie deployer", &args)?;
     verify_deployer_container_success()
 }
@@ -316,9 +319,9 @@ mod tests {
     }
 
     #[test]
-    fn builds_indie_deployer_compose_args_with_no_recreate() {
+    fn builds_indie_deployer_compose_args_with_force_recreate() {
         assert_eq!(
-            compose_args("indie-deployer", true, &["up", "--no-recreate"]),
+            compose_args("indie-deployer", true, &["up", "--force-recreate"]),
             vec![
                 "compose",
                 "--profile",
@@ -326,7 +329,7 @@ mod tests {
                 "--env-file",
                 "local.env",
                 "up",
-                "--no-recreate"
+                "--force-recreate"
             ]
         );
     }
