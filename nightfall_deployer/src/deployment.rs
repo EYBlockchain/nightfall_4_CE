@@ -21,6 +21,15 @@ use std::{
     path::{Path, PathBuf},
 };
 
+/// Percentage applied to Forge's simulated gas before broadcast.
+///
+/// Sepolia charges ~1530 gas per deployed byte. Forge 1.1/1.5 still simulates
+/// Cancun's 200, so creation costs about 7.2x the simulation. The default 130%
+/// limit is consumed entirely and the create reverts with
+/// `contract creation code storage out of gas`. 800% covers that gap.
+/// X509, the largest creation, needs ~38M gas; Sepolia's block gas limit is 200M.
+const GAS_ESTIMATE_MULTIPLIER: &str = "800";
+
 fn proxies_from_broadcast(path: &Path) -> anyhow::Result<HashMap<&'static str, Address>> {
     let v: Value = serde_json::from_reader(File::open(path)?)?;
     let txs = v
@@ -124,7 +133,9 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn std::er
     for attempt in 1..=BROADCAST_ATTEMPTS {
         clear_broadcast_logs(&chain_logs);
         wait_for_stable_deployer_nonce(&broadcast_rpc_url, &settings.signing_key).await?;
-        info!("Deploying contracts with forge script (attempt {attempt}/{BROADCAST_ATTEMPTS})");
+        info!(
+            "Deploying contracts with forge script (attempt {attempt}/{BROADCAST_ATTEMPTS}, gas estimate multiplier {GAS_ESTIMATE_MULTIPLIER}%)"
+        );
         match try_forge_command(&[
             "script",
             "Deployer",
@@ -132,6 +143,8 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn std::er
             &broadcast_rpc_url,
             "--broadcast",
             "--slow",
+            "--gas-estimate-multiplier",
+            GAS_ESTIMATE_MULTIPLIER,
         ]) {
             Ok(()) => break,
             Err(err) if is_recoverable_broadcast_failure(&err) && attempt < BROADCAST_ATTEMPTS => {
@@ -477,7 +490,7 @@ fn try_forge_command(command: &[&str]) -> Result<(), String> {
 mod tests {
     use super::{
         http_rpc_url_for_broadcast, is_recoverable_broadcast_failure, nonce_drift_summary,
-        relax_broadcast_tree,
+        relax_broadcast_tree, GAS_ESTIMATE_MULTIPLIER,
     };
     use std::fs;
 
@@ -503,6 +516,24 @@ mod tests {
             http_rpc_url_for_broadcast("http://127.0.0.1:8545"),
             "http://127.0.0.1:8545"
         );
+    }
+
+    #[test]
+    fn gas_multiplier_covers_sepolia_code_deposit_repricing() {
+        let multiplier: u64 = GAS_ESTIMATE_MULTIPLIER.parse().unwrap();
+        // Cancun `cast estimate` vs Sepolia `eth_estimateGas` for creation bytecode, Oct 2026.
+        let creations = [
+            (1_928_152u64, 13_656_560u64), // RollupProofVerificationKey
+            (5_294_546, 37_918_358),       // X509, largest creation
+            (5_268_582, 37_732_637),       // RollupProofVerifier
+        ];
+        for (cancun, sepolia) in creations {
+            assert!(
+                cancun * multiplier / 100 >= sepolia,
+                "multiplier {multiplier}% turns {cancun} into {}, short of {sepolia}",
+                cancun * multiplier / 100
+            );
+        }
     }
 
     #[test]

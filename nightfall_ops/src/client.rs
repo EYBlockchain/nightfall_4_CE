@@ -13,9 +13,9 @@ use toml_edit::{DocumentMut, Item};
 use crate::{
     compose, config,
     network::{
-        self, LOCAL_ANVIL_ACCOUNT0_KEY, LOCAL_ANVIL_ACCOUNT1_ADDRESS, LOCAL_ANVIL_ACCOUNT1_KEY,
-        detect_lan_host, host_reachable_rpc_url, http_rpc_url,
-        validate_published_configuration_url, with_lan_host,
+        self, detect_lan_host, host_reachable_rpc_url, http_rpc_url,
+        validate_published_configuration_url, with_lan_host, LOCAL_ANVIL_ACCOUNT0_KEY,
+        LOCAL_ANVIL_ACCOUNT1_ADDRESS, LOCAL_ANVIL_ACCOUNT1_KEY,
     },
     validation, webhook,
 };
@@ -336,6 +336,9 @@ pub fn deploy_mock_tokens() -> Result<(), String> {
             "--broadcast",
             "--legacy",
             "--slow",
+            // Same Sepolia code-deposit gap as nightfall_deployer::GAS_ESTIMATE_MULTIPLIER.
+            "--gas-estimate-multiplier",
+            "800",
         ],
         &env,
     )
@@ -1188,12 +1191,10 @@ mod tests {
 
         let recreated = logs.join("mock_deployment.s.sol");
         assert!(is_writable_dir(&recreated));
-        assert!(
-            fs::read_dir(&logs)
-                .unwrap()
-                .flatten()
-                .any(|entry| entry.file_name().to_string_lossy().contains("unwritable"))
-        );
+        assert!(fs::read_dir(&logs)
+            .unwrap()
+            .flatten()
+            .any(|entry| entry.file_name().to_string_lossy().contains("unwritable")));
         restore_tree(&root);
         fs::remove_dir_all(&root).unwrap();
     }
@@ -1213,12 +1214,10 @@ mod tests {
 
         assert!(prepared.override_env);
         assert!(logs.join("deployer.s.sol").exists());
-        assert!(
-            !fs::read_dir(&root)
-                .unwrap()
-                .flatten()
-                .any(|entry| entry.file_name().to_string_lossy().contains("unwritable"))
-        );
+        assert!(!fs::read_dir(&root)
+            .unwrap()
+            .flatten()
+            .any(|entry| entry.file_name().to_string_lossy().contains("unwritable")));
         restore_tree(&root);
         fs::remove_dir_all(&root).unwrap();
     }

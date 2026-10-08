@@ -148,8 +148,9 @@ contract Nightfall is
         address sanctionsListAddress
     ) public initializer {
         __UUPSUpgradeable_init();
-        __ReentrancyGuard_init();
+        // Linearized parent order is Certified, then ReentrancyGuardUpgradeable.
         __Certified_init(msg.sender, x509_address, sanctionsListAddress);
+        __ReentrancyGuard_init();
 
         nullifierRoot = initialNullifierRoot;
 
