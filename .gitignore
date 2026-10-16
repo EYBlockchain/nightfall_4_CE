@@ -19,6 +19,7 @@ soljson*
 configuration/toml
 remappings.txt
 local.env
+deploy.env
 .nightfall/
 reports/
 temp/

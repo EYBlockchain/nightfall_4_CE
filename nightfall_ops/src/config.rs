@@ -116,6 +116,20 @@ pub fn refresh_local_lan_urls() -> Result<(), String> {
     merge_local_env(&updates)
 }
 
+pub fn set_profile_deploy_contracts(profile: &str, deploy: bool) -> Result<(), String> {
+    let source = fs::read_to_string(NIGHTFALL_TOML)
+        .map_err(|err| format!("Failed to read {NIGHTFALL_TOML}: {err}"))?;
+    let mut doc = source
+        .parse::<DocumentMut>()
+        .map_err(|err| format!("Failed to parse {NIGHTFALL_TOML}: {err}"))?;
+    if doc.get(profile).is_none() {
+        return Err(format!("nightfall.toml is missing [{profile}]"));
+    }
+    doc[profile]["contracts"]["deploy_contracts"] = value(deploy);
+    fs::write(NIGHTFALL_TOML, doc.to_string())
+        .map_err(|err| format!("Failed to write {NIGHTFALL_TOML}: {err}"))
+}
+
 pub fn update_nightfall_toml(config: &DeploymentConfig) -> Result<(), String> {
     let source = fs::read_to_string(NIGHTFALL_TOML)
         .map_err(|err| format!("Failed to read {NIGHTFALL_TOML}: {err}"))?;

@@ -3,6 +3,7 @@ mod cli;
 mod client;
 mod compose;
 mod config;
+mod deploy;
 mod model;
 mod network;
 mod proposer;
@@ -28,6 +29,11 @@ fn run(args: impl IntoIterator<Item = String>) -> Result<(), String> {
             println!("{}", cli::usage());
             Ok(())
         }
+        Command::DeployFile {
+            path,
+            check_only,
+            late_join,
+        } => deploy::run(&path, check_only, late_join),
         Command::WizardDeploy { network, yes } => wizard::deploy(network, yes),
         Command::WizardProposer { yes } => proposer::wizard(yes),
         Command::WizardClient { yes } => client::wizard(yes),

@@ -3,6 +3,11 @@ use crate::network::NetworkKind;
 #[derive(Debug, Eq, PartialEq)]
 pub enum Command {
     Help,
+    DeployFile {
+        path: String,
+        check_only: bool,
+        late_join: bool,
+    },
     WizardDeploy {
         network: Option<NetworkKind>,
         yes: bool,
@@ -43,6 +48,7 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Command, String> 
 
     match parts.as_slice() {
         [] | ["help"] | ["--help"] | ["-h"] => Ok(Command::Help),
+        ["deploy", rest @ ..] => parse_deploy(rest),
         ["wizard", "deploy", rest @ ..] => parse_wizard_deploy(rest),
         ["wizard", "proposer", rest @ ..] => Ok(Command::WizardProposer {
             yes: parse_yes_flag(rest, "wizard proposer")?,
@@ -79,6 +85,49 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Command, String> 
             usage()
         )),
     }
+}
+
+fn parse_deploy(args: &[&str]) -> Result<Command, String> {
+    let mut path = None;
+    let mut check_only = false;
+    let mut late_join = false;
+    let mut index = 0;
+    while index < args.len() {
+        let arg = args[index];
+        if arg == "--check" {
+            check_only = true;
+            index += 1;
+            continue;
+        }
+        if arg == "--late-join" {
+            late_join = true;
+            index += 1;
+            continue;
+        }
+        if let Some(value) = arg.strip_prefix("--file=") {
+            if value.is_empty() {
+                return Err(format!("Missing value for --file.\n\n{}", usage()));
+            }
+            path = Some(value.to_string());
+            index += 1;
+            continue;
+        }
+        if arg == "--file" {
+            let value = args.get(index + 1).ok_or_else(|| {
+                format!("Missing value for --file.\n\n{}", usage())
+            })?;
+            path = Some((*value).to_string());
+            index += 2;
+            continue;
+        }
+        return Err(format!("Unknown argument for deploy: {arg}\n\n{}", usage()));
+    }
+    let path = path.ok_or_else(|| format!("Missing --file.\n\n{}", usage()))?;
+    Ok(Command::DeployFile {
+        path,
+        check_only,
+        late_join,
+    })
 }
 
 fn parse_wizard_deploy(args: &[&str]) -> Result<Command, String> {
@@ -138,6 +187,7 @@ pub fn usage() -> &'static str {
     r#"Nightfall deployment assistant
 
 Usage:
+  nf4 deploy --file deploy.env [--check] [--late-join]
   nf4 wizard deploy [--network local|testnet|mainnet] [--yes]
   nf4 wizard proposer [--yes]
   nf4 wizard client [--yes]
@@ -160,6 +210,11 @@ Usage:
   nf4 webhook salts
 
 Commands:
+  nf4 deploy --file       Non-interactive Sepolia split-VM deploy. Role comes from NF4_ROLE in the file.
+                          Paste an existing funded key, or a newly generated one. Optional address
+                          pins must match the key. --check prints those wallets and does not deploy.
+                          operator: deploy once, configuration, proposer, Client 1, join.toml.
+                          client: fetch the join bundle and start Client 2. --late-join is the explicit start.
   nf4 wizard deploy       Asks for the network first, then collects inputs, writes config, deploys contracts, starts configuration, and validates hosted metadata.
                           --yes is local-only: Anvil defaults, mock prover, on-chain URL http://indie-proposer:3000.
   nf4 wizard proposer     Reuses deployment metadata, configures proposer values, starts indie-proposer, and validates health.
@@ -201,6 +256,22 @@ mod tests {
 
     #[test]
     fn parses_known_commands() {
+        assert_eq!(
+            parse(args(&["deploy", "--file", "deploy.env"])),
+            Ok(Command::DeployFile {
+                path: "deploy.env".to_string(),
+                check_only: false,
+                late_join: false
+            })
+        );
+        assert_eq!(
+            parse(args(&["deploy", "--check", "--file=deploy.env", "--late-join"])),
+            Ok(Command::DeployFile {
+                path: "deploy.env".to_string(),
+                check_only: true,
+                late_join: true
+            })
+        );
         assert_eq!(
             parse(args(&["wizard", "deploy"])),
             Ok(Command::WizardDeploy {

@@ -1,0 +1,578 @@
+#!/usr/bin/env bash
+# Sepolia test steps from doc/Sepolia Assistant Quick Start.md.
+# Assumes ./scripts/nf4-deploy already brought the node up. This script does not deploy contracts.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+FILE=""
+STEP=""
+TX=""
+ZKP_NAME=""
+ZKP_VALUE=""
+ZKP_FROM=""
+
+usage() {
+  cat <<EOF
+Usage: ./scripts/nf4-test --file deploy.env --step <name>
+
+Operator (VM-A), after nf4-deploy:
+  tokens baseline deposit poll evidence transfer transfer-status
+  stop-client1 restart-client1 sync withdraw
+  restart-proposer deposit-again soak-check
+  accept-zkp --name C2_ZKP --from temp/zkp.public
+
+Client (VM-B), after nf4-deploy -- late join:
+  late-deposit balances return-721 withdraw soak-check soak-deposit sync
+
+receipt --tx 0x<64 hex> records one escrow or block-submission receipt.
+list prints this order. Soak does not sleep for 48 hours.
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --file) FILE="${2:-}"; shift 2 ;;
+    --file=*) FILE="${1#--file=}"; shift ;;
+    --step) STEP="${2:-}"; shift 2 ;;
+    --step=*) STEP="${1#--step=}"; shift ;;
+    --tx) TX="${2:-}"; shift 2 ;;
+    --tx=*) TX="${1#--tx=}"; shift ;;
+    --name) ZKP_NAME="${2:-}"; shift 2 ;;
+    --name=*) ZKP_NAME="${1#--name=}"; shift ;;
+    --value) ZKP_VALUE="${2:-}"; shift 2 ;;
+    --value=*) ZKP_VALUE="${1#--value=}"; shift ;;
+    --from) ZKP_FROM="${2:-}"; shift 2 ;;
+    --from=*) ZKP_FROM="${1#--from=}"; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
+if [[ "$STEP" == list || -z "$STEP" ]]; then
+  usage
+  exit 0
+fi
+
+[[ -n "$FILE" && -f "$FILE" ]] || { echo "Pass --file deploy.env" >&2; exit 2; }
+
+set -a
+# shellcheck disable=SC1090
+source "$FILE"
+set +a
+
+: "${NF4_ROLE:?}"
+: "${NF4_RPC_HTTP:?}"
+: "${NF4_RPC_WSS:?}"
+NF4_CLIENT_PORT="${NF4_CLIENT_PORT:-3000}"
+NF4_PROPOSER_PORT="${NF4_PROPOSER_PORT:-3001}"
+
+ID20=0x00
+ID721_C1=0x03e9
+ID721_C2=0x03ea
+ID1155=0x07d1
+ID3525_C1=0x0bb9
+ID3525_C2=0x0bba
+C1_MNEMONIC="spice split denial symbol resemble knock hunt trial make buzz attitude mom slice define clinic kid crawl guilt frozen there cage light secret work"
+C2_MNEMONIC="wink shell monkey fiscal exit great friend motor arrange file coffee leg catch drip amateur simple plastic win seat circle couch differ stomach law"
+if [[ "$NF4_ROLE" == operator && -n "${NF4_ZKP_MNEMONIC:-}" ]]; then
+  C1_MNEMONIC="$NF4_ZKP_MNEMONIC"
+elif [[ "$NF4_ROLE" == client && -n "${NF4_ZKP_MNEMONIC:-}" ]]; then
+  C2_MNEMONIC="$NF4_ZKP_MNEMONIC"
+fi
+CHILD_PATH="m/44'/60'/0'/0/0"
+EVIDENCE="temp/sepolia-step10"
+CHECK_JS="${ROOT}/scripts/sepolia-deposit-check.js"
+mkdir -p temp/sepolia-test
+
+die() { echo "FAIL: $*" >&2; note "FAIL $STEP: $*"; exit 1; }
+note() { printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" | tee -a temp/sepolia-test/report.md; }
+need_role() { [[ "$NF4_ROLE" == "$1" ]] || die "step $STEP runs on $1, this file is $NF4_ROLE"; }
+is_addr() { [[ "$1" =~ ^0x[0-9a-fA-F]{40}$ ]]; }
+is_zkp() { [[ "$1" =~ ^[0-9a-fA-F]{64}$ ]]; }
+
+refresh_public() {
+  if [[ "$NF4_ROLE" == operator ]]; then
+    [[ -f configuration/toml/public.env ]] || die "missing configuration/toml/public.env. Run nf4-deploy on VM-A first."
+    # shellcheck disable=SC1091
+    source configuration/toml/public.env
+  else
+    local base="${NF4_JOIN_URL%/configuration/toml/join.toml}"
+    : "${base:?}"
+    curl -fsS --retry 5 --retry-delay 2 --max-time 60 "$base/configuration/toml/public.env" -o temp/public.env
+    # shellcheck disable=SC1091
+    source temp/public.env
+  fi
+  : "${CONFIG_URL:?}" "${PROPOSER_URL:?}" "${NF:?}" "${C1:?}" "${C2:?}"
+}
+
+upsert_public() {
+  local key="$1" value="$2" file="configuration/toml/public.env" tmp
+  [[ "$NF4_ROLE" == operator ]] || die "only VM-A can publish $key"
+  [[ "$key" =~ ^[A-Z0-9_]+$ ]] || die "bad public key $key"
+  [[ "$value" != *"'"* ]] || die "bad public value"
+  tmp="$(mktemp)"
+  [[ -f "$file" ]] && grep -v "^${key}=" "$file" >"$tmp" || true
+  printf "%s='%s'\n" "$key" "$value" >>"$tmp"
+  mv "$tmp" "$file"
+}
+
+require_sepolia() {
+  local got
+  got="$(cast chain-id --rpc-url "$NF4_RPC_HTTP")"
+  [[ "$got" == 11155111 ]] || die "RPC chain-id is $got, expected 11155111"
+}
+
+post_json() {
+  local name="$1" url="$2" body="$3" dir="$4"
+  mkdir -p "$dir"
+  printf '%s\n' "$body" >"$dir/$name.request.json"
+  local http
+  if ! http="$(curl -sS --connect-timeout 10 --max-time 60 \
+    -D "$dir/$name.headers" -o "$dir/$name.body" -w '%{http_code}' \
+    -H 'Content-Type: application/json' -X POST "$url" \
+    --data-binary "@$dir/$name.request.json")"; then
+    die "$name POST outcome unknown. Do not resubmit blindly."
+  fi
+  printf '%s HTTP %s\n' "$name" "$http"
+  cat "$dir/$name.body"; printf '\n'
+  [[ "$http" == 202 ]] || die "$name was not HTTP 202. Inspect $dir before any retry."
+  local request
+  request="$(awk 'tolower($1)=="x-request-id:" { gsub(/\r/,"",$2); print $2 }' "$dir/$name.headers")"
+  [[ "$request" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || die "$name has no request UUID"
+  printf '%s\n' "$request" >"$dir/$name.request-id"
+  echo "$request"
+}
+
+derive_on() {
+  local api="$1" mnemonic="$2"
+  curl -fsS --max-time 60 -X POST "$api/v1/deriveKey" \
+    -H 'Content-Type: application/json' \
+    --data "$(python3 -c 'import json,sys; print(json.dumps({"mnemonic":sys.argv[1],"child_path":sys.argv[2]}))' "$mnemonic" "$CHILD_PATH")" >/dev/null
+}
+
+step_tokens() {
+  need_role operator
+  require_sepolia
+  refresh_public
+  : "${NF4_DEPLOYER_KEY:?}"
+  if [[ -n "${TOKEN20:-}" && -n "${TOKEN721:-}" && -n "${TOKEN1155:-}" && -n "${TOKEN3525:-}" ]]; then
+    echo "Token addresses already in public.env. Not deploying again."
+  else
+    mkdir -p temp/sepolia-test
+    ./scripts/nf4 client deploy-mock-tokens | tee temp/sepolia-test/mock-deploy.log
+    TOKEN20="$(awk -F': ' '/Deployed ERC20Mock to:/{print $2}' temp/sepolia-test/mock-deploy.log | tail -1)"
+    TOKEN721="$(awk -F': ' '/Deployed ERC721Mock to:/{print $2}' temp/sepolia-test/mock-deploy.log | tail -1)"
+    TOKEN1155="$(awk -F': ' '/Deployed ERC1155Mock to:/{print $2}' temp/sepolia-test/mock-deploy.log | tail -1)"
+    TOKEN3525="$(awk -F': ' '/Deployed ERC3525Mock to:/{print $2}' temp/sepolia-test/mock-deploy.log | tail -1)"
+    for name in TOKEN20 TOKEN721 TOKEN1155 TOKEN3525; do
+      eval "val=\${$name}"
+      is_addr "$val" || die "could not parse $name from mock deploy log"
+      upsert_public "$name" "$val"
+    done
+    upsert_public ID20 "$ID20"
+    upsert_public ID721_C1 "$ID721_C1"
+    upsert_public ID721_C2 "$ID721_C2"
+    upsert_public ID1155 "$ID1155"
+    upsert_public ID3525_C1 "$ID3525_C1"
+    upsert_public ID3525_C2 "$ID3525_C2"
+  fi
+  refresh_public
+  if [[ -f temp/sepolia-test/minted ]]; then
+    echo "Mint marker exists. Not minting again."
+  else
+    cast send "$TOKEN721" "mint(address,address,uint256)" "$C1" "$NF" 1001 --private-key "$NF4_DEPLOYER_KEY" --rpc-url "$NF4_RPC_HTTP"
+    cast send "$TOKEN721" "mint(address,address,uint256)" "$C2" "$NF" 1002 --private-key "$NF4_DEPLOYER_KEY" --rpc-url "$NF4_RPC_HTTP"
+    cast send "$TOKEN1155" "mint(address,address,uint256,uint256)" "$C1" "$NF" 2001 20 --private-key "$NF4_DEPLOYER_KEY" --rpc-url "$NF4_RPC_HTTP"
+    cast send "$TOKEN1155" "mint(address,address,uint256,uint256)" "$C2" "$NF" 2001 10 --private-key "$NF4_DEPLOYER_KEY" --rpc-url "$NF4_RPC_HTTP"
+    cast send "$TOKEN3525" "mint(address,address,uint256,uint256,uint256)" "$NF" "$C1" 3001 1 100 --private-key "$NF4_DEPLOYER_KEY" --rpc-url "$NF4_RPC_HTTP"
+    cast send "$TOKEN3525" "mint(address,address,uint256,uint256,uint256)" "$NF" "$C2" 3002 1 100 --private-key "$NF4_DEPLOYER_KEY" --rpc-url "$NF4_RPC_HTTP"
+    date -u +%Y-%m-%dT%H:%M:%SZ > temp/sepolia-test/minted
+  fi
+  note "tokens published. VM-B can curl public.env. Do not deploy mocks there."
+}
+
+step_baseline() {
+  need_role operator
+  refresh_public
+  local api="http://127.0.0.1:${NF4_CLIENT_PORT}" prop="http://127.0.0.1:${NF4_PROPOSER_PORT}"
+  curl -fsS "$prop/v1/health"
+  curl -fsS "$api/v1/health"
+  curl -fsS "$api/v1/synchronisation" | tee temp/sepolia-test/baseline-sync.json
+  curl -fsS "$api/v1/commitments" | tee temp/sepolia-test/baseline-commitments.json
+  curl -fsS "$api/v1/balance/${TOKEN20}/${ID20}" | tee temp/sepolia-test/baseline-erc20.txt || true
+  cast block-number --rpc-url "$NF4_RPC_HTTP" | tee temp/sepolia-test/baseline-l1.txt
+  note "baseline recorded. Client 2 must still be down."
+}
+
+step_deposit() {
+  need_role operator
+  refresh_public
+  [[ ! -e "$EVIDENCE" ]] || die "STOP: $EVIDENCE exists. Do not redeposit. Use --step poll."
+  local api="http://127.0.0.1:${NF4_CLIENT_PORT}"
+  for token in "$TOKEN20" "$TOKEN721" "$TOKEN1155" "$TOKEN3525"; do
+    is_addr "$token" || die "invalid token $token"
+  done
+  mkdir "$EVIDENCE"
+  date -u +%Y-%m-%dT%H:%M:%SZ > "$EVIDENCE/started-at.txt"
+  post_json ERC20 "$api/v1/deposit" "{\"ercAddress\":\"${TOKEN20}\",\"tokenId\":\"${ID20}\",\"tokenType\":\"0\",\"value\":\"0x64\",\"fee\":\"0x00\",\"deposit_fee\":\"0x00\"}" "$EVIDENCE" >/dev/null
+  post_json ERC721 "$api/v1/deposit" "{\"ercAddress\":\"${TOKEN721}\",\"tokenId\":\"${ID721_C1}\",\"tokenType\":\"2\",\"value\":\"0x00\",\"fee\":\"0x00\",\"deposit_fee\":\"0x00\"}" "$EVIDENCE" >/dev/null
+  post_json ERC1155 "$api/v1/deposit" "{\"ercAddress\":\"${TOKEN1155}\",\"tokenId\":\"${ID1155}\",\"tokenType\":\"1\",\"value\":\"0x14\",\"fee\":\"0x00\",\"deposit_fee\":\"0x00\"}" "$EVIDENCE" >/dev/null
+  post_json ERC3525 "$api/v1/deposit" "{\"ercAddress\":\"${TOKEN3525}\",\"tokenId\":\"${ID3525_C1}\",\"tokenType\":\"3\",\"value\":\"0x64\",\"fee\":\"0x00\",\"deposit_fee\":\"0x00\"}" "$EVIDENCE" >/dev/null
+  note "deposits queued. Next: --step poll. Do not run deposit again."
+}
+
+step_poll() {
+  need_role operator
+  refresh_public
+  [[ -f "$EVIDENCE/ERC20.request-id" ]] || die "missing deposit request IDs. Do not redeposit to create them."
+  local api="http://127.0.0.1:${NF4_CLIENT_PORT}"
+  REQ20="$(<"$EVIDENCE/ERC20.request-id")"
+  REQ721="$(<"$EVIDENCE/ERC721.request-id")"
+  REQ1155="$(<"$EVIDENCE/ERC1155.request-id")"
+  REQ3525="$(<"$EVIDENCE/ERC3525.request-id")"
+  export REQ20 REQ721 REQ1155 REQ3525 TOKEN20 TOKEN721 TOKEN1155 TOKEN3525 ID20 ID721_C1 ID1155 ID3525_C1
+  local confirmed=0 i rc out
+  for ((i=1; i<=360; i++)); do
+    printf '\n%s poll %s/360\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$i"
+    rc=0
+    out="$(docker exec -i \
+      -e REQ20 -e REQ721 -e REQ1155 -e REQ3525 \
+      -e TOKEN20 -e TOKEN721 -e TOKEN1155 -e TOKEN3525 \
+      -e ID20 -e ID721_C1 -e ID1155 -e ID3525_C1 \
+      nf4_db_client mongosh --quiet --norc --file /dev/stdin <"$CHECK_JS" 2>&1)" || rc=$?
+    printf '%s\n' "$out"
+    if [[ "$rc" -eq 0 ]] && grep -qx READY <<<"$out"; then
+      confirmed=1
+      break
+    fi
+    if [[ "$rc" -ne 2 ]] || ! grep -qx WAITING <<<"$out"; then
+      die "Poll/query failed (exit $rc). Do not redeposit."
+    fi
+    [[ "$i" -eq 360 ]] || sleep 30
+  done
+  [[ "$confirmed" == 1 ]] || die "Timed out with pending deposits. Do not redeposit."
+  {
+    printf '%s\n' "$out"
+    curl -fsS "$api/v1/synchronisation"
+  } | tee "$EVIDENCE/record.txt"
+  note "deposit poll READY. On VM-B: ./scripts/nf4-deploy --file deploy.env --late-join"
+}
+
+snapshot_logs() {
+  local dest="$1"
+  mkdir -p "$dest"
+  docker logs --timestamps nf4_indie_client >"$dest/client.log" 2>&1 || true
+  docker logs --timestamps nf4_indie_proposer >"$dest/proposer.log" 2>&1 || true
+  grep -E 'Escrowing funds|DepositEscrowed|Proposed block call|ERROR|WARN|panic' "$dest/client.log" || true
+  grep -E 'DepositEscrowed|Deposit Transaction is valid|This block has|Computing block|Block computation took|The L2 block was sent to L1|ERROR|WARN|panic' "$dest/proposer.log" || true
+  note "log snapshot in $dest. Redact RPC secrets before attaching excerpts."
+}
+
+step_evidence() {
+  need_role operator
+  snapshot_logs "$EVIDENCE"
+}
+
+step_transfer_evidence() {
+  need_role operator
+  snapshot_logs temp/sepolia-step12
+}
+
+save_receipt() {
+  local status
+  [[ "$TX" =~ ^0x[0-9a-fA-F]{64}$ ]] || return 1
+  status="$(cast receipt "$TX" status --async --rpc-url "$NF4_RPC_HTTP" 2>/dev/null || true)"
+  [[ "$status" == 1 || "$status" == 0x1 || "$status" == "1 (success)" ]] || return 1
+  mkdir -p "$EVIDENCE"
+  cast receipt "$TX" --json --async --rpc-url "$NF4_RPC_HTTP" >"$EVIDENCE/${TX}.receipt.json"
+  echo "Included $TX. Confirm destination $NF at https://sepolia.etherscan.io/tx/${TX}"
+  note "receipt $TX included. Inclusion is not finality."
+}
+
+step_receipt() {
+  require_sepolia
+  refresh_public
+  [[ "$TX" =~ ^0x[0-9a-fA-F]{64}$ ]] || die "pass --tx 0x<64 hex>"
+  save_receipt || die "receipt status for $TX was not success"
+}
+
+step_receipts() {
+  need_role operator
+  require_sepolia
+  refresh_public
+  [[ -f "$EVIDENCE/client.log" || -f "$EVIDENCE/proposer.log" ]] || die "Run --step evidence first."
+  local hashes tx
+  hashes="$(grep -E 'Escrowing funds|DepositEscrowed|block was sent to L1|Proposed block call' "$EVIDENCE"/*.log 2>/dev/null | grep -hoE '0x[0-9a-fA-F]{64}' | sort -u || true)"
+  [[ -n "$hashes" ]] || die "No full escrow or block-submission hashes in the logs. Abbreviated log hashes are not enough. Copy each full hash from the explorer and run --step receipt --tx."
+  local saved=0
+  while read -r tx; do
+    [[ -n "$tx" ]] || continue
+    TX="$tx"
+    if save_receipt; then
+      saved=$((saved + 1))
+    else
+      echo "Skipping $tx. It is not a successful transaction receipt." >&2
+    fi
+  done <<<"$hashes"
+  [[ "$saved" -gt 0 ]] || die "No receipt was saved. Run --step receipt --tx for each full explorer hash."
+}
+
+step_late_deposit() {
+  need_role client
+  refresh_public
+  local api="http://127.0.0.1:${NF4_CLIENT_PORT}" dir="temp/sepolia-step11"
+  curl -fsS "$api/v1/health" >/dev/null || die "Client 2 is not up. Run nf4-deploy with NF4_LATE_JOIN=yes."
+  [[ ! -e "$dir" ]] || die "STOP: $dir exists. Do not deposit again."
+  derive_on "$api" "$C2_MNEMONIC"
+  mkdir "$dir"
+  post_json ERC721 "$api/v1/deposit" "{\"ercAddress\":\"${TOKEN721}\",\"tokenId\":\"${ID721_C2}\",\"tokenType\":\"2\",\"value\":\"0x00\",\"fee\":\"0x00\",\"deposit_fee\":\"0x00\"}" "$dir" >/dev/null
+  post_json ERC1155 "$api/v1/deposit" "{\"ercAddress\":\"${TOKEN1155}\",\"tokenId\":\"${ID1155}\",\"tokenType\":\"1\",\"value\":\"0x0a\",\"fee\":\"0x00\",\"deposit_fee\":\"0x00\"}" "$dir" >/dev/null
+  post_json ERC3525 "$api/v1/deposit" "{\"ercAddress\":\"${TOKEN3525}\",\"tokenId\":\"${ID3525_C2}\",\"tokenType\":\"3\",\"value\":\"0x64\",\"fee\":\"0x00\",\"deposit_fee\":\"0x00\"}" "$dir" >/dev/null
+  note "Client 2 deposits queued. Copy temp/zkp.public to VM-A before transfers. Do not copy the key."
+}
+
+step_accept_zkp() {
+  need_role operator
+  [[ "$ZKP_NAME" == C1_ZKP || "$ZKP_NAME" == C2_ZKP ]] || die "--name must be C1_ZKP or C2_ZKP"
+  if [[ -z "$ZKP_VALUE" && -n "$ZKP_FROM" ]]; then
+    ZKP_VALUE="$(grep -oE '[0-9a-fA-F]{64}' "$ZKP_FROM" | head -1)"
+  fi
+  is_zkp "$ZKP_VALUE" || die "Pass --from the VM-B file, or --value with 64 hex chars. A placeholder is rejected."
+  upsert_public "$ZKP_NAME" "$ZKP_VALUE"
+  note "published $ZKP_NAME"
+}
+
+step_transfer() {
+  need_role operator
+  refresh_public
+  is_zkp "${C2_ZKP:-}" || die "C2_ZKP missing. Run --step accept-zkp with the value printed on VM-B."
+  local api="http://127.0.0.1:${NF4_CLIENT_PORT}" dir="temp/sepolia-step12"
+  [[ ! -e "$dir" ]] || die "STOP: $dir exists. Do not transfer again."
+  derive_on "$api" "$C1_MNEMONIC"
+  mkdir "$dir"
+  post_json ERC20 "$api/v1/transfer" "{\"ercAddress\":\"${TOKEN20}\",\"tokenId\":\"${ID20}\",\"tokenType\":\"0\",\"recipientData\":{\"values\":[\"0x28\"],\"recipientCompressedZkpPublicKeys\":[\"${C2_ZKP}\"]},\"fee\":\"0x00\"}" "$dir" >/dev/null
+  post_json ERC721 "$api/v1/transfer" "{\"ercAddress\":\"${TOKEN721}\",\"tokenId\":\"${ID721_C1}\",\"tokenType\":\"2\",\"recipientData\":{\"values\":[\"0x00\"],\"recipientCompressedZkpPublicKeys\":[\"${C2_ZKP}\"]},\"fee\":\"0x00\"}" "$dir" >/dev/null
+  post_json ERC1155 "$api/v1/transfer" "{\"ercAddress\":\"${TOKEN1155}\",\"tokenId\":\"${ID1155}\",\"tokenType\":\"1\",\"recipientData\":{\"values\":[\"0x08\"],\"recipientCompressedZkpPublicKeys\":[\"${C2_ZKP}\"]},\"fee\":\"0x00\"}" "$dir" >/dev/null
+  post_json ERC3525 "$api/v1/transfer" "{\"ercAddress\":\"${TOKEN3525}\",\"tokenId\":\"${ID3525_C1}\",\"tokenType\":\"3\",\"recipientData\":{\"values\":[\"0x28\"],\"recipientCompressedZkpPublicKeys\":[\"${C2_ZKP}\"]},\"fee\":\"0x00\"}" "$dir" >/dev/null
+  note "transfers queued. Next: --step transfer-status. Do not stop Client 1 yet."
+}
+
+step_transfer_status() {
+  need_role operator
+  local api="http://127.0.0.1:${NF4_CLIENT_PORT}" dir="temp/sepolia-step12"
+  [[ -f "$dir/ERC20.request-id" ]] || die "no transfer request IDs. Do not transfer again to create them."
+  local name id body status i ready
+  for ((i=1; i<=360; i++)); do
+    printf '\n%s transfer poll %s/360\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$i"
+    ready=1
+    for name in ERC20 ERC721 ERC1155 ERC3525; do
+      id="$(<"$dir/$name.request-id")"
+      body="$(curl -fsS --connect-timeout 10 --max-time 20 "$api/v1/request/$id" || true)"
+      status="$(printf '%s' "$body" | python3 -c 'import json,sys
+raw=sys.stdin.read().strip()
+if not raw:
+    print(""); raise SystemExit
+try:
+    d=json.loads(raw)
+except Exception:
+    print(""); raise SystemExit
+s=d.get("status","")
+if isinstance(s, dict):
+    s=s.get("status","")
+print(s)')"
+      printf '%s %s\n' "$name" "${status:-unknown}"
+      case "$status" in
+        Failed|Error|Rejected) die "$name transfer $id is $status. Do not stop Client 1. Do not resubmit." ;;
+        Submitted|Confirmed|Complete|Succeeded|Success) ;;
+        *) ready=0 ;;
+      esac
+    done
+    [[ "$ready" == 1 ]] && break
+    [[ "$i" -eq 360 ]] || sleep 30
+  done
+  [[ "$ready" == 1 ]] || die "Transfers are not accepted yet. Do not run stop-client1."
+  date -u +%Y-%m-%dT%H:%M:%SZ > "$dir/accepted"
+  note "transfers accepted. This is not L2 confirmation. Record proposer logs, then stop Client 1."
+}
+
+step_stop_client1() {
+  need_role operator
+  [[ -f temp/sepolia-step12/accepted ]] || die "Transfers are not accepted. Run --step transfer-status first. Do not delete that marker to skip the wait."
+  local api="http://127.0.0.1:${NF4_CLIENT_PORT}"
+  curl -fsS "$api/v1/synchronisation" | tee temp/sepolia-test/before-stop-sync.json
+  docker exec nf4_db_client mongosh --quiet --eval 'db.getSiblingDB("nightfall").commitments.find().toArray()' >temp/sepolia-test/before-stop-commitments.json
+  docker stop nf4_indie_client
+  note "Client 1 stopped at $(date -u +%Y-%m-%dT%H:%M:%SZ). VM-B stays up."
+}
+
+step_balances() {
+  need_role client
+  refresh_public
+  local api="http://127.0.0.1:${NF4_CLIENT_PORT}"
+  derive_on "$api" "$C2_MNEMONIC"
+  curl -fsS "$api/v1/synchronisation" | tee temp/sepolia-test/c2-sync.json
+  curl -fsS "$api/v1/commitments" | tee temp/sepolia-test/c2-commitments.json
+  echo "ERC20 $(curl -fsS "$api/v1/balance/${TOKEN20}/${ID20}" || true)"
+  echo "ERC721 $(curl -fsS "$api/v1/balance/${TOKEN721}/${ID721_C1}" || true)"
+  echo "ERC1155 $(curl -fsS "$api/v1/balance/${TOKEN1155}/${ID1155}" || true)"
+  note "Client 2 balances recorded. Expect ERC20 40, ERC721 1001, ERC1155 18 after the transfer block."
+}
+
+step_restart_client1() {
+  need_role operator
+  docker start nf4_indie_client
+  local api="http://127.0.0.1:${NF4_CLIENT_PORT}" i
+  for i in $(seq 1 40); do
+    curl -fsS --max-time 3 "$api/v1/health" >/dev/null && break
+    sleep 3
+  done
+  curl -fsS "$api/v1/health" >/dev/null || die "Client 1 did not become healthy"
+  derive_on "$api" "$C1_MNEMONIC"
+  curl -fsS "$api/v1/synchronisation" | tee temp/sepolia-test/c1-restart-sync.json
+  note "Client 1 restarted. deriveKey ran again because keys are in memory."
+}
+
+step_sync() {
+  refresh_public
+  local api="http://127.0.0.1:${NF4_CLIENT_PORT}"
+  curl -fsS "$api/v1/synchronisation" | tee "temp/sepolia-test/${NF4_ROLE}-sync.json"
+  note "$NF4_ROLE sync recorded. Compare L2 block numbers across VMs."
+}
+
+step_return_721() {
+  need_role client
+  refresh_public
+  is_zkp "${C1_ZKP:-}" || die "C1_ZKP is not in public.env yet. VM-A deploy should have published it."
+  local api="http://127.0.0.1:${NF4_CLIENT_PORT}" dir="temp/sepolia-step17"
+  [[ ! -e "$dir" ]] || die "STOP: $dir exists. Do not return 1001 again."
+  derive_on "$api" "$C2_MNEMONIC"
+  mkdir "$dir"
+  post_json ERC721 "$api/v1/transfer" "{\"ercAddress\":\"${TOKEN721}\",\"tokenId\":\"${ID721_C1}\",\"tokenType\":\"2\",\"recipientData\":{\"values\":[\"0x00\"],\"recipientCompressedZkpPublicKeys\":[\"${C1_ZKP}\"]},\"fee\":\"0x00\"}" "$dir" >/dev/null
+  note "return of ERC721 1001 queued"
+}
+
+step_withdraw() {
+  refresh_public
+  local api="http://127.0.0.1:${NF4_CLIENT_PORT}" dir recipient token721 token3525 value20 value1155 value3525
+  if [[ "$NF4_ROLE" == operator ]]; then
+    dir="temp/sepolia-step18-c1"
+    recipient="$C1"
+    token721="$ID721_C1"
+    token3525="$ID3525_C1"
+    value20=0x3c
+    value1155=0x0c
+    value3525=0x3c
+    derive_on "$api" "$C1_MNEMONIC"
+  else
+    dir="temp/sepolia-step18-c2"
+    recipient="$C2"
+    token721="$ID721_C2"
+    token3525="$ID3525_C2"
+    value20=0x28
+    value1155=0x12
+    value3525=0x28
+    derive_on "$api" "$C2_MNEMONIC"
+  fi
+  [[ ! -e "$dir" ]] || die "STOP: $dir exists. Do not withdraw again."
+  mkdir "$dir"
+  post_json ERC20 "$api/v1/withdraw" "{\"ercAddress\":\"${TOKEN20}\",\"tokenId\":\"${ID20}\",\"tokenType\":\"0\",\"value\":\"${value20}\",\"recipientAddress\":\"${recipient}\",\"fee\":\"0x00\"}" "$dir" >/dev/null
+  post_json ERC721 "$api/v1/withdraw" "{\"ercAddress\":\"${TOKEN721}\",\"tokenId\":\"${token721}\",\"tokenType\":\"2\",\"value\":\"0x00\",\"recipientAddress\":\"${recipient}\",\"fee\":\"0x00\"}" "$dir" >/dev/null
+  post_json ERC1155 "$api/v1/withdraw" "{\"ercAddress\":\"${TOKEN1155}\",\"tokenId\":\"${ID1155}\",\"tokenType\":\"1\",\"value\":\"${value1155}\",\"recipientAddress\":\"${recipient}\",\"fee\":\"0x00\"}" "$dir" >/dev/null
+  post_json ERC3525 "$api/v1/withdraw" "{\"ercAddress\":\"${TOKEN3525}\",\"tokenId\":\"${token3525}\",\"tokenType\":\"3\",\"value\":\"${value3525}\",\"recipientAddress\":\"${recipient}\",\"fee\":\"0x00\"}" "$dir" >/dev/null
+  note "withdraws queued on $NF4_ROLE. Wait for L2 and L1 descrow before reading L1 balances."
+  ./scripts/nf4 webhook salts || true
+}
+
+step_restart_proposer() {
+  need_role operator
+  local prop="http://127.0.0.1:${NF4_PROPOSER_PORT}" api="http://127.0.0.1:${NF4_CLIENT_PORT}"
+  curl -fsS "$api/v1/synchronisation" | tee temp/sepolia-test/before-proposer-stop.json
+  docker exec nf4_db_proposer mongosh --quiet --eval 'db.getSiblingDB("nightfall").ProposedBlocks.find().toArray()' >temp/sepolia-test/proposer-blocks-before.json
+  date -u | tee temp/sepolia-test/proposer-stopped-at.txt
+  docker stop nf4_indie_proposer
+  docker start nf4_indie_proposer
+  local i
+  for i in $(seq 1 40); do
+    curl -fsS --max-time 3 "$prop/v1/health" >/dev/null && break
+    sleep 3
+  done
+  curl -fsS "$prop/v1/health"
+  docker exec nf4_db_proposer mongosh --quiet --eval 'db.getSiblingDB("nightfall").ProposedBlocks.find().toArray()' >temp/sepolia-test/proposer-blocks-after.json
+  note "proposer restarted. Compare proposer-blocks-before.json and proposer-blocks-after.json. VM-B stays up."
+}
+
+step_deposit_again() {
+  need_role operator
+  refresh_public
+  local api="http://127.0.0.1:${NF4_CLIENT_PORT}" dir="temp/sepolia-step20"
+  [[ ! -e "$dir" ]] || die "STOP: $dir exists. Do not deposit 10 again."
+  derive_on "$api" "$C1_MNEMONIC"
+  mkdir "$dir"
+  post_json ERC20 "$api/v1/deposit" "{\"ercAddress\":\"${TOKEN20}\",\"tokenId\":\"${ID20}\",\"tokenType\":\"0\",\"value\":\"0x0a\",\"fee\":\"0x00\",\"deposit_fee\":\"0x00\"}" "$dir" >/dev/null
+  note "post-recovery ERC20 deposit of 10 queued"
+}
+
+step_soak_check() {
+  refresh_public
+  local api="http://127.0.0.1:${NF4_CLIENT_PORT}"
+  date -u | tee -a temp/sepolia-test/soak.txt
+  curl -fsS "$api/v1/health" | tee -a temp/sepolia-test/soak.txt
+  curl -fsS "$api/v1/synchronisation" | tee -a temp/sepolia-test/soak.txt
+  if [[ "$NF4_ROLE" == operator ]]; then
+    curl -fsS "http://127.0.0.1:${NF4_PROPOSER_PORT}/v1/health" | tee -a temp/sepolia-test/soak.txt
+    docker stats --no-stream nf4_indie_proposer nf4_indie_client | tee -a temp/sepolia-test/soak.txt
+  else
+    docker stats --no-stream nf4_indie_client | tee -a temp/sepolia-test/soak.txt
+  fi
+  note "soak snapshot recorded. This step does not wait 48 hours."
+}
+
+step_soak_deposit() {
+  need_role client
+  refresh_public
+  local api="http://127.0.0.1:${NF4_CLIENT_PORT}" dir="temp/sepolia-step21"
+  curl -fsS "$api/v1/health" >/dev/null || die "Client 2 is not healthy."
+  [[ ! -e "$dir" ]] || die "STOP: $dir exists. Do not deposit 10 again."
+  derive_on "$api" "$C2_MNEMONIC"
+  mkdir "$dir"
+  post_json ERC20 "$api/v1/deposit" "{\"ercAddress\":\"${TOKEN20}\",\"tokenId\":\"${ID20}\",\"tokenType\":\"0\",\"value\":\"0x0a\",\"fee\":\"0x00\",\"deposit_fee\":\"0x00\"}" "$dir" >/dev/null
+  note "Client 2 post-soak ERC20 deposit of 10 queued. Proposer on VM-A must stay Healthy."
+}
+
+step_l1_balances() {
+  refresh_public
+  ./scripts/nf4 webhook salts || true
+  echo "C1 $(cast call "$TOKEN20" "balanceOf(address)(uint256)" "$C1" --rpc-url "$NF4_RPC_HTTP")"
+  echo "C2 $(cast call "$TOKEN20" "balanceOf(address)(uint256)" "$C2" --rpc-url "$NF4_RPC_HTTP")"
+  note "L1 ERC20 balances recorded. Pass only if they moved after descrow."
+}
+
+require_sepolia
+case "$STEP" in
+  tokens) step_tokens ;;
+  baseline) step_baseline ;;
+  deposit) step_deposit ;;
+  poll) step_poll ;;
+  evidence) step_evidence ;;
+  transfer-evidence) step_transfer_evidence ;;
+  receipt) step_receipt ;;
+  receipts) step_receipts ;;
+  l1-balances) step_l1_balances ;;
+  late-deposit) step_late_deposit ;;
+  accept-zkp) step_accept_zkp ;;
+  transfer) step_transfer ;;
+  transfer-status) step_transfer_status ;;
+  stop-client1) step_stop_client1 ;;
+  balances) step_balances ;;
+  restart-client1) step_restart_client1 ;;
+  sync) step_sync ;;
+  return-721) step_return_721 ;;
+  withdraw) step_withdraw ;;
+  restart-proposer) step_restart_proposer ;;
+  deposit-again) step_deposit_again ;;
+  soak-check) step_soak_check ;;
+  soak-deposit) step_soak_deposit ;;
+  *) die "unknown step $STEP" ;;
+esac

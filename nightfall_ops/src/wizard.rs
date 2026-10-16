@@ -72,15 +72,22 @@ pub fn deploy(selected_network: Option<NetworkKind>, yes: bool) -> Result<(), St
         println!("Applying local --yes defaults without prompts.");
     }
 
+    apply_deployment(&deployment)
+}
+
+/// Write deployment files, deploy contracts, start configuration, then stop further deploys.
+pub fn apply_deployment(config: &DeploymentConfig) -> Result<(), String> {
     let backup_dir = config::backup_config_files()?;
     println!("Backed up config files to {}", backup_dir.display());
-    config::update_nightfall_toml(&deployment)?;
-    config::update_docker_compose(&deployment)?;
-    config::write_local_env(&deployment)?;
+    config::update_nightfall_toml(config)?;
+    config::update_docker_compose(config)?;
+    config::write_local_env(config)?;
 
     println!();
     println!("Deployment configuration generated.");
-    run_deployment(&deployment)?;
+    run_deployment(config)?;
+    config::merge_local_env(&[("NF4_CONTRACTS__DEPLOY_CONTRACTS", "false".to_string())])?;
+    println!("Set NF4_CONTRACTS__DEPLOY_CONTRACTS=false");
     Ok(())
 }
 

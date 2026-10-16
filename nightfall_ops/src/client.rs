@@ -65,11 +65,6 @@ pub fn wizard(yes: bool) -> Result<(), String> {
                 .to_string(),
         );
     }
-    let nightfall_address = read_addresses()?
-        .get("nightfall")
-        .cloned()
-        .ok_or_else(|| format!("{ADDRESSES_TOML} is missing nightfall"))?;
-
     let lan_host = detect_lan_host();
     let proposer_url_default =
         with_lan_host(&default_proposer_url(&env, &profile_config), &lan_host);
@@ -186,51 +181,19 @@ pub fn wizard(yes: bool) -> Result<(), String> {
         return Err("Client setup cancelled before writing files.".to_string());
     }
 
-    let backup_dir = config::backup_config_files()?;
-    println!("Backed up config files to {}", backup_dir.display());
-
-    config::merge_local_env(&[
-        ("CLIENT_SIGNING_KEY", client_key.clone()),
-        ("NF4_SIGNING_KEY", client_key),
-        ("CLIENT_ADDRESS", client_address.clone()),
-        ("CLIENT2_ADDRESS", client2_address.clone()),
-        ("NIGHTFALL_ADDRESS", nightfall_address.clone()),
-        ("CLIENT_API_URL", client_api_url.clone()),
-        ("NF4_CONFIGURATION_URL", configuration_url.clone()),
-        ("NF4_NIGHTFALL_PROPOSER__URL", proposer_url.clone()),
-        (
-            "NF4_NIGHTFALL_CLIENT__WEBHOOK_URL",
-            webhook_setup.url.clone(),
-        ),
-        ("WEBHOOK_URL", webhook_setup.url.clone()),
-    ])?;
-    if let Some(client2_signing_key) = client2_signing_key {
-        config::merge_local_env(&[("CLIENT2_SIGNING_KEY", client2_signing_key)])?;
-    }
-    config::update_client_docker_compose(&profile, client_port)?;
-
-    run_command("Cleaning contract build artifacts", "forge", &["clean"])?;
-    run_command("Building contracts", "forge", &["build"])?;
-
-    compose::build_indie_client()?;
-    compose::up_client()?;
-    poll_client_health(client_port)?;
-
-    println!();
-    println!("Client OK");
-    println!("  network: {}", resolved.label());
-    println!("  profile: {profile}");
-    println!("  mode: {}", if mock_prover { "mock" } else { "real" });
-    println!("  client_address: {client_address}");
-    println!("  client2_address: {client2_address}");
-    println!("  nightfall_address: {nightfall_address}");
-    println!("  client_api_url: {client_api_url}");
-    println!("  proposer_url: {proposer_url}");
-    println!("  configuration_runtime_url: {configuration_url}");
-    println!("  webhook_url: {}", webhook_setup.url);
-    if let Some(events_path) = webhook_setup.events_path {
-        println!("  webhook_events: {}", events_path.display());
-    }
+    start_with(ClientStart {
+        signing_key: client_key,
+        client_address,
+        client2_address,
+        client2_signing_key,
+        proposer_url,
+        configuration_url,
+        webhook_url: webhook_setup.url,
+        webhook_events: webhook_setup
+            .events_path
+            .map(|path| path.display().to_string()),
+        client_port,
+    })?;
     println!();
     println!("Next:");
     println!("  ./scripts/nf4 status");
@@ -242,6 +205,103 @@ pub fn wizard(yes: bool) -> Result<(), String> {
         "If you want to do mock ERC deployments so you will have some tokens to play with, run:"
     );
     println!("  ./scripts/nf4 client deploy-mock-tokens");
+    Ok(())
+}
+
+pub struct ClientStart {
+    pub signing_key: String,
+    pub client_address: String,
+    pub client2_address: String,
+    pub client2_signing_key: Option<String>,
+    pub proposer_url: String,
+    pub configuration_url: String,
+    pub webhook_url: String,
+    pub webhook_events: Option<String>,
+    pub client_port: u16,
+}
+
+pub fn start_with(start: ClientStart) -> Result<(), String> {
+    if !config::required_repo_files_exist() {
+        return Err("Run this command from the nightfall_4_CE repository root.".to_string());
+    }
+    if !config::local_env_exists() {
+        return Err(
+            "local.env was not found. Run nf4 deploy or nf4 wizard deploy first.".to_string(),
+        );
+    }
+    if !valid_http_url(&start.proposer_url) || !valid_http_url(&start.configuration_url) {
+        return Err(
+            "Proposer and configuration URLs must start with http:// or https://.".to_string(),
+        );
+    }
+    if !is_non_zero_address(&start.client_address) || !is_non_zero_address(&start.client2_address) {
+        return Err("Client addresses must be non-zero Ethereum addresses.".to_string());
+    }
+
+    check_prerequisites()?;
+    let env = config::read_local_env();
+    let profile = env_value(&env, "NF4_RUN_MODE").unwrap_or_else(|| "development".to_string());
+    let profile_config = read_profile_config(&profile)?;
+    let resolved = network::resolve_network_from_env(&env, profile_config.chain_id);
+    let mock_prover = env_value(&env, "NF4_MOCK_PROVER")
+        .and_then(|value| parse_bool(&value))
+        .or(profile_config.mock_prover)
+        .unwrap_or(false);
+    validate_metadata(mock_prover)?;
+    let nightfall_address = read_addresses()?
+        .get("nightfall")
+        .cloned()
+        .ok_or_else(|| format!("{ADDRESSES_TOML} is missing nightfall"))?;
+    validate_proposer_health(&start.proposer_url)?;
+    if let Some(kind) = resolved.kind {
+        validate_published_configuration_url(kind, &start.configuration_url)?;
+    }
+    validate_configuration_runtime_url(&start.configuration_url)?;
+
+    let backup_dir = config::backup_config_files()?;
+    println!("Backed up config files to {}", backup_dir.display());
+    let client_api_url = format!("http://127.0.0.1:{}", start.client_port);
+    config::merge_local_env(&[
+        ("CLIENT_SIGNING_KEY", start.signing_key.clone()),
+        ("NF4_SIGNING_KEY", start.signing_key),
+        ("CLIENT_ADDRESS", start.client_address.clone()),
+        ("CLIENT2_ADDRESS", start.client2_address.clone()),
+        ("NIGHTFALL_ADDRESS", nightfall_address.clone()),
+        ("CLIENT_API_URL", client_api_url.clone()),
+        ("NF4_CONFIGURATION_URL", start.configuration_url.clone()),
+        ("NF4_NIGHTFALL_PROPOSER__URL", start.proposer_url.clone()),
+        (
+            "NF4_NIGHTFALL_CLIENT__WEBHOOK_URL",
+            start.webhook_url.clone(),
+        ),
+        ("WEBHOOK_URL", start.webhook_url.clone()),
+        ("NF4_CONTRACTS__DEPLOY_CONTRACTS", "false".to_string()),
+    ])?;
+    if let Some(client2_signing_key) = start.client2_signing_key {
+        config::merge_local_env(&[("CLIENT2_SIGNING_KEY", client2_signing_key)])?;
+    }
+    config::update_client_docker_compose(&profile, start.client_port)?;
+    run_command("Cleaning contract build artifacts", "forge", &["clean"])?;
+    run_command("Building contracts", "forge", &["build"])?;
+    compose::build_indie_client()?;
+    compose::up_client()?;
+    poll_client_health(start.client_port)?;
+
+    println!();
+    println!("Client OK");
+    println!("  network: {}", resolved.label());
+    println!("  profile: {profile}");
+    println!("  mode: {}", if mock_prover { "mock" } else { "real" });
+    println!("  client_address: {}", start.client_address);
+    println!("  client2_address: {}", start.client2_address);
+    println!("  nightfall_address: {nightfall_address}");
+    println!("  client_api_url: {client_api_url}");
+    println!("  proposer_url: {}", start.proposer_url);
+    println!("  configuration_runtime_url: {}", start.configuration_url);
+    println!("  webhook_url: {}", start.webhook_url);
+    if let Some(events_path) = start.webhook_events {
+        println!("  webhook_events: {events_path}");
+    }
     Ok(())
 }
 

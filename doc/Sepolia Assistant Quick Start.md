@@ -1,5 +1,7 @@
 # Sepolia Assistant Quick Start
 
+Scripted path: `doc/Sepolia Deploy Scripts.md` (`scripts/nf4-deploy`, `scripts/nf4-test`). This file remains the report checklist and the manual fallback.
+
 Two-VM Sepolia run with `nf4`. Fill `temp/sepolia_testing_report_template.md` as you go. Real prover. Chain ID `11155111`. Branch `auto/testnet`. No Anvil, no `--yes`, no `--network local`.
 
 ```text

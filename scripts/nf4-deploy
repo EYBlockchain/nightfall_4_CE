@@ -1,0 +1,272 @@
+#!/usr/bin/env bash
+# Sepolia split-VM bring-up. One script, two roles. Does not SSH and does not copy keys.
+# VM-A: NF4_ROLE=operator. VM-B: NF4_ROLE=client, and only after Client 1 deposits.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+FILE=""
+CHECK=0
+INIT=""
+LATE_JOIN=0
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --file)
+      FILE="${2:-}"
+      shift 2
+      ;;
+    --file=*)
+      FILE="${1#--file=}"
+      shift
+      ;;
+    --check)
+      CHECK=1
+      shift
+      ;;
+    --init)
+      INIT="${2:-}"
+      shift 2
+      ;;
+    --late-join)
+      LATE_JOIN=1
+      shift
+      ;;
+    -h|--help)
+      cat <<EOF
+Usage: ./scripts/nf4-deploy --file deploy.env [--check] [--init operator|client] [--late-join]
+
+--init writes deploy.env (mode 600) from the example and fills a Sepolia RPC if one is not set.
+--check prints the derived addresses, balances, and the join URL. It does not deploy.
+--late-join starts Client 2. Use it only after the VM-A deposit poll prints READY.
+
+VM-A:
+  ./scripts/nf4-deploy --init operator --file deploy.env
+  # paste NF4_DEPLOYER_KEY and NF4_CLIENT2_ADDRESS, then:
+  ./scripts/nf4-deploy --file deploy.env --check
+  ./scripts/nf4-deploy --file deploy.env
+
+VM-B, only after READY:
+  ./scripts/nf4-deploy --file deploy.env --late-join
+
+Does not deploy mock tokens, deposits, or transfers. That is ./scripts/nf4-test.
+EOF
+      exit 0
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      exit 2
+      ;;
+  esac
+done
+
+[[ -n "$FILE" ]] || { echo "Pass --file deploy.env" >&2; exit 2; }
+
+if [[ -n "$INIT" ]]; then
+  if [[ -e "$FILE" ]]; then
+    echo "$FILE already exists. Not overwriting." >&2
+    exit 1
+  fi
+  case "$INIT" in
+    operator) cp scripts/deploy.env.example "$FILE" ;;
+    client) cp scripts/deploy-client.env.example "$FILE" ;;
+    *) echo "--init needs operator or client" >&2; exit 2 ;;
+  esac
+  chmod 600 "$FILE"
+  echo "Created $FILE"
+fi
+
+[[ -f "$FILE" ]] || { echo "Pass --file deploy.env" >&2; exit 2; }
+
+set -a
+# shellcheck disable=SC1090
+source "$FILE"
+set +a
+
+: "${NF4_ROLE:?}"
+: "${NF4_CONFIRM:?}"
+NF4_MOCK_PROVER="${NF4_MOCK_PROVER:-false}"
+NF4_SKIP_PROVER_CHECK="${NF4_SKIP_PROVER_CHECK:-false}"
+NF4_CONFIGURATION_PORT="${NF4_CONFIGURATION_PORT:-8080}"
+NF4_PROPOSER_PORT="${NF4_PROPOSER_PORT:-3001}"
+NF4_CLIENT_PORT="${NF4_CLIENT_PORT:-3000}"
+NF4_CHAIN_ID="${NF4_CHAIN_ID:-11155111}"
+NF4_PROPOSER_CERT="${NF4_PROPOSER_CERT:-user-2}"
+NF4_CLIENT_CERT="${NF4_CLIENT_CERT:-user-3}"
+NF4_CERT="${NF4_CERT:-user-4}"
+
+if [[ "$NF4_CHAIN_ID" != 11155111 && "${NF4_ALLOW_OTHER_CHAIN:-false}" != true ]]; then
+  echo "NF4_CHAIN_ID=$NF4_CHAIN_ID. This script follows the Ethereum Sepolia guide (11155111)." >&2
+  echo "84532 is Base Sepolia. Set NF4_ALLOW_OTHER_CHAIN=true only if you mean that." >&2
+  exit 1
+fi
+
+rpc_missing() {
+  local value="${1:-}"
+  [[ -z "$value" || "$value" == *YOUR_* || "$value" == *example.invalid* ]]
+}
+
+fill_rpc() {
+  if ! rpc_missing "${NF4_RPC_WSS:-}" && ! rpc_missing "${NF4_RPC_HTTP:-}"; then
+    return 0
+  fi
+  echo "Selecting a Sepolia RPC..."
+  eval "$(./scripts/nf4-pick-rpc --network sepolia)"
+  : "${RPC_WSS:?}" "${RPC_HTTP:?}"
+  python3 - "$FILE" "$RPC_WSS" "$RPC_HTTP" <<'PY'
+import sys
+path, wss, http = sys.argv[1:]
+lines = open(path).read().splitlines()
+def upsert(key, value, rows):
+    out, seen = [], False
+    for line in rows:
+        if line.startswith(key + "="):
+            out.append(f"{key}={value}")
+            seen = True
+        else:
+            out.append(line)
+    if not seen:
+        out.append(f"{key}={value}")
+    return out
+lines = upsert("NF4_RPC_WSS", wss, lines)
+lines = upsert("NF4_RPC_HTTP", http, lines)
+open(path, "w").write("\n".join(lines) + "\n")
+PY
+  chmod 600 "$FILE"
+  set -a
+  # shellcheck disable=SC1090
+  source "$FILE"
+  set +a
+  echo "Wrote NF4_RPC_WSS and NF4_RPC_HTTP into $FILE"
+}
+
+fill_rpc
+
+client_still_down() {
+  if [[ "$NF4_ROLE" != client ]]; then
+    return 0
+  fi
+  if [[ "$LATE_JOIN" == 1 || "${NF4_LATE_JOIN:-false}" == yes ]]; then
+    return 0
+  fi
+  if docker ps --format '{{.Names}}' 2>/dev/null | grep -qx nf4_indie_client; then
+    echo "Client 2 is already running. Leave it stopped until the VM-A deposit poll prints READY." >&2
+    return 1
+  fi
+  echo "Client 2 container is not running."
+}
+
+if [[ -n "$INIT" ]]; then
+  echo "Paste the wallet lines into $FILE, then run: ./scripts/nf4-deploy --file $FILE --check"
+  exit 0
+fi
+
+client_still_down
+
+if [[ "$CHECK" == 1 ]]; then
+  ./scripts/nf4 deploy --file "$FILE" --check
+  if [[ "$NF4_ROLE" == client && "${NF4_JOIN_URL:-}" == http://* ]]; then
+    curl -fsS -o /dev/null -w 'join HTTP %{http_code}\n' "$NF4_JOIN_URL"
+  fi
+  exit 0
+fi
+
+LATE_ARGS=()
+if [[ "$LATE_JOIN" == 1 ]]; then
+  LATE_ARGS+=(--late-join)
+fi
+
+CERT_DIR="blockchain_assets/test_contracts/X509/_certificates/user"
+mkdir -p temp
+
+if docker ps --format '{{.Names}}' | grep -qx anvil; then
+  echo "Stopping leftover Anvil. This does not undeploy Sepolia contracts."
+  docker compose --profile anvil down --remove-orphans
+fi
+
+already=0
+if [[ -f configuration/toml/addresses.toml ]] && grep -q '^nightfall' configuration/toml/addresses.toml; then
+  already=1
+fi
+
+if [[ "$NF4_ROLE" == operator && "$NF4_MOCK_PROVER" == false && "$NF4_SKIP_PROVER_CHECK" != true && "$already" == 0 ]]; then
+  ./scripts/nf4 check prover
+fi
+
+./scripts/nf4 deploy --file "$FILE" ${LATE_ARGS[@]+"${LATE_ARGS[@]}"}
+
+certify() {
+  local api="$1" user="$2" keyfield="$3"
+  local hdr="temp/cert-${user}.hdr" body="temp/cert-${user}.body"
+  curl -fsS --retry 5 --retry-delay 2 --max-time 30 "$api/v1/health" >/dev/null
+  curl -sS -D "$hdr" -o "$body" --request POST "$api/v1/certification" \
+    --form "certificate=@${CERT_DIR}/${user}.der;type=application/pkix-cert" \
+    --form "${keyfield}=@${CERT_DIR}/${user}.priv_key;type=application/octet-stream"
+  local code
+  code="$(awk 'NR==1 { print $2 }' "$hdr")"
+  [[ "$code" == 200 || "$code" == 202 ]] || {
+    echo "Certification for ${user} returned HTTP ${code}" >&2
+    cat "$body" >&2
+    exit 1
+  }
+  echo "Certified ${user} on ${api} (HTTP ${code})"
+}
+
+derive_zkp() {
+  local api="$1" mnemonic="$2"
+  local body
+  body="$(curl -fsS --retry 5 --retry-delay 2 --max-time 60 -X POST "$api/v1/deriveKey" \
+    -H 'Content-Type: application/json' \
+    --data "$(python3 -c 'import json,sys; print(json.dumps({"mnemonic":sys.argv[1],"child_path":sys.argv[2]}))' "$mnemonic" "m/44'/60'/0'/0/0")")"
+  python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("zkp_public_key",""))' "$body"
+}
+
+upsert_public() {
+  local key="$1" value="$2" file="configuration/toml/public.env" tmp
+  [[ "$key" =~ ^[A-Z0-9_]+$ ]] || { echo "Refusing public env key $key" >&2; exit 1; }
+  [[ "$value" != *"'"* ]] || { echo "Refusing public env value with a quote" >&2; exit 1; }
+  tmp="$(mktemp)"
+  if [[ -f "$file" ]]; then
+    grep -v "^${key}=" "$file" >"$tmp" || true
+  fi
+  printf "%s='%s'\n" "$key" "$value" >>"$tmp"
+  mv "$tmp" "$file"
+}
+
+if [[ "$NF4_ROLE" == operator ]]; then
+  PROP_API="http://127.0.0.1:${NF4_PROPOSER_PORT}"
+  C1_API="http://127.0.0.1:${NF4_CLIENT_PORT}"
+  certify "$PROP_API" "$NF4_PROPOSER_CERT" priv_key
+  certify "$C1_API" "$NF4_CLIENT_CERT" certificate_private_key
+  if [[ -n "${NF4_ZKP_MNEMONIC:-}" ]]; then
+    zkp="$(derive_zkp "$C1_API" "$NF4_ZKP_MNEMONIC")"
+    [[ "$zkp" =~ ^[0-9a-fA-F]{64}$ ]] || { echo "Client 1 zkp_public_key was not 64 hex chars" >&2; exit 1; }
+    upsert_public C1_ZKP "$zkp"
+    echo "Published C1_ZKP to configuration/toml/public.env"
+  fi
+  if [[ -n "${NF4_OPERATOR_HOST:-}" ]]; then
+    echo "Join URL: http://${NF4_OPERATOR_HOST}:${NF4_CONFIGURATION_PORT}/configuration/toml/join.toml"
+  fi
+  echo "Use the Join URL printed above in VM-B's NF4_JOIN_URL."
+  curl -fsS -o /dev/null -w 'configuration HTTP %{http_code}\n' "http://127.0.0.1:${NF4_CONFIGURATION_PORT}/configuration/toml/addresses.toml"
+  curl -fsS "http://127.0.0.1:${NF4_PROPOSER_PORT}/v1/health"
+  echo
+  curl -fsS "http://127.0.0.1:${NF4_CLIENT_PORT}/v1/health"
+  echo
+  docker inspect -f 'deployer {{.State.Status}} {{.State.ExitCode}}' nf4_indie_deployer
+  echo "Do not start Client 2 yet. Next on this VM: ./scripts/nf4-test --file $FILE --step tokens"
+elif [[ "$NF4_ROLE" == client ]]; then
+  C2_API="http://127.0.0.1:${NF4_CLIENT_PORT}"
+  certify "$C2_API" "$NF4_CERT" certificate_private_key
+  if [[ -n "${NF4_ZKP_MNEMONIC:-}" ]]; then
+    zkp="$(derive_zkp "$C2_API" "$NF4_ZKP_MNEMONIC")"
+    [[ "$zkp" =~ ^[0-9a-fA-F]{64}$ ]] || { echo "Client 2 zkp_public_key was not 64 hex chars" >&2; exit 1; }
+    printf "C2_ZKP='%s'\n" "$zkp" > temp/zkp.public
+    echo "C2_ZKP=$zkp"
+    echo "On VM-A, not here:"
+    echo "  ./scripts/nf4-test --file deploy.env --step accept-zkp --name C2_ZKP --value $zkp"
+  fi
+else
+  echo "NF4_ROLE must be operator or client" >&2
+  exit 1
+fi

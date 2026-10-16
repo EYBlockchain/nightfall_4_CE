@@ -6,8 +6,8 @@ use toml_edit::{DocumentMut, Item};
 use crate::{
     compose, config,
     network::{
-        self, LOCAL_ANVIL_ACCOUNT0_KEY, detect_lan_host, is_docker_internal_host,
-        validate_published_configuration_url, with_lan_host,
+        self, detect_lan_host, is_docker_internal_host, validate_published_configuration_url,
+        with_lan_host, LOCAL_ANVIL_ACCOUNT0_KEY,
     },
     validation,
 };
@@ -26,6 +26,20 @@ const REAL_KEYS: &[&str] = &[
     "merge_grumpkin_pk_1",
     "proving_key",
 ];
+
+pub fn required_key_files(mock_prover: bool) -> &'static [&'static str] {
+    if mock_prover {
+        MOCK_KEYS
+    } else {
+        REAL_KEYS
+    }
+}
+
+pub struct ProposerStart {
+    pub signing_key: String,
+    pub proposer_url: String,
+    pub configuration_url: String,
+}
 
 pub fn wizard(yes: bool) -> Result<(), String> {
     if !config::required_repo_files_exist() {
@@ -140,17 +154,60 @@ pub fn wizard(yes: bool) -> Result<(), String> {
         return Err("Proposer setup cancelled before writing files.".to_string());
     }
 
+    start_with(ProposerStart {
+        signing_key: proposer_key,
+        proposer_url,
+        configuration_url,
+    })
+}
+
+pub fn start_with(start: ProposerStart) -> Result<(), String> {
+    if !config::required_repo_files_exist() {
+        return Err("Run this command from the nightfall_4_CE repository root.".to_string());
+    }
+    if !config::local_env_exists() {
+        return Err(
+            "local.env was not found. Run nf4 deploy or nf4 wizard deploy first.".to_string(),
+        );
+    }
+    if !valid_http_url(&start.proposer_url) || !valid_http_url(&start.configuration_url) {
+        return Err(
+            "Proposer and configuration URLs must start with http:// or https://.".to_string(),
+        );
+    }
+
+    check_prerequisites()?;
+    let env = config::read_local_env();
+    let profile = env_value(&env, "NF4_RUN_MODE").unwrap_or_else(|| "development".to_string());
+    let profile_config = read_profile_config(&profile)?;
+    let resolved = network::resolve_network_from_env(&env, profile_config.chain_id);
+    let mock_prover = env_value(&env, "NF4_MOCK_PROVER")
+        .and_then(|value| parse_bool(&value))
+        .or(profile_config.mock_prover)
+        .unwrap_or(false);
+    validate_metadata(mock_prover)?;
+
+    let proposer_address = cast_wallet_address(&start.signing_key)?;
+    println!("Derived proposer address: {proposer_address}");
+    let proposer_role = proposer_role(
+        &proposer_address,
+        profile_config.default_proposer_address.as_deref(),
+    );
+    let proposer_port = url_port(&start.proposer_url).unwrap_or(3001);
+    if let Some(kind) = resolved.kind {
+        validate_published_configuration_url(kind, &start.configuration_url)?;
+    }
+    validate_configuration_runtime_url(&start.configuration_url)?;
+
     let backup_dir = config::backup_config_files()?;
     println!("Backed up config files to {}", backup_dir.display());
-
     config::merge_local_env(&[
-        ("PROPOSER_SIGNING_KEY", proposer_key),
-        ("NF4_CONFIGURATION_URL", configuration_url.clone()),
-        ("NF4_NIGHTFALL_PROPOSER__URL", proposer_url.clone()),
+        ("PROPOSER_SIGNING_KEY", start.signing_key),
+        ("NF4_CONFIGURATION_URL", start.configuration_url.clone()),
+        ("NF4_NIGHTFALL_PROPOSER__URL", start.proposer_url.clone()),
         ("NF4_CONTRACTS__DEPLOY_CONTRACTS", "false".to_string()),
     ])?;
     config::update_proposer_docker_compose(&profile, proposer_port)?;
-
     compose::build_indie_proposer()?;
     compose::up_proposer()?;
     poll_proposer_health(proposer_port)?;
@@ -162,15 +219,13 @@ pub fn wizard(yes: bool) -> Result<(), String> {
     println!("  mode: {}", if mock_prover { "mock" } else { "real" });
     println!("  proposer_address: {proposer_address}");
     println!("  proposer_role: {}", proposer_role.label());
-    println!("  proposer_url: {proposer_url}");
-    println!("  configuration_runtime_url: {configuration_url}");
-
+    println!("  proposer_url: {}", start.proposer_url);
+    println!("  configuration_runtime_url: {}", start.configuration_url);
     if proposer_role == ProposerRole::Additional {
         println!();
         println!("This proposer is not the designated proposer registered during deployment.");
         println!("It must register and rotate before it can propose blocks.");
     }
-
     Ok(())
 }
 
@@ -569,8 +624,8 @@ impl ProposerRole {
 #[cfg(test)]
 mod tests {
     use super::{
-        ProposerRole, docker_service_url, is_non_zero_address, parse_bool, proposer_role, url_host,
-        url_port, valid_http_url,
+        docker_service_url, is_non_zero_address, parse_bool, proposer_role, url_host, url_port,
+        valid_http_url, ProposerRole,
     };
 
     #[test]
