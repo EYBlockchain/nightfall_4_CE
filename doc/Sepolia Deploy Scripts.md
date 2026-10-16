@@ -70,22 +70,29 @@ Record the branch and commit.
 
 ## 2. VM-A address is detected
 
-Leave `NF4_OPERATOR_HOST` unset. On VM-A, `./scripts/nf4-deploy --file deploy.env --check` reads the local interfaces, skips loopback, link-local, and Docker bridge addresses, and probes TCP port 8080. Connection refused counts as reachable, because nothing is listening yet. A timeout does not. It prefers a private address (`10.`, `192.168.`, or `172.16–31` other than `172.17` and `172.28`) over a public one when both answer.
+Leave `NF4_OPERATOR_HOST` unset. On VM-A, this does not need `deploy.env` and does not start Cargo:
 
-The check prints:
+```bash
+./scripts/nf4-deploy --check
+```
+
+It reads the local interfaces, skips loopback, link-local, and Docker bridge addresses, and probes TCP port 8080. Connection refused counts as reachable, because nothing is listening yet. A timeout does not. It prefers a private address (`10.`, `192.168.`, or `172.16–31` other than `172.17` and `172.28`) over a public one when both answer.
+
+The command prints three lines. The third is the one to copy:
 
 ```text
 Operator host: 10.0.0.8
 Join URL: http://10.0.0.8:8080/configuration/toml/join.toml
+NF4_JOIN_URL=http://10.0.0.8:8080/configuration/toml/join.toml
 ```
 
-On VM-B, set that exact URL in `deploy.env`. That file is created in step 4 by `./scripts/nf4-deploy --init client --file deploy.env`. Uncomment the join line and replace it with the printed URL:
+On VM-B, put that third line in `deploy.env`. Step 4 creates that file with `./scripts/nf4-deploy --init client --file deploy.env`. Open `deploy.env` on VM-B and set:
 
 ```bash
 NF4_JOIN_URL=http://10.0.0.8:8080/configuration/toml/join.toml
 ```
 
-Do not invent the host. Do not put this line in VM-A's `deploy.env`. If VM-B cannot route to the printed host, set `NF4_OPERATOR_HOST` on VM-A to the address VM-B uses and run `--check` again. The script probes that value too, and it refuses to deploy if VM-A cannot open TCP to it.
+Use the printed host, not this example. Do not put `NF4_JOIN_URL` in VM-A's `deploy.env`. A line that says the local probe timed out is still a result: nothing is listening on 8080 yet, and some hosts cannot connect to their own address. Confirm the URL from VM-B in step 7. If VM-B cannot route to it, set `NF4_OPERATOR_HOST` on VM-A and run `./scripts/nf4-deploy --check` again.
 
 That address is written on chain. Do not change it after deploy. If it changes, transfers break until you deploy again with `NF4_REDEPLOY=true`.
 

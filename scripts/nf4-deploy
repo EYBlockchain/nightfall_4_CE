@@ -37,7 +37,8 @@ while [[ $# -gt 0 ]]; do
 Usage: ./scripts/nf4-deploy --file deploy.env [--check] [--init operator|client] [--late-join]
 
 --init writes deploy.env (mode 600) from the example and fills a Sepolia RPC if one is not set.
---check prints the derived addresses, balances, and the join URL. It does not deploy.
+--check with no --file prints the operator host and NF4_JOIN_URL. It does not deploy.
+--check --file deploy.env also checks wallets.
 --late-join starts Client 2. Use it only after the VM-A deposit poll prints READY.
 
 VM-A:
@@ -59,6 +60,88 @@ EOF
       ;;
   esac
 done
+
+print_operator_host() {
+  local port="${NF4_CONFIGURATION_PORT:-8080}"
+  local explicit="${NF4_OPERATOR_HOST:-}"
+  python3 - "$port" "$explicit" <<'PY'
+import socket, subprocess, sys
+port = int(sys.argv[1])
+explicit = sys.argv[2].strip()
+
+def bad(host):
+    if not host or ":" in host or host in ("localhost", "0.0.0.0"):
+        return True
+    return host.startswith(("127.", "169.254.", "172.17.", "172.28."))
+
+def reachable(host):
+    try:
+        socket.create_connection((host, port), 2).close()
+        return True
+    except ConnectionRefusedError:
+        return True
+    except OSError:
+        return False
+
+def private(host):
+    if host.startswith(("10.", "192.168.")):
+        return True
+    parts = host.split(".")
+    if len(parts) != 4 or parts[0] != "172" or not parts[1].isdigit():
+        return False
+    second = int(parts[1])
+    return 16 <= second <= 31 and second not in (17, 28)
+
+def candidates():
+    found = []
+    commands = ([
+        ["hostname", "-I"],
+        ["ipconfig", "getifaddr", "en0"],
+        ["ipconfig", "getifaddr", "en1"],
+    ])
+    for cmd in commands:
+        try:
+            out = subprocess.check_output(cmd, text=True, stderr=subprocess.DEVNULL)
+        except (OSError, subprocess.CalledProcessError):
+            continue
+        for token in out.split():
+            host = token.strip(",;")
+            if not bad(host) and host not in found:
+                found.append(host)
+    return [host for host in found if private(host)] + [host for host in found if not private(host)]
+
+hosts = candidates()
+if explicit:
+    if bad(explicit):
+        print(f"NF4_OPERATOR_HOST={explicit} is not a usable operator address.")
+        sys.exit(1)
+    host = explicit
+    warned = not reachable(explicit)
+else:
+    host = next((item for item in hosts if reachable(item)), "")
+    warned = False
+    if not host and hosts:
+        host = hosts[0]
+        warned = True
+    if not host:
+        print("Could not detect an operator host. Set NF4_OPERATOR_HOST.")
+        sys.exit(1)
+
+url = f"http://{host}:{port}/configuration/toml/join.toml"
+print(f"Operator host: {host}")
+print(f"Join URL: {url}")
+print(f"NF4_JOIN_URL={url}")
+print("Put that NF4_JOIN_URL line in VM-B deploy.env. Do not put it in VM-A deploy.env.")
+if warned:
+    print(f"Local probe of {host}:{port} timed out. That is common before anything is listening.")
+    print("Confirm from VM-B with: ./scripts/nf4-deploy --file deploy.env --check")
+PY
+}
+
+if [[ "$CHECK" == 1 && -z "$FILE" && -z "$INIT" ]]; then
+  print_operator_host
+  exit 0
+fi
 
 [[ -n "$FILE" ]] || { echo "Pass --file deploy.env" >&2; exit 2; }
 
@@ -164,6 +247,9 @@ fi
 client_still_down
 
 if [[ "$CHECK" == 1 ]]; then
+  if [[ "${NF4_ROLE:-}" == operator ]]; then
+    print_operator_host
+  fi
   ./scripts/nf4 deploy --file "$FILE" --check
   if [[ "$NF4_ROLE" == client && "${NF4_JOIN_URL:-}" == http://* ]]; then
     curl -fsS -o /dev/null -w 'join HTTP %{http_code}\n' "$NF4_JOIN_URL"
