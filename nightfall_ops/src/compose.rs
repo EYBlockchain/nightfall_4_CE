@@ -3,9 +3,26 @@ use std::process::Command;
 use crate::config;
 
 pub fn up_configuration() -> Result<(), String> {
+    start_configuration(false)
+}
+
+pub fn recreate_configuration() -> Result<(), String> {
+    start_configuration(true)
+}
+
+fn start_configuration(force_recreate: bool) -> Result<(), String> {
     config::refresh_local_lan_urls()?;
-    let args = compose_args("configuration", config::local_env_exists(), &["up", "-d"]);
-    run_docker_compose("Starting configuration service", &args)
+    let mut command = vec!["up", "-d"];
+    if force_recreate {
+        command.extend(["--force-recreate", "--no-deps"]);
+    }
+    let args = compose_args("configuration", config::local_env_exists(), &command);
+    let title = if force_recreate {
+        "Recreating configuration service so it mounts a writable toml directory"
+    } else {
+        "Starting configuration service"
+    };
+    run_docker_compose(title, &args)
 }
 
 pub fn logs_configuration() -> Result<(), String> {

@@ -1,8 +1,9 @@
 use std::{
     collections::BTreeMap,
     fs,
+    io::ErrorKind,
     net::{SocketAddr, TcpStream, ToSocketAddrs},
-    path::Path,
+    path::{Path, PathBuf},
     process::Command,
     time::Duration,
 };
@@ -194,18 +195,9 @@ pub fn parse_deploy_file(source: &str) -> Result<DeployFile, String> {
         deployer_key,
         proposer_key,
         client_key,
-        expected_deployer_address: env
-            .get("NF4_DEPLOYER_ADDRESS")
-            .cloned()
-            .unwrap_or_default(),
-        expected_proposer_address: env
-            .get("NF4_PROPOSER_ADDRESS")
-            .cloned()
-            .unwrap_or_default(),
-        expected_client_address: env
-            .get("NF4_CLIENT_ADDRESS")
-            .cloned()
-            .unwrap_or_default(),
+        expected_deployer_address: env.get("NF4_DEPLOYER_ADDRESS").cloned().unwrap_or_default(),
+        expected_proposer_address: env.get("NF4_PROPOSER_ADDRESS").cloned().unwrap_or_default(),
+        expected_client_address: env.get("NF4_CLIENT_ADDRESS").cloned().unwrap_or_default(),
         client2_address: env.get("NF4_CLIENT2_ADDRESS").cloned().unwrap_or_default(),
         join_url: env.get("NF4_JOIN_URL").cloned().unwrap_or_default(),
     })
@@ -320,6 +312,7 @@ fn run_operator(file: &DeployFile) -> Result<(), String> {
 
     let configuration_url = configuration_url(file);
     let proposer_url = proposer_url(file);
+    prepare_configuration_toml()?;
     if contracts_live(&file.rpc_http)? && !file.redeploy {
         println!("Contracts already have code. Skipping Forge deploy.");
         println!("Set NF4_REDEPLOY=true only when you intend to deploy a new set of contracts.");
@@ -439,9 +432,9 @@ fn run_client(file: &DeployFile) -> Result<(), String> {
     }
     reject_split_vm_url(&join.configuration_url, "join configuration_url")?;
     reject_split_vm_url(&join.proposer_url, "join proposer_url")?;
-    fs::create_dir_all("configuration/toml")
-        .map_err(|err| format!("Failed to create configuration/toml: {err}"))?;
+    prepare_configuration_toml()?;
     fs::create_dir_all(KEY_DIR).map_err(|err| format!("Failed to create {KEY_DIR}: {err}"))?;
+    remove_if_unwritable(Path::new(JOIN_TOML))?;
     fs::write(JOIN_TOML, render_join(&join))
         .map_err(|err| format!("Failed to write {JOIN_TOML}: {err}"))?;
     download(
@@ -547,7 +540,11 @@ pub fn operator_host_candidates(output: &str) -> Vec<String> {
     hosts
 }
 
-pub fn choose_operator_host(explicit: &str, detected: &[String], reachable: &[bool]) -> Result<String, String> {
+pub fn choose_operator_host(
+    explicit: &str,
+    detected: &[String],
+    reachable: &[bool],
+) -> Result<String, String> {
     if !explicit.trim().is_empty() {
         return Ok(explicit.trim().to_string());
     }
@@ -783,8 +780,16 @@ fn resolve_operator_wallets(file: &DeployFile) -> Result<OperatorWallets, String
     let deployer = cast_address(&file.deployer_key)?;
     let proposer = cast_address(&file.proposer_key)?;
     let client = cast_address(&file.client_key)?;
-    expect_address(&deployer, &file.expected_deployer_address, "NF4_DEPLOYER_ADDRESS")?;
-    expect_address(&proposer, &file.expected_proposer_address, "NF4_PROPOSER_ADDRESS")?;
+    expect_address(
+        &deployer,
+        &file.expected_deployer_address,
+        "NF4_DEPLOYER_ADDRESS",
+    )?;
+    expect_address(
+        &proposer,
+        &file.expected_proposer_address,
+        "NF4_PROPOSER_ADDRESS",
+    )?;
     expect_address(&client, &file.expected_client_address, "NF4_CLIENT_ADDRESS")?;
     Ok(OperatorWallets {
         deployer,
@@ -908,10 +913,227 @@ fn validate_optional_address(value: &str, name: &str) -> Result<(), String> {
 }
 
 fn write_join(join: &JoinDoc) -> Result<(), String> {
-    fs::create_dir_all("configuration/toml")
-        .map_err(|err| format!("Failed to create configuration/toml: {err}"))?;
+    prepare_configuration_toml()?;
+    remove_if_unwritable(Path::new(JOIN_TOML))?;
     fs::write(JOIN_TOML, render_join(join))
         .map_err(|err| format!("Failed to write {JOIN_TOML}: {err}"))
+}
+
+fn prepare_configuration_toml() -> Result<(), String> {
+    let dir = Path::new("configuration/toml");
+    let replaced = reclaim_unwritable_dir(dir)?;
+    if replaced && configuration_container_running() {
+        compose::recreate_configuration()?;
+    }
+    Ok(())
+}
+
+/// Docker creates this bind-mount source as root when it is missing. Rename
+/// needs write permission on the parent, not on the directory, so a root-owned
+/// `configuration/toml` can be replaced without a password when the repo is
+/// writable. Readable files, including `addresses.toml`, are copied back.
+fn reclaim_unwritable_dir(dir: &Path) -> Result<bool, String> {
+    if is_writable_dir(dir) {
+        return Ok(false);
+    }
+    if !dir.exists() {
+        if let Some(parent) = dir.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|err| format!("Failed to create {}: {err}", parent.display()))?;
+        }
+        fs::create_dir_all(dir)
+            .map_err(|err| format!("Failed to create {}: {err}", dir.display()))?;
+        if !is_writable_dir(dir) {
+            return Err(format!(
+                "Created {} but it is still not writable",
+                dir.display()
+            ));
+        }
+        return Ok(false);
+    }
+
+    let parent = dir.parent().filter(|parent| !parent.as_os_str().is_empty());
+    if parent.is_some_and(is_writable_dir) {
+        let aside = aside_path(dir);
+        fs::rename(dir, &aside).map_err(|err| {
+            format!(
+                "Failed to move unwritable {} to {}: {err}",
+                dir.display(),
+                aside.display()
+            )
+        })?;
+        if let Err(err) = recreate_copied_dir(dir, &aside) {
+            let _ = fs::remove_dir_all(dir);
+            if let Err(restore) = fs::rename(&aside, dir) {
+                return Err(format!(
+                    "{err}. Also failed to restore {} from {}: {restore}",
+                    dir.display(),
+                    aside.display()
+                ));
+            }
+            return Err(err);
+        }
+        println!(
+            "Moved unwritable {} to {} and recreated it as the current user. Readable files were copied back. Not setting NF4_REDEPLOY.",
+            dir.display(),
+            aside.display()
+        );
+        return Ok(true);
+    }
+
+    if sudo_chown_dir(dir).is_ok() && is_writable_dir(dir) {
+        println!(
+            "Changed ownership of {} so this user can write join.toml. Not setting NF4_REDEPLOY.",
+            dir.display()
+        );
+        return Ok(false);
+    }
+    Err(format!(
+        "{} is not writable, and its parent is not writable. Run: sudo chown -R \"$USER:$USER\" {}. Do not set NF4_REDEPLOY and do not delete addresses.toml.",
+        dir.display(),
+        dir.display()
+    ))
+}
+
+fn remove_if_unwritable(path: &Path) -> Result<(), String> {
+    if !path.exists() {
+        return Ok(());
+    }
+    match fs::OpenOptions::new().write(true).open(path) {
+        Ok(_) => Ok(()),
+        Err(err) if err.kind() == ErrorKind::PermissionDenied => {
+            fs::remove_file(path).map_err(|rm| {
+                format!(
+                    "Cannot replace unwritable {}: {rm}. Not setting NF4_REDEPLOY.",
+                    path.display()
+                )
+            })?;
+            println!(
+                "Removed unwritable {} so it can be rewritten.",
+                path.display()
+            );
+            Ok(())
+        }
+        Err(err) => Err(format!("Failed to open {}: {err}", path.display())),
+    }
+}
+
+fn is_writable_dir(dir: &Path) -> bool {
+    if !dir.is_dir() {
+        return false;
+    }
+    let probe = dir.join(".nf4-write-probe");
+    let written = fs::write(&probe, b"ok").is_ok();
+    if written {
+        let _ = fs::remove_file(&probe);
+    }
+    written
+}
+
+fn aside_path(path: &Path) -> PathBuf {
+    let name = path
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "dir".to_string());
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .unwrap_or(0);
+    let mut candidate = path.with_file_name(format!("{name}.unwritable-{secs}"));
+    let mut n = 1;
+    while candidate.exists() {
+        candidate = path.with_file_name(format!("{name}.unwritable-{secs}-{n}"));
+        n += 1;
+    }
+    candidate
+}
+
+fn recreate_copied_dir(dir: &Path, aside: &Path) -> Result<(), String> {
+    fs::create_dir_all(dir)
+        .map_err(|err| format!("Failed to create {}: {err}", dir.display()))?;
+    copy_readable_tree(aside, dir)?;
+    if !is_writable_dir(dir) {
+        return Err(format!(
+            "Recreated {} but it is still not writable",
+            dir.display()
+        ));
+    }
+    Ok(())
+}
+
+fn copy_readable_tree(from: &Path, to: &Path) -> Result<(), String> {
+    for entry in
+        fs::read_dir(from).map_err(|err| format!("Failed to read {}: {err}", from.display()))?
+    {
+        let entry = entry.map_err(|err| format!("Failed to read {}: {err}", from.display()))?;
+        let src = entry.path();
+        let dest = to.join(entry.file_name());
+        let file_type = entry
+            .file_type()
+            .map_err(|err| format!("Failed to inspect {}: {err}", src.display()))?;
+        if file_type.is_dir() {
+            fs::create_dir_all(&dest)
+                .map_err(|err| format!("Failed to create {}: {err}", dest.display()))?;
+            copy_readable_tree(&src, &dest)?;
+        } else if file_type.is_file() {
+            match fs::copy(&src, &dest) {
+                Ok(_) => {}
+                Err(err) if err.kind() == ErrorKind::PermissionDenied => {
+                    if src.file_name().and_then(|name| name.to_str()) == Some("addresses.toml") {
+                        return Err(format!(
+                            "Cannot read {} to copy it into the recreated directory: {err}",
+                            src.display()
+                        ));
+                    }
+                    println!("Skipping unreadable {}", src.display());
+                }
+                Err(err) => return Err(format!("Failed to copy {}: {err}", src.display())),
+            }
+        }
+    }
+    Ok(())
+}
+
+fn sudo_chown_dir(dir: &Path) -> Result<(), String> {
+    let user = command_stdout_trimmed("id", &["-un"])?;
+    let group = command_stdout_trimmed("id", &["-gn"])?;
+    let target = dir
+        .to_str()
+        .ok_or_else(|| format!("{} is not valid unicode", dir.display()))?;
+    let status = Command::new("sudo")
+        .args(["-n", "chown", "-R", &format!("{user}:{group}"), target])
+        .status()
+        .map_err(|err| format!("Failed to run sudo chown: {err}"))?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("sudo chown exited with {status}"))
+    }
+}
+
+fn command_stdout_trimmed(program: &str, args: &[&str]) -> Result<String, String> {
+    let output = Command::new(program)
+        .args(args)
+        .output()
+        .map_err(|err| format!("Failed to run {program}: {err}"))?;
+    if !output.status.success() {
+        return Err(format!("{program} exited with {}", output.status));
+    }
+    let text = String::from_utf8_lossy(&output.stdout);
+    let text = text.trim();
+    if text.is_empty() {
+        return Err(format!("{program} returned an empty name"));
+    }
+    Ok(text.to_string())
+}
+
+fn configuration_container_running() -> bool {
+    Command::new("docker")
+        .args(["inspect", "-f", "{{.State.Running}}", "nf4_configuration"])
+        .output()
+        .ok()
+        .filter(|output| output.status.success())
+        .is_some_and(|output| String::from_utf8_lossy(&output.stdout).trim() == "true")
 }
 
 fn render_join(join: &JoinDoc) -> String {
@@ -1009,6 +1231,7 @@ fn write_public_env(
         lines.push(format!("{key}='{value}'"));
     }
     lines.push(String::new());
+    remove_if_unwritable(Path::new(PUBLIC_ENV))?;
     fs::write(PUBLIC_ENV, lines.join("\n"))
         .map_err(|err| format!("Failed to write {PUBLIC_ENV}: {err}"))
 }
@@ -1328,8 +1551,14 @@ fn url_port(url: &str) -> Option<u16> {
 #[cfg(test)]
 mod tests {
     use super::{
-        choose_operator_host, expect_address, operator_host_candidates, parse_deploy_file,
-        parse_join, render_join, split_vm_host_error, validate_deploy_file, JoinDoc,
+        choose_operator_host, expect_address, is_writable_dir, operator_host_candidates,
+        parse_deploy_file, parse_join, reclaim_unwritable_dir, render_join, split_vm_host_error,
+        validate_deploy_file, JoinDoc,
+    };
+    use std::{
+        fs,
+        os::unix::fs::PermissionsExt,
+        time::{SystemTime, UNIX_EPOCH},
     };
 
     fn operator_env() -> String {
@@ -1398,12 +1627,7 @@ NF4_CLIENT2_ADDRESS=0x2222222222222222222222222222222222222222
 
     #[test]
     fn existing_wallet_pin_must_match_the_key() {
-        assert!(expect_address(
-            "0xAbCd",
-            "",
-            "NF4_DEPLOYER_ADDRESS"
-        )
-        .is_ok());
+        assert!(expect_address("0xAbCd", "", "NF4_DEPLOYER_ADDRESS").is_ok());
         assert!(expect_address(
             "0x2222222222222222222222222222222222222222",
             "0x2222222222222222222222222222222222222222",
@@ -1454,5 +1678,59 @@ NF4_LATE_JOIN=false
         assert!(!rendered.to_ascii_lowercase().contains("key"));
         assert!(!rendered.contains("1111111111111111"));
         assert_eq!(parse_join(&rendered).unwrap(), join);
+    }
+
+    #[test]
+    fn reclaims_unwritable_configuration_toml_and_keeps_addresses() {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("nf4-toml-reclaim-{stamp}"));
+        let dir = root.join("configuration").join("toml");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("addresses.toml"), "nightfall = \"0xabc\"\n").unwrap();
+        fs::set_permissions(&dir, fs::Permissions::from_mode(0o555)).unwrap();
+        assert!(!is_writable_dir(&dir));
+
+        assert!(reclaim_unwritable_dir(&dir).unwrap());
+        assert!(is_writable_dir(&dir));
+        assert_eq!(
+            fs::read_to_string(dir.join("addresses.toml")).unwrap(),
+            "nightfall = \"0xabc\"\n"
+        );
+        assert!(fs::write(dir.join("join.toml"), "network = \"testnet\"\n").is_ok());
+        assert!(fs::read_dir(root.join("configuration"))
+            .unwrap()
+            .any(|entry| {
+                entry
+                    .unwrap()
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with("toml.unwritable-")
+            }));
+
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn leaves_a_writable_configuration_toml_in_place() {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!("nf4-toml-writable-{stamp}"));
+        fs::create_dir_all(&dir).unwrap();
+        assert!(!reclaim_unwritable_dir(&dir).unwrap());
+        assert!(is_writable_dir(&dir));
+        let aside_prefix = format!("{}.unwritable-", dir.file_name().unwrap().to_string_lossy());
+        assert!(!dir.parent().unwrap().read_dir().unwrap().any(|entry| {
+            entry
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .starts_with(&aside_prefix)
+        }));
+        let _ = fs::remove_dir_all(&dir);
     }
 }
