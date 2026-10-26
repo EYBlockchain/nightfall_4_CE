@@ -284,18 +284,31 @@ fi
 certify() {
   local api="$1" user="$2" keyfield="$3"
   local hdr="temp/cert-${user}.hdr" body="temp/cert-${user}.body"
+  local attempt code certified
   curl -fsS --retry 5 --retry-delay 2 --max-time 30 "$api/v1/health" >/dev/null
-  curl -sS -D "$hdr" -o "$body" --request POST "$api/v1/certification" \
-    --form "certificate=@${CERT_DIR}/${user}.der;type=application/pkix-cert" \
-    --form "${keyfield}=@${CERT_DIR}/${user}.priv_key;type=application/octet-stream"
-  local code
-  code="$(awk 'NR==1 { print $2 }' "$hdr")"
-  [[ "$code" == 200 || "$code" == 202 ]] || {
-    echo "Certification for ${user} returned HTTP ${code}" >&2
+  for attempt in 1 2 3 4 5; do
+    curl -sS --max-time 180 -D "$hdr" -o "$body" --request POST "$api/v1/certification" \
+      --form "certificate=@${CERT_DIR}/${user}.der;type=application/pkix-cert" \
+      --form "${keyfield}=@${CERT_DIR}/${user}.priv_key;type=application/octet-stream"
+    code="$(awk 'NR==1 { print $2 }' "$hdr")"
+    certified="$(python3 -c 'import json,sys
+try:
+    print(str(json.load(open(sys.argv[1])).get("certified", False)).lower())
+except Exception:
+    print("false")' "$body" 2>/dev/null || echo false)"
+    if [[ "$code" == 200 || "$code" == 202 ]] && [[ "$certified" == true ]]; then
+      echo "Certified ${user} on ${api} (HTTP ${code})"
+      return 0
+    fi
+    echo "Certification for ${user} returned HTTP ${code} (attempt ${attempt})" >&2
     cat "$body" >&2
-    exit 1
-  }
-  echo "Certified ${user} on ${api} (HTTP ${code})"
+    echo >&2
+    if [[ "$attempt" -lt 5 ]]; then
+      sleep 5
+    fi
+  done
+  echo "Certification for ${user} failed. Do not set NF4_REDEPLOY. Read the body above, then rerun ./scripts/nf4-deploy --file $FILE" >&2
+  exit 1
 }
 
 derive_zkp() {

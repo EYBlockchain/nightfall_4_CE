@@ -10,7 +10,7 @@ use alloy::{
     primitives::{Address, U256},
     providers::Provider,
 };
-use configuration::{addresses::get_addresses, settings::get_settings};
+use configuration::addresses::get_addresses;
 use futures::stream::TryStreamExt;
 use log::{debug, error, trace, warn};
 use nightfall_bindings::artifacts::X509;
@@ -25,6 +25,7 @@ use openssl::{
 use reqwest::StatusCode;
 use std::error::Error;
 use std::io::Read;
+use std::sync::Arc;
 use warp::{filters::multipart::FormData, path, reply::Reply, Buf, Filter};
 use x509_parser::nom::AsBytes;
 use zeroize::{Zeroize, ZeroizeOnDrop};
@@ -124,10 +125,7 @@ pub async fn handle_certificate_validation(
         .await
         .get_client();
 
-    let chain_id: u64 = client.get_chain_id().await.map_err(|e| {
-        error!("Failed to get chain ID: {e}");
-        warp::reject::custom(CertificateVerificationError::new("Failed to get chain ID"))
-    })?;
+    let chain_id = chain_id_with_retry(client.clone()).await?;
 
     if let Err(e) = prevalidate_certificate_and_key(
         &certificate_req.certificate,
@@ -172,12 +170,9 @@ pub async fn handle_certificate_validation(
     ) {
         Ok(sig) => sig,
         Err(e) => {
-            error!("sign_ethereum_address failed: {e}");
-            let body = warp::reply::json(&serde_json::json!({
-                "status": "ok",
-                "certified": false
-            }));
-            return Ok(warp::reply::with_status(body, StatusCode::ACCEPTED));
+            return Ok(certification_failure(&format!(
+                "Failed to sign the requester address: {e}"
+            )));
         }
     };
 
@@ -186,38 +181,108 @@ pub async fn handle_certificate_validation(
     let check_only = false;
     let is_end_user = true; // end-entity certs coming from clients/proposers
 
-    if let Err(err) = validate_certificate(
+    let enroll_err = validate_certificate(
         certificate_req.certificate.clone(),
         ethereum_address_signature,
         is_end_user,
         check_only, // write path
         0,
         requestor_address,
+        chain_id,
     )
     .await
-    {
-        // If the write failed because it's already linked to this address, you may still be "certified".
-        // Fall through to a fresh x_509_check to decide the final boolean.
+    .err()
+    .map(|err| err.to_string());
+    if let Some(err) = &enroll_err {
+        // Already linked to this address is still certified. Confirm on chain
+        // before treating the write error as the result.
         warn!("Enroll (write) failed: {err}");
     }
 
-    // 5) Return POST-STATE truth from chain
-    let is_certified_now = x509_instance
-        .x509Check(requestor_address)
-        .call()
-        .await
-        .map_err(|e| {
-            error!("x_509_check failed: {e}");
-            warp::reject::custom(CertificateVerificationError::new(
-                "Failed to query on-chain certification state",
-            ))
-        })?;
+    // 5) Return POST-STATE truth from chain. A failed check must not hide the
+    // enroll error behind a generic HTTP 500.
+    let is_certified_now = match x509_check_with_retry(&x509_instance, requestor_address).await {
+        Ok(certified) => certified,
+        Err(err) => {
+            let detail = enroll_err
+                .map(|enroll| format!("Certification transaction failed: {enroll}. {err}"))
+                .unwrap_or(err);
+            return Ok(certification_failure(&detail));
+        }
+    };
+    if !is_certified_now {
+        let detail = enroll_err
+            .map(|err| format!("Certificate was not enrolled: {err}"))
+            .unwrap_or_else(|| "Certificate was not enrolled".to_string());
+        return Ok(certification_failure(&detail));
+    }
 
     let body = warp::reply::json(&serde_json::json!({
         "status": "ok",
-        "certified": is_certified_now
+        "certified": true
     }));
     Ok(warp::reply::with_status(body, StatusCode::ACCEPTED))
+}
+
+fn certification_failure(message: &str) -> warp::reply::WithStatus<warp::reply::Json> {
+    error!("{message}");
+    let body = warp::reply::json(&serde_json::json!({
+        "status": "error",
+        "certified": false,
+        "message": message,
+    }));
+    warp::reply::with_status(body, StatusCode::BAD_GATEWAY)
+}
+
+async fn chain_id_with_retry(client: Arc<dyn Provider>) -> Result<u64, warp::Rejection> {
+    let mut last = String::new();
+    for attempt in 1..=3 {
+        match client.get_chain_id().await {
+            Ok(chain_id) => return Ok(chain_id),
+            Err(err) => {
+                last = err.to_string();
+                error!("Failed to get chain ID (attempt {attempt}): {last}");
+                if attempt < 3 {
+                    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                }
+            }
+        }
+    }
+    Err(warp::reject::custom(CertificateVerificationError::new(
+        &format!("Failed to get chain ID: {last}"),
+    )))
+}
+
+async fn x509_check_with_retry<P: Provider + Clone>(
+    x509_instance: &X509::X509Instance<P>,
+    requestor_address: Address,
+) -> Result<bool, String> {
+    let mut last = String::new();
+    for attempt in 1..=3 {
+        match x509_instance.x509Check(requestor_address).call().await {
+            Ok(certified) => return Ok(certified),
+            Err(err) => {
+                last = err.to_string();
+                error!("x_509_check failed (attempt {attempt}): {last}");
+                if attempt < 3 {
+                    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                }
+            }
+        }
+    }
+    Err(format!("Failed to query on-chain certification state: {last}"))
+}
+
+/// Buffer an estimate instead of reserving 2^24 gas. That fixed limit made
+/// `gas_limit * max_fee` larger than a post-deploy Sepolia balance, the node
+/// rejected the transaction, and the follow-up read became HTTP 500.
+pub(crate) fn certification_gas_limit(estimated: u64) -> u64 {
+    const MIN_GAS: u64 = 300_000;
+    const MAX_GAS: u64 = 16_777_216;
+    estimated
+        .saturating_mul(6)
+        .saturating_div(5)
+        .clamp(MIN_GAS, MAX_GAS)
 }
 // Function to perform certificate validation via smart contract
 async fn validate_certificate(
@@ -227,6 +292,7 @@ async fn validate_certificate(
     check_only: bool,
     oid_group: u32,
     sender_address: Address,
+    chain_id: u64,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let read_connection = get_blockchain_client_connection().await.read().await;
     let provider = read_connection.get_client();
@@ -272,7 +338,25 @@ async fn validate_certificate(
         .map_err(|e| NightfallContractError::X509Error(format!("Transaction unsuccesful: {e}")))?;
     let max_fee_per_gas = gas_price * 2;
     let max_priority_fee_per_gas = gas_price;
-    let gas_limit = 16777216u64;
+    let estimated = x509_instance
+        .validateCertificate(certificate_args.clone())
+        .estimate_gas()
+        .await
+        .map_err(|e| {
+            NightfallContractError::X509Error(format!("Gas estimate failed: {e}"))
+        })?;
+    let gas_limit = certification_gas_limit(estimated);
+    let needed = U256::from(gas_limit) * U256::from(max_fee_per_gas);
+    let balance = blockchain_client
+        .get_balance(signer.address())
+        .await
+        .map_err(|e| NightfallContractError::X509Error(format!("Balance check failed: {e}")))?;
+    if balance < needed {
+        return Err(NightfallContractError::X509Error(format!(
+            "proposer balance {balance} cannot cover certification gas {gas_limit} at max fee {max_fee_per_gas}. Fund the proposer and rerun deploy. Do not set NF4_REDEPLOY."
+        ))
+        .into());
+    }
 
     let call = x509_instance
         .validateCertificate(certificate_args.clone())
@@ -280,7 +364,7 @@ async fn validate_certificate(
         .gas(gas_limit)
         .max_fee_per_gas(max_fee_per_gas)
         .max_priority_fee_per_gas(max_priority_fee_per_gas)
-        .chain_id(get_settings().network.chain_id) // Linea testnet chain ID
+        .chain_id(chain_id)
         .build_raw_transaction((*signer).clone())
         .await
         .map_err(|e| {
@@ -575,5 +659,12 @@ mod tests {
         let body = serde_json::from_slice::<serde_json::Value>(res.body()).unwrap();
         assert_eq!(body["code"], "bad_request");
         assert_eq!(body["message"], "Unexpected form field");
+    }
+
+    #[test]
+    fn certification_gas_limit_buffers_without_reserving_the_old_cap() {
+        assert_eq!(super::certification_gas_limit(1_000_000), 1_200_000);
+        assert_eq!(super::certification_gas_limit(100), 300_000);
+        assert_eq!(super::certification_gas_limit(20_000_000), 16_777_216);
     }
 }

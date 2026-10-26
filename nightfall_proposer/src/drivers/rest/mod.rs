@@ -9,11 +9,13 @@ use block_assembly::{
     get_block_assembly_status_route, pause_block_assembly, resume_block_assembly,
 };
 use lib::{
+    error::CertificateVerificationError,
     health_check::health_route,
     nf_client_proof::{Proof, ProvingEngine},
     validate_certificate::certification_validation_request,
     validate_keys::keys_validation_request,
 };
+use log::error;
 use proposers::{add_proposer, remove_proposer, withdraw};
 use warp::{
     reject::Rejection,
@@ -49,63 +51,78 @@ where
         .recover(handle_rejection)
 }
 
-async fn handle_rejection(err: Rejection) -> Result<impl Reply, std::convert::Infallible> {
+fn boxed_reply(reply: impl Reply + Send + 'static) -> Box<dyn Reply + Send> {
+    Box::new(reply)
+}
+
+async fn handle_rejection(
+    err: Rejection,
+) -> Result<Box<dyn Reply + Send>, std::convert::Infallible> {
     if err
         .find::<warp::filters::body::BodyDeserializeError>()
         .is_some()
     {
-        Ok(reply::with_status(
+        Ok(boxed_reply(reply::with_status(
             "BAD_REQUEST",
             warp::http::StatusCode::BAD_REQUEST,
-        ))
+        )))
     } else if let Some(e) = err.find::<ProposerRejection>() {
         match e {
-            ProposerRejection::BlockDataUnavailable => Ok(reply::with_status(
+            ProposerRejection::BlockDataUnavailable => Ok(boxed_reply(reply::with_status(
                 "Block data unavailable",
                 warp::http::StatusCode::SERVICE_UNAVAILABLE,
-            )),
-            ProposerRejection::ClientTransactionFailed => Ok(reply::with_status(
+            ))),
+            ProposerRejection::ClientTransactionFailed => Ok(boxed_reply(reply::with_status(
                 "Client transaction failed",
                 warp::http::StatusCode::BAD_REQUEST,
-            )),
-            ProposerRejection::InvalidSwapCancelRequest => Ok(reply::with_status(
+            ))),
+            ProposerRejection::InvalidSwapCancelRequest => Ok(boxed_reply(reply::with_status(
                 "Invalid swap cancel request",
                 warp::http::StatusCode::BAD_REQUEST,
-            )),
-            ProposerRejection::UnauthorizedSwapCancelRequest => Ok(reply::with_status(
-                "Unauthorized swap cancel request",
-                warp::http::StatusCode::UNAUTHORIZED,
-            )),
-            ProposerRejection::SwapCancelUnavailable => Ok(reply::with_status(
+            ))),
+            ProposerRejection::UnauthorizedSwapCancelRequest => {
+                Ok(boxed_reply(reply::with_status(
+                    "Unauthorized swap cancel request",
+                    warp::http::StatusCode::UNAUTHORIZED,
+                )))
+            }
+            ProposerRejection::SwapCancelUnavailable => Ok(boxed_reply(reply::with_status(
                 "Swap cancel unavailable",
                 warp::http::StatusCode::SERVICE_UNAVAILABLE,
-            )),
-            ProposerRejection::FailedToRotateProposer => Ok(reply::with_status(
+            ))),
+            ProposerRejection::FailedToRotateProposer => Ok(boxed_reply(reply::with_status(
                 "Failed to rotate proposer",
                 warp::http::StatusCode::LOCKED,
-            )),
-            ProposerRejection::FailedToAddProposer => Ok(reply::with_status(
+            ))),
+            ProposerRejection::FailedToAddProposer => Ok(boxed_reply(reply::with_status(
                 "Failed to add proposer",
                 warp::http::StatusCode::BAD_REQUEST,
-            )),
-            ProposerRejection::FailedToRemoveProposer => Ok(reply::with_status(
+            ))),
+            ProposerRejection::FailedToRemoveProposer => Ok(boxed_reply(reply::with_status(
                 "Failed to remove proposer",
                 warp::http::StatusCode::BAD_REQUEST,
-            )),
-            ProposerRejection::FailedToWithdrawStake => Ok(reply::with_status(
+            ))),
+            ProposerRejection::FailedToWithdrawStake => Ok(boxed_reply(reply::with_status(
                 "Failed to withdraw stake",
                 warp::http::StatusCode::BAD_REQUEST,
-            )),
-            ProposerRejection::ProviderError => Ok(reply::with_status(
+            ))),
+            ProposerRejection::ProviderError => Ok(boxed_reply(reply::with_status(
                 "Provider error",
                 warp::http::StatusCode::SERVICE_UNAVAILABLE,
-            )),
+            ))),
         }
+    } else if let Some(err) = err.find::<CertificateVerificationError>() {
+        error!("certification failed: {err}");
+        Ok(boxed_reply(reply::with_status(
+            err.to_string(),
+            warp::http::StatusCode::BAD_GATEWAY,
+        )))
     } else {
-        Ok(reply::with_status(
+        error!("unhandled rejection: {err:?}");
+        Ok(boxed_reply(reply::with_status(
             "INTERNAL_SERVER_ERROR",
             warp::http::StatusCode::INTERNAL_SERVER_ERROR,
-        ))
+        )))
     }
 }
 
@@ -202,6 +219,18 @@ mod tests {
 
         assert_eq!(res.status(), warp::http::StatusCode::BAD_REQUEST);
         assert_eq!(std::str::from_utf8(res.body()).unwrap(), "BAD_REQUEST");
+    }
+
+    #[tokio::test]
+    async fn test_handle_rejection_maps_certificate_error_to_gateway() {
+        let response = handle_rejection(warp::reject::custom(
+            CertificateVerificationError::new("Failed to get chain ID: dropped"),
+        ))
+        .await
+        .unwrap()
+        .into_response();
+
+        assert_eq!(response.status(), warp::http::StatusCode::BAD_GATEWAY);
     }
 
     #[tokio::test]

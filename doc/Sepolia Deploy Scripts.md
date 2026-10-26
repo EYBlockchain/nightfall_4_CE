@@ -102,166 +102,71 @@ That address is written on chain. Do not change it after deploy. If it changes, 
 
 Leave `NF4_RPC_WSS` and `NF4_RPC_HTTP` as the example placeholders, or delete them. `--init`, `--check`, and deploy call `./scripts/nf4-pick-rpc --network sepolia` and write the chosen pair into `deploy.env`. Nightfall needs `wss://`. `cast` uses the `https://` pair. A chain-id check does not prove `eth_subscribe` will stay up. If the listener later drops, put a keyed provider in those two lines. The script will not overwrite a URL you already set. Do not redeploy just to change the RPC, and do not put the RPC URL in `join.toml` or the report.
 
-## 4. Create deploy.env, then set the wallets you already have
+## 4. Create deploy.env and paste one key
 
-Do not copy VM-A's file to VM-B. `--init` copies the example, sets mode 600, and fills the RPC if those lines are still placeholders.
+Do not copy a file between VMs. Do not commit `deploy.env`. `--init` only creates a missing file. It copies the example, sets mode 600, and fills the RPC if those lines are still placeholders.
 
 ```bash
-# VM-A
+# VM-A, only if deploy.env does not exist
 ./scripts/nf4-deploy --init operator --file deploy.env
 
-# VM-B
+# VM-B, only if deploy.env does not exist
 ./scripts/nf4-deploy --init client --file deploy.env
 ```
 
-If VM-A prints `deploy.env already exists. Not overwriting.`, stop. That line is only from `--init`. `--check` does not print it. The file is already there. Do not delete it, and do not run `--init` again.
+`deploy.env already exists. Not overwriting.` means stop. The file is already there. Do not delete it. Do not run `--init` again. Go to step 5.
 
-On VM-A the next command is step 5, with no `--init`:
-
-```bash
-./scripts/nf4-deploy --file deploy.env --check
-```
-
-Open `deploy.env` before that check only if `NF4_DEPLOYER_KEY` is still the example placeholder. Paste the wallet lines below, save, then run the check. A clean check prints the derived addresses and a non-zero balance for every wallet that will send a transaction. Then open the ports and run step 6. Do not go back to step 4.
-
-If step 6 already exited 0 on this VM, the exists line means `--init` was run again by mistake. Leave the file. Do not deploy again. Continue at the numbered step you were on. After a reboot, that is the VM restart section, not a new step 6.
-
-Do not commit `deploy.env`. The role, ports, `NF4_CONFIRM=apply`, certificates, and default ZKP phrases are already in the file. You edit the wallet lines, and only the overrides you actually need.
-
-A key is `0x` plus 64 hex characters. An address is `0x` plus 40 hex characters. Anvil keys are rejected by the balance and chain checks in practice because they are not funded on Sepolia. Each account that will send a transaction needs about 0.5 Sepolia ETH.
-
-### VM-A: one existing wallet for deployer, proposer, and Client 1
-
-This is the normal Sepolia layout. Paste that wallet's private key. Leave the proposer and Client 1 key lines commented out. They then reuse `NF4_DEPLOYER_KEY`.
+VM-A uses one funded wallet for deployer, proposer, and Client 1. Paste that key. Leave the proposer and Client 1 key lines commented. Paste the address VM-B printed. That line is not a key.
 
 ```bash
 NF4_DEPLOYER_KEY=0xYOUR_EXISTING_PRIVATE_KEY
-NF4_DEPLOYER_ADDRESS=0xYOUR_EXISTING_ADDRESS
 NF4_CLIENT2_ADDRESS=0xADDRESS_PRINTED_BY_VM_B
 ```
 
-`NF4_DEPLOYER_ADDRESS` is optional. Set it when you already know the account address, from MetaMask or an explorer. `--check` derives the address from the key and stops if they differ, before any deploy transaction. Omit the pin only if you do not yet know the address.
-
-`NF4_CLIENT2_ADDRESS` is not a key. It is the address VM-B prints. The Client 2 private key never goes in this file.
-
-### VM-A: existing proposer or Client 1 wallet is a different account
-
-Uncomment and set only the role that differs. A different proposer key is registered on chain as the designated proposer. A later run will not rotate it.
-
-```bash
-NF4_DEPLOYER_KEY=0xEXISTING_DEPLOYER_KEY
-NF4_DEPLOYER_ADDRESS=0xEXISTING_DEPLOYER_ADDRESS
-NF4_PROPOSER_KEY=0xEXISTING_PROPOSER_KEY
-NF4_PROPOSER_ADDRESS=0xEXISTING_PROPOSER_ADDRESS
-NF4_CLIENT_KEY=0xEXISTING_CLIENT1_KEY
-NF4_CLIENT_ADDRESS=0xEXISTING_CLIENT1_ADDRESS
-NF4_CLIENT2_ADDRESS=0xADDRESS_PRINTED_BY_VM_B
-```
-
-If Client 1 is the same account as the deployer, omit `NF4_CLIENT_KEY` and `NF4_CLIENT_ADDRESS`. If the proposer is the same account as the deployer, omit `NF4_PROPOSER_KEY` and `NF4_PROPOSER_ADDRESS`.
-
-### VM-B: existing Client 2 wallet
+VM-B pastes Client 2's key. Leave `NF4_JOIN_URL` commented until step 5 prints the host.
 
 ```bash
 NF4_CLIENT_KEY=0xYOUR_EXISTING_CLIENT2_PRIVATE_KEY
-NF4_CLIENT_ADDRESS=0xYOUR_EXISTING_CLIENT2_ADDRESS
 ```
 
-Then:
+A key is `0x` plus 64 hex characters. An address is `0x` plus 40 hex characters. Each account that sends a transaction needs about 0.5 Sepolia ETH. Do not use an Anvil key.
 
-```bash
-./scripts/nf4-deploy --file deploy.env --check
-```
+Do not edit any other line unless a later error names it. Then run step 5.
 
-Copy the printed `NF4_CLIENT2_ADDRESS=0x...` line into VM-A's `deploy.env`. Do not copy `NF4_CLIENT_KEY`, and do not copy VM-B's `deploy.env`.
-
-### No wallet yet
-
-Only if you do not already have a funded account:
-
-```bash
-cast wallet new
-```
-
-Fund the printed address with about 0.5 Sepolia ETH, then set `NF4_DEPLOYER_KEY` or `NF4_CLIENT_KEY` to that new key and set the matching address pin to the printed address.
-
-### Existing ZKP mnemonic
-
-The L1 key is not the ZKP spending phrase. `--init` writes the fixed report phrases. Leave those lines unchanged for a fresh report.
-
-If this client already has a 24-word phrase, replace only that VM's line. Do not switch phrases after the first `deriveKey` of the run.
-
-```bash
-# VM-A, Client 1
-NF4_ZKP_MNEMONIC='word1 word2 ... word24'
-
-# VM-B, Client 2
-NF4_ZKP_MNEMONIC='word1 word2 ... word24'
-```
-
-### Other settings already in the file
-
-Leave these unless you have a reason to change them:
-
-| Line | Leave it as | Change it only when |
-|---|---|---|
-| `NF4_ROLE` | `operator` on VM-A, `client` on VM-B | Never swap these files between VMs |
-| `NF4_NETWORK` | `testnet` | This procedure is not local or mainnet |
-| `NF4_PROFILE` | `sepolia` | You are deploying a new profile name |
-| `NF4_CHAIN_ID` | `11155111` | You are not on Ethereum Sepolia. `84532` is Base Sepolia and is the wrong chain here |
-| `NF4_RPC_WSS`, `NF4_RPC_HTTP` | filled by `--init` or `--check` | You have a keyed provider. Set both lines yourself. A URL you set is not overwritten |
-| `NF4_OPERATOR_HOST` | unset | VM-B cannot reach the host printed by `--check`. Set the address VM-B uses |
-| `NF4_JOIN_URL` | unset on VM-B until VM-A prints it | Paste the printed `NF4_JOIN_URL=` line from `--check`. Do not paste the `Join URL:` label. Uncomment the example line and replace the host |
-| `NF4_CONFIGURATION_PORT` | `8080` | That port is taken |
-| `NF4_PROPOSER_PORT` | `3001` | That port is taken |
-| `NF4_CLIENT_PORT` | `3000` | That port is taken. On VM-B this is still 3000, not 3002 |
-| `NF4_WEBHOOK_PORT` | `8081` | That port is taken |
-| `NF4_MOCK_PROVER` | `false` | You are not running this report. Do not flip this after a deploy |
-| `NF4_BLOCK_SIZE` | `64` | You intentionally want `256` |
-| `NF4_CONFIRM` | `apply` | Do not delete it. Deploy refuses to spend gas without it |
-| `NF4_LATE_JOIN` | `false` | Do not edit this. Step 12 passes `--late-join` |
-| `NF4_PROPOSER_CERT` | `user-2` | You are not using the test certificate shipped in the repo |
-| `NF4_CLIENT_CERT` | `user-3` on VM-A | Same |
-| `NF4_CERT` | `user-4` on VM-B | Same |
-| `NF4_REDEPLOY` | unset | You mean to deploy a new set of contracts. This costs gas |
-| `NF4_SKIP_PROVER_CHECK` | unset | You already ran `./scripts/nf4 check prover` and want the deploy to skip it |
-
-Keyed RPC, if the public one drops subscriptions:
-
-```bash
-NF4_RPC_WSS=wss://your-provider.example/sepolia
-NF4_RPC_HTTP=https://your-provider.example/sepolia
-```
-
-Operator host override, only after `--check` printed a host VM-B cannot reach:
-
-```bash
-NF4_OPERATOR_HOST=10.1.2.3
-```
-
-VM-B join URL, after VM-A prints it:
-
-```bash
-NF4_JOIN_URL=http://10.1.2.3:8080/configuration/toml/join.toml
-```
+Only if a role uses a different wallet, uncomment that role's key and address. A different proposer is registered on chain. A later run will not rotate it. Only if you have no wallet, run `cast wallet new`, fund the address, then paste that key. Only if this client already has a 24-word ZKP phrase, replace that VM's `NF4_ZKP_MNEMONIC`. Do not switch phrases after the first `deriveKey`.
 
 ## 5. Check the wallets, both VMs
 
-This is the command after step 4, including when step 4 printed `deploy.env already exists. Not overwriting.` Do not pass `--init` here.
+This is the command after step 4, including when `--init` printed `deploy.env already exists`. Do not pass `--init` here.
 
 ```bash
 ./scripts/nf4-deploy --file deploy.env --check
 ```
 
-Expect the derived addresses and a non-zero balance for every wallet that will send a transaction. On VM-A that is the deployer, Client 2's address, and Client 1 or the proposer if those keys differ. On VM-B that is Client 2. The command does not start Docker and does not require `NF4_LATE_JOIN`.
+The command does not start Docker and does not deploy. On VM-A, read the output in this order:
+
+| Printed line | What to do |
+|---|---|
+| `Operator host:` and `Join URL:` | This is the host VM-B must use. Do not put it in VM-A's `deploy.env`. On VM-B, set `NF4_JOIN_URL=` to that URL, without the `Join URL:` label. This command does not print an `NF4_JOIN_URL=` line. |
+| `Set NF4_OPERATOR_HOST only if VM-B cannot reach that address.` | Leave `NF4_OPERATOR_HOST` unset unless VM-B cannot open that host. |
+| `deployer, proposer, and Client 1 are the same existing wallet.` | Correct for the normal layout. Leave the proposer and Client 1 key lines commented. Do not paste the deployer key into those lines. |
+| `client2:` | The address already in VM-A's file. It is not a key. If it is not the address VM-B printed, replace `NF4_CLIENT2_ADDRESS` and run this check again. |
+| `deployer balance:` and `client 2 balance:` | A non-zero number means that account can send. Zero means fund it, then run this check again. Do not deploy. |
+| `Wallet check OK. No contracts were deployed.` | The check passed and did not send a transaction. This line does not say whether contracts already exist. If step 6 has not exited 0, open the ports and run step 6. If it has, do not deploy again. |
+
+A pin mismatch looks like `NF4_DEPLOYER_ADDRESS is 0x..., but the key in this file derives 0x...`. Fix the key or the pin. Do not deploy.
 
 On VM-B a clean wallet check looks like `Wallet check OK. Client 2 was not started.` Copy the printed `NF4_CLIENT2_ADDRESS=0x...` line into VM-A's `deploy.env`. Do not copy `NF4_CLIENT_KEY`.
 
 The same VM-B check then fetches `NF4_JOIN_URL`. Before step 6 has exited 0, `curl: (7)` and `join HTTP 000` are expected: nothing is listening on 8080 yet. The wallet lines above that curl are still valid, but the command exits non-zero because the fetch failed. Do not deploy on VM-B to clear it. Do not pass `--late-join`. Copy `NF4_CLIENT2_ADDRESS` to VM-A, finish step 6 there, then repeat this check and expect `join HTTP 200`.
 
-`10.0.0.8` in that curl line is the example from step 2 unless VM-A's `--check` actually printed it. If VM-A printed a different host, replace `NF4_JOIN_URL` on VM-B with that printed line and run this check again. Connection refused is not a timeout. A timeout is a drop. Refused means this host answered and nothing accepted TCP 8080, or the address is not the operator.
+If the curl host is `10.0.0.8`, that is the example left in `deploy.env`. VM-A did not print that host. On VM-B, replace it with the URL from VM-A's `Join URL:` line. Do not paste the label:
 
-A pin mismatch looks like `NF4_DEPLOYER_ADDRESS is 0x..., but the key in this file derives 0x...`. Fix the key or the pin. Do not deploy.
+```bash
+NF4_JOIN_URL=http://HOST_FROM_VM_A:8080/configuration/toml/join.toml
+```
+
+Do not deploy on VM-B. After step 6 exits 0, run the check again and expect `join HTTP 200`. Before that, connection refused on the correct host is still expected. Connection refused is not a timeout. A timeout is a drop.
 
 Record the four L1 addresses. Do not record the keys.
 
@@ -701,6 +606,7 @@ Continue at step 7. Step 12 waits for the new poll to print `READY`. The old `RE
 | `NF4_LATE_JOIN` or `Client 2 is already running` | Client 2 was started without `--late-join`, or before the deposit poll printed `READY`. `--check` on VM-B fails if that container is already up. |
 | `loopback or Docker-only host` | `NF4_OPERATOR_HOST` is not an address VM-B can route to. |
 | `cannot open TCP` or `Could not detect an operator host` | The probe ran before gas. Set `NF4_OPERATOR_HOST` to an address this machine can reach, or fix the route. Do not deploy against a host that times out. |
+| `Certification for user-2 returned HTTP` | The deploy itself may already have finished. Do not set `NF4_REDEPLOY`. The response body names the failure. A gas or RPC error is a retry of `./scripts/nf4-deploy --file deploy.env`. Fund the proposer only if the body says the balance cannot cover certification gas. |
 | `curl: (7)` or `join HTTP 000` on VM-B | Wallet check can still be OK. Do not deploy on VM-B and do not pass `--late-join`. If step 6 has not exited 0, finish it on VM-A, then re-run the check. If VM-A's own `join.toml` curl is refused, re-run `./scripts/nf4-deploy --file deploy.env` there. If VM-A returns 200, `NF4_JOIN_URL` is the wrong host or TCP 8080 is closed. `10.0.0.8` is the guide example unless VM-A printed it. |
 | `Failed to write configuration/toml/join.toml: Permission denied` | Re-run `./scripts/nf4-deploy --file deploy.env` as your user, not under `sudo`. The script reclaims a root-owned `configuration/toml` and does not set `NF4_REDEPLOY`. If it still cannot write, `sudo chown -R "$USER:$USER" configuration/toml` and run the same command again. Do not delete `addresses.toml`. |
 | `On-chain proposer URL is` | The operator address changed, including after a reboot. Do not edit it in place. Resume is not supported. Fresh start with `NF4_REDEPLOY=true`. That costs gas and is a new report. |
