@@ -352,7 +352,11 @@ if [[ "$NF4_ROLE" == operator ]]; then
   echo
   curl -fsS "http://127.0.0.1:${NF4_CLIENT_PORT}/v1/health"
   echo
-  docker inspect -f 'deployer {{.State.Status}} {{.State.ExitCode}}' nf4_indie_deployer
+  if docker inspect nf4_indie_deployer >/dev/null 2>&1; then
+    docker inspect -f 'deployer {{.State.Status}} {{.State.ExitCode}}' nf4_indie_deployer
+  else
+    echo "deployer container is absent. Forge was not run on this attempt."
+  fi
   echo "Do not start Client 2 yet. Next on this VM: ./scripts/nf4-test --file $FILE --step tokens"
 elif [[ "$NF4_ROLE" == client ]]; then
   C2_API="http://127.0.0.1:${NF4_CLIENT_PORT}"

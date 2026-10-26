@@ -182,7 +182,7 @@ On VM-A:
 
 This stops leftover Anvil, runs the prover check on a first real-prover deploy, deploys contracts, starts configuration, the proposer, and Client 1, certifies the proposer with `user-2` and Client 1 with `user-3`, and publishes `C1_ZKP` when the mnemonic is set. Key generation is slow. Real proving keys need a large machine. VM-A is that machine.
 
-Success is the script exiting 0. It prints the join URL, `Certified user-2`, `Certified user-3`, a 64-hex `C1_ZKP` line, configuration HTTP 200, both health bodies, and `deployer exited 0`. `NF4_CONTRACTS__DEPLOY_CONTRACTS` in `local.env` is `false` after success. Leave it false.
+Success is the script exiting 0. It prints the join URL, `Certified user-2`, `Certified user-3`, a 64-hex `C1_ZKP` line, configuration HTTP 200, and both health bodies. `deployer exited 0` is printed when `nf4_indie_deployer` is still present. A second run that skipped Forge may not have that container. That is not a failure. `NF4_CONTRACTS__DEPLOY_CONTRACTS` in `local.env` is `false` after success. Leave it false.
 
 A second run skips Forge when that Nightfall contract already has code. It does not wipe token addresses or ZKP keys in `public.env`. It will not change the on-chain proposer URL or the designated proposer wallet.
 
@@ -607,6 +607,7 @@ Continue at step 7. Step 12 waits for the new poll to print `READY`. The old `RE
 | `loopback or Docker-only host` | `NF4_OPERATOR_HOST` is not an address VM-B can route to. |
 | `cannot open TCP` or `Could not detect an operator host` | The probe ran before gas. Set `NF4_OPERATOR_HOST` to an address this machine can reach, or fix the route. Do not deploy against a host that times out. |
 | `Certification for user-2 returned HTTP` | The deploy itself may already have finished. Do not set `NF4_REDEPLOY`. The response body names the failure. A gas or RPC error is a retry of `./scripts/nf4-deploy --file deploy.env`. Fund the proposer only if the body says the balance cannot cover certification gas. |
+| `no such object: nf4_indie_deployer` | Forge was skipped, so the one-shot deployer container is gone. Certifications and both health checks already passed. Do not set `NF4_REDEPLOY`. Continue at step 7. |
 | `curl: (7)` or `join HTTP 000` on VM-B | Wallet check can still be OK. Do not deploy on VM-B and do not pass `--late-join`. If step 6 has not exited 0, finish it on VM-A, then re-run the check. If VM-A's own `join.toml` curl is refused, re-run `./scripts/nf4-deploy --file deploy.env` there. If VM-A returns 200, `NF4_JOIN_URL` is the wrong host or TCP 8080 is closed. `10.0.0.8` is the guide example unless VM-A printed it. |
 | `Failed to write configuration/toml/join.toml: Permission denied` | Re-run `./scripts/nf4-deploy --file deploy.env` as your user, not under `sudo`. The script reclaims a root-owned `configuration/toml` and does not set `NF4_REDEPLOY`. If it still cannot write, `sudo chown -R "$USER:$USER" configuration/toml` and run the same command again. Do not delete `addresses.toml`. |
 | `On-chain proposer URL is` | The operator address changed, including after a reboot. Do not edit it in place. Resume is not supported. Fresh start with `NF4_REDEPLOY=true`. That costs gas and is a new report. |
