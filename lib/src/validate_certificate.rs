@@ -4,6 +4,7 @@ use crate::{
     error::{CertificateVerificationError, NightfallContractError},
     initialisation::get_blockchain_client_connection,
     models::bad_request,
+    rpc_retry::confirm_raw_transaction,
     verify_contract::VerifiedContracts,
 };
 use alloy::{
@@ -371,11 +372,7 @@ async fn validate_certificate(
             warn!("{e}");
             X509ValidationError
         })?;
-    let tx_receipt = blockchain_client
-        .send_raw_transaction(&call)
-        .await
-        .map_err(|e| NightfallContractError::X509Error(format!("Error getting receipt: {e}")))?
-        .get_receipt()
+    let tx_receipt = confirm_raw_transaction(&blockchain_client, &call, "validateCertificate")
         .await
         .map_err(|e| NightfallContractError::X509Error(format!("Transaction unsuccesful: {e}")))?;
     if !tx_receipt.status() {

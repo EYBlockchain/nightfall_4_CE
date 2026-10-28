@@ -22,6 +22,7 @@ use lib::{
     initialisation::get_blockchain_client_connection,
     log_fetcher::get_logs_paginated,
     nf_token_id::to_nf_token_id_from_solidity,
+    rpc_retry::{confirm_raw_transaction, retry_transient},
     secret_hash::SecretHash,
     shared_entities::{DepositSecret, TokenType, WithdrawData},
     verify_contract::VerifiedContracts,
@@ -78,15 +79,17 @@ impl NightfallContract for Nightfall::NightfallCalls {
         } else {
             fee + fee + deposit_fee
         };
-        let nonce = client
-            .get_transaction_count(signer.address())
+        let caller = signer.address();
+        let nonce = retry_transient("escrow_funds nonce", || client.get_transaction_count(caller))
             .await
             .map_err(|e| {
                 NightfallContractError::EscrowError(format!("Transaction unsuccesful: {e}"))
             })?;
-        let gas_price = client.get_gas_price().await.map_err(|e| {
-            NightfallContractError::EscrowError(format!("Transaction unsuccesful: {e}"))
-        })?;
+        let gas_price = retry_transient("escrow_funds gas price", || client.get_gas_price())
+            .await
+            .map_err(|e| {
+                NightfallContractError::EscrowError(format!("Transaction unsuccesful: {e}"))
+            })?;
         let max_fee_per_gas = gas_price * 2;
         let max_priority_fee_per_gas = gas_price;
         let gas_limit = 5000000u64;
@@ -112,17 +115,9 @@ impl NightfallContract for Nightfall::NightfallCalls {
                 NightfallContractError::EscrowError(format!("Transaction unsuccesful: {e}"))
             })?;
 
-        let receipt = client
-            .send_raw_transaction(&call)
+        let receipt = confirm_raw_transaction(&client, &call, "escrow_funds")
             .await
-            .map_err(|e| {
-                NightfallContractError::EscrowError(format!("Error getting receipt: {e}"))
-            })?
-            .get_receipt()
-            .await
-            .map_err(|e| {
-                NightfallContractError::EscrowError(format!("Transaction unsuccesful: {e}"))
-            })?;
+            .map_err(|e| NightfallContractError::EscrowError(format!("Transaction unsuccesful: {e}")))?;
 
         info!("Gas used in escrow funds: {:?}", receipt.gas_used);
         let slot_id = if let TokenType::ERC3525 = token_type {
@@ -194,15 +189,19 @@ impl NightfallContract for Nightfall::NightfallCalls {
                 })?;
         let contract = verified.nightfall;
 
-        let nonce = client
-            .get_transaction_count(signer.address())
+        let caller = signer.address();
+        let nonce = retry_transient("de_escrow_funds nonce", || {
+            client.get_transaction_count(caller)
+        })
+        .await
+        .map_err(|e| {
+            NightfallContractError::DeEscrowError(format!("Transaction unsuccesful: {e}"))
+        })?;
+        let gas_price = retry_transient("de_escrow_funds gas price", || client.get_gas_price())
             .await
             .map_err(|e| {
                 NightfallContractError::DeEscrowError(format!("Transaction unsuccesful: {e}"))
             })?;
-        let gas_price = client.get_gas_price().await.map_err(|e| {
-            NightfallContractError::DeEscrowError(format!("Transaction unsuccesful: {e}"))
-        })?;
         let max_fee_per_gas = gas_price * 2;
         let max_priority_fee_per_gas = gas_price;
         let gas_limit = 5000000u64;
@@ -219,13 +218,7 @@ impl NightfallContract for Nightfall::NightfallCalls {
                 NightfallContractError::DeEscrowError(format!("Transaction unsuccesful: {e}"))
             })?;
 
-        let receipt = client
-            .send_raw_transaction(&call)
-            .await
-            .map_err(|e| {
-                NightfallContractError::DeEscrowError(format!("Error getting receipt: {e}"))
-            })?
-            .get_receipt()
+        let receipt = confirm_raw_transaction(&client, &call, "de_escrow_funds")
             .await
             .map_err(|e| {
                 NightfallContractError::DeEscrowError(format!("Transaction unsuccesful: {e}"))

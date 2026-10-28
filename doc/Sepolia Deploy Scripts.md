@@ -617,6 +617,7 @@ Continue at step 7. Step 12 waits for the new poll to print `READY`. The old `RE
 | `NF4_REDEPLOY=true` still set after a successful deploy | Remove it before the next `nf4-deploy`. Left in place, the next run deploys another set and spends gas. |
 | chain-id `31337` or `84532` | Wrong network. This procedure is Ethereum Sepolia, `11155111`. |
 | poll exit other than 0 or 2 | The request failed or the query failed. Read client and proposer logs. Do not deposit again. |
+| `rate limit exceeded` or `-32005` | The public RPC rejected a send. A retry of the same raw transaction is now inside the client, but this request is already `Failed`. Do not delete `temp/sepolia-step10`. Put a keyed provider in `NF4_RPC_WSS` and `NF4_RPC_HTTP`, then fresh start. Do not redeploy only to change the RPC on a run that can still continue. |
 | `Transfers are not accepted yet` | Do not run `stop-client1`. Read `./scripts/nf4 logs proposer`. |
 | `C2_ZKP missing` | Copy `temp/zkp.public` from VM-B in step 12 and pass `--from` on VM-A. |
 | `curl: (3)` or an empty container name | You ran a raw curl without the variables. Use the script step, which reads `--file`. |

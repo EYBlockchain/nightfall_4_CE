@@ -8,7 +8,7 @@ use alloy::primitives::I256;
 use configuration::{addresses::get_addresses, settings::get_settings};
 use lib::{
     blockchain_client::BlockchainClientConnection, error::NightfallContractError,
-    verify_contract::VerifiedContracts,
+    rpc_retry::confirm_raw_transaction, verify_contract::VerifiedContracts,
 };
 use log::info;
 use nightfall_bindings::artifacts::Nightfall;
@@ -62,20 +62,12 @@ impl NightfallContract for Nightfall::NightfallCalls {
             .await
             .map_err(|_| NightfallContractError::TransactionError)?;
 
-        let receipt = blockchain_client
-            .send_raw_transaction(&raw_tx)
+        let receipt = confirm_raw_transaction(&client, &raw_tx, "propose_block")
             .await
-            .map_err(|_| {
-                NightfallContractError::BlockProposalError(
-                    "Failed to send raw transaction in propose_block".to_string(),
-                )
-            })?
-            .get_receipt()
-            .await
-            .map_err(|_| {
-                NightfallContractError::BlockProposalError(
-                    "Failed to get transaction receipt in propose_block".to_string(),
-                )
+            .map_err(|e| {
+                NightfallContractError::BlockProposalError(format!(
+                    "Failed to send raw transaction in propose_block: {e}"
+                ))
             })?;
         info!(
             "The L2 block was sent to L1. Received receipt for submitted block with hash: {}, gas used was: {}",

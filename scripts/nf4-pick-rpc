@@ -122,6 +122,11 @@ def main() -> None:
     wss = fastest(urls, "wss://", chain_id)
     if not http or not wss:
         raise SystemExit(f"no working {args.network} HTTP+WSS RPC from chainlist")
+    print(
+        "warning: selected a public RPC. eth_sendRawTransaction can return -32005. "
+        "Put a keyed provider in NF4_RPC_WSS and NF4_RPC_HTTP before deposits.",
+        file=sys.stderr,
+    )
     print(f"export RPC_HTTP={http}")
     print(f"export RPC_WSS={wss}")
 
