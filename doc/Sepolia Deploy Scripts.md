@@ -62,11 +62,10 @@ Client 2: `wink shell monkey fiscal exit great friend motor arrange file coffee 
 Need Docker, `forge`, `cast`, `cargo`, `curl`, and `python3`. Chain ID `11155111`. `84532` is Base Sepolia. Do not use Anvil, `--yes`, or `--network local`. The scripts prepend `~/.cargo/bin` and `~/.foundry/bin`, so a non-login shell still finds them when they are installed in those default places.
 
 ```bash
-git switch auto/testnet
 git pull
 ```
 
-The branch switch stays manual. The deploy script runs `check deployer`, stops a leftover Anvil container, and on a first real-prover deploy runs `check prover`. `docker compose down` does not undeploy Sepolia contracts.
+Stay on the branch that contains this page. `git switch auto/testnet` is a different branch and does not have these scripts. The branch switch stays manual. The deploy script runs `check deployer`, stops a leftover Anvil container, and on a first real-prover deploy runs `check prover`. `docker compose down` does not undeploy Sepolia contracts.
 
 Record the branch and commit.
 
@@ -147,7 +146,7 @@ The command does not start Docker and does not deploy. On VM-A, read the output 
 
 | Printed line | What to do |
 |---|---|
-| `Operator host:` and `Join URL:` | This is the host VM-B must use. Do not put it in VM-A's `deploy.env`. On VM-B, set `NF4_JOIN_URL=` to that URL, without the `Join URL:` label. This command does not print an `NF4_JOIN_URL=` line. |
+| `Operator host:`, `Join URL:`, and `NF4_JOIN_URL=` | This is the host VM-B must use. Do not put it in VM-A's `deploy.env`. On VM-B, paste the printed `NF4_JOIN_URL=` line as-is. |
 | `Set NF4_OPERATOR_HOST only if VM-B cannot reach that address.` | Leave `NF4_OPERATOR_HOST` unset unless VM-B cannot open that host. |
 | `deployer, proposer, and Client 1 are the same existing wallet.` | Correct for the normal layout. Leave the proposer and Client 1 key lines commented. Do not paste the deployer key into those lines. |
 | `client2:` | The address already in VM-A's file. It is not a key. If it is not the address VM-B printed, replace `NF4_CLIENT2_ADDRESS` and run this check again. |
@@ -182,7 +181,7 @@ On VM-A:
 
 This stops leftover Anvil, runs the prover check on a first real-prover deploy, deploys contracts, starts configuration, the proposer, and Client 1, certifies the proposer with `user-2` and Client 1 with `user-3`, and publishes `C1_ZKP` when the mnemonic is set. A healthy container is rebuilt when its image is not the current source, so a certificate fix is not skipped. After a successful deploy the script removes `NF4_REDEPLOY=true` from `deploy.env` if that line is present. Key generation is slow. Real proving keys need a large machine. VM-A is that machine. The first image build copies the proving key and can take a long time.
 
-Success is the script exiting 0. It prints the join URL, `Certified user-2`, `Certified user-3`, a 64-hex `C1_ZKP` line, configuration HTTP 200, and both health bodies. `deployer exited 0` is printed when `nf4_indie_deployer` is still present. A second run that skipped Forge may not have that container. That is not a failure. `NF4_CONTRACTS__DEPLOY_CONTRACTS` in `local.env` is `false` after success. Leave it false.
+Success is the script exiting 0. It prints the join URL, `Certified user-2`, `Certified user-3`, `Published C1_ZKP to configuration/toml/public.env`, configuration HTTP 200, and both health bodies. It does not print the 64-hex key. Read it from `public.env` if you need it. `deployer exited 0` is printed when `nf4_indie_deployer` is still present. A second run that skipped Forge may not have that container. That is not a failure. `NF4_CONTRACTS__DEPLOY_CONTRACTS` in `local.env` is `false` after success. Leave it false. The script also prints `Removed NF4_REDEPLOY=true` when that line was set.
 
 A second run skips Forge when that Nightfall contract already has code. It does not wipe token addresses or ZKP keys in `public.env`. It will not change the on-chain proposer URL or the designated proposer wallet.
 
