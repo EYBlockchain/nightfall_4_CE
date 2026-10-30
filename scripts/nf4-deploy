@@ -5,6 +5,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
+export PATH="${HOME}/.cargo/bin:${HOME}/.foundry/bin:${PATH}"
 
 FILE=""
 CHECK=0
@@ -279,14 +280,29 @@ if [[ "$NF4_ROLE" == operator && "$NF4_MOCK_PROVER" == false && "$NF4_SKIP_PROVE
   ./scripts/nf4 check prover
 fi
 
+if [[ "${NF4_ROLE:-}" == client && -f local.env ]] && grep -q '^DEPLOYER_SIGNING_KEY=' local.env; then
+  grep -v '^DEPLOYER_SIGNING_KEY=' local.env > local.env.nf4-tmp
+  mv local.env.nf4-tmp local.env
+  chmod 600 local.env
+  echo "Removed DEPLOYER_SIGNING_KEY from local.env. That key stays in VM-A deploy.env."
+fi
+
 ./scripts/nf4 deploy --file "$FILE" ${LATE_ARGS[@]+"${LATE_ARGS[@]}"}
+
+if [[ "${NF4_ROLE:-}" == operator ]] && grep -q '^NF4_REDEPLOY=true' "$FILE"; then
+  grep -v '^NF4_REDEPLOY=' "$FILE" > "$FILE.nf4-tmp"
+  mv "$FILE.nf4-tmp" "$FILE"
+  chmod 600 "$FILE"
+  echo "Removed NF4_REDEPLOY=true from $FILE. A later deploy will not spend gas on another contract set."
+fi
 
 certify() {
   local api="$1" user="$2" keyfield="$3"
   local hdr="temp/cert-${user}.hdr" body="temp/cert-${user}.body"
   local attempt code certified
   curl -fsS --retry 5 --retry-delay 2 --max-time 30 "$api/v1/health" >/dev/null
-  for attempt in 1 2 3 4 5; do
+  local delay=5
+  for attempt in 1 2 3 4 5 6 7 8; do
     curl -sS --max-time 180 -D "$hdr" -o "$body" --request POST "$api/v1/certification" \
       --form "certificate=@${CERT_DIR}/${user}.der;type=application/pkix-cert" \
       --form "${keyfield}=@${CERT_DIR}/${user}.priv_key;type=application/octet-stream"
@@ -303,8 +319,16 @@ except Exception:
     echo "Certification for ${user} returned HTTP ${code} (attempt ${attempt})" >&2
     cat "$body" >&2
     echo >&2
-    if [[ "$attempt" -lt 5 ]]; then
-      sleep 5
+    if grep -q 'execution reverted' "$body" && ! grep -qi 'rate limit\|-32005' "$body"; then
+      echo "Certification reverted. Retrying the same call will not succeed. Do not set NF4_REDEPLOY." >&2
+      exit 1
+    fi
+    if [[ "$attempt" -lt 8 ]]; then
+      sleep "$delay"
+      if grep -qi 'rate limit\|-32005' "$body"; then
+        delay=$((delay * 2))
+        [[ "$delay" -le 60 ]] || delay=60
+      fi
     fi
   done
   echo "Certification for ${user} failed. Do not set NF4_REDEPLOY. Read the body above, then rerun ./scripts/nf4-deploy --file $FILE" >&2

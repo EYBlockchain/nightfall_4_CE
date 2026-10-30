@@ -59,7 +59,7 @@ Client 2: `wink shell monkey fiscal exit great friend motor arrange file coffee 
 
 ## 1. Prep, both VMs
 
-Need Docker, `forge`, `cast`, `cargo`, `curl`, and `python3`. Chain ID `11155111`. `84532` is Base Sepolia. Do not use Anvil, `--yes`, or `--network local`.
+Need Docker, `forge`, `cast`, `cargo`, `curl`, and `python3`. Chain ID `11155111`. `84532` is Base Sepolia. Do not use Anvil, `--yes`, or `--network local`. The scripts prepend `~/.cargo/bin` and `~/.foundry/bin`, so a non-login shell still finds them when they are installed in those default places.
 
 ```bash
 git switch auto/testnet
@@ -180,7 +180,7 @@ On VM-A:
 ./scripts/nf4-deploy --file deploy.env
 ```
 
-This stops leftover Anvil, runs the prover check on a first real-prover deploy, deploys contracts, starts configuration, the proposer, and Client 1, certifies the proposer with `user-2` and Client 1 with `user-3`, and publishes `C1_ZKP` when the mnemonic is set. Key generation is slow. Real proving keys need a large machine. VM-A is that machine.
+This stops leftover Anvil, runs the prover check on a first real-prover deploy, deploys contracts, starts configuration, the proposer, and Client 1, certifies the proposer with `user-2` and Client 1 with `user-3`, and publishes `C1_ZKP` when the mnemonic is set. A healthy container is rebuilt when its image is not the current source, so a certificate fix is not skipped. After a successful deploy the script removes `NF4_REDEPLOY=true` from `deploy.env` if that line is present. Key generation is slow. Real proving keys need a large machine. VM-A is that machine. The first image build copies the proving key and can take a long time.
 
 Success is the script exiting 0. It prints the join URL, `Certified user-2`, `Certified user-3`, a 64-hex `C1_ZKP` line, configuration HTTP 200, and both health bodies. `deployer exited 0` is printed when `nf4_indie_deployer` is still present. A second run that skipped Forge may not have that container. That is not a failure. `NF4_CONTRACTS__DEPLOY_CONTRACTS` in `local.env` is `false` after success. Leave it false.
 
@@ -247,12 +247,11 @@ Expect both health checks to succeed. Record the Sepolia block number and the Cl
 
 ```bash
 ./scripts/nf4-test --file deploy.env --step deposit
-./scripts/nf4-test --file deploy.env --step poll
 ```
 
-`deposit` writes `temp/sepolia-step10/` and refuses to run again if that directory exists. HTTP `202` means queued, not escrowed and not confirmed. Do not delete the directory to POST again. If you already have the four `.request-id` files, run `poll` only.
+That one command queues the four deposits and polls until `READY`. It can run for hours. Keep it in `tmux`. HTTP `202` means queued, not escrowed and not confirmed. Do not delete `temp/sepolia-step10/` to POST again. If the directory already exists, the same command polls it. A `Failed` or `absent` request with no commitment mapping is resubmitted once. A request that already escrowed is left alone.
 
-`poll` is the section 10c Mongo check. It runs up to 360 times, 30 seconds apart: about three hours plus query time. `READY` means the four mapped commitments are `Unspent` with an L2 block and a block-submission hash, and the request did not fail. It does not replace explorer evidence. `PendingCreation` is not confirmation. More than one L2 block is allowed. Record every block and `block_tx` in `temp/sepolia-step10/record.txt`.
+`READY` means the four mapped commitments are `Unspent` with an L2 block and a block-submission hash. It does not replace explorer evidence. `PendingCreation` is not confirmation. More than one L2 block is allowed. The command writes `temp/sepolia-step10/record.txt`, a log snapshot, and any full receipt it can save. `--step poll` is only the resume if the command was interrupted after the request IDs were written.
 
 While that runs, or after it, snapshot logs:
 
@@ -272,7 +271,7 @@ That saves a receipt only for full hashes on escrow or block-submission lines. O
 
 A successful receipt proves inclusion, not finality. Record the explorer confirmation state at the time you capture it. Do not attach commitment preimages. They contain deposit secrets. Redact RPC URLs in any log excerpt.
 
-Do not continue until `poll` has printed `READY` and the receipts you need are saved. A timeout is not a reason to deposit again. If every request is `Failed` or `absent` and no commitment mapping exists, `--step deposit` archives that directory and submits again. Do not delete it by hand, and do not set `NF4_REDEPLOY` for that. A request that is still queued, or a commitment that already exists, is not another POST.
+Do not continue until that command has printed `READY`. A timeout is not a reason to delete the directory. If every request failed before escrow, the same `--step deposit` archives the directory and submits again. Do not set `NF4_REDEPLOY` for that.
 
 ## 11. Still do not start Client 2 until READY
 
@@ -286,9 +285,7 @@ If step 10 has not printed `READY`, stop. Step 12 is the first time VM-B runs de
 
 Do not edit `NF4_LATE_JOIN` by hand. The flag is the confirmation that step 10 printed `READY`.
 
-This fetches `join.toml`, addresses, hashes, and proving keys. It writes this VM's `local.env` with `NF4_CONTRACTS__DEPLOY_CONTRACTS=false`. It starts `nf4_indie_client` on port 3000, certifies with `user-4`, and prints `C2_ZKP` (64 hex characters, no `0x`). It does not run `wizard deploy`.
-
-If it stops because `local.env` contains `DEPLOYER_SIGNING_KEY`, that file was copied from VM-A. Delete `local.env` and run the command again. Keep the key on VM-A.
+This fetches `join.toml`, addresses, hashes, and proving keys. It writes this VM's `local.env` with `NF4_CONTRACTS__DEPLOY_CONTRACTS=false`. If `local.env` contains `DEPLOYER_SIGNING_KEY`, the script removes that line and continues. The key stays in VM-A `deploy.env`. It starts `nf4_indie_client` on port 3000, certifies with `user-4`, and prints `C2_ZKP` (64 hex characters, no `0x`) plus the exact `accept-zkp` command. It does not run `wizard deploy`. A rate-limit during certification is retried. An execution revert is not.
 
 ```bash
 curl -fsS http://127.0.0.1:3000/v1/health
@@ -322,19 +319,23 @@ Copy `temp/zkp.public` from VM-B to VM-A. It holds 64 hex characters and no priv
 
 ```bash
 ./scripts/nf4-test --file deploy.env --step transfer
-./scripts/nf4-test --file deploy.env --step transfer-status
+```
+
+That one command queues four transfers to `C2_ZKP` and waits until all four are `Confirmed`. `Submitted` is not done. Proving a block takes about 20 minutes. Keep it in `tmux`. It writes `temp/sepolia-step12/` and `temp/sepolia-step12/confirmed`. Do not delete that directory to send them again. If it was interrupted after the request IDs exist, the same command waits. It does not POST again.
+
+If a status is `Failed`, `Error`, or `Rejected`, the command stops. Do not run `stop-client1`. Do not resubmit. Inspect `./scripts/nf4 logs client` and `./scripts/nf4 logs proposer`.
+
+After it exits 0, snapshot logs if you still need them:
+
+```bash
 ./scripts/nf4-test --file deploy.env --step transfer-evidence
 ```
 
-`transfer` queues four transfers to `C2_ZKP` and writes `temp/sepolia-step12/`. Do not delete that directory to send them again.
-
-`transfer-status` polls `/v1/request/<id>` until all four are accepted, up to 360 times, 30 seconds apart. Accepted is not L2 confirmation. If a status is `Failed`, `Error`, or `Rejected`, stop. Do not run `stop-client1`. Do not resubmit. Inspect `./scripts/nf4 logs client` and `./scripts/nf4 logs proposer`.
-
-`transfer-evidence` writes the log snapshot to `temp/sepolia-step12/`. It does not overwrite the deposit logs in `temp/sepolia-step10/`. Proposer logs should show client transactions found, not `Found 0 client transactions`. Record the four transfer request IDs from `temp/sepolia-step12/*.request-id`.
+That writes `temp/sepolia-step12/` logs and does not overwrite the deposit logs. Proposer logs should show the four transfers, not `Found 0 client transactions`. Record the four request IDs from `temp/sepolia-step12/*.request-id`.
 
 ## 16. Stop Client 1, VM-A
 
-Only after `transfer-status` has written `temp/sepolia-step12/accepted`. The stop step refuses to run without that file. Do not delete it to skip the wait.
+Only after step 15 has written `temp/sepolia-step12/confirmed`. The stop step refuses to run without that file. Do not delete it to skip the wait. `Submitted` is not enough.
 
 ```bash
 ./scripts/nf4-test --file deploy.env --step stop-client1
@@ -527,8 +528,8 @@ Do not delete that file on a resume. Then continue at the row. A poll starts its
 | step 8, `temp/sepolia-test/minted` exists | `--step tokens` skips the mint | delete `minted` |
 | step 8, mint died and `minted` does not exist | not a resume. Step 8 says which `cast send` is still safe | re-run `tokens` and expect 1001 to mint again |
 | step 9 | `--step baseline` | |
-| step 10, no `temp/sepolia-step10` | `--step deposit`, then `--step poll` | |
-| step 10, all four `.request-id` files exist, and Mongo still has each request as `Queued`, `Processing`, or `Submitted` | `--step poll` | `--step deposit`, or delete the directory |
+| step 10, no `temp/sepolia-step10` | `--step deposit`. It polls | |
+| step 10, all four `.request-id` files exist, and Mongo still has each request as `Queued`, `Processing`, or `Submitted` | `--step poll`, or `--step deposit`. Deposit polls and does not POST again | delete the directory |
 | step 10, every request is `Failed` or `absent`, and no commitment mapping exists | `--step deposit`. It archives the directory and submits again | delete the directory by hand, `--step poll` again, or `NF4_REDEPLOY` |
 | step 10 directory exists, a `.request-id` is missing | not supported. Fresh start | delete the directory and POST again |
 | evidence or receipts | re-run that step. `docker logs` survive `docker stop`, not `docker rm` | |
@@ -536,7 +537,7 @@ Do not delete that file on a resume. Then continue at the row. A poll starts its
 | step 13, `temp/sepolia-step11` has all three `.request-id` files | `--step sync` on both VMs | `--step late-deposit` |
 | step 13 directory torn | not supported. Fresh start | |
 | step 14, `C2_ZKP` missing | `--step accept-zkp` from `temp/zkp.public`. A VM-B `--late-join` rewrites that file | |
-| step 15, all four transfer `.request-id` files exist | `--step transfer-status` | `--step transfer` |
+| step 15, all four transfer `.request-id` files exist | `--step transfer`. It waits for `Confirmed` and does not POST again | delete the directory |
 | step 15 directory torn | not supported. Fresh start | |
 | steps 16–17 | configuration and proposer only. Client 1 stays stopped | `nf4-deploy`, `stop-client1` |
 | step 18, container still exists | `--step restart-client1`, or `nf4-deploy` if configuration is also down | |
@@ -614,17 +615,17 @@ Continue at step 7. Step 12 waits for the new poll to print `READY`. The old `RE
 | `curl: (7)` or `join HTTP 000` on VM-B | Wallet check can still be OK. Do not deploy on VM-B and do not pass `--late-join`. If step 6 has not exited 0, finish it on VM-A, then re-run the check. If VM-A's own `join.toml` curl is refused, re-run `./scripts/nf4-deploy --file deploy.env` there. If VM-A returns 200, `NF4_JOIN_URL` is the wrong host or TCP 8080 is closed. `10.0.0.8` is the guide example unless VM-A printed it. |
 | `Failed to write configuration/toml/join.toml: Permission denied` | Re-run `./scripts/nf4-deploy --file deploy.env` as your user, not under `sudo`. The script reclaims a root-owned `configuration/toml` and does not set `NF4_REDEPLOY`. If it still cannot write, `sudo chown -R "$USER:$USER" configuration/toml` and run the same command again. Do not delete `addresses.toml`. |
 | `On-chain proposer URL is` | The operator address changed, including after a reboot. Do not edit it in place. Resume is not supported. Fresh start with `NF4_REDEPLOY=true`. That costs gas and is a new report. |
-| `DEPLOYER_SIGNING_KEY` on VM-B | `local.env` was copied from VM-A. Delete it. Keep the key on VM-A. |
+| `DEPLOYER_SIGNING_KEY` on VM-B | The script removes that line from `local.env` and continues. If it still stops, delete `local.env` and run `--late-join` again. Keep the key in VM-A `deploy.env`. |
 | `STOP: temp/sepolia-step10 exists` | A deposit is still in progress, already mapped, or the directory is incomplete. Poll only a `Queued`, `Processing`, or `Submitted` request. If every request is `Failed` or `absent` and no commitment exists, `--step deposit` archives the directory and submits again. Do not delete it by hand. Do not set `NF4_REDEPLOY` for a deposit that never landed. The same archive rule does not apply to `temp/sepolia-step11`, `step12`, `step17`, `step18-c1`, `step18-c2`, `step20`, or `step21`. |
 | `tmux` session gone after a reboot | VM restart section. Do not `docker rm` if you are resuming. |
-| `NF4_REDEPLOY=true` still set after a successful deploy | Remove it before the next `nf4-deploy`. Left in place, the next run deploys another set and spends gas. |
+| `NF4_REDEPLOY=true` still set after a successful deploy | The script removes that line after exit 0. If it is still there, delete it before the next `nf4-deploy`. Left in place, the next run deploys another set and spends gas. |
 | chain-id `31337` or `84532` | Wrong network. This procedure is Ethereum Sepolia, `11155111`. |
 | poll exit other than 0 or 2 | The request failed or the query failed. Read client and proposer logs. Do not poll a `Failed` request again. |
 | `request_status=Failed` | The client finished that deposit unsuccessfully and no commitment was created. `--step deposit` archives the evidence and submits again. Do not delete `temp/sepolia-step10`. Do not set `NF4_REDEPLOY`. |
 | `absent (possibly restarted)` or `no commitment mapping` | The request ID is still on disk, but this Mongo has no mapping. If the client commitments list is also empty, `--step deposit` archives and submits again. If a commitment exists, do not POST again. |
 | `rate limit exceeded` or `-32005` | The public RPC rejected a send. The client retries that send. A request already marked `Failed` is not retried by poll. Put a keyed provider in `NF4_RPC_WSS` and `NF4_RPC_HTTP`, then `--step deposit`. Do not set `NF4_REDEPLOY` only to change the RPC. |
 | `Transfers are not accepted yet` | Do not run `stop-client1`. Read `./scripts/nf4 logs proposer`. |
-| `C2_ZKP missing` | Copy `temp/zkp.public` from VM-B in step 12 and pass `--from` on VM-A. |
+| `C2_ZKP missing` | Copy `temp/zkp.public` from VM-B, or run the `accept-zkp` command step 12 printed. The scripts do not SSH, so this copy stays manual. |
 | `curl: (3)` or an empty container name | You ran a raw curl without the variables. Use the script step, which reads `--file`. |
 
 `./scripts/nf4 status`, `./scripts/nf4 logs proposer`, and `./scripts/nf4 logs client` still work on the VM that owns that process. The laptop wizards are still there. `wizard deploy` also sets `NF4_CONTRACTS__DEPLOY_CONTRACTS=false` after a successful deploy. `--yes` is still local-only, and it is not part of this procedure.

@@ -5,6 +5,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
+export PATH="${HOME}/.cargo/bin:${HOME}/.foundry/bin:${PATH}"
 
 FILE=""
 STEP=""
@@ -296,6 +297,10 @@ print('cleared', hashes.length);
       note "archived dead deposit evidence to $dest. Those requests never escrowed on L1. Submitting again. Do not set NF4_REDEPLOY."
       ;;
     live)
+      if [[ "${DEPOSIT_POLL:-}" == 1 ]]; then
+        note "deposits already in progress. Polling."
+        return 0
+      fi
       die "STOP: $EVIDENCE exists and a deposit is still in progress or already mapped. Use --step poll. Do not POST again."
       ;;
     *)
@@ -353,18 +358,23 @@ step_deposit() {
   for token in "$TOKEN20" "$TOKEN721" "$TOKEN1155" "$TOKEN3525"; do
     is_addr "$token" || die "invalid token $token"
   done
-  if retry_failed_deposits; then
-    note "deposits queued. Next: --step poll. Do not run deposit again."
-    return 0
+  if [[ ! -e "$EVIDENCE" ]]; then
+    post_all_deposits
+  elif ! retry_failed_deposits; then
+    DEPOSIT_POLL=1 archive_dead_deposit
+    [[ -e "$EVIDENCE" ]] || post_all_deposits
   fi
-  archive_dead_deposit
+  step_poll
+}
+
+post_all_deposits() {
   mkdir "$EVIDENCE"
   date -u +%Y-%m-%dT%H:%M:%SZ > "$EVIDENCE/started-at.txt"
   post_deposit ERC20
   post_deposit ERC721
   post_deposit ERC1155
   post_deposit ERC3525
-  note "deposits queued. Next: --step poll. Do not run deposit again."
+  note "deposits queued. Polling until READY."
 }
 
 step_poll() {
@@ -372,13 +382,14 @@ step_poll() {
   refresh_public
   [[ -f "$EVIDENCE/ERC20.request-id" ]] || die "missing deposit request IDs. Do not redeposit to create them."
   local api="http://127.0.0.1:${NF4_CLIENT_PORT}"
-  REQ20="$(<"$EVIDENCE/ERC20.request-id")"
-  REQ721="$(<"$EVIDENCE/ERC721.request-id")"
-  REQ1155="$(<"$EVIDENCE/ERC1155.request-id")"
-  REQ3525="$(<"$EVIDENCE/ERC3525.request-id")"
-  export REQ20 REQ721 REQ1155 REQ3525 TOKEN20 TOKEN721 TOKEN1155 TOKEN3525 ID20 ID721_C1 ID1155 ID3525_C1
-  local confirmed=0 i rc out
+  export TOKEN20 TOKEN721 TOKEN1155 TOKEN3525 ID20 ID721_C1 ID1155 ID3525_C1
+  local confirmed=0 i rc out retried=0
   for ((i=1; i<=360; i++)); do
+    REQ20="$(<"$EVIDENCE/ERC20.request-id")"
+    REQ721="$(<"$EVIDENCE/ERC721.request-id")"
+    REQ1155="$(<"$EVIDENCE/ERC1155.request-id")"
+    REQ3525="$(<"$EVIDENCE/ERC3525.request-id")"
+    export REQ20 REQ721 REQ1155 REQ3525
     printf '\n%s poll %s/360\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$i"
     rc=0
     out="$(docker exec -i \
@@ -392,7 +403,12 @@ step_poll() {
       break
     fi
     if [[ "$rc" -ne 2 ]] || ! grep -qx WAITING <<<"$out"; then
-      die "Poll/query failed (exit $rc). If every request is Failed or absent and no commitment exists, run --step deposit again. It archives that evidence. Do not delete the directory and do not set NF4_REDEPLOY."
+      if [[ "$retried" -eq 0 ]] && retry_failed_deposits; then
+        retried=1
+        note "poll resubmitted a deposit that had not escrowed. Continuing."
+        continue
+      fi
+      die "Poll/query failed (exit $rc). Do not delete $EVIDENCE. Do not set NF4_REDEPLOY."
     fi
     [[ "$i" -eq 360 ]] || sleep 30
   done
@@ -402,6 +418,8 @@ step_poll() {
     curl -fsS "$api/v1/synchronisation"
   } | tee "$EVIDENCE/record.txt"
   note "deposit poll READY. On VM-B: ./scripts/nf4-deploy --file deploy.env --late-join"
+  step_evidence || true
+  step_receipts || note "block receipts were not saved. Run --step receipts, or --step receipt --tx for each full hash."
 }
 
 snapshot_logs() {
@@ -493,14 +511,19 @@ step_transfer() {
   refresh_public
   is_zkp "${C2_ZKP:-}" || die "C2_ZKP missing. Run --step accept-zkp with the value printed on VM-B."
   local api="http://127.0.0.1:${NF4_CLIENT_PORT}" dir="temp/sepolia-step12"
-  [[ ! -e "$dir" ]] || die "STOP: $dir exists. Do not transfer again."
+  if [[ -e "$dir" ]]; then
+    note "transfers already queued. Waiting until they are Confirmed."
+    step_transfer_status
+    return 0
+  fi
   derive_on "$api" "$C1_MNEMONIC"
   mkdir "$dir"
   post_json ERC20 "$api/v1/transfer" "{\"ercAddress\":\"${TOKEN20}\",\"tokenId\":\"${ID20}\",\"tokenType\":\"0\",\"recipientData\":{\"values\":[\"0x28\"],\"recipientCompressedZkpPublicKeys\":[\"${C2_ZKP}\"]},\"fee\":\"0x00\"}" "$dir" >/dev/null
   post_json ERC721 "$api/v1/transfer" "{\"ercAddress\":\"${TOKEN721}\",\"tokenId\":\"${ID721_C1}\",\"tokenType\":\"2\",\"recipientData\":{\"values\":[\"0x00\"],\"recipientCompressedZkpPublicKeys\":[\"${C2_ZKP}\"]},\"fee\":\"0x00\"}" "$dir" >/dev/null
   post_json ERC1155 "$api/v1/transfer" "{\"ercAddress\":\"${TOKEN1155}\",\"tokenId\":\"${ID1155}\",\"tokenType\":\"1\",\"recipientData\":{\"values\":[\"0x08\"],\"recipientCompressedZkpPublicKeys\":[\"${C2_ZKP}\"]},\"fee\":\"0x00\"}" "$dir" >/dev/null
   post_json ERC3525 "$api/v1/transfer" "{\"ercAddress\":\"${TOKEN3525}\",\"tokenId\":\"${ID3525_C1}\",\"tokenType\":\"3\",\"recipientData\":{\"values\":[\"0x28\"],\"recipientCompressedZkpPublicKeys\":[\"${C2_ZKP}\"]},\"fee\":\"0x00\"}" "$dir" >/dev/null
-  note "transfers queued. Next: --step transfer-status. Do not stop Client 1 yet."
+  note "transfers queued. Waiting until they are Confirmed."
+  step_transfer_status
 }
 
 step_transfer_status() {
@@ -529,7 +552,7 @@ print(s)')"
       printf '%s %s\n' "$name" "${status:-unknown}"
       case "$status" in
         Failed|Error|Rejected) die "$name transfer $id is $status. Do not stop Client 1. Do not resubmit." ;;
-        Submitted|Confirmed|Complete|Succeeded|Success) ;;
+        Confirmed|Complete|Succeeded|Success) ;;
         *) ready=0 ;;
       esac
     done
@@ -537,13 +560,14 @@ print(s)')"
     [[ "$i" -eq 360 ]] || sleep 30
   done
   [[ "$ready" == 1 ]] || die "Transfers are not accepted yet. Do not run stop-client1."
+  date -u +%Y-%m-%dT%H:%M:%SZ > "$dir/confirmed"
   date -u +%Y-%m-%dT%H:%M:%SZ > "$dir/accepted"
-  note "transfers accepted. This is not L2 confirmation. Record proposer logs, then stop Client 1."
+  note "transfers confirmed in an L2 block. Next: --step stop-client1"
 }
 
 step_stop_client1() {
   need_role operator
-  [[ -f temp/sepolia-step12/accepted ]] || die "Transfers are not accepted. Run --step transfer-status first. Do not delete that marker to skip the wait."
+  [[ -f temp/sepolia-step12/confirmed ]] || die "Transfers are not Confirmed. Run --step transfer and wait. Do not delete that marker to skip the wait."
   local api="http://127.0.0.1:${NF4_CLIENT_PORT}"
   curl -fsS "$api/v1/synchronisation" | tee temp/sepolia-test/before-stop-sync.json
   docker exec nf4_db_client mongosh --quiet --eval 'db.getSiblingDB("nightfall").commitments.find().toArray()' >temp/sepolia-test/before-stop-commitments.json

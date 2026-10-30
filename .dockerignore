@@ -1,4 +1,8 @@
 target
+temp
+.nightfall
+configuration/toml.unwritable-*
+**/*.log
 .github
 .vscode
 .githooks
