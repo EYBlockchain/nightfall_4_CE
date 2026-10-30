@@ -304,20 +304,66 @@ print('cleared', hashes.length);
   esac
 }
 
+deposit_body() {
+  case "$1" in
+    ERC20) printf '{"ercAddress":"%s","tokenId":"%s","tokenType":"0","value":"0x64","fee":"0x00","deposit_fee":"0x00"}' "$TOKEN20" "$ID20" ;;
+    ERC721) printf '{"ercAddress":"%s","tokenId":"%s","tokenType":"2","value":"0x00","fee":"0x00","deposit_fee":"0x00"}' "$TOKEN721" "$ID721_C1" ;;
+    ERC1155) printf '{"ercAddress":"%s","tokenId":"%s","tokenType":"1","value":"0x14","fee":"0x00","deposit_fee":"0x00"}' "$TOKEN1155" "$ID1155" ;;
+    ERC3525) printf '{"ercAddress":"%s","tokenId":"%s","tokenType":"3","value":"0x64","fee":"0x00","deposit_fee":"0x00"}' "$TOKEN3525" "$ID3525_C1" ;;
+    *) return 1 ;;
+  esac
+}
+
+post_deposit() {
+  local name="$1" api="http://127.0.0.1:${NF4_CLIENT_PORT}"
+  post_json "$name" "$api/v1/deposit" "$(deposit_body "$name")" "$EVIDENCE" >/dev/null
+}
+
+retry_failed_deposits() {
+  [[ -e "$EVIDENCE" ]] || return 1
+  local name id status mapping failed=() live=0
+  for name in ERC20 ERC721 ERC1155 ERC3525; do
+    [[ -f "$EVIDENCE/$name.request-id" ]] || return 1
+    id="$(<"$EVIDENCE/$name.request-id")"
+    status="$(request_status "$id" | tr -d '\r\n ')"
+    mapping="$(docker exec nf4_db_client mongosh --quiet --norc --eval "
+const id = $(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$id");
+print(db.getSiblingDB('nightfall').request_commitment_mappings.countDocuments({request_id: id}));
+" | tr -d '\r\n ')"
+    if [[ "$status" == Failed || "$status" == absent ]] && [[ "$mapping" == 0 ]]; then
+      failed+=("$name")
+    elif [[ "$status" == Queued || "$status" == Processing || "$status" == Submitted || "$status" == Confirmed ]]; then
+      live=1
+    else
+      return 1
+    fi
+  done
+  [[ ${#failed[@]} -gt 0 && "$live" == 1 ]] || return 1
+  for name in "${failed[@]}"; do
+    rm -f "$EVIDENCE/$name.request-id" "$EVIDENCE/$name.body" "$EVIDENCE/$name.headers" "$EVIDENCE/$name.request.json"
+    post_deposit "$name"
+    note "resubmitted failed $name deposit. Left the deposits that already escrowed. Do not set NF4_REDEPLOY."
+  done
+  return 0
+}
+
 step_deposit() {
   need_role operator
   refresh_public
-  archive_dead_deposit
-  local api="http://127.0.0.1:${NF4_CLIENT_PORT}"
   for token in "$TOKEN20" "$TOKEN721" "$TOKEN1155" "$TOKEN3525"; do
     is_addr "$token" || die "invalid token $token"
   done
+  if retry_failed_deposits; then
+    note "deposits queued. Next: --step poll. Do not run deposit again."
+    return 0
+  fi
+  archive_dead_deposit
   mkdir "$EVIDENCE"
   date -u +%Y-%m-%dT%H:%M:%SZ > "$EVIDENCE/started-at.txt"
-  post_json ERC20 "$api/v1/deposit" "{\"ercAddress\":\"${TOKEN20}\",\"tokenId\":\"${ID20}\",\"tokenType\":\"0\",\"value\":\"0x64\",\"fee\":\"0x00\",\"deposit_fee\":\"0x00\"}" "$EVIDENCE" >/dev/null
-  post_json ERC721 "$api/v1/deposit" "{\"ercAddress\":\"${TOKEN721}\",\"tokenId\":\"${ID721_C1}\",\"tokenType\":\"2\",\"value\":\"0x00\",\"fee\":\"0x00\",\"deposit_fee\":\"0x00\"}" "$EVIDENCE" >/dev/null
-  post_json ERC1155 "$api/v1/deposit" "{\"ercAddress\":\"${TOKEN1155}\",\"tokenId\":\"${ID1155}\",\"tokenType\":\"1\",\"value\":\"0x14\",\"fee\":\"0x00\",\"deposit_fee\":\"0x00\"}" "$EVIDENCE" >/dev/null
-  post_json ERC3525 "$api/v1/deposit" "{\"ercAddress\":\"${TOKEN3525}\",\"tokenId\":\"${ID3525_C1}\",\"tokenType\":\"3\",\"value\":\"0x64\",\"fee\":\"0x00\",\"deposit_fee\":\"0x00\"}" "$EVIDENCE" >/dev/null
+  post_deposit ERC20
+  post_deposit ERC721
+  post_deposit ERC1155
+  post_deposit ERC3525
   note "deposits queued. Next: --step poll. Do not run deposit again."
 }
 

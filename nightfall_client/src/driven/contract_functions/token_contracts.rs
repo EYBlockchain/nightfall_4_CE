@@ -16,6 +16,10 @@ use lib::{
 use log::debug;
 use nightfall_bindings::artifacts::{IERC1155, IERC20, IERC3525, IERC721};
 
+// Sepolia's block gas limit is 30_000_000. 500_000_000 made ERC3525 approval
+// revert with "exceeds block gas limit" and failed the deposit.
+const APPROVAL_GAS_LIMIT: u64 = 5_000_000;
+
 impl TokenContract for IERC20::IERC20Calls {
     async fn set_approval(
         erc_address: Fr254,
@@ -322,7 +326,7 @@ impl TokenContract for IERC3525::IERC3525Calls {
         })?;
         let max_fee_per_gas = gas_price * 2;
         let max_priority_fee_per_gas = gas_price;
-        let gas_limit = 500000000u64;
+        let gas_limit = APPROVAL_GAS_LIMIT;
         let raw_tx = IERC3525::new(solidity_erc_address.0, client.clone())
             .approve_0(spender, token_id_u256.0)
             .nonce(nonce)
