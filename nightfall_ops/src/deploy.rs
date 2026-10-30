@@ -1555,7 +1555,6 @@ fn url_port(url: &str) -> Option<u16> {
     host_port.split(':').nth(1)?.parse().ok()
 }
 
-#[cfg(test)]
 fn refresh_app(
     container: &str,
     stamp_path: &str,
@@ -1667,6 +1666,7 @@ fn fnv1a(mut hash: u64, bytes: &[u8]) -> u64 {
     hash
 }
 
+#[cfg(test)]
 mod tests {
     use super::{
         choose_operator_host, expect_address, is_writable_dir, operator_host_candidates,
