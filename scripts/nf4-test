@@ -330,10 +330,10 @@ retry_failed_deposits() {
 const id = $(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$id");
 print(db.getSiblingDB('nightfall').request_commitment_mappings.countDocuments({request_id: id}));
 " | tr -d '\r\n ')"
-    if [[ "$status" == Failed || "$status" == absent ]] && [[ "$mapping" == 0 ]]; then
-      failed+=("$name")
-    elif [[ "$status" == Queued || "$status" == Processing || "$status" == Submitted || "$status" == Confirmed ]]; then
+    if [[ "$mapping" != 0 || "$status" == Queued || "$status" == Processing || "$status" == Submitted || "$status" == Confirmed ]]; then
       live=1
+    elif [[ "$status" == Failed || "$status" == absent ]]; then
+      failed+=("$name")
     else
       return 1
     fi
