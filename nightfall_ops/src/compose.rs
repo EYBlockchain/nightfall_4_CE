@@ -36,7 +36,10 @@ pub fn logs_configuration() -> Result<(), String> {
 
 pub fn up_proposer() -> Result<(), String> {
     config::refresh_local_lan_urls()?;
-    let args = compose_args("indie-proposer", true, &["up", "-d"]);
+    // A healthy container is not the current image. Without --force-recreate,
+    // compose can keep the old proposer and certification still estimates as
+    // the zero address.
+    let args = compose_args("indie-proposer", true, app_up_args());
     run_docker_compose("Starting indie proposer service", &args)
 }
 
@@ -51,7 +54,7 @@ pub fn logs_proposer() -> Result<(), String> {
 
 pub fn up_client() -> Result<(), String> {
     config::refresh_local_lan_urls()?;
-    let args = compose_args("indie-client", true, &["up", "-d"]);
+    let args = compose_args("indie-client", true, app_up_args());
     run_docker_compose("Starting indie client service", &args)
 }
 
@@ -259,9 +262,13 @@ fn compose_args(profile: &str, include_env_file: bool, command_args: &[&str]) ->
     args
 }
 
+fn app_up_args() -> &'static [&'static str] {
+    &["up", "-d", "--force-recreate", "--no-deps"]
+}
+
 #[cfg(test)]
 mod tests {
-    use super::compose_args;
+    use super::{app_up_args, compose_args};
 
     #[test]
     fn builds_configuration_compose_args_without_env_file() {
@@ -331,6 +338,27 @@ mod tests {
                 "local.env",
                 "up",
                 "-d"
+            ]
+        );
+    }
+
+    #[test]
+    fn app_services_are_recreated_from_the_image_just_built() {
+        let args = app_up_args();
+        assert!(args.contains(&"--force-recreate"));
+        assert!(args.contains(&"--no-deps"));
+        assert_eq!(
+            compose_args("indie-proposer", true, args),
+            vec![
+                "compose",
+                "--profile",
+                "indie-proposer",
+                "--env-file",
+                "local.env",
+                "up",
+                "-d",
+                "--force-recreate",
+                "--no-deps"
             ]
         );
     }

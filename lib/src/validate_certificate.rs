@@ -339,8 +339,19 @@ async fn validate_certificate(
         .map_err(|e| NightfallContractError::X509Error(format!("Transaction unsuccesful: {e}")))?;
     let max_fee_per_gas = gas_price * 2;
     let max_priority_fee_per_gas = gas_price;
+    // eth_estimateGas has no signer. Without `from`, msg.sender is the zero
+    // address and X509 reverts with "You can only allowlist your own address".
+    if signer.address() != sender_address {
+        return Err(NightfallContractError::X509Error(format!(
+            "certification signer {} is not the address being allowlisted {}",
+            signer.address(),
+            sender_address
+        ))
+        .into());
+    }
     let estimated = x509_instance
         .validateCertificate(certificate_args.clone())
+        .from(signer.address())
         .estimate_gas()
         .await
         .map_err(|e| {

@@ -373,39 +373,46 @@ fn run_operator(file: &DeployFile) -> Result<(), String> {
     validation::configuration_endpoints(&configuration_url)?;
     println!("Join URL: {join_url}");
 
-    if !curl_ok(&format!(
-        "http://127.0.0.1:{}/v1/health",
-        file.proposer_port
-    )) {
-        proposer::start_with(proposer::ProposerStart {
-            signing_key: file.proposer_key.clone(),
-            proposer_url,
-            configuration_url: configuration_url.clone(),
-        })?;
-    } else {
-        println!("Proposer already healthy on :{}.", file.proposer_port);
-    }
+    // Health is not a current binary. The Oct 28 proposer stayed healthy and
+    // kept estimating certification as the zero address.
+    refresh_app(
+        "nf4_indie_proposer",
+        "temp/nf4-proposer.stamp",
+        &["lib", "nightfall_proposer", "Cargo.toml", "Cargo.lock"],
+        file.proposer_port,
+        || {
+            proposer::start_with(proposer::ProposerStart {
+                signing_key: file.proposer_key.clone(),
+                proposer_url: proposer_url.clone(),
+                configuration_url: configuration_url.clone(),
+            })
+        },
+    )?;
 
-    if !curl_ok(&format!("http://127.0.0.1:{}/v1/health", file.client_port)) {
-        let webhook = webhook::ensure_local(file.webhook_port)?;
-        client::start_with(client::ClientStart {
-            signing_key: file.client_key.clone(),
-            client_address: wallets.client.clone(),
-            client2_address: file.client2_address.clone(),
-            client2_signing_key: None,
-            proposer_url: join.proposer_url,
-            configuration_url,
-            webhook_url: format!(
-                "http://{}:{}/webhook",
-                network::detect_lan_host(),
-                file.webhook_port
-            ),
-            webhook_events: Some(webhook.events_path.display().to_string()),
-            client_port: file.client_port,
-        })?;
-    } else {
-        println!("Client 1 already healthy on :{}.", file.client_port);
-    }
+    refresh_app(
+        "nf4_indie_client",
+        "temp/nf4-client.stamp",
+        &["lib", "nightfall_client", "Cargo.toml", "Cargo.lock"],
+        file.client_port,
+        || {
+            let webhook = webhook::ensure_local(file.webhook_port)?;
+            client::start_with(client::ClientStart {
+                signing_key: file.client_key.clone(),
+                client_address: wallets.client.clone(),
+                client2_address: file.client2_address.clone(),
+                client2_signing_key: None,
+                proposer_url: join.proposer_url,
+                configuration_url,
+                webhook_url: format!(
+                    "http://{}:{}/webhook",
+                    network::detect_lan_host(),
+                    file.webhook_port
+                ),
+                webhook_events: Some(webhook.events_path.display().to_string()),
+                client_port: file.client_port,
+            })
+        },
+    )?;
     println!(
         "Operator deploy finished. Certify from scripts/nf4-deploy, then run the test script."
     );
@@ -1549,11 +1556,122 @@ fn url_port(url: &str) -> Option<u16> {
 }
 
 #[cfg(test)]
+fn refresh_app(
+    container: &str,
+    stamp_path: &str,
+    roots: &[&str],
+    port: u16,
+    start: impl FnOnce() -> Result<(), String>,
+) -> Result<(), String> {
+    let fingerprint = source_fingerprint(roots)?;
+    let image = container_image_id(container);
+    let health = format!("http://127.0.0.1:{port}/v1/health");
+    if curl_ok(&health) && stamp_matches(stamp_path, &fingerprint, image.as_deref()) {
+        println!("{container} already healthy on the current source. Not rebuilding.");
+        return Ok(());
+    }
+    if curl_ok(&health) {
+        println!(
+            "{container} is healthy, but it is not the current source. Rebuilding before certification."
+        );
+    }
+    start()?;
+    let image = container_image_id(container).ok_or_else(|| {
+        format!("{container} did not start, so its image stamp was not written")
+    })?;
+    write_stamp(stamp_path, &fingerprint, &image)
+}
+
+fn stamp_matches(path: &str, fingerprint: &str, image: Option<&str>) -> bool {
+    let Some(image) = image else {
+        return false;
+    };
+    let Ok(text) = fs::read_to_string(path) else {
+        return false;
+    };
+    let mut lines = text.lines();
+    lines.next() == Some(fingerprint) && lines.next() == Some(image)
+}
+
+fn write_stamp(path: &str, fingerprint: &str, image: &str) -> Result<(), String> {
+    if let Some(parent) = Path::new(path).parent() {
+        fs::create_dir_all(parent)
+            .map_err(|err| format!("Failed to create {}: {err}", parent.display()))?;
+    }
+    fs::write(path, format!("{fingerprint}\n{image}\n"))
+        .map_err(|err| format!("Failed to write {path}: {err}"))
+}
+
+fn container_image_id(container: &str) -> Option<String> {
+    let output = Command::new("docker")
+        .args(["inspect", "-f", "{{.Image}}", container])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let id = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if id.is_empty() { None } else { Some(id) }
+}
+
+pub(crate) fn source_fingerprint(roots: &[&str]) -> Result<String, String> {
+    let mut files = Vec::new();
+    for root in roots {
+        let path = Path::new(root);
+        if path.is_file() {
+            files.push(path.to_path_buf());
+        } else if path.is_dir() {
+            collect_source_files(path, &mut files)?;
+        }
+    }
+    files.sort();
+    let mut hash: u64 = 0xcbf29ce484222325;
+    for path in files {
+        let bytes = fs::read(&path)
+            .map_err(|err| format!("Failed to read {}: {err}", path.display()))?;
+        hash = fnv1a(hash, path.to_string_lossy().as_bytes());
+        hash = fnv1a(hash, &bytes);
+    }
+    Ok(format!("{hash:016x}"))
+}
+
+fn collect_source_files(path: &Path, files: &mut Vec<PathBuf>) -> Result<(), String> {
+    if path
+        .file_name()
+        .is_some_and(|name| name == "target" || name == ".git")
+    {
+        return Ok(());
+    }
+    let meta = fs::metadata(path)
+        .map_err(|err| format!("Failed to stat {}: {err}", path.display()))?;
+    if meta.is_dir() {
+        for entry in fs::read_dir(path)
+            .map_err(|err| format!("Failed to read {}: {err}", path.display()))?
+        {
+            let entry = entry.map_err(|err| format!("Failed to read {}: {err}", path.display()))?;
+            collect_source_files(&entry.path(), files)?;
+        }
+        return Ok(());
+    }
+    if meta.is_file() {
+        files.push(path.to_path_buf());
+    }
+    Ok(())
+}
+
+fn fnv1a(mut hash: u64, bytes: &[u8]) -> u64 {
+    for byte in bytes {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    hash
+}
+
 mod tests {
     use super::{
         choose_operator_host, expect_address, is_writable_dir, operator_host_candidates,
-        parse_deploy_file, parse_join, reclaim_unwritable_dir, render_join, split_vm_host_error,
-        validate_deploy_file, JoinDoc,
+        parse_deploy_file, parse_join, reclaim_unwritable_dir, render_join, source_fingerprint,
+        split_vm_host_error, stamp_matches, validate_deploy_file, JoinDoc,
     };
     use std::{
         fs,
@@ -1574,6 +1692,54 @@ NF4_DEPLOYER_KEY=0x1111111111111111111111111111111111111111111111111111111111111
 NF4_CLIENT2_ADDRESS=0x2222222222222222222222222222222222222222
 "#
         .to_string()
+    }
+
+    #[test]
+    fn a_healthy_container_without_the_current_stamp_is_not_current() {
+        assert!(!stamp_matches(
+            "temp/does-not-exist-nf4.stamp",
+            "abc",
+            Some("sha256:old")
+        ));
+        assert!(!stamp_matches(
+            "temp/does-not-exist-nf4.stamp",
+            "abc",
+            None
+        ));
+        let stamp = std::env::temp_dir().join(format!(
+            "nf4-stamp-match-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::write(&stamp, "abc\nsha256:new\n").unwrap();
+        assert!(stamp_matches(stamp.to_str().unwrap(), "abc", Some("sha256:new")));
+        assert!(!stamp_matches(
+            stamp.to_str().unwrap(),
+            "abc",
+            Some("sha256:old")
+        ));
+        let _ = fs::remove_file(&stamp);
+    }
+
+    #[test]
+    fn source_fingerprint_changes_when_a_file_changes() {
+        let dir = std::env::temp_dir().join(format!(
+            "nf4-stamp-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("lib.rs");
+        fs::write(&file, b"estimate without from").unwrap();
+        let before = source_fingerprint(&[dir.to_str().unwrap()]).unwrap();
+        fs::write(&file, b"estimate from signer").unwrap();
+        let after = source_fingerprint(&[dir.to_str().unwrap()]).unwrap();
+        assert_ne!(before, after);
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]

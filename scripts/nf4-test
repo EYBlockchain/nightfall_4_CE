@@ -206,10 +206,108 @@ step_baseline() {
   note "baseline recorded. Client 2 must still be down."
 }
 
+l1_still_with_client() {
+  PATH="${HOME}/.foundry/bin:${PATH}"
+  command -v cast >/dev/null 2>&1 || return 1
+  local bal owner bal1155
+  bal="$(cast call "$TOKEN20" 'balanceOf(address)(uint256)' "$NF" --rpc-url "$NF4_RPC_HTTP" 2>/dev/null || true)"
+  [[ "$bal" == 0 ]] || return 1
+  owner="$(cast call "$TOKEN721" 'ownerOf(uint256)(address)' 1001 --rpc-url "$NF4_RPC_HTTP" 2>/dev/null || true)"
+  [[ "${owner,,}" == "${C1,,}" ]] || return 1
+  bal1155="$(cast call "$TOKEN1155" 'balanceOf(address,uint256)(uint256)' "$NF" 2001 --rpc-url "$NF4_RPC_HTTP" 2>/dev/null || true)"
+  [[ "$bal1155" == 0 ]] || return 1
+}
+
+request_status() {
+  local id="$1"
+  docker exec nf4_db_client mongosh --quiet --norc --eval "
+const id = $(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$id");
+const row = db.getSiblingDB('nightfall').requests.findOne({uuid: id});
+print(row ? row.status : 'absent');
+"
+}
+
+archive_dead_deposit() {
+  [[ -e "$EVIDENCE" ]] || return 0
+  local name id status ids=() mappings state api commitments dest
+  for name in ERC20 ERC721 ERC1155 ERC3525; do
+    [[ -f "$EVIDENCE/$name.request-id" ]] || die "STOP: $EVIDENCE exists and $name.request-id is missing. Do not delete it to POST again."
+    id="$(<"$EVIDENCE/$name.request-id")"
+    [[ "$id" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || die "STOP: $EVIDENCE has a bad $name request id. Do not delete it to POST again."
+    ids+=("$id")
+  done
+  docker inspect nf4_db_client >/dev/null 2>&1 || die "STOP: $EVIDENCE exists and nf4_db_client is not running. Do not delete the directory."
+  local csv=""
+  for id in "${ids[@]}"; do
+    status="$(request_status "$id" | tr -d '\r\n ')"
+    [[ "$status" =~ ^[A-Za-z]+$ ]] || die "STOP: could not read request $id (got '$status'). Do not delete $EVIDENCE."
+    csv="${csv:+$csv,}$status"
+  done
+  mappings="$(docker exec nf4_db_client mongosh --quiet --norc --eval "
+const ids = $(python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]))' "${ids[@]}");
+print(db.getSiblingDB('nightfall').request_commitment_mappings.countDocuments({request_id: {\$in: ids}}));
+")"
+  mappings="$(printf '%s' "$mappings" | tr -d '\r\n ')"
+  [[ "$mappings" =~ ^[0-9]+$ ]] || die "STOP: could not count commitment mappings. Do not delete $EVIDENCE."
+  state="$(python3 "$ROOT/scripts/deposit_evidence.py" "$csv" "0")"
+  local pending_only=0
+  if [[ "$mappings" != 0 ]]; then
+    local commitment_states
+    commitment_states="$(docker exec nf4_db_client mongosh --quiet --norc --eval "
+const ids = $(python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]))' "${ids[@]}");
+const n = db.getSiblingDB('nightfall');
+const hashes = n.request_commitment_mappings.find({request_id: {\$in: ids}}).map(m => m.commitment_hash).toArray();
+const rows = n.commitments.find({_id: {\$in: hashes}}, {status: 1}).toArray();
+print(rows.map(r => r.status).join(','));
+")"
+    commitment_states="$(printf '%s' "$commitment_states" | tr -d '\r\n ')"
+    if [[ "$commitment_states" =~ ^(PendingCreation,)*PendingCreation$ ]]; then
+      pending_only=1
+    else
+      state="live"
+    fi
+  fi
+  api="http://127.0.0.1:${NF4_CLIENT_PORT}"
+  if curl -fsS --max-time 20 "$api/v1/commitments" -o temp/sepolia-test/commitments-before-deposit.json; then
+    commitments="$(python3 -c 'import json,sys
+rows=json.load(open(sys.argv[1]))
+print(sum(1 for row in rows if row.get("status") != "PendingCreation"))' temp/sepolia-test/commitments-before-deposit.json)"
+    [[ "$commitments" == 0 ]] || state="live"
+  elif [[ "$pending_only" != 1 ]]; then
+    state="unknown"
+  fi
+  if [[ "$state" == dead && "$pending_only" == 1 ]]; then
+    l1_still_with_client || state="live"
+  fi
+  case "$state" in
+    dead)
+      if [[ "$pending_only" == 1 ]]; then
+        docker exec nf4_db_client mongosh --quiet --norc --eval "
+const ids = $(python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]))' "${ids[@]}");
+const n = db.getSiblingDB('nightfall');
+const hashes = n.request_commitment_mappings.find({request_id: {\$in: ids}}).map(m => m.commitment_hash).toArray();
+n.commitments.deleteMany({_id: {\$in: hashes}, status: 'PendingCreation'});
+n.request_commitment_mappings.deleteMany({request_id: {\$in: ids}});
+print('cleared', hashes.length);
+" >/dev/null
+      fi
+      dest="temp/sepolia-step10.failed-$(date -u +%Y%m%dT%H%M%SZ)"
+      mv "$EVIDENCE" "$dest"
+      note "archived dead deposit evidence to $dest. Those requests never escrowed on L1. Submitting again. Do not set NF4_REDEPLOY."
+      ;;
+    live)
+      die "STOP: $EVIDENCE exists and a deposit is still in progress or already mapped. Use --step poll. Do not POST again."
+      ;;
+    *)
+      die "STOP: $EVIDENCE exists and its state is not a clean failure. Do not delete it to POST again."
+      ;;
+  esac
+}
+
 step_deposit() {
   need_role operator
   refresh_public
-  [[ ! -e "$EVIDENCE" ]] || die "STOP: $EVIDENCE exists. Do not redeposit. Use --step poll."
+  archive_dead_deposit
   local api="http://127.0.0.1:${NF4_CLIENT_PORT}"
   for token in "$TOKEN20" "$TOKEN721" "$TOKEN1155" "$TOKEN3525"; do
     is_addr "$token" || die "invalid token $token"
@@ -248,7 +346,7 @@ step_poll() {
       break
     fi
     if [[ "$rc" -ne 2 ]] || ! grep -qx WAITING <<<"$out"; then
-      die "Poll/query failed (exit $rc). Do not redeposit."
+      die "Poll/query failed (exit $rc). If every request is Failed or absent and no commitment exists, run --step deposit again. It archives that evidence. Do not delete the directory and do not set NF4_REDEPLOY."
     fi
     [[ "$i" -eq 360 ]] || sleep 30
   done
