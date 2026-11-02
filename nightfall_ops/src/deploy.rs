@@ -459,7 +459,8 @@ fn run_client(file: &DeployFile) -> Result<(), String> {
         CONTRACT_HASHES_TOML,
     )?;
     for key in proposer::required_key_files(join.mock_prover) {
-        download(
+        println!("Downloading {key}. A real proving key can be tens of GB.");
+        download_large(
             &format!("{}/configuration/bin/keys/{key}", join.configuration_url),
             &format!("{KEY_DIR}/{key}"),
         )?;
@@ -1336,23 +1337,35 @@ fn profile_u64(profile: &str, path: &[&str]) -> Result<u64, String> {
 }
 
 fn download(url: &str, dest: &str) -> Result<(), String> {
+    download_timed(url, dest, "180", false)
+}
+
+fn download_large(url: &str, dest: &str) -> Result<(), String> {
+    download_timed(url, dest, "7200", true)
+}
+
+fn download_timed(url: &str, dest: &str, max_time: &str, resume: bool) -> Result<(), String> {
     if let Some(parent) = Path::new(dest).parent() {
         fs::create_dir_all(parent)
             .map_err(|err| format!("Failed to create {}: {err}", parent.display()))?;
     }
+    let mut args = vec![
+        "-fL".to_string(),
+        "--retry".to_string(),
+        "5".to_string(),
+        "--retry-all-errors".to_string(),
+        "--retry-delay".to_string(),
+        "2".to_string(),
+        "--max-time".to_string(),
+        max_time.to_string(),
+    ];
+    if resume {
+        args.push("-C".to_string());
+        args.push("-".to_string());
+    }
+    args.extend(["-o".to_string(), dest.to_string(), url.to_string()]);
     let status = Command::new("curl")
-        .args([
-            "-fsS",
-            "--retry",
-            "5",
-            "--retry-delay",
-            "2",
-            "--max-time",
-            "180",
-            "-o",
-            dest,
-            url,
-        ])
+        .args(&args)
         .status()
         .map_err(|err| format!("Failed to run curl: {err}"))?;
     if status.success() {

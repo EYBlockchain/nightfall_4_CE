@@ -284,7 +284,7 @@ If step 10 has not printed `READY`, stop. Step 12 is the first time VM-B runs de
 
 Do not edit `NF4_LATE_JOIN` by hand. The flag is the confirmation that step 10 printed `READY`.
 
-This fetches `join.toml`, addresses, hashes, and proving keys. It writes this VM's `local.env` with `NF4_CONTRACTS__DEPLOY_CONTRACTS=false`. If `local.env` contains `DEPLOYER_SIGNING_KEY`, the script removes that line and continues. The key stays in VM-A `deploy.env`. It starts `nf4_indie_client` on port 3000, certifies with `user-4`, and prints `C2_ZKP` (64 hex characters, no `0x`) plus the exact `accept-zkp` command. It does not run `wizard deploy`. A rate-limit during certification is retried. An execution revert is not.
+This fetches `join.toml`, addresses, hashes, and proving keys. A real `decider_pk` is about 30 GB, so this step can take many minutes. It writes this VM's `local.env` with `NF4_CONTRACTS__DEPLOY_CONTRACTS=false`. If `local.env` contains `DEPLOYER_SIGNING_KEY`, the script removes that line and continues. The key stays in VM-A `deploy.env`. It starts `nf4_indie_client` on port 3000, certifies with `user-4`, and prints `C2_ZKP` (64 hex characters, no `0x`) plus the exact `accept-zkp` command. It does not run `wizard deploy`. A rate-limit during certification is retried. An execution revert is not.
 
 ```bash
 curl -fsS http://127.0.0.1:3000/v1/health
