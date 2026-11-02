@@ -1341,7 +1341,38 @@ fn download(url: &str, dest: &str) -> Result<(), String> {
 }
 
 fn download_large(url: &str, dest: &str) -> Result<(), String> {
+    if let Some(remote) = remote_content_length(url) {
+        if let Some(local) = fs::metadata(dest).ok().map(|meta| meta.len()) {
+            if local == remote {
+                println!("{dest} already complete ({local} bytes). Not downloading again.");
+                return Ok(());
+            }
+            if local > remote {
+                fs::remove_file(dest).ok();
+            }
+        }
+    }
     download_timed(url, dest, "7200", true)
+}
+
+fn remote_content_length(url: &str) -> Option<u64> {
+    let output = Command::new("curl")
+        .args(["-fsSI", "--max-time", "30", url])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .find_map(|line| {
+            let (name, value) = line.split_once(':')?;
+            if name.eq_ignore_ascii_case("content-length") {
+                value.trim().parse().ok()
+            } else {
+                None
+            }
+        })
 }
 
 fn download_timed(url: &str, dest: &str, max_time: &str, resume: bool) -> Result<(), String> {
