@@ -154,6 +154,33 @@ derive_on() {
     --data "$(python3 -c 'import json,sys; print(json.dumps({"mnemonic":sys.argv[1],"child_path":sys.argv[2]}))' "$mnemonic" "$CHILD_PATH")" >/dev/null
 }
 
+owned() {
+  cast call "$1" "ownerOf(uint256)(address)" "$2" --rpc-url "$NF4_RPC_HTTP" >/dev/null 2>&1
+}
+
+mint_send() {
+  local attempt
+  for attempt in 1 2 3 4 5; do
+    if cast send "$@" --private-key "$NF4_DEPLOYER_KEY" --rpc-url "$NF4_RPC_HTTP"; then
+      return 0
+    fi
+    sleep $((attempt * 4))
+  done
+  die "mint failed after retries: $*"
+}
+
+mint_if_needed() {
+  owned "$TOKEN721" 1001 || mint_send "$TOKEN721" "mint(address,address,uint256)" "$C1" "$NF" 1001
+  owned "$TOKEN721" 1002 || mint_send "$TOKEN721" "mint(address,address,uint256)" "$C2" "$NF" 1002
+  local bal
+  bal="$(cast call "$TOKEN1155" "balanceOf(address,uint256)(uint256)" "$C1" 2001 --rpc-url "$NF4_RPC_HTTP" 2>/dev/null || echo 0)"
+  [[ "$bal" -ge 20 ]] || mint_send "$TOKEN1155" "mint(address,address,uint256,uint256)" "$C1" "$NF" 2001 20
+  bal="$(cast call "$TOKEN1155" "balanceOf(address,uint256)(uint256)" "$C2" 2001 --rpc-url "$NF4_RPC_HTTP" 2>/dev/null || echo 0)"
+  [[ "$bal" -ge 10 ]] || mint_send "$TOKEN1155" "mint(address,address,uint256,uint256)" "$C2" "$NF" 2001 10
+  owned "$TOKEN3525" 3001 || mint_send "$TOKEN3525" "mint(address,address,uint256,uint256,uint256)" "$NF" "$C1" 3001 1 100
+  owned "$TOKEN3525" 3002 || mint_send "$TOKEN3525" "mint(address,address,uint256,uint256,uint256)" "$NF" "$C2" 3002 1 100
+}
+
 step_tokens() {
   need_role operator
   require_sepolia
@@ -184,12 +211,7 @@ step_tokens() {
   if [[ -f temp/sepolia-test/minted ]]; then
     echo "Mint marker exists. Not minting again."
   else
-    cast send "$TOKEN721" "mint(address,address,uint256)" "$C1" "$NF" 1001 --private-key "$NF4_DEPLOYER_KEY" --rpc-url "$NF4_RPC_HTTP"
-    cast send "$TOKEN721" "mint(address,address,uint256)" "$C2" "$NF" 1002 --private-key "$NF4_DEPLOYER_KEY" --rpc-url "$NF4_RPC_HTTP"
-    cast send "$TOKEN1155" "mint(address,address,uint256,uint256)" "$C1" "$NF" 2001 20 --private-key "$NF4_DEPLOYER_KEY" --rpc-url "$NF4_RPC_HTTP"
-    cast send "$TOKEN1155" "mint(address,address,uint256,uint256)" "$C2" "$NF" 2001 10 --private-key "$NF4_DEPLOYER_KEY" --rpc-url "$NF4_RPC_HTTP"
-    cast send "$TOKEN3525" "mint(address,address,uint256,uint256,uint256)" "$NF" "$C1" 3001 1 100 --private-key "$NF4_DEPLOYER_KEY" --rpc-url "$NF4_RPC_HTTP"
-    cast send "$TOKEN3525" "mint(address,address,uint256,uint256,uint256)" "$NF" "$C2" 3002 1 100 --private-key "$NF4_DEPLOYER_KEY" --rpc-url "$NF4_RPC_HTTP"
+    mint_if_needed
     date -u +%Y-%m-%dT%H:%M:%SZ > temp/sepolia-test/minted
   fi
   note "tokens published. VM-B can curl public.env. Do not deploy mocks there."

@@ -228,7 +228,7 @@ On VM-A, `docker ps --filter name=nf4_indie_client` shows Client 1. That is expe
 
 This deploys ERC20, ERC721, ERC1155, and ERC3525 mocks, reads the `Deployed ERC*Mock to:` lines, mints 1001/1002, 2001, and 3001/3002, and appends the addresses to `configuration/toml/public.env`. It does not mint on VM-B. Do not run `client deploy-mock-tokens` on VM-B.
 
-If a mint fails halfway, do not delete `temp/sepolia-test/minted` if that file exists. If it does not exist, a retry starts again at the first mint and ERC721 1001 will revert because it was already minted. Inspect `temp/sepolia-test/mock-deploy.log` and send only the missing `cast send` from the script's mint list. The constructor already minted the ERC20 supply. The script does not mint ERC20 again.
+If a mint fails halfway, run the same command again. It skips tokens that already exist and retries a nonce or rate-limit error. Do not delete `temp/sepolia-test/minted` if that file exists. The constructor already minted the ERC20 supply. The script does not mint ERC20 again.
 
 Record the four token addresses and the mint transaction hashes.
 
