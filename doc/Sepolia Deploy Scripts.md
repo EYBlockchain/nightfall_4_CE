@@ -196,7 +196,7 @@ sudo chown -R "$USER:$USER" configuration/toml
 
 Success is still exit 0, the join URL, both certifications, `C1_ZKP`, configuration HTTP 200, and `deployer exited 0`.
 
-Record Nightfall, Round Robin, X509, and Verifier from `configuration/toml/addresses.toml`, plus explorer links. Those addresses are also in `configuration/toml/public.env` after this step. `public.env` has no keys and no RPC URL.
+Record Nightfall, Round Robin, X509, and Verifier from `configuration/toml/addresses.toml`, plus explorer links. Those addresses are also in `configuration/toml/public.env` after this step. `public.env` has no keys and no RPC URL. It is mode 644 so VM-B can fetch it. A 600 file is served as HTTP 403 and Client 2's deposit step fails.
 
 ## 7. VM-B can see the join file, and Client 2 is still down
 

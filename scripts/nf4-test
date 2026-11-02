@@ -117,6 +117,7 @@ upsert_public() {
   [[ -f "$file" ]] && grep -v "^${key}=" "$file" >"$tmp" || true
   printf "%s='%s'\n" "$key" "$value" >>"$tmp"
   mv "$tmp" "$file"
+  chmod 644 "$file"
 }
 
 require_sepolia() {

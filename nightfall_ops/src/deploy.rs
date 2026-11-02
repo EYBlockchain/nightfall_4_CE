@@ -3,6 +3,7 @@ use std::{
     fs,
     io::ErrorKind,
     net::{SocketAddr, TcpStream, ToSocketAddrs},
+    os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
     process::Command,
     time::Duration,
@@ -1241,7 +1242,10 @@ fn write_public_env(
     lines.push(String::new());
     remove_if_unwritable(Path::new(PUBLIC_ENV))?;
     fs::write(PUBLIC_ENV, lines.join("\n"))
-        .map_err(|err| format!("Failed to write {PUBLIC_ENV}: {err}"))
+        .map_err(|err| format!("Failed to write {PUBLIC_ENV}: {err}"))?;
+    // VM-B fetches this file over HTTP. It has addresses and ZKP public keys, not secrets.
+    fs::set_permissions(PUBLIC_ENV, fs::Permissions::from_mode(0o644))
+        .map_err(|err| format!("Failed to publish {PUBLIC_ENV}: {err}"))
 }
 
 fn print_operator_review(config: &DeploymentConfig, client_address: &str, client2: &str) {
