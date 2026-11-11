@@ -47,12 +47,21 @@ pub fn ensure_local(port: u16) -> Result<LocalWebhook, String> {
         .try_clone()
         .map_err(|err| format!("Failed to clone webhook log handle: {err}"))?;
 
-    let child = Command::new(exe)
+    let mut command = Command::new(exe);
+    command
         .args(["webhook", "serve", &port.to_string()])
         .env("NF4_WEBHOOK_EVENTS_FILE", EVENTS_FILE)
         .stdin(Stdio::null())
         .stdout(Stdio::from(log))
-        .stderr(Stdio::from(err_log))
+        .stderr(Stdio::from(err_log));
+    // The deploy script exits after this spawn. A child in the same process
+    // group dies with that tmux session, and Client 1 then cannot post salts.
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        command.process_group(0);
+    }
+    let child = command
         .spawn()
         .map_err(|err| format!("Failed to start local testing webhook: {err}"))?;
 

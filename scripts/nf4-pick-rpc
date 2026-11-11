@@ -100,7 +100,12 @@ def probe(url: str, chain_id: int) -> tuple[bool, float]:
         return False, float(PROBE_TIMEOUT)
 
 
-def fastest(urls: list[str], prefix: str, chain_id: int) -> str:
+def rpc_host(url: str) -> str:
+    host = url.split("://", 1)[-1].split("/", 1)[0]
+    return host.split("@")[-1]
+
+
+def fastest(urls: list[str], prefix: str, chain_id: int) -> list[tuple[float, str]]:
     ranked: list[tuple[float, str]] = []
     for url in urls:
         if not url.startswith(prefix):
@@ -111,20 +116,50 @@ def fastest(urls: list[str], prefix: str, chain_id: int) -> str:
         if ok:
             ranked.append((elapsed, url))
     ranked.sort()
-    return ranked[0][1] if ranked else ""
+    return ranked
+
+
+def choose_pair(
+    http_ranked: list[tuple[float, str]], wss_ranked: list[tuple[float, str]]
+) -> tuple[str, str, bool]:
+    """Return https, wss, and whether the hosts match.
+
+    A split pair is what made Tenderly rate-limit the proposer while cast used
+    a different HTTPS host. Prefer the fastest same-host pair.
+    """
+    pairs: list[tuple[float, str, str]] = []
+    for http_elapsed, http in http_ranked:
+        for wss_elapsed, wss in wss_ranked:
+            if rpc_host(http) == rpc_host(wss):
+                pairs.append((http_elapsed + wss_elapsed, http, wss))
+    if pairs:
+        pairs.sort()
+        _, http, wss = pairs[0]
+        return http, wss, True
+    if not http_ranked or not wss_ranked:
+        return "", "", False
+    return http_ranked[0][1], wss_ranked[0][1], False
 
 
 def main() -> None:
     args = parse_args()
     chain_id = CHAIN_IDS[args.network]
     urls = rpc_urls(chain_id)
-    http = fastest(urls, "https://", chain_id)
-    wss = fastest(urls, "wss://", chain_id)
+    http, wss, matched = choose_pair(
+        fastest(urls, "https://", chain_id), fastest(urls, "wss://", chain_id)
+    )
     if not http or not wss:
         raise SystemExit(f"no working {args.network} HTTP+WSS RPC from chainlist")
+    if not matched:
+        print(
+            "warning: no same-host HTTP and WSS pair answered. "
+            "Deploy refuses a split pair unless NF4_ALLOW_SPLIT_RPC=true.",
+            file=sys.stderr,
+        )
     print(
         "warning: selected a public RPC. eth_sendRawTransaction can return -32005. "
-        "Put a keyed provider in NF4_RPC_WSS and NF4_RPC_HTTP before deposits.",
+        "Put a keyed provider in NF4_RPC_WSS and NF4_RPC_HTTP before deposits. "
+        "Use the same host for both URLs.",
         file=sys.stderr,
     )
     print(f"export RPC_HTTP={http}")

@@ -188,6 +188,8 @@ pub fn wizard(yes: bool) -> Result<(), String> {
         client2_signing_key,
         proposer_url,
         configuration_url,
+        host_proposer_url: None,
+        host_configuration_url: None,
         webhook_url: webhook_setup.url,
         webhook_events: webhook_setup
             .events_path
@@ -215,6 +217,9 @@ pub struct ClientStart {
     pub client2_signing_key: Option<String>,
     pub proposer_url: String,
     pub configuration_url: String,
+    /// Host-side curl target when the container URL is not reachable from this process.
+    pub host_proposer_url: Option<String>,
+    pub host_configuration_url: Option<String>,
     pub webhook_url: String,
     pub webhook_events: Option<String>,
     pub client_port: u16,
@@ -252,11 +257,19 @@ pub fn start_with(start: ClientStart) -> Result<(), String> {
         .get("nightfall")
         .cloned()
         .ok_or_else(|| format!("{ADDRESSES_TOML} is missing nightfall"))?;
-    validate_proposer_health(&start.proposer_url)?;
+    let check_proposer = start
+        .host_proposer_url
+        .as_deref()
+        .unwrap_or(start.proposer_url.as_str());
+    let check_configuration = start
+        .host_configuration_url
+        .as_deref()
+        .unwrap_or(start.configuration_url.as_str());
+    validate_proposer_health(check_proposer)?;
     if let Some(kind) = resolved.kind {
         validate_published_configuration_url(kind, &start.configuration_url)?;
     }
-    validate_configuration_runtime_url(&start.configuration_url)?;
+    validate_configuration_runtime_url(check_configuration)?;
 
     let backup_dir = config::backup_config_files()?;
     println!("Backed up config files to {}", backup_dir.display());

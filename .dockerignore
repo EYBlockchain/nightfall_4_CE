@@ -14,9 +14,8 @@ LICENSE
 remappings.txt
 **/*.ptau
 nightfall_bindings/build.rs
-# Ignore everything under bin
-configuration/bin/*
-# But allow the keys directory itself
-!configuration/bin/keys/
-# And allow its contents
-!configuration/bin/keys/**
+# Client and proposer images copy proving_key only. Do not exclude the
+# keys directory and then re-include it: that brings every key back into
+# the build context
+configuration/bin/keys/*
+!configuration/bin/keys/proving_key

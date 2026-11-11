@@ -357,7 +357,7 @@ impl Addresses {
                 let run_mode = std::env::var("NF4_RUN_MODE").unwrap_or_default();
                 let is_production = matches!(run_mode.as_str(), "production");
 
-                let addrs: Vec<_> = (host, port)
+                let mut addrs: Vec<_> = (host, port)
                     .to_socket_addrs()
                     .map_err(|_| AddressesError::CouldNotGetUrl)?
                     .map(|sa| sa.ip())
@@ -366,6 +366,12 @@ impl Addresses {
                         !is_production || !is_private_ip(*ip)
                     })
                     .collect();
+                // Docker Desktop publishes host.docker.internal on IPv4 and an
+                // unreachable IPv6 ULA. reqwest keeps the last resolve() call,
+                // so pinning the ULA makes every address fetch fail.
+                if addrs.iter().any(|ip| ip.is_ipv4()) {
+                    addrs.retain(|ip| ip.is_ipv4());
+                }
 
                 if addrs.is_empty() {
                     return Err(AddressesError::Toml(format!(

@@ -2,16 +2,75 @@
 
 Follow this page from step 1 through step 24. Do not start Client 2 before step 12. Do not run the wizard deploy path in `doc/Sepolia Assistant Quick Start.md` at the same time. That file is the manual fallback if a script step fails and you need the original curl. This page is the procedure.
 
-Two VMs. Two scripts. No SSH. No copied `deploy.env`, `local.env`, or private key.
+This lab is one VM and this laptop. In the steps below, VM-A is `RNDHPCVM03`. VM-B is this laptop. Do not use `RNDHPCVM04`.
 
 ```text
-VM-A                                    VM-B
+RNDHPCVM03                              this laptop
 operator, configuration :8080           waits until step 12
 proposer :3001                          then Client 2 on :3000
 Client 1 :3000                          own key, own Mongo
+checkout: ~/nightfall_4_CE              checkout: this repository
 ```
 
-VM-B uses `nf4_indie_client` on port 3000, not `indie-client2`. Client API ports stay on localhost. Clients do not talk to each other. Both must reach Sepolia `wss://`, `http://<VM-A>:8080`, and `http://<VM-A>:3001`.
+The scripts do not SSH, and they do not copy `deploy.env`, `local.env`, or a private key. Reaching the operator is manual. Client 2 uses `nf4_indie_client` on port 3000, not `indie-client2`. Client API ports stay on localhost. The laptop does not talk to Client 1. The operator must reach Sepolia `wss://`. The laptop client container must too. Host `cast` on the laptop cannot, which step 3 explains. The laptop cannot route to the operator LAN, so it reaches configuration and the proposer through local forwards. The on-chain proposer URL stays `http://10.0.0.6:3001` while that NIC is the one `--check` prints. Do not rewrite `NF4_JOIN_URL` to `127.0.0.1`.
+
+Open a shell on VM-03 from the laptop:
+
+```bash
+az network bastion ssh \
+  --name RNDHPCVM01-vnet-bastion \
+  --resource-group UE2DBLKCLDRND01 \
+  --auth-type ssh-key \
+  --ssh-key id_ecdsa \
+  --username adarsh \
+  --target-resource-id /subscriptions/ee201e68-47b6-4321-ac1a-8607739530a8/resourceGroups/UE2DBLKCLDRND01/providers/Microsoft.Compute/virtualMachines/RNDHPCVM03
+```
+
+That shell is not a port forward. The laptop client needs a second session, a bastion tunnel on local port `50023`:
+
+```bash
+az network bastion tunnel \
+  --name RNDHPCVM01-vnet-bastion \
+  --resource-group UE2DBLKCLDRND01 \
+  --target-resource-id /subscriptions/ee201e68-47b6-4321-ac1a-8607739530a8/resourceGroups/UE2DBLKCLDRND01/providers/Microsoft.Compute/virtualMachines/RNDHPCVM03 \
+  --resource-port 22 \
+  --port 50023
+```
+
+Leave that process running. Then forward the operator's localhost ports. `10.0.0.6` is not reachable from Docker Desktop, so the forwards target `127.0.0.1` on VM-03, not the LAN address.
+
+```bash
+ssh -i ~/.ssh/id_ecdsa -p 50023 -N \
+  -o ExitOnForwardFailure=yes \
+  -L 127.0.0.1:18080:127.0.0.1:8080 \
+  -L 127.0.0.1:13001:127.0.0.1:3001 \
+  adarsh@127.0.0.1
+```
+
+`./scripts/nf4-laptop-tunnel` is the same forward, once port `50023` is listening. Put these lines in the laptop `deploy.env` only:
+
+```bash
+NF4_JOIN_URL=http://10.0.0.6:8080/configuration/toml/join.toml
+NF4_TUNNEL_HTTP=http://127.0.0.1:18080
+NF4_TUNNEL_PROPOSER=http://127.0.0.1:13001
+```
+
+Use the host `--check` prints if it is not `10.0.0.6`. The script still fetches the published `join.toml`. Downloads and health checks use the forwards. The client container uses `host.docker.internal` on those same ports. Do not start Client 2 before step 12. Docker Desktop must be running before that step. It does not need to be running for the operator deploy.
+
+The fresh deploy on this NIC wrote these addresses. A later `--fresh-start` replaces them. Do not paste them back into an old `public.env`.
+
+| | |
+|---|---|
+| Operator host | `10.0.0.6` |
+| Deployer, proposer, Client 1 | `0x2021c2Ca1791E5b50D3e882f979b03610db3B8A3` |
+| Client 2 | `0xB4c4000eeA0cff47a27f8Ee15AFD87400Ef86004` |
+| Nightfall | `0xb769327ed0D36216967319B023ec9C7f9dAa5576` |
+| Round Robin | `0x98b67fD7B25B0b9E099F950560D4B47693D0a6F0` |
+| X509 | `0x589Fe721B1251ef47914F6871f8c2E1B63E7CAd5` |
+| Verifier | `0xA98EA5690b9b3227bB69a95dA210e958cE678dFb` |
+| Genesis block | `12075005` |
+
+`NF4_CLIENT2_ADDRESS` on VM-03 is already the laptop address above. Do not copy the laptop key there.
 
 Work from the repository root on every command. A new shell does not inherit exports. Pass `--file deploy.env` every time. Do not put keys, mnemonics, or RPC URLs in the report.
 
@@ -19,7 +78,7 @@ These stay manual, because the scripts do not SSH and cannot spend your faucet f
 
 - `git switch` and `git pull`
 - funding an L1 account
-- opening TCP `8080` and `3001` from VM-B to VM-A
+- keeping the bastion tunnel on port `50023` and the laptop forwards to `18080` and `13001` up. Do not open VM-03 ports `8080` or `3001` to the public internet for this laptop
 - copying `NF4_CLIENT2_ADDRESS` to VM-A, the join URL to VM-B, and `temp/zkp.public` to VM-A
 - waiting out the soak and running `soak-check` again at 24 hours and at the end
 - explorer screenshots, and any escrow hash the logs only show abbreviated
@@ -57,7 +116,7 @@ Client 1: `spice split denial symbol resemble knock hunt trial make buzz attitud
 
 Client 2: `wink shell monkey fiscal exit great friend motor arrange file coffee leg catch drip amateur simple plastic win seat circle couch differ stomach law`
 
-## 1. Prep, both VMs
+## 1. Prep, VM-03 and the laptop
 
 Need Docker, `forge`, `cast`, `cargo`, `curl`, and `python3`. Chain ID `11155111`. `84532` is Base Sepolia. Do not use Anvil, `--yes`, or `--network local`. The scripts prepend `~/.cargo/bin` and `~/.foundry/bin`, so a non-login shell still finds them when they are installed in those default places.
 
@@ -82,15 +141,15 @@ It reads the local interfaces, skips loopback, link-local, and Docker bridge add
 The command prints three lines. The third is the one to copy:
 
 ```text
-Operator host: 10.0.0.8
-Join URL: http://10.0.0.8:8080/configuration/toml/join.toml
-NF4_JOIN_URL=http://10.0.0.8:8080/configuration/toml/join.toml
+Operator host: 10.1.2.3
+Join URL: http://10.1.2.3:8080/configuration/toml/join.toml
+NF4_JOIN_URL=http://10.1.2.3:8080/configuration/toml/join.toml
 ```
 
 On VM-B, put that third line in `deploy.env`. Step 4 creates that file with `./scripts/nf4-deploy --init client --file deploy.env`. Open `deploy.env` on VM-B and set:
 
 ```bash
-NF4_JOIN_URL=http://10.0.0.8:8080/configuration/toml/join.toml
+NF4_JOIN_URL=http://10.1.2.3:8080/configuration/toml/join.toml
 ```
 
 Use the printed host, not this example. Do not put `NF4_JOIN_URL` in VM-A's `deploy.env`. A line that says the local probe timed out is still a result: nothing is listening on 8080 yet, and some hosts cannot connect to their own address. Confirm the URL from VM-B in step 7. If VM-B cannot route to it, set `NF4_OPERATOR_HOST` on VM-A and run `./scripts/nf4-deploy --check` again.
@@ -99,7 +158,7 @@ That address is written on chain. Do not change it after deploy. If it changes, 
 
 ## 3. RPC is filled automatically
 
-Leave `NF4_RPC_WSS` and `NF4_RPC_HTTP` as the example placeholders, or delete them. `--init`, `--check`, and deploy call `./scripts/nf4-pick-rpc --network sepolia` and write the chosen pair into `deploy.env`. Nightfall needs `wss://`. `cast` uses the `https://` pair. A chain-id check does not prove `eth_subscribe` will stay up. If the listener later drops, put a keyed provider in those two lines. The script will not overwrite a URL you already set. Do not redeploy just to change the RPC, and do not put the RPC URL in `join.toml` or the report.
+Leave `NF4_RPC_WSS` and `NF4_RPC_HTTP` as the example placeholders, or delete them. `--init`, `--check`, and deploy call `./scripts/nf4-pick-rpc --network sepolia` and write the chosen pair into `deploy.env`. The picker prefers one host that answered on both `https://` and `wss://`. Nightfall needs `wss://`. `cast` uses the `https://` pair. Deploy refuses a split pair unless `NF4_ALLOW_SPLIT_RPC=true`. A split pair is what left the proposer rate-limited on one provider while `cast` still worked on another. A chain-id check does not prove `eth_subscribe` will stay up. If the listener later drops, or a send returns `-32005`, put a keyed provider in both lines, same host. The script will not overwrite a URL you already set. A dead private URL such as `ws://10.173.187.78` is not a Sepolia endpoint. Replace it. On this laptop, host `cast` fails every `wss://` with `UnknownIssuer`. Zscaler intercepts TLS, and Foundry's websocket stack does not use the macOS keychain. `SSL_CERT_FILE` does not fix it. That is not a reason to switch the operator RPC. The laptop wallet check and late join probe chain ID with the HTTPS pair. The client container still receives the `wss://` URL, and its image has the Zscaler root. Do not point `NF4_RPC_WSS` at `ws://` to silence the host error. Nightfall in the container needs `wss://`. Do not redeploy just to change the RPC, and do not put the RPC URL in `join.toml` or the report.
 
 ## 4. Create deploy.env and paste one key
 
@@ -159,7 +218,7 @@ On VM-B a clean wallet check looks like `Wallet check OK. Client 2 was not start
 
 The same VM-B check then fetches `NF4_JOIN_URL`. Before step 6 has exited 0, `curl: (7)` and `join HTTP 000` are expected: nothing is listening on 8080 yet. The wallet lines above that curl are still valid, but the command exits non-zero because the fetch failed. Do not deploy on VM-B to clear it. Do not pass `--late-join`. Copy `NF4_CLIENT2_ADDRESS` to VM-A, finish step 6 there, then repeat this check and expect `join HTTP 200`.
 
-If the curl host is `10.0.0.8`, that is the example left in `deploy.env`. VM-A did not print that host. On VM-B, replace it with the URL from VM-A's `Join URL:` line. Do not paste the label:
+If the curl host is `10.1.2.3`, that is the example left in `deploy.env`. VM-A did not print that host. On VM-B, replace it with the URL from VM-A's `Join URL:` line. Do not paste the label:
 
 ```bash
 NF4_JOIN_URL=http://HOST_FROM_VM_A:8080/configuration/toml/join.toml
@@ -169,9 +228,9 @@ Do not deploy on VM-B. After step 6 exits 0, run the check again and expect `joi
 
 Record the four L1 addresses. Do not record the keys.
 
-## 6. Open ports, then deploy VM-A
+## 6. Forwards up, then deploy VM-03
 
-Open TCP `8080` and `3001` from VM-B to VM-A. Client ports 3000 stay closed to the other VM.
+The laptop reaches VM-03 through the bastion forwards above, not through a route to `10.0.0.6`. Confirm port `50023` is listening, then start the `18080` and `13001` forwards before the laptop check in step 7. Client port 3000 stays closed. Do not open `8080` or `3001` on the public address.
 
 On VM-A:
 
@@ -179,9 +238,9 @@ On VM-A:
 ./scripts/nf4-deploy --file deploy.env
 ```
 
-This stops leftover Anvil, runs the prover check on a first real-prover deploy, deploys contracts, starts configuration, the proposer, and Client 1, certifies the proposer with `user-2` and Client 1 with `user-3`, and publishes `C1_ZKP` when the mnemonic is set. A healthy container is rebuilt when its image is not the current source, so a certificate fix is not skipped. After a successful deploy the script removes `NF4_REDEPLOY=true` from `deploy.env` if that line is present. Key generation is slow. Real proving keys need a large machine. VM-A is that machine. The first image build copies the proving key and can take a long time.
+This stops leftover Anvil, runs the prover check on a first real-prover deploy, deploys contracts, starts configuration, the proposer, and Client 1, certifies the proposer with `user-2` and Client 1 with `user-3`, publishes `C1_ZKP` when the mnemonic is set, and starts the local webhook on `0.0.0.0:8081`. A healthy container is rebuilt when its image is not the current source, so a certificate fix is not skipped. After a successful deploy the script removes `NF4_REDEPLOY=true` from `deploy.env` if that line is present. Key generation is skipped when `configuration/bin/keys` already has the real proving keys. Set `NF4_REGENERATE_KEYS=true` to rebuild them. The first generation is slow and needs a large machine. VM-A is that machine. The first image build copies the proving key and can take a long time.
 
-Success is the script exiting 0. It prints the join URL, `Certified user-2`, `Certified user-3`, `Published C1_ZKP to configuration/toml/public.env`, configuration HTTP 200, and both health bodies. It does not print the 64-hex key. Read it from `public.env` if you need it. `deployer exited 0` is printed when `nf4_indie_deployer` is still present. A second run that skipped Forge may not have that container. That is not a failure. `NF4_CONTRACTS__DEPLOY_CONTRACTS` in `local.env` is `false` after success. Leave it false. The script also prints `Removed NF4_REDEPLOY=true` when that line was set.
+Success is the script exiting 0. It prints the join URL, `Certified user-2`, `Certified user-3`, `Published C1_ZKP to configuration/toml/public.env`, `public.env mode 644`, `Local testing webhook OK`, configuration HTTP 200, and both health bodies. It does not print the 64-hex key. Read it from `public.env` if you need it. `deployer exited 0` is printed when `nf4_indie_deployer` is still present. A second run that skipped Forge may not have that container. That is not a failure. `NF4_CONTRACTS__DEPLOY_CONTRACTS` in `local.env` is `false` after success. Leave it false. The script also prints `Removed NF4_REDEPLOY=true` when that line was set.
 
 A second run skips Forge when that Nightfall contract already has code. It does not wipe token addresses or ZKP keys in `public.env`. It will not change the on-chain proposer URL or the designated proposer wallet.
 
@@ -214,7 +273,7 @@ Expect `join HTTP 200` and no error about Client 2 already running. `Wallet chec
 curl -fsS -o /dev/null -w 'configuration HTTP %{http_code}\n' http://127.0.0.1:8080/configuration/toml/join.toml
 ```
 
-`configuration HTTP 200` means the file is being served on VM-A. VM-B is then using the wrong host, or TCP 8080 from VM-B to VM-A is refused. Compare `NF4_JOIN_URL` with the `Join URL:` line step 6 printed. Step 6 does not print an `NF4_JOIN_URL=` assignment. `10.0.0.8` is only an example. If the printed host is the one VM-B cannot open, set `NF4_OPERATOR_HOST` on VM-A to an address VM-B can route to and run `./scripts/nf4-deploy --check` there again. If step 6 already wrote the old host on chain, that change is a new deploy with `NF4_REDEPLOY=true`, not an edit. Open TCP 8080 from VM-B to that host. Do not open port 3000.
+`configuration HTTP 200` means the file is being served on VM-A. VM-B is then using the wrong host, or TCP 8080 from VM-B to VM-A is refused. Compare `NF4_JOIN_URL` with the `Join URL:` line step 6 printed. Step 6 does not print an `NF4_JOIN_URL=` assignment. `10.1.2.3` is only an example. If the printed host is the one VM-B cannot open, set `NF4_OPERATOR_HOST` on VM-A to an address VM-B can route to and run `./scripts/nf4-deploy --check` there again. If step 6 already wrote the old host on chain, that change is a new deploy with `NF4_REDEPLOY=true`, not an edit. Open TCP 8080 from VM-B to that host. Do not open port 3000.
 
 Connection refused on VM-A's own curl means configuration is not up. Re-run `./scripts/nf4-deploy --file deploy.env` on VM-A. Do not set `NF4_REDEPLOY` unless the VM restart section says this is a fresh start. When VM-A returns 200, run the VM-B check again. Step 8 stays on VM-A. It does not wait on this curl.
 
@@ -250,7 +309,7 @@ Expect both health checks to succeed. Record the Sepolia block number and the Cl
 
 That one command queues the four deposits and polls until `READY`. It can run for hours. Keep it in `tmux`. HTTP `202` means queued, not escrowed and not confirmed. Do not delete `temp/sepolia-step10/` to POST again. If the directory already exists, the same command polls it. A `Failed` or `absent` request with no commitment mapping is resubmitted once. A request that already escrowed is left alone.
 
-`READY` means the four mapped commitments are `Unspent` with an L2 block and a block-submission hash. It does not replace explorer evidence. `PendingCreation` is not confirmation. More than one L2 block is allowed. The command writes `temp/sepolia-step10/record.txt`, a log snapshot, and any full receipt it can save. `--step poll` is only the resume if the command was interrupted after the request IDs were written.
+`READY` means the four mapped commitments are `Unspent` with an L2 block and a block-submission hash. It does not replace explorer evidence. `PendingCreation` is not confirmation. More than one L2 block is allowed. The command writes `temp/sepolia-step10/record.txt`, a log snapshot, and any full receipt it can save. `--step poll` is only the resume if the command was interrupted after the request IDs were written. If the proposer stays `Not synchronised` while those requests are `Submitted`, the poll exits. That is not a reason to delete the directory or set `NF4_REDEPLOY`.
 
 While that runs, or after it, snapshot logs:
 
@@ -320,7 +379,7 @@ Copy `temp/zkp.public` from VM-B to VM-A. It holds 64 hex characters and no priv
 ./scripts/nf4-test --file deploy.env --step transfer
 ```
 
-That one command queues four transfers to `C2_ZKP` and waits until all four are `Confirmed`. `Submitted` is not done. Proving a block takes about 20 minutes. Keep it in `tmux`. It writes `temp/sepolia-step12/` and `temp/sepolia-step12/confirmed`. Do not delete that directory to send them again. If it was interrupted after the request IDs exist, the same command waits. It does not POST again.
+That one command queues four transfers to `C2_ZKP` and waits until all four are `Confirmed`. It refuses to POST if the proposer is not `Synchronised`. `Submitted` is not done. Proving a block takes about 20 minutes. Keep it in `tmux`. It writes `temp/sepolia-step12/` and `temp/sepolia-step12/confirmed`. Do not delete that directory to send them again. If it was interrupted after the request IDs exist, the same command waits. It does not POST again.
 
 If a status is `Failed`, `Error`, or `Rejected`, the command stops. Do not run `stop-client1`. Do not resubmit. Inspect `./scripts/nf4 logs client` and `./scripts/nf4 logs proposer`.
 
@@ -559,44 +618,25 @@ Use it when resume is not supported, or when you mean to abandon the run. Do it 
 
 Keep each VM's `deploy.env`. Do not copy it across. Do not `--init`. Leave the ZKP phrases. Do not `git switch` unless you mean a different branch.
 
-Copy `docker logs` first if you still want the abandoned run. Then on VM-A:
+Copy `docker logs` first if you still want the abandoned run. Then, on each VM:
 
 ```bash
-docker rm -f nf4_indie_client nf4_db_client nf4_indie_proposer nf4_db_proposer nf4_configuration nf4_indie_deployer || true
-rm -rf temp/sepolia-step10 temp/sepolia-step11 temp/sepolia-step12 temp/sepolia-step17 \
-  temp/sepolia-step18-c1 temp/sepolia-step18-c2 temp/sepolia-step20 temp/sepolia-step21 \
-  temp/sepolia-test
-rm -f configuration/toml/public.env .nightfall/webhook/events.jsonl
+./scripts/nf4-deploy --file deploy.env --fresh-start
 ```
 
-Leave `configuration/bin/keys`. Removing `public.env` is what stops the next deploy from keeping the old `TOKEN*` lines and ZKP keys. If those lines stay, `--step tokens` does not deploy new mocks, and the 1001 mint reverts.
+That removes the current `nf4_indie_*` containers and the older names `nf4_client`, `nf4_client2`, `nf4_proposer`, `nf4_db_client2`, `nf4_db_proposer`, and `anvil`. It deletes the step markers and, on VM-A, `configuration/toml/public.env`. It keeps `deploy.env` and `configuration/bin/keys`. On VM-A, if `addresses.toml` already names Nightfall, it sets `NF4_REDEPLOY=true` for the one deploy. On VM-B it does not start Client 2. If VM-B `local.env` contains `DEPLOYER_SIGNING_KEY`, it deletes that file. The key stays in VM-A `deploy.env`.
 
-On VM-B:
-
-```bash
-docker rm -f nf4_indie_client nf4_db_client || true
-rm -rf temp/sepolia-step11 temp/sepolia-step17 temp/sepolia-step18-c2 temp/sepolia-step21 \
-  temp/sepolia-test temp/zkp.public temp/public.env
-rm -f .nightfall/webhook/events.jsonl
-```
-
-Do not start Client 2. If VM-B `local.env` contains `DEPLOYER_SIGNING_KEY`, delete that file and keep the key on VM-A.
+Removing `public.env` is what stops the next deploy from keeping the old `TOKEN*` lines and ZKP keys. If those lines stay, `--step tokens` does not deploy new mocks, and the 1001 mint reverts.
 
 If the abandoned run died on a public RPC (`rate limit exceeded` or `-32005`), put a keyed Sepolia `wss://` and `https://` pair in VM-A `deploy.env` before step 6. The script will not overwrite a URL you set. A fresh start is a new set of contracts, not an RPC-only change.
 
-If Nightfall already has code, set this in VM-A `deploy.env` for the one deploy:
-
-```bash
-NF4_REDEPLOY=true
-```
-
-If Nightfall has no code, leave `NF4_REDEPLOY` unset. The next deploy runs Forge from the start. Contracts that landed in the killed attempt stay on Sepolia and are not reused. If `addresses.toml` has a Nightfall address with code but Round Robin, X509, or Verifier is missing, the script skips Forge unless `NF4_REDEPLOY=true`. That skip is not a repair.
+`--fresh-start` sets `NF4_REDEPLOY=true` when `addresses.toml` already names Nightfall. Leave that line for the one deploy. If Nightfall has no code, the flag stays unset and Forge runs from the start. Contracts that landed in the killed attempt stay on Sepolia and are not reused. If `addresses.toml` has a Nightfall address with code but Round Robin, X509, or Verifier is missing, Forge is skipped unless `NF4_REDEPLOY=true`. That skip is not a repair. Set the flag by hand only if `--fresh-start` did not, because the address file was already gone.
 
 Run step 5, then step 6 on VM-A. If `--check` prints a new host, that is the host this deploy writes on chain. Put the new `NF4_JOIN_URL` in VM-B's `deploy.env` after it is printed. Do not put it in VM-A's file.
 
-After `deployer exited 0`, remove `NF4_REDEPLOY` from `deploy.env`. A later deploy with that line still set spends gas on another set of contracts.
+After `deployer exited 0`, the script removes `NF4_REDEPLOY=true`. If that line is still there, delete it before the next `nf4-deploy`. Left in place, the next run deploys another set and spends gas.
 
-Continue at step 7. Step 12 waits for the new poll to print `READY`. The old `READY` does not count. Do not use `docker compose down` for this wipe, and do not use these `docker rm` lines on a resume.
+Continue at step 7. Step 12 waits for the new poll to print `READY`. The old `READY` does not count. Do not use `docker compose down` for this wipe, and do not pass `--fresh-start` on a resume.
 
 ## When a step fails
 
@@ -611,7 +651,7 @@ Continue at step 7. Step 12 waits for the new poll to print `READY`. The old `RE
 | `cannot open TCP` or `Could not detect an operator host` | The probe ran before gas. Set `NF4_OPERATOR_HOST` to an address this machine can reach, or fix the route. Do not deploy against a host that times out. |
 | `Certification for user-2 returned HTTP` or `You can only allowlist your own address` | The deploy itself may already have finished. Do not set `NF4_REDEPLOY`. Do not remove the databases. The allowlist revert means the running proposer estimated the certificate as the zero address. Re-run `./scripts/nf4-deploy --file deploy.env`. That rebuilds the proposer and Client 1 when their image is not the current source, then certifies again. Fund the proposer only if the body says the balance cannot cover certification gas. |
 | `no such object: nf4_indie_deployer` | Forge was skipped, so the one-shot deployer container is gone. Certifications and both health checks already passed. Do not set `NF4_REDEPLOY`. Continue at step 7. |
-| `curl: (7)` or `join HTTP 000` on VM-B | Wallet check can still be OK. Do not deploy on VM-B and do not pass `--late-join`. If step 6 has not exited 0, finish it on VM-A, then re-run the check. If VM-A's own `join.toml` curl is refused, re-run `./scripts/nf4-deploy --file deploy.env` there. If VM-A returns 200, `NF4_JOIN_URL` is the wrong host or TCP 8080 is closed. `10.0.0.8` is the guide example unless VM-A printed it. |
+| `curl: (7)` or `join HTTP 000` on VM-B | Wallet check can still be OK. Do not deploy on VM-B and do not pass `--late-join`. If step 6 has not exited 0, finish it on VM-A, then re-run the check. If VM-A's own `join.toml` curl is refused, re-run `./scripts/nf4-deploy --file deploy.env` there. If VM-A returns 200, `NF4_JOIN_URL` is the wrong host or TCP 8080 is closed. `10.1.2.3` is the guide example unless VM-A printed it. |
 | `Failed to write configuration/toml/join.toml: Permission denied` | Re-run `./scripts/nf4-deploy --file deploy.env` as your user, not under `sudo`. The script reclaims a root-owned `configuration/toml` and does not set `NF4_REDEPLOY`. If it still cannot write, `sudo chown -R "$USER:$USER" configuration/toml` and run the same command again. Do not delete `addresses.toml`. |
 | `On-chain proposer URL is` | The operator address changed, including after a reboot. Do not edit it in place. Resume is not supported. Fresh start with `NF4_REDEPLOY=true`. That costs gas and is a new report. |
 | `DEPLOYER_SIGNING_KEY` on VM-B | The script removes that line from `local.env` and continues. If it still stops, delete `local.env` and run `--late-join` again. Keep the key in VM-A `deploy.env`. |
@@ -622,7 +662,12 @@ Continue at step 7. Step 12 waits for the new poll to print `READY`. The old `RE
 | poll exit other than 0 or 2 | The request failed or the query failed. Read client and proposer logs. Do not poll a `Failed` request again. |
 | `request_status=Failed` | The client finished that deposit unsuccessfully and no commitment was created. `--step deposit` archives the evidence and submits again. Do not delete `temp/sepolia-step10`. Do not set `NF4_REDEPLOY`. |
 | `absent (possibly restarted)` or `no commitment mapping` | The request ID is still on disk, but this Mongo has no mapping. If the client commitments list is also empty, `--step deposit` archives and submits again. If a commitment exists, do not POST again. |
-| `rate limit exceeded` or `-32005` | The public RPC rejected a send. The client retries that send. A request already marked `Failed` is not retried by poll. Put a keyed provider in `NF4_RPC_WSS` and `NF4_RPC_HTTP`, then `--step deposit`. Do not set `NF4_REDEPLOY` only to change the RPC. |
+| `UnknownIssuer` with `wss://` on the laptop | Host `cast` cannot open a websocket through Zscaler. Do not change the operator RPC. The laptop check and late join must probe chain ID with `NF4_RPC_HTTP`. A binary built before that probe still fails here. Rebuild `nf4` by rerunning the check. The container still uses `NF4_RPC_WSS`. |
+| `NF4_RPC_HTTP host is` | The websocket and HTTPS URLs are different providers. Put a matched pair in `deploy.env`, or set `NF4_ALLOW_SPLIT_RPC=true` only if you mean the split. Do not deploy on the split. |
+| `public.env mode` is not `644` | The deploy script chmods `configuration/toml/public.env` after publishing `C1_ZKP`. A `600` file is served as HTTP 403 and Client 2's deposit step fails. Re-run `./scripts/nf4-deploy --file deploy.env`. Do not set `NF4_REDEPLOY`. |
+| `behind blockchain by -1` or `Proposer stayed Not synchronised` | The block-number call was behind the `BlockProposed` log. Do not restart that proposer. A restart replays `DepositEscrowed` and can put an already included deposit back in the mempool. Recreate `nf4_indie_proposer` from a source that leaves synchronisation unchanged on that read. Do not set `NF4_REDEPLOY` only for this. |
+| `rate limit exceeded`, `-32005`, or `block not found` | The public RPC rejected a read or a send. Forge retries a `block not found` (`-32001`) or rate-limit error inside the deployer. A deposit request already marked `Failed` is not retried by poll. Put a keyed provider in `NF4_RPC_WSS` and `NF4_RPC_HTTP`, same host, then rerun the same command. Do not set `NF4_REDEPLOY` only to change the RPC. |
+| `IO Error: Could not retrieve transaction` or `InvalidCalldata` right after `DepositEscrowed` | The event arrived, but `eth_getTransactionByHash` did not deserialize. Sentio omitted `accessList` on a type-2 transaction, and the proposer panicked instead of storing the deposit. Do not redeploy. Point both RPC lines at a host whose transaction JSON includes `accessList`, recreate the proposer without `NF4_REDEPLOY`, and let it replay the escrows. `cast` succeeding does not prove that host is usable. |
 | `Transfers are not accepted yet` | Do not run `stop-client1`. Read `./scripts/nf4 logs proposer`. |
 | `C2_ZKP missing` | Copy `temp/zkp.public` from VM-B, or run the `accept-zkp` command step 12 printed. The scripts do not SSH, so this copy stays manual. |
 | `curl: (3)` or an empty container name | You ran a raw curl without the variables. Use the script step, which reads `--file`. |

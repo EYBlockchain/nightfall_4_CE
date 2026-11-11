@@ -509,6 +509,29 @@ fn print_review(config: &DeploymentConfig) {
     println!("  block_size: {}", config.block_size);
 }
 
+fn proving_keys_present(mock: bool) -> bool {
+    let root = std::path::Path::new("configuration/bin/keys");
+    let required: &[(&str, u64)] = if mock {
+        &[("proving_key", 1024)]
+    } else {
+        &[
+            ("proving_key", 1_000_000),
+            ("base_bn254_pk", 1_000_000),
+            ("base_grumpkin_pk", 1_000_000),
+            ("decider_pk", 1_000_000_000),
+            ("decider_vk", 100),
+            ("merge_bn254_pk_0", 1_000_000),
+            ("merge_grumpkin_pk_0", 1_000_000),
+            ("merge_grumpkin_pk_1", 1_000_000),
+        ]
+    };
+    required.iter().all(|(name, min_bytes)| {
+        std::fs::metadata(root.join(name))
+            .map(|meta| meta.is_file() && meta.len() >= *min_bytes)
+            .unwrap_or(false)
+    })
+}
+
 fn run_deployment(config: &DeploymentConfig) -> Result<(), String> {
     if config.network != NetworkKind::Local {
         println!("Checking deployer account mempool on RPC...");
@@ -528,28 +551,36 @@ fn run_deployment(config: &DeploymentConfig) -> Result<(), String> {
     )?;
     run_command("Building contracts", "forge", &["build"], &[])?;
 
-    let key_generation_title = if config.mock_prover {
-        "Generating mock proving key"
+    let regenerate_keys = std::env::var("NF4_REGENERATE_KEYS")
+        .map(|value| matches!(value.as_str(), "1" | "true" | "TRUE" | "yes"))
+        .unwrap_or(false);
+    if !regenerate_keys && proving_keys_present(config.mock_prover) {
+        println!("Proving keys already present. Skipping key generation.");
+        println!("Set NF4_REGENERATE_KEYS=true to rebuild them.");
     } else {
-        "Generating real proving keys"
-    };
-    let mock_prover = config.mock_prover.to_string();
-    run_command(
-        key_generation_title,
-        "cargo",
-        &[
-            "run",
-            "--release",
-            "-p",
-            "nightfall_deployer",
-            "--bin",
-            "key_generation",
-        ],
-        &[
-            ("NF4_RUN_MODE", config.profile.as_str()),
-            ("NF4_MOCK_PROVER", mock_prover.as_str()),
-        ],
-    )?;
+        let key_generation_title = if config.mock_prover {
+            "Generating mock proving key"
+        } else {
+            "Generating real proving keys"
+        };
+        let mock_prover = config.mock_prover.to_string();
+        run_command(
+            key_generation_title,
+            "cargo",
+            &[
+                "run",
+                "--release",
+                "-p",
+                "nightfall_deployer",
+                "--bin",
+                "key_generation",
+            ],
+            &[
+                ("NF4_RUN_MODE", config.profile.as_str()),
+                ("NF4_MOCK_PROVER", mock_prover.as_str()),
+            ],
+        )?;
+    }
 
     compose::build_indie_deployer()?;
     compose::up_indie_deployer()?;

@@ -133,14 +133,30 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn std::er
     for attempt in 1..=BROADCAST_ATTEMPTS {
         clear_broadcast_logs(&chain_logs);
         wait_for_stable_deployer_nonce(&broadcast_rpc_url, &settings.signing_key).await?;
+        let fork_block = match lagged_fork_block(&broadcast_rpc_url).await {
+            Ok(block) => block.to_string(),
+            Err(err) if is_transient_rpc_failure(&err) && attempt < BROADCAST_ATTEMPTS => {
+                warn!(
+                    "Could not read a fork block ({err}); waiting and retrying"
+                );
+                tokio::time::sleep(std::time::Duration::from_secs(15)).await;
+                continue;
+            }
+            Err(err) => return Err(err.into()),
+        };
+        // A load-balanced RPC can answer eth_blockNumber from one backend and
+        // then return -32001 for that same block from another. Forge's default
+        // fork is `latest`, which is what failed every attempt on 2026-11-03.
         info!(
-            "Deploying contracts with forge script (attempt {attempt}/{BROADCAST_ATTEMPTS}, gas estimate multiplier {GAS_ESTIMATE_MULTIPLIER}%)"
+            "Deploying contracts with forge script (attempt {attempt}/{BROADCAST_ATTEMPTS}, gas estimate multiplier {GAS_ESTIMATE_MULTIPLIER}%, fork block {fork_block})"
         );
         match try_forge_command(&[
             "script",
             "Deployer",
             "--fork-url",
             &broadcast_rpc_url,
+            "--fork-block-number",
+            &fork_block,
             "--broadcast",
             "--slow",
             "--gas-estimate-multiplier",
@@ -149,10 +165,10 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn std::er
             Ok(()) => break,
             Err(err) if is_recoverable_broadcast_failure(&err) && attempt < BROADCAST_ATTEMPTS => {
                 warn!(
-                    "Forge broadcast hit a deployer nonce race ({}); waiting and retrying with a fresh simulation",
-                    nonce_drift_summary(&err)
+                    "Forge broadcast hit a retryable RPC or nonce error ({}); waiting and retrying with a fresh simulation",
+                    broadcast_failure_summary(&err)
                 );
-                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                tokio::time::sleep(std::time::Duration::from_secs(15)).await;
             }
             Err(err) => return Err(err.into()),
         }
@@ -321,6 +337,25 @@ fn http_rpc_url_for_broadcast(url: &str) -> String {
     }
 }
 
+/// Eight blocks is about 96 seconds on Sepolia. Enough for a split public
+/// RPC to have the block, and recent enough that an idle deployer nonce matches.
+const FORK_BLOCK_LAG: u64 = 8;
+
+fn fork_block_behind_head(head: u64) -> u64 {
+    head.saturating_sub(FORK_BLOCK_LAG)
+}
+
+async fn lagged_fork_block(rpc_url: &str) -> Result<u64, String> {
+    let url = url::Url::parse(rpc_url).map_err(|err| format!("Invalid broadcast RPC URL: {err}"))?;
+    let provider = ProviderBuilder::new()
+        .disable_recommended_fillers()
+        .connect_http(url);
+    let head = provider.get_block_number().await.map_err(|err| {
+        format!("failed to read block number: {err}")
+    })?;
+    Ok(fork_block_behind_head(head))
+}
+
 fn clear_broadcast_logs(chain_logs: &Path) {
     if chain_logs.exists() {
         info!("Removing stale broadcast logs from {chain_logs:?}");
@@ -376,20 +411,38 @@ async fn wait_for_stable_deployer_nonce(
 }
 
 fn is_recoverable_broadcast_failure(output: &str) -> bool {
+    is_nonce_race(output) || is_transient_rpc_failure(output)
+}
+
+fn is_nonce_race(output: &str) -> bool {
     output.contains("EOA nonce changed unexpectedly")
         || output.contains("replacement transaction underpriced")
         || output.contains("nonce too low")
 }
 
-fn nonce_drift_summary(output: &str) -> String {
+/// Public Sepolia nodes return these without a transaction having landed.
+/// `block not found` (-32001) killed the 2026-11-03 deploy on attempt 1.
+fn is_transient_rpc_failure(output: &str) -> bool {
+    let lower = output.to_ascii_lowercase();
+    lower.contains("block not found")
+        || lower.contains("-32001")
+        || lower.contains("-32005")
+        || lower.contains("rate limit")
+        || lower.contains("temporarily unavailable")
+        || lower.contains("connection reset")
+        || lower.contains("error sending request")
+        || lower.contains("timed out")
+}
+
+fn broadcast_failure_summary(output: &str) -> String {
     output
         .lines()
         .find(|line| {
-            line.contains("EOA nonce changed unexpectedly")
-                || line.contains("replacement transaction underpriced")
-                || line.contains("nonce too low")
+            is_nonce_race(line)
+                || is_transient_rpc_failure(line)
+                || line.contains("Failed to deploy script")
         })
-        .unwrap_or("deployer nonce changed during broadcast")
+        .unwrap_or("forge broadcast failed")
         .trim()
         .to_string()
 }
@@ -489,7 +542,8 @@ fn try_forge_command(command: &[&str]) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        http_rpc_url_for_broadcast, is_recoverable_broadcast_failure, nonce_drift_summary,
+        broadcast_failure_summary, fork_block_behind_head, http_rpc_url_for_broadcast,
+        is_recoverable_broadcast_failure,
         relax_broadcast_tree, GAS_ESTIMATE_MULTIPLIER,
     };
     use std::fs;
@@ -537,15 +591,27 @@ mod tests {
     }
 
     #[test]
-    fn retries_only_nonce_races() {
+    fn fork_block_lags_a_split_head() {
+        assert_eq!(fork_block_behind_head(12_054_418), 12_054_410);
+        assert_eq!(fork_block_behind_head(3), 0);
+    }
+
+    #[test]
+    fn retries_nonce_races_and_transient_rpc_errors() {
         let drift = "Error: Failed to send transaction\n\nContext:\n- EOA nonce changed unexpectedly while sending transactions. Expected 50 got 51 from provider.\n";
         assert!(is_recoverable_broadcast_failure(drift));
-        assert!(nonce_drift_summary(drift).contains("Expected 50 got 51"));
+        assert!(broadcast_failure_summary(drift).contains("Expected 50 got 51"));
         assert!(is_recoverable_broadcast_failure(
             "server returned an error response: nonce too low"
         ));
         assert!(is_recoverable_broadcast_failure(
             "replacement transaction underpriced"
+        ));
+        assert!(is_recoverable_broadcast_failure(
+            "error code -32001: block not found: 0xb7ef62"
+        ));
+        assert!(is_recoverable_broadcast_failure(
+            "server returned an error response: error code -32005: rate limit exceeded"
         ));
         assert!(!is_recoverable_broadcast_failure(
             "Error: script failed: execution reverted"

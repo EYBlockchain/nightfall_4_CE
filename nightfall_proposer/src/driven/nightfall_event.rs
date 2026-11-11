@@ -40,6 +40,28 @@ use std::{
 use tokio::sync::{OnceCell, RwLock};
 // Define a mutable lazy static to hold the layer 2 blocknumber. We need this to
 // check if we're still in sync, but putting it in the context would mean passing it around too much
+#[derive(Debug, PartialEq, Eq)]
+pub enum Layer2SyncDecision {
+    Synchronised,
+    Behind { missed: I256 },
+    StateBehindLog { by: I256 },
+}
+
+/// `on_chain_next` is `layer2_block_number()` after `BlockProposed` emits the
+/// pre-increment value. A caught-up node returns `event_block + 1`.
+pub fn layer2_sync_decision(on_chain_next: I256, event_block: I256) -> Layer2SyncDecision {
+    let delta = on_chain_next - event_block - I256::ONE;
+    if delta < I256::ZERO {
+        Layer2SyncDecision::StateBehindLog {
+            by: I256::ZERO - delta,
+        }
+    } else if delta.is_zero() {
+        Layer2SyncDecision::Synchronised
+    } else {
+        Layer2SyncDecision::Behind { missed: delta }
+    }
+}
+
 pub async fn get_expected_layer2_blocknumber() -> &'static RwLock<I256> {
     static LAYER2_BLOCKNUMBER: OnceCell<RwLock<I256>> = OnceCell::const_new();
     LAYER2_BLOCKNUMBER
@@ -353,16 +375,38 @@ where
         debug!("Historic root matches commitment tree root");
     }
 
-    // see if we need to update the synchronisation status
-    //This is a final safety check. Earlier we used event-level info to decide whether to sync. Now we consult the contract’s real-time state.
+    // BlockProposed emits the pre-increment number. A load-balanced RPC can
+    // deliver that log before eth_call sees the increment. On 2026-11-02 the
+    // call still returned the pre-state for 11 seconds, delta was -1, and
+    // clearing sync here stopped every later block.
+    let mut current_block_number_in_contract = current_block_number_in_contract;
+    for _ in 0..8 {
+        if current_block_number_in_contract >= layer_2_block_number_in_event + I256::ONE {
+            break;
+        }
+        warn!(
+            "Layer 2 block number call returned {current_block_number_in_contract}, behind BlockProposed {layer_2_block_number_in_event}. Retrying."
+        );
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        current_block_number_in_contract = N::get_current_layer2_blocknumber().await.map_err(|_| {
+            EventHandlerError::IOError("Could not retrieve current block number".to_string())
+        })?;
+    }
 
-    let delta = current_block_number_in_contract - layer_2_block_number_in_event - I256::ONE;
-    if delta != I256::ZERO {
-        warn!("Synchronising - behind blockchain by {delta} layer 2 blocks ");
-        sync_status.clear_synchronised();
-    } else {
-        debug!("Synchronised with blockchain");
-        sync_status.set_synchronised();
+    match layer2_sync_decision(current_block_number_in_contract, layer_2_block_number_in_event) {
+        Layer2SyncDecision::Synchronised => {
+            debug!("Synchronised with blockchain");
+            sync_status.set_synchronised();
+        }
+        Layer2SyncDecision::Behind { missed } => {
+            warn!("Synchronising - behind blockchain by {missed} layer 2 blocks");
+            sync_status.clear_synchronised();
+        }
+        Layer2SyncDecision::StateBehindLog { by } => {
+            warn!(
+                "Layer 2 block number call is still {by} behind the BlockProposed log. Leaving synchronisation unchanged."
+            );
+        }
     }
 
     // store the block in the db
@@ -458,15 +502,55 @@ where
                 secret_hash,
             };
             let deposit_data = DepositDatawithFee { fee, deposit_data };
-            process_deposit_transaction::<P, E>(deposit_data)
-                .await
-                .map_err(|_| {
-                    EventHandlerError::IOError("Could not process client transaction".to_string())
-                })?;
+            match process_deposit_transaction::<P, E>(deposit_data).await {
+                Ok(()) => {}
+                Err(crate::driven::nightfall_client_transaction::ClientTransactionError::TransactionAlreadyExists) => {
+                    info!("Deposit already stored. Skipping replay.");
+                }
+                Err(_) => {
+                    return Err(EventHandlerError::IOError(
+                        "Could not process client transaction".to_string(),
+                    ));
+                }
+            }
         }
     } else {
         panic!("Transaction not found when looking up calldata");
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{layer2_sync_decision, Layer2SyncDecision};
+    use alloy::primitives::I256;
+
+    #[test]
+    fn caught_up_first_block_is_synchronised() {
+        // Event emits 0, then the contract stores 1.
+        assert_eq!(
+            layer2_sync_decision(I256::ONE, I256::ZERO),
+            Layer2SyncDecision::Synchronised
+        );
+    }
+
+    #[test]
+    fn stale_call_matching_the_event_does_not_mean_behind() {
+        // The 2026-11-02 failure: eth_call still returned 0 after the log for block 0.
+        assert_eq!(
+            layer2_sync_decision(I256::ZERO, I256::ZERO),
+            Layer2SyncDecision::StateBehindLog { by: I256::ONE }
+        );
+    }
+
+    #[test]
+    fn chain_ahead_of_this_event_is_behind() {
+        assert_eq!(
+            layer2_sync_decision(I256::from_dec_str("3").unwrap(), I256::ZERO),
+            Layer2SyncDecision::Behind {
+                missed: I256::from_dec_str("2").unwrap()
+            }
+        );
+    }
 }

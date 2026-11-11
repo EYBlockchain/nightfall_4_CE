@@ -54,6 +54,11 @@ pub struct DeployFile {
     pub expected_client_address: String,
     pub client2_address: String,
     pub join_url: String,
+    /// Laptop client only. Local forward of the operator configuration port.
+    /// Example: http://127.0.0.1:18080. Does not change the on-chain URL.
+    pub tunnel_http: String,
+    /// Laptop client only. Local forward of the operator proposer port.
+    pub tunnel_proposer: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -201,6 +206,8 @@ pub fn parse_deploy_file(source: &str) -> Result<DeployFile, String> {
         expected_client_address: env.get("NF4_CLIENT_ADDRESS").cloned().unwrap_or_default(),
         client2_address: env.get("NF4_CLIENT2_ADDRESS").cloned().unwrap_or_default(),
         join_url: env.get("NF4_JOIN_URL").cloned().unwrap_or_default(),
+        tunnel_http: env.get("NF4_TUNNEL_HTTP").cloned().unwrap_or_default(),
+        tunnel_proposer: env.get("NF4_TUNNEL_PROPOSER").cloned().unwrap_or_default(),
     })
 }
 
@@ -267,6 +274,7 @@ fn validate_client(file: &DeployFile) -> Result<(), String> {
         );
     }
     reject_split_vm_url(&file.join_url, "NF4_JOIN_URL")?;
+    validate_client_tunnel(file)?;
     require_key(&file.client_key, "NF4_CLIENT_KEY")?;
     validate_optional_address(&file.expected_client_address, "NF4_CLIENT_ADDRESS")?;
     if config::local_env_exists() {
@@ -404,6 +412,8 @@ fn run_operator(file: &DeployFile) -> Result<(), String> {
                 client2_signing_key: None,
                 proposer_url: join.proposer_url,
                 configuration_url,
+                host_proposer_url: None,
+                host_configuration_url: None,
                 webhook_url: format!(
                     "http://{}:{}/webhook",
                     network::detect_lan_host(),
@@ -422,7 +432,17 @@ fn run_operator(file: &DeployFile) -> Result<(), String> {
 
 fn run_client(file: &DeployFile) -> Result<(), String> {
     checks::deployer()?;
-    let join_text = curl_text(&file.join_url)?;
+    // The published join URL stays in deploy.env. A laptop that cannot route to
+    // the operator LAN fetches that same file through the SSH forward.
+    let join_fetch = if file.tunnel_http.trim().is_empty() {
+        file.join_url.clone()
+    } else {
+        format!(
+            "{}/configuration/toml/join.toml",
+            file.tunnel_http.trim().trim_end_matches('/')
+        )
+    };
+    let join_text = curl_text(&join_fetch)?;
     let join = parse_join(&join_text)?;
     if join.chain_id != file.chain_id {
         return Err(format!(
@@ -430,7 +450,8 @@ fn run_client(file: &DeployFile) -> Result<(), String> {
             join.chain_id, file.chain_id
         ));
     }
-    let rpc_chain = cast_u64("chain-id", &file.rpc_wss)?;
+    // Host cast cannot open wss:// through Zscaler. The container still gets rpc_wss.
+    let rpc_chain = cast_u64("chain-id", &file.rpc_http)?;
     if rpc_chain != join.chain_id {
         return Err(format!(
             "Join chain_id is {}, but this VM's RPC chain ID is {}.",
@@ -440,29 +461,30 @@ fn run_client(file: &DeployFile) -> Result<(), String> {
     }
     reject_split_vm_url(&join.configuration_url, "join configuration_url")?;
     reject_split_vm_url(&join.proposer_url, "join proposer_url")?;
+    validate_client_tunnel(file)?;
+    let fetch_base = client_fetch_base(file, &join.configuration_url);
+    let runtime_configuration = client_runtime_url(&file.tunnel_http, &join.configuration_url)?;
+    let runtime_proposer = client_runtime_url(&file.tunnel_proposer, &join.proposer_url)?;
     prepare_configuration_toml()?;
     fs::create_dir_all(KEY_DIR).map_err(|err| format!("Failed to create {KEY_DIR}: {err}"))?;
     remove_if_unwritable(Path::new(JOIN_TOML))?;
     fs::write(JOIN_TOML, render_join(&join))
         .map_err(|err| format!("Failed to write {JOIN_TOML}: {err}"))?;
     download(
-        &format!(
-            "{}/configuration/toml/addresses.toml",
-            join.configuration_url
-        ),
+        &format!("{fetch_base}/configuration/toml/addresses.toml"),
         ADDRESSES_TOML,
     )?;
     download(
-        &format!(
-            "{}/configuration/toml/contract_hashes.toml",
-            join.configuration_url
-        ),
+        &format!("{fetch_base}/configuration/toml/contract_hashes.toml"),
         CONTRACT_HASHES_TOML,
     )?;
-    for key in proposer::required_key_files(join.mock_prover) {
-        println!("Downloading {key}. A real proving key can be tens of GB.");
+    // Client proofs use proving_key only. The rollup keys, including the
+    // ~30 GB decider_pk, stay on the operator. Downloading them here blocks
+    // Client 2 for hours and the client image does not copy them.
+    for key in ["proving_key"] {
+        println!("Downloading {key}.");
         download_large(
-            &format!("{}/configuration/bin/keys/{key}", join.configuration_url),
+            &format!("{fetch_base}/configuration/bin/keys/{key}"),
             &format!("{KEY_DIR}/{key}"),
         )?;
     }
@@ -498,34 +520,122 @@ fn run_client(file: &DeployFile) -> Result<(), String> {
         ("NF4_MOCK_PROVER", join.mock_prover.to_string()),
         ("NF4_CONTRACTS__DEPLOY_CONTRACTS", "false".to_string()),
         ("NF4_ETHEREUM_CLIENT_URL", file.rpc_wss.clone()),
-        ("NF4_CONFIGURATION_URL", join.configuration_url.clone()),
-        ("NF4_NIGHTFALL_PROPOSER__URL", join.proposer_url.clone()),
+        ("NF4_CONFIGURATION_URL", runtime_configuration.clone()),
+        ("NF4_NIGHTFALL_PROPOSER__URL", runtime_proposer.clone()),
         ("CLIENT_SIGNING_KEY", file.client_key.clone()),
         ("NF4_SIGNING_KEY", file.client_key.clone()),
         ("CLIENT_ADDRESS", client_address.clone()),
     ])?;
-    if !curl_ok(&format!("http://127.0.0.1:{}/v1/health", file.client_port)) {
-        let webhook = webhook::ensure_local(file.webhook_port)?;
-        client::start_with(client::ClientStart {
-            signing_key: file.client_key.clone(),
-            client_address: client_address.clone(),
-            client2_address: client_address,
-            client2_signing_key: None,
-            proposer_url: join.proposer_url,
-            configuration_url: join.configuration_url,
-            webhook_url: format!(
-                "http://{}:{}/webhook",
-                network::detect_lan_host(),
-                file.webhook_port
-            ),
-            webhook_events: Some(webhook.events_path.display().to_string()),
-            client_port: file.client_port,
-        })?;
-    } else {
-        println!("Client already healthy on :{}.", file.client_port);
-    }
+    // Health is not a current binary. A laptop client that stayed Healthy
+    // kept the image whose websocket stack rejected the Zscaler root.
+    refresh_app(
+        "nf4_indie_client",
+        "temp/nf4-client.stamp",
+        &[
+            "lib",
+            "nightfall_client",
+            "configuration/src",
+            "Cargo.toml",
+            "Cargo.lock",
+        ],
+        file.client_port,
+        || {
+            let webhook = webhook::ensure_local(file.webhook_port)?;
+            client::start_with(client::ClientStart {
+                signing_key: file.client_key.clone(),
+                client_address: client_address.clone(),
+                client2_address: client_address,
+                client2_signing_key: None,
+                proposer_url: runtime_proposer.clone(),
+                configuration_url: runtime_configuration.clone(),
+                host_proposer_url: client_host_check_url(&file.tunnel_proposer),
+                host_configuration_url: client_host_check_url(&file.tunnel_http),
+                webhook_url: client_webhook_url(file),
+                webhook_events: Some(webhook.events_path.display().to_string()),
+                client_port: file.client_port,
+            })
+        },
+    )?;
     println!("Client deploy finished. Do not run wizard deploy on this VM.");
     Ok(())
+}
+
+fn validate_client_tunnel(file: &DeployFile) -> Result<(), String> {
+    let http = file.tunnel_http.trim();
+    let proposer = file.tunnel_proposer.trim();
+    if http.is_empty() && proposer.is_empty() {
+        return Ok(());
+    }
+    if http.is_empty() || proposer.is_empty() {
+        return Err(
+            "Set both NF4_TUNNEL_HTTP and NF4_TUNNEL_PROPOSER, or neither. A laptop client uses local forwards of the operator ports."
+                .to_string(),
+        );
+    }
+    if !http.starts_with("http://") && !http.starts_with("https://") {
+        return Err(
+            "NF4_TUNNEL_HTTP must be an http URL, for example http://127.0.0.1:18080.".to_string(),
+        );
+    }
+    if !proposer.starts_with("http://") && !proposer.starts_with("https://") {
+        return Err(
+            "NF4_TUNNEL_PROPOSER must be an http URL, for example http://127.0.0.1:13001."
+                .to_string(),
+        );
+    }
+    if url_port(http).is_none() || url_port(proposer).is_none() {
+        return Err("NF4_TUNNEL_HTTP and NF4_TUNNEL_PROPOSER must include a port.".to_string());
+    }
+    Ok(())
+}
+
+fn client_fetch_base(file: &DeployFile, published: &str) -> String {
+    let tunnel = file.tunnel_http.trim().trim_end_matches('/');
+    if tunnel.is_empty() {
+        published.trim_end_matches('/').to_string()
+    } else {
+        tunnel.to_string()
+    }
+}
+
+/// The container cannot route to the operator LAN. Docker Desktop reaches the
+/// laptop's SSH forward through host.docker.internal. The published URL stays
+/// on chain.
+fn client_runtime_url(tunnel_url: &str, published: &str) -> Result<String, String> {
+    let tunnel = tunnel_url.trim();
+    if tunnel.is_empty() {
+        return Ok(published.to_string());
+    }
+    let port = url_port(tunnel).ok_or_else(|| {
+        format!("Tunnel URL {tunnel} has no port. The container cannot use it.")
+    })?;
+    let scheme = if tunnel.starts_with("https://") {
+        "https"
+    } else {
+        "http"
+    };
+    Ok(format!("{scheme}://host.docker.internal:{port}"))
+}
+
+fn client_host_check_url(tunnel_url: &str) -> Option<String> {
+    let tunnel = tunnel_url.trim().trim_end_matches('/');
+    if tunnel.is_empty() {
+        None
+    } else {
+        Some(tunnel.to_string())
+    }
+}
+
+fn client_webhook_url(file: &DeployFile) -> String {
+    if file.tunnel_http.trim().is_empty() {
+        format!(
+            "http://{}:{}/webhook",
+            network::detect_lan_host(),
+            file.webhook_port
+        )
+    } else {
+        format!("http://host.docker.internal:{}/webhook", file.webhook_port)
+    }
 }
 
 fn confirm_phrase(network: network::NetworkKind) -> &'static str {
@@ -861,7 +971,8 @@ fn validate_for_check(file: &DeployFile) -> Result<(), String> {
 }
 
 fn check_wallets(file: &DeployFile) -> Result<(), String> {
-    let chain_id = cast_u64("chain-id", &file.rpc_wss)?;
+    // Host cast cannot open wss:// through Zscaler. Balances already use rpc_http.
+    let chain_id = cast_u64("chain-id", &file.rpc_http)?;
     if chain_id != file.chain_id {
         return Err(format!(
             "NF4_CHAIN_ID is {}, but the RPC chain ID is {}.",
@@ -1718,7 +1829,9 @@ fn fnv1a(mut hash: u64, bytes: &[u8]) -> u64 {
 mod tests {
     use super::{
         choose_operator_host, expect_address, is_writable_dir, operator_host_candidates,
-        parse_deploy_file, parse_join, reclaim_unwritable_dir, render_join, source_fingerprint,
+        client_runtime_url, parse_deploy_file, parse_join, reclaim_unwritable_dir, render_join,
+        validate_client_tunnel,
+        source_fingerprint,
         split_vm_host_error, stamp_matches, validate_deploy_file, JoinDoc,
     };
     use std::{
@@ -1855,6 +1968,36 @@ NF4_CLIENT2_ADDRESS=0x2222222222222222222222222222222222222222
         )
         .unwrap_err()
         .contains("wrong wallet"));
+    }
+
+    #[test]
+    fn laptop_tunnel_becomes_a_docker_host_url() {
+        assert_eq!(
+            client_runtime_url("http://127.0.0.1:18080", "http://10.0.0.6:8080").unwrap(),
+            "http://host.docker.internal:18080"
+        );
+        assert_eq!(
+            client_runtime_url("", "http://10.0.0.6:3001").unwrap(),
+            "http://10.0.0.6:3001"
+        );
+        let source = r#"
+NF4_ROLE=client
+NF4_NETWORK=testnet
+NF4_RPC_WSS=wss://example.invalid/ws
+NF4_CONFIRM=apply
+NF4_JOIN_URL=http://10.0.0.6:8080/configuration/toml/join.toml
+NF4_TUNNEL_HTTP=http://127.0.0.1:18080
+NF4_TUNNEL_PROPOSER=http://127.0.0.1:13001
+NF4_CLIENT_KEY=0x1111111111111111111111111111111111111111111111111111111111111111
+NF4_LATE_JOIN=yes
+"#;
+        let file = parse_deploy_file(source).unwrap();
+        assert_eq!(file.tunnel_http, "http://127.0.0.1:18080");
+        assert!(validate_client_tunnel(&file).is_ok());
+        assert_eq!(
+            client_runtime_url(&file.tunnel_proposer, "http://10.0.0.6:3001").unwrap(),
+            "http://host.docker.internal:13001"
+        );
     }
 
     #[test]

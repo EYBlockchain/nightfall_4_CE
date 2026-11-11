@@ -100,6 +100,9 @@ refresh_public() {
     source configuration/toml/public.env
   else
     local base="${NF4_JOIN_URL%/configuration/toml/join.toml}"
+    if [[ -n "${NF4_TUNNEL_HTTP:-}" ]]; then
+      base="${NF4_TUNNEL_HTTP%/}"
+    fi
     : "${base:?}"
     curl -fsS --retry 5 --retry-delay 2 --max-time 60 "$base/configuration/toml/public.env" -o temp/public.env
     # shellcheck disable=SC1091
@@ -400,13 +403,23 @@ post_all_deposits() {
   note "deposits queued. Polling until READY."
 }
 
+proposer_sync() {
+  curl -fsS -m 10 "http://127.0.0.1:${NF4_PROPOSER_PORT}/v1/synchronisation" 2>/dev/null || true
+}
+
+require_proposer_synced() {
+  local body
+  body="$(proposer_sync)"
+  [[ "$body" == Synchronised ]] || die "Proposer synchronisation is '${body:-unreachable}', not Synchronised. Do not POST. Do not restart the proposer on a binary that clears sync when the block-number call is behind the log."
+}
+
 step_poll() {
   need_role operator
   refresh_public
   [[ -f "$EVIDENCE/ERC20.request-id" ]] || die "missing deposit request IDs. Do not redeposit to create them."
   local api="http://127.0.0.1:${NF4_CLIENT_PORT}"
   export TOKEN20 TOKEN721 TOKEN1155 TOKEN3525 ID20 ID721_C1 ID1155 ID3525_C1
-  local confirmed=0 i rc out retried=0
+  local confirmed=0 i rc out retried=0 unsynced=0
   for ((i=1; i<=360; i++)); do
     REQ20="$(<"$EVIDENCE/ERC20.request-id")"
     REQ721="$(<"$EVIDENCE/ERC721.request-id")"
@@ -432,6 +445,15 @@ step_poll() {
         continue
       fi
       die "Poll/query failed (exit $rc). Do not delete $EVIDENCE. Do not set NF4_REDEPLOY."
+    fi
+    if [[ "$(proposer_sync)" == "Not synchronised" ]] && grep -q 'request_status=Submitted' <<<"$out"; then
+      unsynced=$((unsynced + 1))
+      echo "proposer synchronisation: Not synchronised ($unsynced)"
+      if [[ "$unsynced" -ge 4 ]]; then
+        die "Proposer stayed Not synchronised while deposits were Submitted. Do not delete $EVIDENCE. Do not set NF4_REDEPLOY. Do not restart that proposer: a restart replays DepositEscrowed. Recreate it from a source that leaves sync unchanged when the block-number call is behind the log."
+      fi
+    else
+      unsynced=0
     fi
     [[ "$i" -eq 360 ]] || sleep 30
   done
@@ -532,6 +554,7 @@ step_accept_zkp() {
 step_transfer() {
   need_role operator
   refresh_public
+  require_proposer_synced
   is_zkp "${C2_ZKP:-}" || die "C2_ZKP missing. Run --step accept-zkp with the value printed on VM-B."
   local api="http://127.0.0.1:${NF4_CLIENT_PORT}" dir="temp/sepolia-step12"
   if [[ -e "$dir" ]]; then

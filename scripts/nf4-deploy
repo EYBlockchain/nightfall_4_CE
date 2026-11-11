@@ -11,6 +11,7 @@ FILE=""
 CHECK=0
 INIT=""
 LATE_JOIN=0
+FRESH=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --file)
@@ -33,14 +34,19 @@ while [[ $# -gt 0 ]]; do
       LATE_JOIN=1
       shift
       ;;
+    --fresh-start)
+      FRESH=1
+      shift
+      ;;
     -h|--help)
       cat <<EOF
-Usage: ./scripts/nf4-deploy --file deploy.env [--check] [--init operator|client] [--late-join]
+Usage: ./scripts/nf4-deploy --file deploy.env [--check] [--init operator|client] [--late-join] [--fresh-start]
 
 --init writes deploy.env (mode 600) from the example and fills a Sepolia RPC if one is not set.
 --check with no --file prints the operator host and NF4_JOIN_URL. It does not deploy.
 --check --file deploy.env also checks wallets.
 --late-join starts Client 2. Use it only after the VM-A deposit poll prints READY.
+--fresh-start wipes this VM's containers and step markers. It keeps deploy.env and proving keys.
 
 VM-A:
   ./scripts/nf4-deploy --init operator --file deploy.env
@@ -179,6 +185,26 @@ NF4_PROPOSER_CERT="${NF4_PROPOSER_CERT:-user-2}"
 NF4_CLIENT_CERT="${NF4_CLIENT_CERT:-user-3}"
 NF4_CERT="${NF4_CERT:-user-4}"
 
+rpc_host() {
+  local url="${1#*://}"
+  url="${url%%/*}"
+  url="${url#*@}"
+  printf '%s' "$url"
+}
+
+require_matched_rpc() {
+  local http_host wss_host
+  http_host="$(rpc_host "${NF4_RPC_HTTP:-}")"
+  wss_host="$(rpc_host "${NF4_RPC_WSS:-}")"
+  [[ -n "$http_host" && -n "$wss_host" ]] || return 0
+  if [[ "$http_host" != "$wss_host" && "${NF4_ALLOW_SPLIT_RPC:-false}" != true ]]; then
+    echo "NF4_RPC_HTTP host is $http_host but NF4_RPC_WSS host is $wss_host." >&2
+    echo "Use one provider for both. A split pair rate-limited the proposer while cast still worked." >&2
+    echo "Set NF4_ALLOW_SPLIT_RPC=true only if you mean to keep the split." >&2
+    exit 1
+  fi
+}
+
 if [[ "$NF4_CHAIN_ID" != 11155111 && "${NF4_ALLOW_OTHER_CHAIN:-false}" != true ]]; then
   echo "NF4_CHAIN_ID=$NF4_CHAIN_ID. This script follows the Ethereum Sepolia guide (11155111)." >&2
   echo "84532 is Base Sepolia. Set NF4_ALLOW_OTHER_CHAIN=true only if you mean that." >&2
@@ -226,6 +252,61 @@ PY
 
 fill_rpc
 
+fresh_start() {
+  local role="${NF4_ROLE:-}"
+  echo "Fresh start on ${role:-unknown}. Keeping $FILE and configuration/bin/keys."
+  docker rm -f \
+    nf4_indie_client nf4_db_client nf4_indie_proposer nf4_db_proposer \
+    nf4_configuration nf4_indie_deployer \
+    nf4_client nf4_client2 nf4_proposer nf4_db_client2 nf4_db_proposer anvil \
+    >/dev/null 2>&1 || true
+  if [[ "$role" == client ]]; then
+    rm -rf temp/sepolia-step11 temp/sepolia-step17 temp/sepolia-step18-c2 temp/sepolia-step21 \
+      temp/sepolia-test temp/zkp.public temp/public.env
+    rm -f .nightfall/webhook/events.jsonl
+    if [[ -f local.env ]] && grep -q '^DEPLOYER_SIGNING_KEY=' local.env; then
+      rm -f local.env
+      echo "Removed local.env because it contained DEPLOYER_SIGNING_KEY."
+    fi
+    echo "Client 2 was not started. Next: ./scripts/nf4-deploy --file $FILE --check"
+    echo "Do not pass --late-join until VM-A prints READY."
+    return 0
+  fi
+  rm -rf temp/sepolia-step10 temp/sepolia-step11 temp/sepolia-step12 temp/sepolia-step17 \
+    temp/sepolia-step18-c1 temp/sepolia-step18-c2 temp/sepolia-step20 temp/sepolia-step21 \
+    temp/sepolia-test
+  rm -f configuration/toml/public.env .nightfall/webhook/events.jsonl
+  if [[ -f configuration/toml/addresses.toml ]] && grep -q '^nightfall' configuration/toml/addresses.toml; then
+    python3 - "$FILE" <<'PY'
+import sys
+path = sys.argv[1]
+lines = open(path).read().splitlines()
+out, seen = [], False
+for line in lines:
+    if line.startswith("NF4_REDEPLOY="):
+        out.append("NF4_REDEPLOY=true")
+        seen = True
+    else:
+        out.append(line)
+if not seen:
+    out.append("NF4_REDEPLOY=true")
+open(path, "w").write("\n".join(out) + "\n")
+PY
+    chmod 600 "$FILE"
+    echo "Set NF4_REDEPLOY=true because addresses.toml already names Nightfall."
+  else
+    echo "NF4_REDEPLOY left unset. Forge runs if Nightfall has no code."
+  fi
+  echo "Next: ./scripts/nf4-deploy --file $FILE --check"
+}
+
+if [[ "$FRESH" == 1 ]]; then
+  fresh_start
+  exit 0
+fi
+
+require_matched_rpc
+
 client_still_down() {
   if [[ "$NF4_ROLE" != client ]]; then
     return 0
@@ -252,7 +333,9 @@ if [[ "$CHECK" == 1 ]]; then
     print_operator_host
   fi
   ./scripts/nf4 deploy --file "$FILE" --check
-  if [[ "$NF4_ROLE" == client && "${NF4_JOIN_URL:-}" == http://* ]]; then
+  if [[ "$NF4_ROLE" == client && -n "${NF4_TUNNEL_HTTP:-}" ]]; then
+    curl -fsS -o /dev/null -w 'join HTTP %{http_code}\n' "${NF4_TUNNEL_HTTP%/}/configuration/toml/join.toml"
+  elif [[ "$NF4_ROLE" == client && "${NF4_JOIN_URL:-}" == http://* ]]; then
     curl -fsS -o /dev/null -w 'join HTTP %{http_code}\n' "$NF4_JOIN_URL"
   fi
   exit 0
@@ -354,6 +437,7 @@ upsert_public() {
   fi
   printf "%s='%s'\n" "$key" "$value" >>"$tmp"
   mv "$tmp" "$file"
+  chmod 644 "$file"
 }
 
 if [[ "$NF4_ROLE" == operator ]]; then
@@ -376,6 +460,12 @@ if [[ "$NF4_ROLE" == operator ]]; then
   echo
   curl -fsS "http://127.0.0.1:${NF4_CLIENT_PORT}/v1/health"
   echo
+  ./scripts/nf4 webhook start
+  stat -c 'public.env mode %a' configuration/toml/public.env
+  if [[ "$(stat -c '%a' configuration/toml/public.env)" != 644 ]]; then
+    echo "configuration/toml/public.env is not mode 644. VM-B will get HTTP 403." >&2
+    exit 1
+  fi
   if docker inspect nf4_indie_deployer >/dev/null 2>&1; then
     docker inspect -f 'deployer {{.State.Status}} {{.State.ExitCode}}' nf4_indie_deployer
   else
@@ -393,6 +483,7 @@ elif [[ "$NF4_ROLE" == client ]]; then
     echo "On VM-A, not here:"
     echo "  ./scripts/nf4-test --file deploy.env --step accept-zkp --name C2_ZKP --value $zkp"
   fi
+  ./scripts/nf4 webhook start
 else
   echo "NF4_ROLE must be operator or client" >&2
   exit 1

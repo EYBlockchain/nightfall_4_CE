@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Forward the operator's configuration and proposer ports to this laptop.
+# Does not change the on-chain URL. VM-B in this lab is the laptop, not a second VM.
+set -euo pipefail
+
+SSH_CMD="${NF4_OPERATOR_SSH:-ssh -i ${HOME}/.ssh/id_ecdsa -p 50023 -o BatchMode=yes adarsh@127.0.0.1}"
+CONFIG_PORT="${NF4_TUNNEL_CONFIG_PORT:-18080}"
+PROPOSER_PORT="${NF4_TUNNEL_PROPOSER_PORT:-13001}"
+
+if lsof -nP -iTCP:"${CONFIG_PORT}" -sTCP:LISTEN >/dev/null 2>&1 \
+  && lsof -nP -iTCP:"${PROPOSER_PORT}" -sTCP:LISTEN >/dev/null 2>&1; then
+  echo "Forwards already listening on ${CONFIG_PORT} and ${PROPOSER_PORT}."
+else
+  echo "Opening forwards. The operator SSH session must already reach the guest."
+  # shellcheck disable=SC2086
+  ${SSH_CMD} -N \
+    -o ExitOnForwardFailure=yes \
+    -o ServerAliveInterval=30 \
+    -L "127.0.0.1:${CONFIG_PORT}:127.0.0.1:8080" \
+    -L "127.0.0.1:${PROPOSER_PORT}:127.0.0.1:3001" \
+    >/tmp/nf4-laptop-tunnel.log 2>&1 &
+  echo "tunnel pid $!"
+  sleep 1
+fi
+
+curl -fsS -m 8 -o /dev/null -w 'join HTTP %{http_code}\n' "http://127.0.0.1:${CONFIG_PORT}/configuration/toml/join.toml"
+curl -fsS -m 8 -o /dev/null -w 'proposer HTTP %{http_code}\n' "http://127.0.0.1:${PROPOSER_PORT}/v1/health"
+echo "NF4_TUNNEL_HTTP=http://127.0.0.1:${CONFIG_PORT}"
+echo "NF4_TUNNEL_PROPOSER=http://127.0.0.1:${PROPOSER_PORT}"
+echo "Put those two lines in this laptop's deploy.env. Leave NF4_JOIN_URL as the published operator URL."
