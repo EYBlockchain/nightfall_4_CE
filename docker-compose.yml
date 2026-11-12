@@ -72,6 +72,12 @@ services:
       start_period: 0s
     networks:
       - nightfall_network
+    # Laptop lab only. Transfers read the on-chain proposer URL, which is the
+    # operator LAN address. Docker Desktop cannot route there. This alias plus
+    # a host forward of port 3001 reaches the bastion tunnel. It does not
+    # change the URL written on chain.
+    extra_hosts:
+      - "10.0.0.6:192.168.65.254"
     depends_on:
       db_client:
         condition: service_healthy

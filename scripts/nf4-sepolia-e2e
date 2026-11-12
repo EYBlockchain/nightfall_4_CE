@@ -1,0 +1,1564 @@
+#!/usr/bin/env bash
+# Laptop orchestrator for doc/Sepolia Deploy Scripts.md.
+# VM-03 is the operator. This machine is Client 2, and only after READY.
+# Sequences ./scripts/nf4-deploy and ./scripts/nf4-test. Does not deploy,
+# POST, or copy a key itself. The only script that SSHes.
+set +x
+set -euo pipefail
+umask 077
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+export PATH="${HOME}/.cargo/bin:${HOME}/.foundry/bin:${PATH}"
+
+STATE_DIR="${ROOT}/temp/sepolia-e2e"
+REMOTE_DIR="${NF4_E2E_REMOTE_DIR:-}"
+SSH_KEY="${NF4_E2E_SSH_KEY:-${HOME}/.ssh/id_ecdsa}"
+SSH_PORT="${NF4_E2E_SSH_PORT:-50023}"
+SSH_USER="${NF4_E2E_SSH_USER:-adarsh}"
+SSH_TARGET="${SSH_USER}@127.0.0.1"
+POLL_INTERVAL="${NF4_E2E_POLL_INTERVAL:-30}"
+POLL_MAX="${NF4_E2E_POLL_MAX:-360}"
+FORWARD_CONFIG=18080
+FORWARD_PROPOSER=13001
+CLIENT_PORT=3000
+BASTION_NAME="${NF4_BASTION_NAME:-RNDHPCVM01-vnet-bastion}"
+BASTION_RG="${NF4_BASTION_RG:-UE2DBLKCLDRND01}"
+BASTION_TARGET="${NF4_BASTION_TARGET:-/subscriptions/ee201e68-47b6-4321-ac1a-8607739530a8/resourceGroups/UE2DBLKCLDRND01/providers/Microsoft.Compute/virtualMachines/RNDHPCVM03}"
+
+STAGES=(
+  preflight tunnels check deploy tokens baseline deposit
+  late-join late-deposit transfer stop-client1 balances
+  restart-client1 return-721 withdraw restart-proposer
+  deposit-again soak soak-deposit
+)
+
+FILE=""
+THROUGH="soak-deposit"
+MODE="run"
+WAIT_SOAK=0
+ALLOW_SHORT_SOAK=0
+FORWARD_RESTARTS=0
+
+usage() {
+  cat <<EOF
+Usage: ./scripts/nf4-sepolia-e2e --file deploy.env [--through STAGE] [--status]
+       ./scripts/nf4-sepolia-e2e --file deploy.env --fresh-start
+
+Runs on this laptop. VM-03 (RNDHPCVM03) stays the operator. Client 2 starts
+here only after the VM-03 deposit poll prints READY. --resume is the default
+when temp/sepolia-e2e/state exists.
+
+Stages:
+  preflight tunnels check deploy tokens baseline deposit
+  late-join late-deposit transfer stop-client1 balances
+  restart-client1 return-721 withdraw restart-proposer
+  deposit-again soak soak-deposit
+
+--through STAGE   stop after that stage. Default: soak-deposit.
+--status          print markers. Does not deploy.
+--fresh-start     wipe both sides via nf4-deploy --fresh-start. Not a resume.
+--wait-soak       block in this process until the 24h and 48h snapshots.
+--allow-short-soak
+                  rehearsal only. soak-deposit may run without a 48h snapshot.
+                  The report says the soak was skipped.
+
+Does not git pull, fund a wallet, open a public port, or copy deploy.env.
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --file) FILE="${2:-}"; shift 2 ;;
+    --file=*) FILE="${1#--file=}"; shift ;;
+    --through) THROUGH="${2:-}"; shift 2 ;;
+    --through=*) THROUGH="${1#--through=}"; shift ;;
+    --remote-dir) REMOTE_DIR="${2:-}"; shift 2 ;;
+    --remote-dir=*) REMOTE_DIR="${1#--remote-dir=}"; shift ;;
+    --status) MODE="status"; shift ;;
+    --fresh-start) MODE="fresh"; shift ;;
+    --resume) shift ;;
+    --wait-soak) WAIT_SOAK=1; shift ;;
+    --allow-short-soak) ALLOW_SHORT_SOAK=1; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
+NF4_E2E_PY=$(cat <<'PY'
+import base64, pathlib, re, sys
+
+ANVIL = {
+    "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+    "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
+    "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a",
+    "0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6",
+    "0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a",
+    "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba",
+    "0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e",
+    "0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356",
+    "0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97",
+    "0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6",
+}
+BLOCK_KEYS = {
+    "layer_2_block_number",
+    "layer2_block_number",
+    "l2_block",
+    "l2_block_number",
+    "block_number",
+}
+TOKEN_IDS = {
+    "1001": "1001",
+    "0x03e9": "1001",
+    "03e9": "1001",
+    "1002": "1002",
+    "0x03ea": "1002",
+    "03ea": "1002",
+    "2001": "2001",
+    "0x07d1": "2001",
+    "07d1": "2001",
+    "3001": "3001",
+    "0x0bb9": "3001",
+    "0bb9": "3001",
+    "3002": "3002",
+    "0x0bba": "3002",
+    "0bba": "3002",
+}
+
+def read_env(path):
+    vals = {}
+    file = pathlib.Path(path)
+    if not file.is_file():
+        return vals
+    for raw in file.read_text().splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[len("export "):].strip()
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
+            value = value[1:-1]
+        vals[key.strip()] = value
+    return vals
+
+def as_int(value):
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, int):
+        return value
+    text = str(value).strip()
+    if not text or text.lower() in {"null", "none"}:
+        return None
+    try:
+        return int(text, 16) if text.lower().startswith("0x") else int(text, 0)
+    except ValueError:
+        return None
+
+def walk_blocks(obj):
+    found = []
+    if isinstance(obj, dict):
+        for key, value in obj.items():
+            if key.lower() in BLOCK_KEYS:
+                number = as_int(value)
+                if number is not None:
+                    found.append(number)
+            found.extend(walk_blocks(value))
+    elif isinstance(obj, list):
+        for item in obj:
+            found.extend(walk_blocks(item))
+    return found
+
+def scrub(text):
+    text = re.sub(r"wss?://\S+", "[rpc]", text)
+    text = re.sub(r"https://\S+", "[rpc]", text)
+    text = re.sub(r"0x[0-9a-fA-F]{64}", "0x[redacted]", text)
+    return text
+
+def join_host(url):
+    match = re.match(r"http://([^/:]+)", url or "")
+    return match.group(1) if match else ""
+
+def join_ok(url):
+    host = join_host(url)
+    if not url or not url.endswith("/configuration/toml/join.toml"):
+        return False
+    if host in {"localhost", "0.0.0.0", "10.1.2.3"}:
+        return False
+    if host.startswith(("127.", "169.254.", "172.17.", "172.28.")):
+        return False
+    parts = host.split(".")
+    if len(parts) != 4:
+        return False
+    try:
+        nums = [int(part) for part in parts]
+    except ValueError:
+        return False
+    return all(0 <= num <= 255 for num in nums)
+
+def first_int(text):
+    for token in str(text).replace(",", " ").split():
+        number = as_int(token)
+        if number is not None:
+            return number
+    return None
+
+def canonical_id(value):
+    text = str(value or "").strip().lower()
+    if text in TOKEN_IDS:
+        return TOKEN_IDS[text]
+    number = as_int(text)
+    if number is None:
+        return ""
+    return TOKEN_IDS.get(str(number), "")
+
+def commitment_rows(path):
+    file = pathlib.Path(path)
+    if not file.is_file():
+        return []
+    raw = file.read_text().strip()
+    if not raw:
+        return []
+    try:
+        import json
+        data = json.loads(raw)
+    except Exception:
+        data = []
+    rows = data if isinstance(data, list) else data.get("commitments", []) if isinstance(data, dict) else []
+    parsed = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        preimage = row.get("preimage") if isinstance(row.get("preimage"), dict) else {}
+        token = row.get("native_token_id") or row.get("tokenId") or row.get("id") or preimage.get("token_id")
+        value = row.get("value")
+        if value is None and "Value" in row:
+            value = row.get("Value")
+        if value is None:
+            value = preimage.get("value")
+        status = str(row.get("status") or row.get("Status") or "")
+        parsed.append((canonical_id(token), as_int(value), status, as_int(row.get("layer_2_block_number"))))
+    return parsed
+
+def has_id(path, wanted):
+    wanted = canonical_id(wanted) or str(wanted)
+    for token, _value, status, _block in commitment_rows(path):
+        if token == wanted and status.lower() not in {"spent", "nullified"}:
+            return True
+    return False
+
+def hex_balance(text):
+    token = str(text or "").strip().split()[0] if str(text or "").strip() else ""
+    if not token or token.lower() in {"null", "none"}:
+        return None
+    if re.fullmatch(r"0x[0-9a-fA-F]+", token):
+        return int(token, 16)
+    if re.fullmatch(r"[0-9a-fA-F]+", token):
+        return int(token, 16)
+    return None
+
+mode = sys.argv[1]
+if mode == "scrub":
+    sys.stdout.write(scrub(sys.stdin.read()))
+elif mode == "env-get":
+    value = read_env(sys.argv[2]).get(sys.argv[3])
+    if value is None:
+        sys.exit(1)
+    sys.stdout.write(value)
+elif mode == "key-status":
+    value = read_env(sys.argv[2]).get(sys.argv[3], "")
+    if not re.fullmatch(r"0x[0-9a-fA-F]{64}", value) or "YOUR_" in value:
+        print("placeholder")
+    elif value.lower() in ANVIL:
+        print("anvil")
+    else:
+        print("ok")
+elif mode == "upsert":
+    path, key, value = sys.argv[2:]
+    if key not in {"NF4_JOIN_URL", "NF4_TUNNEL_HTTP", "NF4_TUNNEL_PROPOSER"}:
+        print("refused")
+        sys.exit(1)
+    file = pathlib.Path(path)
+    lines = file.read_text().splitlines() if file.is_file() else []
+    kept = [line for line in lines if not line.startswith(key + "=")]
+    current = read_env(path).get(key)
+    if current == value:
+        print("unchanged")
+        sys.exit(0)
+    kept.append(f"{key}={value}")
+    file.write_text("\n".join(kept) + "\n")
+    file.chmod(0o600)
+    print("updated")
+elif mode == "join-ok":
+    sys.exit(0 if join_ok(sys.argv[2]) else 1)
+elif mode == "join-host":
+    sys.stdout.write(join_host(sys.argv[2]))
+elif mode == "classify-check":
+    text = sys.stdin.read()
+    address = re.search(r"^NF4_CLIENT2_ADDRESS=(0x[0-9a-fA-F]{40})\s*$", text, re.M)
+    join = re.search(r"^NF4_JOIN_URL=(http://\S+)\s*$", text, re.M)
+    if not join:
+        labelled = re.search(r"^Join URL:\s*(http://\S+)\s*$", text, re.M)
+        join = labelled
+    deployer = re.search(r"^deployer balance:\s*(\S+)", text, re.M)
+    client2 = re.search(r"^client 2 balance:\s*(\S+)", text, re.M)
+    failed = "none"
+    if re.search(r"wrong wallet|derives", text, re.I):
+        failed = "pin"
+    elif "Designated proposer is" in text or "proposer is a different wallet" in text:
+        failed = "designated"
+    elif re.search(r"has 0 balance", text):
+        failed = "zero"
+    print(f"address={address.group(1) if address else ''}")
+    print(f"join={join.group(1) if join else ''}")
+    print("same_wallet=" + ("yes" if "deployer, proposer, and Client 1 are the same existing wallet." in text else "no"))
+    print(f"deployer_balance={first_int(deployer.group(1)) if deployer else ''}")
+    print(f"client2_balance={first_int(client2.group(1)) if client2 else ''}")
+    print("join_http=200" if "join HTTP 200" in text else "join_http=000" if ("join HTTP 000" in text or "curl: (7)" in text) else "join_http=")
+    print(f"failed={failed}")
+elif mode == "l2-json":
+    file = pathlib.Path(sys.argv[2])
+    if not file.is_file():
+        sys.exit(1)
+    import json
+    try:
+        data = json.loads(file.read_text())
+    except Exception:
+        data = file.read_text()
+    found = walk_blocks(data)
+    if not found and not isinstance(data, (dict, list)):
+        number = as_int(data)
+        found = [number] if number is not None else []
+    if not found:
+        sys.exit(1)
+    print(max(found))
+elif mode == "l2-stdin":
+    raw = sys.stdin.read().strip()
+    if not raw:
+        sys.exit(1)
+    try:
+        import json
+        data = json.loads(raw)
+    except Exception:
+        data = raw
+    found = walk_blocks(data)
+    if not found:
+        number = as_int(data if not isinstance(data, (dict, list)) else None)
+        found = [number] if number is not None else []
+    if not found:
+        sys.exit(1)
+    print(max(found))
+elif mode == "l2-text":
+    number = first_int(sys.argv[2] if len(sys.argv) > 2 else sys.stdin.read())
+    if number is None:
+        sys.exit(1)
+    print(number)
+elif mode == "has-id":
+    sys.exit(0 if has_id(sys.argv[2], sys.argv[3]) else 1)
+elif mode == "balance-is":
+    got = hex_balance(sys.stdin.read())
+    want = int(sys.argv[2])
+    sys.exit(0 if got == want else 1)
+elif mode == "first-int":
+    number = first_int(sys.stdin.read())
+    if number is None:
+        sys.exit(1)
+    print(number)
+elif mode == "blocks-kept":
+    before = pathlib.Path(sys.argv[2]).read_text()
+    after = pathlib.Path(sys.argv[3]).read_text()
+    ids = set(re.findall(r"layer2_block_number['\"\s:]+(\d+)", before, re.I))
+    ids.update(re.findall(r"layer_2_block_number['\"\s:]+(\d+)", before, re.I))
+    if not ids:
+        print("empty")
+        sys.exit(1)
+    missing = [item for item in ids if item not in after]
+    if missing:
+        print("missing")
+        sys.exit(1)
+    print("kept")
+elif mode == "report-safe":
+    text = scrub(sys.stdin.read())
+    for line in text.splitlines():
+        if re.search(r"\b(?:spice|wink)\b", line):
+            continue
+        if "0x[redacted]" in line or "[rpc]" in line:
+            continue
+        print(line)
+else:
+    print(f"unknown helper {mode}", file=sys.stderr)
+    sys.exit(2)
+PY
+)
+py() {
+  python3 -c "$NF4_E2E_PY" "$@"
+}
+
+note() {
+  local line
+  line="$(date -u +%Y-%m-%dT%H:%M:%SZ) $*"
+  line="$(printf '%s\n' "$line" | py scrub)"
+  mkdir -p "$STATE_DIR"
+  printf '%s\n' "$line" | tee -a "$STATE_DIR/report.md"
+}
+
+die() {
+  local line
+  line="$(date -u +%Y-%m-%dT%H:%M:%SZ) FAIL $*"
+  line="$(printf '%s\n' "$line" | py scrub)"
+  mkdir -p "$STATE_DIR"
+  printf '%s\n' "$line" | tee -a "$STATE_DIR/report.md" >&2
+  exit 1
+}
+
+hint_for() {
+  local text="$1"
+  case "$text" in
+    *"wrong wallet"*|*"derives"*) echo "Pin mismatch. Fix the key or the pin. Do not deploy." ;;
+    *"Designated proposer is"*|*"different wallet"*) echo "The proposer key is not the wallet already registered. A re-run will not rotate it." ;;
+    *"Client 2 is already running"*) echo "Leave Client 2 stopped until the deposit poll prints READY. Do not pass --late-join." ;;
+    *"execution reverted"*) echo "Certification reverted. Do not set NF4_REDEPLOY." ;;
+    *"On-chain proposer URL is"*) echo "The operator address changed. Resume is not supported. Fresh start only with --fresh-start." ;;
+    *"Transfers are not accepted yet"*) echo "Do not run stop-client1." ;;
+    *"NF4_REDEPLOY=true"*) echo "Delete that line before the next nf4-deploy. Left in place, the next run deploys another set." ;;
+    *"rate limit"*|*"-32005"*|*"block not found"*) echo "Put a keyed matched RPC pair in deploy.env. Do not redeploy only to change the RPC." ;;
+    *"Not synchronised"*) echo "Do not restart the proposer. A restart replays DepositEscrowed." ;;
+    *"Permission denied"*) echo "On VM-03: sudo chown -R \"\$USER:\$USER\" configuration/toml && ./scripts/nf4-deploy --file deploy.env. Do not set NF4_REDEPLOY." ;;
+    *) echo "Stop. Do not set NF4_REDEPLOY. See doc/Sepolia Deploy Scripts.md." ;;
+  esac
+}
+
+hint_file() {
+  local text
+  text="$(py scrub < "$1" 2>/dev/null || true)"
+  echo "$(hint_for "$text")" >&2
+}
+
+stage_index() {
+  local i=0 name
+  for name in "${STAGES[@]}"; do
+    if [[ "$name" == "$1" ]]; then
+      printf '%s\n' "$i"
+      return 0
+    fi
+    i=$((i + 1))
+  done
+  return 1
+}
+
+require_stage() {
+  stage_index "$1" >/dev/null || die "Unknown stage $1"
+}
+
+env_get() {
+  py env-get "$FILE" "$1"
+}
+
+now_epoch() {
+  if [[ -n "${NF4_E2E_NOW:-}" ]]; then
+    printf '%s\n' "$NF4_E2E_NOW"
+  else
+    date +%s
+  fi
+}
+
+sleep_poll() {
+  if [[ "$POLL_INTERVAL" != 0 ]]; then
+    sleep "$POLL_INTERVAL"
+  fi
+}
+
+port_open() {
+  lsof -nP -iTCP:"$1" -sTCP:LISTEN >/dev/null 2>&1
+}
+
+assert_remote_safe() {
+  local cmd="$1"
+  case "$cmd" in
+    *NF4_CLIENT_KEY*|*NF4_DEPLOYER_KEY*|*NF4_PROPOSER_KEY*|*NF4_ZKP_MNEMONIC*|*local.env*|*scp\ *)
+      die "Refusing a remote command that names a secret or a copy."
+      ;;
+    *"cat deploy.env"*|*"cat ./deploy.env"*|*"cat -- deploy.env"*)
+      die "Refusing to print deploy.env."
+      ;;
+  esac
+  if [[ "$cmd" =~ 0x[0-9a-fA-F]{64} ]]; then
+    die "Refusing a remote command that contains a 32-byte key."
+  fi
+  case "$cmd" in
+    *"docker compose down"*|*"docker rm"*|*"chmod 777"*|*"0.0.0.0:8080"*|*"0.0.0.0:3001"*)
+      die "Refusing a remote command that wipes state or opens a public port."
+      ;;
+  esac
+}
+
+SSH_OPTS=(-i "$SSH_KEY" -p "$SSH_PORT" -o BatchMode=yes -o ConnectTimeout=20 -o StrictHostKeyChecking=accept-new)
+
+resolve_remote_dir() {
+  if [[ -n "$REMOTE_DIR" ]]; then
+    return 0
+  fi
+  local home
+  home="$(ssh "${SSH_OPTS[@]}" "$SSH_TARGET" 'printf %s "$HOME"' 2>/dev/null || true)"
+  [[ -n "$home" ]] || die "Could not read the home directory on VM-03."
+  REMOTE_DIR="${home}/nightfall_4_CE"
+}
+
+remote() {
+  local cmd="$1"
+  resolve_remote_dir
+  assert_remote_safe "$cmd"
+  local remote_cmd
+  printf -v remote_cmd 'cd %q && %s' "$REMOTE_DIR" "$cmd"
+  assert_remote_safe "$remote_cmd"
+  ssh "${SSH_OPTS[@]}" "$SSH_TARGET" "$remote_cmd"
+}
+
+remote_py() {
+  local script="$1"
+  shift
+  local b64 qargs arg
+  b64="$(printf '%s' "$script" | python3 -c 'import base64,sys; sys.stdout.write(base64.b64encode(sys.stdin.buffer.read()).decode())')"
+  qargs="$(printf '%q' "$b64")"
+  for arg in "$@"; do
+    qargs="${qargs} $(printf '%q' "$arg")"
+  done
+  remote "python3 -c 'import base64,sys; exec(base64.b64decode(sys.argv[1]))' ${qargs}"
+}
+
+zkp_file() {
+  python3 - "$1" <<'PY'
+import pathlib, re, sys
+match = re.search(r"[0-9a-fA-F]{64}", pathlib.Path(sys.argv[1]).read_text())
+if not match:
+    raise SystemExit(1)
+print(match.group(0))
+PY
+}
+
+run_local() {
+  local stage="$1"
+  shift
+  local rc
+  set +e
+  "$@" 2>&1 | py scrub | tee "$STATE_DIR/${stage}.log"
+  rc="${PIPESTATUS[0]}"
+  set -e
+  if [[ "$rc" != 0 ]]; then
+    hint_file "$STATE_DIR/${stage}.log"
+    die "local ${stage} exited ${rc}. $(hint_for "$(cat "$STATE_DIR/${stage}.log")")"
+  fi
+}
+
+start_remote_stage() {
+  local stage="$1"
+  local cmd="$2"
+  assert_remote_safe "$cmd"
+  resolve_remote_dir
+  ssh "${SSH_OPTS[@]}" "$SSH_TARGET" bash -s -- "$REMOTE_DIR" "$stage" "$cmd" <<'EOS'
+set -euo pipefail
+cd "$1"
+stage="$2"
+cmd="$3"
+mkdir -p temp/sepolia-e2e
+if tmux list-windows -t nf4 -F '#{window_name}' 2>/dev/null | grep -qx "$stage"; then
+  exit 0
+fi
+if ! tmux has-session -t nf4 2>/dev/null; then
+  tmux new-session -d -s nf4 -c "$PWD"
+fi
+rm -f "temp/sepolia-e2e/${stage}.exit"
+inner=$(printf 'set +e; %s > temp/sepolia-e2e/%s.log 2>&1; echo $? > temp/sepolia-e2e/%s.exit' "$cmd" "$stage" "$stage")
+tmux new-window -d -t nf4 -n "$stage" -c "$PWD" bash -lc "$inner"
+EOS
+}
+
+wait_remote() {
+  local stage="$1"
+  local i=0 code
+  while [[ "$i" -lt "$POLL_MAX" ]]; do
+    i=$((i + 1))
+    code="$(remote "cat temp/sepolia-e2e/${stage}.exit 2>/dev/null || true" | tr -d '[:space:]')"
+    if [[ "$code" =~ ^[0-9]+$ ]]; then
+      remote "cat temp/sepolia-e2e/${stage}.log 2>/dev/null || true" | py scrub > "$STATE_DIR/${stage}.log" || true
+      if [[ "$code" != 0 ]]; then
+        hint_file "$STATE_DIR/${stage}.log"
+        if [[ "${REMOTE_SOFT:-0}" == 1 ]]; then
+          return "$code"
+        fi
+        die "remote ${stage} exited ${code}. $(hint_for "$(cat "$STATE_DIR/${stage}.log")")"
+      fi
+      return 0
+    fi
+    sleep_poll
+  done
+  die "Timed out waiting for remote ${stage}. tmux session nf4 still owns that command. Rerun to resume. Do not delete step markers. Do not set NF4_REDEPLOY."
+}
+
+run_remote() {
+  local stage="$1"
+  local cmd="$2"
+  start_remote_stage "$stage" "$cmd"
+  wait_remote "$stage"
+}
+
+require_tools() {
+  local missing=() cmd
+  for cmd in "$@"; do
+    command -v "$cmd" >/dev/null 2>&1 || missing+=("$cmd")
+  done
+  if [[ "${#missing[@]}" -gt 0 ]]; then
+    die "Missing tools: ${missing[*]}"
+  fi
+}
+
+bastion_help() {
+  cat >&2 <<EOF
+az is not logged in. Start the bastion tunnel, then rerun:
+az network bastion tunnel \\
+  --name ${BASTION_NAME} \\
+  --resource-group ${BASTION_RG} \\
+  --target-resource-id ${BASTION_TARGET} \\
+  --resource-port 22 \\
+  --port ${SSH_PORT}
+EOF
+}
+
+ensure_bastion() {
+  if port_open "$SSH_PORT"; then
+    return 0
+  fi
+  if ! az account show >/dev/null 2>&1; then
+    bastion_help
+    die "Bastion port ${SSH_PORT} is not listening."
+  fi
+  az network bastion tunnel \
+    --name "$BASTION_NAME" \
+    --resource-group "$BASTION_RG" \
+    --target-resource-id "$BASTION_TARGET" \
+    --resource-port 22 \
+    --port "$SSH_PORT" >"$STATE_DIR/bastion.log" 2>&1 &
+  printf '%s\n' "$!" > "$STATE_DIR/bastion.pid"
+  local i=0
+  until port_open "$SSH_PORT"; do
+    i=$((i + 1))
+    [[ "$i" -lt 60 ]] || die "Bastion tunnel did not listen on ${SSH_PORT}."
+    sleep 1
+  done
+}
+
+ensure_forwards() {
+  if port_open "$FORWARD_CONFIG" && port_open "$FORWARD_PROPOSER"; then
+    return 0
+  fi
+  if [[ "$FORWARD_RESTARTS" -ge 1 ]]; then
+    return 1
+  fi
+  FORWARD_RESTARTS=$((FORWARD_RESTARTS + 1))
+  ssh "${SSH_OPTS[@]}" -N \
+    -o ExitOnForwardFailure=yes \
+    -o ServerAliveInterval=30 \
+    -L "127.0.0.1:${FORWARD_CONFIG}:127.0.0.1:8080" \
+    -L "127.0.0.1:${FORWARD_PROPOSER}:127.0.0.1:3001" \
+    "$SSH_TARGET" >"$STATE_DIR/forward.log" 2>&1 &
+  printf '%s\n' "$!" > "$STATE_DIR/forward.pid"
+  sleep 1
+  port_open "$FORWARD_CONFIG" && port_open "$FORWARD_PROPOSER"
+}
+
+client2_running() {
+  docker info >/dev/null 2>&1 || return 1
+  docker ps --format '{{.Names}}' 2>/dev/null | grep -qx nf4_indie_client
+}
+
+ready_printed() {
+  remote "grep -qx READY temp/sepolia-step10/record.txt"
+}
+
+remote_file() {
+  remote "test -f $(printf '%q' "$1")"
+}
+
+remote_line() {
+  remote "grep -qx $(printf '%q' "$2") $(printf '%q' "$1") 2>/dev/null"
+}
+
+dir_state() {
+  local scope="$1" dir="$2"
+  shift 2
+  local names="" name
+  for name in "$@"; do
+    names="${names}${name},"
+  done
+  if [[ "$scope" == local ]]; then
+    py_dir_state "$dir" "$names"
+  else
+    remote_py "$(cat <<'PY'
+import pathlib, sys
+d = pathlib.Path(sys.argv[2])
+names = [item for item in sys.argv[3].split(",") if item]
+if not d.is_dir():
+    print("absent")
+    raise SystemExit(0)
+present = [(d / f"{name}.request-id").is_file() for name in names]
+if all(present):
+    print("complete")
+elif any(present):
+    print("torn")
+else:
+    print("empty")
+PY
+)" "$dir" "$names"
+  fi
+}
+
+py_dir_state() {
+  python3 - "$1" "$2" <<'PY'
+import pathlib, sys
+d = pathlib.Path(sys.argv[1])
+names = [item for item in sys.argv[2].split(",") if item]
+if not d.is_dir():
+    print("absent")
+    raise SystemExit(0)
+present = [(d / f"{name}.request-id").is_file() for name in names]
+if all(present):
+    print("complete")
+elif any(present):
+    print("torn")
+else:
+    print("empty")
+PY
+}
+
+require_not_torn() {
+  local scope="$1" dir="$2"
+  shift 2
+  local state
+  state="$(dir_state "$scope" "$dir" "$@")"
+  if [[ "$state" == torn ]]; then
+    die "${dir} is torn. Resume is not supported. Do not delete it. Fresh start only with --fresh-start."
+  fi
+  printf '%s\n' "$state"
+}
+
+key_ok() {
+  local status
+  status="$(py key-status "$FILE" "$1")"
+  case "$status" in
+    ok) return 0 ;;
+    anvil) die "$1 is an Anvil key. This procedure is Sepolia. Do not deploy." ;;
+    *) die "$1 is missing or still a placeholder. Paste the funded key into the laptop deploy.env. Do not generate one here." ;;
+  esac
+}
+
+scheme_ok() {
+  local wss http chain
+  wss="$(env_get NF4_RPC_WSS || true)"
+  http="$(env_get NF4_RPC_HTTP || true)"
+  chain="$(env_get NF4_CHAIN_ID || true)"
+  case "$wss" in
+    wss://*) ;;
+    ws://*) die "NF4_RPC_WSS must stay wss://. A laptop certificate error is not a reason to use ws://." ;;
+    *YOUR_*|"") die "NF4_RPC_WSS is missing or still a placeholder." ;;
+    *) die "NF4_RPC_WSS is not wss://." ;;
+  esac
+  case "$http" in
+    https://*) ;;
+    *YOUR_*|"") die "NF4_RPC_HTTP is missing or still a placeholder." ;;
+    *) die "NF4_RPC_HTTP must be https://. Host cast uses that pair, not wss://." ;;
+  esac
+  [[ "$chain" == 11155111 ]] || die "NF4_CHAIN_ID=${chain:-unset}. This procedure is Ethereum Sepolia, 11155111."
+  local got
+  set +e
+  got="$(cast chain-id --rpc-url "$http" 2>/dev/null)"
+  set -e
+  [[ "$got" =~ ^[0-9]+$ ]] || die "Laptop chain-id check failed on NF4_RPC_HTTP. Do not change NF4_RPC_WSS to an unencrypted websocket."
+  [[ "$got" == 11155111 ]] || die "RPC chain-id is ${got}, expected 11155111."
+}
+
+set_remote_client2() {
+  local addr="$1"
+  [[ "$addr" =~ ^0x[0-9a-fA-F]{40}$ ]] || die "Client 2 address is not 20 bytes. Not writing it."
+  remote_py "$(cat <<'PY'
+import pathlib, sys
+path, value = pathlib.Path(sys.argv[2]), sys.argv[3]
+lines = path.read_text().splitlines() if path.is_file() else []
+current = None
+kept = []
+for line in lines:
+    if line.startswith("NF4_CLIENT2_ADDRESS="):
+        current = line.split("=", 1)[1].strip().strip("'\"")
+        continue
+    kept.append(line)
+if current is not None and current.lower() == value.lower():
+    print("unchanged")
+    raise SystemExit(0)
+kept.append("NF4_CLIENT2_ADDRESS=" + value)
+path.write_text("\n".join(kept) + "\n")
+path.chmod(0o600)
+print("updated")
+PY
+)" deploy.env "$addr"
+}
+
+upsert_local() {
+  py upsert "$FILE" "$1" "$2" >/dev/null
+}
+
+load_field() {
+  local file="$1" key="$2"
+  py env-get "$file" "$key"
+}
+
+http_get() {
+  curl -fsS --max-time 30 "$1"
+}
+
+sync_l2() {
+  local file="$1"
+  if [[ -f "$file" ]]; then
+    py l2-json "$file" 2>/dev/null && return 0
+  fi
+  return 1
+}
+
+l2_remote() {
+  local raw number
+  raw="$(remote "cat temp/sepolia-test/operator-sync.json 2>/dev/null || true")"
+  if number="$(printf '%s' "$raw" | py l2-stdin 2>/dev/null)"; then
+    printf '%s\n' "$number"
+    return 0
+  fi
+  raw="$(remote "curl -fsS --max-time 30 http://127.0.0.1:3001/v1/blockdata" 2>/dev/null || true)"
+  printf '%s' "$raw" | py l2-stdin
+}
+
+l2_local() {
+  local number raw
+  if [[ -f "$ROOT/temp/sepolia-test/client-sync.json" ]]; then
+    number="$(py l2-json "$ROOT/temp/sepolia-test/client-sync.json" 2>/dev/null || true)"
+    if [[ "$number" =~ ^[0-9]+$ ]]; then
+      printf '%s\n' "$number"
+      return 0
+    fi
+  fi
+  raw="$(http_get "http://127.0.0.1:${CLIENT_PORT}/v1/commitments" 2>/dev/null || true)"
+  if number="$(printf '%s' "$raw" | py l2-stdin 2>/dev/null)"; then
+    printf '%s\n' "$number"
+    return 0
+  fi
+  raw="$(http_get "http://127.0.0.1:${FORWARD_PROPOSER}/v1/blockdata" 2>/dev/null || true)"
+  printf '%s' "$raw" | py l2-stdin
+}
+
+capture_remote_l2() {
+  remote "./scripts/nf4-test --file deploy.env --step sync" >/dev/null || true
+  l2_remote
+}
+
+wait_l2_above() {
+  local floor="$1"
+  [[ "$floor" =~ ^[0-9]+$ ]] || die "No L2 block was recorded before this wait. Not posting again."
+  local i=0 local_n remote_n
+  while [[ "$i" -lt "$POLL_MAX" ]]; do
+    i=$((i + 1))
+    ensure_forwards || die "Forwards on ${FORWARD_CONFIG} and ${FORWARD_PROPOSER} are down."
+    ./scripts/nf4-test --file "$FILE" --step sync >/dev/null 2>&1 || true
+    remote "./scripts/nf4-test --file deploy.env --step sync" >/dev/null 2>&1 || true
+    local_n="$(l2_local || true)"
+    remote_n="$(l2_remote || true)"
+    if [[ "$local_n" =~ ^[0-9]+$ && "$local_n" == "$remote_n" && "$local_n" -gt "$floor" ]]; then
+      note "L2 block ${local_n} matches on both sides"
+      printf '%s\n' "$local_n"
+      return 0
+    fi
+    sleep_poll
+  done
+  die "Timed out waiting for a shared L2 block above ${floor}. Step directories were not deleted. Not posting again."
+}
+
+fetch_public() {
+  local base
+  base="$(env_get NF4_TUNNEL_HTTP || true)"
+  [[ -n "$base" ]] || die "NF4_TUNNEL_HTTP is not set. The laptop reads configuration through the forward."
+  http_get "${base%/}/configuration/toml/public.env" > "$STATE_DIR/public.env"
+}
+
+public_get() {
+  load_field "$STATE_DIR/public.env" "$1"
+}
+
+expect_balance() {
+  local token="$1" id="$2" want="$3" label="$4"
+  local body
+  body="$(http_get "http://127.0.0.1:${CLIENT_PORT}/v1/balance/${token}/${id}" 2>/dev/null || true)"
+  printf '%s\n' "$body" | py balance-is "$want"
+}
+
+descrow_visible() {
+  local side="$1"
+  if [[ "$side" == local ]]; then
+    grep -q '0xf3b85fc2' "$ROOT/temp/sepolia-step18-c2/"*.log 2>/dev/null && return 0
+    grep -q '0xf3b85fc2\|withdraw_fund_salt' "$ROOT/.nightfall/webhook/events.jsonl" 2>/dev/null && return 0
+    docker logs nf4_indie_client 2>&1 | grep -q '0xf3b85fc2' && return 0
+    return 1
+  fi
+  remote "grep -q 0xf3b85fc2 temp/sepolia-step18-c1/*.log 2>/dev/null || grep -q -e 0xf3b85fc2 -e withdraw_fund_salt .nightfall/webhook/events.jsonl 2>/dev/null || docker logs nf4_indie_client 2>&1 | grep -q 0xf3b85fc2"
+}
+
+l1_balance() {
+  local who="$1"
+  local token rpc got
+  token="$(public_get TOKEN20)"
+  rpc="$(env_get NF4_RPC_HTTP)"
+  set +e
+  got="$(cast call "$token" "balanceOf(address)(uint256)" "$who" --rpc-url "$rpc" 2>/dev/null)"
+  set -e
+  printf '%s\n' "$got" | py first-int
+}
+
+sample_l1() {
+  local name="$1" who="$2"
+  local path="$STATE_DIR/${name}"
+  if [[ -f "$path" ]]; then
+    cat "$path"
+    return 0
+  fi
+  l1_balance "$who" | tee "$path"
+}
+
+assert_host_stable() {
+  local saved current host
+  saved="$(env_get NF4_JOIN_URL || true)"
+  [[ -n "$saved" ]] || return 0
+  host="$(py join-host "$saved")"
+  current="$(remote "./scripts/nf4-deploy --check" 2>/dev/null | py classify-check operator | awk -F= '/^join=/{print substr($0,6)}')"
+  [[ -n "$current" ]] || return 0
+  local current_host
+  current_host="$(py join-host "$current")"
+  if [[ -n "$current_host" && "$current_host" != "$host" ]]; then
+    die "On-chain proposer URL host ${current_host} does not match NF4_JOIN_URL host ${host}. Resume is not supported. Do not edit the URL in place."
+  fi
+}
+
+record_addresses() {
+  remote_py "$(cat <<'PY'
+import re, pathlib, sys
+text = pathlib.Path("configuration/toml/addresses.toml").read_text()
+for key in ("nightfall", "round_robin", "x509", "verifier"):
+    match = re.search(rf"^{key}\s*=\s*\"(0x[0-9a-fA-F]{{40}})\"", text, re.M)
+    print(f"{key}={match.group(1) if match else 'missing'}")
+PY
+)"
+}
+
+stage_preflight() {
+  require_tools bash ssh curl python3 az docker cast
+  [[ -f "$SSH_KEY" ]] || die "SSH key not found. The guide uses ~/.ssh/id_ecdsa."
+  [[ -f "$FILE" ]] || die "Laptop deploy.env is missing. Create it with ./scripts/nf4-deploy --init client --file deploy.env. Do not copy the VM-03 file."
+  [[ "$(env_get NF4_ROLE || true)" == client ]] || die "Laptop deploy.env must be NF4_ROLE=client. This machine is Client 2."
+  key_ok NF4_CLIENT_KEY
+  scheme_ok
+  local network
+  network="$(env_get NF4_NETWORK || true)"
+  [[ "$network" != local ]] || die "NF4_NETWORK=local is not this procedure."
+  ensure_bastion
+  resolve_remote_dir
+  remote "test -x scripts/nf4-deploy && test -x scripts/nf4-test" \
+    >/dev/null || die "VM-03 checkout was not found at ${REMOTE_DIR}. The guide uses ~/nightfall_4_CE. Pass --remote-dir if it lives elsewhere."
+  remote "export PATH=\"\$HOME/.cargo/bin:\$HOME/.foundry/bin:\$PATH\"; command -v docker && command -v forge && command -v cast && command -v cargo && command -v curl && command -v python3 && command -v tmux" \
+    >/dev/null || die "VM-03 is missing docker, forge, cast, cargo, curl, python3, or tmux."
+  remote "test -f deploy.env" || die "VM-03 deploy.env is missing. On VM-03: ./scripts/nf4-deploy --init operator --file deploy.env. Do not copy the laptop file."
+  local remote_role local_head remote_head local_branch remote_branch
+  remote_role="$(remote_py "$(cat <<'PY'
+import pathlib, sys
+text = pathlib.Path(sys.argv[2]).read_text()
+for line in text.splitlines():
+    if line.startswith("NF4_ROLE="):
+        print(line.split("=", 1)[1].strip().strip("'\""))
+        break
+PY
+)" deploy.env)"
+  [[ "$remote_role" == operator ]] || die "VM-03 deploy.env must be NF4_ROLE=operator. Got ${remote_role:-missing}."
+  local_head="$(git -C "$ROOT" rev-parse --short HEAD)"
+  local_branch="$(git -C "$ROOT" rev-parse --abbrev-ref HEAD)"
+  remote_head="$(remote "git rev-parse --short HEAD" | tr -d '[:space:]')"
+  remote_branch="$(remote "git rev-parse --abbrev-ref HEAD" | tr -d '[:space:]')"
+  [[ "$local_head" == "$remote_head" && "$local_branch" == "$remote_branch" ]] || die "Checkout drift. Laptop ${local_branch}@${local_head}, VM-03 ${remote_branch}@${remote_head}. Do not git pull from this script."
+  note "preflight OK commit=${local_head} branch=${local_branch}"
+}
+
+stage_tunnels() {
+  ensure_bastion
+  ensure_forwards || note "Forwards are not up yet. That is expected before configuration is listening."
+  note "tunnels OK bastion=${SSH_PORT}"
+}
+
+stage_check() {
+  local out rc addr
+  set +e
+  out="$("./scripts/nf4-deploy" --file "$FILE" --check 2>&1)"
+  rc=$?
+  set -e
+  printf '%s\n' "$out" | py scrub > "$STATE_DIR/check-local.log"
+  addr="$(printf '%s\n' "$out" | py classify-check client | awk -F= '/^address=/{print substr($0,9)}')"
+  local failed
+  failed="$(printf '%s\n' "$out" | py classify-check client | awk -F= '/^failed=/{print substr($0,8)}')"
+  [[ "$failed" == none ]] || die "Laptop wallet check failed (${failed}). Do not deploy."
+  [[ "$addr" =~ ^0x[0-9a-fA-F]{40}$ ]] || die "Laptop wallet check did not print NF4_CLIENT2_ADDRESS. Do not deploy on this machine to clear a join error."
+  if [[ "$rc" != 0 ]] && ! grep -q 'join HTTP 000\|curl: (7)' "$STATE_DIR/check-local.log"; then
+    die "Laptop check failed before a join fetch was even attempted."
+  fi
+  note "laptop wallet OK client2=${addr}"
+  set_remote_client2 "$addr" >/dev/null
+  set +e
+  out="$(remote "./scripts/nf4-deploy --file deploy.env --check" 2>&1)"
+  rc=$?
+  set -e
+  printf '%s\n' "$out" | py scrub > "$STATE_DIR/check-remote.log"
+  [[ "$rc" == 0 ]] || die "VM-03 wallet check failed. Do not deploy. $(hint_for "$out")"
+  local fields join same deployer client2
+  fields="$(printf '%s\n' "$out" | py classify-check operator)"
+  join="$(printf '%s\n' "$fields" | awk -F= '/^join=/{print substr($0,6)}')"
+  same="$(printf '%s\n' "$fields" | awk -F= '/^same_wallet=/{print substr($0,13)}')"
+  deployer="$(printf '%s\n' "$fields" | awk -F= '/^deployer_balance=/{print substr($0,18)}')"
+  client2="$(printf '%s\n' "$fields" | awk -F= '/^client2_balance=/{print substr($0,17)}')"
+  failed="$(printf '%s\n' "$fields" | awk -F= '/^failed=/{print substr($0,8)}')"
+  [[ "$failed" == none ]] || die "VM-03 wallet check failed (${failed}). Do not deploy."
+  [[ "$same" == yes ]] || die "VM-03 deployer, proposer, and Client 1 are not the same wallet. Leave the extra key lines commented."
+  [[ "$deployer" =~ ^[0-9]+$ && "$deployer" != 0 ]] || die "Deployer balance is zero. Fund it, then rerun. Do not deploy."
+  [[ "$client2" =~ ^[0-9]+$ && "$client2" != 0 ]] || die "Client 2 balance is zero. Fund it, then rerun. Do not deploy."
+  py join-ok "$join" || die "Refusing NF4_JOIN_URL. It must be the private host VM-03 printed, not 127.0.0.1, not the 10.1.2.3 example."
+  upsert_local NF4_JOIN_URL "$join"
+  upsert_local NF4_TUNNEL_HTTP "http://127.0.0.1:${FORWARD_CONFIG}"
+  upsert_local NF4_TUNNEL_PROPOSER "http://127.0.0.1:${FORWARD_PROPOSER}"
+  note "check OK join_host=$(py join-host "$join") client2=${addr}"
+}
+
+deploy_gates() {
+  local log="$STATE_DIR/deploy.log"
+  grep -q 'Certified user-2' "$log" || die "Deploy log has no Certified user-2. Do not set NF4_REDEPLOY."
+  grep -q 'Certified user-3' "$log" || die "Deploy log has no Certified user-3. Do not set NF4_REDEPLOY."
+  grep -q 'Published C1_ZKP' "$log" || die "Deploy log has no Published C1_ZKP. Do not set NF4_REDEPLOY."
+  local code health mode
+  code="$(remote "curl -fsS -o /dev/null -w '%{http_code}' --max-time 30 http://127.0.0.1:8080/configuration/toml/join.toml" | tr -d '[:space:]')"
+  [[ "$code" == 200 ]] || die "configuration HTTP ${code:-000} on VM-03. Re-run ./scripts/nf4-deploy --file deploy.env. Do not set NF4_REDEPLOY."
+  health="$(remote "curl -fsS --max-time 30 http://127.0.0.1:3001/v1/health" | tr -d '[:space:]')"
+  [[ "$health" == Healthy ]] || die "Proposer health is not Healthy."
+  health="$(remote "curl -fsS --max-time 30 http://127.0.0.1:3000/v1/health" | tr -d '[:space:]')"
+  [[ "$health" == Healthy ]] || die "Client 1 health is not Healthy."
+  mode="$(remote_py "$(cat <<'PY'
+import os, pathlib, stat, sys
+path = pathlib.Path("configuration/toml/public.env")
+print(format(stat.S_IMODE(path.stat().st_mode), "o"))
+PY
+)" | tr -d '[:space:]')"
+  [[ "$mode" == 644 ]] || die "public.env mode is ${mode:-missing}, not 644. A 600 file is HTTP 403. Re-run ./scripts/nf4-deploy --file deploy.env. Do not set NF4_REDEPLOY."
+  if remote "grep -q '^NF4_REDEPLOY=true' deploy.env"; then
+    die "NF4_REDEPLOY=true is still set after deploy. Delete that line before the next nf4-deploy. Do not deploy again while it is set."
+  fi
+}
+
+stage_deploy() {
+  local attempt=0
+  while [[ "$attempt" -lt 2 ]]; do
+    attempt=$((attempt + 1))
+    run_remote deploy "./scripts/nf4-deploy --file deploy.env"
+    if grep -q 'Permission denied' "$STATE_DIR/deploy.log" && grep -q 'join.toml' "$STATE_DIR/deploy.log" && [[ "$attempt" == 1 ]]; then
+      note "reclaiming configuration/toml ownership. Not setting NF4_REDEPLOY."
+      remote "sudo chown -R \"\$USER:\$USER\" configuration/toml"
+      continue
+    fi
+    break
+  done
+  deploy_gates
+  local host
+  host="$(py join-host "$(env_get NF4_JOIN_URL)")"
+  note "deploy OK $(record_addresses | tr '\n' ' ') join_host=${host}"
+  ensure_forwards || die "Forwards failed after deploy."
+  ./scripts/nf4-laptop-tunnel > "$STATE_DIR/laptop-tunnel.log" 2>&1 || die "VM-03 join is up. The laptop forward or NF4_JOIN_URL is wrong. Do not deploy on the laptop."
+  set +e
+  local out rc
+  out="$("./scripts/nf4-deploy" --file "$FILE" --check 2>&1)"
+  rc=$?
+  set -e
+  printf '%s\n' "$out" | py scrub > "$STATE_DIR/check-after-deploy.log"
+  [[ "$rc" == 0 ]] || die "Laptop check after deploy failed. Do not pass --late-join."
+  grep -q 'join HTTP 200' "$STATE_DIR/check-after-deploy.log" || die "join HTTP was not 200 after deploy."
+  if client2_running; then
+    die "Client 2 is already running. Leave it stopped until the deposit poll prints READY."
+  fi
+  note "laptop sees join HTTP 200. Client 2 is down."
+}
+
+stage_tokens() {
+  if remote "test -f temp/sepolia-test/minted" && remote "grep -q '^TOKEN20=' configuration/toml/public.env"; then
+    note "tokens already published"
+    return 0
+  fi
+  run_remote tokens "./scripts/nf4-test --file deploy.env --step tokens"
+  note "tokens OK"
+}
+
+stage_baseline() {
+  run_remote baseline "./scripts/nf4-test --file deploy.env --step baseline"
+  note "baseline OK"
+}
+
+stage_deposit() {
+  local state
+  state="$(require_not_torn remote temp/sepolia-step10 ERC20 ERC721 ERC1155 ERC3525)"
+  if remote_line temp/sepolia-step10/record.txt READY; then
+    note "deposit already READY"
+  else
+    [[ "$state" == torn ]] && die "unreachable"
+    run_remote deposit "./scripts/nf4-test --file deploy.env --step deposit"
+    remote_line temp/sepolia-step10/record.txt READY || die "Deposit exited without READY in temp/sepolia-step10/record.txt. Do not delete that directory. Do not set NF4_REDEPLOY."
+  fi
+  if ! remote "ls temp/sepolia-step10/*.receipt.json >/dev/null 2>&1"; then
+    note "block receipts were not saved. Abbreviated log hashes are blocked evidence, not a gate."
+  fi
+  local head
+  head="$(capture_remote_l2 || true)"
+  [[ "$head" =~ ^[0-9]+$ ]] && printf '%s\n' "$head" > "$STATE_DIR/l2-after-deposit"
+  note "deposit READY"
+}
+
+stage_late_join() {
+  ready_printed || die "Client 2 stays down until the deposit poll prints READY. Do not pass --late-join."
+  docker info >/dev/null 2>&1 || die "Docker Desktop must be running before late-join."
+  local health="down"
+  health="$(http_get "http://127.0.0.1:${CLIENT_PORT}/v1/health" 2>/dev/null || true)"
+  if [[ "$health" != Healthy || ! -f "$ROOT/temp/zkp.public" ]]; then
+    run_local late-join ./scripts/nf4-deploy --file "$FILE" --late-join
+  fi
+  health="$(http_get "http://127.0.0.1:${CLIENT_PORT}/v1/health")"
+  [[ "$health" == Healthy ]] || die "Client 2 health is not Healthy."
+  grep -q 'Certified user-4' "$STATE_DIR/late-join.log" || [[ -f "$ROOT/temp/zkp.public" ]] || die "late-join did not certify user-4."
+  local zkp
+  zkp="$(zkp_file "$ROOT/temp/zkp.public" || true)"
+  [[ "$zkp" =~ ^[0-9a-fA-F]{64}$ ]] || die "temp/zkp.public is not 64 hex. Not copying it."
+  printf '%s\n' "$zkp" | remote "mkdir -p temp && cat > temp/zkp.public && chmod 644 temp/zkp.public"
+  note "late-join OK certified=user-4"
+}
+
+holdings_late() {
+  fetch_public
+  local erc721 erc1155 erc3525
+  erc721="$(public_get TOKEN721)"
+  erc1155="$(public_get TOKEN1155)"
+  erc3525="$(public_get TOKEN3525)"
+  http_get "http://127.0.0.1:${CLIENT_PORT}/v1/commitments" > "$STATE_DIR/c2-commitments.json"
+  py has-id "$STATE_DIR/c2-commitments.json" 1002 || die "Client 2 is missing ERC721 1002. Not depositing again."
+  expect_balance "$erc1155" "$(public_get ID1155)" 10 "ERC1155" || die "Client 2 ERC1155 is not 10. Not depositing again."
+  py has-id "$STATE_DIR/c2-commitments.json" 3002 || die "Client 2 is missing ERC3525 3002. Not depositing again."
+}
+
+stage_late_deposit() {
+  local state floor
+  state="$(require_not_torn local temp/sepolia-step11 ERC721 ERC1155 ERC3525)"
+  floor="$(cat "$STATE_DIR/l2-after-deposit" 2>/dev/null || true)"
+  if [[ "$state" == complete ]]; then
+    note "late-deposit already queued. Waiting for the L2 block. Not posting again."
+  else
+    run_local late-deposit ./scripts/nf4-test --file "$FILE" --step late-deposit
+  fi
+  wait_l2_above "$floor" >/dev/null
+  holdings_late
+  note "late-deposit OK"
+}
+
+stage_transfer() {
+  if ! remote "grep -q '^C2_ZKP=' configuration/toml/public.env"; then
+    [[ -f "$ROOT/temp/zkp.public" ]] || die "C2_ZKP missing. temp/zkp.public is not on this laptop. Do not transfer."
+    zkp_file "$ROOT/temp/zkp.public" | remote "mkdir -p temp && cat > temp/zkp.public"
+    run_remote accept-zkp "./scripts/nf4-test --file deploy.env --step accept-zkp --name C2_ZKP --from temp/zkp.public"
+  fi
+  local state
+  state="$(require_not_torn remote temp/sepolia-step12 ERC20 ERC721 ERC1155 ERC3525)"
+  if remote_file temp/sepolia-step12/confirmed; then
+    note "transfers already confirmed"
+  else
+    run_remote transfer "./scripts/nf4-test --file deploy.env --step transfer"
+    remote_file temp/sepolia-step12/confirmed || die "Transfers are not Confirmed. Do not run stop-client1."
+  fi
+  if ! remote_file temp/sepolia-step12/proposer.log; then
+    REMOTE_SOFT=1
+    if ! run_remote transfer-evidence "./scripts/nf4-test --file deploy.env --step transfer-evidence"; then
+      note "transfer evidence blocked. Abbreviated hashes are not a gate."
+    fi
+    REMOTE_SOFT=0
+  fi
+  note "transfer OK"
+}
+
+stage_stop_client1() {
+  remote_file temp/sepolia-step12/confirmed || die "Transfers are not Confirmed. Do not run stop-client1."
+  if ! remote "docker ps --format '{{.Names}}' | grep -qx nf4_indie_client"; then
+    note "Client 1 already stopped. Not running stop-client1."
+    return 0
+  fi
+  run_remote stop-client1 "./scripts/nf4-test --file deploy.env --step stop-client1"
+  note "stop-client1 OK"
+}
+
+stage_balances() {
+  fetch_public
+  local i=0 erc20 erc721 erc1155
+  erc20="$(public_get TOKEN20)"
+  erc721="$(public_get TOKEN721)"
+  erc1155="$(public_get TOKEN1155)"
+  while [[ "$i" -lt "$POLL_MAX" ]]; do
+    i=$((i + 1))
+    run_local balances ./scripts/nf4-test --file "$FILE" --step balances
+    http_get "http://127.0.0.1:${CLIENT_PORT}/v1/commitments" > "$STATE_DIR/c2-commitments.json" || true
+    if expect_balance "$erc20" "$(public_get ID20)" 40 "ERC20" \
+      && expect_balance "$erc1155" "$(public_get ID1155)" 18 "ERC1155" \
+      && py has-id "$STATE_DIR/c2-commitments.json" 1001 \
+      && py has-id "$STATE_DIR/c2-commitments.json" 3002; then
+      note "balances OK erc20=40 erc1155=18 erc721=1001"
+      return 0
+    fi
+    sleep_poll
+  done
+  die "Client 2 balances did not reach ERC20 40, ERC721 1001, ERC1155 18. Not resubmitting the transfer."
+}
+
+stage_restart_client1() {
+  run_remote restart-client1 "./scripts/nf4-test --file deploy.env --step restart-client1"
+  remote "./scripts/nf4-test --file deploy.env --step sync" >/dev/null
+  ./scripts/nf4-test --file "$FILE" --step sync >/dev/null
+  local left right
+  left="$(l2_remote)"
+  right="$(l2_local)"
+  [[ "$left" =~ ^[0-9]+$ && "$left" == "$right" ]] || die "L2 blocks do not match after Client 1 restart (${left:-missing} vs ${right:-missing})."
+  note "restart-client1 OK l2=${left}"
+}
+
+stage_return_721() {
+  local state floor
+  floor="$(capture_remote_l2)"
+  state="$(require_not_torn local temp/sepolia-step17 ERC721)"
+  if [[ "$state" == complete ]]; then
+    note "return already queued. Not posting again."
+  else
+    run_local return-721 ./scripts/nf4-test --file "$FILE" --step return-721
+  fi
+  wait_l2_above "$floor" >/dev/null
+  note "return-721 OK"
+}
+
+wait_descrow_and_l1() {
+  local side="$1" name="$2" who="$3" before after i=0
+  before="$(sample_l1 "$name" "$who")"
+  while [[ "$i" -lt "$POLL_MAX" ]]; do
+    i=$((i + 1))
+    if descrow_visible "$side"; then
+      after="$(l1_balance "$who" || true)"
+      if [[ "$after" =~ ^[0-9]+$ && "$before" =~ ^[0-9]+$ && "$after" != "$before" ]]; then
+        printf '%s\n' "$after" > "$STATE_DIR/${name}-after"
+        note "${name} L1 ERC20 moved"
+        return 0
+      fi
+    fi
+    sleep_poll
+  done
+  die "Descrow or L1 movement was not seen for ${name}. Not withdrawing again."
+}
+
+stage_withdraw() {
+  fetch_public
+  local c1 c2 state
+  c1="$(public_get C1)"
+  c2="$(public_get C2)"
+  state="$(require_not_torn remote temp/sepolia-step18-c1 ERC20 ERC721 ERC1155 ERC3525)"
+  sample_l1 l1-c1 "$c1" >/dev/null
+  if [[ "$state" != complete ]]; then
+    run_remote withdraw-c1 "./scripts/nf4-test --file deploy.env --step withdraw"
+  else
+    note "Client 1 withdraw already queued. Not posting again."
+  fi
+  wait_descrow_and_l1 remote l1-c1 "$c1"
+  remote "./scripts/nf4-test --file deploy.env --step l1-balances" >/dev/null || true
+  state="$(require_not_torn local temp/sepolia-step18-c2 ERC20 ERC721 ERC1155 ERC3525)"
+  sample_l1 l1-c2 "$c2" >/dev/null
+  if [[ "$state" != complete ]]; then
+    run_local withdraw-c2 ./scripts/nf4-test --file "$FILE" --step withdraw
+  else
+    note "Client 2 withdraw already queued. Not posting again."
+  fi
+  wait_descrow_and_l1 local l1-c2 "$c2"
+  ./scripts/nf4-test --file "$FILE" --step l1-balances >/dev/null || true
+  note "withdraw OK"
+}
+
+stage_restart_proposer() {
+  local before_l2
+  before_l2="$(capture_remote_l2 || true)"
+  run_remote restart-proposer "./scripts/nf4-test --file deploy.env --step restart-proposer"
+  remote "curl -fsS --max-time 30 http://127.0.0.1:3001/v1/health" | grep -q Healthy || die "Proposer health is not Healthy after restart."
+  remote "cat temp/sepolia-test/proposer-blocks-before.json" > "$STATE_DIR/proposer-blocks-before.json"
+  remote "cat temp/sepolia-test/proposer-blocks-after.json" > "$STATE_DIR/proposer-blocks-after.json"
+  py blocks-kept "$STATE_DIR/proposer-blocks-before.json" "$STATE_DIR/proposer-blocks-after.json" >/dev/null \
+    || die "Proposer restart dropped an L2 block. Do not treat this as a clean recovery."
+  remote "./scripts/nf4-test --file deploy.env --step sync" >/dev/null
+  ./scripts/nf4-test --file "$FILE" --step sync >/dev/null
+  local left right
+  left="$(l2_remote)"
+  right="$(l2_local)"
+  [[ "$left" == "$right" ]] || die "Clients diverged after the proposer restart."
+  if [[ -n "$before_l2" && "$left" != "$before_l2" ]]; then
+    die "L2 head changed across the proposer restart (${before_l2} -> ${left})."
+  fi
+  note "restart-proposer OK l2=${left}"
+}
+
+stage_deposit_again() {
+  local state floor
+  floor="$(capture_remote_l2)"
+  state="$(require_not_torn remote temp/sepolia-step20 ERC20)"
+  if [[ "$state" == complete ]]; then
+    note "post-recovery deposit already queued. Not posting again."
+  else
+    run_remote deposit-again "./scripts/nf4-test --file deploy.env --step deposit-again"
+  fi
+  wait_l2_above "$floor" >/dev/null
+  fetch_public
+  local i=0 body
+  while [[ "$i" -lt "$POLL_MAX" ]]; do
+    i=$((i + 1))
+    body="$(remote "curl -fsS --max-time 30 http://127.0.0.1:3000/v1/balance/$(public_get TOKEN20)/$(public_get ID20)" 2>/dev/null || true)"
+    if printf '%s\n' "$body" | py balance-is 10; then
+      note "deposit-again OK value=10"
+      return 0
+    fi
+    sleep_poll
+  done
+  die "Client 1 did not show an ERC20 commitment of 10. Not depositing again."
+}
+
+soak_snapshot() {
+  local label="$1"
+  ensure_forwards || die "Forwards are down. Not taking a soak snapshot over a dead tunnel."
+  ./scripts/nf4-test --file "$FILE" --step soak-check
+  remote "./scripts/nf4-test --file deploy.env --step soak-check"
+  date -u +%Y-%m-%dT%H:%M:%SZ > "$STATE_DIR/soak-${label}-at.txt"
+  note "soak snapshot ${label}"
+}
+
+stage_soak() {
+  if [[ ! -f "$STATE_DIR/soak-started-at.txt" ]]; then
+    now_epoch > "$STATE_DIR/soak-started-at.txt"
+    soak_snapshot start
+  fi
+  local start now elapsed
+  start="$(cat "$STATE_DIR/soak-started-at.txt")"
+  now="$(now_epoch)"
+  elapsed=$((now - start))
+  if [[ "$elapsed" -ge 86400 && ! -f "$STATE_DIR/soak-24h-at.txt" ]]; then
+    soak_snapshot 24h
+  fi
+  if [[ "$elapsed" -ge 172800 && ! -f "$STATE_DIR/soak-end-at.txt" ]]; then
+    soak_snapshot end
+    note "soak end snapshot recorded"
+    return 0
+  fi
+  if [[ "$WAIT_SOAK" == 1 && ! -f "$STATE_DIR/soak-end-at.txt" ]]; then
+    while [[ "$elapsed" -lt 172800 ]]; do
+      [[ "$POLL_INTERVAL" != 0 ]] || break
+      ensure_forwards || die "Forwards dropped during the soak wait."
+      sleep_poll
+      now="$(now_epoch)"
+      elapsed=$((now - start))
+      if [[ "$elapsed" -ge 86400 && ! -f "$STATE_DIR/soak-24h-at.txt" ]]; then
+        soak_snapshot 24h
+      fi
+    done
+    if [[ "$elapsed" -ge 172800 ]]; then
+      soak_snapshot end
+      note "soak end snapshot recorded"
+      return 0
+    fi
+  fi
+  note "soak incomplete. ${elapsed}s since start. A short run is not a 48 hour pass."
+}
+
+stage_soak_deposit() {
+  if [[ ! -f "$STATE_DIR/soak-end-at.txt" && "$ALLOW_SHORT_SOAK" != 1 ]]; then
+    die "Soak has no end snapshot. Pass --allow-short-soak only for a rehearsal. The report will not call that a pass."
+  fi
+  if [[ "$ALLOW_SHORT_SOAK" == 1 && ! -f "$STATE_DIR/soak-end-at.txt" ]]; then
+    note "soak skipped. This is not a 48 hour pass."
+  fi
+  local state floor health
+  floor="$(capture_remote_l2)"
+  state="$(require_not_torn local temp/sepolia-step21 ERC20)"
+  health="$(remote "curl -fsS --max-time 30 http://127.0.0.1:3001/v1/health" | tr -d '[:space:]')"
+  [[ "$health" == Healthy ]] || die "Proposer is not Healthy. Not depositing after the soak."
+  if [[ "$state" == complete ]]; then
+    note "post-soak deposit already queued. Not posting again."
+  else
+    run_local soak-deposit ./scripts/nf4-test --file "$FILE" --step soak-deposit
+  fi
+  wait_l2_above "$floor" >/dev/null
+  health="$(remote "curl -fsS --max-time 30 http://127.0.0.1:3001/v1/health" | tr -d '[:space:]')"
+  [[ "$health" == Healthy ]] || die "Proposer left Healthy during the post-soak deposit."
+  note "soak-deposit OK"
+}
+
+run_one() {
+  case "$1" in
+    preflight) stage_preflight ;;
+    tunnels) stage_tunnels ;;
+    check) stage_check ;;
+    deploy) stage_deploy ;;
+    tokens) stage_tokens ;;
+    baseline) stage_baseline ;;
+    deposit) stage_deposit ;;
+    late-join) stage_late_join ;;
+    late-deposit) stage_late_deposit ;;
+    transfer) stage_transfer ;;
+    stop-client1) stage_stop_client1 ;;
+    balances) stage_balances ;;
+    restart-client1) stage_restart_client1 ;;
+    return-721) stage_return_721 ;;
+    withdraw) stage_withdraw ;;
+    restart-proposer) stage_restart_proposer ;;
+    deposit-again) stage_deposit_again ;;
+    soak) stage_soak ;;
+    soak-deposit) stage_soak_deposit ;;
+    *) die "Unknown stage $1" ;;
+  esac
+}
+
+next_stage() {
+  local last idx next
+  if [[ ! -f "$STATE_DIR/state" ]]; then
+    printf '%s\n' preflight
+    return 0
+  fi
+  last="$(tr -d '[:space:]' < "$STATE_DIR/state")"
+  if [[ "$last" == soak && ! -f "$STATE_DIR/soak-end-at.txt" ]]; then
+    printf '%s\n' soak
+    return 0
+  fi
+  idx="$(stage_index "$last")" || die "Unknown state ${last}"
+  next=$((idx + 1))
+  if [[ "$next" -ge ${#STAGES[@]} ]]; then
+    return 0
+  fi
+  printf '%s\n' "${STAGES[$next]}"
+}
+
+acquire_lock() {
+  mkdir -p "$STATE_DIR"
+  if ! mkdir "$STATE_DIR/lock.d" 2>/dev/null; then
+    local pid
+    pid="$(cat "$STATE_DIR/lock.d/pid" 2>/dev/null || true)"
+    if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+      die "Another orchestrator is running (pid ${pid})."
+    fi
+    rm -rf "$STATE_DIR/lock.d"
+    mkdir "$STATE_DIR/lock.d"
+  fi
+  printf '%s\n' "$$" > "$STATE_DIR/lock.d/pid"
+  trap 'rm -rf "$STATE_DIR/lock.d"' EXIT
+}
+
+cmd_status() {
+  mkdir -p "$STATE_DIR"
+  local last="none"
+  [[ -f "$STATE_DIR/state" ]] && last="$(cat "$STATE_DIR/state")"
+  echo "state: ${last}"
+  echo "next: $(next_stage || true)"
+  if port_open "$SSH_PORT"; then
+    echo "bastion: up"
+    if remote "test -f temp/sepolia-step10/record.txt && grep -qx READY temp/sepolia-step10/record.txt"; then
+      echo "remote READY: yes"
+    else
+      echo "remote READY: no"
+    fi
+    if remote_file temp/sepolia-step12/confirmed; then
+      echo "remote transfer confirmed: yes"
+    else
+      echo "remote transfer confirmed: no"
+    fi
+  else
+    echo "bastion: down"
+    echo "remote markers not read"
+  fi
+  if [[ -f "$STATE_DIR/soak-end-at.txt" ]]; then
+    echo "soak: end snapshot present"
+  elif [[ -f "$STATE_DIR/soak-started-at.txt" ]]; then
+    echo "soak: incomplete"
+  else
+    echo "soak: not started"
+  fi
+}
+
+copy_abandoned_logs() {
+  mkdir -p "$STATE_DIR/abandoned"
+  remote "docker logs nf4_indie_client" > "$STATE_DIR/abandoned/vm03-client.log" 2>&1 || true
+  remote "docker logs nf4_indie_proposer" > "$STATE_DIR/abandoned/vm03-proposer.log" 2>&1 || true
+  docker logs nf4_indie_client > "$STATE_DIR/abandoned/laptop-client.log" 2>&1 || true
+}
+
+cmd_fresh() {
+  acquire_lock
+  ensure_bastion
+  copy_abandoned_logs
+  remote "./scripts/nf4-deploy --file deploy.env --fresh-start"
+  ./scripts/nf4-deploy --file "$FILE" --fresh-start
+  [[ -f "$FILE" ]] || die "fresh-start removed the laptop deploy.env."
+  remote "test -f deploy.env" || die "fresh-start removed the VM-03 deploy.env."
+  printf '%s\n' tunnels > "$STATE_DIR/state"
+  rm -f "$STATE_DIR/soak-started-at.txt" "$STATE_DIR/soak-24h-at.txt" "$STATE_DIR/soak-end-at.txt" "$STATE_DIR/l2-after-deposit"
+  note "fresh-start OK. Next run begins at check. The old READY does not count."
+}
+
+cmd_run() {
+  require_stage "$THROUGH"
+  acquire_lock
+  local start start_idx through_idx stage idx
+  start="$(next_stage || true)"
+  if [[ -z "$start" ]]; then
+    echo "Lab already complete."
+    exit 0
+  fi
+  start_idx="$(stage_index "$start")"
+  through_idx="$(stage_index "$THROUGH")"
+  if [[ "$start_idx" -gt "$through_idx" ]]; then
+    echo "Already through ${THROUGH}."
+    exit 0
+  fi
+  if [[ "$start_idx" -gt "$(stage_index deploy)" ]]; then
+    assert_host_stable
+  fi
+  for stage in "${STAGES[@]}"; do
+    idx="$(stage_index "$stage")"
+    [[ "$idx" -lt "$start_idx" ]] && continue
+    [[ "$idx" -gt "$through_idx" ]] && break
+    if [[ "$idx" -gt "$(stage_index deploy)" && "$idx" -lt "$(stage_index restart-client1)" && "$idx" -gt "$(stage_index stop-client1)" ]]; then
+      :
+    fi
+    printf '== %s ==\n' "$stage"
+    run_one "$stage"
+    printf '%s\n' "$stage" > "$STATE_DIR/state"
+  done
+  if [[ -f "$STATE_DIR/report.md" ]]; then
+    remote "test -f temp/sepolia-test/report.md && cat temp/sepolia-test/report.md" | py report-safe >> "$STATE_DIR/report.md" || true
+  fi
+}
+
+[[ -n "$FILE" ]] || { echo "Pass --file deploy.env" >&2; usage >&2; exit 2; }
+[[ "$MODE" == status || -f "$FILE" || "$MODE" == fresh ]] || die "Pass --file deploy.env"
+
+case "$MODE" in
+  status) cmd_status ;;
+  fresh) cmd_fresh ;;
+  run) cmd_run ;;
+  *) die "Unknown mode" ;;
+esac
