@@ -30,6 +30,7 @@ CLIENT_STAGES=(
 usage() {
   cat <<EOF
 Usage: ./scripts/nf4-sepolia-e2e --file deploy.env [--through STAGE] [--status]
+       ./scripts/nf4-sepolia-e2e --file deploy.env --network
        ./scripts/nf4-sepolia-e2e --file deploy.env --fresh-start
 
 Runs on this machine only. NF4_ROLE in deploy.env selects the stages.
@@ -47,6 +48,7 @@ Client stages:
 
 --through STAGE   stop after that stage. Default: the last stage for this role.
 --status          print the last finished stage. Does not deploy.
+--network         print whether this operator network is up. Does not deploy.
 --fresh-start     wipe this machine via nf4-deploy --fresh-start. Not a resume.
 --wait-soak       block until this machine's 48 hour soak snapshot.
 --allow-short-soak
@@ -66,6 +68,7 @@ while [[ $# -gt 0 ]]; do
     --through) THROUGH="${2:-}"; shift 2 ;;
     --through=*) THROUGH="${1#--through=}"; shift ;;
     --status) MODE="status"; shift ;;
+    --network) MODE="network"; shift ;;
     --fresh-start) MODE="fresh"; shift ;;
     --resume) shift ;;
     --wait-soak) WAIT_SOAK=1; shift ;;
@@ -562,6 +565,74 @@ run_stages() {
   done
 }
 
+http_body() {
+  curl -sS -m 8 -o - -w '\n%{http_code}' "$1" 2>/dev/null || printf '\n000'
+}
+
+first_word() {
+  awk '{print $1; exit}'
+}
+
+show_network() {
+  [[ "$ROLE" == operator ]] || die "Run --network on the operator. This machine is ${ROLE}."
+  local rpc port config_port nightfall l1 chain onchain health_raw sync_raw assembly_raw block_raw
+  local health sync assembly blockdata config_code onchain_num block_num verdict=up
+  rpc="$(env_get NF4_RPC_HTTP || true)"
+  port="$(env_get NF4_PROPOSER_PORT || true)"
+  port="${port:-3001}"
+  config_port="$(env_get NF4_CONFIGURATION_PORT || true)"
+  config_port="${config_port:-8080}"
+  chain="$(env_get NF4_CHAIN_ID || true)"
+  nightfall="$(python3 - <<'PY'
+import pathlib
+p = pathlib.Path("configuration/toml/addresses.toml")
+if not p.is_file():
+    raise SystemExit(0)
+for line in p.read_text().splitlines():
+    if line.startswith("nightfall"):
+        value = line.split("=", 1)[1].strip().strip("'\"")
+        print(value)
+        break
+PY
+)"
+  printf 'chain_id: %s\n' "${chain:-missing}"
+  if [[ -n "$rpc" ]]; then
+    l1="$(cast block-number --rpc-url "$rpc" 2>/dev/null | first_word || true)"
+  fi
+  printf 'l1_block: %s\n' "${l1:-unchecked}"
+  printf 'nightfall: %s\n' "${nightfall:-missing}"
+  if [[ -n "$rpc" && -n "$nightfall" ]]; then
+    onchain="$(cast call "$nightfall" 'layer2_block_number()(int256)' --rpc-url "$rpc" 2>/dev/null | first_word || true)"
+  fi
+  printf 'l2_block: %s\n' "${onchain:-unchecked}"
+  config_code="$(curl -sS -m 8 -o /dev/null -w '%{http_code}' "http://127.0.0.1:${config_port}/configuration/toml/join.toml" 2>/dev/null || echo 000)"
+  printf 'configuration: HTTP %s\n' "$config_code"
+  health_raw="$(http_body "http://127.0.0.1:${port}/v1/health")"
+  health="$(printf '%s\n' "$health_raw" | sed '$d' | tr -d '\r')"
+  printf 'proposer_health: %s\n' "${health:-unreachable}"
+  sync_raw="$(http_body "http://127.0.0.1:${port}/v1/synchronisation")"
+  sync="$(printf '%s\n' "$sync_raw" | sed '$d' | tr -d '\r')"
+  printf 'synchronised: %s\n' "${sync:-unreachable}"
+  assembly_raw="$(http_body "http://127.0.0.1:${port}/v1/status")"
+  assembly="$(printf '%s\n' "$assembly_raw" | sed '$d' | tr -d '\r"')"
+  printf 'assembly: %s\n' "${assembly:-unreachable}"
+  block_raw="$(http_body "http://127.0.0.1:${port}/v1/blockdata")"
+  blockdata="$(printf '%s\n' "$block_raw" | sed '$d' | tr -d '\r')"
+  printf 'proposer_block: %s\n' "${blockdata:-unreachable}"
+  [[ "$config_code" == 200 ]] || verdict=down
+  [[ "$health" == Healthy ]] || verdict=down
+  [[ "$sync" == Synchronised ]] || verdict=down
+  [[ "$assembly" == Running ]] || verdict=down
+  [[ "$chain" == 11155111 ]] || verdict=down
+  onchain_num="${onchain:-}"
+  block_num="${blockdata:-}"
+  if [[ ! "$onchain_num" =~ ^-?[0-9]+$ || ! "$block_num" =~ ^-?[0-9]+$ || "$onchain_num" != "$block_num" ]]; then
+    verdict=down
+  fi
+  printf 'network: %s\n' "$verdict"
+  [[ "$verdict" == up ]]
+}
+
 show_status() {
   local have="none" next=""
   if [[ -f "$STATE_DIR/state" ]]; then
@@ -602,6 +673,10 @@ mkdir -p "$STATE_DIR"
 if [[ "$MODE" == status ]]; then
   show_status
   exit 0
+fi
+if [[ "$MODE" == network ]]; then
+  show_network
+  exit $?
 fi
 if [[ "$MODE" == fresh ]]; then
   fresh_start

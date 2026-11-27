@@ -176,6 +176,7 @@ run_orch() {
 "$WORK/scripts/nf4-sepolia-e2e" --help >"$SANDBOX/help.txt"
 need "$SANDBOX/help.txt" "Does not log in" "help still implies a remote login"
 need "$SANDBOX/help.txt" "soak-deposit" "help missing client stages"
+need "$SANDBOX/help.txt" "--network" "help missing network status"
 echo "ok help"
 
 write_env operator NF4_DEPLOYER_KEY "$ANVIL_KEY"
@@ -259,6 +260,14 @@ need "$SANDBOX/out.txt" "state: check" "status missing state"
 need "$SANDBOX/out.txt" "orchestrator: idle" "status missing idle line"
 [[ ! -s "$SANDBOX/deploy.log" ]] || fail "status deployed"
 echo "ok status"
+
+: > "$SANDBOX/deploy.log"
+rc="$(run_orch --network)"
+[[ "$rc" != 0 ]] || fail "stub network was reported up"
+need "$SANDBOX/out.txt" "chain_id: 11155111" "network status missing chain id"
+need "$SANDBOX/out.txt" "network: down" "network status missing verdict"
+[[ ! -s "$SANDBOX/deploy.log" ]] || fail "network status deployed"
+echo "ok network status"
 
 rm -rf "$WORK/temp"
 mkdir -p "$WORK/temp/sepolia-e2e"
