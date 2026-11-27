@@ -18,6 +18,7 @@ pub mod nf_client_proof;
 pub mod nf_token_id;
 pub mod plonk_prover;
 pub mod rollup_circuit_checks;
+pub mod rpc_retry;
 pub mod secret_hash;
 pub mod serialization;
 pub mod shared_entities;

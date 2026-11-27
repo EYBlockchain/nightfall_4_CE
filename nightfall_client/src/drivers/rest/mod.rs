@@ -1,7 +1,7 @@
 use crate::ports::contracts::NightfallContract;
 use balance::{get_balance, get_fee_balance, get_l1_balance};
 use lib::{
-    health_check::health_route, nf_client_proof::Proof,
+    error::CertificateVerificationError, health_check::health_route, nf_client_proof::Proof,
     validate_certificate::certification_validation_request, validate_keys::keys_validation_request,
 };
 use log::error;
@@ -70,66 +70,90 @@ where
         .recover(handle_rejection)
 }
 
-async fn handle_rejection(err: Rejection) -> Result<impl Reply, std::convert::Infallible> {
+fn boxed_reply(reply: impl Reply + Send + 'static) -> Box<dyn Reply + Send> {
+    Box::new(reply)
+}
+
+async fn handle_rejection(
+    err: Rejection,
+) -> Result<Box<dyn Reply + Send>, std::convert::Infallible> {
     if err.is_not_found() {
-        Ok(reply::with_status("NOT_FOUND", StatusCode::NOT_FOUND))
+        Ok(boxed_reply(reply::with_status(
+            "NOT_FOUND",
+            StatusCode::NOT_FOUND,
+        )))
     } else if err
         .find::<warp::filters::body::BodyDeserializeError>()
         .is_some()
     {
-        Ok(reply::with_status("BAD_REQUEST", StatusCode::BAD_REQUEST))
+        Ok(boxed_reply(reply::with_status(
+            "BAD_REQUEST",
+            StatusCode::BAD_REQUEST,
+        )))
     } else if let Some(e) = err.find::<crate::domain::error::ClientRejection>() {
         use crate::domain::error::ClientRejection::*;
         match e {
-            NoSuchToken => Ok(reply::with_status("No such token", StatusCode::NOT_FOUND)),
-            InvalidTokenId => Ok(reply::with_status(
+            NoSuchToken => Ok(boxed_reply(reply::with_status(
+                "No such token",
+                StatusCode::NOT_FOUND,
+            ))),
+            InvalidTokenId => Ok(boxed_reply(reply::with_status(
                 "Invalid token id",
                 StatusCode::BAD_REQUEST,
-            )),
-            InvalidRequestId => Ok(reply::with_status(
+            ))),
+            InvalidRequestId => Ok(boxed_reply(reply::with_status(
                 "Invalid request id",
                 StatusCode::BAD_REQUEST,
-            )),
-            QueueFull => Ok(reply::with_status(
+            ))),
+            QueueFull => Ok(boxed_reply(reply::with_status(
                 "Queue is full",
                 StatusCode::SERVICE_UNAVAILABLE,
-            )),
-            DatabaseError => Ok(reply::with_status(
+            ))),
+            DatabaseError => Ok(boxed_reply(reply::with_status(
                 "Database error or duplicate transaction",
                 StatusCode::INTERNAL_SERVER_ERROR,
-            )),
-            InvalidCommitmentKey => Ok(reply::with_status(
+            ))),
+            InvalidCommitmentKey => Ok(boxed_reply(reply::with_status(
                 "Invalid commitment key",
                 StatusCode::BAD_REQUEST,
-            )),
-            CommitmentNotFound => Ok(reply::with_status(
+            ))),
+            CommitmentNotFound => Ok(boxed_reply(reply::with_status(
                 "Commitment not found",
                 StatusCode::NOT_FOUND,
-            )),
-            ProposerError => Ok(reply::with_status(
+            ))),
+            ProposerError => Ok(boxed_reply(reply::with_status(
                 "Failed to get list of Proposers",
                 StatusCode::SERVICE_UNAVAILABLE,
-            )),
-            RequestNotFound => Ok(reply::with_status("No such request", StatusCode::NOT_FOUND)),
-            FailedDeEscrow => Ok(reply::with_status(
+            ))),
+            RequestNotFound => Ok(boxed_reply(reply::with_status(
+                "No such request",
+                StatusCode::NOT_FOUND,
+            ))),
+            FailedDeEscrow => Ok(boxed_reply(reply::with_status(
                 "Failed to de-escrow funds",
                 StatusCode::BAD_REQUEST,
-            )),
-            SynchronisationUnavailable => Ok(reply::with_status(
+            ))),
+            SynchronisationUnavailable => Ok(boxed_reply(reply::with_status(
                 "Synchronisation service unavailable",
                 StatusCode::SERVICE_UNAVAILABLE,
-            )),
-            InvalidTokenType => Ok(reply::with_status(
+            ))),
+            InvalidTokenType => Ok(boxed_reply(reply::with_status(
                 "Invalid Token Type",
                 StatusCode::BAD_REQUEST,
-            )),
+            ))),
         }
+    } else if let Some(cert_err) = err.find::<CertificateVerificationError>() {
+        error!("certification failed: {cert_err}");
+        Ok(boxed_reply(reply::with_status(
+            cert_err.to_string(),
+            StatusCode::BAD_GATEWAY,
+        )))
     } else {
         error!("unhandled rejection: {err:?}");
-        Ok(reply::with_status(
+        Ok(boxed_reply(reply::with_status(
             "INTERNAL_SERVER_ERROR",
             StatusCode::INTERNAL_SERVER_ERROR,
-        ))
+        )))
     }
 }
 

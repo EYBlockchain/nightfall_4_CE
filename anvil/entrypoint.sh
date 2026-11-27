@@ -15,11 +15,19 @@ for i in $(seq 1 30); do
     sleep 1
 done
 
+# The host user has no root, but this container does. Leave the bind-mounted
+# broadcast directory writable so a later host forge can create chain-id folders.
+mkdir -p /blockchain_assets/logs
+chmod -R a+rwX /blockchain_assets/logs || true
+umask 000
+
 # Run the deployment script with Foundry
 forge script MockDeployer \
     --fork-url ws://localhost:8545 \
     --broadcast \
     --force
+
+chmod -R a+rwX /blockchain_assets/logs || true
 
 wait $ANVIL_PID
 

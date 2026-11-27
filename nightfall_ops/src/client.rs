@@ -1,0 +1,1343 @@
+use std::{
+    collections::BTreeMap,
+    fs,
+    path::{Path, PathBuf},
+    process::Command,
+    thread,
+    time::Duration,
+};
+
+use inquire::{Confirm, Text};
+use toml_edit::{DocumentMut, Item};
+
+use crate::{
+    compose, config,
+    network::{
+        self, detect_lan_host, host_reachable_rpc_url, http_rpc_url,
+        validate_published_configuration_url, with_lan_host, LOCAL_ANVIL_ACCOUNT0_KEY,
+        LOCAL_ANVIL_ACCOUNT1_ADDRESS, LOCAL_ANVIL_ACCOUNT1_KEY,
+    },
+    validation, webhook,
+};
+
+const ADDRESSES_TOML: &str = "configuration/toml/addresses.toml";
+const CONTRACT_HASHES_TOML: &str = "configuration/toml/contract_hashes.toml";
+const PROVING_KEY: &str = "configuration/bin/keys/proving_key";
+const MOCK_DEPLOYER_SCRIPT: &str = "blockchain_assets/script/mock_deployment.s.sol:MockDeployer";
+
+pub fn wizard(yes: bool) -> Result<(), String> {
+    if !config::required_repo_files_exist() {
+        return Err("Run this command from the nightfall_4_CE repository root.".to_string());
+    }
+    if !config::local_env_exists() {
+        return Err("local.env was not found. Run nf4 wizard deploy first.".to_string());
+    }
+
+    println!("This command starts an indie client node for the existing local deployment.");
+    println!();
+    println!("It reuses deployment metadata, proposer URL, and the proving key.");
+    println!("You only need to confirm client-specific values.");
+    println!();
+
+    check_prerequisites()?;
+    config::refresh_local_lan_urls()?;
+
+    let env = config::read_local_env();
+    let profile = env_value(&env, "NF4_RUN_MODE").unwrap_or_else(|| "development".to_string());
+    let profile_config = read_profile_config(&profile)?;
+    let resolved = network::resolve_network_from_env(&env, profile_config.chain_id);
+    println!("Network: {} ({})", resolved.label(), resolved.source);
+    let rpc_url = env_value(&env, "NF4_ETHEREUM_CLIENT_URL")
+        .or_else(|| profile_config.ethereum_client_url.clone())
+        .ok_or_else(|| {
+            "NF4_ETHEREUM_CLIENT_URL was not found in local.env or nightfall.toml.".to_string()
+        })?;
+    let mock_prover = env_value(&env, "NF4_MOCK_PROVER")
+        .and_then(|value| parse_bool(&value))
+        .or(profile_config.mock_prover)
+        .unwrap_or(false);
+
+    println!("Checking client deployment metadata...");
+    validate_metadata(mock_prover)?;
+    if yes && resolved.kind != Some(network::NetworkKind::Local) {
+        return Err(
+            "--yes is only supported when NF4_NETWORK=local. Run wizard deploy --network local first."
+                .to_string(),
+        );
+    }
+    let lan_host = detect_lan_host();
+    let proposer_url_default =
+        with_lan_host(&default_proposer_url(&env, &profile_config), &lan_host);
+    let configuration_url_default = with_lan_host(
+        &env_value(&env, "NF4_CONFIGURATION_URL")
+            .or_else(|| profile_config.configuration_url.clone())
+            .unwrap_or_else(|| format!("http://{lan_host}:8080")),
+        &lan_host,
+    );
+
+    let (
+        client_key,
+        client_address,
+        client2_address,
+        client2_signing_key,
+        proposer_url,
+        configuration_url,
+        webhook_setup,
+        client_port,
+    ) = if yes {
+        println!("Using local --yes defaults (Anvil account 0 / local.env, webhook 8081).");
+        let key = env
+            .get("CLIENT_SIGNING_KEY")
+            .cloned()
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or_else(|| LOCAL_ANVIL_ACCOUNT0_KEY.to_string());
+        let derived = cast_wallet_address(&key)?;
+        let address = env_value(&env, "CLIENT_ADDRESS")
+            .filter(|value| is_non_zero_address(value))
+            .unwrap_or(derived);
+        let client2 = env_value(&env, "CLIENT2_ADDRESS")
+            .filter(|value| is_non_zero_address(value))
+            .unwrap_or_else(|| LOCAL_ANVIL_ACCOUNT1_ADDRESS.to_string());
+        let client2_key = env_value(&env, "CLIENT2_SIGNING_KEY")
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or_else(|| LOCAL_ANVIL_ACCOUNT1_KEY.to_string());
+        let webhook = configure_webhook_yes(&env, &lan_host)?;
+        let port = client_api_port(&env).unwrap_or(3000);
+        (
+            key,
+            address,
+            client2,
+            Some(client2_key),
+            proposer_url_default,
+            configuration_url_default,
+            webhook,
+            port,
+        )
+    } else {
+        let network = resolved.kind.unwrap_or(network::NetworkKind::Local);
+        let key = network::prompt_l1_signing_key(
+            "Client",
+            network,
+            env.get("CLIENT_SIGNING_KEY").map(String::as_str),
+            &rpc_url,
+        )?;
+        let derived = cast_wallet_address(&key)?;
+        let address = prompt_client_address(env.get("CLIENT_ADDRESS"), &derived)?;
+        let (client2_key, client2) = prompt_optional_local_client2(
+            network,
+            &address,
+            env.get("CLIENT2_SIGNING_KEY").map(String::as_str),
+            env.get("CLIENT2_ADDRESS").map(String::as_str),
+            &rpc_url,
+        )?;
+        let proposer_url = prompt_url(
+            "Proposer URL [press Enter to use default]",
+            &proposer_url_default,
+        )?;
+        let configuration_url = prompt_url(
+            "Configuration URL for client runtime [press Enter to use default]",
+            &configuration_url_default,
+        )?;
+        let webhook = configure_webhook(&env)?;
+        let port = prompt_port("Client API port", client_api_port(&env).unwrap_or(3000))?;
+        (
+            key,
+            address,
+            client2,
+            client2_key,
+            proposer_url,
+            configuration_url,
+            webhook,
+            port,
+        )
+    };
+    println!("Derived/using client address: {client_address}");
+    validate_proposer_health(&proposer_url)?;
+    if let Some(kind) = resolved.kind {
+        validate_published_configuration_url(kind, &configuration_url)?;
+    }
+    validate_configuration_runtime_url(&configuration_url)?;
+    let client_api_url = format!("http://127.0.0.1:{client_port}");
+
+    print_review(&ClientReview {
+        network: resolved.label(),
+        profile: &profile,
+        rpc_url: &rpc_url,
+        mock_prover,
+        client_address: &client_address,
+        client_api_url: &client_api_url,
+        proposer_url: &proposer_url,
+        configuration_url: &configuration_url,
+        webhook_url: &webhook_setup.url,
+        client_port,
+    });
+
+    if !yes
+        && !Confirm::new("Apply these changes and start indie-client?")
+            .with_default(true)
+            .prompt()
+            .map_err(|err| err.to_string())?
+    {
+        return Err("Client setup cancelled before writing files.".to_string());
+    }
+
+    start_with(ClientStart {
+        signing_key: client_key,
+        client_address,
+        client2_address,
+        client2_signing_key,
+        proposer_url,
+        configuration_url,
+        host_proposer_url: None,
+        host_configuration_url: None,
+        webhook_url: webhook_setup.url,
+        webhook_events: webhook_setup
+            .events_path
+            .map(|path| path.display().to_string()),
+        client_port,
+    })?;
+    println!();
+    println!("Next:");
+    println!("  ./scripts/nf4 status");
+    println!("  ./scripts/nf4 logs client");
+    println!("  ./scripts/nf4 webhook events");
+    println!("  ./scripts/nf4 webhook salts");
+    println!();
+    println!(
+        "If you want to do mock ERC deployments so you will have some tokens to play with, run:"
+    );
+    println!("  ./scripts/nf4 client deploy-mock-tokens");
+    Ok(())
+}
+
+pub struct ClientStart {
+    pub signing_key: String,
+    pub client_address: String,
+    pub client2_address: String,
+    pub client2_signing_key: Option<String>,
+    pub proposer_url: String,
+    pub configuration_url: String,
+    /// Host-side curl target when the container URL is not reachable from this process.
+    pub host_proposer_url: Option<String>,
+    pub host_configuration_url: Option<String>,
+    pub webhook_url: String,
+    pub webhook_events: Option<String>,
+    pub client_port: u16,
+}
+
+pub fn start_with(start: ClientStart) -> Result<(), String> {
+    if !config::required_repo_files_exist() {
+        return Err("Run this command from the nightfall_4_CE repository root.".to_string());
+    }
+    if !config::local_env_exists() {
+        return Err(
+            "local.env was not found. Run nf4 deploy or nf4 wizard deploy first.".to_string(),
+        );
+    }
+    if !valid_http_url(&start.proposer_url) || !valid_http_url(&start.configuration_url) {
+        return Err(
+            "Proposer and configuration URLs must start with http:// or https://.".to_string(),
+        );
+    }
+    if !is_non_zero_address(&start.client_address) || !is_non_zero_address(&start.client2_address) {
+        return Err("Client addresses must be non-zero Ethereum addresses.".to_string());
+    }
+
+    check_prerequisites()?;
+    let env = config::read_local_env();
+    let profile = env_value(&env, "NF4_RUN_MODE").unwrap_or_else(|| "development".to_string());
+    let profile_config = read_profile_config(&profile)?;
+    let resolved = network::resolve_network_from_env(&env, profile_config.chain_id);
+    let mock_prover = env_value(&env, "NF4_MOCK_PROVER")
+        .and_then(|value| parse_bool(&value))
+        .or(profile_config.mock_prover)
+        .unwrap_or(false);
+    validate_metadata(mock_prover)?;
+    let nightfall_address = read_addresses()?
+        .get("nightfall")
+        .cloned()
+        .ok_or_else(|| format!("{ADDRESSES_TOML} is missing nightfall"))?;
+    let check_proposer = start
+        .host_proposer_url
+        .as_deref()
+        .unwrap_or(start.proposer_url.as_str());
+    let check_configuration = start
+        .host_configuration_url
+        .as_deref()
+        .unwrap_or(start.configuration_url.as_str());
+    validate_proposer_health(check_proposer)?;
+    if let Some(kind) = resolved.kind {
+        validate_published_configuration_url(kind, &start.configuration_url)?;
+    }
+    validate_configuration_runtime_url(check_configuration)?;
+
+    let backup_dir = config::backup_config_files()?;
+    println!("Backed up config files to {}", backup_dir.display());
+    let client_api_url = format!("http://127.0.0.1:{}", start.client_port);
+    config::merge_local_env(&[
+        ("CLIENT_SIGNING_KEY", start.signing_key.clone()),
+        ("NF4_SIGNING_KEY", start.signing_key),
+        ("CLIENT_ADDRESS", start.client_address.clone()),
+        ("CLIENT2_ADDRESS", start.client2_address.clone()),
+        ("NIGHTFALL_ADDRESS", nightfall_address.clone()),
+        ("CLIENT_API_URL", client_api_url.clone()),
+        ("NF4_CONFIGURATION_URL", start.configuration_url.clone()),
+        ("NF4_NIGHTFALL_PROPOSER__URL", start.proposer_url.clone()),
+        (
+            "NF4_NIGHTFALL_CLIENT__WEBHOOK_URL",
+            start.webhook_url.clone(),
+        ),
+        ("WEBHOOK_URL", start.webhook_url.clone()),
+        ("NF4_CONTRACTS__DEPLOY_CONTRACTS", "false".to_string()),
+    ])?;
+    if let Some(client2_signing_key) = start.client2_signing_key {
+        config::merge_local_env(&[("CLIENT2_SIGNING_KEY", client2_signing_key)])?;
+    }
+    config::update_client_docker_compose(&profile, start.client_port)?;
+    run_command("Cleaning contract build artifacts", "forge", &["clean"])?;
+    run_command("Building contracts", "forge", &["build"])?;
+    compose::build_indie_client()?;
+    compose::up_client()?;
+    poll_client_health(start.client_port)?;
+
+    println!();
+    println!("Client OK");
+    println!("  network: {}", resolved.label());
+    println!("  profile: {profile}");
+    println!("  mode: {}", if mock_prover { "mock" } else { "real" });
+    println!("  client_address: {}", start.client_address);
+    println!("  client2_address: {}", start.client2_address);
+    println!("  nightfall_address: {nightfall_address}");
+    println!("  client_api_url: {client_api_url}");
+    println!("  proposer_url: {}", start.proposer_url);
+    println!("  configuration_runtime_url: {}", start.configuration_url);
+    println!("  webhook_url: {}", start.webhook_url);
+    if let Some(events_path) = start.webhook_events {
+        println!("  webhook_events: {events_path}");
+    }
+    Ok(())
+}
+
+pub fn deploy_mock_tokens() -> Result<(), String> {
+    if !config::required_repo_files_exist() {
+        return Err("Run this command from the nightfall_4_CE repository root.".to_string());
+    }
+    if !config::local_env_exists() {
+        return Err("local.env was not found. Run nf4 wizard client first.".to_string());
+    }
+
+    let mut env = config::read_local_env();
+    let profile = env_value(&env, "NF4_RUN_MODE").unwrap_or_else(|| "development".to_string());
+    let profile_config = read_profile_config(&profile)?;
+    let rpc_url = http_rpc_url(&host_reachable_rpc_url(
+        &env_value(&env, "NF4_ETHEREUM_CLIENT_URL")
+            .or_else(|| profile_config.ethereum_client_url.clone())
+            .ok_or_else(|| {
+                "NF4_ETHEREUM_CLIENT_URL was not found in local.env or nightfall.toml.".to_string()
+            })?,
+    ));
+
+    let addresses = read_addresses()?;
+    let nightfall_address = addresses
+        .get("nightfall")
+        .cloned()
+        .ok_or_else(|| format!("{ADDRESSES_TOML} is missing nightfall"))?;
+    if !is_non_zero_address(&nightfall_address) {
+        return Err(format!(
+            "{ADDRESSES_TOML} has zero or invalid nightfall address."
+        ));
+    }
+
+    let signing_key = env_value(&env, "NF4_SIGNING_KEY")
+        .or_else(|| env_value(&env, "CLIENT_SIGNING_KEY"))
+        .ok_or_else(|| {
+            "NF4_SIGNING_KEY or CLIENT_SIGNING_KEY was not found in local.env.".to_string()
+        })?;
+    let client_address =
+        match env_value(&env, "CLIENT_ADDRESS").filter(|address| is_non_zero_address(address)) {
+            Some(address) => address,
+            None => cast_wallet_address(&signing_key)?,
+        };
+    if !is_non_zero_address(&client_address) {
+        return Err("CLIENT_ADDRESS is missing or invalid, and could not be derived.".to_string());
+    }
+    let client2_address = env_value(&env, "CLIENT2_ADDRESS")
+        .filter(|address| is_non_zero_address(address))
+        .unwrap_or_else(|| client_address.clone());
+
+    config::merge_local_env(&[
+        ("NF4_SIGNING_KEY", signing_key.clone()),
+        ("CLIENT_ADDRESS", client_address.clone()),
+        ("CLIENT2_ADDRESS", client2_address.clone()),
+        ("NIGHTFALL_ADDRESS", nightfall_address.clone()),
+    ])?;
+
+    env.insert("NF4_SIGNING_KEY".to_string(), signing_key);
+    env.insert("CLIENT_ADDRESS".to_string(), client_address.clone());
+    env.insert("CLIENT2_ADDRESS".to_string(), client2_address.clone());
+    env.insert("NIGHTFALL_ADDRESS".to_string(), nightfall_address.clone());
+
+    // Forge writes the broadcast log after the transactions are already on chain.
+    // Prepare a directory this user can create before spending gas. Docker often
+    // leaves blockchain_assets/logs owned by root; replacing that directory does
+    // not require root when its parent is writable.
+    let broadcast = prepare_mock_broadcast_dir()?;
+    if broadcast.override_env {
+        env.insert(
+            "FOUNDRY_BROADCAST".to_string(),
+            broadcast.path.display().to_string(),
+        );
+    }
+
+    println!("Deploying mock ERC contracts for local testing...");
+    println!("  rpc_url: {rpc_url}");
+    println!("  owner: {client_address}");
+    println!("  client2: {client2_address}");
+    println!("  nightfall: {nightfall_address}");
+    println!("  broadcast_dir: {}", broadcast.path.display());
+
+    run_command("Cleaning contract build artifacts", "forge", &["clean"])?;
+    run_command("Building contracts", "forge", &["build"])?;
+    run_command_with_env(
+        "Deploying mock ERC contracts",
+        "forge",
+        &[
+            "script",
+            MOCK_DEPLOYER_SCRIPT,
+            "--rpc-url",
+            &rpc_url,
+            "--broadcast",
+            "--legacy",
+            "--slow",
+            // Same Sepolia code-deposit gap as nightfall_deployer::GAS_ESTIMATE_MULTIPLIER.
+            "--gas-estimate-multiplier",
+            "800",
+        ],
+        &env,
+    )
+}
+
+fn check_prerequisites() -> Result<(), String> {
+    let checks = [
+        ("docker", command_ok("docker", &["--version"])),
+        (
+            "docker compose",
+            command_ok("docker", &["compose", "version"]),
+        ),
+        ("cast", command_ok("cast", &["--version"])),
+        ("forge", command_ok("forge", &["--version"])),
+        ("curl", command_ok("curl", &["--version"])),
+    ];
+
+    println!("Checking client prerequisites...");
+    for (name, ok) in checks {
+        println!("  {:<14} {}", name, if ok { "OK" } else { "FAILED" });
+    }
+
+    if checks.iter().all(|(_, ok)| *ok) {
+        Ok(())
+    } else {
+        Err("Client prerequisite checks failed.".to_string())
+    }
+}
+
+const CANONICAL_BROADCAST_DIR: &str = "blockchain_assets/logs";
+const MOCK_BROADCAST_SCRIPT_DIR: &str = "mock_deployment.s.sol";
+
+struct BroadcastDir {
+    path: PathBuf,
+    override_env: bool,
+}
+
+fn prepare_mock_broadcast_dir() -> Result<BroadcastDir, String> {
+    prepare_broadcast_dir_at(
+        Path::new(CANONICAL_BROADCAST_DIR),
+        MOCK_BROADCAST_SCRIPT_DIR,
+        &user_broadcast_dir(),
+    )
+}
+
+fn prepare_broadcast_dir_at(
+    logs: &Path,
+    script_dir_name: &str,
+    fallback: &Path,
+) -> Result<BroadcastDir, String> {
+    match make_script_broadcast_writable(logs, script_dir_name) {
+        Ok(()) => Ok(BroadcastDir {
+            path: logs.to_path_buf(),
+            override_env: false,
+        }),
+        Err(err) => {
+            fs::create_dir_all(fallback).map_err(|create_err| {
+                format!(
+                    "{err}. Also failed to create fallback broadcast directory {}: {create_err}",
+                    fallback.display()
+                )
+            })?;
+            let script_dir = fallback.join(script_dir_name);
+            fs::create_dir_all(&script_dir).map_err(|create_err| {
+                format!(
+                    "Failed to create fallback script directory {}: {create_err}",
+                    script_dir.display()
+                )
+            })?;
+            println!("{err}");
+            println!(
+                "Writing broadcast logs to {} instead. No root access is required.",
+                fallback.display()
+            );
+            Ok(BroadcastDir {
+                path: fallback.to_path_buf(),
+                override_env: true,
+            })
+        }
+    }
+}
+
+fn user_broadcast_dir() -> PathBuf {
+    std::env::var_os("HOME")
+        .filter(|home| !home.is_empty())
+        .map(PathBuf::from)
+        .unwrap_or_else(std::env::temp_dir)
+        .join(".nightfall")
+        .join("broadcast")
+}
+
+fn make_script_broadcast_writable(logs: &Path, script_dir_name: &str) -> Result<(), String> {
+    if !is_writable_dir(logs) {
+        if logs.exists() {
+            return Err(format!(
+                "{} is not writable by this user. Leaving it in place because it also holds deployer broadcast logs",
+                logs.display()
+            ));
+        }
+        ensure_writable_dir(logs)?;
+    }
+    let script_dir = logs.join(script_dir_name);
+    ensure_writable_dir(&script_dir)?;
+    reclaim_unwritable_children(&script_dir)?;
+    Ok(())
+}
+
+/// Make `dir` exist and writable by the current user.
+///
+/// A root-owned directory can be replaced without root when its parent is
+/// writable: rename only needs write permission on the parent.
+fn ensure_writable_dir(dir: &Path) -> Result<(), String> {
+    if is_writable_dir(dir) {
+        return Ok(());
+    }
+    if dir.exists() {
+        let parent = dir
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+            .ok_or_else(|| {
+                format!(
+                    "{} is not writable and has no parent that can be updated",
+                    dir.display()
+                )
+            })?;
+        if !parent.exists() {
+            fs::create_dir_all(parent)
+                .map_err(|err| format!("Failed to create {}: {err}", parent.display()))?;
+        }
+        if !is_writable_dir(parent) {
+            return Err(format!(
+                "{} is not writable, and its parent {} is not writable, so it cannot be replaced without root",
+                dir.display(),
+                parent.display()
+            ));
+        }
+        let aside = aside_path(dir);
+        fs::rename(dir, &aside).map_err(|err| {
+            format!(
+                "Failed to move unwritable {} to {}: {err}",
+                dir.display(),
+                aside.display()
+            )
+        })?;
+        println!(
+            "Moved unwritable {} to {} and recreating it as the current user.",
+            dir.display(),
+            aside.display()
+        );
+    }
+    fs::create_dir_all(dir).map_err(|err| format!("Failed to create {}: {err}", dir.display()))?;
+    if !is_writable_dir(dir) {
+        return Err(format!(
+            "Created {} but it is still not writable",
+            dir.display()
+        ));
+    }
+    Ok(())
+}
+
+fn reclaim_unwritable_children(dir: &Path) -> Result<(), String> {
+    let mut children = Vec::new();
+    for entry in
+        fs::read_dir(dir).map_err(|err| format!("Failed to read {}: {err}", dir.display()))?
+    {
+        let entry = entry.map_err(|err| format!("Failed to read {}: {err}", dir.display()))?;
+        if entry.path().is_dir() {
+            children.push(entry.path());
+        }
+    }
+    for child in children {
+        if !is_writable_dir(&child) {
+            ensure_writable_dir(&child)?;
+        }
+    }
+    Ok(())
+}
+
+fn is_writable_dir(dir: &Path) -> bool {
+    if !dir.is_dir() {
+        return false;
+    }
+    let probe = dir.join(".nf4-write-probe");
+    let written = fs::write(&probe, b"ok").is_ok();
+    if written {
+        let _ = fs::remove_file(&probe);
+    }
+    written
+}
+
+fn aside_path(path: &Path) -> PathBuf {
+    let name = path
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "dir".to_string());
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .unwrap_or(0);
+    let mut candidate = path.with_file_name(format!("{name}.unwritable-{secs}"));
+    let mut n = 1;
+    while candidate.exists() {
+        candidate = path.with_file_name(format!("{name}.unwritable-{secs}-{n}"));
+        n += 1;
+    }
+    candidate
+}
+
+fn command_ok(program: &str, args: &[&str]) -> bool {
+    Command::new(program)
+        .args(args)
+        .output()
+        .is_ok_and(|output| output.status.success())
+}
+
+fn run_command(title: &str, program: &str, args: &[&str]) -> Result<(), String> {
+    println!("{title}...");
+    println!("  {program} {}", args.join(" "));
+
+    let status = Command::new(program)
+        .args(args)
+        .status()
+        .map_err(|err| format!("Failed to run {program}: {err}"))?;
+
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("{program} exited with {status}"))
+    }
+}
+
+fn run_command_with_env(
+    title: &str,
+    program: &str,
+    args: &[&str],
+    env: &BTreeMap<String, String>,
+) -> Result<(), String> {
+    println!("{title}...");
+    println!("  {program} {}", args.join(" "));
+
+    let status = Command::new(program)
+        .args(args)
+        .envs(env)
+        .status()
+        .map_err(|err| format!("Failed to run {program}: {err}"))?;
+
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("{program} exited with {status}"))
+    }
+}
+
+fn validate_metadata(mock_prover: bool) -> Result<(), String> {
+    let addresses = read_addresses()?;
+    for key in ["nightfall", "round_robin", "x509"] {
+        let address = addresses
+            .get(key)
+            .ok_or_else(|| format!("{ADDRESSES_TOML} is missing {key}"))?;
+        if !is_non_zero_address(address) {
+            return Err(format!(
+                "{ADDRESSES_TOML} has zero or invalid {key} address."
+            ));
+        }
+    }
+
+    let verifier = addresses
+        .get("verifier")
+        .ok_or_else(|| format!("{ADDRESSES_TOML} is missing verifier"))?;
+    if !mock_prover && !is_non_zero_address(verifier) {
+        return Err("verifier address is required in real prover mode.".to_string());
+    }
+
+    print_file_check("addresses.toml", ADDRESSES_TOML)?;
+    print_file_check("contract_hashes.toml", CONTRACT_HASHES_TOML)?;
+    print_file_check("proving_key", PROVING_KEY)?;
+    Ok(())
+}
+
+fn print_file_check(label: &str, path: &str) -> Result<(), String> {
+    if Path::new(path).is_file() {
+        println!("  {label}: OK");
+        Ok(())
+    } else {
+        Err(format!("Missing {path}"))
+    }
+}
+
+fn read_addresses() -> Result<BTreeMap<String, String>, String> {
+    let source = fs::read_to_string(ADDRESSES_TOML)
+        .map_err(|err| format!("Failed to read {ADDRESSES_TOML}: {err}"))?;
+    let doc = source
+        .parse::<DocumentMut>()
+        .map_err(|err| format!("Failed to parse {ADDRESSES_TOML}: {err}"))?;
+
+    let mut addresses = BTreeMap::new();
+    for key in ["nightfall", "round_robin", "x509", "verifier"] {
+        let address = doc
+            .get(key)
+            .and_then(Item::as_str)
+            .ok_or_else(|| format!("{ADDRESSES_TOML} is missing {key}"))?;
+        addresses.insert(key.to_string(), address.to_string());
+    }
+    Ok(addresses)
+}
+
+fn prompt_optional_local_client2(
+    network: network::NetworkKind,
+    client_address: &str,
+    existing_key: Option<&str>,
+    existing_address: Option<&str>,
+    rpc_url: &str,
+) -> Result<(Option<String>, String), String> {
+    let existing_address = existing_address
+        .map(str::trim)
+        .filter(|value| is_non_zero_address(value));
+    let existing_key = existing_key
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+
+    if network != network::NetworkKind::Testnet {
+        let client2 = existing_address
+            .map(ToString::to_string)
+            .unwrap_or_else(|| client_address.to_string());
+        return Ok((existing_key.map(ToString::to_string), client2));
+    }
+
+    println!();
+    println!("Client 2 should run `nf4 wizard client` on its own VM.");
+    println!("Only say yes here if Client 2 will share this machine (`nf4 up client2`).");
+    let local_client2 = Confirm::new("Will Client 2 also run on this machine?")
+        .with_default(false)
+        .prompt()
+        .map_err(|err| err.to_string())?;
+    if !local_client2 {
+        let client2 = existing_address
+            .map(ToString::to_string)
+            .unwrap_or_else(|| client_address.to_string());
+        if existing_address.is_none() {
+            println!(
+                "Set CLIENT2_ADDRESS in local.env to Client 2's L1 address before mock-token minting."
+            );
+        }
+        return Ok((None, client2));
+    }
+
+    let client2_key = network::prompt_l1_signing_key("Client 2", network, existing_key, rpc_url)?;
+    let client2 = cast_wallet_address(&client2_key)?;
+    println!("Client 2 address: {client2}");
+    Ok((Some(client2_key), client2))
+}
+
+fn prompt_client_address(
+    existing: Option<&String>,
+    derived_client_address: &str,
+) -> Result<String, String> {
+    let default = existing
+        .filter(|address| is_non_zero_address(address))
+        .cloned()
+        .unwrap_or_else(|| derived_client_address.to_string());
+    let address = Text::new("Client address [press Enter to use derived/default address]")
+        .with_default(&default)
+        .prompt()
+        .map_err(|err| err.to_string())?;
+
+    if is_non_zero_address(&address) {
+        if !address.eq_ignore_ascii_case(derived_client_address) {
+            println!(
+                "  warning: CLIENT_ADDRESS does not match the address derived from CLIENT_SIGNING_KEY"
+            );
+        }
+        Ok(address)
+    } else {
+        Err("Client address must be a non-zero Ethereum address.".to_string())
+    }
+}
+
+fn prompt_url(label: &str, default: &str) -> Result<String, String> {
+    let url = Text::new(label)
+        .with_default(default)
+        .prompt()
+        .map_err(|err| err.to_string())?;
+
+    if valid_http_url(&url) {
+        Ok(url)
+    } else {
+        Err("URL must start with http:// or https:// and include a host.".to_string())
+    }
+}
+
+fn configure_webhook_yes(
+    env: &BTreeMap<String, String>,
+    lan_host: &str,
+) -> Result<WebhookSetup, String> {
+    let port = env_value(env, "NF4_NIGHTFALL_CLIENT__WEBHOOK_URL")
+        .and_then(|url| url_port(&url))
+        .or_else(|| env_value(env, "WEBHOOK_URL").and_then(|url| url_port(&url)))
+        .unwrap_or(8081);
+    let local = webhook::ensure_local(port)?;
+    Ok(WebhookSetup {
+        url: format!("http://{lan_host}:{port}/webhook"),
+        events_path: Some(local.events_path),
+    })
+}
+
+fn configure_webhook(env: &BTreeMap<String, String>) -> Result<WebhookSetup, String> {
+    let existing_url = env_value(env, "NF4_NIGHTFALL_CLIENT__WEBHOOK_URL")
+        .or_else(|| env_value(env, "WEBHOOK_URL"));
+    let default_url =
+        existing_url.unwrap_or_else(|| format!("http://{}:8081/webhook", detected_host()));
+
+    let start_local = Confirm::new("Start local testing webhook?")
+        .with_default(true)
+        .prompt()
+        .map_err(|err| err.to_string())?;
+
+    if start_local {
+        let port = prompt_port("Webhook port", url_port(&default_url).unwrap_or(8081))?;
+        let local = webhook::ensure_local(port)?;
+        Ok(WebhookSetup {
+            url: format!("http://{}:{port}/webhook", detected_host()),
+            events_path: Some(local.events_path),
+        })
+    } else {
+        let url = prompt_url("Webhook URL [press Enter to use default]", &default_url)?;
+        Ok(WebhookSetup {
+            url,
+            events_path: None,
+        })
+    }
+}
+
+fn prompt_port(label: &str, default: u16) -> Result<u16, String> {
+    let prompt = format!("{label} [default: {default}, press Enter to use default]");
+    let value = Text::new(&prompt)
+        .with_default(&default.to_string())
+        .prompt()
+        .map_err(|err| err.to_string())?;
+
+    value
+        .parse::<u16>()
+        .map_err(|_| format!("{label} must be a port number between 1 and 65535."))
+}
+
+fn cast_wallet_address(private_key: &str) -> Result<String, String> {
+    let output = Command::new("cast")
+        .args(["wallet", "address", "--private-key", private_key])
+        .output()
+        .map_err(|err| format!("Failed to derive client address with cast: {err}"))?;
+
+    if !output.status.success() {
+        return Err(
+            command_detail(&output).unwrap_or_else(|| "cast wallet address failed".to_string())
+        );
+    }
+
+    first_line(&output.stdout).ok_or_else(|| "cast wallet address returned no output.".to_string())
+}
+
+fn validate_configuration_runtime_url(configuration_url: &str) -> Result<(), String> {
+    println!("Checking client configuration URL...");
+
+    if docker_service_url(configuration_url) {
+        println!("  skipped host-side curl for Docker service URL: {configuration_url}");
+        return Ok(());
+    }
+
+    let checks = validation::configuration_endpoint_checks(configuration_url);
+    let mut failures = Vec::new();
+    for check in checks {
+        if check.ok {
+            println!("  {}: OK", check.label);
+        } else {
+            println!("  {}: FAILED - {}", check.label, check.detail);
+            failures.push(format!("{}: {}", check.label, check.detail));
+        }
+    }
+
+    if failures.is_empty() {
+        Ok(())
+    } else {
+        Err(format!(
+            "Configuration URL is not reachable: {}",
+            failures.join("; ")
+        ))
+    }
+}
+
+fn validate_proposer_health(proposer_url: &str) -> Result<(), String> {
+    let url = endpoint_url(proposer_url, "v1/health");
+    println!("Checking proposer health at {url}...");
+    if curl_ok(&url) {
+        println!("  proposer health: OK");
+        Ok(())
+    } else {
+        Err(format!(
+            "Proposer health check failed at {url}. Start proposer first with nf4 wizard proposer."
+        ))
+    }
+}
+
+fn poll_client_health(port: u16) -> Result<(), String> {
+    let url = format!("http://127.0.0.1:{port}/v1/health");
+    println!("Checking client health at {url}...");
+
+    for attempt in 1..=20 {
+        if curl_ok(&url) {
+            println!("  client health: OK");
+            return Ok(());
+        }
+        if attempt == 1 {
+            println!("  client is starting; waiting for health endpoint...");
+        }
+        thread::sleep(Duration::from_secs(3));
+    }
+
+    Err("Client health check failed. Try: nf4 logs client".to_string())
+}
+
+fn curl_ok(url: &str) -> bool {
+    Command::new("curl")
+        .args(["-fsS", "--max-time", "5", "-o", "/dev/null", url])
+        .output()
+        .is_ok_and(|output| output.status.success())
+}
+
+fn read_profile_config(profile: &str) -> Result<ProfileConfig, String> {
+    let source = fs::read_to_string(config::NIGHTFALL_TOML)
+        .map_err(|err| format!("Failed to read {}: {err}", config::NIGHTFALL_TOML))?;
+    let doc = source
+        .parse::<DocumentMut>()
+        .map_err(|err| format!("Failed to parse {}: {err}", config::NIGHTFALL_TOML))?;
+    let item = doc
+        .get(profile)
+        .ok_or_else(|| format!("Profile [{profile}] was not found in nightfall.toml."))?;
+
+    Ok(ProfileConfig {
+        ethereum_client_url: get_str(item, &["ethereum_client_url"]),
+        configuration_url: get_str(item, &["configuration_url"]),
+        chain_id: get_i64(item, &["network", "chain_id"]).map(|value| value as u64),
+        mock_prover: get_bool(item, &["mock_prover"]),
+        nightfall_proposer_url: get_str(item, &["nightfall_proposer", "url"]),
+    })
+}
+
+fn get_str(item: &Item, path: &[&str]) -> Option<String> {
+    let mut current = item;
+    for key in path {
+        current = current.get(key)?;
+    }
+    current.as_str().map(ToString::to_string)
+}
+
+fn get_bool(item: &Item, path: &[&str]) -> Option<bool> {
+    let mut current = item;
+    for key in path {
+        current = current.get(key)?;
+    }
+    current.as_bool()
+}
+
+fn get_i64(item: &Item, path: &[&str]) -> Option<i64> {
+    let mut current = item;
+    for key in path {
+        current = current.get(key)?;
+    }
+    current.as_integer()
+}
+
+fn env_value(values: &BTreeMap<String, String>, key: &str) -> Option<String> {
+    values
+        .get(key)
+        .cloned()
+        .or_else(|| std::env::var(key).ok())
+        .filter(|value| !value.is_empty())
+}
+
+fn parse_bool(value: &str) -> Option<bool> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "true" | "1" | "yes" | "y" => Some(true),
+        "false" | "0" | "no" | "n" => Some(false),
+        _ => None,
+    }
+}
+
+fn default_proposer_url(env: &BTreeMap<String, String>, profile: &ProfileConfig) -> String {
+    env_value(env, "NF4_NIGHTFALL_PROPOSER__URL")
+        .or_else(|| profile.nightfall_proposer_url.clone())
+        .and_then(|url| normalize_or_reject_url(&url))
+        .filter(|url| url_host(url) != Some("proposer"))
+        .unwrap_or_else(|| format!("http://{}:3001", detected_host()))
+}
+
+fn client_api_port(env: &BTreeMap<String, String>) -> Option<u16> {
+    env_value(env, "CLIENT_API_URL").and_then(|url| url_port(&url))
+}
+
+fn normalize_or_reject_url(url: &str) -> Option<String> {
+    if valid_http_url(url) {
+        Some(url.to_string())
+    } else if url.contains(':') && !url.contains("://") {
+        let normalized = format!("http://{url}");
+        valid_http_url(&normalized).then_some(normalized)
+    } else {
+        None
+    }
+}
+
+fn valid_http_url(url: &str) -> bool {
+    (url.starts_with("http://") || url.starts_with("https://"))
+        && url_host(url).is_some_and(|host| !host.is_empty())
+}
+
+fn docker_service_url(url: &str) -> bool {
+    url_host(url).is_some_and(|host| matches!(host, "configuration" | "nf4_configuration"))
+}
+
+fn detected_host() -> String {
+    hostname_ip()
+        .or_else(|| ipconfig_ip("en0"))
+        .or_else(|| ipconfig_ip("en1"))
+        .unwrap_or_else(|| "127.0.0.1".to_string())
+}
+
+fn hostname_ip() -> Option<String> {
+    let output = Command::new("hostname").arg("-I").output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    String::from_utf8_lossy(&output.stdout)
+        .split_whitespace()
+        .find(|ip| !ip.starts_with("127.") && !ip.starts_with("172."))
+        .map(ToString::to_string)
+}
+
+fn ipconfig_ip(interface: &str) -> Option<String> {
+    let output = Command::new("ipconfig")
+        .args(["getifaddr", interface])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    first_line(&output.stdout).filter(|ip| !ip.starts_with("127."))
+}
+
+fn url_port(url: &str) -> Option<u16> {
+    let host_port = url_host_port(url)?;
+    host_port.rsplit_once(':')?.1.parse().ok()
+}
+
+fn url_host(url: &str) -> Option<&str> {
+    let host_port = url_host_port(url)?;
+    Some(
+        host_port
+            .rsplit_once(':')
+            .map(|(host, _)| host)
+            .unwrap_or(host_port),
+    )
+}
+
+fn url_host_port(url: &str) -> Option<&str> {
+    let (_, rest) = url.split_once("://")?;
+    let authority = rest.split('/').next().unwrap_or(rest);
+    if authority.is_empty() {
+        None
+    } else {
+        Some(authority)
+    }
+}
+
+fn endpoint_url(base_url: &str, path: &str) -> String {
+    format!("{}/{}", base_url.trim_end_matches('/'), path)
+}
+
+fn first_line(bytes: &[u8]) -> Option<String> {
+    String::from_utf8_lossy(bytes)
+        .lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty())
+        .map(ToString::to_string)
+}
+
+fn command_detail(output: &std::process::Output) -> Option<String> {
+    first_line(&output.stderr).or_else(|| first_line(&output.stdout))
+}
+
+fn is_non_zero_address(address: &str) -> bool {
+    let Some(hex) = address.strip_prefix("0x") else {
+        return false;
+    };
+    hex.len() == 40 && hex.chars().any(|ch| ch != '0')
+}
+
+fn print_review(review: &ClientReview<'_>) {
+    println!();
+    println!("Review client settings");
+    println!("  network: {}", review.network);
+    println!("  profile: {}", review.profile);
+    println!("  rpc_url: {}", review.rpc_url);
+    println!(
+        "  prover_mode: {}",
+        if review.mock_prover { "mock" } else { "real" }
+    );
+    println!("  client_address: {}", review.client_address);
+    println!("  client_api_url: {}", review.client_api_url);
+    println!("  proposer_url: {}", review.proposer_url);
+    println!("  configuration_runtime_url: {}", review.configuration_url);
+    println!("  webhook_url: {}", review.webhook_url);
+    println!("  client_port: {}", review.client_port);
+}
+
+#[derive(Debug, Default)]
+struct ProfileConfig {
+    ethereum_client_url: Option<String>,
+    configuration_url: Option<String>,
+    chain_id: Option<u64>,
+    mock_prover: Option<bool>,
+    nightfall_proposer_url: Option<String>,
+}
+
+struct ClientReview<'a> {
+    network: &'a str,
+    profile: &'a str,
+    rpc_url: &'a str,
+    mock_prover: bool,
+    client_address: &'a str,
+    client_api_url: &'a str,
+    proposer_url: &'a str,
+    configuration_url: &'a str,
+    webhook_url: &'a str,
+    client_port: u16,
+}
+
+struct WebhookSetup {
+    url: String,
+    events_path: Option<PathBuf>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        client_api_port, docker_service_url, endpoint_url, is_non_zero_address, is_writable_dir,
+        make_script_broadcast_writable, normalize_or_reject_url, parse_bool,
+        prepare_broadcast_dir_at, url_host, url_port, valid_http_url,
+    };
+    use std::collections::BTreeMap;
+    use std::fs;
+    use std::path::PathBuf;
+
+    #[test]
+    fn parses_bool_values() {
+        assert_eq!(parse_bool("yes"), Some(true));
+        assert_eq!(parse_bool("0"), Some(false));
+        assert_eq!(parse_bool("maybe"), None);
+    }
+
+    #[test]
+    fn validates_non_zero_addresses() {
+        assert!(is_non_zero_address(
+            "0x0000000000000000000000000000000000000001"
+        ));
+        assert!(!is_non_zero_address(
+            "0x0000000000000000000000000000000000000000"
+        ));
+        assert!(!is_non_zero_address("0xabc"));
+    }
+
+    #[test]
+    fn parses_and_normalizes_urls() {
+        assert!(valid_http_url("http://10.0.0.8:3001"));
+        assert_eq!(url_host("http://10.0.0.8:3001/path"), Some("10.0.0.8"));
+        assert_eq!(url_port("http://10.0.0.8:3001/path"), Some(3001));
+        assert_eq!(
+            normalize_or_reject_url("localhost:3001").unwrap(),
+            "http://localhost:3001"
+        );
+        assert!(normalize_or_reject_url("not a url").is_none());
+    }
+
+    #[test]
+    fn detects_docker_configuration_service_urls() {
+        assert!(docker_service_url("http://configuration:80"));
+        assert!(!docker_service_url("http://10.0.0.8:8080"));
+    }
+
+    #[test]
+    fn builds_endpoint_urls() {
+        assert_eq!(
+            endpoint_url("http://127.0.0.1:3000/", "v1/health"),
+            "http://127.0.0.1:3000/v1/health"
+        );
+    }
+
+    #[test]
+    fn reads_client_api_port_from_env() {
+        let mut env = BTreeMap::new();
+        env.insert(
+            "CLIENT_API_URL".to_string(),
+            "http://127.0.0.1:4000".to_string(),
+        );
+        assert_eq!(client_api_port(&env), Some(4000));
+    }
+
+    #[cfg(unix)]
+    fn temp_case(name: &str) -> PathBuf {
+        let path = std::env::temp_dir().join(format!(
+            "nf4-broadcast-{name}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&path).unwrap();
+        path
+    }
+
+    #[cfg(unix)]
+    struct ResetMode {
+        path: PathBuf,
+        mode: u32,
+    }
+
+    #[cfg(unix)]
+    impl Drop for ResetMode {
+        fn drop(&mut self) {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = fs::set_permissions(&self.path, fs::Permissions::from_mode(self.mode));
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn reclaims_unwritable_broadcast_child_without_root() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = temp_case("reclaim");
+        let logs = root.join("logs");
+        let script_dir = logs.join("mock_deployment.s.sol");
+        let chain_dir = script_dir.join("11155111");
+        fs::create_dir_all(&chain_dir).unwrap();
+        fs::set_permissions(&script_dir, fs::Permissions::from_mode(0o555)).unwrap();
+        let _reset_script = ResetMode {
+            path: script_dir.clone(),
+            mode: 0o755,
+        };
+
+        make_script_broadcast_writable(&logs, "mock_deployment.s.sol").unwrap();
+
+        let recreated = logs.join("mock_deployment.s.sol");
+        assert!(is_writable_dir(&recreated));
+        assert!(fs::read_dir(&logs)
+            .unwrap()
+            .flatten()
+            .any(|entry| entry.file_name().to_string_lossy().contains("unwritable")));
+        restore_tree(&root);
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn does_not_move_unwritable_logs_root() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = temp_case("keep-logs");
+        let logs = root.join("logs");
+        fs::create_dir_all(logs.join("deployer.s.sol")).unwrap();
+        fs::set_permissions(&logs, fs::Permissions::from_mode(0o555)).unwrap();
+        let fallback = root.join("fallback");
+
+        let prepared = prepare_broadcast_dir_at(&logs, "mock_deployment.s.sol", &fallback).unwrap();
+
+        assert!(prepared.override_env);
+        assert!(logs.join("deployer.s.sol").exists());
+        assert!(!fs::read_dir(&root)
+            .unwrap()
+            .flatten()
+            .any(|entry| entry.file_name().to_string_lossy().contains("unwritable")));
+        restore_tree(&root);
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn falls_back_when_broadcast_parent_is_not_writable() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = temp_case("fallback");
+        let blocked = root.join("blocked");
+        let logs = blocked.join("logs");
+        fs::create_dir_all(&logs).unwrap();
+        fs::set_permissions(&logs, fs::Permissions::from_mode(0o555)).unwrap();
+        fs::set_permissions(&blocked, fs::Permissions::from_mode(0o555)).unwrap();
+        let _reset_logs = ResetMode {
+            path: logs.clone(),
+            mode: 0o755,
+        };
+        let _reset_blocked = ResetMode {
+            path: blocked.clone(),
+            mode: 0o755,
+        };
+        let fallback = root.join("fallback");
+
+        let prepared = prepare_broadcast_dir_at(&logs, "mock_deployment.s.sol", &fallback).unwrap();
+
+        assert!(prepared.override_env);
+        assert_eq!(prepared.path, fallback);
+        assert!(is_writable_dir(&fallback.join("mock_deployment.s.sol")));
+        assert!(logs.exists());
+        restore_tree(&root);
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[cfg(unix)]
+    fn restore_tree(path: &std::path::Path) {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = fs::set_permissions(path, fs::Permissions::from_mode(0o755));
+        let Ok(entries) = fs::read_dir(path) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let child = entry.path();
+            if child.is_dir() {
+                restore_tree(&child);
+            }
+        }
+    }
+}

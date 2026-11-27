@@ -1,5 +1,10 @@
 use crate::vk_contract::write_vk_to_nightfall_toml;
-use alloy::{hex, primitives::Address};
+use alloy::{
+    hex,
+    primitives::Address,
+    providers::{Provider, ProviderBuilder},
+    signers::local::PrivateKeySigner,
+};
 use configuration::{
     addresses::{Addresses, Sources},
     settings::Settings,
@@ -7,15 +12,23 @@ use configuration::{
 use jf_plonk::recursion::RecursiveProver;
 
 use lib::blockchain_client::BlockchainClientConnection;
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use nightfall_proposer::driven::rollup_prover::RollupProver;
 use serde_json::Value;
 use std::{
     collections::HashMap,
     fs::File,
-    os::unix::process::ExitStatusExt,
     path::{Path, PathBuf},
 };
+
+/// Percentage applied to Forge's simulated gas before broadcast.
+///
+/// Sepolia charges ~1530 gas per deployed byte. Forge 1.1/1.5 still simulates
+/// Cancun's 200, so creation costs about 7.2x the simulation. The default 130%
+/// limit is consumed entirely and the create reverts with
+/// `contract creation code storage out of gas`. 800% covers that gap.
+/// X509, the largest creation, needs ~38M gas; Sepolia's block gas limit is 200M.
+const GAS_ESTIMATE_MULTIPLIER: &str = "800";
 
 fn proxies_from_broadcast(path: &Path) -> anyhow::Result<HashMap<&'static str, Address>> {
     let v: Value = serde_json::from_reader(File::open(path)?)?;
@@ -87,25 +100,82 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn std::er
         let _ = write_vk_to_nightfall_toml(&vk);
     }
 
+    // Containers run as root and bind-mount this directory. Make it writable by
+    // the host user before and after forge creates chain-id folders.
+    share_broadcast_logs_with_host(Path::new("blockchain_assets/logs"));
+
     // Force a clean rebuild to generate proper build-info files for OpenZeppelin validation
     info!("Building contracts with forge");
     forge_command(&["build", "--force"]);
 
-    info!("Deploying contracts with forge script");
-    forge_command(&[
-        "script",
-        "Deployer",
-        "--fork-url",
-        &settings.ethereum_client_url,
-        "--broadcast",
-    ]);
+    // If there is an existing broadcast log for this chain, clean it before fresh broadcast
+    // so forge script does not attempt to resume or collide with old broadcast transactions.
+    // Resume would also be wrong after a nonce drift: it resends the old nonce instead of
+    // re-simulating.
+    let cwd = std::env::current_dir()?;
+    let chain_logs = cwd
+        .join(&settings.contracts.deployment_file)
+        .join(settings.network.chain_id.to_string());
+
+    // Forge's alloy WS transport can drop/retry the same nonce when a provider sends a
+    // malformed JSON-RPC message (`missing field params`), which surfaces as
+    // `replacement transaction underpriced`. Broadcast over HTTP instead.
+    let broadcast_rpc_url = http_rpc_url_for_broadcast(&settings.ethereum_client_url);
+    if broadcast_rpc_url != settings.ethereum_client_url {
+        info!("Using HTTP RPC for forge broadcast: {broadcast_rpc_url}");
+    }
+
+    // `--slow` makes forge compare each script nonce with eth_getTransactionCount before
+    // sending, and abort if the chain is ahead (`Expected 50 got 51`). That happens when a
+    // pending tx confirms during simulation, or another process spends the deployer key.
+    // Wait until pending == latest, then retry a fresh simulation if it still drifts.
+    const BROADCAST_ATTEMPTS: u32 = 3;
+    for attempt in 1..=BROADCAST_ATTEMPTS {
+        clear_broadcast_logs(&chain_logs);
+        wait_for_stable_deployer_nonce(&broadcast_rpc_url, &settings.signing_key).await?;
+        let fork_block = match lagged_fork_block(&broadcast_rpc_url).await {
+            Ok(block) => block.to_string(),
+            Err(err) if is_transient_rpc_failure(&err) && attempt < BROADCAST_ATTEMPTS => {
+                warn!(
+                    "Could not read a fork block ({err}); waiting and retrying"
+                );
+                tokio::time::sleep(std::time::Duration::from_secs(15)).await;
+                continue;
+            }
+            Err(err) => return Err(err.into()),
+        };
+        // A load-balanced RPC can answer eth_blockNumber from one backend and
+        // then return -32001 for that same block from another. Forge's default
+        // fork is `latest`, which is what failed every attempt on 2026-11-03.
+        info!(
+            "Deploying contracts with forge script (attempt {attempt}/{BROADCAST_ATTEMPTS}, gas estimate multiplier {GAS_ESTIMATE_MULTIPLIER}%, fork block {fork_block})"
+        );
+        match try_forge_command(&[
+            "script",
+            "Deployer",
+            "--fork-url",
+            &broadcast_rpc_url,
+            "--fork-block-number",
+            &fork_block,
+            "--broadcast",
+            "--slow",
+            "--gas-estimate-multiplier",
+            GAS_ESTIMATE_MULTIPLIER,
+        ]) {
+            Ok(()) => break,
+            Err(err) if is_recoverable_broadcast_failure(&err) && attempt < BROADCAST_ATTEMPTS => {
+                warn!(
+                    "Forge broadcast hit a retryable RPC or nonce error ({}); waiting and retrying with a fresh simulation",
+                    broadcast_failure_summary(&err)
+                );
+                tokio::time::sleep(std::time::Duration::from_secs(15)).await;
+            }
+            Err(err) => return Err(err.into()),
+        }
+    }
 
     // -------- read Foundry broadcast --------
-    let cwd = std::env::current_dir()?;
-    let path_out = cwd
-        .join(&settings.contracts.deployment_file)
-        .join(settings.network.chain_id.to_string())
-        .join("run-latest.json");
+    let path_out = chain_logs.join("run-latest.json");
 
     if !path_out.is_file() {
         return Err(format!("Deployment log file not found: {path_out:?}").into());
@@ -173,7 +243,38 @@ pub async fn deploy_contracts(settings: &Settings) -> Result<(), Box<dyn std::er
     info!("Addresses saved successfully");
 
     save_deployed_hashes(&addresses).await?;
+    share_broadcast_logs_with_host(Path::new("blockchain_assets/logs"));
 
+    Ok(())
+}
+
+fn share_broadcast_logs_with_host(logs: &Path) {
+    if let Err(err) = relax_broadcast_tree(logs) {
+        warn!(
+            "Could not make {} writable for the host user: {err}",
+            logs.display()
+        );
+    }
+}
+
+fn relax_broadcast_tree(path: &Path) -> std::io::Result<()> {
+    if !path.exists() {
+        std::fs::create_dir_all(path)?;
+    }
+    let mut stack = vec![path.to_path_buf()];
+    while let Some(current) = stack.pop() {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = if current.is_dir() { 0o777 } else { 0o666 };
+            std::fs::set_permissions(&current, std::fs::Permissions::from_mode(mode))?;
+        }
+        if current.is_dir() {
+            for entry in std::fs::read_dir(&current)? {
+                stack.push(entry?.path());
+            }
+        }
+    }
     Ok(())
 }
 
@@ -222,32 +323,161 @@ async fn save_deployed_hashes(addresses: &Addresses) -> Result<(), Box<dyn std::
     Ok(())
 }
 
-/// Function should only be called after we have checked forge is installed by running 'which forge'
-pub fn forge_command(command: &[&str]) {
-    debug!("DEBUG: Running forge command: {command:?}"); // Use info! as forge_command already uses info!
-    let output = std::process::Command::new("forge").args(command).output();
+/// Convert a WebSocket RPC URL to HTTP for Foundry broadcast.
+/// Nightfall itself still uses ws/wss for event subscriptions.
+fn http_rpc_url_for_broadcast(url: &str) -> String {
+    let scheme_end = url.find("://").map(|i| i + 3).unwrap_or(0);
+    let scheme = url[..scheme_end.min(url.len())].to_ascii_lowercase();
+    if scheme == "wss://" {
+        format!("https://{}", &url[scheme_end..])
+    } else if scheme == "ws://" {
+        format!("http://{}", &url[scheme_end..])
+    } else {
+        url.to_string()
+    }
+}
 
-    match output {
-        Ok(o) => {
-            if o.status.success() {
-                info!(
-                    "Command 'forge {:?}' executed successfully: {}",
-                    command,
-                    String::from_utf8_lossy(&o.stdout)
+/// Eight blocks is about 96 seconds on Sepolia. Enough for a split public
+/// RPC to have the block, and recent enough that an idle deployer nonce matches.
+const FORK_BLOCK_LAG: u64 = 8;
+
+fn fork_block_behind_head(head: u64) -> u64 {
+    head.saturating_sub(FORK_BLOCK_LAG)
+}
+
+async fn lagged_fork_block(rpc_url: &str) -> Result<u64, String> {
+    let url = url::Url::parse(rpc_url).map_err(|err| format!("Invalid broadcast RPC URL: {err}"))?;
+    let provider = ProviderBuilder::new()
+        .disable_recommended_fillers()
+        .connect_http(url);
+    let head = provider.get_block_number().await.map_err(|err| {
+        format!("failed to read block number: {err}")
+    })?;
+    Ok(fork_block_behind_head(head))
+}
+
+fn clear_broadcast_logs(chain_logs: &Path) {
+    if chain_logs.exists() {
+        info!("Removing stale broadcast logs from {chain_logs:?}");
+        std::fs::remove_dir_all(chain_logs).ok();
+    }
+}
+
+/// Block until the deployer has no in-flight transactions, so forge's nonce snapshot is not
+/// already stale. RPCs that do not support the `pending` tag are treated as stable.
+async fn wait_for_stable_deployer_nonce(
+    rpc_url: &str,
+    signing_key: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let signer: PrivateKeySigner = signing_key
+        .parse()
+        .map_err(|e| format!("Invalid deployer signing key: {e}"))?;
+    let url = url::Url::parse(rpc_url)?;
+    let provider = ProviderBuilder::new()
+        .disable_recommended_fillers()
+        .connect_http(url);
+    let address = signer.address();
+
+    for attempt in 1..=10 {
+        let latest = provider
+            .get_transaction_count(address)
+            .latest()
+            .await
+            .map_err(|e| format!("Failed to read latest deployer nonce: {e}"))?;
+        match provider.get_transaction_count(address).pending().await {
+            Ok(pending) if pending <= latest => {
+                info!("Deployer {address} nonce is stable at {latest}");
+                return Ok(());
+            }
+            Ok(pending) => {
+                warn!(
+                    "Deployer {address} has in-flight transactions (latest nonce {latest}, pending nonce {pending}); waiting before broadcast ({attempt}/10)"
                 );
-            } else {
-                panic!(
-                "Command 'forge {:?}' executed with failing error code: {:?}\nStandard Output: {}\nStandard Error: {}",
-                command,
-                o.status.signal(),
-                String::from_utf8_lossy(&o.stdout),
-                String::from_utf8_lossy(&o.stderr)
-            );
+            }
+            Err(err) => {
+                warn!(
+                    "Pending nonce unavailable for {address} ({err}); continuing with latest nonce {latest}"
+                );
+                return Ok(());
             }
         }
+        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+    }
+
+    Err(format!(
+        "Deployer {address} still has pending transactions. Stop any other process using this key and retry."
+    )
+    .into())
+}
+
+fn is_recoverable_broadcast_failure(output: &str) -> bool {
+    is_nonce_race(output) || is_transient_rpc_failure(output)
+}
+
+fn is_nonce_race(output: &str) -> bool {
+    output.contains("EOA nonce changed unexpectedly")
+        || output.contains("replacement transaction underpriced")
+        || output.contains("nonce too low")
+}
+
+/// Public Sepolia nodes return these without a transaction having landed.
+/// `block not found` (-32001) killed the 2026-11-03 deploy on attempt 1.
+fn is_transient_rpc_failure(output: &str) -> bool {
+    let lower = output.to_ascii_lowercase();
+    lower.contains("block not found")
+        || lower.contains("-32001")
+        || lower.contains("-32005")
+        || lower.contains("rate limit")
+        || lower.contains("temporarily unavailable")
+        || lower.contains("connection reset")
+        || lower.contains("error sending request")
+        || lower.contains("timed out")
+}
+
+fn broadcast_failure_summary(output: &str) -> String {
+    output
+        .lines()
+        .find(|line| {
+            is_nonce_race(line)
+                || is_transient_rpc_failure(line)
+                || line.contains("Failed to deploy script")
+        })
+        .unwrap_or("forge broadcast failed")
+        .trim()
+        .to_string()
+}
+
+/// Function should only be called after we have checked forge is installed by running 'which forge'
+pub fn forge_command(command: &[&str]) {
+    if let Err(err) = try_forge_command(command) {
+        panic!("{err}");
+    }
+}
+
+fn try_forge_command(command: &[&str]) -> Result<(), String> {
+    debug!("DEBUG: Running forge command: {command:?}");
+    let output = match std::process::Command::new("forge").args(command).output() {
+        Ok(output) => output,
         Err(e) => {
-            panic!("Command 'forge {command:?}' ran into an error without executing: {e}");
+            return Err(format!(
+                "Command 'forge {command:?}' ran into an error without executing: {e}"
+            ));
         }
+    };
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if output.status.success() {
+        info!(
+            "Command 'forge {:?}' executed successfully: {stdout}",
+            command
+        );
+        Ok(())
+    } else {
+        Err(format!(
+            "Command 'forge {:?}' failed with status {}:\nStandard Output: {stdout}\nStandard Error: {stderr}",
+            command, output.status
+        ))
     }
 }
 
@@ -308,3 +538,115 @@ pub fn forge_command(command: &[&str]) {
 //         fs::remove_dir_all(Path::new("configuration/toml")).unwrap();
 //     }
 // }
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        broadcast_failure_summary, fork_block_behind_head, http_rpc_url_for_broadcast,
+        is_recoverable_broadcast_failure,
+        relax_broadcast_tree, GAS_ESTIMATE_MULTIPLIER,
+    };
+    use std::fs;
+
+    #[test]
+    fn converts_websocket_rpc_urls_to_http_for_broadcast() {
+        assert_eq!(
+            http_rpc_url_for_broadcast("wss://eth-sepolia.example/v2/key"),
+            "https://eth-sepolia.example/v2/key"
+        );
+        assert_eq!(
+            http_rpc_url_for_broadcast("ws://anvil:8545"),
+            "http://anvil:8545"
+        );
+        assert_eq!(
+            http_rpc_url_for_broadcast("WSS://rpc.example"),
+            "https://rpc.example"
+        );
+        assert_eq!(
+            http_rpc_url_for_broadcast("https://rpc.example"),
+            "https://rpc.example"
+        );
+        assert_eq!(
+            http_rpc_url_for_broadcast("http://127.0.0.1:8545"),
+            "http://127.0.0.1:8545"
+        );
+    }
+
+    #[test]
+    fn gas_multiplier_covers_sepolia_code_deposit_repricing() {
+        let multiplier: u64 = GAS_ESTIMATE_MULTIPLIER.parse().unwrap();
+        // Cancun `cast estimate` vs Sepolia `eth_estimateGas` for creation bytecode, Oct 2026.
+        let creations = [
+            (1_928_152u64, 13_656_560u64), // RollupProofVerificationKey
+            (5_294_546, 37_918_358),       // X509, largest creation
+            (5_268_582, 37_732_637),       // RollupProofVerifier
+        ];
+        for (cancun, sepolia) in creations {
+            assert!(
+                cancun * multiplier / 100 >= sepolia,
+                "multiplier {multiplier}% turns {cancun} into {}, short of {sepolia}",
+                cancun * multiplier / 100
+            );
+        }
+    }
+
+    #[test]
+    fn fork_block_lags_a_split_head() {
+        assert_eq!(fork_block_behind_head(12_054_418), 12_054_410);
+        assert_eq!(fork_block_behind_head(3), 0);
+    }
+
+    #[test]
+    fn retries_nonce_races_and_transient_rpc_errors() {
+        let drift = "Error: Failed to send transaction\n\nContext:\n- EOA nonce changed unexpectedly while sending transactions. Expected 50 got 51 from provider.\n";
+        assert!(is_recoverable_broadcast_failure(drift));
+        assert!(broadcast_failure_summary(drift).contains("Expected 50 got 51"));
+        assert!(is_recoverable_broadcast_failure(
+            "server returned an error response: nonce too low"
+        ));
+        assert!(is_recoverable_broadcast_failure(
+            "replacement transaction underpriced"
+        ));
+        assert!(is_recoverable_broadcast_failure(
+            "error code -32001: block not found: 0xb7ef62"
+        ));
+        assert!(is_recoverable_broadcast_failure(
+            "server returned an error response: error code -32005: rate limit exceeded"
+        ));
+        assert!(!is_recoverable_broadcast_failure(
+            "Error: script failed: execution reverted"
+        ));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn makes_broadcast_tree_writable_by_others() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = std::env::temp_dir().join(format!(
+            "nf4-relax-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let logs = root.join("logs");
+        let chain = logs.join("mock_deployment.s.sol").join("11155111");
+        fs::create_dir_all(&chain).unwrap();
+        fs::write(chain.join("run-latest.json"), b"{}").unwrap();
+        fs::set_permissions(&chain, fs::Permissions::from_mode(0o755)).unwrap();
+
+        relax_broadcast_tree(&logs).unwrap();
+
+        let mode = fs::metadata(&chain).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o777);
+        let file_mode = fs::metadata(chain.join("run-latest.json"))
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(file_mode, 0o666);
+        let _ = fs::remove_dir_all(&root);
+    }
+}

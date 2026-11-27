@@ -1,0 +1,685 @@
+#!/usr/bin/env bash
+# Local sequencer for ./scripts/nf4-deploy and ./scripts/nf4-test.
+# Run it on the operator, and again on the client. It does not log in anywhere.
+set +x
+set -euo pipefail
+umask 077
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+export PATH="${HOME}/.cargo/bin:${HOME}/.foundry/bin:${PATH}"
+
+STATE_DIR="${ROOT}/temp/sepolia-e2e"
+FILE=""
+THROUGH=""
+MODE="run"
+WAIT_SOAK=0
+ALLOW_SHORT_SOAK=0
+ROLE=""
+
+OPERATOR_STAGES=(
+  preflight check deploy tokens baseline deposit
+  transfer stop-client1 restart-client1 withdraw
+  restart-proposer deposit-again soak
+)
+CLIENT_STAGES=(
+  preflight check late-join late-deposit balances
+  return-721 withdraw soak soak-deposit
+)
+
+usage() {
+  cat <<EOF
+Usage: ./scripts/nf4-sepolia-e2e --file deploy.env [--through STAGE] [--status]
+       ./scripts/nf4-sepolia-e2e --file deploy.env --network
+       ./scripts/nf4-sepolia-e2e --file deploy.env --fresh-start
+
+Runs on this machine only. NF4_ROLE in deploy.env selects the stages.
+Operator: configuration, proposer, and Client 1.
+Client: Client 2, and only after you have copied the operator READY file here.
+
+Operator stages:
+  preflight check deploy tokens baseline deposit
+  transfer stop-client1 restart-client1 withdraw
+  restart-proposer deposit-again soak
+
+Client stages:
+  preflight check late-join late-deposit balances
+  return-721 withdraw soak soak-deposit
+
+--through STAGE   stop after that stage. Default: the last stage for this role.
+--status          print the last finished stage. Does not deploy.
+--network         print whether this operator network is up. Does not deploy.
+--fresh-start     wipe this machine via nf4-deploy --fresh-start. Not a resume.
+--wait-soak       block until this machine's 48 hour soak snapshot.
+--allow-short-soak
+                  soak-deposit may run without a 48 hour snapshot.
+                  The report says the soak was skipped.
+
+Does not log in to another machine, open a tunnel, git pull, fund a wallet,
+or copy deploy.env. Copy NF4_CLIENT2_ADDRESS, NF4_JOIN_URL, the READY file,
+and temp/zkp.public yourself.
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --file) FILE="${2:-}"; shift 2 ;;
+    --file=*) FILE="${1#--file=}"; shift ;;
+    --through) THROUGH="${2:-}"; shift 2 ;;
+    --through=*) THROUGH="${1#--through=}"; shift ;;
+    --status) MODE="status"; shift ;;
+    --network) MODE="network"; shift ;;
+    --fresh-start) MODE="fresh"; shift ;;
+    --resume) shift ;;
+    --wait-soak) WAIT_SOAK=1; shift ;;
+    --allow-short-soak) ALLOW_SHORT_SOAK=1; shift ;;
+    --remote-dir|--remote-dir=*)
+      echo "This script does not log in to a server. Run it on the operator, and again on the client." >&2
+      exit 2
+      ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
+scrub() {
+  python3 -c 'import re,sys
+t=sys.stdin.read()
+t=re.sub(r"wss?://\S+","[rpc]",t)
+t=re.sub(r"https://\S+","[rpc]",t)
+t=re.sub(r"0x[0-9a-fA-F]{64}","0x[redacted]",t)
+sys.stdout.write(t)'
+}
+
+die() {
+  mkdir -p "$STATE_DIR"
+  printf '%s\n' "$*" | scrub | tee -a "$STATE_DIR/report.md" >&2
+  exit 1
+}
+
+note() {
+  mkdir -p "$STATE_DIR"
+  printf '%s\n' "$*" | scrub | tee -a "$STATE_DIR/report.md"
+}
+
+env_get() {
+  python3 - "$FILE" "$1" <<'PY'
+import pathlib, sys
+path, key = sys.argv[1:]
+file = pathlib.Path(path)
+if not file.is_file():
+    raise SystemExit(1)
+for raw in file.read_text().splitlines():
+    line = raw.strip()
+    if not line or line.startswith("#") or "=" not in line:
+        continue
+    if line.startswith("export "):
+        line = line[len("export "):].strip()
+    name, value = line.split("=", 1)
+    if name.strip() != key:
+        continue
+    value = value.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
+        value = value[1:-1]
+    print(value)
+    raise SystemExit(0)
+raise SystemExit(1)
+PY
+}
+
+join_ok() {
+  python3 - "$1" <<'PY'
+import sys
+url = sys.argv[1]
+if not url.endswith("/configuration/toml/join.toml"):
+    raise SystemExit(1)
+host = url[len("http://"):].split("/")[0].split(":")[0]
+if host in {"localhost", "0.0.0.0", "10.1.2.3"} or host.startswith(("127.", "169.254.", "172.17.", "172.28.")):
+    raise SystemExit(1)
+parts = host.split(".")
+if len(parts) != 4:
+    raise SystemExit(1)
+try:
+    nums = [int(part) for part in parts]
+except ValueError:
+    raise SystemExit(1)
+if not all(0 <= num <= 255 for num in nums):
+    raise SystemExit(1)
+PY
+}
+
+key_status() {
+  python3 - "$FILE" "$1" <<'PY'
+import pathlib, sys
+path, key = sys.argv[1:]
+anvil = {
+    "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+    "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
+    "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a",
+    "0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6",
+    "0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a",
+    "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba",
+    "0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e",
+    "0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356",
+    "0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97",
+    "0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6",
+}
+text = pathlib.Path(path).read_text()
+value = ""
+for raw in text.splitlines():
+    line = raw.strip()
+    if line.startswith(key + "="):
+        value = line.split("=", 1)[1].strip().strip("'\"")
+if not value or "YOUR_" in value:
+    print("missing")
+elif value.lower() in anvil:
+    print("anvil")
+elif len(value) == 66 and value.startswith("0x"):
+    print("ok")
+else:
+    print("missing")
+PY
+}
+
+stage_index() {
+  local name="$1" i
+  local -a stages
+  if [[ "$ROLE" == operator ]]; then
+    stages=("${OPERATOR_STAGES[@]}")
+  else
+    stages=("${CLIENT_STAGES[@]}")
+  fi
+  for i in "${!stages[@]}"; do
+    [[ "${stages[$i]}" == "$name" ]] && { printf '%s\n' "$i"; return 0; }
+  done
+  return 1
+}
+
+require_stage() {
+  stage_index "$1" >/dev/null || die "Unknown stage for ${ROLE}: $1"
+}
+
+now_epoch() {
+  if [[ -n "${NF4_E2E_NOW:-}" ]]; then
+    printf '%s\n' "$NF4_E2E_NOW"
+  else
+    date +%s
+  fi
+}
+
+run_leaf() {
+  local stage="$1"
+  shift
+  mkdir -p "$STATE_DIR"
+  local rc
+  set +e
+  "$@" 2>&1 | scrub | tee "$STATE_DIR/${stage}.log"
+  rc="${PIPESTATUS[0]}"
+  set -e
+  printf '%s\n' "$rc" > "$STATE_DIR/${stage}.exit"
+  if [[ "$rc" != 0 ]]; then
+    if grep -q 'curl: (7)' "$STATE_DIR/${stage}.log"; then
+      die "That URL is not reachable from this machine. Open your own route. This script does not open a tunnel."
+    fi
+    die "${stage} exited ${rc}."
+  fi
+}
+
+mark() {
+  printf '%s\n' "$1" > "$STATE_DIR/state"
+  note "$2"
+}
+
+require_tools() {
+  local missing=() cmd
+  for cmd in "$@"; do
+    command -v "$cmd" >/dev/null 2>&1 || missing+=("$cmd")
+  done
+  if [[ "${#missing[@]}" -gt 0 ]]; then
+    die "Missing tools: ${missing[*]}"
+  fi
+}
+
+scheme_ok() {
+  local wss http chain got
+  wss="$(env_get NF4_RPC_WSS || true)"
+  http="$(env_get NF4_RPC_HTTP || true)"
+  chain="$(env_get NF4_CHAIN_ID || true)"
+  case "$wss" in
+    wss://*) ;;
+    ws://*) die "NF4_RPC_WSS must stay wss://." ;;
+    *YOUR_*|"") die "NF4_RPC_WSS is missing or still a placeholder." ;;
+    *) die "NF4_RPC_WSS is not wss://." ;;
+  esac
+  case "$http" in
+    https://*) ;;
+    *YOUR_*|"") die "NF4_RPC_HTTP is missing or still a placeholder." ;;
+    *) die "NF4_RPC_HTTP must be https://." ;;
+  esac
+  [[ "$chain" == 11155111 ]] || die "NF4_CHAIN_ID=${chain:-unset}. This procedure is Ethereum Sepolia, 11155111."
+  set +e
+  got="$(cast chain-id --rpc-url "$http" 2>/dev/null)"
+  set -e
+  [[ "$got" =~ ^[0-9]+$ ]] || die "Chain-id check failed on NF4_RPC_HTTP."
+  [[ "$got" == 11155111 ]] || die "RPC chain-id is ${got}, expected 11155111."
+}
+
+ready_here() {
+  [[ -f temp/sepolia-step10/record.txt ]] && grep -qx READY temp/sepolia-step10/record.txt
+}
+
+dir_torn() {
+  local dir="$1" name present=0 missing=0
+  shift
+  [[ -d "$dir" ]] || return 1
+  for name in "$@"; do
+    if [[ -f "$dir/${name}.request-id" ]]; then
+      present=1
+    else
+      missing=1
+    fi
+  done
+  [[ "$present" == 1 && "$missing" == 1 ]]
+}
+
+require_not_torn() {
+  local dir="$1"
+  shift
+  if dir_torn "$dir" "$@"; then
+    die "${dir} is torn. Resume is not supported. Do not delete it. Fresh start only with --fresh-start."
+  fi
+}
+
+stage_preflight() {
+  require_tools bash curl python3 cast
+  [[ -f "$FILE" ]] || die "deploy.env is missing. Create it with ./scripts/nf4-deploy --init ${ROLE} --file deploy.env"
+  [[ "$(env_get NF4_ROLE || true)" == "$ROLE" ]] || die "deploy.env role does not match."
+  if [[ "$ROLE" == operator ]]; then
+    require_tools docker forge cargo
+    key_status NF4_DEPLOYER_KEY | grep -qx ok || {
+      local status
+      status="$(key_status NF4_DEPLOYER_KEY)"
+      [[ "$status" == anvil ]] && die "NF4_DEPLOYER_KEY is an Anvil key. This procedure is Sepolia. Do not deploy."
+      die "NF4_DEPLOYER_KEY is missing or still a placeholder."
+    }
+    [[ "$(env_get NF4_NETWORK || true)" != local ]] || die "NF4_NETWORK=local is not this procedure."
+  else
+    require_tools docker
+    key_status NF4_CLIENT_KEY | grep -qx ok || {
+      local status
+      status="$(key_status NF4_CLIENT_KEY)"
+      [[ "$status" == anvil ]] && die "NF4_CLIENT_KEY is an Anvil key. This procedure is Sepolia. Do not deploy."
+      die "NF4_CLIENT_KEY is missing or still a placeholder."
+    }
+  fi
+  scheme_ok
+  mark preflight "preflight OK role=${ROLE}"
+}
+
+stage_check() {
+  if [[ "$ROLE" == operator ]]; then
+    local addr
+    addr="$(env_get NF4_CLIENT2_ADDRESS || true)"
+    [[ "$addr" =~ ^0x[0-9a-fA-F]{40}$ ]] || die "Paste NF4_CLIENT2_ADDRESS into this deploy.env. Take it from the client machine's check output. Do not paste the client key. This script does not log in to read it."
+  fi
+  run_leaf check ./scripts/nf4-deploy --file "$FILE" --check
+  if [[ "$ROLE" == operator ]]; then
+    grep -q 'same existing wallet' "$STATE_DIR/check.log" || die "Deployer, proposer, and Client 1 are not the same wallet. Leave the extra key lines commented. Do not deploy."
+  else
+    local join
+    join="$(env_get NF4_JOIN_URL || true)"
+    if [[ -n "$join" ]] && ! join_ok "$join"; then
+      die "Refusing NF4_JOIN_URL. It must be the operator host from --check, not 127.0.0.1 and not the 10.1.2.3 example."
+    fi
+    if [[ -z "$join" ]]; then
+      note "NF4_JOIN_URL is unset. Paste the line from the operator check before late-join."
+    fi
+  fi
+  mark check "check OK"
+}
+
+stage_deploy() {
+  run_leaf deploy ./scripts/nf4-deploy --file "$FILE"
+  grep -q 'Certified user-2' "$STATE_DIR/deploy.log" || die "Deploy log has no Certified user-2. Do not set NF4_REDEPLOY."
+  grep -q 'Certified user-3' "$STATE_DIR/deploy.log" || die "Deploy log has no Certified user-3. Do not set NF4_REDEPLOY."
+  grep -q 'Published C1_ZKP' "$STATE_DIR/deploy.log" || die "Deploy log has no Published C1_ZKP. Do not set NF4_REDEPLOY."
+  local code health mode
+  code="$(curl -fsS -o /dev/null -w '%{http_code}' --max-time 30 http://127.0.0.1:8080/configuration/toml/join.toml || true)"
+  [[ "$code" == 200 ]] || die "configuration HTTP ${code:-000} on this machine. Re-run ./scripts/nf4-deploy --file deploy.env. Do not set NF4_REDEPLOY."
+  health="$(curl -fsS --max-time 30 http://127.0.0.1:3001/v1/health | tr -d '[:space:]')"
+  [[ "$health" == Healthy ]] || die "Proposer health is not Healthy."
+  health="$(curl -fsS --max-time 30 http://127.0.0.1:3000/v1/health | tr -d '[:space:]')"
+  [[ "$health" == Healthy ]] || die "Client 1 health is not Healthy."
+  mode="$(python3 - <<'PY'
+import pathlib, stat
+path = pathlib.Path("configuration/toml/public.env")
+print(format(stat.S_IMODE(path.stat().st_mode), "o"))
+PY
+)"
+  [[ "$mode" == 644 ]] || die "public.env mode is ${mode:-missing}, not 644. A 600 file is HTTP 403."
+  if grep -q '^NF4_REDEPLOY=true' "$FILE"; then
+    die "NF4_REDEPLOY=true is still set after deploy. Delete that line before the next deploy."
+  fi
+  mark deploy "deploy OK"
+}
+
+stage_tokens() {
+  if [[ -f temp/sepolia-test/minted ]]; then
+    mark tokens "tokens already published"
+    return 0
+  fi
+  run_leaf tokens ./scripts/nf4-test --file "$FILE" --step tokens
+  mark tokens "tokens OK"
+}
+
+stage_baseline() {
+  run_leaf baseline ./scripts/nf4-test --file "$FILE" --step baseline
+  mark baseline "baseline OK"
+}
+
+stage_deposit() {
+  if dir_torn temp/sepolia-step10 ERC20 ERC721 ERC1155 ERC3525; then
+    note "step 10 is missing a request id. Posting only the missing tokens. Not reposting one that already has an id."
+  fi
+  if ready_here; then
+    mark deposit "deposit already READY"
+    return 0
+  fi
+  run_leaf deposit ./scripts/nf4-test --file "$FILE" --step deposit
+  ready_here || die "Deposit exited without READY in temp/sepolia-step10/record.txt. Do not delete that directory. Do not set NF4_REDEPLOY."
+  mark deposit "deposit READY"
+}
+
+stage_transfer() {
+  if [[ ! -f temp/zkp.public ]]; then
+    die "Copy temp/zkp.public from the client machine to temp/zkp.public on this machine. Do not copy the client key. This script does not log in to fetch it."
+  fi
+  if ! grep -q '^C2_ZKP=' configuration/toml/public.env 2>/dev/null; then
+    run_leaf accept-zkp ./scripts/nf4-test --file "$FILE" --step accept-zkp --name C2_ZKP --from temp/zkp.public
+  fi
+  require_not_torn temp/sepolia-step12 ERC20 ERC721 ERC1155 ERC3525
+  if [[ -f temp/sepolia-step12/confirmed ]]; then
+    mark transfer "transfers already confirmed"
+    return 0
+  fi
+  run_leaf transfer ./scripts/nf4-test --file "$FILE" --step transfer
+  [[ -f temp/sepolia-step12/confirmed ]] || die "Transfers are not Confirmed. Do not run stop-client1."
+  mark transfer "transfer OK"
+}
+
+stage_stop_client1() {
+  [[ -f temp/sepolia-step12/confirmed ]] || die "Transfers are not Confirmed. Do not run stop-client1."
+  run_leaf stop-client1 ./scripts/nf4-test --file "$FILE" --step stop-client1
+  mark stop-client1 "stop-client1 OK"
+}
+
+stage_restart_client1() {
+  run_leaf restart-client1 ./scripts/nf4-test --file "$FILE" --step restart-client1
+  mark restart-client1 "restart-client1 OK"
+}
+
+stage_withdraw() {
+  if [[ "$ROLE" == operator ]]; then
+    require_not_torn temp/sepolia-step18-c1 ERC20 ERC721 ERC1155 ERC3525
+  else
+    require_not_torn temp/sepolia-step18-c2 ERC20 ERC721 ERC1155 ERC3525
+  fi
+  run_leaf withdraw ./scripts/nf4-test --file "$FILE" --step withdraw
+  run_leaf l1-balances ./scripts/nf4-test --file "$FILE" --step l1-balances
+  mark withdraw "withdraw OK"
+}
+
+stage_restart_proposer() {
+  run_leaf restart-proposer ./scripts/nf4-test --file "$FILE" --step restart-proposer
+  mark restart-proposer "restart-proposer OK"
+}
+
+stage_deposit_again() {
+  require_not_torn temp/sepolia-step20 ERC20
+  if [[ -f temp/sepolia-step20/ERC20.request-id ]]; then
+    mark deposit-again "deposit-again already queued"
+    return 0
+  fi
+  run_leaf deposit-again ./scripts/nf4-test --file "$FILE" --step deposit-again
+  mark deposit-again "deposit-again OK"
+}
+
+stage_late_join() {
+  ready_here || die "Client 2 stays down until the operator deposit poll prints READY. Copy temp/sepolia-step10/record.txt here after that line exists. This script does not fetch it."
+  local join
+  join="$(env_get NF4_JOIN_URL || true)"
+  join_ok "$join" || die "Refusing NF4_JOIN_URL. Paste the operator host from --check. Not 127.0.0.1, not the 10.1.2.3 example."
+  docker info >/dev/null 2>&1 || die "Docker must be running before late-join."
+  if ! grep -q 'Certified user-4' "$STATE_DIR/late-join.log" 2>/dev/null; then
+    run_leaf late-join ./scripts/nf4-deploy --file "$FILE" --late-join
+  fi
+  grep -q 'Certified user-4' "$STATE_DIR/late-join.log" || die "late-join did not certify user-4."
+  [[ -f temp/zkp.public ]] || die "temp/zkp.public is missing. Not a key. Copy that file to the operator before transfers."
+  mark late-join "late-join OK"
+  note "Copy temp/zkp.public to the operator. Do not copy the client key."
+}
+
+stage_late_deposit() {
+  require_not_torn temp/sepolia-step11 ERC721 ERC1155 ERC3525
+  if [[ -d temp/sepolia-step11 && -f temp/sepolia-step11/ERC721.request-id ]]; then
+    mark late-deposit "late-deposit already queued"
+    return 0
+  fi
+  run_leaf late-deposit ./scripts/nf4-test --file "$FILE" --step late-deposit
+  mark late-deposit "late-deposit OK"
+}
+
+stage_balances() {
+  run_leaf balances ./scripts/nf4-test --file "$FILE" --step balances
+  mark balances "balances OK"
+}
+
+stage_return_721() {
+  require_not_torn temp/sepolia-step17 ERC721
+  if [[ -f temp/sepolia-step17/ERC721.request-id ]]; then
+    mark return-721 "return-721 already queued"
+    return 0
+  fi
+  run_leaf return-721 ./scripts/nf4-test --file "$FILE" --step return-721
+  mark return-721 "return-721 OK"
+}
+
+stage_soak() {
+  if [[ ! -f "$STATE_DIR/soak-started-at.txt" ]]; then
+    now_epoch > "$STATE_DIR/soak-started-at.txt"
+    run_leaf soak ./scripts/nf4-test --file "$FILE" --step soak-check
+  fi
+  local start now elapsed
+  start="$(cat "$STATE_DIR/soak-started-at.txt")"
+  now="$(now_epoch)"
+  elapsed=$((now - start))
+  if [[ "$elapsed" -ge 172800 ]]; then
+    now_epoch > "$STATE_DIR/soak-end-at.txt"
+    mark soak "soak end snapshot recorded"
+    return 0
+  fi
+  if [[ "$WAIT_SOAK" == 1 && "${NF4_E2E_POLL_INTERVAL:-30}" != 0 ]]; then
+    while [[ "$elapsed" -lt 172800 ]]; do
+      sleep "${NF4_E2E_POLL_INTERVAL:-30}"
+      now="$(now_epoch)"
+      elapsed=$((now - start))
+    done
+    now_epoch > "$STATE_DIR/soak-end-at.txt"
+    mark soak "soak end snapshot recorded"
+    return 0
+  fi
+  mark soak "soak incomplete. ${elapsed}s since start. A short run is not a 48 hour pass."
+}
+
+stage_soak_deposit() {
+  if [[ ! -f "$STATE_DIR/soak-end-at.txt" && "$ALLOW_SHORT_SOAK" != 1 ]]; then
+    die "Soak has no end snapshot. Pass --allow-short-soak only for a rehearsal. The report will not call that a pass."
+  fi
+  if [[ "$ALLOW_SHORT_SOAK" == 1 && ! -f "$STATE_DIR/soak-end-at.txt" ]]; then
+    note "soak skipped. This is not a 48 hour pass."
+  fi
+  require_not_torn temp/sepolia-step21 ERC20
+  if [[ -f temp/sepolia-step21/ERC20.request-id ]]; then
+    mark soak-deposit "soak-deposit already queued"
+    return 0
+  fi
+  run_leaf soak-deposit ./scripts/nf4-test --file "$FILE" --step soak-deposit
+  mark soak-deposit "soak-deposit OK"
+}
+
+load_role() {
+  [[ -n "$FILE" && -f "$FILE" ]] || die "Pass --file deploy.env"
+  ROLE="$(env_get NF4_ROLE || true)"
+  [[ "$ROLE" == operator || "$ROLE" == client ]] || die "NF4_ROLE must be operator or client."
+  if [[ -z "$THROUGH" ]]; then
+    if [[ "$ROLE" == operator ]]; then
+      THROUGH="soak"
+    else
+      THROUGH="soak-deposit"
+    fi
+  fi
+  require_stage "$THROUGH"
+}
+
+run_stages() {
+  local -a stages
+  local stage start=0 through at
+  if [[ "$ROLE" == operator ]]; then
+    stages=("${OPERATOR_STAGES[@]}")
+  else
+    stages=("${CLIENT_STAGES[@]}")
+  fi
+  if [[ -f "$STATE_DIR/state" ]]; then
+    at="$(stage_index "$(cat "$STATE_DIR/state")")" || true
+    if [[ -n "${at:-}" ]]; then
+      start=$((at + 1))
+    fi
+  fi
+  through="$(stage_index "$THROUGH")"
+  local i
+  for i in "${!stages[@]}"; do
+    [[ "$i" -ge "$start" ]] || continue
+    [[ "$i" -le "$through" ]] || break
+    stage="${stages[$i]}"
+    "stage_${stage//-/_}"
+  done
+}
+
+http_body() {
+  curl -sS -m 8 -o - -w '\n%{http_code}' "$1" 2>/dev/null || printf '\n000'
+}
+
+first_word() {
+  awk '{print $1; exit}'
+}
+
+show_network() {
+  [[ "$ROLE" == operator ]] || die "Run --network on the operator. This machine is ${ROLE}."
+  local rpc port config_port nightfall l1 chain onchain health_raw sync_raw assembly_raw block_raw
+  local health sync assembly blockdata config_code onchain_num block_num verdict=up
+  rpc="$(env_get NF4_RPC_HTTP || true)"
+  port="$(env_get NF4_PROPOSER_PORT || true)"
+  port="${port:-3001}"
+  config_port="$(env_get NF4_CONFIGURATION_PORT || true)"
+  config_port="${config_port:-8080}"
+  chain="$(env_get NF4_CHAIN_ID || true)"
+  nightfall="$(python3 - <<'PY'
+import pathlib
+p = pathlib.Path("configuration/toml/addresses.toml")
+if not p.is_file():
+    raise SystemExit(0)
+for line in p.read_text().splitlines():
+    if line.startswith("nightfall"):
+        value = line.split("=", 1)[1].strip().strip("'\"")
+        print(value)
+        break
+PY
+)"
+  printf 'chain_id: %s\n' "${chain:-missing}"
+  if [[ -n "$rpc" ]]; then
+    l1="$(cast block-number --rpc-url "$rpc" 2>/dev/null | first_word || true)"
+  fi
+  printf 'l1_block: %s\n' "${l1:-unchecked}"
+  printf 'nightfall: %s\n' "${nightfall:-missing}"
+  if [[ -n "$rpc" && -n "$nightfall" ]]; then
+    onchain="$(cast call "$nightfall" 'layer2_block_number()(int256)' --rpc-url "$rpc" 2>/dev/null | first_word || true)"
+  fi
+  printf 'l2_block: %s\n' "${onchain:-unchecked}"
+  config_code="$(curl -sS -m 8 -o /dev/null -w '%{http_code}' "http://127.0.0.1:${config_port}/configuration/toml/join.toml" 2>/dev/null || echo 000)"
+  printf 'configuration: HTTP %s\n' "$config_code"
+  health_raw="$(http_body "http://127.0.0.1:${port}/v1/health")"
+  health="$(printf '%s\n' "$health_raw" | sed '$d' | tr -d '\r')"
+  printf 'proposer_health: %s\n' "${health:-unreachable}"
+  sync_raw="$(http_body "http://127.0.0.1:${port}/v1/synchronisation")"
+  sync="$(printf '%s\n' "$sync_raw" | sed '$d' | tr -d '\r')"
+  printf 'synchronised: %s\n' "${sync:-unreachable}"
+  assembly_raw="$(http_body "http://127.0.0.1:${port}/v1/status")"
+  assembly="$(printf '%s\n' "$assembly_raw" | sed '$d' | tr -d '\r"')"
+  printf 'assembly: %s\n' "${assembly:-unreachable}"
+  block_raw="$(http_body "http://127.0.0.1:${port}/v1/blockdata")"
+  blockdata="$(printf '%s\n' "$block_raw" | sed '$d' | tr -d '\r')"
+  printf 'proposer_block: %s\n' "${blockdata:-unreachable}"
+  [[ "$config_code" == 200 ]] || verdict=down
+  [[ "$health" == Healthy ]] || verdict=down
+  [[ "$sync" == Synchronised ]] || verdict=down
+  [[ "$assembly" == Running ]] || verdict=down
+  [[ "$chain" == 11155111 ]] || verdict=down
+  onchain_num="${onchain:-}"
+  block_num="${blockdata:-}"
+  if [[ ! "$onchain_num" =~ ^-?[0-9]+$ || ! "$block_num" =~ ^-?[0-9]+$ || "$onchain_num" != "$block_num" ]]; then
+    verdict=down
+  fi
+  printf 'network: %s\n' "$verdict"
+  [[ "$verdict" == up ]]
+}
+
+show_status() {
+  local have="none" next=""
+  if [[ -f "$STATE_DIR/state" ]]; then
+    have="$(cat "$STATE_DIR/state")"
+    local at
+    at="$(stage_index "$have" || true)"
+    if [[ -n "$at" ]]; then
+      local -a stages
+      if [[ "$ROLE" == operator ]]; then
+        stages=("${OPERATOR_STAGES[@]}")
+      else
+        stages=("${CLIENT_STAGES[@]}")
+      fi
+      next="${stages[$((at + 1))]:-done}"
+    fi
+  else
+    next="${OPERATOR_STAGES[0]}"
+    [[ "$ROLE" == client ]] && next="${CLIENT_STAGES[0]}"
+  fi
+  printf 'role: %s\n' "$ROLE"
+  printf 'state: %s\n' "$have"
+  printf 'next: %s\n' "${next:-done}"
+  printf 'orchestrator: idle\n'
+}
+
+fresh_start() {
+  ./scripts/nf4-deploy --file "$FILE" --fresh-start
+  rm -rf "$STATE_DIR"
+  mkdir -p "$STATE_DIR"
+  note "Fresh start on this machine only. Run --fresh-start on the other machine too. This script does not log in there."
+  printf '%s\n' preflight > "$STATE_DIR/state"
+}
+
+[[ -n "$FILE" ]] || { echo "Pass --file deploy.env" >&2; usage >&2; exit 2; }
+load_role
+mkdir -p "$STATE_DIR"
+
+if [[ "$MODE" == status ]]; then
+  show_status
+  exit 0
+fi
+if [[ "$MODE" == network ]]; then
+  show_network
+  exit $?
+fi
+if [[ "$MODE" == fresh ]]; then
+  fresh_start
+  exit 0
+fi
+run_stages

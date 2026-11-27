@@ -72,18 +72,62 @@ services:
       start_period: 0s
     networks:
       - nightfall_network
+    # Laptop lab only. Transfers read the on-chain proposer URL, which is the
+    # operator LAN address. Docker Desktop cannot route there. This alias plus
+    # a host forward of port 3001 reaches the bastion tunnel. It does not
+    # change the URL written on chain.
+    extra_hosts:
+      - "10.0.0.6:192.168.65.254"
     depends_on:
       db_client:
         condition: service_healthy
     tty: true # required for logs to print in colour
     environment:
-      - NF4_RUN_MODE=${NF4_RUN_MODE:-base_sepolia}
+      - NF4_RUN_MODE=${NF4_RUN_MODE:-sepolia}
       - RUST_BACKTRACE=${RUST_BACKTRACE:-0}
       - NF4_SIGNING_KEY=${CLIENT_SIGNING_KEY}
       - NF4_NIGHTFALL_CLIENT__DB_URL=mongodb://nf4_db_client:27017
       - NF4_ETHEREUM_CLIENT_URL
       - NF4_MOCK_PROVER=${NF4_MOCK_PROVER:-false}
-      - NF4_NIGHTFALL_PROPOSER__URL=${NF4_NIGHTFALL_PROPOSER__URL:-localhost:3001}
+      - NF4_NIGHTFALL_PROPOSER__URL=${NF4_NIGHTFALL_PROPOSER__URL}
+
+      - NF4_CONFIGURATION_URL=${NF4_CONFIGURATION_URL}
+      - NF4_NIGHTFALL_CLIENT__WEBHOOK_URL=${NF4_NIGHTFALL_CLIENT__WEBHOOK_URL}
+
+  indie-client2:
+    container_name: nf4_indie_client2
+    stop_grace_period: 3s
+    profiles:
+      - indie-client2
+    build:
+      dockerfile: nightfall_client/Dockerfile
+      context: .
+    stdin_open: true # keep stdin open, so we can print things in docker compose up
+    platform: linux/amd64 # Required for building on M1 Macs
+    ports:
+      - "3002:3000"
+    healthcheck:
+      test: ["CMD", "wget" ,"--no-verbose", "--tries=1", "--spider", "http://localhost:3000/v1/health"]
+      interval: 5s
+      timeout: 90s
+      retries: 10
+      start_period: 0s
+    networks:
+      - nightfall_network
+    depends_on:
+      db_client2:
+        condition: service_healthy
+    tty: true # required for logs to print in colour
+    environment:
+      - NF4_RUN_MODE=${NF4_RUN_MODE:-local}
+      - RUST_BACKTRACE=${RUST_BACKTRACE:-0}
+      - NF4_SIGNING_KEY=${CLIENT2_SIGNING_KEY}
+      - NF4_NIGHTFALL_CLIENT__DB_URL=mongodb://nf4_db_client2:27017
+      - NF4_ETHEREUM_CLIENT_URL
+      - NF4_MOCK_PROVER=${NF4_MOCK_PROVER:-false}
+      - NF4_NIGHTFALL_PROPOSER__URL=${NF4_NIGHTFALL_PROPOSER__URL}
+      - NF4_CONFIGURATION_URL=${NF4_CONFIGURATION_URL}
+      - NF4_NIGHTFALL_CLIENT__WEBHOOK_URL=${NF4_NIGHTFALL_CLIENT__WEBHOOK_URL}
 
   client2:
     container_name: nf4_client2
@@ -210,13 +254,16 @@ services:
       start_period: 0s
     networks:
       - nightfall_network
+    volumes:
+      - ./configuration/bin/keys:/app/configuration/bin/keys
+      - ./configuration/toml:/app/configuration/toml
     depends_on:
       db_proposer:
         condition: service_healthy
     stdin_open: true # keep stdin open, so we can print things in docker compose up
     tty: true # required for logs to print in colour
     environment:
-      - NF4_RUN_MODE=${NF4_RUN_MODE:-base_sepolia}
+      - NF4_RUN_MODE=${NF4_RUN_MODE:-local}
       - RUST_BACKTRACE=${RUST_BACKTRACE:-0}
       - NF4_SIGNING_KEY=${PROPOSER_SIGNING_KEY}
       - NF4_MOCK_PROVER=${NF4_MOCK_PROVER:-false}
@@ -224,6 +271,7 @@ services:
       - NF4_CONTRACTS__DEPLOY_CONTRACTS=${NF4_CONTRACTS__DEPLOY_CONTRACTS:-false}
 
 
+      - NF4_CONFIGURATION_URL=${NF4_CONFIGURATION_URL}
   proposer2:
     container_name: nf4_proposer2
     stop_grace_period: 3s
@@ -282,7 +330,7 @@ services:
       - development
       - sync_test
       - no_test
-    image: mongo:8.0
+    image: mongo:8.2
     healthcheck:
       test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017 --quiet || exit 1
       interval: 10s
@@ -304,10 +352,11 @@ services:
     stop_grace_period: 3s
     profiles:
       - client
+      - indie-client2
       - sync_test
       - development
       - no_test
-    image: mongo:8.0
+    image: mongo:8.2
     healthcheck:
       test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017 --quiet || exit 1
       interval: 10s
@@ -333,7 +382,7 @@ services:
       - development
       - sync_test
       - no_test
-    image: mongo:8.0
+    image: mongo:8.2
     restart: unless-stopped
     ports:
       - "27018:27017"    
@@ -356,7 +405,7 @@ services:
     stop_grace_period: 3s
     profiles:
       - sync_test
-    image: mongo:8.0
+    image: mongo:8.2
     ports:
       - "27019:27017"    
     healthcheck:
@@ -436,7 +485,7 @@ services:
     stdin_open: true # keep stdin open, so we can print things in docker compose up
     tty: true # required for logs to print in colour
     environment:
-      - NF4_RUN_MODE=${NF4_RUN_MODE:-base_sepolia}
+      - NF4_RUN_MODE=${NF4_RUN_MODE:-local}
       - NF4_CONTRACTS__DEPLOY_CONTRACTS=${NF4_CONTRACTS__DEPLOY_CONTRACTS:-true}
       - RUST_BACKTRACE=${RUST_BACKTRACE:-0}
       - NF4_SIGNING_KEY=${DEPLOYER_SIGNING_KEY}
@@ -455,22 +504,22 @@ services:
     build:
       dockerfile: configuration/Dockerfile
       context: .
-    # restart: unless-stopped
-    # ports:
-    #   - "8080:80"     replace with a port that is exposed for configuration service if required
     platform: linux/amd64 # Required for building on M1 Macs
     volumes:
       - ./configuration/toml:/var/www/html/configuration/toml
-      - ./configuration/bin/keys:/var/www/html/configuration/bin/keys:ro
+      - ./configuration/bin/keys:/var/www/html/configuration/bin/keys
     networks:
       - nightfall_network
     stdin_open: true # keep stdin open, so we can print things in docker compose up
     tty: true # required for logs to print in colour
     environment:
-      - NF4_RUN_MODE=${NF4_RUN_MODE:-development}
+      - NF4_RUN_MODE=${NF4_RUN_MODE:-local}
       - RUST_BACKTRACE=${RUST_BACKTRACE:-0}
       - NGINX_ENTRYPOINT_QUIET_LOGS=1
 
+    restart: unless-stopped
+    ports:
+      - "8080:80"
   anvil:
     container_name: anvil
     stop_grace_period: 3s
@@ -519,7 +568,7 @@ services:
     # Give the test container a static IP address so it can be contacted by the clients' webhooks. It doesn't get added to the dns with 'docker compose run test'
     networks:
       nightfall_network:
-        ipv4_address: 172.18.0.250
+        ipv4_address: 172.28.0.250
     stdin_open: true # keep stdin open, so we can print things in docker compose up
     tty: true # required for logs to print in colour
     environment:
@@ -583,9 +632,7 @@ volumes:
   toml_data:
 
 networks:
-   nightfall_network:
-    ipam:
-      driver: default
-      config:
-        - subnet: "172.18.0.0/24"
+  nightfall_network:
+    name: nightfall_4_ce_nightfall_network
+    external: true
           

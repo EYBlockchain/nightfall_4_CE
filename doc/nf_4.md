@@ -717,8 +717,9 @@ Security note:
 POST /v1/withdraw
 
 ```sh
-curl -i --request POST 'http://localhost:3000/v1/withdraw' \
-    --json '{"ercAddress": "98eddadcfde04dc22a0e62119617e74a6bc77313", "tokenId": "0x01", "tokenType": "1", "value": "0x00", "recipientAddress": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266", "fee": "0x09"}'
+curl -i -X POST 'http://localhost:3000/v1/withdraw' \
+  -H 'Content-Type: application/json' \
+  -d '{"ercAddress":"0x99Ed986BB66CC72365b712b0277b1C019146CE6d","tokenId":"0x00","tokenType":"0","value":"0x02","recipientAddress":"0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266","fee":"0x00"}'
 ```
 
 Returns: `202 Accepted` on success, `503 Service Unavailable` if the transaction queue is full (set at 1000)

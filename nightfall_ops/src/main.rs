@@ -1,0 +1,59 @@
+mod checks;
+mod cli;
+mod client;
+mod compose;
+mod config;
+mod deploy;
+mod model;
+mod network;
+mod proposer;
+mod status;
+mod validation;
+mod webhook;
+mod wizard;
+
+use cli::Command;
+use std::io::Write;
+
+fn main() {
+    if let Err(err) = run(std::env::args().skip(1)) {
+        let _ = std::io::stdout().flush();
+        eprintln!("{err}");
+        std::process::exit(1);
+    }
+}
+
+fn run(args: impl IntoIterator<Item = String>) -> Result<(), String> {
+    match cli::parse(args)? {
+        Command::Help => {
+            println!("{}", cli::usage());
+            Ok(())
+        }
+        Command::DeployFile {
+            path,
+            check_only,
+            late_join,
+        } => deploy::run(&path, check_only, late_join),
+        Command::WizardDeploy { network, yes } => wizard::deploy(network, yes),
+        Command::WizardProposer { yes } => proposer::wizard(yes),
+        Command::WizardClient { yes } => client::wizard(yes),
+        Command::CheckDeployer => checks::deployer(),
+        Command::CheckProver => checks::prover(),
+        Command::UpConfiguration => compose::up_configuration(),
+        Command::UpProposer => compose::up_proposer(),
+        Command::UpClient => compose::up_client(),
+        Command::UpClient2 => compose::up_client2(),
+        Command::Status => status::print(),
+        Command::LogsConfiguration => compose::logs_configuration(),
+        Command::LogsProposer => compose::logs_proposer(),
+        Command::LogsClient => compose::logs_client(),
+        Command::LogsClient2 => compose::logs_client2(),
+        Command::ClientDeployMockTokens => client::deploy_mock_tokens(),
+        Command::WebhookStart { port } => webhook::start_command(port),
+        Command::WebhookServe { port } => webhook::serve(port),
+        Command::WebhookStatus => webhook::status(),
+        Command::WebhookLogs => webhook::logs(),
+        Command::WebhookEvents => webhook::events(),
+        Command::WebhookSalts => webhook::salts(),
+    }
+}

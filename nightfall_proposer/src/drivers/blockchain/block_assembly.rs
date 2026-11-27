@@ -566,6 +566,18 @@ where
             // if we're at block 0, we're automatically synchronised because no blocks have been made yet
             sync_status.set_synchronised();
         }
+        if !sync_status.is_synchronised() && current_block_number > I256::ZERO {
+            let expected = *crate::driven::nightfall_event::get_expected_layer2_blocknumber()
+                .await
+                .read()
+                .await;
+            if current_block_number == expected {
+                info!(
+                    "On-chain layer 2 block number {current_block_number} matches the local expectation. Marking synchronised."
+                );
+                sync_status.set_synchronised();
+            }
+        }
         if !sync_status.is_synchronised() {
             warn!("We are not synchronised. We won't make blocks until we are");
             continue;

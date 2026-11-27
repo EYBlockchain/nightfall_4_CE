@@ -23,6 +23,11 @@ x509-parser = "0.16.0"
 openssl = "0.10.72"
 k256 = { version = "0.13", features = ["ecdsa", "sha256"] }
 alloy = { version = "1.0.23", features = ["full", "json-rpc"] }
+# Alloy's websocket client enables only webpki roots. Feature-unify native
+# roots so the same tokio-tungstenite trusts the system CA store. The client
+# image installs the Zscaler root there; without this, laptop wss:// fails
+# with UnknownIssuer and certification returns an empty reply.
+tokio-tungstenite = { version = "0.26", features = ["rustls-tls-native-roots"] }
 tokio = { version = "1.45.0", features = ["full"] }
 configuration = { path = "../configuration" }
 nightfall_bindings = {path = "../nightfall_bindings"}

@@ -76,7 +76,13 @@ where
                 Ok(status) => status.phase(),
                 Err(e) => {
                     error!("Failed to get synchronisation status: {e:?}");
-                    return;
+                    // A public RPC can fail this read. Leaving the worker dead
+                    // drops every later deposit. Put this one back and retry.
+                    let mut queue = get_queue().await.write().await;
+                    queue.push_front(request);
+                    drop(queue);
+                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                    continue;
                 }
             };
             if sync_state == Desynchronized {

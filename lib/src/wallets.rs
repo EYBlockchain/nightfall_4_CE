@@ -15,7 +15,7 @@ use base64::prelude::*;
 use configuration::settings::WalletTypeConfig;
 use k256::ecdsa::{RecoveryId, Signature as K256Signature, VerifyingKey};
 use k256::EncodedPoint;
-use log::{debug, info};
+use log::{debug, info, warn};
 use std::sync::Arc;
 use url::Url;
 
@@ -269,6 +269,30 @@ impl NetworkWallet<Ethereum> for AzureWallet {
     }
 }
 
+async fn retry_ws_connect<T, E, F, Fut>(
+    mut connect: F,
+) -> Result<T, BlockchainClientConnectionError>
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = Result<T, E>>,
+    E: std::fmt::Display,
+{
+    let mut last = String::new();
+    for attempt in 1..=3 {
+        match connect().await {
+            Ok(provider) => return Ok(provider),
+            Err(err) => {
+                last = err.to_string();
+                warn!("WebSocket connect failed (attempt {attempt}): {last}");
+                if attempt < 3 {
+                    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                }
+            }
+        }
+    }
+    Err(BlockchainClientConnectionError::ProviderError(last))
+}
+
 #[derive(Clone)]
 pub struct LocalWsClient {
     provider: Arc<dyn Provider>,
@@ -345,12 +369,14 @@ impl BlockchainClientConnection for LocalWsClient {
                     .parse::<PrivateKeySigner>()
                     .map_err(BlockchainClientConnectionError::WalletError)?;
                 let local_signer = Box::new(local_signer);
-                let ws = WsConnect::new(settings.ethereum_client_url.clone());
-                let provider = ProviderBuilder::new()
-                    .wallet((*local_signer).clone())
-                    .connect_ws(ws)
-                    .await
-                    .map_err(|e| BlockchainClientConnectionError::ProviderError(e.to_string()))?;
+                let url = settings.ethereum_client_url.clone();
+                let signer = (*local_signer).clone();
+                let provider = retry_ws_connect(|| {
+                    ProviderBuilder::new()
+                        .wallet(signer.clone())
+                        .connect_ws(WsConnect::new(url.clone()))
+                })
+                .await?;
 
                 Ok(Self {
                     provider: Arc::new(provider),
@@ -362,12 +388,14 @@ impl BlockchainClientConnection for LocalWsClient {
                 let azure_wallet =
                     AzureWallet::new(&settings.azure_vault_url, &settings.azure_key_name).await?;
 
-                let ws = WsConnect::new(settings.ethereum_client_url.clone());
-                let provider = ProviderBuilder::new()
-                    .wallet(azure_wallet.clone())
-                    .connect_ws(ws)
-                    .await
-                    .map_err(|e| BlockchainClientConnectionError::ProviderError(e.to_string()))?;
+                let url = settings.ethereum_client_url.clone();
+                let signer = azure_wallet.clone();
+                let provider = retry_ws_connect(|| {
+                    ProviderBuilder::new()
+                        .wallet(signer.clone())
+                        .connect_ws(WsConnect::new(url.clone()))
+                })
+                .await?;
 
                 Ok(Self {
                     provider: Arc::new(provider),

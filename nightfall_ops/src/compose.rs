@@ -1,0 +1,381 @@
+use std::process::Command;
+
+use crate::config;
+
+pub fn up_configuration() -> Result<(), String> {
+    start_configuration(false)
+}
+
+pub fn recreate_configuration() -> Result<(), String> {
+    start_configuration(true)
+}
+
+fn start_configuration(force_recreate: bool) -> Result<(), String> {
+    config::refresh_local_lan_urls()?;
+    let mut command = vec!["up", "-d"];
+    if force_recreate {
+        command.extend(["--force-recreate", "--no-deps"]);
+    }
+    let args = compose_args("configuration", config::local_env_exists(), &command);
+    let title = if force_recreate {
+        "Recreating configuration service so it mounts a writable toml directory"
+    } else {
+        "Starting configuration service"
+    };
+    run_docker_compose(title, &args)
+}
+
+pub fn logs_configuration() -> Result<(), String> {
+    let args = compose_args(
+        "configuration",
+        config::local_env_exists(),
+        &["logs", "configuration"],
+    );
+    run_docker_compose("Showing configuration service logs", &args)
+}
+
+pub fn up_proposer() -> Result<(), String> {
+    config::refresh_local_lan_urls()?;
+    // A healthy container is not the current image. Without --force-recreate,
+    // compose can keep the old proposer and certification still estimates as
+    // the zero address.
+    let args = compose_args("indie-proposer", true, app_up_args());
+    run_docker_compose("Starting indie proposer service", &args)
+}
+
+pub fn logs_proposer() -> Result<(), String> {
+    let args = compose_args(
+        "indie-proposer",
+        config::local_env_exists(),
+        &["logs", "-f", "indie-proposer"],
+    );
+    run_docker_compose("Showing proposer service logs", &args)
+}
+
+pub fn up_client() -> Result<(), String> {
+    config::refresh_local_lan_urls()?;
+    let args = compose_args("indie-client", true, app_up_args());
+    run_docker_compose("Starting indie client service", &args)
+}
+
+pub fn logs_client() -> Result<(), String> {
+    let args = compose_args(
+        "indie-client",
+        config::local_env_exists(),
+        &["logs", "-f", "indie-client"],
+    );
+    run_docker_compose("Showing client service logs", &args)
+}
+
+const ANVIL_ACCOUNT1_KEY: &str =
+    "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d";
+const ANVIL_ACCOUNT1_ADDRESS: &str = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
+
+pub fn build_indie_client2() -> Result<(), String> {
+    let args = compose_args("indie-client2", true, &["build"]);
+    run_docker_compose("Building indie client 2 image", &args)
+}
+
+pub fn up_client2() -> Result<(), String> {
+    if !config::local_env_exists() {
+        return Err("local.env was not found. Run nf4 wizard client first.".to_string());
+    }
+    config::refresh_local_lan_urls()?;
+    ensure_client2_signing_key()?;
+    // Client 2 is a separate image; without a rebuild it keeps a stale proving_key
+    // from an earlier keygen and the proposer rejects transfers (zk proof is wrong).
+    build_indie_client2()?;
+    let args = compose_args(
+        "indie-client2",
+        true,
+        &["up", "-d", "--force-recreate", "--no-deps"],
+    );
+    run_docker_compose("Starting indie client 2 service", &args)
+}
+
+pub fn logs_client2() -> Result<(), String> {
+    let args = compose_args(
+        "indie-client2",
+        config::local_env_exists(),
+        &["logs", "-f", "indie-client2"],
+    );
+    run_docker_compose("Showing client 2 service logs", &args)
+}
+
+fn ensure_client2_signing_key() -> Result<(), String> {
+    let env = config::read_local_env();
+    let has_key = env
+        .get("CLIENT2_SIGNING_KEY")
+        .map(|value| !value.trim().is_empty())
+        .unwrap_or(false);
+    if has_key {
+        return Ok(());
+    }
+    if env.get("NF4_NETWORK").map(String::as_str) != Some("local") {
+        return Err(
+            "CLIENT2_SIGNING_KEY is missing in local.env. Set it before starting client 2."
+                .to_string(),
+        );
+    }
+
+    println!("CLIENT2_SIGNING_KEY was empty; using Anvil account 1 for local client 2");
+    config::merge_local_env(&[
+        ("CLIENT2_SIGNING_KEY", ANVIL_ACCOUNT1_KEY.to_string()),
+        ("CLIENT2_ADDRESS", ANVIL_ACCOUNT1_ADDRESS.to_string()),
+    ])
+}
+
+pub fn build_indie_deployer() -> Result<(), String> {
+    let args = compose_args("indie-deployer", false, &["build"]);
+    run_docker_compose("Building indie deployer image", &args)
+}
+
+pub fn build_indie_proposer() -> Result<(), String> {
+    let args = compose_args("indie-proposer", true, &["build"]);
+    run_docker_compose("Building indie proposer image", &args)
+}
+
+pub fn build_indie_client() -> Result<(), String> {
+    let args = compose_args("indie-client", true, &["build"]);
+    run_docker_compose("Building indie client image", &args)
+}
+
+pub fn up_indie_deployer() -> Result<(), String> {
+    config::refresh_local_lan_urls()?;
+    // Always called immediately after build_indie_deployer. --no-recreate would
+    // start the existing container and ignore the image just built, so a gas-limit
+    // fix in the binary never reaches Sepolia.
+    let args = compose_args("indie-deployer", true, &["up", "--force-recreate"]);
+    run_docker_compose("Running indie deployer", &args)?;
+    verify_deployer_container_success()
+}
+
+pub fn verify_deployer_container_success() -> Result<(), String> {
+    let container = "nf4_indie_deployer";
+    let output = Command::new("docker")
+        .args([
+            "inspect",
+            "-f",
+            "{{.State.Status}} {{.State.ExitCode}}",
+            container,
+        ])
+        .output()
+        .map_err(|err| format!("Failed to inspect {container}: {err}"))?;
+
+    if !output.status.success() {
+        return Err(format!("Could not inspect {container} container status"));
+    }
+
+    let text = String::from_utf8_lossy(&output.stdout);
+    let parts: Vec<&str> = text.split_whitespace().collect();
+    if parts.len() < 2 {
+        return Err(format!("Unexpected inspect output for {container}: {text}"));
+    }
+
+    let status = parts[0];
+    let exit_code = parts[1];
+
+    if exit_code != "0" {
+        return Err(format!(
+            "{container} failed with exit code {exit_code} (status: {status}). \
+             Check logs with `docker logs {container}`."
+        ));
+    }
+
+    Ok(())
+}
+
+pub fn build_configuration() -> Result<(), String> {
+    let args = compose_args("configuration", false, &["build"]);
+    run_docker_compose("Building configuration service image", &args)
+}
+
+pub fn ensure_nightfall_network() -> Result<(), String> {
+    let network_name = "nightfall_4_ce_nightfall_network";
+    let check = Command::new("docker")
+        .args(["network", "inspect", network_name])
+        .output()
+        .map_err(|err| format!("Failed to inspect docker network {network_name}: {err}"))?;
+
+    if check.status.success() {
+        return Ok(());
+    }
+
+    println!("Creating external docker network {network_name}...");
+    let create = Command::new("docker")
+        .args([
+            "network",
+            "create",
+            "--driver",
+            "bridge",
+            "--subnet=172.28.0.0/24",
+            network_name,
+        ])
+        .status()
+        .map_err(|err| format!("Failed to create docker network {network_name}: {err}"))?;
+
+    if create.success() {
+        Ok(())
+    } else {
+        Err(format!("Failed to create docker network {network_name}"))
+    }
+}
+
+fn run_docker_compose(title: &str, args: &[String]) -> Result<(), String> {
+    // Create the bind-mount source as this user. If it is missing, Docker
+    // creates it as root and the host forge can no longer write broadcast logs.
+    let broadcast_logs = std::path::Path::new("blockchain_assets/logs");
+    if let Err(err) = std::fs::create_dir_all(broadcast_logs) {
+        println!(
+            "Could not create {}: {err}. Docker may create it as root.",
+            broadcast_logs.display()
+        );
+    }
+    ensure_nightfall_network()?;
+    println!("{title}...");
+    println!("  docker {}", args.join(" "));
+
+    let status = Command::new("docker")
+        .args(args)
+        .status()
+        .map_err(|err| format!("Failed to run docker compose: {err}"))?;
+
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("docker compose exited with {status}"))
+    }
+}
+
+fn compose_args(profile: &str, include_env_file: bool, command_args: &[&str]) -> Vec<String> {
+    let mut args = vec![
+        "compose".to_string(),
+        "--profile".to_string(),
+        profile.to_string(),
+    ];
+
+    if include_env_file {
+        args.extend(["--env-file".to_string(), config::LOCAL_ENV.to_string()]);
+    }
+
+    args.extend(command_args.iter().map(|arg| arg.to_string()));
+    args
+}
+
+fn app_up_args() -> &'static [&'static str] {
+    &["up", "-d", "--force-recreate", "--no-deps"]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{app_up_args, compose_args};
+
+    #[test]
+    fn builds_configuration_compose_args_without_env_file() {
+        assert_eq!(
+            compose_args("configuration", false, &["up", "-d"]),
+            vec!["compose", "--profile", "configuration", "up", "-d"]
+        );
+    }
+
+    #[test]
+    fn builds_configuration_compose_args_with_env_file() {
+        assert_eq!(
+            compose_args("configuration", true, &["logs", "configuration"]),
+            vec![
+                "compose",
+                "--profile",
+                "configuration",
+                "--env-file",
+                "local.env",
+                "logs",
+                "configuration"
+            ]
+        );
+    }
+
+    #[test]
+    fn builds_proposer_compose_args_with_env_file() {
+        assert_eq!(
+            compose_args("indie-proposer", true, &["up", "-d"]),
+            vec![
+                "compose",
+                "--profile",
+                "indie-proposer",
+                "--env-file",
+                "local.env",
+                "up",
+                "-d"
+            ]
+        );
+    }
+
+    #[test]
+    fn builds_client_compose_args_with_env_file() {
+        assert_eq!(
+            compose_args("indie-client", true, &["up", "-d"]),
+            vec![
+                "compose",
+                "--profile",
+                "indie-client",
+                "--env-file",
+                "local.env",
+                "up",
+                "-d"
+            ]
+        );
+    }
+
+    #[test]
+    fn builds_client2_compose_args_with_env_file() {
+        assert_eq!(
+            compose_args("indie-client2", true, &["up", "-d"]),
+            vec![
+                "compose",
+                "--profile",
+                "indie-client2",
+                "--env-file",
+                "local.env",
+                "up",
+                "-d"
+            ]
+        );
+    }
+
+    #[test]
+    fn app_services_are_recreated_from_the_image_just_built() {
+        let args = app_up_args();
+        assert!(args.contains(&"--force-recreate"));
+        assert!(args.contains(&"--no-deps"));
+        assert_eq!(
+            compose_args("indie-proposer", true, args),
+            vec![
+                "compose",
+                "--profile",
+                "indie-proposer",
+                "--env-file",
+                "local.env",
+                "up",
+                "-d",
+                "--force-recreate",
+                "--no-deps"
+            ]
+        );
+    }
+
+    #[test]
+    fn builds_indie_deployer_compose_args_with_force_recreate() {
+        assert_eq!(
+            compose_args("indie-deployer", true, &["up", "--force-recreate"]),
+            vec![
+                "compose",
+                "--profile",
+                "indie-deployer",
+                "--env-file",
+                "local.env",
+                "up",
+                "--force-recreate"
+            ]
+        );
+    }
+}
