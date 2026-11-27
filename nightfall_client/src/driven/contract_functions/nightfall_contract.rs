@@ -80,7 +80,7 @@ impl NightfallContract for Nightfall::NightfallCalls {
             fee + fee + deposit_fee
         };
         let caller = signer.address();
-        let nonce = retry_transient("escrow_funds nonce", || client.get_transaction_count(caller))
+        let nonce = retry_transient("escrow_funds nonce", || client.get_transaction_count(caller).pending())
             .await
             .map_err(|e| {
                 NightfallContractError::EscrowError(format!("Transaction unsuccesful: {e}"))
@@ -191,7 +191,7 @@ impl NightfallContract for Nightfall::NightfallCalls {
 
         let caller = signer.address();
         let nonce = retry_transient("de_escrow_funds nonce", || {
-            client.get_transaction_count(caller)
+            client.get_transaction_count(caller).pending()
         })
         .await
         .map_err(|e| {

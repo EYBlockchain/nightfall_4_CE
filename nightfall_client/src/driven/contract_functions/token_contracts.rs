@@ -51,7 +51,7 @@ impl TokenContract for IERC20::IERC20Calls {
             .get_signer();
 
         let nonce = retry_transient("ERC20::set_approval nonce", || {
-            client.get_transaction_count(caller)
+            client.get_transaction_count(caller).pending()
         })
         .await
         .map_err(|e| {
@@ -137,7 +137,7 @@ impl TokenContract for IERC721::IERC721Calls {
             .get_signer();
 
         let nonce = retry_transient("ERC721::set_approval nonce", || {
-            client.get_transaction_count(caller)
+            client.get_transaction_count(caller).pending()
         })
         .await
         .map_err(|e| {
@@ -222,7 +222,7 @@ impl TokenContract for IERC1155::IERC1155Calls {
         let erc1155 = IERC1155::new(solidity_erc_address.0, client.clone());
 
         let nonce = retry_transient("ERC1155::set_approval nonce", || {
-            client.get_transaction_count(caller)
+            client.get_transaction_count(caller).pending()
         })
         .await
         .map_err(|e| {
@@ -307,7 +307,7 @@ impl TokenContract for IERC3525::IERC3525Calls {
         // which bindings expose as `approve_0`.
 
         let nonce = retry_transient("ERC3525::set_approval nonce", || {
-            client.get_transaction_count(caller)
+            client.get_transaction_count(caller).pending()
         })
         .await
         .map_err(|e| {

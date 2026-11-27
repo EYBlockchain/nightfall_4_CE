@@ -293,7 +293,7 @@ signing_key = "Key not set"
 log_app_only = true
 test_x509_certificates = true
 mock_prover = false
-genesis_block = 12110064
+genesis_block = 12124221
 ethereum_client_url = "wss://ethereum-sepolia-rpc.publicnode.com"
 configuration_url = "http://10.0.0.6:8080"
 

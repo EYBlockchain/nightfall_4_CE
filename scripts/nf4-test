@@ -254,6 +254,68 @@ print(row ? row.status : 'absent');
 "
 }
 
+# Client 1 and the proposer use the same L1 key. A confirmed nonce is not
+# enough: a proposer transaction already in the mempool makes the next
+# client send a cheap replacement, and the node rejects it.
+wallet_nonce() {
+  local who="$1" block="${2:-latest}"
+  cast nonce "$who" --rpc-url "$NF4_RPC_HTTP" --block "$block" 2>/dev/null | tail -1
+}
+
+wait_nonce_settled() {
+  local who="$1" i latest pending
+  for i in $(seq 1 30); do
+    latest="$(wallet_nonce "$who" latest)"
+    pending="$(wallet_nonce "$who" pending)"
+    if [[ "$latest" =~ ^[0-9]+$ && "$latest" == "$pending" ]]; then
+      return 0
+    fi
+    sleep 2
+  done
+  return 1
+}
+
+hold_proposer() {
+  [[ "${NF4_ROLE:-}" == operator ]] || return 0
+  curl -fsS --max-time 10 "http://127.0.0.1:${NF4_PROPOSER_PORT}/v1/pause" >/dev/null \
+    || die "Could not pause the proposer. Not posting deposits onto a shared nonce."
+}
+
+release_proposer() {
+  [[ "${NF4_ROLE:-}" == operator ]] || return 0
+  curl -fsS --max-time 10 "http://127.0.0.1:${NF4_PROPOSER_PORT}/v1/resume" >/dev/null || true
+}
+
+wait_request_submitted() {
+  local id="$1" i status
+  for i in $(seq 1 40); do
+    status="$(request_status "$id" | tr -d '[:space:]')"
+    case "$status" in
+      Submitted|Confirmed) return 0 ;;
+      Failed|absent) return 1 ;;
+    esac
+    sleep 3
+  done
+  return 1
+}
+
+post_one_l1() {
+  local name="$1" url="$2" body="$3" dir="$4" who="$5"
+  local id attempt
+  for attempt in 1 2 3; do
+    wait_nonce_settled "$who" || die "L1 nonce for $who did not settle before $name. Not posting the next token."
+    post_json "$name" "$url" "$body" "$dir" >/dev/null
+    id="$(<"$dir/$name.request-id")"
+    if wait_request_submitted "$id"; then
+      return 0
+    fi
+    note "$name was rejected on L1. Waiting for the nonce, then retrying that token only. Do not set NF4_REDEPLOY."
+    rm -f "$dir/$name.request-id" "$dir/$name.body" "$dir/$name.headers" "$dir/$name.request.json"
+    sleep 5
+  done
+  die "$name failed after 3 attempts. Do not set NF4_REDEPLOY."
+}
+
 archive_dead_deposit() {
   [[ -e "$EVIDENCE" ]] || return 0
   local name id status ids=() mappings state api commitments dest
@@ -347,7 +409,7 @@ deposit_body() {
 
 post_deposit() {
   local name="$1" api="http://127.0.0.1:${NF4_CLIENT_PORT}"
-  post_json "$name" "$api/v1/deposit" "$(deposit_body "$name")" "$EVIDENCE" >/dev/null
+  post_one_l1 "$name" "$api/v1/deposit" "$(deposit_body "$name")" "$EVIDENCE" "$C1"
 }
 
 retry_failed_deposits() {
@@ -370,11 +432,34 @@ print(db.getSiblingDB('nightfall').request_commitment_mappings.countDocuments({r
     fi
   done
   [[ ${#failed[@]} -gt 0 && "$live" == 1 ]] || return 1
+  hold_proposer
+  trap 'release_proposer' EXIT
   for name in "${failed[@]}"; do
     rm -f "$EVIDENCE/$name.request-id" "$EVIDENCE/$name.body" "$EVIDENCE/$name.headers" "$EVIDENCE/$name.request.json"
     post_deposit "$name"
     note "resubmitted failed $name deposit. Left the deposits that already escrowed. Do not set NF4_REDEPLOY."
   done
+  release_proposer
+  trap - EXIT
+  return 0
+}
+
+post_missing_deposits() {
+  local name missing=()
+  [[ -d "$EVIDENCE" ]] || return 1
+  for name in ERC20 ERC721 ERC1155 ERC3525; do
+    [[ -f "$EVIDENCE/$name.request-id" ]] || missing+=("$name")
+  done
+  [[ ${#missing[@]} -gt 0 ]] || return 1
+  derive_on "http://127.0.0.1:${NF4_CLIENT_PORT}" "$C1_MNEMONIC"
+  hold_proposer
+  trap 'release_proposer' EXIT
+  for name in "${missing[@]}"; do
+    note "posting missing $name deposit. Not reposting a token that already has a request id."
+    post_deposit "$name"
+  done
+  release_proposer
+  trap - EXIT
   return 0
 }
 
@@ -386,9 +471,12 @@ step_deposit() {
   done
   if [[ ! -e "$EVIDENCE" ]]; then
     post_all_deposits
-  elif ! retry_failed_deposits; then
-    DEPOSIT_POLL=1 archive_dead_deposit
-    [[ -e "$EVIDENCE" ]] || post_all_deposits
+  else
+    post_missing_deposits || true
+    if ! retry_failed_deposits; then
+      DEPOSIT_POLL=1 archive_dead_deposit
+      [[ -e "$EVIDENCE" ]] || post_all_deposits
+    fi
   fi
   step_poll
 }
@@ -396,11 +484,16 @@ step_deposit() {
 post_all_deposits() {
   mkdir "$EVIDENCE"
   date -u +%Y-%m-%dT%H:%M:%SZ > "$EVIDENCE/started-at.txt"
+  derive_on "http://127.0.0.1:${NF4_CLIENT_PORT}" "$C1_MNEMONIC"
+  hold_proposer
+  trap 'release_proposer' EXIT
   post_deposit ERC20
   post_deposit ERC721
   post_deposit ERC1155
   post_deposit ERC3525
-  note "deposits queued. Polling until READY."
+  release_proposer
+  trap - EXIT
+  note "deposits queued one at a time. Polling until READY."
 }
 
 proposer_sync() {
@@ -534,10 +627,10 @@ step_late_deposit() {
   [[ ! -e "$dir" ]] || die "STOP: $dir exists. Do not deposit again."
   derive_on "$api" "$C2_MNEMONIC"
   mkdir "$dir"
-  post_json ERC721 "$api/v1/deposit" "{\"ercAddress\":\"${TOKEN721}\",\"tokenId\":\"${ID721_C2}\",\"tokenType\":\"2\",\"value\":\"0x00\",\"fee\":\"0x00\",\"deposit_fee\":\"0x00\"}" "$dir" >/dev/null
-  post_json ERC1155 "$api/v1/deposit" "{\"ercAddress\":\"${TOKEN1155}\",\"tokenId\":\"${ID1155}\",\"tokenType\":\"1\",\"value\":\"0x0a\",\"fee\":\"0x00\",\"deposit_fee\":\"0x00\"}" "$dir" >/dev/null
-  post_json ERC3525 "$api/v1/deposit" "{\"ercAddress\":\"${TOKEN3525}\",\"tokenId\":\"${ID3525_C2}\",\"tokenType\":\"3\",\"value\":\"0x64\",\"fee\":\"0x00\",\"deposit_fee\":\"0x00\"}" "$dir" >/dev/null
-  note "Client 2 deposits queued. Copy temp/zkp.public to VM-A before transfers. Do not copy the key."
+  post_one_l1 ERC721 "$api/v1/deposit" "{\"ercAddress\":\"${TOKEN721}\",\"tokenId\":\"${ID721_C2}\",\"tokenType\":\"2\",\"value\":\"0x00\",\"fee\":\"0x00\",\"deposit_fee\":\"0x00\"}" "$dir" "$C2"
+  post_one_l1 ERC1155 "$api/v1/deposit" "{\"ercAddress\":\"${TOKEN1155}\",\"tokenId\":\"${ID1155}\",\"tokenType\":\"1\",\"value\":\"0x0a\",\"fee\":\"0x00\",\"deposit_fee\":\"0x00\"}" "$dir" "$C2"
+  post_one_l1 ERC3525 "$api/v1/deposit" "{\"ercAddress\":\"${TOKEN3525}\",\"tokenId\":\"${ID3525_C2}\",\"tokenType\":\"3\",\"value\":\"0x64\",\"fee\":\"0x00\",\"deposit_fee\":\"0x00\"}" "$dir" "$C2"
+  note "Client 2 deposits queued one at a time. Copy temp/zkp.public to VM-A before transfers. Do not copy the key."
 }
 
 step_accept_zkp() {
@@ -691,11 +784,17 @@ step_withdraw() {
   fi
   [[ ! -e "$dir" ]] || die "STOP: $dir exists. Do not withdraw again."
   mkdir "$dir"
-  post_json ERC20 "$api/v1/withdraw" "{\"ercAddress\":\"${TOKEN20}\",\"tokenId\":\"${ID20}\",\"tokenType\":\"0\",\"value\":\"${value20}\",\"recipientAddress\":\"${recipient}\",\"fee\":\"0x00\"}" "$dir" >/dev/null
-  post_json ERC721 "$api/v1/withdraw" "{\"ercAddress\":\"${TOKEN721}\",\"tokenId\":\"${token721}\",\"tokenType\":\"2\",\"value\":\"0x00\",\"recipientAddress\":\"${recipient}\",\"fee\":\"0x00\"}" "$dir" >/dev/null
-  post_json ERC1155 "$api/v1/withdraw" "{\"ercAddress\":\"${TOKEN1155}\",\"tokenId\":\"${ID1155}\",\"tokenType\":\"1\",\"value\":\"${value1155}\",\"recipientAddress\":\"${recipient}\",\"fee\":\"0x00\"}" "$dir" >/dev/null
-  post_json ERC3525 "$api/v1/withdraw" "{\"ercAddress\":\"${TOKEN3525}\",\"tokenId\":\"${token3525}\",\"tokenType\":\"3\",\"value\":\"${value3525}\",\"recipientAddress\":\"${recipient}\",\"fee\":\"0x00\"}" "$dir" >/dev/null
-  note "withdraws queued on $NF4_ROLE. Wait for L2 and L1 descrow before reading L1 balances."
+  local who="$C2"
+  [[ "$NF4_ROLE" == operator ]] && who="$C1"
+  hold_proposer
+  trap 'release_proposer' EXIT
+  post_one_l1 ERC20 "$api/v1/withdraw" "{\"ercAddress\":\"${TOKEN20}\",\"tokenId\":\"${ID20}\",\"tokenType\":\"0\",\"value\":\"${value20}\",\"recipientAddress\":\"${recipient}\",\"fee\":\"0x00\"}" "$dir" "$who"
+  post_one_l1 ERC721 "$api/v1/withdraw" "{\"ercAddress\":\"${TOKEN721}\",\"tokenId\":\"${token721}\",\"tokenType\":\"2\",\"value\":\"0x00\",\"recipientAddress\":\"${recipient}\",\"fee\":\"0x00\"}" "$dir" "$who"
+  post_one_l1 ERC1155 "$api/v1/withdraw" "{\"ercAddress\":\"${TOKEN1155}\",\"tokenId\":\"${ID1155}\",\"tokenType\":\"1\",\"value\":\"${value1155}\",\"recipientAddress\":\"${recipient}\",\"fee\":\"0x00\"}" "$dir" "$who"
+  post_one_l1 ERC3525 "$api/v1/withdraw" "{\"ercAddress\":\"${TOKEN3525}\",\"tokenId\":\"${token3525}\",\"tokenType\":\"3\",\"value\":\"${value3525}\",\"recipientAddress\":\"${recipient}\",\"fee\":\"0x00\"}" "$dir" "$who"
+  release_proposer
+  trap - EXIT
+  note "withdraws queued one at a time on $NF4_ROLE. Wait for L2 and L1 descrow before reading L1 balances."
   ./scripts/nf4 webhook salts || true
 }
 
@@ -724,7 +823,11 @@ step_deposit_again() {
   [[ ! -e "$dir" ]] || die "STOP: $dir exists. Do not deposit 10 again."
   derive_on "$api" "$C1_MNEMONIC"
   mkdir "$dir"
-  post_json ERC20 "$api/v1/deposit" "{\"ercAddress\":\"${TOKEN20}\",\"tokenId\":\"${ID20}\",\"tokenType\":\"0\",\"value\":\"0x0a\",\"fee\":\"0x00\",\"deposit_fee\":\"0x00\"}" "$dir" >/dev/null
+  hold_proposer
+  trap 'release_proposer' EXIT
+  post_one_l1 ERC20 "$api/v1/deposit" "{\"ercAddress\":\"${TOKEN20}\",\"tokenId\":\"${ID20}\",\"tokenType\":\"0\",\"value\":\"0x0a\",\"fee\":\"0x00\",\"deposit_fee\":\"0x00\"}" "$dir" "$C1"
+  release_proposer
+  trap - EXIT
   note "post-recovery ERC20 deposit of 10 queued"
 }
 

@@ -2,7 +2,7 @@
 
 Stand up Nightfall on Ethereum Sepolia (or another wizard testnet) with `nf4`. The same steps work on one machine or on separate VMs: **Client 1 is one client process, Client 2 is another.** They never share a wallet.
 
-For the ordered Sepolia report (deposits, late join, transfers, recover, soak), use `doc/Sepolia Assistant Quick Start.md` after the nodes below are up. That guide uses the API variables defined here.
+For the automated script, use `doc/Automated Sepolia Run.md`. Do not mix that run with the wizard steps below. For a manual ordered Sepolia report after these nodes are up, use `doc/Sepolia Assistant Quick Start.md`. That guide uses the API variables defined here.
 
 Work from the repository root on `auto/testnet`. Do not put private keys, mnemonics, or RPC secrets in reports.
 
